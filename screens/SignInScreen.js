@@ -5,7 +5,7 @@ const SignIn = () => {
   	return (
     		<View style={styles.signIn}>
       			<View style={styles.signInChild} />
-      			<Image style={[styles.chevronLeftIcon, styles.iconLayout]} resizeMode="cover" source={require("../assets/redArrowLeft.png")} />
+      			<Image style={[styles.chevronLeftIcon, styles.iconLayout]} resizeMode="cover" source="assets\RedArrowLeft.png" />
       			<Text style={[styles.signIn1, styles.orFlexBox]}>Sign in</Text>
       			<View style={[styles.enterYourEmailWrapper, styles.wrapperSpaceBlock]}>
         				<Text style={styles.enterYourEmail}>Enter your password</Text>
@@ -29,7 +29,7 @@ const SignIn = () => {
           					<Text style={[styles.registerWithGoogle, styles.registerTypo]}>Register with google</Text>
         				</View>
       			</View>
-      			<Image style={styles.lastSupperIcon} resizeMode="cover"  />
+      			<Image style={styles.image1Icon} resizeMode="cover" source={require("../assets/lastSupperIcon.png")} />
       			<View style={[styles.continueWrapper, styles.frameViewFlexBox]}>
         				<Text style={[styles.continue, styles.registerTypo]}>Continue</Text>
       			</View>
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     		borderStyle: "solid",
     		justifyContent: "center"
   	},
-  	lastSupperIcon: {
+  	image1Icon: {
     		top: 126,
     		left: -4,
     		width: 398,

@@ -6,7 +6,7 @@ const SignUp = () => {
   	return (
     		<View style={[styles.signUp, styles.signUpFlexBox]}>
       			<View style={[styles.signUpChild, styles.signUpChildPosition]} />
-      			<Image style={[styles.chevronLeftIcon, styles.iconLayout]} resizeMode="cover" source="chevron-left.svg" />
+      			<Image style={[styles.chevronLeftIcon, styles.iconLayout]} resizeMode="cover" source={require("../assets/redArrowLeft.png")} />
       			<Text style={[styles.signUp1, styles.registerTypo1]}>Sign up</Text>
       			<View style={[styles.enterYourEmailWrapper, styles.frameInnerSpaceBlock]}>
         				<Text style={[styles.enterYourEmail, styles.orTypo]}>Enter your email</Text>
@@ -28,13 +28,13 @@ const SignUp = () => {
       			</View>
       			<View style={[styles.signUpInner, styles.signInnerFlexBox]}>
         				<View style={[styles.icbaselineAppleParent, styles.signInnerFlexBox]}>
-          					<Image style={styles.iconLayout} resizeMode="cover" source="ic_baseline-apple.png" />
+          					<Image style={styles.iconLayout} resizeMode="cover" source={require("../assets/appleLogo.png")} />
           					<Text style={[styles.registerWithApple, styles.registerTypo]}>Register with apple</Text>
         				</View>
       			</View>
       			<View style={[styles.signUpInner1, styles.signInnerFlexBox]}>
         				<View style={styles.logosgoogleIconParent}>
-          					<Image style={styles.iconLayout} resizeMode="cover" source="logos_google-icon.svg" />
+          					<Image style={styles.iconLayout} resizeMode="cover" source={require("../assets/googleLogo.png")} />
           					<Text style={[styles.registerWithGoogle, styles.registerTypo]}>Register with google</Text>
         				</View>
       			</View>
@@ -42,29 +42,6 @@ const SignUp = () => {
         				<View style={styles.frameLayout} />
         				<Text style={[styles.or, styles.orTypo]}>or</Text>
         				<View style={[styles.frameItem, styles.frameLayout]} />
-      			</View>
-      			<View style={[styles.statusBarAndBackground, styles.signUpChildPosition]}>
-        				<View>
-          					<View style={[styles.statusBar1, styles.signInnerFlexBox]}>
-            						<View style={[styles.leftArea, styles.signInnerFlexBox]}>
-              							<View>
-                								<Text style={styles.text}>1:47</Text>
-              							</View>
-            						</View>
-            						<View style={styles.statusBarDynamicIsland}>
-              							<View style={[styles.hole, styles.signInnerFlexBox]} />
-            						</View>
-            						<View style={[styles.leftArea, styles.signInnerFlexBox]}>
-              							<View style={styles.icons}>
-                								<Image style={styles.statusBarCellularIcon} resizeMode="cover" source="🧩 Status Bar › Cellular Icon.png" />
-                								<Image style={styles.statusBarWiFiIcon} resizeMode="cover" source="🧩 Status Bar › Wi-Fi Icon.png" />
-                								<View style={styles.statusBarBatteryIcon}>
-                  									<Image style={styles.icon} resizeMode="cover" source="Icon.png" />
-                								</View>
-              							</View>
-            						</View>
-          					</View>
-        				</View>
       			</View>
     		</View>);
 };
@@ -279,15 +256,6 @@ const styles = StyleSheet.create({
     		left: 16,
     		position: "absolute"
   	},
-  	text: {
-    		fontSize: 18,
-    		letterSpacing: 0,
-    		lineHeight: 23,
-    		fontWeight: "600",
-    		fontFamily: "SF Pro",
-    		textAlign: "center",
-    		color: "#fff"
-  	},
   	leftArea: {
     		paddingTop: 18,
     		paddingBottom: 13,
@@ -339,7 +307,7 @@ const styles = StyleSheet.create({
   	},
   	signUp: {
     		borderRadius: 30,
-    		backgroundColor: "#fff",
+    		backgroundColor: "#000",
     		width: "100%",
     		overflow: "hidden",
     		height: 844
