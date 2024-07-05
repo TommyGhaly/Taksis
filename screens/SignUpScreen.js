@@ -4,8 +4,8 @@ import {StyleSheet, View, Image, Text} from "react-native";
 const SignUp = () => {
   	
   	return (
-    		<View style={[styles.signUp, styles.signUpFlexBox]}>
-      			<View style={[styles.signUpChild, styles.signUpChildPosition]} />
+    		<View style={styles.signUp}>
+      			<View style={styles.signUpChild} />
       			<Image style={[styles.chevronLeftIcon, styles.iconLayout]} resizeMode="cover" source={require("../assets/redArrowLeft.png")} />
       			<Text style={[styles.signUp1, styles.registerTypo1]}>Sign up</Text>
       			<View style={[styles.enterYourEmailWrapper, styles.frameInnerSpaceBlock]}>
@@ -27,35 +27,31 @@ const SignUp = () => {
         				<Text style={[styles.continue, styles.registerTypo]}>Continue</Text>
       			</View>
       			<View style={[styles.signUpInner, styles.signInnerFlexBox]}>
-        				<View style={[styles.icbaselineAppleParent, styles.signInnerFlexBox]}>
+        				<View style={styles.signInnerFlexBox}>
           					<Image style={styles.iconLayout} resizeMode="cover" source={require("../assets/appleLogo.png")} />
           					<Text style={[styles.registerWithApple, styles.registerTypo]}>Register with apple</Text>
         				</View>
       			</View>
       			<View style={[styles.signUpInner1, styles.signInnerFlexBox]}>
-        				<View style={styles.logosgoogleIconParent}>
+        				<View style={styles.frameParentFlexBox}>
           					<Image style={styles.iconLayout} resizeMode="cover" source={require("../assets/googleLogo.png")} />
           					<Text style={[styles.registerWithGoogle, styles.registerTypo]}>Register with google</Text>
         				</View>
       			</View>
-      			<View style={styles.lineParent}>
+      			<View style={[styles.lineParent, styles.frameParentFlexBox]}>
         				<View style={styles.frameLayout} />
         				<Text style={[styles.or, styles.orTypo]}>or</Text>
         				<View style={[styles.frameItem, styles.frameLayout]} />
+      			</View>
+      			<View style={styles.progressBar}>
+        				<View style={[styles.track, styles.trackPosition]}>
+          					<View style={[styles.filled, styles.trackPosition]} />
+        				</View>
       			</View>
     		</View>);
 };
 
 const styles = StyleSheet.create({
-  	signUpFlexBox: {
-    		flex: 1,
-    		overflow: "hidden"
-  	},
-  	signUpChildPosition: {
-    		top: 0,
-    		backgroundColor: "#000",
-    		position: "absolute"
-  	},
   	iconLayout: {
     		height: 24,
     		width: 24,
@@ -71,7 +67,6 @@ const styles = StyleSheet.create({
     		paddingHorizontal: 20,
     		width: 358,
     		borderRadius: 10,
-    		flexDirection: "row",
     		position: "absolute"
   	},
   	orTypo: {
@@ -80,11 +75,16 @@ const styles = StyleSheet.create({
   	},
   	signInnerFlexBox: {
     		justifyContent: "center",
-    		alignItems: "center"
+    		alignItems: "center",
+    		flexDirection: "row"
   	},
   	registerTypo: {
     		letterSpacing: -0.2,
     		fontSize: 17
+  	},
+  	frameParentFlexBox: {
+    		alignItems: "center",
+    		flexDirection: "row"
   	},
   	frameLayout: {
     		height: 1,
@@ -93,10 +93,18 @@ const styles = StyleSheet.create({
     		borderColor: "#ff0000",
     		borderStyle: "solid"
   	},
+  	trackPosition: {
+    		height: 4,
+    		marginTop: -2,
+    		top: "50%",
+    		position: "absolute"
+  	},
   	signUpChild: {
-    		left: 0,
+    		top: 0,
     		width: 390,
     		backgroundColor: "#000",
+    		left: 0,
+    		position: "absolute",
     		height: 844
   	},
   	chevronLeftIcon: {
@@ -105,11 +113,11 @@ const styles = StyleSheet.create({
     		position: "absolute"
   	},
   	signUp1: {
-    		top: "13.63%",
-    		left: "4.36%",
+    		top: "14.34%",
+    		left: "4.1%",
     		fontSize: 34,
     		letterSpacing: -0.3,
-    		color: "#ff0000",
+    		color: "rgba(255, 0, 0, 0.8)",
     		position: "absolute"
   	},
   	enterYourEmail: {
@@ -120,6 +128,7 @@ const styles = StyleSheet.create({
   	enterYourEmailWrapper: {
     		top: 325,
     		alignItems: "center",
+    		flexDirection: "row",
     		borderWidth: 1,
     		borderStyle: "solid",
     		paddingHorizontal: 20,
@@ -131,6 +140,7 @@ const styles = StyleSheet.create({
   	enterYourEmailContainer: {
     		top: 397,
     		alignItems: "center",
+    		flexDirection: "row",
     		borderWidth: 1,
     		borderStyle: "solid",
     		paddingHorizontal: 20,
@@ -143,6 +153,7 @@ const styles = StyleSheet.create({
     		top: 464,
     		left: 17,
     		alignItems: "center",
+    		flexDirection: "row",
     		borderWidth: 1,
     		borderStyle: "solid",
     		paddingHorizontal: 20,
@@ -153,6 +164,7 @@ const styles = StyleSheet.create({
   	frameView: {
     		top: 255,
     		alignItems: "center",
+    		flexDirection: "row",
     		borderWidth: 1,
     		borderStyle: "solid",
     		paddingHorizontal: 20,
@@ -164,6 +176,7 @@ const styles = StyleSheet.create({
   	enterYourEmailWrapper1: {
     		top: 185,
     		alignItems: "center",
+    		flexDirection: "row",
     		borderWidth: 1,
     		borderStyle: "solid",
     		paddingHorizontal: 20,
@@ -186,7 +199,6 @@ const styles = StyleSheet.create({
     		paddingHorizontal: 20,
     		width: 358,
     		borderRadius: 10,
-    		flexDirection: "row",
     		position: "absolute",
     		borderWidth: 1,
     		borderStyle: "solid",
@@ -194,14 +206,11 @@ const styles = StyleSheet.create({
     		left: 16
   	},
   	registerWithApple: {
-    		marginLeft: 12,
     		color: "#fff",
+    		marginLeft: 12,
     		textAlign: "left",
     		fontFamily: "Roboto-Medium",
     		fontWeight: "500"
-  	},
-  	icbaselineAppleParent: {
-    		flexDirection: "row"
   	},
   	signUpInner: {
     		top: 641,
@@ -210,7 +219,6 @@ const styles = StyleSheet.create({
     		paddingHorizontal: 20,
     		width: 358,
     		borderRadius: 10,
-    		flexDirection: "row",
     		position: "absolute",
     		justifyContent: "center",
     		left: 16
@@ -222,10 +230,6 @@ const styles = StyleSheet.create({
     		fontFamily: "Roboto-Medium",
     		fontWeight: "500"
   	},
-  	logosgoogleIconParent: {
-    		alignItems: "center",
-    		flexDirection: "row"
-  	},
   	signUpInner1: {
     		top: 715,
     		borderColor: "rgba(185, 177, 177, 0.15)",
@@ -233,7 +237,6 @@ const styles = StyleSheet.create({
     		paddingHorizontal: 20,
     		width: 358,
     		borderRadius: 10,
-    		flexDirection: "row",
     		position: "absolute",
     		borderWidth: 1,
     		borderStyle: "solid",
@@ -243,71 +246,44 @@ const styles = StyleSheet.create({
   	or: {
     		fontSize: 15,
     		letterSpacing: -0.1,
-    		marginLeft: 12,
-    		color: "#ff0000"
+    		color: "#ff0000",
+    		marginLeft: 12
   	},
   	frameItem: {
     		marginLeft: 12
   	},
   	lineParent: {
     		top: 603,
-    		alignItems: "center",
-    		flexDirection: "row",
     		left: 16,
     		position: "absolute"
   	},
-  	leftArea: {
-    		paddingTop: 18,
-    		paddingBottom: 13,
-    		flexDirection: "row",
-    		overflow: "hidden",
-    		flex: 1
-  	},
-  	hole: {
+  	filled: {
     		borderRadius: 100,
-    		width: 126,
-    		height: 37,
+    		backgroundColor: "#aa0b0b",
+    		width: 4,
+    		left: 0,
+    		height: 4,
+    		marginTop: -2
+  	},
+  	track: {
+    		right: 16,
+    		backgroundColor: "rgba(120, 120, 128, 0.32)",
+    		left: 16
+  	},
+  	progressBar: {
+    		marginTop: -350,
+    		width: "84.62%",
+    		right: "7.44%",
+    		left: "7.95%",
+    		height: 28,
+    		top: "50%",
     		backgroundColor: "#000",
-    		overflow: "hidden"
-  	},
-  	statusBarDynamicIsland: {
-    		paddingTop: 11,
-    		paddingBottom: 6
-  	},
-  	statusBarCellularIcon: {
-    		width: 27,
-    		height: 23
-  	},
-  	statusBarWiFiIcon: {
-    		width: 23,
-    		marginLeft: 3,
-    		height: 23
-  	},
-  	icon: {
-    		width: 36,
-    		height: 23
-  	},
-  	statusBarBatteryIcon: {
-    		marginLeft: 3
-  	},
-  	icons: {
-    		flexDirection: "row"
-  	},
-  	statusBar1: {
-    		width: 430,
-    		paddingHorizontal: 10,
-    		paddingVertical: 0,
-    		flexDirection: "row",
-    		overflow: "hidden"
-  	},
-  	statusBarAndBackground: {
-    		left: -20,
-    		paddingBottom: 4,
-    		backgroundColor: "#000"
+    		position: "absolute"
   	},
   	signUp: {
     		borderRadius: 30,
     		backgroundColor: "#000",
+    		flex: 1,
     		width: "100%",
     		overflow: "hidden",
     		height: 844
