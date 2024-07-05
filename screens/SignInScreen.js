@@ -5,7 +5,7 @@ const SignIn = () => {
   	return (
     		<View style={styles.signIn}>
       			<View style={styles.signInChild} />
-      			<Image style={[styles.chevronLeftIcon, styles.iconLayout]} resizeMode="cover" source="RedArrowLeft.png" />
+      			<Image style={[styles.chevronLeftIcon, styles.iconLayout]} resizeMode="cover" source={require("../assets/redArrowLeft.png")} />
       			<Text style={[styles.signIn1, styles.orFlexBox]}>Sign in</Text>
       			<View style={[styles.enterYourEmailWrapper, styles.wrapperSpaceBlock]}>
         				<Text style={styles.enterYourEmail}>Enter your password</Text>
@@ -19,17 +19,17 @@ const SignIn = () => {
       			</Text>
       			<View style={[styles.signInInner, styles.frameViewFlexBox]}>
         				<View style={styles.frameViewFlexBox}>
-          					<Image style={styles.iconLayout} resizeMode="cover" source="appleLogo.png" />
+          					<Image style={styles.iconLayout} resizeMode="cover" source={require("../assets/appleLogo.png")} />
           					<Text style={[styles.registerWithApple, styles.registerTypo]}>Register with apple</Text>
         				</View>
       			</View>
       			<View style={[styles.frameView, styles.frameViewFlexBox]}>
         				<View style={styles.parentFlexBox}>
-          					<Image style={styles.iconLayout} resizeMode="cover" source="googleLogo.png" />
+          					<Image style={styles.iconLayout} resizeMode="cover" source={require("../assets/googleLogo.png")} />
           					<Text style={[styles.registerWithGoogle, styles.registerTypo]}>Register with google</Text>
         				</View>
       			</View>
-      			<Image style={styles.image1Icon} resizeMode="cover" source="..\assets\lastSupperIcon.png" />
+      			<Image style={styles.lastSupperIcon} resizeMode="cover"  />
       			<View style={[styles.continueWrapper, styles.frameViewFlexBox]}>
         				<Text style={[styles.continue, styles.registerTypo]}>Continue</Text>
       			</View>
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     		borderStyle: "solid",
     		justifyContent: "center"
   	},
-  	image1Icon: {
+  	lastSupperIcon: {
     		top: 126,
     		left: -4,
     		width: 398,

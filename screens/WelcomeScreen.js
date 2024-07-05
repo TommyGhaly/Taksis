@@ -5,15 +5,13 @@ const WelcomeScreen = () => {
   	
   	return (
     		<View style={styles.welcomescreen}>
-      			<View style={styles.welcomescreenInner}>
-        				<View style={[styles.signInParent, styles.groupChildLayout]}>
-          					<Text style={styles.signIn}>Sign in</Text>
-          					<View style={[styles.groupChild, styles.groupChildLayout]} />
-          					<Text style={styles.signUp}>Sign up</Text>
-          					<Text style={[styles.signIn1, styles.signIn1Clr]}>Sign in</Text>
-        				</View>
+      			<View style={[styles.signInParent, styles.groupChildLayout]}>
+        				<Text style={styles.signIn}>Sign in</Text>
+        				<View style={[styles.groupChild, styles.groupChildLayout]} />
+        				<Text style={styles.signUp}>Sign up</Text>
+        				<Text style={[styles.signIn1, styles.signIn1Clr]}>Sign in</Text>
       			</View>
-      			<Image style={styles.image1Icon} resizeMode="cover" source="assets/crucifixionIcon.png" />
+      			<Image style={styles.crucifixionIcon} resizeMode="cover" source={require("../assets/crucifixionIcon.png")}/>
       			<Text style={[styles.deaconServiceApp, styles.signIn1Clr]}>Deacon Service App</Text>
     		</View>);
 };
@@ -67,18 +65,11 @@ const styles = StyleSheet.create({
     		left: 111
   	},
   	signInParent: {
-    		top: 422,
-    		left: -70,
+    		top: 588,
+    		left: 45,
     		height: 119
   	},
-  	welcomescreenInner: {
-    		top: 112,
-    		left: 115,
-    		width: 358,
-    		height: 50,
-    		position: "absolute"
-  	},
-  	image1Icon: {
+  	crucifixionIcon: {
     		top: 205,
     		left: 3,
     		width: 384,

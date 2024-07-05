@@ -7,7 +7,7 @@ import SignInScreen from './screens/SignInScreen';
 export default function App() {
   return (
     <View style={styles.container}>
-      <SignInScreen />
+      <HomeScreen />
     </View>
   );
 }
