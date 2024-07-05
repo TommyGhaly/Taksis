@@ -9,7 +9,7 @@ import SelectChurchScreen from './screens/SelectChurchScreen'
 export default function App() {
   return (
     <View style={styles.container}>
-      <SelectChurchScreen/>
+      <HomeScreen/>
     </View>
   );
 }

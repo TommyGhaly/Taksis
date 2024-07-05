@@ -28,7 +28,7 @@ const SignUp = () => {
       			</View>
       			<View style={[styles.signUpInner, styles.signInnerFlexBox]}>
         				<View style={styles.signInnerFlexBox}>
-          					<Image style={styles.iconLayout} resizeMode="cover" source={require("../assets/appleLogo.png")} />
+          					<Image style={styles.iconLayout} resizeMode="cover" source={require("../assets/appleLogo.png")}/>
           					<Text style={[styles.registerWithApple, styles.registerTypo]}>Register with apple</Text>
         				</View>
       			</View>
@@ -101,11 +101,11 @@ const styles = StyleSheet.create({
   	},
   	signUpChild: {
     		top: 0,
-    		width: 390,
+    		width: 393,
     		backgroundColor: "#000",
     		left: 0,
     		position: "absolute",
-    		height: 844
+    		height: 852
   	},
   	chevronLeftIcon: {
     		top: 74,
@@ -113,6 +113,8 @@ const styles = StyleSheet.create({
     		position: "absolute"
   	},
   	signUp1: {
+    		height: "4.74%",
+    		width: "28.73%",
     		top: "14.34%",
     		left: "4.1%",
     		fontSize: 34,
@@ -271,10 +273,10 @@ const styles = StyleSheet.create({
     		left: 16
   	},
   	progressBar: {
-    		marginTop: -350,
-    		width: "84.62%",
-    		right: "7.44%",
-    		left: "7.95%",
+    		marginTop: -354,
+    		width: "84.61%",
+    		right: "8.02%",
+    		left: "7.38%",
     		height: 28,
     		top: "50%",
     		backgroundColor: "#000",
@@ -282,11 +284,11 @@ const styles = StyleSheet.create({
   	},
   	signUp: {
     		borderRadius: 30,
-    		backgroundColor: "#000",
+    		backgroundColor: "#fff",
     		flex: 1,
     		width: "100%",
     		overflow: "hidden",
-    		height: 844
+    		height: 852
   	}
 });
 

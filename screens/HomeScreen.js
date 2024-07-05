@@ -15,7 +15,7 @@ const HomeScreen = () => {
       			<View style={styles.liturgyWrapper}>
         				<Text style={styles.liturgy}>Liturgy</Text>
       			</View>
-      			<Image style={styles.redCopticCrossIcon} resizeMode="cover" source={require("../assets/redCopticCross.png")} />
+      			<Image style={styles.image1Icon} resizeMode="cover" source={require("../assets/redCopticCross.png")} />
       			<Text style={[styles.sun1, styles.sun1Typo]}>SUN</Text>
       			<Text style={[styles.sun2, styles.sunTypo]}>SUN</Text>
       			<Text style={[styles.sun3, styles.sunTypo]}>SUN</Text>
@@ -29,7 +29,7 @@ const HomeScreen = () => {
       			<Image style={[styles.rectangleIcon, styles.rectangleIconLayout]} resizeMode="cover" source={require("../assets/redRectangle.png")}/>
       			<Image style={[styles.homescreenChild2, styles.homescreenChildLayout1]} resizeMode="cover" source={require("../assets/redRectangle.png")} />
       			<Image style={[styles.homescreenChild3, styles.homescreenChildLayout]} resizeMode="cover" source={require("../assets/redRectangle.png")} />
-      			<Image style={[styles.homescreenChild4, styles.rectangleIconLayout]} resizeMode="cover" source={require("../assets/greenRectangle.png")} />
+      			<Image style={[styles.homescreenChild4, styles.rectangleIconLayout]} resizeMode="cover" source={require("../assets/greenRectangle.png")}/>
       			<Image style={[styles.homescreenChild5, styles.homescreenChildLayout]} resizeMode="cover" source={require("../assets/greenRectangle.png")} />
       			<Image style={[styles.homescreenChild6, styles.homescreenChildLayout1]} resizeMode="cover" source={require("../assets/greenRectangle.png")} />
       			<Text style={[styles.available, styles.availableTypo]}>Available</Text>
@@ -41,8 +41,8 @@ const HomeScreen = () => {
       			<View style={styles.homescreenChild7} />
       			<Image style={[styles.cogoutlineIcon, styles.iconLayout]} resizeMode="cover" source={require("../assets/CogOutline.png")} />
       			<View style={styles.lineView} />
-      			<Image style={[styles.homeIcon, styles.iconLayout]} resizeMode="cover" source={require("../assets/HomeOutline.png")} />
-      			<Image style={[styles.userIcon, styles.iconLayout]} resizeMode="cover" source={require("../assets/UserOutline.png")} />
+      			<Image style={[styles.vectorIcon, styles.vectorIconLayout]} resizeMode="cover" source={require("../assets/HomeBrightOutline.png")} />
+      			<Image style={[styles.vectorIcon1, styles.vectorIconLayout]} resizeMode="cover" source={require("../assets/UserOutline.png")} />
       			<Image style={[styles.pluscircleoutlineIcon, styles.iconLayout]} resizeMode="cover" source={require("../assets/PlusCircleOutline.png")} />
       			<Image style={[styles.chartpieoutlineIcon, styles.iconLayout]} resizeMode="cover" source={require("../assets/ChartPieOutline.png")} />
     		</View>);
@@ -53,57 +53,57 @@ const styles = StyleSheet.create({
     		height: 150,
     		backgroundColor: "#2a2c34",
     		borderRadius: 25,
-    		left: 16,
     		width: 358,
     		position: "absolute"
   	},
   	sunTypo: {
     		height: 100,
     		width: 166,
+    		color: "rgba(255, 0, 0, 0.6)",
     		fontFamily: "Inter-Black",
     		fontWeight: "900",
     		letterSpacing: -1.9,
     		fontSize: 48,
+    		left: 30,
     		textAlign: "left",
-    		color: "#ff0000",
     		position: "absolute"
   	},
   	sun1Typo: {
     		top: 182,
     		height: 100,
     		width: 166,
+    		color: "rgba(255, 0, 0, 0.6)",
     		fontFamily: "Inter-Black",
     		fontWeight: "900",
     		letterSpacing: -1.9,
     		fontSize: 48,
     		textAlign: "left",
-    		color: "#ff0000",
     		position: "absolute"
   	},
   	junTypo: {
-    		left: 200,
+    		left: 206,
     		height: 100,
     		width: 166,
+    		color: "rgba(255, 0, 0, 0.6)",
     		fontFamily: "Inter-Black",
     		fontWeight: "900",
     		letterSpacing: -1.9,
     		fontSize: 48,
     		textAlign: "left",
-    		color: "#ff0000",
     		position: "absolute"
   	},
   	liturgyTypo: {
-    		left: 90,
+    		left: 94,
     		width: 193,
     		justifyContent: "center",
     		display: "flex",
     		textAlign: "center",
+    		color: "rgba(255, 0, 0, 0.5)",
     		letterSpacing: -0.8,
     		fontSize: 20,
     		alignItems: "center",
     		fontFamily: "Inter-Black",
     		fontWeight: "900",
-    		color: "#ff0000",
     		height: 50,
     		position: "absolute"
   	},
@@ -161,9 +161,9 @@ const styles = StyleSheet.create({
   	vectorIconLayout: {
     		maxHeight: "100%",
     		maxWidth: "100%",
-    		bottom: "5.45%",
-    		top: "92.42%",
-    		height: "2.13%",
+    		bottom: "6.31%",
+    		top: "91.55%",
+    		height: "2.14%",
     		position: "absolute",
     		overflow: "hidden"
   	},
@@ -175,74 +175,82 @@ const styles = StyleSheet.create({
     		position: "absolute"
   	},
   	thisWeeksService: {
-    		height: "4.23%",
-    		width: "74.62%",
+    		height: "4.24%",
+    		width: "74.61%",
     		top: "9.48%",
     		left: "3.08%",
     		fontSize: 34,
     		letterSpacing: -0.3,
     		fontWeight: "500",
     		fontFamily: "Roboto-Medium",
+    		color: "rgba(255, 0, 0, 0.8)",
     		textAlign: "left",
-    		color: "#ff0000",
     		position: "absolute"
   	},
   	homescreenItem: {
-    		top: 176
+    		top: 176,
+    		left: 20,
+    		backgroundColor: "#2a2c34",
+    		borderRadius: 25
   	},
   	homescreenInner: {
-    		top: 344
+    		top: 344,
+    		left: 20,
+    		backgroundColor: "#2a2c34",
+    		borderRadius: 25
   	},
   	sun: {
-    		top: 347,
-    		left: 29
+    		top: 347
   	},
   	rectangleView: {
-    		top: 512
+    		top: 512,
+    		left: 20,
+    		backgroundColor: "#2a2c34",
+    		borderRadius: 25
   	},
   	homescreenChild1: {
-    		top: 686
+    		top: 686,
+    		left: 17
   	},
   	liturgy: {
     		width: 193,
     		justifyContent: "center",
     		display: "flex",
     		textAlign: "center",
+    		color: "rgba(255, 0, 0, 0.5)",
     		letterSpacing: -0.8,
     		fontSize: 20,
     		alignItems: "center",
     		fontFamily: "Inter-Black",
     		fontWeight: "900",
-    		color: "#ff0000",
     		height: 50
   	},
   	liturgyWrapper: {
-    		marginLeft: -105,
+    		marginLeft: -102.5,
     		top: 736,
     		left: "50%",
     		alignItems: "center",
     		position: "absolute"
   	},
-  	redCopticCrossIcon: {
-    		top: 57,
-    		left: 280,
+  	image1Icon: {
+    		top: 55,
+    		left: 286,
     		width: 86,
     		height: 82,
     		position: "absolute"
   	},
   	sun1: {
-    		left: 29
+    		left: 30,
+    		top: 182
   	},
   	sun2: {
-    		left: 24,
     		top: 689
   	},
   	sun3: {
-    		top: 515,
-    		left: 29
+    		top: 515
   	},
   	jun7: {
-    		left: 204
+    		left: 211
   	},
   	jun21: {
     		top: 514
@@ -274,25 +282,25 @@ const styles = StyleSheet.create({
   	},
   	homescreenChild4: {
     		top: 277,
-    		left: 218
+    		left: 220
   	},
   	homescreenChild5: {
-    		left: 218
+    		left: 220
   	},
   	homescreenChild6: {
-    		left: 218
+    		left: 220
   	},
   	available: {
-    		top: 282,
-    		left: 215
+    		top: 283,
+    		left: 217
   	},
   	available1: {
-    		top: 452,
-    		left: 218
+    		top: 453,
+    		left: 217
   	},
   	available2: {
     		top: 620,
-    		left: 218
+    		left: 217
   	},
   	notAvailable: {
     		top: 285
@@ -312,11 +320,11 @@ const styles = StyleSheet.create({
     		backgroundColor: "#000"
   	},
   	cogoutlineIcon: {
-    		left: 328
+    		left: 330
   	},
   	lineView: {
     		top: 150,
-    		left: 42,
+    		left: 45,
     		borderStyle: "solid",
     		borderColor: "#ff0000",
     		borderTopWidth: 1,
@@ -324,27 +332,27 @@ const styles = StyleSheet.create({
     		height: 1,
     		position: "absolute"
   	},
-  	homeIcon: {
-    		width: "4.62%",
-    		right: "83.85%",
-    		left: "11.54%"
+  	vectorIcon: {
+    		width: "4.61%",
+    		right: "87%",
+    		left: "8.4%"
   	},
-  	userIcon: {
+  	vectorIcon1: {
     		width: "3.59%",
-    		right: "67.44%",
-    		left: "28.97%"
+    		right: "68.93%",
+    		left: "27.48%"
   	},
   	pluscircleoutlineIcon: {
     		left: 178
   	},
   	chartpieoutlineIcon: {
-    		left: 253
+    		left: 255
   	},
   	homescreen: {
     		borderRadius: 30,
     		flex: 1,
     		width: "100%",
-    		height: 844,
+    		height: 852,
     		overflow: "hidden",
     		backgroundColor: "#000"
   	}

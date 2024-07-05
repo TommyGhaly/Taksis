@@ -47,6 +47,7 @@ const styles = StyleSheet.create({
     		fontFamily: "Inter-Regular",
     		lineHeight: 22,
     		fontSize: 11,
+    		left: 99,
     		textAlign: "left",
     		position: "absolute"
   	},
@@ -68,14 +69,14 @@ const styles = StyleSheet.create({
   	selectchruchChild: {
     		top: 0,
     		left: 0,
-    		width: 390,
+    		width: 393,
     		backgroundColor: "#000",
     		position: "absolute",
-    		height: 844
+    		height: 852
   	},
   	filled: {
-    		width: "22.45%",
-    		right: "77.55%",
+    		width: "22.43%",
+    		right: "77.57%",
     		left: "0%",
     		borderRadius: 100,
     		backgroundColor: "#aa0b0b"
@@ -86,10 +87,10 @@ const styles = StyleSheet.create({
     		left: 16
   	},
   	progressBar: {
-    		marginTop: -350,
-    		width: "84.62%",
-    		right: "7.69%",
-    		left: "7.69%",
+    		marginTop: -354,
+    		width: "84.61%",
+    		right: "5.98%",
+    		left: "9.41%",
     		height: 28,
     		top: "50%",
     		backgroundColor: "#000",
@@ -128,22 +129,13 @@ const styles = StyleSheet.create({
     		top: 232
   	},
   	stPhilopaterAnd: {
-    		top: 233,
-    		left: 99,
-    		fontFamily: "Inter-Regular",
-    		lineHeight: 22,
-    		fontSize: 11
+    		top: 233
   	},
   	stMaryAnd: {
-    		left: 98,
-    		top: 289
+    		top: 290
   	},
   	stMarkNatick: {
-    		top: 348,
-    		left: 99,
-    		fontFamily: "Inter-Regular",
-    		lineHeight: 22,
-    		fontSize: 11
+    		top: 348
   	},
   	selectchruchInner: {
     		top: 273
@@ -178,8 +170,8 @@ const styles = StyleSheet.create({
     		flex: 1,
     		width: "100%",
     		overflow: "hidden",
-    		height: 844,
-    		backgroundColor: "#000"
+    		height: 852,
+    		backgroundColor: "#fff"
   	}
 });
 
