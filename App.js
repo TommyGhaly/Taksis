@@ -5,11 +5,12 @@ import HomeScreen from './screens/HomeScreen';
 import SignInScreen from './screens/SignInScreen';
 import SignUpScreen from './screens/SignUpScreen'
 import SelectChurchScreen from './screens/SelectChurchScreen'
+import SelectApplicableScreen from './screens/SelectApplicableScreen'
 
 export default function App() {
   return (
     <View style={styles.container}>
-      <HomeScreen/>
+      <SelectApplicableScreen/>
     </View>
   );
 }
