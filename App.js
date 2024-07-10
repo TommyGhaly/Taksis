@@ -6,11 +6,12 @@ import SignInScreen from './screens/SignInScreen';
 import SignUpScreen from './screens/SignUpScreen'
 import SelectChurchScreen from './screens/SelectChurchScreen'
 import SelectApplicableScreen from './screens/SelectApplicableScreen'
+import DeaconRankScreen from './screens/DeaconRankScreen'
 
 export default function App() {
   return (
     <View style={styles.container}>
-      <SelectApplicableScreen/>
+      <DeaconRankScreen/>
     </View>
   );
 }
