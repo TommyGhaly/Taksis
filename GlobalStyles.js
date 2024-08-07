@@ -1,0 +1,83 @@
+/* fonts */
+export const FontFamily = {
+  robotoRegular: "Roboto-Regular",
+  h1: "Roboto-Medium",
+  robotoBold: "Roboto-Bold",
+  interRegular: "Inter-Regular",
+  sFProText: "SF Pro Text",
+  sFPro: "SF Pro",
+};
+/* font sizes */
+export const FontSize = {
+  size_5xl: 24,
+  size_mini: 15,
+  size_mid: 17,
+  h1_size: 34,
+  size_base: 16,
+  size_2xs: 11,
+  size_sm: 14,
+  size_xs: 12,
+  size_xl: 20,
+  size_smi: 13,
+  size_3xs: 10,
+  size_17xl: 36,
+};
+/* Colors */
+export const Color = {
+  labelsPrimary: "#000",
+  colorGray_100: "#8e8e93",
+  colorGray_200: "#1e1e1e",
+  colorGray_300: "#1c1c1e",
+  colorGray_400: "rgba(30, 30, 30, 0.05)",
+  colorGray_500: "rgba(255, 255, 255, 0.58)",
+  colorGray_600: "rgba(0, 0, 0, 0)",
+  colorGray_700: "rgba(142, 142, 147, 0.5)",
+  colorGray_800: "rgba(120, 120, 128, 0.32)",
+  fillsTertiaryDark: "rgba(118, 118, 128, 0.24)",
+  colorGray_900: "rgba(30, 30, 30, 0.15)",
+  colorGray_1000: "rgba(30, 30, 30, 0.9)",
+  colorGray_1100: "rgba(142, 142, 147, 0.8)",
+  colorGray_1200: "rgba(0, 0, 0, 0.15)",
+  color1: "#fff",
+  color: "#333",
+  colorDarkslategray_100: "rgba(60, 60, 67, 0.36)",
+  colorRoyalblue_100: "#147efb",
+  colorRoyalblue_200: "#007aff",
+  colorRoyalblue_300: "rgba(0, 128, 255, 0.5)",
+  colorDarkslateblue: "rgba(44, 44, 80, 0.36)",
+  colorDimgray_100: "#636366",
+  colorDimgray_200: "#555",
+  colorDimgray_300: "rgba(84, 84, 88, 0.15)",
+  colorDimgray_400: "rgba(84, 84, 88, 0.65)",
+  colorDarkgray: "rgba(185, 177, 177, 0.15)",
+  labelsTertiaryDark: "rgba(235, 235, 245, 0.3)",
+  colorsBlueDark: "#0a84ff",
+  colorCornflowerblue: "#6e85e3",
+  gray4: "#bdbdbd",
+};
+/* Paddings */
+export const Padding = {
+  p_xl: 20,
+  p_mini: 15,
+  p_base: 16,
+  p_11xs: 2,
+  p_3xs: 10,
+  p_10xs: 3,
+  p_2xs: 11,
+  p_7xs: 6,
+  p_xs: 12,
+};
+/* border radiuses */
+export const Border = {
+  br_11xl: 30,
+  br_3xs: 10,
+  br_8xs: 5,
+  br_sm: 14,
+  br_4xs: 9,
+  br_6xs: 7,
+  br_7xs: 6,
+  br_81xl: 100,
+  br_11xs: 2,
+  br_lgi: 19,
+  br_12xs: 1,
+};

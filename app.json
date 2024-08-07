@@ -1,22 +1,24 @@
 {
   "expo": {
-    "name": "ChurchServiceApp",
-    "slug": "ChurchServiceApp",
+    "name": "Ⲧⲁⲝⲓⲥ",
+    "slug": "Ⲧⲁⲝⲓⲥ",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/CopticIcon.jpg",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./screens/Splash.js",
       "resizeMode": "contain",
-      "backgroundColor": "#000000"
+      "backgroundColor": "#000000",
+    "plugins": ["expo-apple-authentication"]
     },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.ChurchServiceApp"
+      "bundleIdentifier": "com.anonymous.ⲧⲁⲝⲓⲥ",
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
