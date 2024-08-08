@@ -1,9 +1,8 @@
 import * as React from "react";
 import {Pressable, Image, StyleSheet} from "react-native";
-import { StackNavigationProp } from '@react-navigation/stack';
 import {useNavigation, ParamListBase} from "@react-navigation/native";
 
-const backArrow = () => {
+const BackArrow = () => {
   	const navigation = useNavigation();
     		
     		return (
@@ -25,5 +24,5 @@ const backArrow = () => {
       			}
     		});
     		
-    		export default backArrow;
+    		export default BackArrow;
     		

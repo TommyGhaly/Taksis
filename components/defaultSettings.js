@@ -1,7 +1,7 @@
 import * as React from "react";
 import {Image, StyleSheet, Text, View, Pressable, TouchableOpacity} from "react-native";
 
-const defaultSettings = () => {
+const DefaultSettings = () => {
   	
   	return (
     		<View style={styles.component1}>
@@ -247,4 +247,4 @@ const styles = StyleSheet.create({
   	}
 });
 
-export default defaultSettings;
+export default DefaultSettings;

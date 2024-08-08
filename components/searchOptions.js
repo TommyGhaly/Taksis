@@ -1,7 +1,9 @@
 import * as React from "react";
 import {Image, StyleSheet, View, Pressable, Text, TextInput} from "react-native";
-
-const searchOptions = () => {
+import MagnifyingGlass from './MagnifyingGlass'
+import Microphone from './Microphone'
+//fix this the same way i did on the screen and figure out how to export it 
+const SearchOptions = () => {
   	
   	return (
     		<View style={styles.component3}>
@@ -203,4 +205,4 @@ const styles = StyleSheet.create({
   	}
 });
 
-export default searchOptions;
+export default SearchOptions;

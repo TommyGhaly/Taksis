@@ -1,7 +1,7 @@
 import * as React from "react";
 import {Pressable, Image, StyleSheet, Text, View} from "react-native";
 
-const registerApple = () => {
+const RegisterApple = () => {
   	
   	return (
     		<Pressable style={[styles.appleregistration, styles.appleFlexBox]}>
@@ -43,4 +43,4 @@ const styles = StyleSheet.create({
   	}
 });
 
-export default registerApple;
+export default RegisterApple;

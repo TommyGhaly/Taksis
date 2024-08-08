@@ -9,21 +9,21 @@ const SelectChurch = () => {
         				<View style={styles.component3}>
           					<View style={styles.searchResults}>
             						<View style={[styles.magnifyingGlasses, styles.magnifyingGlassesPosition]}>
-              							<Image style={[styles.searchGlassIcon, styles.searchIconLayout]} resizeMode="cover" source="Search glass.png" />
-              							<Image style={[styles.searchGlassIcon1, styles.searchIconLayout]} resizeMode="cover" source="Search glass.png" />
-              							<Image style={[styles.searchGlassIcon2, styles.searchIconLayout]} resizeMode="cover" source="Search glass.png" />
+              							<Image style={[styles.searchGlassIcon, styles.searchIconLayout]} resizeMode="cover" source={require("../assets/searchGlass.png")}/>
+              							<Image style={[styles.searchGlassIcon1, styles.searchIconLayout]} resizeMode="cover" source={require("../assets/searchGlass.png")}/>
+              							<Image style={[styles.searchGlassIcon2, styles.searchIconLayout]} resizeMode="cover" source={require("../assets/searchGlass.png")}/>
             						</View>
             						<Pressable style={[styles.stmark, styles.stmarkPosition]}>
-              							<Image style={[styles.stmarklogoIcon, styles.iconPosition]} resizeMode="cover" source="StMarkLogo.png" />
+              							<Image style={[styles.stmarklogoIcon, styles.iconPosition]} resizeMode="cover" source={require("../assets/stMarkLogo.png")} />
               							<Text style={[styles.stMarkNatick, styles.andTypo]}>St. Mark, Natick, MA</Text>
             						</Pressable>
             						<Pressable style={[styles.stmaryArchaMich, styles.stmarkPosition]}>
               							<View style={[styles.stmaryArchaMichChild, styles.stmaryArchaMichChildPosition]} />
-              							<Image style={[styles.stmaryarchamichlogoIcon, styles.stmaryArchaMichChildPosition]} resizeMode="cover" source="StMaryArchAMichLogo.png" />
+              							<Image style={[styles.stmaryarchamichlogoIcon, styles.stmaryArchaMichChildPosition]} resizeMode="cover" source={require("../assets/stMaryArchAMichLogo.png")} />
               							<Text style={[styles.stMaryAnd, styles.andTypo]}>St. Mary and Archangel Michael, Nashua, NH</Text>
             						</Pressable>
             						<Pressable style={[styles.stphiloStmina, styles.stmarkPosition]}>
-              							<Image style={[styles.stphilostminalogoIcon, styles.iconPosition]} resizeMode="cover" source="StPhiloStMinaLogo.png" />
+              							<Image style={[styles.stphilostminalogoIcon, styles.iconPosition]} resizeMode="cover" source={require("../assets/stPhiloStMinaLogo.png")} />
               							<Text style={[styles.stPhilopaterAnd, styles.andTypo]}>St. Philopater and St Mina, Wayland, MA</Text>
             						</Pressable>
             						<View style={[styles.searchResultsChild, styles.searchPosition]} />
@@ -252,10 +252,8 @@ const SelectChurch = () => {
         				textAlign: "center"
       			},
       			dontSeeYourChurchRegiste: {
-        				top: 782,
-        				left: 94,
-        				width: 217,
-        				height: 18,
+        				top: "91.784%",
+        				left: "25%",
         				position: "absolute"
       			},
       			progressBar: {

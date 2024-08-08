@@ -1,7 +1,7 @@
 import * as React from "react";
 import {Text, StyleSheet, View} from "react-native";
 
-const alphabetShortcut = () => {
+const AlphabetShortcut = () => {
   	
   	return (
     		<View style={styles.aParent}>
@@ -54,4 +54,4 @@ const styles = StyleSheet.create({
   	}
 });
 
-export default alphabetShortcut;
+export default AlphabetShortcut;

@@ -1,7 +1,7 @@
 import * as React from "react";
 import {StyleSheet, View, Image, Text, Pressable} from "react-native";
 
-const appointList = () => {
+const AppointList = () => {
   	
   	return (
     		<View style={styles.completelistParent}>
@@ -617,4 +617,4 @@ const styles = StyleSheet.create({
   	}
 });
 
-export default appointList;
+export default AppointList;

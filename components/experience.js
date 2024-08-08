@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {StyleSheet, View, Text} from "react-native";
 import DropDownPicker from "react-native-dropdown-picker";
 //add slider component 
-const experience = () => {
+const Experience = () => {
   	const [rectangleDropdownOpen, setRectangleDropdownOpen] = useState(false);
   	const [rectangleDropdownValue, setRectangleDropdownValue] = useState();
   	
@@ -182,4 +182,4 @@ const styles = StyleSheet.create({
   	}
 });
 
-export default experience;
+export default Experience;

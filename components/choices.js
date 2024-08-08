@@ -3,7 +3,7 @@ import {Text, StyleSheet, View} from "react-native";
 import {Button} from "@rneui/themed";
 import {Checkbox} from "react-native-paper";
 
-const choices = () => {
+const Choices = () => {
   	const [rectangleCheckboxchecked, setRectangleCheckboxchecked] = useState(false);
   	const [rectangleCheckbox1checked, setRectangleCheckbox1checked] = useState(false);
   	const [rectangleCheckbox2checked, setRectangleCheckbox2checked] = useState(false);
@@ -161,4 +161,4 @@ const styles = StyleSheet.create({
   	}
 });
 
-export default choices;
+export default Choices;

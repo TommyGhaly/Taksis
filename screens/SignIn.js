@@ -1,22 +1,23 @@
 import * as React from "react";
-import backArrow from "../components/backArrow";
-import ContinueButton from "../components/continueButton";
+import BackArrow from '../components/BackArrow';
+import ContinueButton from "../components/ContinueButton";
 import {ImageBackground, StyleSheet, View, TextInput, Pressable, Text, TouchableOpacity, Image} from "react-native";
 import {useNavigation, ParamListBase} from "@react-navigation/native";
 
+//do the back arrow and set up the continue button with the right parameters
+
 const SignIn = () => {
-  	const navigation = useNavigation();
     		
     		return (
       			<View style={[styles.signIn, styles.iconLayout]}>
-        				<ImageBackground style={styles.lastsuppericon} resizeMode="cover" source={require("lastSupperIcon.png")} />
+        				<ImageBackground style={styles.lastsuppericon} resizeMode="cover" source={require("../assets/lastSupperIcon.png")} />
         				<TextInput style={[styles.phoneOrEmail, styles.passwordBorder]} placeholder="Enter your phone or email" placeholderTextColor="#8e8e93" />
         				<TextInput style={[styles.password, styles.passwordBorder]} placeholder="Enter your password" placeholderTextColor="#8e8e93" />
         				<TouchableOpacity style={[styles.continuebutton, styles.appleFlexBox]} activeOpacity={0.2} onPress={()=>{}}>
           					<Text style={styles.continue}>Continue</Text>
         				</TouchableOpacity>
         				<Pressable style={[styles.forgotPasswordSetContainer, styles.containerPosition]} onPress={()=>{}}>
-          					<Text style={[styles.text, styles.orTypo]}>
+          					<Text style={[styles.text1, styles.orTypo]}>
             						<Text style={styles.forgotPassword}>{`Forgot password? `}</Text>
             						<Text style={styles.setNewPassword}>Set new password</Text>
           					</Text>
@@ -31,19 +32,19 @@ const SignIn = () => {
         				<View style={styles.component2}>
           					<Pressable style={[styles.appleregistration, styles.appleregistrationLayout]}>
             						<View style={styles.appleFlexBox}>
-              							<Image style={styles.applelogoIcon} resizeMode="cover" source="appleLogo.png" />
+              							<Image style={styles.applelogoIcon} resizeMode="cover" source={require("../assets/appleLogo.png")} />
               							<Text style={[styles.registerWithApple, styles.registerTypo]}>Register with apple</Text>
             						</View>
           					</Pressable>
           					<Pressable style={[styles.googleregistration, styles.appleregistrationLayout]}>
             						<View style={styles.google}>
-              							<Image style={styles.applelogoIcon} resizeMode="cover" source="googleLogo.png" />
+              							<Image style={styles.applelogoIcon} resizeMode="cover" source={require("../assets/googleLogo.png")} />
               							<Text style={[styles.registerWithGoogle, styles.registerTypo]}>Register with google</Text>
             						</View>
           					</Pressable>
         				</View>
         				<TouchableOpacity style={[styles.dontHaveAccountContainer, styles.containerPosition]} activeOpacity={0.2} onPress={()=>{}}>
-          					<Text style={[styles.text, styles.orTypo]}>
+          					<Text style={[styles.text2, styles.orTypo]}>
             						<Text style={styles.forgotPassword}>{`Don’t have account? `}</Text>
             						<Text style={styles.setNewPassword}>Sign up</Text>
           					</Text>
@@ -98,7 +99,6 @@ const SignIn = () => {
         				position: "absolute"
       			},
       			appleregistrationLayout: {
-        				height: "42.52%",
         				left: "0%",
         				right: "0%",
         				justifyContent: "center",
@@ -108,7 +108,6 @@ const SignIn = () => {
         				flexDirection: "row",
         				borderRadius: 10,
         				position: "absolute",
-        				width: "100%"
       			},
       			registerTypo: {
         				marginLeft: 12,
@@ -119,8 +118,6 @@ const SignIn = () => {
         				fontSize: 17
       			},
       			lastsuppericon: {
-        				height: "19.48%",
-        				width: "92.37%",
         				top: "12.21%",
         				right: "3.82%",
         				bottom: "68.31%",
@@ -129,11 +126,13 @@ const SignIn = () => {
       			},
       			phoneOrEmail: {
         				top: "40.87%",
-        				bottom: "53.38%"
+        				bottom: "53.38%",
+						color: "#8e8e93",
       			},
       			password: {
         				top: "48.85%",
-        				bottom: "45.4%"
+        				bottom: "45.4%",
+						color: "#8e8e93",
       			},
       			continue: {
         				color: "#000",
@@ -166,10 +165,14 @@ const SignIn = () => {
       			setNewPassword: {
         				color: "#6e85e3"
       			},
-      			text: {
-        				width: "93.89%",
-        				textAlign: "center"
+      			text1: {
+        				textAlign: "center",
+						left: "20%"
       			},
+				text2: {
+					textAlign: "center",
+					left: "50%",
+				},
       			forgotPasswordSetContainer: {
         				top: "64.93%"
       			},

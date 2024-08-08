@@ -1,11 +1,14 @@
 import * as React from "react";
-import SingIn from "./screens/SignIn.";
+import Welcome from './screens/Welcome';
+import SignIn from './screens/SignIn'
+import SignUp from './screens/SignUp'
+import SelectChurch from "./screens/SelectChurch";
 import {StyleSheet, Text, View, Pressable, TouchableOpacity} from 'react-native';
 
 export default function App() {
   return (
     <View style={styles.container}>
-       <SignIn></SignIn>
+      <SelectChurch/>
     </View>
   );
 }

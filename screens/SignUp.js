@@ -6,7 +6,7 @@ const SignUp = () => {
     		return (
       			<View style={styles.signup}>
         				<Pressable style={styles.backarrow} onPress={() => navigation.goBack()}>
-          					<Image style={styles.icon} resizeMode="cover" source="backArrow.png" />
+          					<Image style={styles.icon} resizeMode="cover" source={require("../assets/backArrow.png")} />
         				</Pressable>
         				<TextInput style={[styles.name, styles.nameBorder]} placeholder="Enter your name" placeholderTextColor="#8e8e93" />
         				<TextInput style={[styles.phone, styles.nameBorder]} placeholder="Enter your phone" placeholderTextColor="#8e8e93" />
@@ -29,13 +29,13 @@ const SignUp = () => {
         				<View style={styles.component2}>
           					<Pressable style={[styles.appleregistration, styles.appleregistrationPosition]}>
             						<View style={styles.appleFlexBox}>
-              							<Image style={styles.applelogoIcon} resizeMode="cover" source="appleLogo.png" />
+              							<Image style={styles.applelogoIcon} resizeMode="cover" source={require("../assets/appleLogo.png")} />
               							<Text style={[styles.registerWithApple, styles.registerTypo]}>Register with apple</Text>
             						</View>
           					</Pressable>
           					<Pressable style={[styles.googleregistration, styles.appleregistrationPosition]}>
             						<View style={styles.google}>
-              							<Image style={styles.applelogoIcon} resizeMode="cover" source="googleLogo.png" />
+              							<Image style={styles.applelogoIcon} resizeMode="cover" source={require("../assets/googleLogo.png")} />
               							<Text style={[styles.registerWithGoogle, styles.registerTypo]}>Register with google</Text>
             						</View>
           					</Pressable>
@@ -121,23 +121,28 @@ const SignUp = () => {
       			},
       			name: {
         				top: "21.83%",
-        				bottom: "72.42%"
+        				bottom: "72.42%",
+						color: "#8e8e93"
       			},
       			phone: {
         				top: "29.93%",
-        				bottom: "64.32%"
+        				bottom: "64.32%",
+						color: "#8e8e93"
       			},
       			email: {
         				top: "38.03%",
-        				bottom: "56.22%"
+        				bottom: "56.22%",
+						color: "#8e8e93"
       			},
       			password: {
         				top: "46.13%",
-        				bottom: "48.12%"
+        				bottom: "48.12%",
+						color: "#8e8e93"
       			},
       			passwordconfirm: {
         				top: "54.23%",
-        				bottom: "40.02%"
+        				bottom: "40.02%",
+						color: "#8e8e93"
       			},
       			dividerChild: {
         				right: "55.17%",

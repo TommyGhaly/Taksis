@@ -1,7 +1,7 @@
 import * as React from "react";
 import {StyleSheet, View, Text} from "react-native";
 
-const attendenceHistory = () => {
+const AttendenceHistory = () => {
   	
   	return (
     		<View style={styles.rectangleParent}>
@@ -126,4 +126,4 @@ const styles = StyleSheet.create({
   	}
 });
 
-export default attnedenceHistory;
+export default AttnedenceHistory;

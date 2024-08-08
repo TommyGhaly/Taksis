@@ -1,7 +1,7 @@
 import * as React from "react";
 import {Text, StyleSheet, Pressable, Image, View} from "react-native";
 
-const learnAlhan = () => {
+const LearnAlhan = () => {
   	
   	return (
     		<View style={styles.component7}>
@@ -75,4 +75,4 @@ const styles = StyleSheet.create({
   	}
 });
 
-export default learnAlhan;
+export default LearnAlhan;

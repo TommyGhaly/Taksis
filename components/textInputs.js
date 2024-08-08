@@ -1,7 +1,7 @@
 import * as React from "react";
 import {TextInput, StyleSheet} from "react-native";
 
-const textInput = (placeHolder) => {
+const TextInput = (placeHolder) => {
   	
   	return (
     		<TextInput style={styles.phoneOrEmail} placeholder={placeHolder} placeholderTextColor="#8e8e93" />);
@@ -25,4 +25,4 @@ const styles = StyleSheet.create({
   	}
 });
 
-export default textInput;
+export default TextInput;

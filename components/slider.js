@@ -1,7 +1,7 @@
 import * as React from "react";
 import {StyleSheet, View} from "react-native";
 
-const slider = () => {
+const Slider = () => {
   	
   	return (
     		<View style={styles.slider}>
@@ -75,4 +75,4 @@ const styles = StyleSheet.create({
   	}
 });
 
-export default slider;
+export default Slider;

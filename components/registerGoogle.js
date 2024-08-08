@@ -1,7 +1,7 @@
 import * as React from "react";
 import {Pressable, Image, StyleSheet, Text, View} from "react-native";
 
-const registerGoogle = () => {
+const RegisterGoogle = () => {
   	
   	return (
     		<Pressable style={[styles.googleregistration, styles.googleFlexBox]}>
@@ -45,4 +45,4 @@ const styles = StyleSheet.create({
   	}
 });
 
-export default registerGoogle;
+export default RegisterGoogle;

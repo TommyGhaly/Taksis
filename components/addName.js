@@ -1,14 +1,13 @@
 import * as React from "react";
-import {Image, StyleSheet, Text, Pressable, View, TextInput} from "react-native";
-import { StackNavigationProp } from '@react-navigation/stack';
-import {useNavigation, ParamListBase} from "@react-navigation/native";
+import {StyleSheet, View, Text, Pressable, TextInput} from "react-native";
 
-const addName = () => {
-  	const navigation = useNavigation();
+const AddName = () => {
     		
     		return (
       			<View style={styles.alertTextField}>
-        				<Image style={styles.backgroundIcon} resizeMode="cover" source="Background.png" />
+        				<View style={[styles.background, styles.labelPosition1]}>
+          					<View style={[styles.backgroundChild, styles.labelPosition1]} />
+        				</View>
         				<Text style={styles.description}>{`Write first and last name of participant. `}</Text>
         				<Text style={[styles.title, styles.titleTypo]}>Add name</Text>
         				<View style={styles.bottomActions}>
@@ -35,6 +34,12 @@ const addName = () => {
     		};
     		
     		const styles = StyleSheet.create({
+      			labelPosition1: {
+        				bottom: "0%",
+        				top: "0%",
+        				height: "100%",
+        				position: "absolute"
+      			},
       			titleTypo: {
         				fontFamily: "Roboto-Bold",
         				fontWeight: "600"
@@ -53,12 +58,6 @@ const addName = () => {
         				right: 0,
         				position: "absolute"
       			},
-      			labelPosition1: {
-        				bottom: "0%",
-        				top: "0%",
-        				height: "100%",
-        				position: "absolute"
-      			},
       			labelPosition: {
         				top: "50%",
         				marginTop: -11,
@@ -73,16 +72,16 @@ const addName = () => {
         				bottom: 0,
         				position: "absolute"
       			},
-      			backgroundIcon: {
-        				maxWidth: "100%",
-        				maxHeight: "100%",
-        				overflow: "hidden",
+      			backgroundChild: {
+        				borderRadius: 14,
+        				backgroundColor: "rgba(30, 30, 30, 0.75)",
         				left: "0%",
-        				bottom: "0%",
         				right: "0%",
-        				top: "0%",
-        				height: "100%",
-        				position: "absolute",
+        				width: "100%"
+      			},
+      			background: {
+        				left: "0%",
+        				right: "0%",
         				width: "100%"
       			},
       			description: {
@@ -123,7 +122,6 @@ const addName = () => {
       			},
       			rightAction: {
         				left: "50%",
-        				width: "50%",
         				right: "0%"
       			},
       			label3: {
@@ -137,8 +135,7 @@ const addName = () => {
       			},
       			leftAction: {
         				right: "50%",
-        				left: "0%",
-        				width: "50%"
+        				left: "0%"
       			},
       			separator: {
         				marginLeft: -0.5,
@@ -183,8 +180,8 @@ const addName = () => {
         				right: 16,
         				bottom: 62,
         				height: 25,
-        				left: 16,
         				overflow: "hidden",
+        				left: 16,
         				position: "absolute"
       			},
       			alertTextField: {
@@ -194,5 +191,5 @@ const addName = () => {
       			}
     		});
     		
-    		export default addName;
+    		export default AddNmae;
     		

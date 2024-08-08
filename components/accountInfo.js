@@ -1,7 +1,7 @@
 import * as React from "react";
 import {View, StyleSheet, Text} from "react-native";
 
-const accountInfo = (name, email, pass) => {
+const AccountInfo = (name, email, pass) => {
   	
   	return (
     		<View style={styles.component6}>
@@ -80,4 +80,4 @@ const styles = StyleSheet.create({
   	}
 });
 
-export default accountInfo;
+export default AccountInfo;

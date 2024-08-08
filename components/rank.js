@@ -1,7 +1,7 @@
 import * as React from "react";
 import {Pressable, Text, StyleSheet, View} from "react-native";
 
-const rank = () => {
+const Rank = () => {
   	
   	return (
     		<View style={styles.options}>
@@ -69,4 +69,4 @@ const styles = StyleSheet.create({
   	}
 });
 
-export default rank;
+export default Rank;
