@@ -6,23 +6,22 @@ const Rank = () => {
   	return (
     		<View style={styles.options}>
       			<Pressable style={[styles.deaconFullDeaconWrapper, styles.wrapperFlexBox]}>
-        				<Text style={[styles.deaconFullDeacon, styles.deaconTypo]}>Deacon (Full Deacon)</Text>
+        				<Text style={[styles.fullDeacon, styles.deaconTypo]}>Deacon (Full Deacon)</Text>
       			</Pressable>
       			<Pressable style={[styles.subdeaconEpideaconWrapper, styles.wrapperFlexBox]}>
-        				<Text style={styles.deaconTypo}>Subdeacon (Epideacon)</Text>
+        				<Text style={[styles.deaconTypo, styles.subdeacon]}>Subdeacon (Epideacon)</Text>
       			</Pressable>
       			<Pressable style={[styles.readerOgnostisWrapper, styles.wrapperFlexBox]}>
-        				<Text style={styles.deaconTypo}>Reader (Ognostis)</Text>
+        				<Text style={[styles.deaconTypo, styles.reader]}>Reader (Ognostis)</Text>
       			</Pressable>
       			<Pressable style={[styles.chanterEpsaltosWrapper, styles.wrapperFlexBox]} onPress={()=>{}}>
-        				<Text style={styles.deaconTypo}>Chanter (Epsaltos)</Text>
+        				<Text style={[styles.deaconTypo, styles.chanter]}>Chanter (Epsaltos)</Text>
       			</Pressable>
     		</View>);
 };
 
 const styles = StyleSheet.create({
   	wrapperFlexBox: {
-    		padding: 20,
     		justifyContent: "space-between",
     		alignItems: "center",
     		flexDirection: "row",
@@ -35,20 +34,28 @@ const styles = StyleSheet.create({
     		width: "100%"
   	},
   	deaconTypo: {
-    		textAlign: "left",
+    		textAlign: "center",
     		color: "#000",
     		fontFamily: "Roboto-Bold",
     		fontWeight: "700",
     		letterSpacing: -0.2,
     		fontSize: 24
   	},
-  	deaconFullDeacon: {
-    		width: 251,
-    		height: 23
+  	fullDeacon: {
+			left: "63.867%",
   	},
+	subdeacon: {
+			left: "50%"
+	},
+	reader: {
+			left: "105%"
+	},
+	chanter: {
+		left: "100%"
+	},
   	deaconFullDeaconWrapper: {
     		top: "85.05%",
-    		bottom: "0%"
+    		bottom: "0%",
   	},
   	subdeaconEpideaconWrapper: {
     		top: "56.7%",
@@ -60,7 +67,7 @@ const styles = StyleSheet.create({
   	},
   	chanterEpsaltosWrapper: {
     		top: "0%",
-    		bottom: "85.05%"
+    		bottom: "85.%"
   	},
   	options: {
     		flex: 1,

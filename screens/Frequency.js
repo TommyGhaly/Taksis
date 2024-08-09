@@ -1,15 +1,20 @@
 import * as React from "react";
 import {StyleSheet, View, Text, Pressable, TouchableOpacity} from "react-native";
 import {ProgressBar, Button} from "react-native-paper";
+import ContinueButton from "../components/continueButton";
+import BackArrow from "../components/backArrow";
 
-const Frequency = () => {
+const Frequency = ({person}) => {
     		
     		return (
       			<View style={styles.frequency}>
+							<View style={styles.title}>
+								<Text style={styles.titleText}>How frequently do {person} attend church?</Text>
+							</View>
         				<View style={[styles.frequencySlider, styles.backarrowPosition]}>
           					<View style={styles.slider}>
-            						<View style={[styles.unfilled, styles.knob1Layout]} />
-            						<View style={styles.filled} />
+            						<View style={[styles.unfilledknob, styles.knob1Layout]} />
+            						<View style={styles.filledknob} />
             						<View style={styles.knob}>
               							<View style={[styles.knob1, styles.knob1Layout]} />
             						</View>
@@ -17,26 +22,20 @@ const Frequency = () => {
           					<Text style={[styles.notOften, styles.oftenTypo]}>Not often</Text>
           					<Text style={[styles.veryVeryOften, styles.oftenTypo]}>Very Very often</Text>
         				</View>
-        				<TouchableOpacity style={[styles.continuebutton, styles.backarrowPosition]} activeOpacity={0.2} onPress={()=>{}}>
-          					<Text style={styles.continue}>Continue</Text>
-        				</TouchableOpacity>
-        				<View style={[styles.progressBar, styles.progressBarLayout]}>
-          					<ProgressBar style={[styles.progressbar, styles.progressBarLayout]} progress={0.8} color="rgba(120, 120, 128, 0.32)" />
-        				</View>
-        				<Button style={[styles.backarrow, styles.backarrowPosition]} mode="outlined" onPress={() => navigation.goBack()} contentStyle={styles.backArrowIconBtn} />
+						<View style={styles.progressBar}>
+							<View style={styles.track}>
+								<View style={styles.filled} />
+							</View>
+						</View>
+						<View style={styles.continue}>
+							<ContinueButton/>
+						</View>
       			</View>);
     		};
     		
     		const styles = StyleSheet.create({
-      			progressbar: {
-        				backgroundColor: "#000",
-        				width: "83.97%",
-        				height: "3.29%"
-      			},
-      			backArrowIconBtn: {
-        				height: "2.82%",
-        				width: "6.11%"
-      			},
+      			
+      			
       			backarrowPosition: {
         				left: "4.07%",
         				position: "absolute"
@@ -54,11 +53,8 @@ const Frequency = () => {
         				top: "0%",
         				position: "absolute"
       			},
-      			progressBarLayout: {
-        				width: "83.97%",
-        				height: "3.29%"
-      			},
-      			unfilled: {
+  
+      			unfilledknob: {
         				right: 0,
         				left: 0,
         				backgroundColor: "rgba(120, 120, 128, 0.32)",
@@ -67,7 +63,7 @@ const Frequency = () => {
         				height: "14.29%",
         				borderRadius: 100
       			},
-      			filled: {
+      			filledknob: {
         				backgroundColor: "#147efb",
         				right: "49.17%",
         				width: "50.83%",
@@ -130,44 +126,47 @@ const Frequency = () => {
         				bottom: "42.61%",
         				height: "6.1%"
       			},
-      			continue: {
-        				fontSize: 17,
-        				letterSpacing: -0.2,
-        				fontWeight: "500",
-        				fontFamily: "Roboto-Medium",
-        				color: "#fff",
-        				textAlign: "center"
-      			},
-      			continuebutton: {
-        				height: "5.87%",
-        				width: "91.09%",
-        				top: "83.57%",
-        				right: "4.83%",
-        				bottom: "10.56%",
-        				borderRadius: 10,
-        				backgroundColor: "#333",
-        				borderStyle: "solid",
-        				borderColor: "rgba(0, 0, 0, 0.15)",
-        				borderWidth: 1,
-        				flexDirection: "row",
-        				alignItems: "center",
-        				justifyContent: "center",
-        				paddingHorizontal: 20,
-        				paddingVertical: 15
-      			},
-      			progressBar: {
-        				top: "8.45%",
-        				right: "7.89%",
-        				bottom: "88.26%",
-        				left: "8.14%",
-        				position: "absolute"
-      			},
-      			backarrow: {
-        				top: "8.69%",
-        				right: "89.82%",
-        				bottom: "88.5%",
-        				overflow: "hidden"
-      			},
+      			
+				progressBar: {
+					top: "8.45%",
+					right: "7.89%",
+					bottom: "88.26%",
+					left: "8.14%",
+					position: "absolute",
+					backgroundColor: "#000"
+			    },
+      			filled: {
+					position: "absolute",
+					marginTop: -2,
+					width: "77.28%",
+					top: "50%",
+					right: "22.72%",
+					left: "0%",
+					borderRadius: 100,
+					backgroundColor: "#147efb",
+					height: 4
+				},
+				track: {
+					backgroundColor: "rgba(120, 120, 128, 0.32)",
+					width: "100%",
+					height: 4
+				},
+				title: {
+					top: "19.6%",
+					left: "4.071%",
+					right: "4.071%",
+					width: "88.295%",
+				},
+				titleText: {
+					fontSize: 34,
+					letterSpacing: -0.1,
+					fontFamily: "Roboto-Regular",
+					color: "#8e8e93",
+				},
+				continue: {
+					top: "75%",
+					left: "4.07%"
+				},
       			frequency: {
         				flex: 1,
         				height: 852,

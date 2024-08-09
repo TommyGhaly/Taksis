@@ -1,6 +1,6 @@
 import * as React from "react";
-import BackArrow from '../components/BackArrow';
-import ContinueButton from "../components/ContinueButton";
+import BackArrow from '../components/backArrow';
+import ContinueButton from "../components/continueButton";
 import {ImageBackground, StyleSheet, View, TextInput, Pressable, Text, TouchableOpacity, Image} from "react-native";
 import {useNavigation, ParamListBase} from "@react-navigation/native";
 

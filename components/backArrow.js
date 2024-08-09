@@ -11,18 +11,18 @@ const BackArrow = () => {
       			</Pressable>);
     		};
     		
-    		const styles = StyleSheet.create({
-      			icon: {
-        				flex: 1,
-        				height: "100%",
-        				overflow: "hidden",
-        				width: "100%"
-      			},
-      			backarrow: {
-        				height: "2.8169%",
-        				width: "100%"
-      			}
-    		});
+	const styles = StyleSheet.create({
+		icon: {
+				flex: 1,
+				height: "100%",
+				overflow: "hidden",
+				width: "100%"
+		},
+		backarrow: {
+				height: "2.8169%",
+				width: "100%"
+		}
+	});
     		
-    		export default BackArrow;
+export default BackArrow;
     		

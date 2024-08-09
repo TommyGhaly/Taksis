@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import {Text, StyleSheet, View} from "react-native";
-import {Button} from "@rneui/themed";
 import {Checkbox} from "react-native-paper";
-
-const Choices = () => {
+//get the checkboxes working
+const Group = () => {
   	const [rectangleCheckboxchecked, setRectangleCheckboxchecked] = useState(false);
   	const [rectangleCheckbox1checked, setRectangleCheckbox1checked] = useState(false);
   	const [rectangleCheckbox2checked, setRectangleCheckbox2checked] = useState(false);
@@ -12,153 +11,130 @@ const Choices = () => {
   	
   	return (
     		<View style={styles.deaconParent}>
-      			<Text style={styles.deacon}>Deacon</Text>
-      			<Button title="Alhan teacher" radius="5" iconPosition="left" type="clear" color="#8e8e93" titleStyle={styles.alhanTeacherBtn} containerStyle={styles.alhanTeacherBtn1} buttonStyle={styles.alhanTeacherBtn2} />
-      			<Button title="Sunday School Teacher" radius="5" iconPosition="left" type="clear" color="#8e8e93" titleStyle={styles.sundaySchoolTeacherBtn} containerStyle={styles.sundaySchoolTeacherBtn1} buttonStyle={styles.sundaySchoolTeacherBtn2} />
-      			<Button title="Servants Meeting Attendance Tracker" radius="5" iconPosition="left" type="clear" color="#8e8e93" titleStyle={styles.servantsMeetingAttendanceBtn} containerStyle={styles.servantsMeetingAttendanceBtn1} buttonStyle={styles.servantsMeetingAttendanceBtn2} />
-      			<Button title="None applicable" radius="5" iconPosition="left" type="clear" color="#8e8e93" titleStyle={styles.noneApplicableBtn} containerStyle={styles.noneApplicableBtn1} buttonStyle={styles.noneApplicableBtn2} />
-      			<View style={[styles.componentChild, styles.componentChildPosition]} />
-      			<View style={[styles.componentItem, styles.componentChildPosition]} />
-      			<View style={[styles.componentInner, styles.componentChildPosition]} />
-      			<View style={[styles.lineView, styles.componentChildPosition]} />
-      			<View style={[styles.componentChild1, styles.componentChildPosition]} />
+      			<Text style={[styles.deacon, styles.teacherTypo]}>Deacon</Text>
+      			<Text style={[styles.alhanTeacher, styles.teacherTypo]}>Alhan teacher</Text>
+      			<Text style={[styles.sundaySchoolTeacher, styles.teacherTypo]}>Sunday School Teacher</Text>
+      			<Text style={[styles.servantsMeetingAttendance, styles.noneApplicableTypo]}>Servants Meeting Attendance Tracker</Text>
+      			<Text style={[styles.noneApplicable, styles.noneApplicableTypo]}>None applicable</Text>
+      			<View style={[styles.groupChild, styles.groupChildPosition]} />
+      			<View style={[styles.groupItem, styles.groupChildPosition]} />
+      			<View style={[styles.groupInner, styles.groupChildPosition]} />
+      			<View style={[styles.lineView, styles.groupChildPosition]} />
+      			<View style={[styles.groupChild1, styles.groupChildPosition]} />
       			<View style={[styles.wrapper, styles.wrapperPosition]}>
-        				<Checkbox status={rectangleCheckboxchecked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckboxchecked(!rectangleCheckboxchecked)} color="#000" />
+        				<Checkbox status={rectangleCheckboxchecked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckboxchecked(!rectangleCheckboxchecked)} color="#fff" />
       			</View>
       			<View style={[styles.container, styles.wrapperPosition]}>
-        				<Checkbox status={rectangleCheckbox1checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox1checked(!rectangleCheckbox1checked)} color="#000" />
+        				<Checkbox status={rectangleCheckbox1checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox1checked(!rectangleCheckbox1checked)} color="#fff" />
       			</View>
       			<View style={[styles.frame, styles.wrapperPosition]}>
-        				<Checkbox status={rectangleCheckbox2checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox2checked(!rectangleCheckbox2checked)} color="#000" />
+        				<Checkbox status={rectangleCheckbox2checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox2checked(!rectangleCheckbox2checked)} color="#fff" />
       			</View>
       			<View style={[styles.rectangleView, styles.wrapperPosition]}>
-        				<Checkbox status={rectangleCheckbox3checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox3checked(!rectangleCheckbox3checked)} color="#000" />
+        				<Checkbox status={rectangleCheckbox3checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox3checked(!rectangleCheckbox3checked)} color="#fff" />
       			</View>
       			<View style={[styles.wrapper1, styles.wrapperPosition]}>
-        				<Checkbox status={rectangleCheckbox4checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox4checked(!rectangleCheckbox4checked)} color="#000" />
+        				<Checkbox status={rectangleCheckbox4checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox4checked(!rectangleCheckbox4checked)} color="#fff" />
       			</View>
     		</View>);
 };
 
 const styles = StyleSheet.create({
-  	alhanTeacherBtn: {
+  	teacherTypo: {
+    		textAlign: "left",
     		color: "#8e8e93",
+    		fontFamily: "Roboto-Regular",
+    		letterSpacing: -0.2,
     		fontSize: 20,
-    		fontFamily: "Roboto-Regular"
-  	},
-  	alhanTeacherBtn1: {
-    		left: "49.62%",
-    		top: "21.59%",
+    		left: "20%",
     		position: "absolute"
   	},
-  	alhanTeacherBtn2: {},
-  	sundaySchoolTeacherBtn: {
+  	noneApplicableTypo: {
+    		alignItems: "center",
+    		display: "flex",
+    		width: "80%",
+    		textAlign: "left",
     		color: "#8e8e93",
+    		fontFamily: "Roboto-Regular",
+    		letterSpacing: -0.2,
     		fontSize: 20,
-    		fontFamily: "Roboto-Regular"
-  	},
-  	sundaySchoolTeacherBtn1: {
-    		left: "49.62%",
-    		top: "43.18%",
+    		left: "20%",
     		position: "absolute"
   	},
-  	sundaySchoolTeacherBtn2: {},
-  	servantsMeetingAttendanceBtn: {
-    		color: "#8e8e93",
-    		fontSize: 20,
-    		fontFamily: "Roboto-Regular"
-  	},
-  	servantsMeetingAttendanceBtn1: {
-    		left: "49.62%",
-    		top: "64.77%",
-    		position: "absolute"
-  	},
-  	servantsMeetingAttendanceBtn2: {
-    		width: "198.5%"
-  	},
-  	noneApplicableBtn: {
-    		color: "#8e8e93",
-    		fontSize: 20,
-    		fontFamily: "Roboto-Regular"
-  	},
-  	noneApplicableBtn1: {
-    		left: "49.62%",
-    		top: "90.91%",
-    		position: "absolute"
-  	},
-  	noneApplicableBtn2: {
-    		width: "198.5%"
-  	},
-  	componentChildPosition: {
+  	groupChildPosition: {
     		borderTopWidth: 1,
     		borderColor: "#8e8e93",
     		borderStyle: "solid",
-    		left: "38.72%",
-    		right: "-127.44%",
-    		width: "188.72%",
-    		height: "0.38%",
+    		left: "15.61%",
+    		right: "8.33%",
+    		width: "76.06%",
+    		height: "0.37%",
     		position: "absolute"
   	},
   	wrapperPosition: {
-    		right: "80.45%",
-    		left: "-0.75%",
+    		right: "92.12%",
+    		left: "-0.3%",
     		position: "absolute"
   	},
   	deacon: {
-    		top: "0%",
-    		left: "49.62%",
-    		fontSize: 20,
-    		letterSpacing: -0.2,
-    		fontFamily: "Roboto-Regular",
-    		color: "#8e8e93",
-    		textAlign: "left",
-    		position: "absolute"
+    		top: "0%"
   	},
-  	componentChild: {
-    		top: "11.55%",
-    		bottom: "88.07%"
+  	alhanTeacher: {
+    		top: "21.27%"
   	},
-  	componentItem: {
-    		top: "33.52%",
-    		bottom: "66.1%"
+  	sundaySchoolTeacher: {
+    		top: "42.54%"
   	},
-  	componentInner: {
-    		top: "55.87%",
-    		bottom: "43.75%"
+  	servantsMeetingAttendance: {
+    		top: "63.81%"
+  	},
+  	noneApplicable: {
+    		top: "89.55%"
+  	},
+  	groupChild: {
+    		top: "11.38%",
+    		bottom: "88.25%"
+  	},
+  	groupItem: {
+    		top: "33.02%",
+    		bottom: "66.6%"
+  	},
+  	groupInner: {
+    		top: "55.04%",
+    		bottom: "44.59%"
   	},
   	lineView: {
-    		top: "85.42%",
-    		bottom: "14.2%"
+    		top: "84.14%",
+    		bottom: "15.49%"
   	},
-  	componentChild1: {
-    		top: "101.33%",
-    		bottom: "-1.7%"
+  	groupChild1: {
+    		top: "99.81%",
+    		bottom: "-0.19%"
   	},
   	wrapper: {
-    		top: "46.97%",
-    		bottom: "42.8%"
+    		top: "3.73%",
+    		bottom: "86.19%"
   	},
   	container: {
-    		top: "68.56%",
-    		bottom: "21.21%"
+    		top: "46.27%",
+    		bottom: "43.66%"
   	},
   	frame: {
-    		top: "90.15%",
-    		bottom: "-0.38%"
+    		top: "67.54%",
+    		bottom: "22.39%"
   	},
   	rectangleView: {
-    		top: "25.38%",
-    		bottom: "64.39%"
+    		top: "88.81%",
+    		bottom: "1.12%"
   	},
   	wrapper1: {
-    		top: "3.79%",
-    		bottom: "85.98%"
+    		top: "25%",
+    		bottom: "64.93%"
   	},
   	deaconParent: {
-    		flex: 1,
-    		width: "100%",
-    		height: 264
+    		width: 330,
+    		height: 268
   	}
 });
 
-export default Choices;
+export default Group;

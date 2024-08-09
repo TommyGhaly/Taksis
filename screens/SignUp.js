@@ -1,6 +1,6 @@
 import * as React from "react";
 import {Pressable, Image, StyleSheet, TextInput, View, Text, TouchableOpacity} from "react-native";
-
+//fix the continue button 
 const SignUp = () => {
     		
     		return (

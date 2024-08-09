@@ -1,12 +1,15 @@
 import * as React from "react";
 import {Pressable, Text, StyleSheet} from "react-native";
-
-const ContinueButton = (text, location) => {
-    const navigation = useNavigation(); 
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
+//fix the navigation and add affect to button with oppacy
+const ContinueButton = ({location},{text}) => {
+    const navigation = useNavigationContainerRef(); 
   	return (
-    		<Pressable style={styles.continuebutton} onPress={()=>{navigation.navigate(location)}}>
-      			<Text style={styles.continue}>{text}</Text>
-    		</Pressable>);
+				<Pressable style={styles.continuebutton} onPress={()=>{navigation.navigate({location})}}>
+					<NavigationContainer ref={navigation}></NavigationContainer>
+					<Text style={styles.continue}>{text}</Text>
+    			</Pressable>
+	);
 };
 
 const styles = StyleSheet.create({
@@ -22,10 +25,9 @@ const styles = StyleSheet.create({
     		borderRadius: 10,
     		backgroundColor: "#333",
     		borderStyle: "solid",
-    		borderColor: "rgba(0, 0, 0, 0.15)",
+    		borderColor: "#333333",
     		borderWidth: 1,
-    		flex: 1,
-    		width: "100%",
+    		width: 358,
     		height: 50,
     		flexDirection: "row",
     		alignItems: "center",

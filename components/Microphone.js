@@ -13,7 +13,7 @@ const Microphone = () => {
 };
 
 
-const style = StyleSheet.create({
+const styles = StyleSheet.create({
     rectangleView: {
         borderRadius: 4,
         backgroundColor: "#8e8e93",
