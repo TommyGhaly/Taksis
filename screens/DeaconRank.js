@@ -29,9 +29,9 @@ const DeaconRank = ({person}) => {
     		const styles = StyleSheet.create({
 				progressBar: {
 					top: "8.45%",
-					right: "7.89%",
+					right: "12.2137%",
 					bottom: "88.26%",
-					left: "8.14%",
+					left: "12.2137%",
 					position: "absolute",
 					backgroundColor: "#000"
 			    },

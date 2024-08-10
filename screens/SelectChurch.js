@@ -35,6 +35,9 @@ const SelectChurch = ({person}) => {
 							<View style={styles.filled} />
 						</View>
 					</View>
+					<View style={styles.backbutton}>
+						<BackArrow/>
+					</View>
 				</View>);
     		};
     		
@@ -96,27 +99,31 @@ const SelectChurch = ({person}) => {
 				},
 				progressBar: {
 					top: "8.45%",
-					right: "7.89%",
+					right: "12.2137%",
 					bottom: "88.26%",
-					left: "8.14%",
+					left: "12.2137%",
 					position: "absolute"
-			  },
-			  filled: {
-				position: "absolute",
-				marginTop: -2,
-				width: "22.43%",
-				top: "50%",
-				right: "77.57%",
-				left: "0%",
-				borderRadius: 100,
-				backgroundColor: "#147efb",
-				height: 4
-			},
-			track: {
-				backgroundColor: "rgba(120, 120, 128, 0.32)",
-				width: "100%",
-				height: 4
-			},
+			    },
+			    filled: {
+					position: "absolute",
+					marginTop: -2,
+					width: "22.43%",
+					top: "50%",
+					right: "77.57%",
+					left: "0%",
+					borderRadius: 100,
+					backgroundColor: "#147efb",
+					height: 4
+				},
+				track: {
+					backgroundColor: "rgba(120, 120, 128, 0.32)",
+					width: "100%",
+					height: 4
+				},
+				backbutton: {
+					top: "8.68545%",
+					left: "4.071%"
+				}
     		});
     		
     		export default SelectChurch;

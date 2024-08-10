@@ -213,9 +213,9 @@ const SignUp = () => {
         				height: "3.29%",
         				width: "84.61%",
         				top: "8.45%",
-        				right: "7.25%",
+        				right: "12.2137%",
         				bottom: "88.26%",
-        				left: "8.14%",
+        				left: "12.2137%",
         				position: "absolute",
         				backgroundColor: "#000"
       			},

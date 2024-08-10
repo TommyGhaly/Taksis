@@ -3,10 +3,9 @@ import {Pressable, Image, StyleSheet} from "react-native";
 import {useNavigation, ParamListBase} from "@react-navigation/native";
 
 const BackArrow = () => {
-  	const navigation = useNavigation();
     		
     		return (
-      			<Pressable style={styles.backarrow} onPress={() => navigation.goBack()}>
+      			<Pressable style={styles.backarrow}>
         				<Image style={styles.icon} resizeMode="cover" source={require("../assets/backArrow.png")} />
       			</Pressable>);
     		};

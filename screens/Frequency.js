@@ -3,7 +3,7 @@ import {StyleSheet, View, Text, Pressable, TouchableOpacity} from "react-native"
 import {ProgressBar, Button} from "react-native-paper";
 import ContinueButton from "../components/continueButton";
 import BackArrow from "../components/backArrow";
-
+//finish this up
 const Frequency = ({person}) => {
     		
     		return (
@@ -129,9 +129,9 @@ const Frequency = ({person}) => {
       			
 				progressBar: {
 					top: "8.45%",
-					right: "7.89%",
+					right: "12.2137%",
 					bottom: "88.26%",
-					left: "8.14%",
+					left: "12.2137%",
 					position: "absolute",
 					backgroundColor: "#000"
 			    },
