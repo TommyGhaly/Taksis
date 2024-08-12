@@ -5,9 +5,9 @@ const HomeScreenContent = () => {
   	
   	return (
     		<View style={styles.homescreencontent}>
-      			<Image style={[styles.homescreencontentChild, styles.homescreencontentLayout]} resizeMode="cover" source={require("../assets/Rectangle 17.png")} />
+      			<Image style={[styles.homescreencontentChild, styles.homescreencontentLayout]} resizeMode="cover" source="Rectangle 17.png" />
       			<Text style={[styles.thisWeeksService, styles.serviceFlexBox]}>This Week’s Service</Text>
-      			<Image style={[styles.homescreencontentItem, styles.homescreencontentLayout]} resizeMode="cover" source={require("../assets/Rectangle 17.png")} />
+      			<Image style={[styles.homescreencontentItem, styles.homescreencontentLayout]} resizeMode="cover" source="Rectangle 17.png" />
       			<Text style={[styles.yourNextService, styles.serviceFlexBox]}>Your Next Service</Text>
       			<View style={[styles.homescreencontentInner, styles.homescreencontentPosition]} />
       			<Text style={[styles.mmddyyyy, styles.mmddyyyyLayout]}>MM/DD/YYYY</Text>
@@ -166,7 +166,6 @@ const styles = StyleSheet.create({
         left: "27.13%",
         backgroundColor: "#000",
         borderRadius: 5,
-        height: "1.82%",
         position: "absolute"
     },
     firstLayout: {
@@ -198,7 +197,7 @@ const styles = StyleSheet.create({
         bottom: "92.82%"
     },
     thisWeeksService: {
-        top: "1.72%",
+        top: "2.72%",
         left: "7.57%",
         alignItems: "center",
         display: "flex",
@@ -391,16 +390,19 @@ const styles = StyleSheet.create({
         color: "#8e8e93"
     },
     homescreencontentChild10: {
-        width: "13.56%",
-        top: "50.86%",
-        right: "59.31%",
+        height: "1.62%",
+        width: "12.62%",
+        top: "51.06%",
+        right: "60.25%",
         bottom: "47.32%"
     },
     homescreencontentChild11: {
-        width: "15.46%",
+        width: "14.51%",
         top: "48.74%",
-        right: "57.41%",
-        bottom: "49.44%"
+        right: "58.36%",
+        bottom: "49.44%",
+        height: "1.82%",
+        left: "27.13%"
     },
     water: {
         color: "#fff"
