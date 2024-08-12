@@ -3,7 +3,7 @@ import {Image, StyleSheet, Text, View, Pressable} from "react-native";
 import {Button} from "@rneui/themed";
 import {Checkbox} from "react-native-paper";
 
-const AlhanAttendence = () => {
+const Attendence = () => {
   	const [rectangleCheckboxchecked, setRectangleCheckboxchecked] = useState(false);
   	const [rectangleCheckbox1checked, setRectangleCheckbox1checked] = useState(false);
   	const [rectangleCheckbox2checked, setRectangleCheckbox2checked] = useState(false);
@@ -1100,4 +1100,4 @@ const styles = StyleSheet.create({
   	}
 });
 
-export default AlhanAttendence;
+export default Attendence;

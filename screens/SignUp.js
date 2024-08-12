@@ -1,13 +1,10 @@
 import * as React from "react";
 import {Pressable, Image, StyleSheet, TextInput, View, Text, TouchableOpacity} from "react-native";
-//fix the continue button 
+//fix the continue button and backarrow forgot password set new password
 const SignUp = () => {
     		
     		return (
       			<View style={styles.signup}>
-        				<Pressable style={styles.backarrow} onPress={() => navigation.goBack()}>
-          					<Image style={styles.icon} resizeMode="cover" source={require("../assets/backArrow.png")} />
-        				</Pressable>
         				<TextInput style={[styles.name, styles.nameBorder]} placeholder="Enter your name" placeholderTextColor="#8e8e93" />
         				<TextInput style={[styles.phone, styles.nameBorder]} placeholder="Enter your phone" placeholderTextColor="#8e8e93" />
         				<TextInput style={[styles.email, styles.nameBorder]} placeholder="Enter your email" placeholderTextColor="#8e8e93" />
@@ -173,31 +170,6 @@ const SignUp = () => {
         				width: "91.09%",
         				position: "absolute"
       			},
-      			continue: {
-        				textAlign: "center",
-        				color: "#fff",
-        				fontFamily: "Roboto-Medium",
-        				fontWeight: "500",
-        				letterSpacing: -0.2,
-        				fontSize: 17
-      			},
-      			continuebutton: {
-        				height: "5.87%",
-        				top: "62.32%",
-        				bottom: "31.81%",
-        				borderColor: "rgba(0, 0, 0, 0.15)",
-        				backgroundColor: "#333",
-        				paddingVertical: 15,
-        				paddingHorizontal: 20,
-        				borderRadius: 10,
-        				justifyContent: "center",
-        				borderWidth: 1,
-        				borderStyle: "solid",
-        				right: "4.83%",
-        				width: "91.09%",
-        				left: "4.07%",
-        				position: "absolute"
-      			},
       			filled: {
         				left: 0,
         				borderRadius: 100,
@@ -205,15 +177,14 @@ const SignUp = () => {
         				width: 4
       			},
       			track: {
-        				right: 16,
-        				left: 16,
+						right: "12.2136%",
+						left: 0,
         				backgroundColor: "rgba(120, 120, 128, 0.32)"
       			},
       			progressBar: {
         				height: "3.29%",
         				width: "84.61%",
         				top: "8.45%",
-        				right: "12.2137%",
         				bottom: "88.26%",
         				left: "12.2137%",
         				position: "absolute",

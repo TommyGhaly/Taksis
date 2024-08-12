@@ -8,12 +8,19 @@ import { NavigationContainer } from "@react-navigation/native";
 import DeaconRank from "./screens/DeaconRank"
 import Frequency from "./screens/Frequency";
 import Experience from "./screens/Experience";
+import ChurchInformation from "./screens/ChurchInformation";
+import PasswordReset from "./screens/PasswordReset";
+import ChurchLogo from "./screens/ChurchLogo";
+import PasswordConfirm from "./screens/PasswordConfirm";
+import ChurchVerification from "./screens/ChurchVerification";
+import Home from "./screens/Home";
+import AlhanAttendence from "./screens/Attendence";
 import {StyleSheet, Text, View, Pressable, TouchableOpacity} from 'react-native';
 
 export default function App() {
   return (
     <View style={styles.container}>
-      <Experience person={"you"}/>
+      <Home person={"you"}/>
     </View>
   );
 }

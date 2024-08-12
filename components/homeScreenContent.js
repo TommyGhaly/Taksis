@@ -4,123 +4,100 @@ import {Image, StyleSheet, Text, View} from "react-native";
 const HomeScreenContent = () => {
   	
   	return (
-    		<View style={styles.component5}>
-      			<Image style={[styles.component5Child, styles.childLayout]} resizeMode="cover" source="Rectangle 17.png" />
-      			<Text style={[styles.yourNextService, styles.roleFlexBox]}>Your Next Service</Text>
-      			<View style={[styles.rectangleParent, styles.rectangleParentPosition2]}>
-        				<View style={styles.frameChild} />
-        				<Text style={[styles.mmddyyyy, styles.mmddyyyyFlexBox]}>MM/DD/YYYY</Text>
-        				<View style={[styles.frameItem, styles.frameBorder]} />
-        				<View style={[styles.frameInner, styles.roleLayout]} />
-        				<View style={[styles.rectangleView, styles.frameBorder]} />
-        				<Text style={[styles.readings, styles.roleFlexBox]}>Readings</Text>
-        				<View style={styles.frameParent}>
-          					<View style={[styles.rectangleGroup, styles.rectangleParentPosition1]}>
-            						<View style={styles.frameChild1} />
-            						<Text style={[styles.gospel, styles.gospelTypo]}>Gospel:</Text>
-          					</View>
-          					<Text style={[styles.firstLast, styles.gospelTypo]}>First Last</Text>
-          					<View style={[styles.rectangleContainer, styles.rectangleParentPosition1]}>
-            						<View style={styles.frameChild1} />
-            						<Text style={[styles.praxis, styles.gospelTypo]}>Praxis:</Text>
-          					</View>
-          					<Text style={[styles.firstLast1, styles.gospelTypo]}>First Last</Text>
-          					<View style={[styles.frameView, styles.rectangleParentPosition1]}>
-            						<View style={styles.frameChild1} />
-            						<Text style={[styles.catholicEpistle, styles.gospelTypo]}>Catholic Epistle:</Text>
-          					</View>
-          					<Text style={[styles.firstLast2, styles.gospelTypo]}>First Last</Text>
-          					<View style={[styles.rectangleParent1, styles.rectangleParentPosition1]}>
-            						<View style={styles.frameChild1} />
-            						<Text style={[styles.paulineEpistle, styles.gospelTypo]}>Pauline Epistle:</Text>
-          					</View>
-          					<Text style={[styles.firstLast3, styles.gospelTypo]}>First Last</Text>
-          					<View style={[styles.rectangleParent2, styles.rectangleParentPosition]}>
-            						<View style={styles.frameChild1} />
-            						<Text style={[styles.thHourGospel, styles.gospelTypo]}>6th Hour Gospel:</Text>
-          					</View>
-          					<Text style={[styles.firstLast4, styles.gospelTypo]}>First Last</Text>
-          					<View style={[styles.rectangleParent3, styles.rectangleParentPosition]}>
-            						<View style={styles.frameChild1} />
-            						<Text style={[styles.rdHourGospel, styles.gospelTypo]}>3rd Hour Gospel:</Text>
-          					</View>
-          					<Text style={[styles.firstLast5, styles.gospelTypo]}>First Last</Text>
-          					<View style={[styles.rectangleParent4, styles.rectangleParentPosition1]}>
-            						<View style={styles.frameChild1} />
-            						<Text style={[styles.matinsGospel, styles.gospelTypo]}>Matins Gospel:</Text>
-          					</View>
-          					<Text style={[styles.firstLast6, styles.gospelTypo]}>First Last</Text>
-        				</View>
-        				<View style={[styles.rectangleParent5, styles.parentLayout]}>
-          					<View style={[styles.frameChild8, styles.frameChildLayout]} />
-          					<View style={[styles.frameChild9, styles.frameChildLayout]} />
-          					<Text style={styles.waterFirstLastContainer}>
-            						<Text style={styles.waterFirstLastContainer1}>
-              							<Text style={styles.water}>{`Water: `}</Text>
-              							<Text style={styles.firstLast7}>{`First Last
+    		<View style={styles.homescreencontent}>
+      			<Image style={[styles.homescreencontentChild, styles.homescreencontentLayout]} resizeMode="cover" source={require("../assets/Rectangle 17.png")} />
+      			<Text style={[styles.thisWeeksService, styles.serviceFlexBox]}>This Week’s Service</Text>
+      			<Image style={[styles.homescreencontentItem, styles.homescreencontentLayout]} resizeMode="cover" source={require("../assets/Rectangle 17.png")} />
+      			<Text style={[styles.yourNextService, styles.serviceFlexBox]}>Your Next Service</Text>
+      			<View style={[styles.homescreencontentInner, styles.homescreencontentPosition]} />
+      			<Text style={[styles.mmddyyyy, styles.mmddyyyyLayout]}>MM/DD/YYYY</Text>
+      			<View style={[styles.rectangleView, styles.homescreencontentChildBorder]} />
+      			<View style={[styles.homescreencontentChild1, styles.homescreencontentChildBorder]} />
+      			<View style={[styles.homescreencontentChild2, styles.homescreencontentChildBorder]} />
+      			<Text style={[styles.readings, styles.readingsFlexBox]}>Readings</Text>
+      			<View style={[styles.homescreencontentChild3, styles.homescreencontentChildLayout]} />
+      			<Text style={[styles.gospel, styles.gospelTypo]}>Gospel:</Text>
+      			<Text style={[styles.firstLast, styles.gospelTypo]}>First Last</Text>
+      			<View style={[styles.homescreencontentChild4, styles.homescreencontentChildLayout]} />
+      			<Text style={[styles.praxis, styles.praxisPosition]}>Praxis:</Text>
+      			<Text style={[styles.firstLast1, styles.gospelTypo]}>First Last</Text>
+      			<View style={[styles.homescreencontentChild5, styles.homescreencontentChildLayout]} />
+      			<Text style={[styles.catholicEpistle, styles.gospelTypo]}>Catholic Epistle:</Text>
+      			<Text style={[styles.firstLast2, styles.gospelTypo]}>First Last</Text>
+      			<View style={[styles.homescreencontentChild6, styles.homescreencontentChildLayout]} />
+      			<Text style={[styles.paulineEpistle, styles.gospelTypo]}>Pauline Epistle:</Text>
+      			<Text style={[styles.firstLast3, styles.gospelTypo]}>First Last</Text>
+      			<View style={[styles.homescreencontentChild7, styles.homescreencontentChildPosition1]} />
+      			<Text style={[styles.thHourGospel, styles.praxisPosition]}>6th Hour Gospel:</Text>
+      			<Text style={[styles.firstLast4, styles.gospelTypo]}>First Last</Text>
+      			<View style={[styles.homescreencontentChild8, styles.homescreencontentChildPosition1]} />
+      			<Text style={[styles.rdHourGospel, styles.gospelTypo]}>3rd Hour Gospel:</Text>
+      			<Text style={[styles.firstLast5, styles.gospelTypo]}>First Last</Text>
+      			<View style={[styles.homescreencontentChild9, styles.homescreencontentChildLayout]} />
+      			<Text style={[styles.matinsGospel, styles.gospelTypo]}>Matins Gospel:</Text>
+      			<Text style={[styles.firstLast6, styles.gospelTypo]}>First Last</Text>
+      			<View style={[styles.homescreencontentChild10, styles.homescreencontentChildPosition]} />
+      			<View style={[styles.homescreencontentChild11, styles.homescreencontentChildPosition]} />
+      			<Text style={styles.waterFirstLastContainer}>
+        				<Text style={styles.waterFirstLastContainer1}>
+          					<Text style={styles.water}>{`Water: `}</Text>
+          					<Text style={styles.firstLast7}>{`First Last
 `}</Text>
-                            <Text style={styles.water}>Wine:</Text>
-              							<Text style={styles.firstLast7}>{` First Last
-              							`}</Text>
-                        </Text>
-                    </Text>
-                </View>
-                <View style={[styles.firstLastFirstLastParent, styles.parentLayout]}>
-                    <Text style={[styles.firstLastFirstLast, styles.firstLayout]}>First Last First Last</Text>
-                    <Text style={[styles.firstLastFirstLast1, styles.firstLayout]}>First Last First Last</Text>
-                </View>
-                <Text style={[styles.offeringOfThe, styles.alterServersFlexBox]}>Offering of the lamb</Text>
-                <Text style={[styles.alterServers, styles.alterServersFlexBox]}>Alter Servers</Text>
-            </View>
-            <View style={[styles.rectangleParent6, styles.rectangleParentPosition2]}>
-                <View style={styles.frameChild} />
-                <View style={[styles.frameChild11, styles.frameBorder]} />
-                <Text style={[styles.role, styles.roleLayout]}>Role</Text>
-                <Text style={[styles.mmddyyyy1, styles.mmddyyyyFlexBox]}>MM/DD/YYYY</Text>
-                <View style={styles.frameChild12} />
-                <Text style={[styles.yourRoleHere, styles.roleFlexBox]}>Your role here</Text>
-            </View>
+                    <Text style={styles.water}>Wine:</Text>
+          					<Text style={styles.firstLast7}>{` First Last
+          					`}</Text>
+                </Text>
+            </Text>
+            <Text style={[styles.firstLastFirstLast, styles.firstLayout]}>First LastFirst Last</Text>
+            <Text style={[styles.firstLastFirstLast1, styles.firstLayout]}>First LastFirst Last</Text>
+            <Text style={[styles.offeringOfThe, styles.alterServersFlexBox]}>Offering of the lamb</Text>
+            <Text style={[styles.alterServers, styles.alterServersFlexBox]}>Alter Servers</Text>
+            <View style={[styles.homescreencontentChild12, styles.homescreencontentPosition]} />
+            <View style={[styles.homescreencontentChild13, styles.homescreencontentChildBorder]} />
+            <Text style={[styles.role, styles.serviceFlexBox]}>Role</Text>
+            <Text style={[styles.mmddyyyy1, styles.mmddyyyyLayout]}>MM/DD/YYYY</Text>
+            <View style={styles.homescreencontentChild14} />
+            <Text style={[styles.yourRoleHere, styles.readingsFlexBox]}>Your role here</Text>
         </View>);
 };
 
 const styles = StyleSheet.create({
-    attendancetitlePosition1: {
-        left: "0%",
-        position: "absolute"
-    },
-    attendancetitlePosition: {
-        right: "0%",
-        height: "100%",
-        bottom: "0%",
-        top: "0%",
-        width: "100%"
-    },
-    childLayout: {
+    homescreencontentLayout: {
         maxHeight: "100%",
         overflow: "hidden",
         maxWidth: "100%",
-        borderRadius: 10,
         left: "0%",
+        right: "11.67%",
+        width: "88.33%",
+        height: "7.18%",
+        borderRadius: 10,
         position: "absolute"
     },
-    roleFlexBox: {
+    serviceFlexBox: {
         justifyContent: "center",
         alignItems: "center",
         display: "flex",
         textAlign: "center",
         fontFamily: "Roboto-Regular",
         lineHeight: 22,
-        fontSize: 24
-    },
-    rectangleParentPosition2: {
-        left: "5.99%",
-        width: "94.01%",
-        right: "0%",
+        fontSize: 24,
+        height: "3.74%",
+        color: "#8e8e93",
+        width: "72.87%",
         position: "absolute"
     },
-    mmddyyyyFlexBox: {
-        width: "87.25%",
-        left: "6.38%",
+    homescreencontentPosition: {
+        backgroundColor: "#1e1e1e",
+        left: "5.99%",
+        right: "0%",
+        width: "94.01%",
+        borderRadius: 10,
+        position: "absolute"
+    },
+    mmddyyyyLayout: {
+        width: "82.02%",
+        height: "2.93%",
+        left: "11.99%",
         justifyContent: "center",
         alignItems: "center",
         display: "flex",
@@ -131,20 +108,31 @@ const styles = StyleSheet.create({
         fontSize: 24,
         position: "absolute"
     },
-    frameBorder: {
+    homescreencontentChildBorder: {
         borderWidth: 1,
         borderColor: "#8e8e93",
         borderStyle: "solid",
+        height: "4.85%",
         backgroundColor: "#1e1e1e",
-        borderRadius: 10
-    },
-    roleLayout: {
-        width: "77.52%",
+        borderRadius: 10,
         position: "absolute"
     },
-    rectangleParentPosition1: {
-        left: "-1.52%",
-        height: "9.94%",
+    readingsFlexBox: {
+        height: "2.73%",
+        justifyContent: "center",
+        alignItems: "center",
+        display: "flex",
+        textAlign: "center",
+        fontFamily: "Roboto-Regular",
+        lineHeight: 22,
+        fontSize: 24,
+        position: "absolute"
+    },
+    homescreencontentChildLayout: {
+        backgroundColor: "#000",
+        borderRadius: 5,
+        left: "28.08%",
+        height: "1.82%",
         position: "absolute"
     },
     gospelTypo: {
@@ -154,28 +142,37 @@ const styles = StyleSheet.create({
         lineHeight: 22,
         position: "absolute"
     },
-    rectangleParentPosition: {
-        right: "41.92%",
-        width: "59.6%",
-        left: "-1.52%",
-        height: "9.94%",
+    praxisPosition: {
+        marginLeft: -66.5,
+        textAlign: "left",
+        color: "#fff",
+        fontSize: 15,
+        left: "50%",
+        top: "50%",
+        fontFamily: "Roboto-Regular",
+        lineHeight: 22,
         position: "absolute"
     },
-    parentLayout: {
-        height: "11.13%",
-        position: "absolute"
-    },
-    frameChildLayout: {
-        height: "27.69%",
+    homescreencontentChildPosition1: {
+        right: "34.7%",
+        width: "37.22%",
         backgroundColor: "#000",
         borderRadius: 5,
-        left: "-1.52%",
+        left: "28.08%",
+        height: "1.82%",
+        position: "absolute"
+    },
+    homescreencontentChildPosition: {
+        left: "27.13%",
+        backgroundColor: "#000",
+        borderRadius: 5,
+        height: "1.82%",
         position: "absolute"
     },
     firstLayout: {
         width: 69,
+        top: 598,
         height: 65,
-        top: 0,
         textAlign: "left",
         fontSize: 15,
         alignItems: "center",
@@ -186,7 +183,7 @@ const styles = StyleSheet.create({
         position: "absolute"
     },
     alterServersFlexBox: {
-        height: "8.73%",
+        height: "5.16%",
         justifyContent: "center",
         alignItems: "center",
         display: "flex",
@@ -196,241 +193,214 @@ const styles = StyleSheet.create({
         fontSize: 24,
         position: "absolute"
     },
-    component5Child: {
+    homescreencontentChild: {
+        top: "0%",
+        bottom: "92.82%"
+    },
+    thisWeeksService: {
+        top: "1.72%",
+        left: "7.57%",
+        alignItems: "center",
+        display: "flex",
+        textAlign: "center",
+        fontFamily: "Roboto-Regular",
+        lineHeight: 22,
+        fontSize: 24,
+        height: "3.74%"
+    },
+    homescreencontentItem: {
         top: "70.27%",
-        bottom: "22.55%",
-        right: "11.67%",
-        width: "88.33%",
-        height: "7.18%",
-        overflow: "hidden",
-        maxWidth: "100%"
+        bottom: "22.55%"
     },
     yourNextService: {
-        height: "3.74%",
-        width: "72.87%",
         top: "71.99%",
         left: "7.57%",
-        color: "#8e8e93",
-        position: "absolute"
+        alignItems: "center",
+        display: "flex",
+        textAlign: "center",
+        fontFamily: "Roboto-Regular",
+        lineHeight: 22,
+        fontSize: 24,
+        height: "3.74%"
     },
-    frameChild: {
-        backgroundColor: "#1e1e1e",
-        borderRadius: 10,
-        bottom: "0%",
-        right: "0%",
-        height: "100%",
-        left: "0%",
-        top: "0%",
-        position: "absolute",
-        width: "100%"
+    homescreencontentInner: {
+        height: "59.05%",
+        top: "9.2%",
+        bottom: "31.75%"
     },
     mmddyyyy: {
-        height: "4.97%",
-        left: "6.38%",
-        top: "3.08%"
+        top: "11.02%",
+        left: "11.99%"
     },
-    frameItem: {
-        width: "52.68%",
-        top: "12.84%",
-        right: "42.28%",
-        bottom: "78.94%",
-        left: "5.03%",
-        borderColor: "#8e8e93",
-        borderStyle: "solid",
-        height: "8.22%",
-        position: "absolute"
-    },
-    frameInner: {
-        top: "54.11%",
-        right: "17.45%",
-        bottom: "37.67%",
+    rectangleView: {
+        width: "49.53%",
+        top: "16.78%",
+        right: "39.75%",
+        bottom: "78.36%",
+        left: "10.73%",
         borderWidth: 1,
         borderColor: "#8e8e93",
         borderStyle: "solid",
-        backgroundColor: "#1e1e1e",
-        borderRadius: 10,
-        left: "5.03%",
-        height: "8.22%"
+        height: "4.85%"
     },
-    rectangleView: {
-        width: "75.5%",
-        top: "76.2%",
-        right: "18.79%",
-        bottom: "15.58%",
-        left: "5.7%",
-        height: "8.22%",
+    homescreencontentChild1: {
+        top: "41.15%",
+        right: "16.4%",
+        bottom: "53.99%",
+        left: "10.73%",
+        borderWidth: 1,
         borderColor: "#8e8e93",
         borderStyle: "solid",
-        position: "absolute"
+        height: "4.85%",
+        width: "72.87%"
+    },
+    homescreencontentChild2: {
+        width: "70.98%",
+        top: "54.2%",
+        right: "17.67%",
+        bottom: "40.95%",
+        left: "11.36%",
+        borderWidth: 1,
+        borderColor: "#8e8e93",
+        borderStyle: "solid",
+        height: "4.85%"
     },
     readings: {
-        height: "4.62%",
-        width: "43.96%",
-        top: "14.73%",
-        left: "9.4%",
-        color: "#8e8e93",
-        position: "absolute"
+        width: "41.32%",
+        top: "17.9%",
+        left: "14.83%",
+        color: "#8e8e93"
     },
-    frameChild1: {
-        backgroundColor: "#000",
-        borderRadius: 5,
-        bottom: "0%",
-        right: "0%",
-        height: "100%",
-        left: "0%",
-        top: "0%",
-        position: "absolute",
-        width: "100%"
+    homescreencontentChild3: {
+        width: "17.35%",
+        top: "36.7%",
+        right: "54.57%",
+        bottom: "61.48%"
     },
     gospel: {
-        marginLeft: -25.5,
+        marginTop: -133.5,
         color: "#fff",
         left: "50%",
         top: "50%",
-        marginTop: -11,
+        marginLeft: -67.5,
         fontSize: 15
-    },
-    rectangleGroup: {
-        width: "27.78%",
-        top: "75.69%",
-        right: "73.74%",
-        bottom: "14.36%"
     },
     firstLast: {
-        top: "74.59%",
-        left: "27.27%",
+        top: "36.5%",
+        left: "46.06%",
         color: "#8e8e93"
+    },
+    homescreencontentChild4: {
+        width: "16.09%",
+        top: "34.48%",
+        right: "55.84%",
+        bottom: "63.7%"
     },
     praxis: {
-        marginLeft: -22.5,
-        color: "#fff",
-        left: "50%",
-        top: "50%",
-        marginTop: -11,
-        fontSize: 15
-    },
-    rectangleContainer: {
-        width: "25.76%",
-        top: "63.54%",
-        right: "75.76%",
-        bottom: "26.52%"
+        marginTop: -155.5
     },
     firstLast1: {
-        top: "62.43%",
-        left: "25.25%",
+        top: "34.28%",
+        left: "44.79%",
         color: "#8e8e93"
+    },
+    homescreencontentChild5: {
+        width: "35.33%",
+        top: "32.25%",
+        right: "36.59%",
+        bottom: "65.93%"
     },
     catholicEpistle: {
-        marginLeft: -54,
+        marginTop: -177.5,
         color: "#fff",
         left: "50%",
         top: "50%",
-        marginTop: -11,
+        marginLeft: -67.5,
         fontSize: 15
-    },
-    frameView: {
-        width: "56.57%",
-        top: "51.38%",
-        right: "44.95%",
-        bottom: "38.67%"
     },
     firstLast2: {
-        top: "50.28%",
-        left: "56.57%",
+        top: "32.05%",
+        left: "64.35%",
         color: "#8e8e93"
+    },
+    homescreencontentChild6: {
+        width: "33.44%",
+        top: "30.03%",
+        right: "38.49%",
+        bottom: "68.15%"
     },
     paulineEpistle: {
-        marginLeft: -51,
+        marginTop: -199.5,
         color: "#fff",
         left: "50%",
         top: "50%",
-        marginTop: -11,
+        marginLeft: -67.5,
         fontSize: 15
-    },
-    rectangleParent1: {
-        width: "53.54%",
-        top: "39.23%",
-        right: "47.98%",
-        bottom: "50.83%"
     },
     firstLast3: {
-        top: "38.12%",
-        left: "53.54%",
+        top: "29.83%",
+        left: "62.46%",
         color: "#8e8e93"
+    },
+    homescreencontentChild7: {
+        top: "27.81%",
+        bottom: "70.37%"
     },
     thHourGospel: {
-        marginLeft: -56,
-        color: "#fff",
-        left: "50%",
-        top: "50%",
-        marginTop: -11,
-        fontSize: 15
-    },
-    rectangleParent2: {
-        top: "27.07%",
-        bottom: "62.98%"
+        marginTop: -221.5
     },
     firstLast4: {
-        top: "25.97%",
-        left: "59.09%",
+        top: "27.6%",
+        left: "65.93%",
         color: "#8e8e93"
+    },
+    homescreencontentChild8: {
+        top: "25.58%",
+        bottom: "72.6%"
     },
     rdHourGospel: {
-        marginLeft: -57,
+        marginTop: -243.5,
         color: "#fff",
         left: "50%",
         top: "50%",
-        marginTop: -11,
+        marginLeft: -67.5,
         fontSize: 15
-    },
-    rectangleParent3: {
-        top: "14.92%",
-        bottom: "75.14%"
     },
     firstLast5: {
-        top: "13.81%",
-        left: "60.1%",
+        top: "25.38%",
+        left: "66.56%",
         color: "#8e8e93"
     },
+    homescreencontentChild9: {
+        width: "32.81%",
+        top: "23.36%",
+        right: "39.12%",
+        bottom: "74.82%"
+    },
     matinsGospel: {
-        marginLeft: -50,
+        marginTop: -265.5,
         color: "#fff",
         left: "50%",
         top: "50%",
-        marginTop: -11,
+        marginLeft: -67.5,
         fontSize: 15
     },
-    rectangleParent4: {
-        width: "52.53%",
-        top: "2.76%",
-        right: "48.99%",
-        bottom: "87.29%"
-    },
     firstLast6: {
-        top: "1.66%",
-        left: "53.03%",
+        top: "23.15%",
+        left: "62.15%",
         color: "#8e8e93"
     },
-    frameParent: {
-        height: "30.99%",
-        top: "23.12%",
-        right: "9.06%",
-        bottom: "45.89%",
-        left: "24.5%",
-        width: "66.44%",
-        position: "absolute"
+    homescreencontentChild10: {
+        width: "13.56%",
+        top: "50.86%",
+        right: "59.31%",
+        bottom: "47.32%"
     },
-    frameChild8: {
-        width: "21.72%",
-        top: "35.38%",
-        right: "79.8%",
-        bottom: "36.92%"
-    },
-    frameChild9: {
-        width: "24.75%",
-        right: "76.77%",
-        bottom: "69.23%",
-        top: "3.08%"
+    homescreencontentChild11: {
+        width: "15.46%",
+        top: "48.74%",
+        right: "57.41%",
+        bottom: "49.44%"
     },
     water: {
         color: "#fff"
@@ -442,10 +412,10 @@ const styles = StyleSheet.create({
         width: "100%"
     },
     waterFirstLastContainer: {
+        top: 480,
+        left: 89,
         width: 198,
         height: 65,
-        top: 0,
-        left: 0,
         textAlign: "left",
         fontSize: 15,
         alignItems: "center",
@@ -454,94 +424,71 @@ const styles = StyleSheet.create({
         lineHeight: 22,
         position: "absolute"
     },
-    rectangleParent5: {
-        top: "66.61%",
-        right: "10.07%",
-        bottom: "22.26%",
-        left: "23.49%",
-        width: "66.44%"
-    },
     firstLastFirstLast: {
-        left: 0,
-        width: 69
+        left: 92
     },
     firstLastFirstLast1: {
-        left: 103
-    },
-    firstLastFirstLastParent: {
-        width: "23.15%",
-        top: "86.82%",
-        right: "52.35%",
-        bottom: "2.05%",
-        left: "24.5%"
+        left: 195
     },
     offeringOfThe: {
-        width: "74.5%",
-        top: "53.94%",
-        left: "6.38%"
+        width: "70.03%",
+        top: "41.05%",
+        left: "11.99%"
     },
     alterServers: {
-        width: "75.17%",
-        top: "76.03%",
-        left: "6.04%"
+        width: "70.66%",
+        top: "54.1%",
+        left: "11.67%"
     },
-    rectangleParent: {
-        height: "59.05%",
-        top: "9.2%",
-        bottom: "31.75%"
+    homescreencontentChild12: {
+        height: "20.53%",
+        top: "79.47%",
+        bottom: "0%"
     },
-    frameChild11: {
-        height: "23.65%",
-        width: "24.16%",
-        top: "32.02%",
-        right: "37.92%",
-        bottom: "44.33%",
-        left: "37.92%",
-        position: "absolute"
+    homescreencontentChild13: {
+        width: "22.71%",
+        top: "86.05%",
+        right: "35.65%",
+        bottom: "9.1%",
+        left: "41.64%",
+        borderWidth: 1,
+        borderColor: "#8e8e93",
+        borderStyle: "solid",
+        height: "4.85%"
     },
     role: {
-        height: "18.23%",
-        top: "33.5%",
-        left: "11.07%",
-        justifyContent: "center",
+        top: "86.35%",
+        left: "16.4%",
         alignItems: "center",
         display: "flex",
         textAlign: "center",
         fontFamily: "Roboto-Regular",
         lineHeight: 22,
         fontSize: 24,
-        color: "#8e8e93"
+        height: "3.74%"
     },
     mmddyyyy1: {
-        height: "14.29%",
-        top: "9.36%",
-        left: "6.38%"
+        top: "81.4%",
+        left: "11.99%"
     },
-    frameChild12: {
-        height: "21.18%",
-        width: "53.69%",
-        top: "62.07%",
-        right: "23.15%",
-        bottom: "16.75%",
-        left: "23.15%",
+    homescreencontentChild14: {
+        height: "4.35%",
+        width: "50.47%",
+        top: "92.21%",
+        right: "21.77%",
+        bottom: "3.44%",
+        left: "27.76%",
         backgroundColor: "#8e8e93",
         borderRadius: 10,
         position: "absolute"
     },
     yourRoleHere: {
-        height: "13.3%",
-        width: "51.34%",
-        top: "66.01%",
-        left: "24.16%",
-        color: "#fff",
-        position: "absolute"
+        width: "48.26%",
+        top: "93.02%",
+        left: "28.71%",
+        color: "#fff"
     },
-    rectangleParent6: {
-        height: "20.53%",
-        top: "79.47%",
-        bottom: "0%"
-    },
-    component5: {
+    homescreencontent: {
         flex: 1,
         height: 989,
         width: "100%"
