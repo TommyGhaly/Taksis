@@ -7,7 +7,7 @@ const LearnItMainMenu = () => {
     		<View style={styles.learnitmainmenu}>
       			<View style={styles.attendancetitleWrapper}>
         				<View style={styles.attendancetitle}>
-          					<Image style={[styles.attendancetitleChild, styles.childPosition]} resizeMode="cover" source="Rectangle 17.png" />
+          					<Image style={[styles.attendancetitleChild, styles.childPosition]} resizeMode="cover" source={require("../assets/Rectangle 17.png")}/>
           					<Text style={styles.learnToServe}>Learn to Serve</Text>
         				</View>
       			</View>
@@ -38,10 +38,10 @@ const styles = StyleSheet.create({
     		width: "100%"
   	},
   	tesbehaPosition: {
-    		left: "27.23%",
-    		right: "26.97%",
-    		width: "45.8%",
-    		height: "10.56%",
+    		left: "18.32%",
+    		right: "18.07%",
+    		width: "63.61%",
+    		height: "18.78%",
     		position: "absolute"
   	},
   	liturgy1Typo: {
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   	learnToServe: {
     		height: "60.56%",
     		width: "91.43%",
-    		top: "19.72%",
+    		top: "30.72%",
     		left: "4.29%",
     		color: "#8e8e93",
     		justifyContent: "center",
@@ -99,33 +99,36 @@ const styles = StyleSheet.create({
     		backgroundColor: "#555"
   	},
   	midnightPraisesTesbeha: {
+    		height: "73.31%",
     		top: "16.67%",
     		left: "4.44%",
     		width: "90.56%",
     		color: "#000"
   	},
   	tesbeha: {
-    		top: "42.61%",
-    		bottom: "46.83%"
+    		top: "50.23%",
+    		bottom: "30.99%"
   	},
   	liturgy1: {
+    		height: "24.44%",
     		top: "41.11%",
     		left: "4.44%",
     		width: "90.56%",
     		color: "#000"
   	},
   	liturgy: {
-    		top: "28.76%",
-    		bottom: "60.68%"
+    		top: "27.58%",
+    		bottom: "53.64%"
   	},
   	vespersAshaya: {
-    		width: "82.78%",
+    		height: "48.88%",
+    		width: "82.76%",
     		top: "25.56%",
     		left: "8.33%"
   	},
   	vespers: {
-    		top: "56.46%",
-    		bottom: "32.98%"
+    		top: "72.89%",
+    		bottom: "8.33%"
   	},
   	learnitmainmenu: {
     		backgroundColor: "#000",

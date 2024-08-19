@@ -39,8 +39,6 @@ export default function App() {
         <Stack.Screen name='PasswordReset' component={PasswordReset}/>
         <Stack.Screen name='ChurchLogo' component={ChurchLogo}/>
         <Stack.Screen name='ChurchVerification' component={ChurchVerification}/>
-        <Stack.Screen name='Home' component={Home}/>
-        <Stack.Screen name='Attendence' component={Attendence}/>
         <Stack.Screen name='EditSchedule' component={EditSchedule}/>
         <Stack.Screen name = 'MainContainer' component={MainContainer}/>
       </Stack.Navigator>

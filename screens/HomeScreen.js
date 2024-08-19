@@ -22,30 +22,28 @@ const HomeScreen = () => {
                 <ScrollView style={styles.homescreen} showsVerticalScrollIndicator={false}>
                     <View style={styles.content}>
                         <HomeScreenContent props={inputProps}/>
+                        <WeekRequest style={styles.request}/>
                     </View>
-                    <View style={styles.request}>
-                        <WeekRequest/>
-                    </View>
-                    <View style={styles.blackspace}/>
                 </ScrollView>);
 };
 
 const styles = StyleSheet.create({
 
     content: {
+        top: 60,
         left: "4.071%",
         width: "88.407%"
     },
     request: {
-        top: "2%",
+        top: 75,
+        height: "10%",
         left: "7.373%",
     },
     homescreen: {
         flex: 1,
         height: 852,
         width: "100%",
-        marginTop: 60,
-        backgroundColor: "#000"
+        backgroundColor: "#000",
     }
 });
 

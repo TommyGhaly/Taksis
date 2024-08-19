@@ -16,7 +16,7 @@ const HomeScreenContent = ({props}) => {
       			<Text style={[styles.readings, styles.readingsFlexBox]}>Readings</Text>
       			<View style={[styles.homescreencontentChild3, styles.homescreencontentChildLayout]} />
       			<Text style={[styles.gospel, styles.gospelTypo]}>Gospel:</Text>
-      			<Text style={[styles.firstLast, styles.gospelTypo]}>{props.gosel}</Text>
+      			<Text style={[styles.firstLast, styles.gospelTypo]}>{props.gospel}</Text>
       			<View style={[styles.homescreencontentChild4, styles.homescreencontentChildLayout]} />
       			<Text style={[styles.praxis, styles.praxisPosition]}>Praxis:</Text>
       			<Text style={[styles.firstLast1, styles.gospelTypo]}>{props.praxis}</Text>
@@ -34,7 +34,7 @@ const HomeScreenContent = ({props}) => {
       			<Text style={[styles.firstLast5, styles.gospelTypo]}>{props.third}</Text>
       			<View style={[styles.homescreencontentChild9, styles.homescreencontentChildLayout]} />
       			<Text style={[styles.matinsGospel, styles.gospelTypo]}>Matins Gospel:</Text>
-      			<Text style={[styles.firstLast6, styles.gospelTypo]}>{props.matin}</Text>
+      			<Text style={[styles.firstLast6, styles.gospelTypo]}>{props.matins}</Text>
       			<View style={[styles.homescreencontentChild10, styles.homescreencontentChildPosition]} />
       			<View style={[styles.homescreencontentChild11, styles.homescreencontentChildPosition]} />
       			<Text style={styles.waterFirstLastContainer}>

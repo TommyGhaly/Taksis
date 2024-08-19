@@ -1390,7 +1390,7 @@ const styles = StyleSheet.create({
     		height: "3.52%"
   	},
   	completelist: {
-    		height: "10",
+    		height: "100",
     		top: "0%"
   	},
   	completelistParent: {

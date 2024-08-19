@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import {Image, StyleSheet, Text, View, Pressable, ScrollView} from "react-native";
 import AttendenceList from '../components/attendenceList';
-const Attendence = ({text}) => {
+const Attendence = () => {
 //figure out the how to get the final ones in frame and fix the checkboxes
   	return (
 		<ScrollView style={styles.attendence} showsVerticalScrollIndicator={false}>
 			<View style={styles.attendancetitlePosition}>
-				<Image style={[styles.attendancetitleChild, styles.attendancetitlePosition]} resizeMode="cover" source={require("../assets/Rectangle 17.png")} />
-				<Text style={styles.alhanAttendance}>{text}</Text>
+				<Image style={styles.attendancetitleChild} resizeMode="cover" source={require("../assets/Rectangle 17.png")} />
+				<Text style={styles.alhanAttendance}>Alhan Attendence</Text>
 			</View>
 			<Pressable style={styles.addpersonParent} onPress={()=>{}}>
 				<Image resizeMode="cover" source={require("../assets/addPerson.png")} />
@@ -24,7 +24,7 @@ const styles = StyleSheet.create({
 	},
 	addpersonParent: {
 			left: "89.31298%",
-			top: "1.60798%"
+			top: 100
 	},
 	alhanAttendance: {
 		height: "52.11%",
@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
 	},
 	attendancetitlePosition: {
 		bottom: "0%",
-		top: "1%",
+		top: 80,
 		position: "absolute",
 		height: 71,
 		width: 280,
@@ -56,7 +56,6 @@ const styles = StyleSheet.create({
 		backgroundColor: "#000", 
 		height: "100%",
 		width: "100%",
-		marginTop: 60,
 	},
 });
 
