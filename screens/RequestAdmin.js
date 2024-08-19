@@ -1,8 +1,10 @@
 import * as React from "react";
 import {Button} from "react-native-paper";
 import {StyleSheet, Text, Pressable, Image, View} from "react-native";
+import { StackNavigationProp } from '@react-navigation/stack';
+import {useNavigation, ParamListBase} from "@react-navigation/native";
 
-const RequestAdmin = () => {
+const RequestAdmin = ({navigation}) => {
     		
     		return (
       			<View style={styles.requestadmin}>

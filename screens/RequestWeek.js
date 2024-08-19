@@ -2,9 +2,9 @@ import * as React from "react";
 import {Text, StyleSheet, View, Image, Pressable} from "react-native";
 import {Button as RNEButton} from "@rneui/themed";
 import {Button} from "react-native-paper";
-
+import { useNavigation } from "@react-navigation/native";
 const RequestWeek = () => {
-    		
+    const navigation = useNavigation();
     		return (
       			<View style={styles.requestweek}>
         				<Text style={[styles.youCanOnly, styles.dateFlexBox]}>{`You can only request one week per month. It is not guaranteed you will be called to serve that week, but you (and any of your children) will be priority. `}</Text>

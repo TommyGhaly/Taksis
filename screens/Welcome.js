@@ -1,19 +1,20 @@
 import * as React from "react";
 import {ImageBackground, StyleSheet, Pressable, TouchableOpacity, Text, View} from "react-native";
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-const Welcome = () => {
+const Welcome = ({navigation}) => {
   	
   	return (
     		<View style={styles.welcomescreen}>
-      			<ImageBackground style={styles.icon} resizeMode="cover" source="Ⲧⲁⲝⲓⲥ.png" />
-      			<ImageBackground style={styles.crucifixionicon} resizeMode="center" source="crucifixionIcon.png" />
-      			<View style={[styles.rectangleParent, styles.rectangleLayout]}>
-        				<TouchableOpacity style={[styles.frameChild, styles.frameLayout]} activeOpacity={0.2} onPress={()=>{}} />
+      			<ImageBackground style={styles.icon} resizeMode="cover" source={require("../assets/Taksis.png")} />
+      			<ImageBackground style={styles.crucifixionicon} resizeMode="center" source={require("../assets/crucifixionIcon.png")} />
+      			<Pressable style={[styles.rectangleParent, styles.rectangleLayout]} onPress={()=>{navigation.navigate('SignUp')}}>
+        				<View style={[styles.frameChild, styles.frameLayout]} />
         				<Text style={[styles.signUp, styles.signTypo]}>Sign up</Text>
-      			</View>
-      			<Pressable style={[styles.rectangleGroup, styles.rectangleLayout]}>
-        				<Pressable style={[styles.frameItem, styles.frameLayout]} onPress={()=>{}} />
-        				<Text style={[styles.signIn, styles.signTypo]}>Sign in</Text>
+      			</Pressable>
+      			<Pressable style={[styles.rectangleGroup, styles.rectangleLayout]} onPress={()=>{navigation.navigate('SignIn')}}>
+        					<Text style={[styles.signIn, styles.signTypo]}>Sign in</Text>
       			</Pressable>
     		</View>);
 };
@@ -36,24 +37,23 @@ const styles = StyleSheet.create({
     		fontSize: 20,
     		left: 0,
     		top: 0,
+			justifyContent: "center",
     		position: "absolute"
   	},
   	icon: {
-    		height: "11.27%",
-    		width: "90.59%",
+    		width: 356,
+			height: 96,
     		top: "8.45%",
-    		right: "4.71%",
     		bottom: "80.28%",
     		left: "4.71%",
     		position: "absolute"
   	},
   	crucifixionicon: {
-    		height: "27.82%",
-    		width: "87.02%",
+    		width: 342,
     		top: "30.52%",
-    		right: "6.49%",
+    		right: 25.5,
     		bottom: "41.67%",
-    		left: "6.49%",
+    		left: 25.5,
     		position: "absolute"
   	},
   	frameChild: {

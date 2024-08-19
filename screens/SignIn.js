@@ -1,22 +1,31 @@
 import * as React from "react";
 import BackArrow from '../components/backArrow';
-import ContinueButton from "../components/continueButton";
 import {ImageBackground, StyleSheet, View, TextInput, Pressable, Text, TouchableOpacity, Image} from "react-native";
-import {useNavigation, ParamListBase} from "@react-navigation/native";
 
 //do the back arrow and set up the continue button with the right parameters
-
-const SignIn = () => {
-    		
+function tabs(navigation){
+	navigation.reset({
+		index: 0,
+		routes: [{ name: 'MainContainer' }],
+	  });
+	return
+};
+const SignIn = ({navigation}) => {
     		return (
       			<View style={[styles.signIn, styles.iconLayout]}>
+						<View style={styles.backarrow}>
+							<BackArrow/>
+						</View>
+						<View style={styles.title}>
+							<Text style={styles.titleText}>Sign In</Text>
+						</View>
         				<ImageBackground style={styles.lastsuppericon} resizeMode="cover" source={require("../assets/lastSupperIcon.png")} />
         				<TextInput style={[styles.phoneOrEmail, styles.passwordBorder]} placeholder="Enter your phone or email" placeholderTextColor="#8e8e93" />
         				<TextInput style={[styles.password, styles.passwordBorder]} placeholder="Enter your password" placeholderTextColor="#8e8e93" />
-        				<TouchableOpacity style={[styles.continuebutton, styles.appleFlexBox]} activeOpacity={0.2} onPress={()=>{}}>
+        				<TouchableOpacity style={[styles.continuebutton, styles.appleFlexBox]} activeOpacity={0.2} onPress={()=>(tabs(navigation))}>
           					<Text style={styles.continue}>Continue</Text>
         				</TouchableOpacity>
-        				<Pressable style={[styles.forgotPasswordSetContainer, styles.containerPosition]} onPress={()=>{}}>
+        				<Pressable style={[styles.forgotPasswordSetContainer, styles.containerPosition]} onPress={()=>{navigation.navigate('PasswordReset')}}>
           					<Text style={[styles.text1, styles.orTypo]}>
             						<Text style={styles.forgotPassword}>{`Forgot password? `}</Text>
             						<Text style={styles.setNewPassword}>Set new password</Text>
@@ -43,7 +52,7 @@ const SignIn = () => {
             						</View>
           					</Pressable>
         				</View>
-        				<TouchableOpacity style={[styles.dontHaveAccountContainer, styles.containerPosition]} activeOpacity={0.2} onPress={()=>{}}>
+        				<TouchableOpacity style={[styles.dontHaveAccountContainer, styles.containerPosition]} activeOpacity={0.2} onPress={()=>{navigation.navigate("SignUp")}}>
           					<Text style={[styles.text2, styles.orTypo]}>
             						<Text style={styles.forgotPassword}>{`Don’t have account? `}</Text>
             						<Text style={styles.setNewPassword}>Sign up</Text>
@@ -258,18 +267,28 @@ const SignIn = () => {
         				overflow: "hidden"
       			},
       			backarrow: {
-        				left: "4.07%",
-        				top: "8.69%",
-        				right: "89.82%",
-        				bottom: "88.5%",
-        				width: "6.11%",
-        				height: "2.82%",
-        				position: "absolute"
+					top: 74,
+					left: 16
       			},
+				  title: {
+					top: 260,
+					left: 12,
+					height: "6.103%",
+					width: "88.295%",
+					flex: 1
+				},
+				titleText: {
+					fontSize: 34,
+					letterSpacing: -0.1,
+					fontFamily: "Roboto-Regular",
+					textAlign: "left",
+					color: "#8e8e93"
+				},
       			signIn: {
         				backgroundColor: "#000",
         				flex: 1,
-        				height: 852,
+        				height: "100%",
+						width: "100%",
         				overflow: "hidden"
       			}
     		});

@@ -1,16 +1,17 @@
 import * as React from "react";
 import {StyleSheet, View, Text, Pressable, TouchableOpacity} from "react-native";
-import {ProgressBar, Button} from "react-native-paper";
-import ContinueButton from "../components/continueButton";
+import { useNavigation } from "@react-navigation/native";
 import BackArrow from "../components/backArrow";
-//finish this up
-const Frequency = ({person}) => {
-    		
+const Frequency = ({route, navigation}) => {
+	const {person} = route.params;
     		return (
       			<View style={styles.frequency}>
-							<View style={styles.title}>
-								<Text style={styles.titleText}>How frequently do {person} attend church?</Text>
-							</View>
+						<View style={styles.backarrow}>
+								<BackArrow/>
+						</View>
+						<View style={styles.title}>
+							<Text style={styles.titleText}>How frequently do {person} attend church?</Text>
+						</View>
         				<View style={[styles.frequencySlider, styles.backarrowPosition]}>
           					<View style={styles.slider}>
             						<View style={[styles.unfilledknob, styles.knob1Layout]} />
@@ -27,15 +28,36 @@ const Frequency = ({person}) => {
 								<View style={styles.filled} />
 							</View>
 						</View>
-						<View style={styles.continue}>
-							<ContinueButton/>
+						<View style={styles.continueLayout}>
+								<Pressable onPress={()=>(navigation.navigate('Experience', {person: person}))}>
+									<Text style={styles.continuetext}>Continue</Text>
+								</Pressable>
 						</View>
       			</View>);
     		};
     		
     		const styles = StyleSheet.create({
-      			
-      			
+				backarrow: {
+					top: 74,
+					left: 16
+      			},
+				continueLayout: {
+					bottom: -612,
+					left: 16, 
+					height: 50,
+					width: 358,
+					backgroundColor: "#333",
+					borderRadius: 10
+				},
+				continuetext: {
+					top: 15,
+					fontSize: 17,
+					letterSpacing: -0.2,
+					fontWeight: "500",
+					fontFamily: "Roboto-Medium",
+					color: "#fff",
+					textAlign: "center"
+				},
       			backarrowPosition: {
         				left: "4.07%",
         				position: "absolute"
@@ -128,7 +150,7 @@ const Frequency = ({person}) => {
       			},
       			
 				progressBar: {
-					top: "8.45%",
+					top: 84,
 					right: "12.2137%",
 					bottom: "88.26%",
 					left: "12.2137%",

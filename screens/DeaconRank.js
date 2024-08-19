@@ -1,34 +1,59 @@
 import * as React from "react";
 import {StyleSheet, View, Pressable, Text, TouchableOpacity} from "react-native";
-import {ProgressBar, Button} from "react-native-paper";
 import Rank from '../components/rank'
-import ContinueButton from "../components/continueButton";
 import BackArrow from "../components/backArrow";
-//fix the continue button make it not have such weird dimentions and finish bakc arrow
-const DeaconRank = ({person}) => {
-    		
+import { useNavigation } from "@react-navigation/native";
+const DeaconRank = ({route, navigation}) => {
+    	const {person} = route.params;
     		return (
       			<View style={styles.deaconrank}>
+						<View style={styles.backarrow}>
+								<BackArrow/>
+						</View>
 						<View style={styles.rank}>
 								<Rank style={styles.rank}/>
 						</View>
 						<View style={styles.title}>
 							<Text style={styles.titleText}>What rank of deacon are {person}?</Text>
 						</View>
+						<View style={styles.continueLayout}>
+								<Pressable onPress={()=>(navigation.navigate('Frequency', {person: person}))}>
+									<Text style={styles.continuetext}>Continue</Text>
+								</Pressable>
+						</View>
 						<View style={styles.progressBar}>
 							<View style={styles.track}>
 								<View style={styles.filled} />
 							</View>
 						</View>
-					<View style={styles.continue}>
-						<ContinueButton/>
-					</View>
+
       			</View>);
     		};
     		
     		const styles = StyleSheet.create({
+				backarrow: {
+					top: 74,
+					left: 16
+      			},
+				continueLayout: {
+					top: 225,
+					left: 16, 
+					height: 50,
+					width: 358,
+					backgroundColor: "#333",
+					borderRadius: 10
+				},
+				continuetext: {
+					top: 15,
+					fontSize: 17,
+					letterSpacing: -0.2,
+					fontWeight: "500",
+					fontFamily: "Roboto-Medium",
+					color: "#fff",
+					textAlign: "center"
+					},
 				progressBar: {
-					top: "8.45%",
+					top: 84,
 					right: "12.2137%",
 					bottom: "88.26%",
 					left: "12.2137%",

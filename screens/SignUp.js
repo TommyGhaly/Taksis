@@ -1,10 +1,17 @@
 import * as React from "react";
 import {Pressable, Image, StyleSheet, TextInput, View, Text, TouchableOpacity} from "react-native";
+import BackArrow from "../components/backArrow";
 //fix the continue button and backarrow forgot password set new password
-const SignUp = () => {
+const SignUp = ({navigation}) => {
     		
     		return (
       			<View style={styles.signup}>
+						<View style={styles.backarrow}>
+							<BackArrow/>
+						</View>
+						<View style={styles.title}>
+							<Text style={styles.titleText}>Sign Up</Text>
+						</View>
         				<TextInput style={[styles.name, styles.nameBorder]} placeholder="Enter your name" placeholderTextColor="#8e8e93" />
         				<TextInput style={[styles.phone, styles.nameBorder]} placeholder="Enter your phone" placeholderTextColor="#8e8e93" />
         				<TextInput style={[styles.email, styles.nameBorder]} placeholder="Enter your email" placeholderTextColor="#8e8e93" />
@@ -15,9 +22,11 @@ const SignUp = () => {
           					<Text style={styles.or}>or</Text>
           					<View style={[styles.dividerItem, styles.dividerPosition]} />
         				</View>
-        				<TouchableOpacity style={[styles.continuebutton, styles.appleFlexBox]} activeOpacity={0.2} onPress={()=>{}}>
-          					<Text style={styles.continue}>Continue</Text>
-        				</TouchableOpacity>
+						<View style={styles.continueLayout}>
+								<Pressable onPress={()=>(navigation.navigate('SelectChurch', {person:'you'}))}>
+									<Text style={styles.continuetext}>Continue</Text>
+								</Pressable>
+						</View>
         				<View style={styles.progressBar}>
           					<View style={[styles.track, styles.trackPosition]}>
             						<View style={[styles.filled, styles.trackPosition]} />
@@ -41,6 +50,10 @@ const SignUp = () => {
     		};
     		
     		const styles = StyleSheet.create({
+				backarrow: {
+					top: 74,
+					left: 16
+      			},
       			nameBorder: {
         				fontSize: 17,
         				fontFamily: "Roboto-Regular",
@@ -233,6 +246,37 @@ const SignUp = () => {
         				left: "4.07%",
         				position: "absolute"
       			},
+				  title: {
+					top: "15.023%",
+					left: 16,
+					height: "6.103%",
+					width: "88.295%",
+					flex: 1
+				},
+				titleText: {
+					fontSize: 34,
+					letterSpacing: -0.1,
+					fontFamily: "Roboto-Regular",
+					textAlign: "left",
+					color: "#8e8e93"
+				},
+				continueLayout: {
+					bottom: 271,
+					left: 16, 
+					height: 50,
+					width: 358,
+					backgroundColor: "#333",
+					borderRadius: 10
+				},
+				continuetext: {
+					top: 15,
+					fontSize: 17,
+					letterSpacing: -0.2,
+					fontWeight: "500",
+					fontFamily: "Roboto-Medium",
+					color: "#fff",
+					textAlign: "center"
+					},
       			signup: {
         				flex: 1,
         				height: 852,

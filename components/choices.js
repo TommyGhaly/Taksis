@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import {Text, StyleSheet, View} from "react-native";
+import {Text, StyleSheet, View, Image} from "react-native";
 import {Checkbox} from "react-native-paper";
 //get the checkboxes working
 const Group = () => {
@@ -22,10 +22,13 @@ const Group = () => {
       			<View style={[styles.lineView, styles.groupChildPosition]} />
       			<View style={[styles.groupChild1, styles.groupChildPosition]} />
       			<View style={[styles.wrapper, styles.wrapperPosition]}>
+						<Image style={styles.boxes} resizeMode="cover" source={require("../assets/Rectangle 10.png")}/>
         				<Checkbox status={rectangleCheckboxchecked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckboxchecked(!rectangleCheckboxchecked)} color="#fff" />
       			</View>
       			<View style={[styles.container, styles.wrapperPosition]}>
-        				<Checkbox status={rectangleCheckbox1checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox1checked(!rectangleCheckbox1checked)} color="#fff" />
+        				<Checkbox status={rectangleCheckbox1checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox1checked(!rectangleCheckbox1checked)} color="#fff">
+								<Image style={styles.boxes} resizeMode="cover" source={require("../assets/Rectangle 10.png")}/>
+						</Checkbox>
       			</View>
       			<View style={[styles.frame, styles.wrapperPosition]}>
         				<Checkbox status={rectangleCheckbox2checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox2checked(!rectangleCheckbox2checked)} color="#fff" />

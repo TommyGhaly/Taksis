@@ -1,11 +1,11 @@
 import * as React from "react";
 import {Pressable, Image, StyleSheet} from "react-native";
 import {useNavigation, ParamListBase} from "@react-navigation/native";
-
 const BackArrow = () => {
-    		
+    const navigation = useNavigation();
+
     		return (
-      			<Pressable style={styles.backarrow}>
+      			<Pressable style={styles.backarrow} onPress={()=>navigation.goBack()}>
         				<Image style={styles.icon} resizeMode="cover" source={require("../assets/backArrow.png")} />
       			</Pressable>);
     		};
@@ -18,8 +18,8 @@ const BackArrow = () => {
 				width: "100%"
 		},
 		backarrow: {
-				height: "2.8169%",
-				width: "100%"
+				height: 24,
+				width: 24
 		}
 	});
     		

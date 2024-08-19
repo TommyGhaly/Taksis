@@ -1,23 +1,31 @@
 import * as React from "react";
 import {StyleSheet, View, TextInput, Text, Pressable, TouchableOpacity, Image} from "react-native";
-const PasswordReset = () => {
+import BackArrow from "../components/backArrow";
+const PasswordReset = ({navigation}) => {
     		
     		return (
       			<View style={[styles.passwordReset, styles.iconLayout]}>
-					    <View style={styles.progressBar}>
-          					<View style={[styles.track, styles.trackPosition]}>
-            						<View style={[styles.filled, styles.trackPosition]} />
-          					</View>
-        				</View>
+						<View style={styles.backarrow}>
+							<BackArrow/>
+						</View>
 						<Text style={[styles.title, styles.titleText]}>Change Password</Text>
         				<TextInput style={[styles.password, styles.password1Typo]} placeholder="Enter your password" placeholderTextColor="#8e8e93"/>
         				<TextInput style={[styles.password1, styles.password1Typo]} placeholder="Confirm your password" placeholderTextColor="#8e8e93" />
         				<TextInput style={[styles.phoneOrEmail, styles.password1Typo]} placeholder="Enter your phone or email" placeholderTextColor="#8e8e93" />
         				<Text style={[styles.pleaseVerifyThe, styles.password1Typo]}>Please verify the change through the email sent to the email</Text>
+						<View style={styles.continueLayout}>
+								<Pressable onPress={()=>(navigation.navigate('PasswordConfirm'))}>
+									<Text style={styles.continuetext}>Continue</Text>
+								</Pressable>
+						</View>
       			</View>);
     		};
     		
     		const styles = StyleSheet.create({
+				backarrow: {
+					top: 74,
+					left: 16
+      			},
       			iconLayout: {
         				overflow: "hidden",
         				width: "100%"
@@ -109,7 +117,7 @@ const PasswordReset = () => {
       			},
 				title: {
                     left: "4.071%",
-                    top: "12.7887%"
+                    top: "10.7887%"
                 },
                 titleText:{
                     fontSize: 34,
@@ -144,6 +152,23 @@ const PasswordReset = () => {
 					marginTop: -2,
 					position: "absolute"
 				},
+				continueLayout: {
+					bottom: -650,
+					left: 16, 
+					height: 50,
+					width: 358,
+					backgroundColor: "#333",
+					borderRadius: 10
+				},
+				continuetext: {
+					top: 15,
+					fontSize: 17,
+					letterSpacing: -0.2,
+					fontWeight: "500",
+					fontFamily: "Roboto-Medium",
+					color: "#fff",
+					textAlign: "center"
+					},
       			passwordReset: {
         				backgroundColor: "#000",
         				flex: 1,

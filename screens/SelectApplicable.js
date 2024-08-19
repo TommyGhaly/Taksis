@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
 import {StyleSheet, View, Text, Pressable} from "react-native";
 import Choices from '../components/choices'
-import ContinueButton from "../components/continueButton"
-import {Button as RNEButton} from "@rneui/themed";
-import {Checkbox, ProgressBar, Button} from "react-native-paper";
+import {useNavigation} from "@react-navigation/native";
+import BackArrow from '../components/backArrow'
 
-const SelectApplicable = ({person}) => {
-    		
+const SelectApplicable = ({route, navigation}) => {
+	const {person} = route.params
     		return (
       			<View style={styles.selectapplicable}>
-					<View style={styles.continueButton}>
-							<ContinueButton location={"DeaconRank"} text={"Continue"}/>
+					<View style={styles.backarrow}>
+							<BackArrow/>
 					</View>
 					<View style={styles.title}>
 							<Text style={styles.titleText}>Select all that apply to {person}</Text>
@@ -18,7 +17,11 @@ const SelectApplicable = ({person}) => {
 					<View style={styles.choices}>
 							<Choices/>
 					</View>
-					
+					<View style={styles.continueLayout}>
+								<Pressable onPress={()=>(navigation.navigate('DeaconRank', {person: person}))}>
+									<Text style={styles.continuetext}>Continue</Text>
+								</Pressable>
+					</View>
 					<View style={styles.progressBar}>
 							<View style={styles.track}>
 									<View style={styles.filled} />
@@ -32,10 +35,13 @@ const SelectApplicable = ({person}) => {
 				choices: {
 					top: "15%",
 					left: "11.959%",
-
 				},
+				backarrow: {
+					top: 74,
+					left: 16
+      			},
       			progressBar: {
-        				top: "8.45%",
+        				top: 84,
         				right: "12.2137%",
         				bottom: "88.26%",
         				left: "12.2137%",
@@ -79,7 +85,25 @@ const SelectApplicable = ({person}) => {
         				height: "100%",
         				overflow: "hidden",
         				backgroundColor: "#000"
-      			}
+      			},
+
+				continueLayout: {
+					top: 385,
+					left: 16, 
+					height: 50,
+					width: 358,
+					backgroundColor: "#333",
+					borderRadius: 10
+				},
+				continuetext: {
+					top: 15,
+					fontSize: 17,
+					letterSpacing: -0.2,
+					fontWeight: "500",
+					fontFamily: "Roboto-Medium",
+					color: "#fff",
+					textAlign: "center"
+				},
     		});
     		
     		export default SelectApplicable;

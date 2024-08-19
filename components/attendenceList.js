@@ -1,97 +1,98 @@
 import React, { useState } from 'react';
 import {StyleSheet, View, Image, Text, Pressable} from "react-native";
 import {Checkbox} from "react-native-paper";
-
-const attnedenceList = () => {
-  	const [rectangleCheckboxchecked, setRectangleCheckboxchecked] = useState(false);
-  	const [rectangleCheckbox1checked, setRectangleCheckbox1checked] = useState(false);
-  	const [rectangleCheckbox2checked, setRectangleCheckbox2checked] = useState(false);
-  	const [rectangleCheckbox3checked, setRectangleCheckbox3checked] = useState(false);
-  	const [rectangleCheckbox4checked, setRectangleCheckbox4checked] = useState(false);
-  	const [rectangleCheckbox5checked, setRectangleCheckbox5checked] = useState(false);
-  	const [rectangleCheckbox6checked, setRectangleCheckbox6checked] = useState(false);
-  	const [rectangleCheckbox7checked, setRectangleCheckbox7checked] = useState(false);
-  	const [rectangleCheckbox8checked, setRectangleCheckbox8checked] = useState(false);
-  	const [rectangleCheckbox9checked, setRectangleCheckbox9checked] = useState(false);
-  	const [rectangleCheckbox10checked, setRectangleCheckbox10checked] = useState(false);
-  	const [rectangleCheckbox11checked, setRectangleCheckbox11checked] = useState(false);
-  	const [rectangleCheckbox12checked, setRectangleCheckbox12checked] = useState(false);
-  	const [rectangleCheckbox13checked, setRectangleCheckbox13checked] = useState(false);
-  	const [rectangleCheckbox14checked, setRectangleCheckbox14checked] = useState(false);
-  	const [rectangleCheckbox15checked, setRectangleCheckbox15checked] = useState(false);
-  	const [rectangleCheckbox16checked, setRectangleCheckbox16checked] = useState(false);
-  	const [rectangleCheckbox17checked, setRectangleCheckbox17checked] = useState(false);
-  	const [rectangleCheckbox18checked, setRectangleCheckbox18checked] = useState(false);
-  	const [rectangleCheckbox19checked, setRectangleCheckbox19checked] = useState(false);
-  	const [rectangleCheckbox20checked, setRectangleCheckbox20checked] = useState(false);
-  	const [rectangleCheckbox21checked, setRectangleCheckbox21checked] = useState(false);
-  	const [rectangleCheckbox22checked, setRectangleCheckbox22checked] = useState(false);
-  	const [rectangleCheckbox23checked, setRectangleCheckbox23checked] = useState(false);
-  	const [rectangleCheckbox24checked, setRectangleCheckbox24checked] = useState(false);
-  	const [rectangleCheckbox25checked, setRectangleCheckbox25checked] = useState(false);
-  	const [rectangleCheckbox26checked, setRectangleCheckbox26checked] = useState(false);
-  	const [rectangleCheckbox27checked, setRectangleCheckbox27checked] = useState(false);
-  	const [rectangleCheckbox28checked, setRectangleCheckbox28checked] = useState(false);
-  	const [rectangleCheckbox29checked, setRectangleCheckbox29checked] = useState(false);
-  	const [rectangleCheckbox30checked, setRectangleCheckbox30checked] = useState(false);
-  	const [rectangleCheckbox31checked, setRectangleCheckbox31checked] = useState(false);
-  	const [rectangleCheckbox32checked, setRectangleCheckbox32checked] = useState(false);
-  	const [rectangleCheckbox33checked, setRectangleCheckbox33checked] = useState(false);
-  	const [rectangleCheckbox34checked, setRectangleCheckbox34checked] = useState(false);
-  	const [rectangleCheckbox35checked, setRectangleCheckbox35checked] = useState(false);
-  	const [rectangleCheckbox36checked, setRectangleCheckbox36checked] = useState(false);
-  	const [rectangleCheckbox37checked, setRectangleCheckbox37checked] = useState(false);
-  	const [rectangleCheckbox38checked, setRectangleCheckbox38checked] = useState(false);
-  	const [rectangleCheckbox39checked, setRectangleCheckbox39checked] = useState(false);
-  	const [rectangleCheckbox40checked, setRectangleCheckbox40checked] = useState(false);
-  	const [rectangleCheckbox41checked, setRectangleCheckbox41checked] = useState(false);
-  	const [rectangleCheckbox42checked, setRectangleCheckbox42checked] = useState(false);
-  	const [rectangleCheckbox43checked, setRectangleCheckbox43checked] = useState(false);
-  	const [rectangleCheckbox44checked, setRectangleCheckbox44checked] = useState(false);
-  	const [rectangleCheckbox45checked, setRectangleCheckbox45checked] = useState(false);
-  	const [rectangleCheckbox46checked, setRectangleCheckbox46checked] = useState(false);
-  	const [rectangleCheckbox47checked, setRectangleCheckbox47checked] = useState(false);
-  	const [rectangleCheckbox48checked, setRectangleCheckbox48checked] = useState(false);
-  	const [rectangleCheckbox49checked, setRectangleCheckbox49checked] = useState(false);
-  	const [rectangleCheckbox50checked, setRectangleCheckbox50checked] = useState(false);
-  	const [rectangleCheckbox51checked, setRectangleCheckbox51checked] = useState(false);
-  	const [rectangleCheckbox52checked, setRectangleCheckbox52checked] = useState(false);
-  	const [rectangleCheckbox53checked, setRectangleCheckbox53checked] = useState(false);
-  	const [rectangleCheckbox54checked, setRectangleCheckbox54checked] = useState(false);
-  	const [rectangleCheckbox55checked, setRectangleCheckbox55checked] = useState(false);
-  	const [rectangleCheckbox56checked, setRectangleCheckbox56checked] = useState(false);
-  	const [rectangleCheckbox57checked, setRectangleCheckbox57checked] = useState(false);
-  	const [rectangleCheckbox58checked, setRectangleCheckbox58checked] = useState(false);
-  	const [rectangleCheckbox59checked, setRectangleCheckbox59checked] = useState(false);
-  	const [rectangleCheckbox60checked, setRectangleCheckbox60checked] = useState(false);
-  	const [rectangleCheckbox61checked, setRectangleCheckbox61checked] = useState(false);
-  	const [rectangleCheckbox62checked, setRectangleCheckbox62checked] = useState(false);
-  	const [rectangleCheckbox63checked, setRectangleCheckbox63checked] = useState(false);
-  	const [rectangleCheckbox64checked, setRectangleCheckbox64checked] = useState(false);
-  	const [rectangleCheckbox65checked, setRectangleCheckbox65checked] = useState(false);
-  	const [rectangleCheckbox66checked, setRectangleCheckbox66checked] = useState(false);
-  	const [rectangleCheckbox67checked, setRectangleCheckbox67checked] = useState(false);
-  	const [rectangleCheckbox68checked, setRectangleCheckbox68checked] = useState(false);
-  	const [rectangleCheckbox69checked, setRectangleCheckbox69checked] = useState(false);
-  	const [rectangleCheckbox70checked, setRectangleCheckbox70checked] = useState(false);
-  	const [rectangleCheckbox71checked, setRectangleCheckbox71checked] = useState(false);
-  	const [rectangleCheckbox72checked, setRectangleCheckbox72checked] = useState(false);
-  	const [rectangleCheckbox73checked, setRectangleCheckbox73checked] = useState(false);
-  	const [rectangleCheckbox74checked, setRectangleCheckbox74checked] = useState(false);
-  	const [rectangleCheckbox75checked, setRectangleCheckbox75checked] = useState(false);
-  	const [rectangleCheckbox76checked, setRectangleCheckbox76checked] = useState(false);
-  	const [rectangleCheckbox77checked, setRectangleCheckbox77checked] = useState(false);
-  	const [rectangleCheckbox78checked, setRectangleCheckbox78checked] = useState(false);
-  	const [rectangleCheckbox79checked, setRectangleCheckbox79checked] = useState(false);
-  	const [rectangleCheckbox80checked, setRectangleCheckbox80checked] = useState(false);
+//finish the  check boxes
+const AttendenceList = () => {
+  	const [tchecked, setchecked] = useState(true);
+  	const [t1checked, set1checked] = useState(true);
+  	const [t2checked, set2checked] = useState(true);
+  	const [t3checked, set3checked] = useState(true);
+  	const [t4checked, set4checked] = useState(true);
+  	const [t5checked, set5checked] = useState(true);
+  	const [t6checked, set6checked] = useState(true);
+  	const [t7checked, set7checked] = useState(true);
+  	const [t8checked, set8checked] = useState(true);
+  	const [t9checked, set9checked] = useState(true);
+  	const [t10checked, set10checked] = useState(true);
+  	const [t11checked, set11checked] = useState(true);
+  	const [t12checked, set12checked] = useState(true);
+  	const [t13checked, set13checked] = useState(true);
+  	const [t14checked, set14checked] = useState(true);
+  	const [t15checked, set15checked] = useState(true);
+  	const [t16checked, set16checked] = useState(true);
+  	const [t17checked, set17checked] = useState(true);
+  	const [t18checked, set18checked] = useState(true);
+  	const [t19checked, set19checked] = useState(true);
+  	const [t20checked, set20checked] = useState(true);
+  	const [t21checked, set21checked] = useState(true);
+  	const [t22checked, set22checked] = useState(true);
+  	const [t23checked, set23checked] = useState(true);
+  	const [t24checked, set24checked] = useState(true);
+  	const [t25checked, set25checked] = useState(true);
+  	const [t26checked, set26checked] = useState(true);
+  	const [t27checked, set27checked] = useState(true);
+  	const [t28checked, set28checked] = useState(true);
+  	const [t29checked, set29checked] = useState(true);
+  	const [t30checked, set30checked] = useState(true);
+  	const [t31checked, set31checked] = useState(true);
+  	const [t32checked, set32checked] = useState(true);
+  	const [t33checked, set33checked] = useState(true);
+  	const [t34checked, set34checked] = useState(true);
+  	const [t35checked, set35checked] = useState(true);
+  	const [t36checked, set36checked] = useState(true);
+  	const [t37checked, set37checked] = useState(true);
+  	const [t38checked, set38checked] = useState(true);
+  	const [t39checked, set39checked] = useState(true);
+  	const [t40checked, set40checked] = useState(true);
+  	const [t41checked, set41checked] = useState(true);
+  	const [t42checked, set42checked] = useState(true);
+  	const [t43checked, set43checked] = useState(true);
+  	const [t44checked, set44checked] = useState(true);
+  	const [t45checked, set45checked] = useState(true);
+  	const [t46checked, set46checked] = useState(true);
+  	const [t47checked, set47checked] = useState(true);
+  	const [t48checked, set48checked] = useState(true);
+  	const [t49checked, set49checked] = useState(true);
+  	const [t50checked, set50checked] = useState(true);
+  	const [t51checked, set51checked] = useState(true);
+  	const [t52checked, set52checked] = useState(true);
+  	const [t53checked, set53checked] = useState(true);
+  	const [t54checked, set54checked] = useState(true);
+  	const [t55checked, set55checked] = useState(true);
+  	const [t56checked, set56checked] = useState(true);
+  	const [t57checked, set57checked] = useState(true);
+  	const [t58checked, set58checked] = useState(true);
+  	const [t59checked, set59checked] = useState(true);
+  	const [t60checked, set60checked] = useState(true);
+  	const [t61checked, set61checked] = useState(true);
+  	const [t62checked, set62checked] = useState(true);
+  	const [t63checked, set63checked] = useState(true);
+  	const [t64checked, set64checked] = useState(true);
+  	const [t65checked, set65checked] = useState(true);
+  	const [t66checked, set66checked] = useState(true);
+  	const [t67checked, set67checked] = useState(true);
+  	const [t68checked, set68checked] = useState(true);
+  	const [t69checked, set69checked] = useState(true);
+  	const [t70checked, set70checked] = useState(true);
+  	const [t71checked, set71checked] = useState(true);
+  	const [t72checked, set72checked] = useState(true);
+  	const [t73checked, set73checked] = useState(true);
+  	const [t74checked, set74checked] = useState(true);
+  	const [t75checked, set75checked] = useState(true);
+  	const [t76checked, set76checked] = useState(true);
+  	const [t77checked, set77checked] = useState(true);
+  	const [t78checked, set78checked] = useState(true);
+  	const [t79checked, set79checked] = useState(true);
+  	const [t80checked, set80checked] = useState(true);
   	
   	return (
     		<View style={styles.completelistParent}>
       			<View style={[styles.completelist, styles.completelistPosition]}>
+						
         				<View style={[styles.anamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>A name 1</Text>
           					</Pressable>
@@ -102,22 +103,37 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>A name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>A</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckboxchecked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckboxchecked(!rectangleCheckboxchecked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox1checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox1checked(!rectangleCheckbox1checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox2checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox2checked(!rectangleCheckbox2checked)} color="#000" />
-            						</View>
-          					</View>
+							<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									uncheckedColor='#8e8e93'
+									color='blue'
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.bnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.bName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>B name 1</Text>
           					</Pressable>
@@ -128,22 +144,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>B name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>B</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox3checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox3checked(!rectangleCheckbox3checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox4checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox4checked(!rectangleCheckbox4checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox5checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox5checked(!rectangleCheckbox5checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.cnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>C name 1</Text>
           					</Pressable>
@@ -154,22 +183,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>C name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>C</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox6checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox6checked(!rectangleCheckbox6checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox7checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox7checked(!rectangleCheckbox7checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox8checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox8checked(!rectangleCheckbox8checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.dnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>D name 1</Text>
           					</Pressable>
@@ -180,22 +222,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>D name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>D</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox9checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox9checked(!rectangleCheckbox9checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox10checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox10checked(!rectangleCheckbox10checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox11checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox11checked(!rectangleCheckbox11checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.enamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>E name 1</Text>
           					</Pressable>
@@ -206,22 +261,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>E name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>E</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox12checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox12checked(!rectangleCheckbox12checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox13checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox13checked(!rectangleCheckbox13checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox14checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox14checked(!rectangleCheckbox14checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.fnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>F name 1</Text>
           					</Pressable>
@@ -232,22 +300,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>F name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>F</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox15checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox15checked(!rectangleCheckbox15checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox16checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox16checked(!rectangleCheckbox16checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox17checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox17checked(!rectangleCheckbox17checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.gnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>G name 1</Text>
           					</Pressable>
@@ -258,22 +339,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>G name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>G</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox18checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox18checked(!rectangleCheckbox18checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox19checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox19checked(!rectangleCheckbox19checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox20checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox20checked(!rectangleCheckbox20checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.hnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>H name 1</Text>
           					</Pressable>
@@ -284,22 +378,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>H name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>H</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox21checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox21checked(!rectangleCheckbox21checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox22checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox22checked(!rectangleCheckbox22checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox23checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox23checked(!rectangleCheckbox23checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.inamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>I name 1</Text>
           					</Pressable>
@@ -310,22 +417,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>I name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>I</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox24checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox24checked(!rectangleCheckbox24checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox25checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox25checked(!rectangleCheckbox25checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox26checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox26checked(!rectangleCheckbox26checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.jnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>J name 1</Text>
           					</Pressable>
@@ -336,22 +456,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>J name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>J</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox27checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox27checked(!rectangleCheckbox27checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox28checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox28checked(!rectangleCheckbox28checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox29checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox29checked(!rectangleCheckbox29checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.knamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>K name 1</Text>
           					</Pressable>
@@ -362,22 +495,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>K name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>K</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox30checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox30checked(!rectangleCheckbox30checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox31checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox31checked(!rectangleCheckbox31checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox32checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox32checked(!rectangleCheckbox32checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.lnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>L name 1</Text>
           					</Pressable>
@@ -388,22 +534,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>L name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>L</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox33checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox33checked(!rectangleCheckbox33checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox34checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox34checked(!rectangleCheckbox34checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox35checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox35checked(!rectangleCheckbox35checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.mnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>M name 1</Text>
           					</Pressable>
@@ -414,22 +573,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>M name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>M</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox36checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox36checked(!rectangleCheckbox36checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox37checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox37checked(!rectangleCheckbox37checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox38checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox38checked(!rectangleCheckbox38checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.nnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>N name 1</Text>
           					</Pressable>
@@ -440,22 +612,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>N name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>N</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox39checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox39checked(!rectangleCheckbox39checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox40checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox40checked(!rectangleCheckbox40checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox41checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox41checked(!rectangleCheckbox41checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.onamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>O name 1</Text>
           					</Pressable>
@@ -466,22 +651,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>O name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>O</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox42checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox42checked(!rectangleCheckbox42checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox43checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox43checked(!rectangleCheckbox43checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox44checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox44checked(!rectangleCheckbox44checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.pnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>P name 1</Text>
           					</Pressable>
@@ -492,22 +690,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>P name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>P</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox45checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox45checked(!rectangleCheckbox45checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox46checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox46checked(!rectangleCheckbox46checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox47checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox47checked(!rectangleCheckbox47checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.qnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>Q name 1</Text>
           					</Pressable>
@@ -518,22 +729,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>Q name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>Q</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox48checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox48checked(!rectangleCheckbox48checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox49checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox49checked(!rectangleCheckbox49checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox50checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox50checked(!rectangleCheckbox50checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.rnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>R name 1</Text>
           					</Pressable>
@@ -544,22 +768,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>R name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>R</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox51checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox51checked(!rectangleCheckbox51checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox52checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox52checked(!rectangleCheckbox52checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox53checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox53checked(!rectangleCheckbox53checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.snamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>S name 1</Text>
           					</Pressable>
@@ -570,22 +807,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>S name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>S</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox54checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox54checked(!rectangleCheckbox54checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox55checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox55checked(!rectangleCheckbox55checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox56checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox56checked(!rectangleCheckbox56checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.tnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>T name 1</Text>
           					</Pressable>
@@ -596,22 +846,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>T name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>T</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox57checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox57checked(!rectangleCheckbox57checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox58checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox58checked(!rectangleCheckbox58checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox59checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox59checked(!rectangleCheckbox59checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.unamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>U name 1</Text>
           					</Pressable>
@@ -622,22 +885,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>U name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>U</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox60checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox60checked(!rectangleCheckbox60checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox61checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox61checked(!rectangleCheckbox61checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox62checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox62checked(!rectangleCheckbox62checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.vnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>V name 1</Text>
           					</Pressable>
@@ -648,22 +924,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>V name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>V</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox63checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox63checked(!rectangleCheckbox63checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox64checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox64checked(!rectangleCheckbox64checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox65checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox65checked(!rectangleCheckbox65checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.wnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>W name 1</Text>
           					</Pressable>
@@ -674,22 +963,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>W name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>W</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox66checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox66checked(!rectangleCheckbox66checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox67checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox67checked(!rectangleCheckbox67checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox68checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox68checked(!rectangleCheckbox68checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.xnamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>X name 1</Text>
           					</Pressable>
@@ -700,22 +1002,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>X name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>X</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox69checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox69checked(!rectangleCheckbox69checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox70checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox70checked(!rectangleCheckbox70checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox71checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox71checked(!rectangleCheckbox71checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.ynamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>Y name 1</Text>
           					</Pressable>
@@ -726,22 +1041,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>Y name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>Y</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox72checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox72checked(!rectangleCheckbox72checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox73checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox73checked(!rectangleCheckbox73checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox74checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox74checked(!rectangleCheckbox74checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.znamelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}>Z name 1</Text>
           					</Pressable>
@@ -752,22 +1080,35 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}>Z name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>Z</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox75checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox75checked(!rectangleCheckbox75checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox76checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox76checked(!rectangleCheckbox76checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox77checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox77checked(!rectangleCheckbox77checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
         				<View style={[styles.namelist, styles.namelistPosition]}>
           					<View style={[styles.anamelistChild, styles.completelistPosition]} />
-          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source="Line 40.png" />
-          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source="Line 41.png" />
+          					<Image style={[styles.anamelistItem, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
+          					<Image style={[styles.anamelistInner, styles.anamelistLayout]} resizeMode="cover" source={require("../assets/Line 40.png")} />
           					<Pressable style={[styles.aName1Container, styles.name1ContainerPosition]} onPress={()=>{}}>
             						<Text style={[styles.aName1, styles.aFlexBox]}># name 1</Text>
           					</Pressable>
@@ -778,17 +1119,30 @@ const attnedenceList = () => {
             						<Text style={[styles.aName1, styles.aFlexBox]}># name 3</Text>
           					</Pressable>
           					<Text style={[styles.a, styles.aFlexBox]}>#</Text>
-          					<View style={styles.vectorParent}>
-            						<View style={[styles.wrapper, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox78checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox78checked(!rectangleCheckbox78checked)} color="#000" />
-            						</View>
-            						<View style={[styles.container, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox79checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox79checked(!rectangleCheckbox79checked)} color="#000" />
-            						</View>
-            						<View style={[styles.frame, styles.framePosition]}>
-              							<Checkbox status={rectangleCheckbox80checked ? 'checked' : 'unchecked' } onPress={() => setRectangleCheckbox80checked(!rectangleCheckbox80checked)} color="#000" />
-            						</View>
-          					</View>
+          					<View style={styles.checkbox1}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox2}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
+							<View style={styles.checkbox3}>
+								<Checkbox.Item
+									status={tchecked ? 'checked' : 'unchecked'}
+									onPress={()=> {
+										setchecked(!tchecked);
+									}}>
+								</Checkbox.Item>
+							</View>
         				</View>
       			</View>
     		</View>);
@@ -819,51 +1173,73 @@ const styles = StyleSheet.create({
     		left: "7.12%",
     		position: "absolute"
   	},
-  	name1ContainerPosition: {
-    		top: "22.48%",
-    		position: "absolute"
-  	},
+	  attendancetitlePosition: {
+		left: "0%",
+		bottom: "0%",
+		right: "0%",
+		top: "0%",
+		height: "100%",
+		position: "absolute",
+		width: "100%"
+		},
   	aFlexBox: {
     		textAlign: "left",
-    		lineHeight: 22
+    		lineHeight: 24
   	},
   	framePosition: {
     		right: "-20%",
     		left: "0%",
     		position: "absolute"
   	},
+	checkbox: {
+		color: "#8e8e93"
+
+	},
+	checkbox1: {
+		top: 30,
+		height: 25,
+		width: "93%",
+	},
+	checkbox2: {
+		top: 40,
+		height: 25,
+		width: "93%",
+		Color: "#000",
+	},
+	checkbox3: {
+		top: 50, 
+		height: 25,
+		width: "93%",
+	},
   	anamelistChild: {
     		height: "78.29%",
     		top: "21.71%",
     		backgroundColor: "rgba(30, 30, 30, 0.9)"
   	},
   	anamelistItem: {
-    		top: "42.64%",
+    		top: "45%",
     		bottom: "56.59%"
   	},
   	anamelistInner: {
-    		top: "66.67%",
-    		bottom: "32.56%"
+    		top: "70%",
   	},
   	aName1: {
-    		height: "20.16%",
-    		width: "21.88%",
     		fontSize: 14,
     		fontFamily: "Roboto-Regular",
     		color: "#8e8e93",
     		display: "flex",
-    		alignItems: "center"
+    		alignItems: "center",
   	},
   	aName1Container: {
-    		left: "7.12%"
+    		left: "7.12%",
   	},
   	aName2Container: {
-    		top: "47.29%",
+    		top: "50%",
     		left: "7.12%",
     		position: "absolute"
   	},
   	aName3Container: {
-    		top: "71.32%",
+    		top: "75%",
     		left: "7.12%",
     		position: "absolute"
   	},
@@ -884,6 +1260,10 @@ const styles = StyleSheet.create({
     		top: "40.26%",
     		bottom: "36.36%"
   	},
+	name1ContainerPosition: {
+		top: "23.48%",
+		position: "absolute"
+	},
   	frame: {
     		top: "80.52%",
     		bottom: "-3.9%"
@@ -1010,7 +1390,7 @@ const styles = StyleSheet.create({
     		height: "3.52%"
   	},
   	completelist: {
-    		height: "100%",
+    		height: "10",
     		top: "0%"
   	},
   	completelistParent: {
@@ -1020,4 +1400,4 @@ const styles = StyleSheet.create({
   	}
 });
 
-export default attendenceList;
+export default AttendenceList;

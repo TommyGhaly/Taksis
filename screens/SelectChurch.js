@@ -1,34 +1,33 @@
 import * as React from "react";
 import {StyleSheet, View, Image, Pressable, Text, TextInput} from "react-native";
-import {ProgressBar, Button} from "react-native-paper";
+import {useNavigation} from "@react-navigation/native";
 import SearchOptions from '../components/searchOptions'
-import ContinueButton from '../components/continueButton'
 import BackArrow from '../components/backArrow'
-const SelectChurch = ({person}) => {
-    		let inputProps={
-				text: "Continue",
-				location: "SelectApplicable"
-			};
-			//add back Arrow and continue button
+const SelectChurch = ({route, navigation}) => {
+	const {person} = route.params
     		return (
 				<View style={styles.loadout}>
-					<View style={styles.backArrow}>
+					<View style={styles.backarrow}>
+							<BackArrow/>
 					</View>
 					<View style={styles.title}>
-						<Text style={styles.titleText}>Select the church(s) {person} regularly attend</Text>
+						<Text style={styles.titleText}>Select the church {person} regularly attend</Text>
 					</View>
 					<View style={styles.position}>
 						<SearchOptions/>
 					</View>
-					<View style={styles.continueButton}>
-					</View>
-					<View style={styles.dontSeeYourChurchRegiste}>
-						<Pressable style={styles.dontSeeYourContainer} onPress={()=>{}}>
+					<View style={[styles.dontSeeYourChurchRegiste, styles.dontSeeYourContainer]}>
+						<Pressable onPress={()=>{navigation.navigate('ChurchInformation')}}>
 							<Text style={styles.text}>
 							<Text style={styles.dontSeeYour}>{`Don’t see your church? `}</Text>
 							<Text style={styles.registerIt}>Register it</Text>
 							</Text>
 						</Pressable>
+					</View>
+					<View style={styles.continueLayout}>
+								<Pressable onPress={()=>(navigation.navigate('SelectApplicable', {person: person}))}>
+									<Text style={styles.continuetext}>Continue</Text>
+								</Pressable>
 					</View>
 					<View style={styles.progressBar}>
 						<View style={styles.track}>
@@ -42,6 +41,10 @@ const SelectChurch = ({person}) => {
     		};
     		
     		const styles = StyleSheet.create({
+				backarrow: {
+					top: 74,
+					left: 16
+      			},
       			position: {
 						top: "27.230%",
 						bottom: "49.882%",
@@ -52,7 +55,8 @@ const SelectChurch = ({person}) => {
 				loadout: {
 					width: "100%",
 					height: "100%",
-					flex: 1
+					flex: 1,
+					backgroundColor: "#000"
 				},
 				dontSeeYour: {
 					color: "#8e8e93"
@@ -68,24 +72,16 @@ const SelectChurch = ({person}) => {
 				},
 				dontSeeYourContainer: {
 					position: "absolute",
-					left: "23.91%",
-					top: "80%"
+					left: 0,
+					top: 782
 				},
 				dontSeeYourChurchRegiste: {
-					flex: 1,
 					width: "100%",
-					height: "2.112%"
-				},
-				continueButton: {
-					top: "83.568%",
-					height: "5.86%",
-					left: "1.877%",
-					right: "1.877%",
-					bottom: "89.4366%",
+					height: "2.112%",
 				},
 				title: {
-					top: "15.023%",
-					left: "4.071",
+					top: 100,
+					left: 16,
 					height: "6.103%",
 					width: "88.295%",
 					flex: 1
@@ -98,7 +94,7 @@ const SelectChurch = ({person}) => {
 					color: "#8e8e93"
 				},
 				progressBar: {
-					top: "8.45%",
+					top: 84,
 					right: "12.2137%",
 					bottom: "88.26%",
 					left: "12.2137%",
@@ -123,7 +119,24 @@ const SelectChurch = ({person}) => {
 				backbutton: {
 					top: "8.68545%",
 					left: "4.071%"
-				}
+				},
+				continueLayout: {
+					bottom: 60,
+					left: 16, 
+					height: 50,
+					width: 358,
+					backgroundColor: "#333",
+					borderRadius: 10
+				},
+				continuetext: {
+					top: 15,
+					fontSize: 17,
+					letterSpacing: -0.2,
+					fontWeight: "500",
+					fontFamily: "Roboto-Medium",
+					color: "#fff",
+					textAlign: "center"
+					},
     		});
     		
     		export default SelectChurch;
