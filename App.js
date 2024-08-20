@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import auth from '@react-native-firebase/auth';
+import { StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import auth from '@react-native-firebase/auth';
+import { UserProvider, useUser } from './UserContext';
 
 import Welcome from './screens/Welcome';
 import SignIn from './screens/SignIn';
@@ -24,9 +25,9 @@ import MainContainer from "./screens/MainContainer";
 
 const Stack = createNativeStackNavigator();
 
-export default function App() {
+function AppNavigator() {
+  const { user, setUser } = useUser();  // Access user and setUser from the UserContext
   const [initializing, setInitializing] = useState(true);
-  const [user, setUser] = useState(null);
 
   function onAuthStateChanged(user) {
     setUser(user);
@@ -56,8 +57,9 @@ export default function App() {
           </>
         ) : (
           <>
-            <Stack.Screen name="Home" component={Home} />
-            <Stack.Screen name="SelectChurch" component={SelectChurch} initialParams={{ person: "you" }} />
+            {/* <Stack.Screen name="Home" component={Home} /> */}
+            <Stack.Screen name="MainContainer" component={MainContainer} />
+            <Stack.Screen name="SelectChurch" component={SelectChurch} />
             <Stack.Screen name="SelectApplicable" component={SelectApplicable} />
             <Stack.Screen name="DeaconRank" component={DeaconRank} />
             <Stack.Screen name="Frequency" component={Frequency} />
@@ -67,11 +69,18 @@ export default function App() {
             <Stack.Screen name="ChurchVerification" component={ChurchVerification} />
             <Stack.Screen name="Attendence" component={Attendence} />
             <Stack.Screen name="EditSchedule" component={EditSchedule} />
-            <Stack.Screen name="MainContainer" component={MainContainer} />
           </>
         )}
       </Stack.Navigator>
     </NavigationContainer>
+  );
+}
+
+export default function App() {
+  return (
+    <UserProvider>
+      <AppNavigator />
+    </UserProvider>
   );
 }
 

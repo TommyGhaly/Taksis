@@ -15,6 +15,7 @@
       "expo-apple-authentication",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
+      "@react-native-google-signin/google-signin",
       [
         "expo-build-properties",
         {
@@ -38,6 +39,10 @@
     "ios": {
       "googleServicesFile": "./GoogleService-Info.plist",
       "bundleIdentifier": "com.dgobran.Taxis"
+    },
+    "android": {
+      "googleServicesFile": "./google-services.json",
+      "package": "com.dgobran.Taxis"
     }
   },
   "assetBundlePatterns": [
