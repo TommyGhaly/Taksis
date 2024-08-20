@@ -3,13 +3,13 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import HomeScreen from "./HomeScreen";
 import Attendence from "./Attendence";
-import LearnItMainMenu from "./LearnItMainMenu";
-import Settings from "./Settings";
+import LearnItNavigation from "./LearnIt/LearnItNavigation"
+import Settings from "./Settings/Settings";
 import EditSchedule from "./EditSchedule";
 
 const Tab = createBottomTabNavigator();
 
-export default function MainContainer({ navigation }) {
+export default function MainContainer() {
   return (
     <NavigationContainer independent={true}>
       <Tab.Navigator
@@ -24,7 +24,7 @@ export default function MainContainer({ navigation }) {
       >
         <Tab.Screen name="Home" component={HomeScreen} />
         <Tab.Screen name="Attendence" component={Attendence} />
-        <Tab.Screen name="Learn It" component={LearnItMainMenu} />
+        <Tab.Screen name="Learn It" component={LearnItNavigation} />
         <Tab.Screen name="Settings" component={Settings} />
       </Tab.Navigator>
     </NavigationContainer>

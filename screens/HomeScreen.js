@@ -30,14 +30,15 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
 
     content: {
-        top: 60,
-        left: "4.071%",
-        width: "88.407%"
+        top: 80,
+        left: 26,
+        width: 317
     },
     request: {
-        top: 75,
-        height: "10%",
-        left: "7.373%",
+        top: 59,
+        height: 71,
+        width: 280,
+        left: 29,
     },
     homescreen: {
         flex: 1,

@@ -1,25 +1,25 @@
 import * as React from "react";
 import {Image, StyleSheet, Text, View, Pressable} from "react-native";
 
-const LearnItMainMenu = () => {
+const LearnItMainMenu = ({navigation}) => {
   	
   	return (
     		<View style={styles.learnitmainmenu}>
       			<View style={styles.attendancetitleWrapper}>
         				<View style={styles.attendancetitle}>
-          					<Image style={[styles.attendancetitleChild, styles.childPosition]} resizeMode="cover" source={require("../assets/Rectangle 17.png")}/>
+          					<Image style={[styles.attendancetitleChild, styles.childPosition]} resizeMode="cover" source={require("../../assets/Rectangle 17.png")} />
           					<Text style={styles.learnToServe}>Learn to Serve</Text>
         				</View>
       			</View>
-      			<Pressable style={[styles.tesbeha, styles.tesbehaPosition]} onPress={()=>{}}>
+      			<Pressable style={[styles.tesbeha, styles.tesbehaPosition]} onPress={()=>{navigation.navigate('TesbehaMenu')}}>
         				<View style={[styles.tesbehaChild, styles.childPosition]} />
         				<Text style={[styles.midnightPraisesTesbeha, styles.liturgy1Typo]}>Midnight Praises (Tesbeha)</Text>
       			</Pressable>
-      			<Pressable style={[styles.liturgy, styles.tesbehaPosition]} onPress={()=>{}}>
+      			<Pressable style={[styles.liturgy, styles.tesbehaPosition]} onPress={()=>{navigation.navigate('LiturgyMenu')}}>
         				<View style={[styles.tesbehaChild, styles.childPosition]} />
         				<Text style={[styles.liturgy1, styles.liturgy1Typo]}>Liturgy</Text>
       			</Pressable>
-      			<Pressable style={[styles.vespers, styles.tesbehaPosition]} onPress={()=>{}}>
+      			<Pressable style={[styles.vespers, styles.tesbehaPosition]} onPress={()=>{navigation.navigate('VespersMenu')}}>
         				<View style={[styles.tesbehaChild, styles.childPosition]} />
         				<Text style={[styles.vespersAshaya, styles.liturgy1Typo]}>Vespers (Ashaya)</Text>
       			</Pressable>
@@ -46,12 +46,12 @@ const styles = StyleSheet.create({
   	},
   	liturgy1Typo: {
     		color: "#000",
+    		fontFamily: "Roboto-Bold",
+    		fontWeight: "700",
     		justifyContent: "center",
     		alignItems: "center",
     		display: "flex",
     		textAlign: "center",
-    		fontFamily: "Roboto-Bold",
-    		fontWeight: "700",
     		lineHeight: 22,
     		fontSize: 24,
     		position: "absolute"
@@ -66,14 +66,13 @@ const styles = StyleSheet.create({
     		width: "91.43%",
     		top: "30.72%",
     		left: "4.29%",
+    		fontFamily: "Roboto-Regular",
     		color: "#8e8e93",
     		justifyContent: "center",
     		alignItems: "center",
     		display: "flex",
     		textAlign: "center",
-    		fontFamily: "Roboto-Bold",
-    		fontWeight: "700",
-    		lineHeight: 22,
+    		lineHeight: 24,
     		fontSize: 24,
     		position: "absolute"
   	},
@@ -87,12 +86,10 @@ const styles = StyleSheet.create({
     		width: "100%"
   	},
   	attendancetitleWrapper: {
-    		height: "8.33%",
-    		width: "71.25%",
-    		top: "13.15%",
-    		right: "20.1%",
-    		bottom: "78.52%",
-    		left: "8.65%",
+    		height: 71,
+    		width: 280,
+    		top: 80,
+    		left: 24,
     		position: "absolute"
   	},
   	tesbehaChild: {
@@ -100,10 +97,11 @@ const styles = StyleSheet.create({
   	},
   	midnightPraisesTesbeha: {
     		height: "73.31%",
-    		top: "16.67%",
+    		top: 50,
     		left: "4.44%",
     		width: "90.56%",
-    		color: "#000"
+    		fontFamily: "Roboto-Bold",
+    		fontWeight: "700"
   	},
   	tesbeha: {
     		top: "50.23%",
@@ -114,7 +112,8 @@ const styles = StyleSheet.create({
     		top: "41.11%",
     		left: "4.44%",
     		width: "90.56%",
-    		color: "#000"
+    		fontFamily: "Roboto-Bold",
+    		fontWeight: "700"
   	},
   	liturgy: {
     		top: "27.58%",
@@ -123,7 +122,7 @@ const styles = StyleSheet.create({
   	vespersAshaya: {
     		height: "48.88%",
     		width: "82.76%",
-    		top: "25.56%",
+    		top: 60,
     		left: "8.33%"
   	},
   	vespers: {

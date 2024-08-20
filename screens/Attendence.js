@@ -42,7 +42,6 @@ const styles = StyleSheet.create({
 		position: "absolute"
 	},
 	attendancetitlePosition: {
-		bottom: "0%",
 		top: 80,
 		position: "absolute",
 		height: 71,

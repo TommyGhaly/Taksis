@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
         bottom: "92.82%"
     },
     thisWeeksService: {
-        top: "2.72%",
+        top: "2.32%",
         left: "7.57%",
         alignItems: "center",
         display: "flex",
