@@ -1,33 +1,65 @@
 {
   "expo": {
     "name": "Ⲧⲁⲝⲓⲥ",
-    "slug": "Ⲧⲁⲝⲓⲥ",
+    "slug": "Taxis",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./screens/Splash.js",
+      "image": "./assets/dioceseLogo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#000000",
-    "plugins": ["expo-apple-authentication"]
+      "backgroundColor": "#000000"
     },
-    "assetBundlePatterns": [
-      "**/*"
+    "plugins": [
+      "expo-apple-authentication",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
+      [
+        "expo-dev-client",
+        {
+          "developmentClient": true
+        }
+      ]
     ],
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.ⲧⲁⲝⲓⲥ",
-      "usesAppleSignIn": true
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#000000"
+    "extra": {
+      "eas": {
+        "projectId": "c7fcee24-c58f-4c53-92a3-a8f6a2a376df"
       }
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
+    "ios": {
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "bundleIdentifier": "com.dgobran.Taxis"
+    }
+  },
+  "assetBundlePatterns": [
+    "**/*"
+  ],
+  "ios": {
+    "supportsTablet": true,
+    "bundleIdentifier": "com.dgobran.Taxis",
+    "usesAppleSignIn": true
+  },
+  "android": {
+    "adaptiveIcon": {
+      "foregroundImage": "./assets/adaptive-icon.png",
+      "backgroundColor": "#000000"
+    }
+  },
+  "web": {
+    "favicon": "./assets/favicon.png"
+  },
+  "extra": {
+    "eas": {
+      "projectId": "c7fcee24-c58f-4c53-92a3-a8f6a2a376df"
     }
   }
 }
