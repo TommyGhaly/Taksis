@@ -3,9 +3,8 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import HomeScreen from "./HomeScreen";
 import Attendence from "./Attendence";
-import LearnItNavigation from "./LearnIt/LearnItNavigation"
-import Settings from "./Settings/Settings";
-import EditSchedule from "./EditSchedule";
+import LearnItNavigation from "./LearnIt/LearnItNavigation";
+import Settings from "./Settings/SettingsNavigation";
 
 const Tab = createBottomTabNavigator();
 
@@ -15,6 +14,8 @@ export default function MainContainer() {
       <Tab.Navigator
         screenOptions={{
           headerShown: false,
+          gestureEnabled: true,
+          gestureDirection: "horizontal",
           tabBarStyle: {
             height: 90,
             backgroundColor: "rgba(34,36,40,1)",

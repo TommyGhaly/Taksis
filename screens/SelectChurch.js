@@ -1,143 +1,162 @@
 import * as React from "react";
-import {StyleSheet, View, Image, Pressable, Text, TextInput} from "react-native";
-import {useNavigation} from "@react-navigation/native";
-import SearchOptions from '../components/searchOptions'
-import BackArrow from '../components/backArrow'
-const SelectChurch = ({route, navigation}) => {
-	const {person} = route.params
-    		return (
-				<View style={styles.loadout}>
-					<View style={styles.backarrow}>
-							<BackArrow/>
-					</View>
-					<View style={styles.title}>
-						<Text style={styles.titleText}>Select the church {person} regularly attend</Text>
-					</View>
-					<View style={styles.position}>
-						<SearchOptions/>
-					</View>
-					<View style={[styles.dontSeeYourChurchRegiste, styles.dontSeeYourContainer]}>
-						<Pressable onPress={()=>{navigation.navigate('ChurchInformation')}}>
-							<Text style={styles.text}>
-							<Text style={styles.dontSeeYour}>{`Don’t see your church? `}</Text>
-							<Text style={styles.registerIt}>Register it</Text>
-							</Text>
-						</Pressable>
-					</View>
-					<View style={styles.continueLayout}>
-								<Pressable onPress={()=>(navigation.navigate('SelectApplicable', {person: person}))}>
-									<Text style={styles.continuetext}>Continue</Text>
-								</Pressable>
-					</View>
-					<View style={styles.progressBar}>
-						<View style={styles.track}>
-							<View style={styles.filled} />
-						</View>
-					</View>
-					<View style={styles.backbutton}>
-						<BackArrow/>
-					</View>
-				</View>);
-    		};
-    		
-    		const styles = StyleSheet.create({
-				backarrow: {
-					top: 74,
-					left: 16
-      			},
-      			position: {
-						top: "27.230%",
-						bottom: "49.882%",
-						left: "2.223%",
-						right: "2.223%",
-						position: "absolute"
-      			},
-				loadout: {
-					width: "100%",
-					height: "100%",
-					flex: 1,
-					backgroundColor: "#000"
-				},
-				dontSeeYour: {
-					color: "#8e8e93"
-				},
-				registerIt: {
-					color: "#6e85e3"
-				},
-				text: {
-					fontSize: 15,
-					letterSpacing: -0.1,
-					fontFamily: "Roboto-Regular",
-					textAlign: "center"
-				},
-				dontSeeYourContainer: {
-					position: "absolute",
-					left: 0,
-					top: 782
-				},
-				dontSeeYourChurchRegiste: {
-					width: "100%",
-					height: "2.112%",
-				},
-				title: {
-					top: 100,
-					left: 16,
-					height: "6.103%",
-					width: "88.295%",
-					flex: 1
-				},
-				titleText: {
-					fontSize: 34,
-					letterSpacing: -0.1,
-					fontFamily: "Roboto-Regular",
-					textAlign: "left",
-					color: "#8e8e93"
-				},
-				progressBar: {
-					top: 84,
-					right: "12.2137%",
-					bottom: "88.26%",
-					left: "12.2137%",
-					position: "absolute"
-			    },
-			    filled: {
-					position: "absolute",
-					marginTop: -2,
-					width: "22.43%",
-					top: "50%",
-					right: "77.57%",
-					left: "0%",
-					borderRadius: 100,
-					backgroundColor: "#147efb",
-					height: 4
-				},
-				track: {
-					backgroundColor: "rgba(120, 120, 128, 0.32)",
-					width: "100%",
-					height: 4
-				},
-				backbutton: {
-					top: "8.68545%",
-					left: "4.071%"
-				},
-				continueLayout: {
-					bottom: 60,
-					left: 16, 
-					height: 50,
-					width: 358,
-					backgroundColor: "#333",
-					borderRadius: 10
-				},
-				continuetext: {
-					top: 15,
-					fontSize: 17,
-					letterSpacing: -0.2,
-					fontWeight: "500",
-					fontFamily: "Roboto-Medium",
-					color: "#fff",
-					textAlign: "center"
-					},
-    		});
-    		
-    		export default SelectChurch;
-    		
+import {
+  StyleSheet,
+  View,
+  Image,
+  Pressable,
+  Text,
+  TextInput,
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import SearchOptions from "../components/searchOptions";
+import BackArrow from "../components/backArrow";
+const SelectChurch = ({ route, navigation }) => {
+  const { person } = route.params;
+  return (
+    <View style={styles.loadout}>
+      <View style={styles.backarrow}>
+        <BackArrow />
+      </View>
+      <View style={styles.title}>
+        <Text style={styles.titleText}>
+          Select the church {person} regularly attend
+        </Text>
+      </View>
+      <View style={styles.position}>
+        <SearchOptions />
+      </View>
+      <View
+        style={[styles.dontSeeYourChurchRegiste, styles.dontSeeYourContainer]}
+      >
+        <Pressable
+          onPress={() => {
+            navigation.navigate("ChurchInformation");
+          }}
+        >
+          <Text style={styles.text}>
+            <Text style={styles.dontSeeYour}>{`Don’t see your church? `}</Text>
+            <Text style={styles.registerIt}>Register it</Text>
+          </Text>
+        </Pressable>
+      </View>
+      <View style={styles.continueLayout}>
+        <Pressable
+          onPress={() =>
+            navigation.navigate("SelectApplicable", { person: person })
+          }
+        >
+          <Text style={styles.continuetext}>Continue</Text>
+        </Pressable>
+      </View>
+      <View style={styles.progressBar}>
+        <View style={styles.track}>
+          <View style={styles.filled} />
+        </View>
+      </View>
+      <View style={styles.backbutton}>
+        <BackArrow />
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  backarrow: {
+    top: 74,
+    left: 16,
+  },
+  position: {
+    top: "27.230%",
+    bottom: "49.882%",
+    left: "2.223%",
+    right: "2.223%",
+    position: "absolute",
+  },
+  loadout: {
+    width: "100%",
+    height: "100%",
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  dontSeeYour: {
+    color: "#8e8e93",
+  },
+  registerIt: {
+    color: "#6e85e3",
+  },
+  text: {
+    fontSize: 15,
+    letterSpacing: -0.1,
+    fontFamily: "Roboto-Regular",
+    textAlign: "center",
+  },
+  dontSeeYourContainer: {
+    position: "absolute",
+    left: 0,
+    top: 782,
+  },
+  dontSeeYourChurchRegiste: {
+    width: "100%",
+    height: "2.112%",
+  },
+  title: {
+    top: 100,
+    left: 16,
+    height: "6.103%",
+    width: "88.295%",
+    flex: 1,
+  },
+  titleText: {
+    fontSize: 34,
+    letterSpacing: -0.1,
+    fontFamily: "Roboto-Regular",
+    textAlign: "left",
+    color: "#8e8e93",
+  },
+  progressBar: {
+    top: 84,
+    right: "12.2137%",
+    bottom: "88.26%",
+    left: "12.2137%",
+    position: "absolute",
+  },
+  filled: {
+    position: "absolute",
+    marginTop: -2,
+    width: "22.43%",
+    top: "50%",
+    right: "77.57%",
+    left: "0%",
+    borderRadius: 100,
+    backgroundColor: "#147efb",
+    height: 4,
+  },
+  track: {
+    backgroundColor: "rgba(120, 120, 128, 0.32)",
+    width: "100%",
+    height: 4,
+  },
+  backbutton: {
+    top: "8.68545%",
+    left: "4.071%",
+  },
+  continueLayout: {
+    bottom: 60,
+    left: 16,
+    height: 50,
+    width: 358,
+    backgroundColor: "#333",
+    borderRadius: 10,
+  },
+  continuetext: {
+    top: 15,
+    fontSize: 17,
+    letterSpacing: -0.2,
+    fontWeight: "500",
+    fontFamily: "Roboto-Medium",
+    color: "#fff",
+    textAlign: "center",
+  },
+});
+
+export default SelectChurch;
