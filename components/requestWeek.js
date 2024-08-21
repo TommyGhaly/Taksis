@@ -19,7 +19,7 @@ const FrameScreen = () => {
         <Image
           style={[styles.attendancetitleChild, styles.attendancetitlePosition]}
           resizeMode="cover"
-          source="Rectangle 17.png"
+          source={require("../assets/Rectangle 17.png")}
         />
         <Text style={styles.requestAWeek}>Request a week</Text>
       </View>

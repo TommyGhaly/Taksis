@@ -8,7 +8,7 @@ import {
   TextInput,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import SearchOptions from "../components/searchOptions";
+import Churches from "../components/churches";
 import BackArrow from "../components/backArrow";
 const SelectChurch = ({ route, navigation }) => {
   const { person } = route.params;
@@ -23,7 +23,7 @@ const SelectChurch = ({ route, navigation }) => {
         </Text>
       </View>
       <View style={styles.position}>
-        <SearchOptions />
+        <Churches />
       </View>
       <View
         style={[styles.dontSeeYourChurchRegiste, styles.dontSeeYourContainer]}
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
   },
   position: {
     top: "27.230%",
-    bottom: "49.882%",
+    height: 450,
     left: "2.223%",
     right: "2.223%",
     position: "absolute",
