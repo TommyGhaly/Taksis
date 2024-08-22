@@ -10,11 +10,20 @@
       "image": "./screens/Splash.js",
       "resizeMode": "contain",
       "backgroundColor": "#000000",
-    "plugins": ["expo-apple-authentication"]
+      "plugins": [
+        "@react-native-firebase/app",
+        "@react-native-firebase/auth",
+        [
+          "expo-build-properties",
+          {
+            "ios": {
+              "useFrameworks": "static"
+            }
+          }
+        ]
+      ]
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.ⲧⲁⲝⲓⲥ",

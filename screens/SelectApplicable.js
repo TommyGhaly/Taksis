@@ -3,7 +3,13 @@ import { StyleSheet, View, Text, Pressable } from "react-native";
 import Choices from "../components/choices";
 import { useNavigation } from "@react-navigation/native";
 import BackArrow from "../components/backArrow";
-
+function tabs(navigation) {
+  navigation.reset({
+    index: 0,
+    routes: [{ name: "MainContainer" }],
+  });
+  return;
+}
 const SelectApplicable = ({ route, navigation }) => {
   const { person } = route.params;
   return (
@@ -19,7 +25,7 @@ const SelectApplicable = ({ route, navigation }) => {
       </View>
       <View style={styles.continueLayout}>
         <Pressable
-          onPress={() => navigation.navigate("DeaconRank", { person: person })}
+          onPress={() => {navigation.navigate("DeaconRank", { person: person })}}
         >
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>
@@ -35,8 +41,8 @@ const SelectApplicable = ({ route, navigation }) => {
 
 const styles = StyleSheet.create({
   choices: {
-    top: "15%",
-    left: "11.959%",
+    top: 128,
+    left: 47,
   },
   backarrow: {
     top: 74,
@@ -90,7 +96,7 @@ const styles = StyleSheet.create({
   },
 
   continueLayout: {
-    top: 385,
+    top: 575,
     left: 16,
     height: 50,
     width: 358,
