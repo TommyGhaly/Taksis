@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useState } from "react";
 import BackArrow from "../components/backArrow";
 import {
   ImageBackground,
@@ -10,6 +11,9 @@ import {
   TouchableOpacity,
   Image,
 } from "react-native";
+import { FIREBASE_AUTH } from "../FirebaseConfig";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { ActivityIndicator } from "react-native-paper";
 
 function tabs(navigation) {
   navigation.reset({
@@ -19,6 +23,18 @@ function tabs(navigation) {
   return;
 }
 const SignIn = ({ navigation }) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const auth = FIREBASE_AUTH;
+
+  const signIn = async () => {
+    try {
+      const response = await signInWithEmailAndPassword(auth, email, password);
+      tabs();
+    } catch (error) {
+      alert("Sign In failed: " + error.message);
+    }
+  };
   return (
     <View style={[styles.signIn, styles.iconLayout]}>
       <View style={styles.backarrow}>
@@ -34,18 +50,25 @@ const SignIn = ({ navigation }) => {
       />
       <TextInput
         style={[styles.phoneOrEmail, styles.passwordBorder]}
-        placeholder="Enter your phone or email"
+        value={email}
+        placeholder="Enter your email"
         placeholderTextColor="#8e8e93"
+        autoCapitalize="none"
+        onChangeText={(text) => setEmail(text)}
       />
       <TextInput
         style={[styles.password, styles.passwordBorder]}
+        secureTextEntry={true}
+        value={password}
         placeholder="Enter your password"
         placeholderTextColor="#8e8e93"
+        autoCapitalize="none"
+        onChangeText={(text) => setPassword(text)}
       />
       <TouchableOpacity
         style={[styles.continuebutton, styles.appleFlexBox]}
         activeOpacity={0.2}
-        onPress={() => tabs(navigation)}
+        onPress={() => signIn()}
       >
         <Text style={styles.continue}>Continue</Text>
       </TouchableOpacity>
@@ -100,9 +123,7 @@ const SignIn = ({ navigation }) => {
       <TouchableOpacity
         style={[styles.dontHaveAccountContainer, styles.containerPosition]}
         activeOpacity={0.2}
-        onPress={() => {
-          navigation.navigate("SignUp");
-        }}
+        onPress={() => navigation.navigate('SignUp')}
       >
         <Text style={[styles.text2, styles.orTypo]}>
           <Text style={styles.forgotPassword}>{`Don’t have account? `}</Text>
@@ -127,7 +148,7 @@ const styles = StyleSheet.create({
     fontFamily: "Roboto-Regular",
     borderColor: "#8e8e93",
     height: "5.75%",
-    paddingVertical: 15,
+    paddingVertical: 1,
     paddingHorizontal: 20,
     alignItems: "center",
     flexDirection: "row",
@@ -163,7 +184,7 @@ const styles = StyleSheet.create({
     left: "0%",
     right: "0%",
     justifyContent: "center",
-    paddingVertical: 15,
+    paddingVertical: 1,
     paddingHorizontal: 20,
     alignItems: "center",
     flexDirection: "row",
@@ -209,7 +230,7 @@ const styles = StyleSheet.create({
     bottom: "37.3%",
     backgroundColor: "#8e8e93",
     borderColor: "#000",
-    paddingVertical: 15,
+    paddingVertical: 1,
     paddingHorizontal: 20,
     borderWidth: 1,
     borderStyle: "solid",

@@ -10,7 +10,18 @@
       "image": "./screens/Splash.js",
       "resizeMode": "contain",
       "backgroundColor": "#000000",
-    "plugins": ["expo-apple-authentication"]
+      "plugins": [
+        "@react-native-firebase/app",
+        "@react-native-firebase/auth",
+        [
+          "expo-build-properties",
+          {
+            "ios": {
+              "useFrameworks": "static"
+            }
+          }
+        ]
+      ]
     },
     "assetBundlePatterns": [
       "**/*"
@@ -24,7 +35,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
-      }
+      },
+      "package": "com.taksis"
     },
     "web": {
       "favicon": "./assets/favicon.png"
