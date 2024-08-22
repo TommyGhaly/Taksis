@@ -8,8 +8,9 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { Button } from "react-native-paper";
+import BackArrow from "../../components/backArrow";
 
-const AccountInfo = () => {
+const AccountInfo = ({ navigation }) => {
   return (
     <View style={styles.accountinfo}>
       <Text style={[styles.accountInfo, styles.firstLastTypo]}>
@@ -59,7 +60,7 @@ const AccountInfo = () => {
         <Image
           style={styles.vectorIcon}
           resizeMode="cover"
-          source="Vector.png"
+          source={require("../../assets/Vector.png")}
         />
       </TouchableOpacity>
       <TouchableOpacity
@@ -74,7 +75,7 @@ const AccountInfo = () => {
         <Image
           style={styles.vectorIcon}
           resizeMode="cover"
-          source="Vector.png"
+          source={require("../../assets/Vector.png")}
         />
       </TouchableOpacity>
       <View style={[styles.rectangleParent3, styles.rectangleParentPosition]}>
@@ -95,26 +96,19 @@ const AccountInfo = () => {
           child 2 First last
         </Text>
       </View>
-      <Button
-        style={styles.backarrow}
-        mode="outlined"
-        onPress={() => navigation.goBack()}
-        contentStyle={styles.backArrowIconBtn}
-      />
+      <View style={styles.backarrow}>
+        <BackArrow />
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  backArrowIconBtn: {
-    height: "2.82%",
-    width: "6.11%",
-  },
   firstLastTypo: {
     textAlign: "left",
     color: "#8e8e93",
     fontFamily: "Roboto-Regular",
-    lineHeight: 22,
+    lineHeight: 24,
     width: "57.76%",
     position: "absolute",
   },
