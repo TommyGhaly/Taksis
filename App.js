@@ -64,8 +64,6 @@ function AppNavigator() {
             <Stack.Screen name="ChurchInformation" component={ChurchInformation} />
             <Stack.Screen name="ChurchLogo" component={ChurchLogo} />
             <Stack.Screen name="ChurchVerification" component={ChurchVerification} />
-            <Stack.Screen name="Attendence" component={Attendence} />
-            <Stack.Screen name="EditSchedule" component={EditSchedule} />
           </>
         )}
       </Stack.Navigator>

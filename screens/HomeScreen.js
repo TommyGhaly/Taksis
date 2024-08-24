@@ -26,8 +26,8 @@ const HomeScreen = ({ route }) => {
     }
     return (
         <ScrollView style={styles.homescreen} showsVerticalScrollIndicator={false}>
-            <Text style={{ color: "white", fontSize: 30, textAlign: "center", margin: 20 }}>Welcome, {user.displayName}</Text>
-            <Button mode="contained" onPress={() => auth().signOut()}>Sign Out</Button>
+            {/* <Text style={{ color: "white", fontSize: 30, textAlign: "center", margin: 20 }}>Welcome, {user.displayName}</Text> */}
+            <Button style={styles.signOut} mode="contained" onPress={() => auth().signOut()}>Sign Out</Button>
             <View style={styles.content}>
                 <HomeScreenContent props={inputProps} />
             </View>
@@ -55,6 +55,9 @@ const styles = StyleSheet.create({
     height: 852,
     width: "100%",
     backgroundColor: "#000",
+  },
+  signOut: {
+    top: 50
   },
 });
 
