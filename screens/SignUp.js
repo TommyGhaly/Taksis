@@ -12,6 +12,8 @@ import {
 import BackArrow from "../components/backArrow";
 import { FIREBASE_AUTH } from "../FirebaseConfig";
 import { createUserWithEmailAndPassword } from "firebase/auth";
+import { setUserProperties } from "firebase/analytics";
+import { FIREBASE_ANALYTICS } from "../FirebaseConfig";
 
 const SignUp = ({ navigation }) => {
   const [name, setName] = useState("");
@@ -28,6 +30,7 @@ const SignUp = ({ navigation }) => {
           email,
           password
         );
+        setUserProperties(FIREBASE_ANALYTICS, {name: name})
         navigation.navigate('SelectChurch', {person: "you"});
       } catch (error) {
         alert("Sign Up failed: " + error.message);

@@ -13,6 +13,7 @@
     "@expo/metro-runtime": "~3.2.1",
     "@expo/webpack-config": "^19.0.1",
     "@react-native-community/masked-view": "^0.1.11",
+    "@react-native-firebase/analytics": "^20.4.0",
     "@react-native-firebase/app": "^20.4.0",
     "@react-navigation/bottom-tabs": "^6.6.1",
     "@react-navigation/native": "^6.1.18",

@@ -1,4 +1,6 @@
 import * as React from "react";
+import { useState } from "react";
+import { useEffect } from "react";
 import Welcome from "./screens/Welcome";
 import SignIn from "./screens/SignIn";
 import SignUp from "./screens/SignUp";
@@ -12,9 +14,6 @@ import PasswordReset from "./screens/PasswordReset";
 import ChurchLogo from "./screens/ChurchLogo";
 import ChurchRegistrationVerification from "./screens/ChurchRegistrationVerification";
 import ChurchVerification from "./screens/ChurchVerification";
-import Home from "./screens/HomeScreen";
-import Attendence from "./screens/Attendence";
-import EditSchedule from "./screens/EditSchedule";
 import MainContainer from "./screens/MainContainer";
 import {
   StyleSheet,
@@ -24,12 +23,22 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
-
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { FIREBASE_AUTH } from "./FirebaseConfig";
+import { onAuthStateChanged, User } from "firebase/auth";
 
 const Stack = createNativeStackNavigator();
-
 export default function App() {
+  const user = FIREBASE_AUTH.currentUser;
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(FIREBASE_AUTH, (user) => {
+      console.log("user", user);
+
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, []);
   return (
     <NavigationContainer style={styles.container}>
       <Stack.Navigator
@@ -37,7 +46,11 @@ export default function App() {
         screenOptions={{ headerShown: false }}
         gestureEnabled={false}
       >
-        <Stack.Screen name="Welcome" component={Welcome} />
+        {user ? (
+          <Stack.Screen name="MainContainer" component={MainContainer} />
+        ) : (
+          <Stack.Screen name="Welcome" component={Welcome} />
+        )}
         <Stack.Screen name="SignUp" component={SignUp} />
         <Stack.Screen name="SignIn" component={SignIn} />
         <Stack.Screen
@@ -56,8 +69,6 @@ export default function App() {
           name="ChurchVerification"
           component={ChurchVerification}
         />
-        <Stack.Screen name="EditSchedule" component={EditSchedule} />
-        <Stack.Screen name="MainContainer" component={MainContainer} />
       </Stack.Navigator>
     </NavigationContainer>
   );

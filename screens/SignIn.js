@@ -13,9 +13,8 @@ import {
 } from "react-native";
 import { FIREBASE_AUTH } from "../FirebaseConfig";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { ActivityIndicator } from "react-native-paper";
 
-function tabs(navigation) {
+function tabs({ navigation }) {
   navigation.reset({
     index: 0,
     routes: [{ name: "MainContainer" }],
@@ -30,7 +29,7 @@ const SignIn = ({ navigation }) => {
   const signIn = async () => {
     try {
       const response = await signInWithEmailAndPassword(auth, email, password);
-      tabs();
+      tabs(navigation={navigation})
     } catch (error) {
       alert("Sign In failed: " + error.message);
     }

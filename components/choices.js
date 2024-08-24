@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Text, StyleSheet, View } from "react-native";
 import { CheckBox } from "@rneui/themed";
+import { FIREBASE_ANALYTICS } from "../FirebaseConfig";
+import { setUserProperties } from "firebase/analytics";
 
 const Group = () => {
   const [rectangleCheckboxchecked, setRectangleCheckboxchecked] =
@@ -13,7 +15,12 @@ const Group = () => {
     useState(false);
   const [rectangleCheckbox4checked, setRectangleCheckbox4checked] =
     useState(false);
-
+const applicables = () => {
+  setUserProperties(FIREBASE_ANALYTICS, {deacon: rectangleCheckboxchecked});
+  setUserProperties(FIREBASE_ANALYTICS, {alhan: rectangleCheckbox4checked});
+  setUserProperties(FIREBASE_ANALYTICS, {ssteacher: rectangleCheckbox1checked});
+  setUserProperties(FIREBASE_ANALYTICS, {smtracker: rectangleCheckbox2checked});
+}
   return (
     <View style={styles.deaconParent}>
       <Text style={[styles.deacon, styles.teacherTypo]}>Deacon</Text>
