@@ -10,13 +10,13 @@ import { useNavigation } from "@react-navigation/native";
 import ExperienceQuestions from "../components/experienceQuestions";
 import BackArrow from "../components/backArrow";
 
-function tabs(navigation) {
-  navigation.reset({
-    index: 0,
-    routes: [{ name: "MainContainer" }],
-  });
-  return;
-}
+// function tabs(navigation) {
+//   navigation.reset({
+//     index: 0,
+//     routes: [{ name: "MainContainer" }],
+//   });
+//   return;
+// }
 
 const Experience = ({ route, navigation }) => {
   const { person } = route.params;

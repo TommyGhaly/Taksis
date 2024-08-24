@@ -14,13 +14,13 @@ import {
 import { FIREBASE_AUTH } from "../FirebaseConfig";
 import { signInWithEmailAndPassword } from "firebase/auth";
 
-function tabs({ navigation }) {
-  navigation.reset({
-    index: 0,
-    routes: [{ name: "MainContainer" }],
-  });
-  return;
-}
+// function tabs({ navigation }) {
+//   navigation.reset({
+//     index: 0,
+//     routes: [{ name: "MainContainer" }],
+//   });
+//   return;
+// }
 const SignIn = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,7 +29,6 @@ const SignIn = ({ navigation }) => {
   const signIn = async () => {
     try {
       const response = await signInWithEmailAndPassword(auth, email, password);
-      tabs(navigation={navigation})
     } catch (error) {
       alert("Sign In failed: " + error.message);
     }
