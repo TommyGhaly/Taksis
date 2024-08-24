@@ -11,7 +11,7 @@ function tabs(navigation) {
   return;
 }
 const SelectApplicable = ({ route, navigation }) => {
-  const { person } = route.params;
+  const { person } = "you";
   return (
     <View style={styles.selectapplicable}>
       <View style={styles.backarrow}>
@@ -25,7 +25,7 @@ const SelectApplicable = ({ route, navigation }) => {
       </View>
       <View style={styles.continueLayout}>
         <Pressable
-          onPress={() => {navigation.navigate("DeaconRank", { person: person })}}
+          onPress={() => {navigation.navigate("DeaconRank")}}
         >
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>

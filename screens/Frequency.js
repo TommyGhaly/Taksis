@@ -9,7 +9,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import BackArrow from "../components/backArrow";
 const Frequency = ({ route, navigation }) => {
-  const { person } = route.params;
+  const { person } = "you";
   return (
     <View style={styles.frequency}>
       <View style={styles.backarrow}>
@@ -40,7 +40,7 @@ const Frequency = ({ route, navigation }) => {
       </View>
       <View style={styles.continueLayout}>
         <Pressable
-          onPress={() => navigation.navigate("Experience", { person: person })}
+          onPress={() => navigation.navigate("Experience")}
         >
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>

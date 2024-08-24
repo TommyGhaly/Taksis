@@ -10,7 +10,7 @@ import Rank from "../components/rank";
 import BackArrow from "../components/backArrow";
 import { useNavigation } from "@react-navigation/native";
 const DeaconRank = ({ route, navigation }) => {
-  const { person } = route.params;
+  const { person } = "you";
   return (
     <View style={styles.deaconrank}>
       <View style={styles.backarrow}>
@@ -24,7 +24,7 @@ const DeaconRank = ({ route, navigation }) => {
       </View>
       <View style={styles.continueLayout}>
         <Pressable
-          onPress={() => navigation.navigate("Frequency", { person: person })}
+          onPress={() => navigation.navigate("Frequency")}
         >
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>

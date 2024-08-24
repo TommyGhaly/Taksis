@@ -1,143 +1,236 @@
-import React, { useState } from 'react';
-import { Text, StyleSheet, View, Image } from "react-native";
-import { Checkbox } from "react-native-paper";
-//get the checkboxes working
-const Group = () => {
-	const [rectangleCheckboxchecked, setRectangleCheckboxchecked] = useState(false);
-	const [rectangleCheckbox1checked, setRectangleCheckbox1checked] = useState(false);
-	const [rectangleCheckbox2checked, setRectangleCheckbox2checked] = useState(false);
-	const [rectangleCheckbox3checked, setRectangleCheckbox3checked] = useState(false);
-	const [rectangleCheckbox4checked, setRectangleCheckbox4checked] = useState(false);
+import React, { useState } from "react";
+import { Text, StyleSheet, View } from "react-native";
+import { CheckBox } from "@rneui/themed";
 
-	return (
-		<View style={styles.deaconParent}>
-			<Text style={[styles.deacon, styles.teacherTypo]}>Deacon</Text>
-			<Text style={[styles.alhanTeacher, styles.teacherTypo]}>Alhan teacher</Text>
-			<Text style={[styles.sundaySchoolTeacher, styles.teacherTypo]}>Sunday School Teacher</Text>
-			<Text style={[styles.servantsMeetingAttendance, styles.noneApplicableTypo]}>Servants Meeting Attendance Tracker</Text>
-			<Text style={[styles.noneApplicable, styles.noneApplicableTypo]}>None applicable</Text>
-			<View style={[styles.groupChild, styles.groupChildPosition]} />
-			<View style={[styles.groupItem, styles.groupChildPosition]} />
-			<View style={[styles.groupInner, styles.groupChildPosition]} />
-			<View style={[styles.lineView, styles.groupChildPosition]} />
-			<View style={[styles.groupChild1, styles.groupChildPosition]} />
-			<View style={[styles.wrapper, styles.wrapperPosition]}>
-				<Image style={styles.boxes} resizeMode="cover" source={require("../assets/Rectangle 10.png")} />
-				<Checkbox status={rectangleCheckboxchecked ? 'checked' : 'unchecked'} onPress={() => setRectangleCheckboxchecked(!rectangleCheckboxchecked)} color="#fff" />
-			</View>
-			<View style={[styles.container, styles.wrapperPosition]}>
-				<Checkbox status={rectangleCheckbox1checked ? 'checked' : 'unchecked'} onPress={() => setRectangleCheckbox1checked(!rectangleCheckbox1checked)} color="#fff">
-					<Image style={styles.boxes} resizeMode="cover" source={require("../assets/Rectangle 10.png")} />
-				</Checkbox>
-			</View>
-			<View style={[styles.frame, styles.wrapperPosition]}>
-				<Checkbox status={rectangleCheckbox2checked ? 'checked' : 'unchecked'} onPress={() => setRectangleCheckbox2checked(!rectangleCheckbox2checked)} color="#fff" />
-			</View>
-			<View style={[styles.rectangleView, styles.wrapperPosition]}>
-				<Checkbox status={rectangleCheckbox3checked ? 'checked' : 'unchecked'} onPress={() => setRectangleCheckbox3checked(!rectangleCheckbox3checked)} color="#fff" />
-			</View>
-			<View style={[styles.wrapper1, styles.wrapperPosition]}>
-				<Checkbox status={rectangleCheckbox4checked ? 'checked' : 'unchecked'} onPress={() => setRectangleCheckbox4checked(!rectangleCheckbox4checked)} color="#fff" />
-			</View>
-		</View>);
+const Group = () => {
+  const [rectangleCheckboxchecked, setRectangleCheckboxchecked] =
+    useState(false);
+  const [rectangleCheckbox1checked, setRectangleCheckbox1checked] =
+    useState(false);
+  const [rectangleCheckbox2checked, setRectangleCheckbox2checked] =
+    useState(false);
+  const [rectangleCheckbox3checked, setRectangleCheckbox3checked] =
+    useState(false);
+  const [rectangleCheckbox4checked, setRectangleCheckbox4checked] =
+    useState(false);
+  return (
+    <View style={styles.deaconParent}>
+      <Text style={[styles.deacon, styles.teacherTypo]}>Deacon</Text>
+      <Text style={[styles.alhanTeacher, styles.teacherTypo]}>
+        Alhan teacher
+      </Text>
+      <Text style={[styles.sundaySchoolTeacher, styles.teacherTypo]}>
+        Sunday School Teacher
+      </Text>
+      <Text
+        style={[styles.servantsMeetingAttendance, styles.noneApplicableTypo]}
+      >
+        Servants Meeting Attendance Tracker
+      </Text>
+      <Text style={[styles.noneApplicable, styles.noneApplicableTypo]}>
+        None applicable
+      </Text>
+      <View style={[styles.groupChild, styles.groupChildLayout]} />
+      <View style={[styles.groupItem, styles.groupChildLayout]} />
+      <View style={[styles.groupInner, styles.groupChildLayout]} />
+      <View style={[styles.lineView, styles.groupChildLayout]} />
+      <View style={[styles.groupChild1, styles.groupChildLayout]} />
+      <CheckBox
+        style={styles.rectangleCheckbox}
+        checked={rectangleCheckboxchecked}
+        onPress={() => {
+          setRectangleCheckboxchecked(!rectangleCheckboxchecked);
+          rectangleCheckbox3checked
+            ? setRectangleCheckbox3checked(!rectangleCheckbox3checked)
+            : rectangleCheckbox3checked;
+        }}
+        containerStyle={styles.rectangleCheckboxLayout}
+        iconType="material-community"
+        checkedIcon="checkbox-outline"
+        uncheckedIcon={"checkbox-blank-outline"}
+        size={40}
+      />
+      <CheckBox
+        style={styles.rectangleCheckbox}
+        checked={rectangleCheckbox1checked}
+        onPress={() => {
+          setRectangleCheckbox1checked(!rectangleCheckbox1checked);
+          rectangleCheckbox3checked
+            ? setRectangleCheckbox3checked(!rectangleCheckbox3checked)
+            : rectangleCheckbox3checked;
+        }}
+        containerStyle={styles.rectangleCheckbox1Layout}
+        iconType="material-community"
+        checkedIcon="checkbox-outline"
+        uncheckedIcon={"checkbox-blank-outline"}
+        size={40}
+      />
+      <CheckBox
+        style={styles.rectangleCheckbox}
+        checked={rectangleCheckbox2checked}
+        onPress={() => {
+          setRectangleCheckbox2checked(!rectangleCheckbox2checked);
+          rectangleCheckbox3checked
+            ? setRectangleCheckbox3checked(!rectangleCheckbox3checked)
+            : rectangleCheckbox3checked;
+        }}
+        containerStyle={styles.rectangleCheckbox2Layout}
+        iconType="material-community"
+        checkedIcon="checkbox-outline"
+        uncheckedIcon={"checkbox-blank-outline"}
+        size={40}
+      />
+      <CheckBox
+        style={styles.rectangleCheckbox}
+        checked={rectangleCheckbox3checked}
+        onPress={() => {
+          setRectangleCheckbox3checked(!rectangleCheckbox3checked);
+          rectangleCheckboxchecked
+            ? setRectangleCheckboxchecked(!rectangleCheckboxchecked)
+            : rectangleCheckboxchecked;
+          rectangleCheckbox2checked
+            ? setRectangleCheckbox2checked(!rectangleCheckbox2checked)
+            : rectangleCheckbox2checked;
+          rectangleCheckbox1checked
+            ? setRectangleCheckbox1checked(!rectangleCheckbox1checked)
+            : rectangleCheckbox3checked;
+          rectangleCheckbox4checked
+            ? setRectangleCheckbox4checked(!rectangleCheckbox4checked)
+            : rectangleCheckbox4checked;
+        }}
+        containerStyle={styles.rectangleCheckbox3Layout}
+        iconType="material-community"
+        checkedIcon="checkbox-outline"
+        uncheckedIcon={"checkbox-blank-outline"}
+        size={40}
+      />
+      <CheckBox
+        style={styles.rectangleCheckbox}
+        checked={rectangleCheckbox4checked}
+        onPress={() => {
+          setRectangleCheckbox4checked(!rectangleCheckbox4checked);
+          rectangleCheckbox3checked
+            ? setRectangleCheckbox3checked(!rectangleCheckbox3checked)
+            : rectangleCheckbox3checked;
+        }}
+        containerStyle={styles.rectangleCheckbox4Layout}
+        iconType="material-community"
+        checkedIcon="checkbox-outline"
+        uncheckedIcon={"checkbox-blank-outline"}
+        size={40}
+      />
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
-	teacherTypo: {
-		textAlign: "left",
-		color: "#8e8e93",
-		fontFamily: "Roboto-Regular",
-		letterSpacing: -0.2,
-		fontSize: 20,
-		left: "20%",
-		position: "absolute"
-	},
-	noneApplicableTypo: {
-		alignItems: "center",
-		display: "flex",
-		width: "80%",
-		textAlign: "left",
-		color: "#8e8e93",
-		fontFamily: "Roboto-Regular",
-		letterSpacing: -0.2,
-		fontSize: 20,
-		left: "20%",
-		position: "absolute"
-	},
-	groupChildPosition: {
-		borderTopWidth: 1,
-		borderColor: "#8e8e93",
-		borderStyle: "solid",
-		left: "15.61%",
-		right: "8.33%",
-		width: "76.06%",
-		height: "0.37%",
-		position: "absolute"
-	},
-	wrapperPosition: {
-		right: "92.12%",
-		left: "-0.3%",
-		position: "absolute"
-	},
-	deacon: {
-		top: "0%"
-	},
-	alhanTeacher: {
-		top: "21.27%"
-	},
-	sundaySchoolTeacher: {
-		top: "42.54%"
-	},
-	servantsMeetingAttendance: {
-		top: "63.81%"
-	},
-	noneApplicable: {
-		top: "89.55%"
-	},
-	groupChild: {
-		top: "11.38%",
-		bottom: "88.25%"
-	},
-	groupItem: {
-		top: "33.02%",
-		bottom: "66.6%"
-	},
-	groupInner: {
-		top: "55.04%",
-		bottom: "44.59%"
-	},
-	lineView: {
-		top: "84.14%",
-		bottom: "15.49%"
-	},
-	groupChild1: {
-		top: "99.81%",
-		bottom: "-0.19%"
-	},
-	wrapper: {
-		top: "3.73%",
-		bottom: "86.19%"
-	},
-	container: {
-		top: "46.27%",
-		bottom: "43.66%"
-	},
-	frame: {
-		top: "67.54%",
-		bottom: "22.39%"
-	},
-	rectangleView: {
-		top: "88.81%",
-		bottom: "1.12%"
-	},
-	wrapper1: {
-		top: "25%",
-		bottom: "64.93%"
-	},
-	deaconParent: {
-		width: 330,
-		height: 268
-	}
+  rectangleCheckboxLayout: {
+    backgroundColor: "transparent",
+    padding: 0,
+    left: -10,
+    top: -10,
+    position: "absolute",
+  },
+  rectangleCheckbox1Layout: {
+    backgroundColor: "transparent",
+    padding: 0,
+    left: -10,
+    top: 104,
+    position: "absolute",
+  },
+  rectangleCheckbox2Layout: {
+    backgroundColor: "transparent",
+    padding: 0,
+    left: -10,
+    top: 161,
+    position: "absolute",
+  },
+  rectangleCheckbox3Layout: {
+    backgroundColor: "transparent",
+    padding: 0,
+    left: -10,
+    top: 218,
+    position: "absolute",
+  },
+  rectangleCheckbox4Layout: {
+    backgroundColor: "transparent",
+    padding: 0,
+    left: -10,
+    top: 47,
+    position: "absolute",
+  },
+  teacherTypo: {
+    textAlign: "left",
+    color: "#8e8e93",
+    fontFamily: "Roboto-Regular",
+    letterSpacing: -0.2,
+    fontSize: 20,
+    left: 66,
+    position: "absolute",
+  },
+  noneApplicableTypo: {
+    width: 264,
+    alignItems: "center",
+    display: "flex",
+    textAlign: "left",
+    color: "#8e8e93",
+    fontFamily: "Roboto-Regular",
+    letterSpacing: -0.2,
+    fontSize: 20,
+    left: 66,
+    position: "absolute",
+  },
+  groupChildLayout: {
+    height: 1,
+    width: 251,
+    borderTopWidth: 1,
+    left: 52,
+    borderColor: "#8e8e93",
+    borderStyle: "solid",
+    position: "absolute",
+  },
+  deacon: {
+    top: 0,
+  },
+  alhanTeacher: {
+    top: 57,
+  },
+  sundaySchoolTeacher: {
+    top: 114,
+  },
+  servantsMeetingAttendance: {
+    top: 171,
+  },
+  noneApplicable: {
+    top: 240,
+  },
+  groupChild: {
+    top: 31,
+  },
+  groupItem: {
+    top: 89,
+  },
+  groupInner: {
+    top: 148,
+  },
+  lineView: {
+    top: 226,
+  },
+  groupChild1: {
+    top: 268,
+  },
+  rectangleCheckbox: {
+    borderRadius: 10,
+    backgroundColor: "#000",
+    borderWidth: 1,
+    borderColor: "#8e8e93",
+    borderStyle: "solid",
+  },
+  deaconParent: {
+    flex: 1,
+    width: "100%",
+    height: 268,
+  },
 });
 
 export default Group;

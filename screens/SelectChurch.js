@@ -11,7 +11,7 @@ import { useNavigation } from "@react-navigation/native";
 import Churches from "../components/churches";
 import BackArrow from "../components/backArrow";
 const SelectChurch = ({ route, navigation }) => {
-  const { person } = route.params;
+  const { person } = "you";
   return (
     <View style={styles.loadout}>
       <View style={styles.backarrow}>
@@ -42,7 +42,7 @@ const SelectChurch = ({ route, navigation }) => {
       <View style={styles.continueLayout}>
         <Pressable
           onPress={() =>
-            navigation.navigate("SelectApplicable", { person: person })
+            navigation.navigate("SelectApplicable")
           }
         >
           <Text style={styles.continuetext}>Continue</Text>
