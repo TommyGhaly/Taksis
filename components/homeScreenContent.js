@@ -2,174 +2,61 @@ import * as React from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 //figure out teh props
 const HomeScreenContent = ({ props }) => {
-  return (
-    <View style={styles.homescreencontent}>
-      <Image
-        style={[styles.homescreencontentChild, styles.homescreencontentLayout]}
-        resizeMode="cover"
-        source={require("../assets/Rectangle 17.png")}
-      />
-      <Text style={[styles.thisWeeksService, styles.serviceFlexBox]}>
-        This Week’s Service
-      </Text>
-      <Image
-        style={[styles.homescreencontentItem, styles.homescreencontentLayout]}
-        resizeMode="cover"
-        source={require("../assets/Rectangle 17.png")}
-      />
-      <Text style={[styles.yourNextService, styles.serviceFlexBox]}>
-        Your Next Service
-      </Text>
-      <View
-        style={[
-          styles.homescreencontentInner,
-          styles.homescreencontentPosition,
-        ]}
-      />
-      <Text style={[styles.mmddyyyy, styles.mmddyyyyLayout]}>
-        {props.curDate}
-      </Text>
-      <View
-        style={[styles.rectangleView, styles.homescreencontentChildBorder]}
-      />
-      <View
-        style={[
-          styles.homescreencontentChild1,
-          styles.homescreencontentChildBorder,
-        ]}
-      />
-      <View
-        style={[
-          styles.homescreencontentChild2,
-          styles.homescreencontentChildBorder,
-        ]}
-      />
-      <Text style={[styles.readings, styles.readingsFlexBox]}>Readings</Text>
-      <View
-        style={[
-          styles.homescreencontentChild3,
-          styles.homescreencontentChildLayout,
-        ]}
-      />
-      <Text style={[styles.gospel, styles.gospelTypo]}>Gospel:</Text>
-      <Text style={[styles.firstLast, styles.gospelTypo]}>{props.gospel}</Text>
-      <View
-        style={[
-          styles.homescreencontentChild4,
-          styles.homescreencontentChildLayout,
-        ]}
-      />
-      <Text style={[styles.praxis, styles.praxisPosition]}>Praxis:</Text>
-      <Text style={[styles.firstLast1, styles.gospelTypo]}>{props.praxis}</Text>
-      <View
-        style={[
-          styles.homescreencontentChild5,
-          styles.homescreencontentChildLayout,
-        ]}
-      />
-      <Text style={[styles.catholicEpistle, styles.gospelTypo]}>
-        Catholic Epistle:
-      </Text>
-      <Text style={[styles.firstLast2, styles.gospelTypo]}>
-        {props.catholic}
-      </Text>
-      <View
-        style={[
-          styles.homescreencontentChild6,
-          styles.homescreencontentChildLayout,
-        ]}
-      />
-      <Text style={[styles.paulineEpistle, styles.gospelTypo]}>
-        Pauline Epistle:
-      </Text>
-      <Text style={[styles.firstLast3, styles.gospelTypo]}>
-        {props.pauline}
-      </Text>
-      <View
-        style={[
-          styles.homescreencontentChild7,
-          styles.homescreencontentChildPosition1,
-        ]}
-      />
-      <Text style={[styles.thHourGospel, styles.praxisPosition]}>
-        6th Hour Gospel:
-      </Text>
-      <Text style={[styles.firstLast4, styles.gospelTypo]}>{props.sixth}</Text>
-      <View
-        style={[
-          styles.homescreencontentChild8,
-          styles.homescreencontentChildPosition1,
-        ]}
-      />
-      <Text style={[styles.rdHourGospel, styles.gospelTypo]}>
-        3rd Hour Gospel:
-      </Text>
-      <Text style={[styles.firstLast5, styles.gospelTypo]}>{props.third}</Text>
-      <View
-        style={[
-          styles.homescreencontentChild9,
-          styles.homescreencontentChildLayout,
-        ]}
-      />
-      <Text style={[styles.matinsGospel, styles.gospelTypo]}>
-        Matins Gospel:
-      </Text>
-      <Text style={[styles.firstLast6, styles.gospelTypo]}>{props.matins}</Text>
-      <View
-        style={[
-          styles.homescreencontentChild10,
-          styles.homescreencontentChildPosition,
-        ]}
-      />
-      <View
-        style={[
-          styles.homescreencontentChild11,
-          styles.homescreencontentChildPosition,
-        ]}
-      />
-      <Text style={styles.waterFirstLastContainer}>
-        <Text style={styles.waterFirstLastContainer1}>
-          <Text style={styles.water}>{`Water: `}</Text>
-          <Text style={styles.firstLast7}>{props.water}</Text>
-          <Text style={styles.water}>{`
+    return (
+        <View style={styles.homescreencontent}>
+            <Image style={[styles.homescreencontentChild, styles.homescreencontentLayout]} resizeMode="cover" source={require("../assets/Rectangle 17.png")} />
+            <Text style={[styles.thisWeeksService, styles.serviceFlexBox]}>This Week’s Service</Text>
+            <Image style={[styles.homescreencontentItem, styles.homescreencontentLayout]} resizeMode="cover" source={require("../assets/Rectangle 17.png")} />
+            <Text style={[styles.yourNextService, styles.serviceFlexBox]}>Your Next Service</Text>
+            <View style={[styles.homescreencontentInner, styles.homescreencontentPosition]} />
+            <Text style={[styles.mmddyyyy, styles.mmddyyyyLayout]}>{props.curDate}</Text>
+            <View style={[styles.rectangleView, styles.homescreencontentChildBorder]} />
+            <View style={[styles.homescreencontentChild1, styles.homescreencontentChildBorder]} />
+            <View style={[styles.homescreencontentChild2, styles.homescreencontentChildBorder]} />
+            <Text style={[styles.readings, styles.readingsFlexBox]}>Readings</Text>
+            <View style={[styles.homescreencontentChild3, styles.homescreencontentChildLayout]} />
+            <Text style={[styles.gospel, styles.gospelTypo]}>Gospel:</Text>
+            <Text style={[styles.firstLast, styles.gospelTypo]}>{props.gosel}</Text>
+            <View style={[styles.homescreencontentChild4, styles.homescreencontentChildLayout]} />
+            <Text style={[styles.praxis, styles.praxisPosition]}>Praxis:</Text>
+            <Text style={[styles.firstLast1, styles.gospelTypo]}>{props.praxis}</Text>
+            <View style={[styles.homescreencontentChild5, styles.homescreencontentChildLayout]} />
+            <Text style={[styles.catholicEpistle, styles.gospelTypo]}>Catholic Epistle:</Text>
+            <Text style={[styles.firstLast2, styles.gospelTypo]}>{props.catholic}</Text>
+            <View style={[styles.homescreencontentChild6, styles.homescreencontentChildLayout]} />
+            <Text style={[styles.paulineEpistle, styles.gospelTypo]}>Pauline Epistle:</Text>
+            <Text style={[styles.firstLast3, styles.gospelTypo]}>{props.pauline}</Text>
+            <View style={[styles.homescreencontentChild7, styles.homescreencontentChildPosition1]} />
+            <Text style={[styles.thHourGospel, styles.praxisPosition]}>6th Hour Gospel:</Text>
+            <Text style={[styles.firstLast4, styles.gospelTypo]}>{props.sixth}</Text>
+            <View style={[styles.homescreencontentChild8, styles.homescreencontentChildPosition1]} />
+            <Text style={[styles.rdHourGospel, styles.gospelTypo]}>3rd Hour Gospel:</Text>
+            <Text style={[styles.firstLast5, styles.gospelTypo]}>{props.third}</Text>
+            <View style={[styles.homescreencontentChild9, styles.homescreencontentChildLayout]} />
+            <Text style={[styles.matinsGospel, styles.gospelTypo]}>Matins Gospel:</Text>
+            <Text style={[styles.firstLast6, styles.gospelTypo]}>{props.matin}</Text>
+            <View style={[styles.homescreencontentChild10, styles.homescreencontentChildPosition]} />
+            <View style={[styles.homescreencontentChild11, styles.homescreencontentChildPosition]} />
+            <Text style={styles.waterFirstLastContainer}>
+                <Text style={styles.waterFirstLastContainer1}>
+                    <Text style={styles.water}>{`Water: `}</Text>
+                    <Text style={styles.firstLast7}>{props.water}</Text>
+                    <Text style={styles.water}>{`
 Wine: `}</Text>
-          <Text style={styles.firstLast7}> {props.wine}</Text>
-        </Text>
-      </Text>
-      <Text style={[styles.firstLastFirstLast, styles.firstLayout]}>
-        First LastFirst Last
-      </Text>
-      <Text style={[styles.firstLastFirstLast1, styles.firstLayout]}>
-        First LastFirst Last
-      </Text>
-      <Text style={[styles.offeringOfThe, styles.alterServersFlexBox]}>
-        Offering of the lamb
-      </Text>
-      <Text style={[styles.alterServers, styles.alterServersFlexBox]}>
-        Alter Servers
-      </Text>
-      <View
-        style={[
-          styles.homescreencontentChild12,
-          styles.homescreencontentPosition,
-        ]}
-      />
-      <View
-        style={[
-          styles.homescreencontentChild13,
-          styles.homescreencontentChildBorder,
-        ]}
-      />
-      <Text style={[styles.role, styles.serviceFlexBox]}>Role</Text>
-      <Text style={[styles.mmddyyyy1, styles.mmddyyyyLayout]}>
-        {props.nextDate}
-      </Text>
-      <View style={styles.homescreencontentChild14} />
-      <Text style={[styles.yourRoleHere, styles.readingsFlexBox]}>
-        {props.nextRole}
-      </Text>
-    </View>
-  );
+                    <Text style={styles.firstLast7}> {props.wine}</Text>
+                </Text>
+            </Text>
+            <Text style={[styles.firstLastFirstLast, styles.firstLayout]}>First LastFirst Last</Text>
+            <Text style={[styles.firstLastFirstLast1, styles.firstLayout]}>First LastFirst Last</Text>
+            <Text style={[styles.offeringOfThe, styles.alterServersFlexBox]}>Offering of the lamb</Text>
+            <Text style={[styles.alterServers, styles.alterServersFlexBox]}>Alter Servers</Text>
+            <View style={[styles.homescreencontentChild12, styles.homescreencontentPosition]} />
+            <View style={[styles.homescreencontentChild13, styles.homescreencontentChildBorder]} />
+            <Text style={[styles.role, styles.serviceFlexBox]}>Role</Text>
+            <Text style={[styles.mmddyyyy1, styles.mmddyyyyLayout]}>{props.nextDate}</Text>
+            <View style={styles.homescreencontentChild14} />
+            <Text style={[styles.yourRoleHere, styles.readingsFlexBox]}>{props.nextRole}</Text>
+        </View>);
 };
 
 const styles = StyleSheet.create({
