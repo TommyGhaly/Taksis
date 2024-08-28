@@ -9,6 +9,8 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import ExperienceQuestions from "../components/experienceQuestions";
 import BackArrow from "../components/backArrow";
+import { Picker } from "react-native-web";
+import MainContainer from "./MainContainer";
 
 function tabs(navigation) {
   navigation.reset({
@@ -20,6 +22,8 @@ function tabs(navigation) {
 
 const Experience = ({ route, navigation }) => {
   const { person } = "you";
+  const [selectedAge, setSelectedAge] = useState('');
+
   return (
     <View style={styles.experience}>
       <View style={styles.backarrow}>
@@ -34,12 +38,12 @@ const Experience = ({ route, navigation }) => {
       </View>
       <View style={styles.title2}>
         <Text style={styles.titleText}>
-          How much experience do {person} have as a deacon?
+          How much experience do {person} have as a deacon on a scale from 1-10?
         </Text>
       </View>
       <View style={[styles.filled, styles.trackLayout]} />
       <View style={styles.continueLayout}>
-        <Pressable onPress={() => tabs(navigation)}>
+        <Pressable onPress={() => navigation.navigate('MainContainer')}>
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>
       </View>
@@ -53,7 +57,7 @@ const styles = StyleSheet.create({
     left: 16,
   },
   continueLayout: {
-    bottom: -142,
+    bottom: -102,
     left: 16,
     height: 50,
     width: 358,
@@ -111,7 +115,7 @@ const styles = StyleSheet.create({
   title2: {
     top: "-10%",
     left: "5.85242%",
-    width: "86.768%",
+    width: "92.768%",
   },
 });
 

@@ -41,7 +41,7 @@ const SelectApplicable = ({ route, navigation }) => {
 
 const styles = StyleSheet.create({
   choices: {
-    top: 128,
+    top: 158,
     left: 47,
   },
   backarrow: {
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     left: "4.071%",
   },
   title: {
-    top: "10%",
+    top: "13%",
     left: "4.071%",
     right: "4.071%",
     width: "88.295%",
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   },
 
   continueLayout: {
-    top: 612,
+    top: 655,
     left: 16,
     height: 50,
     width: 358,

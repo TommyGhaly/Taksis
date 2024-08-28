@@ -5,12 +5,21 @@ import HomeScreen from "./HomeScreen";
 import Attendence from "./Attendence";
 import LearnItNavigation from "./LearnIt/LearnItNavigation";
 import Settings from "./Settings/SettingsNavigation";
+import DefaultTheme from "@react-navigation/native";
+import { defaultTheme } from "@rneui/base";
 
 const Tab = createBottomTabNavigator();
-
+const myTheme = {
+  ...DefaultTheme,
+  colors: {
+    primary: "#147efb",
+    card: 'rgb(255, 255, 255)',
+    background: "#000"
+  },
+}; 
 export default function MainContainer() {
   return (
-    <NavigationContainer independent={true}>
+    <NavigationContainer independent={true} theme={myTheme}>
       <Tab.Navigator
         screenOptions={{
           headerShown: false,

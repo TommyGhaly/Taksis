@@ -32,11 +32,12 @@ const Attendence = () => {
 
 const styles = StyleSheet.create({
   attendencelist: {
-    top: "4.04695%",
+    top: 100,
+    height: "100%"
   },
   addpersonParent: {
     left: "89.31298%",
-    top: 100,
+    top: 40,
   },
   alhanAttendance: {
     height: "52.11%",
@@ -54,7 +55,7 @@ const styles = StyleSheet.create({
     position: "absolute",
   },
   attendancetitlePosition: {
-    top: 80,
+    top: 20,
     position: "absolute",
     height: 71,
     width: 280,
@@ -67,6 +68,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
     height: "100%",
     width: "100%",
+    marginTop: 60,
   },
 });
 

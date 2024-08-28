@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useState } from "react";
 import {
   StyleSheet,
   View,
@@ -6,10 +7,12 @@ import {
   Pressable,
   TouchableOpacity,
 } from "react-native";
+import Slider from "@react-native-community/slider";
 import { useNavigation } from "@react-navigation/native";
 import BackArrow from "../components/backArrow";
 const Frequency = ({ route, navigation }) => {
   const { person } = "you";
+  const [slider, setSlider] = useState(5);
   return (
     <View style={styles.frequency}>
       <View style={styles.backarrow}>
@@ -17,21 +20,23 @@ const Frequency = ({ route, navigation }) => {
       </View>
       <View style={styles.title}>
         <Text style={styles.titleText}>
-          How frequently do {person} attend church?
+          How frequently do {person} attend church on a scale from 1-10?
         </Text>
       </View>
+      <Text style={[styles.sliderText, styles.sliderTextPosition]}>
+        {slider.toString().slice(0, 3)}
+      </Text>
       <View style={[styles.frequencySlider, styles.backarrowPosition]}>
-        <View style={styles.slider}>
-          <View style={[styles.unfilledknob, styles.knob1Layout]} />
-          <View style={styles.filledknob} />
-          <View style={styles.knob}>
-            <View style={[styles.knob1, styles.knob1Layout]} />
-          </View>
-        </View>
+        <Slider
+          style={styles.slider}
+          value={slider}
+          onValueChange={(value) => setSlider(value)}
+          minimumValue={0}
+          maximumValue={10}
+          minimumTrackTintColor="#147efb"
+        />
         <Text style={[styles.notOften, styles.oftenTypo]}>Not often</Text>
-        <Text style={[styles.veryVeryOften, styles.oftenTypo]}>
-          Very Very often
-        </Text>
+        <Text style={[styles.veryVeryOften, styles.oftenTypo]}>Very often</Text>
       </View>
       <View style={styles.progressBar}>
         <View style={styles.track}>
@@ -39,9 +44,7 @@ const Frequency = ({ route, navigation }) => {
         </View>
       </View>
       <View style={styles.continueLayout}>
-        <Pressable
-          onPress={() => navigation.navigate("Experience")}
-        >
+        <Pressable onPress={() => navigation.navigate("Experience")}>
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>
       </View>
@@ -55,7 +58,7 @@ const styles = StyleSheet.create({
     left: 16,
   },
   continueLayout: {
-    bottom: -612,
+    bottom: -475,
     left: 16,
     height: 50,
     width: 358,
@@ -88,7 +91,18 @@ const styles = StyleSheet.create({
     top: "0%",
     position: "absolute",
   },
-
+  sliderText: {
+    textAlign: "center",
+    color: "#8e8e93",
+    fontSize: 80,
+    fontWeight: "900",
+    fontFamily: "Roboto-Bold",
+    justifyContent: "center",
+    alignContent: "center",
+  },
+  sliderTextPosition: {
+    top: "19.7399%",
+  },
   unfilledknob: {
     right: 0,
     left: 0,
@@ -142,9 +156,6 @@ const styles = StyleSheet.create({
   slider: {
     height: "53.85%",
     top: "46.15%",
-    right: "0%",
-    left: "0%",
-    bottom: "0%",
     position: "absolute",
     width: "100%",
   },
@@ -152,7 +163,7 @@ const styles = StyleSheet.create({
     left: "0.83%",
   },
   veryVeryOften: {
-    left: "75.07%",
+    left: "80.07%",
   },
   frequencySlider: {
     width: "91.86%",
@@ -187,10 +198,10 @@ const styles = StyleSheet.create({
     height: 4,
   },
   title: {
-    top: "19.6%",
+    top: 150,
     left: "4.071%",
     right: "4.071%",
-    width: "88.295%",
+    width: "94.295%",
   },
   titleText: {
     fontSize: 34,

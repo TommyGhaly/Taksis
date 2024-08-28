@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
     height: 4,
   },
   rank: {
-    top: "30.5164%",
+    top: "28.5164%",
     left: "9.9236%",
     height: "45.529%",
     width: "79.898%",

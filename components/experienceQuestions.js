@@ -1,23 +1,25 @@
 import React, { useState } from "react";
 import { StyleSheet, View, Text } from "react-native";
 import DropDownPicker from "react-native-dropdown-picker";
+import Slider from "@react-native-community/slider";
+import { Picker } from "@react-native-picker/picker";
 
 const ExperienceQuestions = () => {
-  const [rectangleDropdownOpen, setRectangleDropdownOpen] = useState(false);
-  const [rectangleDropdownValue, setRectangleDropdownValue] = useState();
+  const [slider, setSlider] = useState(5);
+  const [selectedAge, setSelectedAge] = useState("");
 
   return (
     <View style={styles.experiencequestions}>
       <View style={styles.wrapper}>
-        <DropDownPicker
-          style={styles.dropdownpicker}
-          open={rectangleDropdownOpen}
-          setOpen={setRectangleDropdownOpen}
-          value={rectangleDropdownValue}
-          setValue={setRectangleDropdownValue}
-          items={[]}
-          dropDownContainerStyle={styles.rectangleDropdowndropDownContainer}
-        />
+        <Picker
+          selectedValue={selectedAge}
+          onValueChange={(itemValue, itemIndex) => setSelectedAge(itemValue)}
+          itemStyle={styles.pickertext}
+        >
+          {Array.from({ length: 100 }, (_, i) => (
+            <Picker.Item key={i} label={`${i + 1}`} value={i + 1} />
+          ))}
+        </Picker>
       </View>
       <Text style={styles.yearsOld}>years old</Text>
       <Text style={[styles.notExperienced, styles.experiencedTypo]}>
@@ -26,9 +28,17 @@ const ExperienceQuestions = () => {
       <Text style={[styles.veryExperienced, styles.experiencedTypo]}>
         Very experienced
       </Text>
-      <View style={[styles.unfilled, styles.knobLayout]} />
-      <View style={[styles.filled, styles.knobLayout]} />
-      <View style={[styles.knob, styles.knobLayout]} />
+      <Text style={[styles.sliderText, styles.sliderTextPosition]}>
+        {slider.toString().slice(0, 3)}
+      </Text>
+      <Slider
+        style={styles.slider}
+        value={slider}
+        onValueChange={(value) => setSlider(value)}
+        minimumValue={0}
+        maximumValue={10}
+        minimumTrackTintColor="#147efb"
+      />
     </View>
   );
 };
@@ -65,9 +75,9 @@ const styles = StyleSheet.create({
     borderStyle: "solid",
   },
   wrapper: {
-    bottom: "75%",
-    width: "8.3969%",
-    left: "38.16%",
+    top: -20,
+    width: 100,
+    left: 90,
     borderRadius: 5,
     borderStyle: "solid",
     position: "absolute",
@@ -111,27 +121,26 @@ const styles = StyleSheet.create({
     height: "0.93%",
     borderRadius: 100,
   },
-  knob: {
-    marginTop: 186,
-    top: "50%",
-    right: 136,
-    shadowColor: "rgba(0, 0, 0, 0.12)",
-    shadowOffset: {
-      width: 0,
-      height: 0.5,
-    },
-    shadowRadius: 4,
-    elevation: 4,
-    shadowOpacity: 1,
-    backgroundColor: "#fff",
-    width: 28,
-    height: 28,
-    transform: [
-      {
-        rotate: "180deg",
-      },
-    ],
+  slider: {
+    top: 350,
   },
+  sliderText: {
+    textAlign: "center",
+    color: "#8e8e93",
+    fontSize: 50,
+    fontWeight: "700",
+    fontFamily: "Roboto-Bold",
+    justifyContent: "center",
+    alignContent: "center",
+  },
+  sliderTextPosition: {
+    top: "74%",
+  },
+  pickertext: {
+    color: "#8e8e93",
+    fontSize: 20,
+    lineHeight: 21
+  },  
   experiencequestions: {
     width: "100%",
     height: 428,

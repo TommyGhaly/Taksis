@@ -7,7 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./assets/dioceseLogo.png",
+      "image": "./assets/Splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
@@ -38,11 +38,11 @@
     },
     "ios": {
       "googleServicesFile": "./GoogleService-Info.plist",
-      "bundleIdentifier": "com.dgobran.Taxis"
+      "bundleIdentifier": "com.tghaly.Taxis"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
-      "package": "com.dgobran.Taxis"
+      "package": "com.tghaly.Taxis"
     }
   },
   "assetBundlePatterns": [
@@ -50,7 +50,7 @@
   ],
   "ios": {
     "supportsTablet": true,
-    "bundleIdentifier": "com.dgobran.Taxis",
+    "bundleIdentifier": "com.tghaly.Taxis",
     "usesAppleSignIn": true
   },
   "android": {

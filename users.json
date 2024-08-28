@@ -1,0 +1,36 @@
+{
+  "users": [
+    {
+      "name": "Tommy Ghaly",
+      "phone": 5082927550,
+      "church": "St. Philopater and St. Mina Wayland, MA",
+      "role": [
+        {
+          "deacon": [
+            {
+              "true": true,
+              "rank": "Epsaltos",
+              "id": 123456765432,
+              "churchFrequency": 10,
+              "age": 17,
+              "experience": 10
+            }
+          ],
+          "alhanTeacher": [
+            {
+              "true": true,
+              "names": ["name1", "name2", "name3"]
+            }
+          ],
+          "SundaySchoolTeacher": [
+            {
+              "true": false,
+              "names": null
+            }
+          ],
+          "children" : null
+        }
+      ]
+    }
+  ]
+}

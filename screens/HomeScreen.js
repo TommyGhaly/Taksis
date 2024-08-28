@@ -40,25 +40,27 @@ const HomeScreen = ({ route }) => {
 
 const styles = StyleSheet.create({
   content: {
-    top: 80,
+    top: 20,
     left: 26,
     width: 317,
   },
   request: {
     top: 59,
-    height: 71,
+    height: 90,
     width: 280,
     left: 29,
+  },
+  signOut: {
+    top: 50
   },
   homescreen: {
     flex: 1,
     height: 852,
     width: "100%",
     backgroundColor: "#000",
+    marginTop: 60
   },
-  signOut: {
-    top: 50
-  },
+ 
 });
 
 export default HomeScreen;
