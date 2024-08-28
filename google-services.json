@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:642693016544:android:4425026c6baee2cff61985",
         "android_client_info": {
-          "package_name": "com.dgobran.Taxis"
+          "package_name": "com.tghaly.Taxis"
         }
       },
       "oauth_client": [
@@ -34,7 +34,7 @@
               "client_id": "642693016544-l0t3pr869448tv7m3ticnopkgqsqnmk0.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.dgobran.Taxis"
+                "bundle_id": "com.tghaly.Taxis"
               }
             }
           ]

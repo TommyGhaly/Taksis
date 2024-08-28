@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     left: 16,
   },
   continueLayout: {
-    bottom: -475,
+    bottom: -476,
     left: 16,
     height: 50,
     width: 358,

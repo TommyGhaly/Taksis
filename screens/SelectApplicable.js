@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   },
 
   continueLayout: {
-    top: 655,
+    top: 654,
     left: 16,
     height: 50,
     width: 358,

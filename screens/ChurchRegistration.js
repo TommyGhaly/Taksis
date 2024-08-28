@@ -1,35 +1,29 @@
 import * as React from "react";
 import { Text, StyleSheet, Pressable, View, Image } from "react-native";
-import { ProgressBar, Button } from "react-native-paper";
+import BackArrow from "../components/backArrow";
+import { useNavigation } from "@react-navigation/native";
 
-const ChurchRegistrationVerification = ({ navigation }) => {
+const ChurchRegistrationV = () => {
+  const navigation = useNavigation()
   return (
     <View style={styles.churchregistrationverification}>
-      <Text style={styles.churchHasBeen}>Church has been registered!</Text>
-      <Pressable
-        style={[styles.continuebutton, styles.backarrowPosition]}
-        onPress={() => {}}
-      >
-        <Text style={[styles.backToSign, styles.backToSignTypo]}>
-          Back to sign up
-        </Text>
-      </Pressable>
-
+      <View style={styles.backarrow}>
+        <BackArrow />
+      </View>
+      <Text style={styles.churchHasBeen}>Register your church</Text>
       <Text style={[styles.youHaveBeen, styles.backToSignTypo]}>
-        You have been appointed head admin of your church. If you would like to
-        give the position to someone else go to settings and click “appoint head
-        admin”
+        If you would like to register your church, please send an email to stphilopaterstmina@gmail.com. Please verify the name of the church, the location, who the head admin should be, and any other needed information. 
       </Text>
-      <Image
-        style={styles.verificationstickerIcon}
-        resizeMode="cover"
-        source={require("../assets/verificationSticker.png")}
-      />
+
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  backarrow: {
+    top: 74,
+    left: 16,
+  },
   progressbar: {
     backgroundColor: "#000",
   },
@@ -95,10 +89,11 @@ const styles = StyleSheet.create({
     position: "absolute",
   },
   youHaveBeen: {
-    height: "4.81%",
-    width: "88.04%",
-    top: "65.02%",
-    left: "5.6%",
+    height: "100%",
+    width: 370,
+    top: "40%",
+    left: "4.6%",
+
     fontSize: 16,
     color: "#8e8e93",
     position: "absolute",
@@ -125,4 +120,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ChurchRegistrationVerification;
+export default ChurchRegistrationV;

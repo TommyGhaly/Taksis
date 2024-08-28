@@ -30,7 +30,7 @@ const SelectChurch = ({ route, navigation }) => {
       >
         <Pressable
           onPress={() => {
-            navigation.navigate("ChurchInformation");
+            navigation.navigate("ChurchRegistration");
           }}
         >
           <Text style={styles.text}>

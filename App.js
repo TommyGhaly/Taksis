@@ -1,29 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import auth from '@react-native-firebase/auth';
-import { UserProvider, useUser } from './UserContext';
+import React, { useState, useEffect } from "react";
+import { StyleSheet } from "react-native";
+import { NavigationContainer } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import auth from "@react-native-firebase/auth";
+import { UserProvider, useUser } from "./UserContext";
 
-import Welcome from './screens/Welcome';
-import SignIn from './screens/SignIn';
-import SignUp from './screens/SignUp';
+import Welcome from "./screens/Welcome";
+import SignIn from "./screens/SignIn";
+import SignUp from "./screens/SignUp";
 import SelectChurch from "./screens/SelectChurch";
 import SelectApplicable from "./screens/SelectApplicable";
 import DeaconRank from "./screens/DeaconRank";
 import Frequency from "./screens/Frequency";
 import Experience from "./screens/Experience";
-import ChurchInformation from "./screens/ChurchInformation";
 import PasswordReset from "./screens/PasswordReset";
-import ChurchLogo from "./screens/ChurchLogo";
-import ChurchRegistrationVerification from "./screens/ChurchRegistrationVerification";
-import ChurchVerification from "./screens/ChurchVerification";
+import ChurchRegistration from "./screens/ChurchRegistration";
 import MainContainer from "./screens/MainContainer";
-import { DefaultTheme } from 'react-native-paper';
+import "react-native-gesture-handler";
 
 const Stack = createNativeStackNavigator();
 function AppNavigator() {
-  const { user, setUser } = useUser();  // Access user and setUser from the UserContext
+  const { user, setUser } = useUser(); // Access user and setUser from the UserContext
   const [initializing, setInitializing] = useState(true);
 
   function onAuthStateChanged(user) {
@@ -41,30 +38,60 @@ function AppNavigator() {
   return (
     <NavigationContainer style={styles.container}>
       <Stack.Navigator
-        initialRouteName={user ? 'MainContainer' : 'Welcome'}
-        screenOptions={{ headerShown: false }}
+        initialRouteName={user ? "MainContainer" : "Welcome"}
+        screenOptions={{ headerShown: false, animation: "none" }}
         gestureEnabled={false}
       >
         {!user ? (
           <>
-            <Stack.Screen name="Welcome" component={Welcome} />
-            <Stack.Screen name="SignUp" component={SignUp} />
-            <Stack.Screen name="SignIn" component={SignIn} />
+            <Stack.Screen
+              name="Welcome"
+              component={Welcome}
+              options={{ animation: "default" }}
+            />
+            <Stack.Screen
+              name="SignUp"
+              component={SignUp}
+              options={{ animation: "default" }}
+            />
+            <Stack.Screen
+              name="SignIn"
+              component={SignIn}
+              options={{ animation: "default" }}
+            />
             <Stack.Screen name="PasswordReset" component={PasswordReset} />
             <Stack.Screen name="SelectChurch" component={SelectChurch} />
-            <Stack.Screen name="SelectApplicable" component={SelectApplicable} />
+            <Stack.Screen
+              name="ChurchRegistration"
+              component={ChurchRegistration}
+              options={{ animation: "simple_push" }}
+            />
+            <Stack.Screen
+              name="SelectApplicable"
+              component={SelectApplicable}
+            />
             <Stack.Screen name="DeaconRank" component={DeaconRank} />
             <Stack.Screen name="Frequency" component={Frequency} />
             <Stack.Screen name="Experience" component={Experience} />
-            <Stack.Screen name="MainContainer" component={MainContainer} options={{gestureEnabled: false}}/>
+            <Stack.Screen
+              name="MainContainer"
+              component={MainContainer}
+              options={{ gestureEnabled: false }}
+            />
           </>
         ) : (
           <>
             {/* <Stack.Screen name="Home" component={Home} /> */}
             <Stack.Screen name="MainContainer" component={MainContainer} />
-            <Stack.Screen name="ChurchInformation" component={ChurchInformation} />
+            <Stack.Screen
+              name="ChurchInformation"
+              component={ChurchInformation}
+            />
             <Stack.Screen name="ChurchLogo" component={ChurchLogo} />
-            <Stack.Screen name="ChurchVerification" component={ChurchVerification} />
+            <Stack.Screen
+              name="ChurchVerification"
+              component={ChurchVerification}
+            />
           </>
         )}
       </Stack.Navigator>

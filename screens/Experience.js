@@ -9,7 +9,6 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import ExperienceQuestions from "../components/experienceQuestions";
 import BackArrow from "../components/backArrow";
-import { Picker } from "react-native-web";
 import MainContainer from "./MainContainer";
 
 function tabs(navigation) {
@@ -30,7 +29,7 @@ const Experience = ({ route, navigation }) => {
         <BackArrow />
       </View>
       <View style={styles.title}>
-        <Text style={styles.titleText}>How old are {person}?</Text>
+        <Text style={styles.titleText}>How old are you?</Text>
       </View>
 
       <View style={styles.wrapper}>
@@ -38,7 +37,7 @@ const Experience = ({ route, navigation }) => {
       </View>
       <View style={styles.title2}>
         <Text style={styles.titleText}>
-          How much experience do {person} have as a deacon on a scale from 1-10?
+          How much experience do you have as a deacon on a scale from 1-10?
         </Text>
       </View>
       <View style={[styles.filled, styles.trackLayout]} />
@@ -57,7 +56,7 @@ const styles = StyleSheet.create({
     left: 16,
   },
   continueLayout: {
-    bottom: -102,
+    bottom: -103,
     left: 16,
     height: 50,
     width: 358,
@@ -83,7 +82,7 @@ const styles = StyleSheet.create({
     height: 4,
     left: "12.2137%",
     right: "12.2137%",
-    top: 84,
+    top: 86,
   },
   filled: {
     position: "absolute",
