@@ -3,6 +3,7 @@ import { StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import auth from "@react-native-firebase/auth";
+import "react-native-gesture-handler";
 import { UserProvider, useUser } from "./UserContext";
 
 import Welcome from "./screens/Welcome";
@@ -16,7 +17,8 @@ import Experience from "./screens/Experience";
 import PasswordReset from "./screens/PasswordReset";
 import ChurchRegistration from "./screens/ChurchRegistration";
 import MainContainer from "./screens/MainContainer";
-import "react-native-gesture-handler";
+import ChurchInformation from "./screens/ChurchInformation";
+import ChurchLogo from "./screens/ChurchLogo";
 
 const Stack = createNativeStackNavigator();
 function AppNavigator() {
@@ -60,6 +62,15 @@ function AppNavigator() {
               options={{ animation: "default" }}
             />
             <Stack.Screen name="PasswordReset" component={PasswordReset} />
+            {/* <Stack.Screen
+              name="MainContainer"
+              component={MainContainer}
+              options={{ gestureEnabled: false }}
+              /> */}
+          </>
+        ) : (
+          <>
+            {/* <Stack.Screen name="Home" component={Home} /> */}
             <Stack.Screen name="SelectChurch" component={SelectChurch} />
             <Stack.Screen
               name="ChurchRegistration"
@@ -73,25 +84,16 @@ function AppNavigator() {
             <Stack.Screen name="DeaconRank" component={DeaconRank} />
             <Stack.Screen name="Frequency" component={Frequency} />
             <Stack.Screen name="Experience" component={Experience} />
-            <Stack.Screen
-              name="MainContainer"
-              component={MainContainer}
-              options={{ gestureEnabled: false }}
-            />
-          </>
-        ) : (
-          <>
-            {/* <Stack.Screen name="Home" component={Home} /> */}
             <Stack.Screen name="MainContainer" component={MainContainer} />
             <Stack.Screen
               name="ChurchInformation"
               component={ChurchInformation}
             />
             <Stack.Screen name="ChurchLogo" component={ChurchLogo} />
-            <Stack.Screen
+            {/* <Stack.Screen
               name="ChurchVerification"
               component={ChurchVerification}
-            />
+            /> */}
           </>
         )}
       </Stack.Navigator>

@@ -10,6 +10,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import Churches from "../components/churches";
 import BackArrow from "../components/backArrow";
+
 const SelectChurch = ({ route, navigation }) => {
   const { person } = "you";
   return (
