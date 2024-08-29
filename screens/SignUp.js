@@ -1,14 +1,68 @@
-import * as React from "react";
-import { Pressable, Image, StyleSheet, TextInput, View, Text, TouchableOpacity } from "react-native";
+import React, { useState } from "react";
+import { Pressable, Image, StyleSheet, TextInput, View, Text, Alert } from "react-native";
 import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import BackArrow from "../components/backArrow";
 
 // TODO: fix the continue button and backarrow forgot password set new password
 const SignUp = ({ navigation }) => {
+	const [phoneNumber, setPhoneNumber] = useState('');
+
 	GoogleSignin.configure({
 		webClientId: '642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com',
 	});
+
+	const isValidPhoneNumber = (phone) => {
+		const phoneRegex = /^\d{10}$/;
+		return phoneRegex.test(phone);
+	};
+
+	const onGoogleButtonPress = async () => {
+		if (!isValidPhoneNumber(phoneNumber)) {
+			Alert.alert('Invalid Phone Number', 'Please enter your phone number with no dashes.');
+			return;
+		}
+
+		try {
+			// Check if your device supports Google Play
+			await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+			// Get the users ID token
+			const { idToken } = await GoogleSignin.signIn();
+
+			// Create a Google credential with the token
+			const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+
+			// Sign-in the user with the credential
+			const userCredential = await auth().signInWithCredential(googleCredential);
+
+			// Check if the user exists in Firestore and write them if they don't
+            await writeUserToDb(userCredential.user);
+
+			// Navigate to the SelectChurch screen if sign-up is successful
+			navigation.navigate('SelectChurch');
+		} catch (error) {
+			console.error(error);
+		}
+	};
+
+	const writeUserToDb = async (user) => {
+        try {
+            // Check if the user exists in Firestore
+            const userDoc = await firestore().collection('users').doc(user.uid).get();
+
+            if (!userDoc.exists) {
+                // Write the user to the database if they don't exist
+                await firestore().collection('users').doc(user.uid).set({
+                    uid: user.uid,
+					name: user.displayName,
+                    phoneNumber: phoneNumber,
+                });
+            }
+        } catch (error) {
+            console.error("Error handling Firestore operations: ", error);
+        }
+    };
 
 	return (
 		<View style={styles.signup}>
@@ -19,7 +73,13 @@ const SignUp = ({ navigation }) => {
 				<Text style={styles.titleText}>Sign Up</Text>
 			</View>
 			<TextInput style={[styles.name, styles.nameBorder]} placeholder="Enter your name" placeholderTextColor="#8e8e93" />
-			<TextInput style={[styles.phone, styles.nameBorder]} placeholder="Enter your phone" placeholderTextColor="#8e8e93" />
+			<TextInput
+				style={[styles.phone, styles.nameBorder]}
+				placeholder="Enter your phone number (no dashes)"
+				placeholderTextColor="#8e8e93"
+				value={phoneNumber}
+				onChangeText={setPhoneNumber}
+			/>
 			<TextInput style={[styles.email, styles.nameBorder]} placeholder="Enter your email" placeholderTextColor="#8e8e93" />
 			<TextInput style={[styles.password, styles.nameBorder]} placeholder="Enter your password" placeholderTextColor="#8e8e93" />
 			<TextInput style={[styles.passwordconfirm, styles.nameBorder]} placeholder="Confirm your password" placeholderTextColor="#8e8e93" />
@@ -47,7 +107,7 @@ const SignUp = ({ navigation }) => {
 				</Pressable>
 				<Pressable
 					style={[styles.googleregistration, styles.appleregistrationPosition]}
-					onPress={() => onGoogleButtonPress(navigation)}
+					onPress={onGoogleButtonPress}
 				>
 					<View style={styles.google}>
 						<Image style={styles.applelogoIcon} resizeMode="cover" source={require("../assets/googleLogo.png")} />
@@ -57,28 +117,6 @@ const SignUp = ({ navigation }) => {
 			</View>
 		</View>);
 };
-
-async function onGoogleButtonPress(navigation) {
-	try {
-		// Check if your device supports Google Play
-		await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-		// Get the users ID token
-		const { idToken } = await GoogleSignin.signIn();
-
-		// Create a Google credential with the token
-		const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-
-		// Sign-in the user with the credential
-		const userCredential = await auth().signInWithCredential(googleCredential);
-
-		// Navigate to the SelectChurch screen if sign-in is successful
-		navigation.navigate('SelectChurch');
-
-		return userCredential;
-	} catch (error) {
-		console.error(error);
-	}
-}
 
 const styles = StyleSheet.create({
 	backarrow: {

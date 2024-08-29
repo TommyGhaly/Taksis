@@ -1,6 +1,7 @@
-import * as React from "react";
+import React, { useEffect } from "react";
 import { Image, StyleSheet, Text, View, Pressable, ScrollView, SafeAreaView, FlatList, TouchableOpacity } from "react-native";
 import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 import { Button } from "react-native-paper";
 import HomeScreenContent from "../components/homeScreenContent";
 import WeekRequest from "../components/weekRequest";
@@ -51,7 +52,7 @@ const styles = StyleSheet.create({
     left: 29,
   },
   signOut: {
-    top: 50
+    // top: 50
   },
   homescreen: {
     flex: 1,
