@@ -28,7 +28,7 @@ const Item = ({ item, onPress, backgroundColor, textColor }) => (
 
 
   const Churches = ({onSelectChurch}) => {
-    const [selectedId, setSelectedId] = useState();
+    const [selectedId, setSelectedId] = useState('');
 
   const renderItem = ({ item }) => {
     const backgroundColor = item.id === selectedId ? "#147EFB" : "#838393";

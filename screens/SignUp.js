@@ -122,7 +122,7 @@ const SignUp = ({ navigation }) => {
       </View>
       <View style={styles.continueLayout}>
         <Pressable
-          onPress={() => navigation.navigate("SelectChurch", { person: "you" })}
+          onPress={() => navigation.navigate("SelectChurch")}
         >
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>

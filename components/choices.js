@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Text, StyleSheet, View } from "react-native";
 import { CheckBox } from "@rneui/themed";
 
-const Choices = ( { onCheckboxChange } ) => {
+const Choices = ( { onDeaconChange, onAlhanChange, onSSTeachChange, onServantChange } ) => {
   const [rectangleCheckboxchecked, setRectangleCheckboxchecked] =
     useState(false);
   const [rectangleCheckbox1checked, setRectangleCheckbox1checked] =
@@ -14,9 +14,21 @@ const Choices = ( { onCheckboxChange } ) => {
   const [rectangleCheckbox4checked, setRectangleCheckbox4checked] =
     useState(false);
 
-  const handleCheckboxChange = (checked) => {
+  const handleDeaconChange = (checked) => {
     setRectangleCheckboxchecked(checked);
-    onCheckboxChange(checked); // Pass the checkbox state up to the parent component
+    onDeaconChange(checked); // Pass the checkbox state up to the parent component
+  };
+  const handleAlhanChange = (checked) => {
+    setRectangleCheckbox4chekcked(checked);
+    onAlhanChange(checked);
+  };
+  const handleSSTeacherChange = (checked) => {
+    setRectangleCheckbox1chekcked(checked);
+    onAlhanChange(checked);
+  };
+  const handleServantChange = (checked) => {
+    setRectangleCheckbox2chekcked(checked);
+    onAlhanChange(checked);
   };
   return (
     <View style={styles.deaconParent}>
@@ -44,8 +56,7 @@ const Choices = ( { onCheckboxChange } ) => {
         style={styles.rectangleCheckbox}
         checked={rectangleCheckboxchecked}
         onPress={() => {
-          const newCheckedState = !rectangleCheckboxchecked;
-          handleCheckboxChange(newCheckedState);
+          handleDeaconChange(!rectangleCheckboxchecked);
 
           rectangleCheckbox3checked
             ? setRectangleCheckbox3checked(!rectangleCheckbox3checked)
@@ -61,7 +72,7 @@ const Choices = ( { onCheckboxChange } ) => {
         style={styles.rectangleCheckbox}
         checked={rectangleCheckbox1checked}
         onPress={() => {
-          setRectangleCheckbox1checked(!rectangleCheckbox1checked);
+          handleSSTeacherChange(!rectangleCheckbox1checked);
           rectangleCheckbox3checked
             ? setRectangleCheckbox3checked(!rectangleCheckbox3checked)
             : rectangleCheckbox3checked;
@@ -76,7 +87,7 @@ const Choices = ( { onCheckboxChange } ) => {
         style={styles.rectangleCheckbox}
         checked={rectangleCheckbox2checked}
         onPress={() => {
-          setRectangleCheckbox2checked(!rectangleCheckbox2checked);
+          handleServantChange(!rectangleCheckbox2checked)
           rectangleCheckbox3checked
             ? setRectangleCheckbox3checked(!rectangleCheckbox3checked)
             : rectangleCheckbox3checked;
@@ -93,16 +104,16 @@ const Choices = ( { onCheckboxChange } ) => {
         onPress={() => {
           setRectangleCheckbox3checked(!rectangleCheckbox3checked);
           rectangleCheckboxchecked
-            ? setRectangleCheckboxchecked(!rectangleCheckboxchecked)
+            ? handleDeaconChange(!rectangleCheckboxchecked)
             : rectangleCheckboxchecked;
           rectangleCheckbox2checked
-            ? setRectangleCheckbox2checked(!rectangleCheckbox2checked)
+            ? handleServantChange(!rectangleCheckbox2checked)
             : rectangleCheckbox2checked;
           rectangleCheckbox1checked
-            ? setRectangleCheckbox1checked(!rectangleCheckbox1checked)
+            ? handleSSTeacherChange(!rectangleCheckbox1checked)
             : rectangleCheckbox3checked;
           rectangleCheckbox4checked
-            ? setRectangleCheckbox4checked(!rectangleCheckbox4checked)
+            ? handleAlhanChange(!rectangleCheckbox4checked)
             : rectangleCheckbox4checked;
         }}
         containerStyle={styles.rectangleCheckbox3Layout}

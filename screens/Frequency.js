@@ -11,13 +11,6 @@ import ExperienceQuestions from "../components/experienceQuestions";
 import BackArrow from "../components/backArrow";
 import MainContainer from "./MainContainer";
 
-function tabs(navigation) {
-  navigation.reset({
-    index: 0,
-    routes: [{ name: "MainContainer" }],
-  });
-  return;
-}
 
 const Frequency = ({ route, navigation }) => {
   const { person } = "you";
