@@ -1,25 +1,47 @@
   import React, { useState } from "react";
   import { StyleSheet, View, Text, Pressable } from "react-native";
+  import firestore from '@react-native-firebase/firestore';
   import Choices from "../components/choices";
   import { useNavigation } from "@react-navigation/native";
   import BackArrow from "../components/backArrow";
+  import auth from '@react-native-firebase/auth';
 
   const SelectApplicable = ({ navigation }) => {
-    const [isRectangleChecked, setIsRectangleChecked] = useState(false);
+    const user = auth().currentUser;
+    const [isDeacon, setDeacon] = useState(false);
+    const [isAlhan, setAlhan] = useState(false);
+    const [isSSTeach, setSSTeach] = useState(false);
+    const [isServants, setServant] = useState(false);
 
-    const handleCheckboxChange = (checked) => {
-      setIsRectangleChecked(checked);
+    const handleDeacon = (checked) => {
+      setDeacon(checked);
+    };
+    const handleAlhan = (checked) => {
+      setAlhan(checked);
+    };
+    const handleSSTeacher = (checked) => {
+      setSSTeeach(checked);
+    };
+    const handleServant = (checked) => {
+      setServant(checked)
     };
     
-    const [selectedOptions, setSelectedOptions] = useState({
-      Deacon: false,
-      AlhanTeacher: false,
-      SundaySchoolTeacher: false,
-      ServantsMeetingAttendance: false,
-    });
   
-    const handleContinue = () => {
-      if (isRectangleChecked) {
+    const handleContinue = async (user) => {
+      try {
+        await firestore().collection('users').doc(user.uid).update({
+          isDeacon: isDeacon, 
+          isAlhan: isAlhan,
+          isSSTeach: isSSTeach,
+          isServants: isServants,
+        });
+      }
+      
+      catch (error) {
+        console.error("Error uploading selected boxes into database ", error);
+        Alert.alert("Error", "Could not update roles");
+      }
+      if (isDeacon) {
         navigation.navigate("DeaconRank"); // Navigate to rank.js
       } else {
         navigation.navigate("Experience"); // Navigate to Experience.js
@@ -35,17 +57,17 @@
           <Text style={styles.titleText}>Select all that apply</Text>
         </View>
         <View style={styles.choices}>
-          <Choices onCheckboxChange={handleCheckboxChange}/>
+          <Choices onDeaconChange={handleDeacon} onAlhanChange={handleAlhan} onSSTeacherChange={handleSSTeacher} onServantChange={handleServant}/>
         </View>
         <View style={styles.continueLayout}>
-          <Pressable onPress={handleContinue}>
+          <Pressable onPress={() => handleContinue(user)}>
             <Text style={styles.continuetext}>Continue</Text>
           </Pressable>
         </View>
         <View style={styles.progressBar}>
           <View style={styles.track}>
             <View style={styles.filled} />
-          </View>
+          </View>x
         </View>
       </View>
     );

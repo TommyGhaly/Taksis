@@ -8,13 +8,13 @@ import BackArrow from "../components/backArrow";
 const SelectChurch = ({navigation}) => {
   const [selectedChurch, setSelectedChurch] = useState(null);
   const user = auth().currentUser;
-  const { person } = "you";
   const handleChurchSelection = (church) => {
     setSelectedChurch(church);
   };
   const handleContinue = async (user) => {
+    console.log("Current User: ", user);
       try {
-        await firestore().collection('users').doc(user.uid).update({
+        await firestore().collection('users').doc("107auoAkFCdnYjpB3pM59dUEXU82").set({
           church: selectedChurch, 
         });
 
@@ -33,7 +33,7 @@ const SelectChurch = ({navigation}) => {
       </View>
       <View style={styles.title}>
         <Text style={styles.titleText}>
-          Select the church {person} regularly attend
+          Select the church you regularly attend
         </Text>
       </View>
       <View style={styles.position}>
