@@ -12,8 +12,8 @@ import SignUp from "./screens/SignUp";
 import SelectChurch from "./screens/SelectChurch";
 import SelectApplicable from "./screens/SelectApplicable";
 import DeaconRank from "./screens/DeaconRank";
-import Frequency from "./screens/Frequency";
 import Experience from "./screens/Experience";
+import Frequency from "./screens/Frequency";
 import PasswordReset from "./screens/PasswordReset";
 import ChurchRegistration from "./screens/ChurchRegistration";
 import MainContainer from "./screens/MainContainer";
@@ -62,11 +62,11 @@ function AppNavigator() {
               options={{ animation: "default" }}
             />
             <Stack.Screen name="PasswordReset" component={PasswordReset} />
-            {/* <Stack.Screen
+            { <Stack.Screen
               name="MainContainer"
               component={MainContainer}
               options={{ gestureEnabled: false }}
-              /> */}
+              /> }
           </>
         ) : (
           <>
@@ -82,8 +82,8 @@ function AppNavigator() {
               component={SelectApplicable}
             />
             <Stack.Screen name="DeaconRank" component={DeaconRank} />
-            <Stack.Screen name="Frequency" component={Frequency} />
             <Stack.Screen name="Experience" component={Experience} />
+            <Stack.Screen name="Frequency" component={Frequency} />
             <Stack.Screen name="MainContainer" component={MainContainer} />
             <Stack.Screen
               name="ChurchInformation"

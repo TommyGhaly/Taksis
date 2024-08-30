@@ -24,7 +24,7 @@ const DeaconRank = ({ route, navigation }) => {
       </View>
       <View style={styles.continueLayout}>
         <Pressable
-          onPress={() => navigation.navigate("Frequency")}
+          onPress={() => navigation.navigate("Experience")}
         >
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>

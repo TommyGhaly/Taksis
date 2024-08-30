@@ -1,18 +1,31 @@
-import * as React from "react";
-import {
-  StyleSheet,
-  View,
-  Image,
-  Pressable,
-  Text,
-  TextInput,
-} from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import React, { useState } from "react";
+import { StyleSheet, View, Pressable, Text, Alert } from "react-native";
+import firestore from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth';
 import Churches from "../components/churches";
 import BackArrow from "../components/backArrow";
 
-const SelectChurch = ({ route, navigation }) => {
+const SelectChurch = ({navigation}) => {
+  const [selectedChurch, setSelectedChurch] = useState(null);
+  const user = auth().currentUser;
   const { person } = "you";
+  const handleChurchSelection = (church) => {
+    setSelectedChurch(church);
+  };
+  const handleContinue = async (user) => {
+      try {
+        await firestore().collection('users').doc(user.uid).update({
+          church: selectedChurch, 
+        });
+
+        // Navigate to the next screen or show a success message
+        navigation.navigate("SelectApplicable");
+      } catch (error) {
+        console.error("Error updating user church: ", error);
+        Alert.alert("Error", "Could not update church information. Please try again.");
+      }
+  };
+
   return (
     <View style={styles.loadout}>
       <View style={styles.backarrow}>
@@ -24,7 +37,7 @@ const SelectChurch = ({ route, navigation }) => {
         </Text>
       </View>
       <View style={styles.position}>
-        <Churches />
+        <Churches onSelectChurch={handleChurchSelection} />
       </View>
       <View
         style={[styles.dontSeeYourChurchRegiste, styles.dontSeeYourContainer]}
@@ -43,7 +56,7 @@ const SelectChurch = ({ route, navigation }) => {
       <View style={styles.continueLayout}>
         <Pressable
           onPress={() =>
-            navigation.navigate("SelectApplicable")
+            handleContinue(user)
           }
         >
           <Text style={styles.continuetext}>Continue</Text>

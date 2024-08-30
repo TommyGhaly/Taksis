@@ -27,7 +27,7 @@ const Item = ({ item, onPress, backgroundColor, textColor }) => (
   );
 
 
-  const Churches = () => {
+  const Churches = ({onSelectChurch}) => {
     const [selectedId, setSelectedId] = useState();
 
   const renderItem = ({ item }) => {
@@ -36,25 +36,28 @@ const Item = ({ item, onPress, backgroundColor, textColor }) => (
 
     return (
       <Item
-        item={item}
-        onPress={() => setSelectedId(item.id)}
-        backgroundColor={backgroundColor}
-        textColor={color}
+          item={item}
+          onPress={() => {
+              setSelectedId(item.id);
+              onSelectChurch(item.title);  // Pass the selected church title to the parent
+          }}
+          backgroundColor={backgroundColor}
+          textColor={color}
       />
-    );
-  };
-  return (
-    <SafeAreaView style={styles.container}>
-      <FlatList
-        data={DATA}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        extraData={selectedId}
-        showsVerticalScrollIndicator={false}
-      />
-    </SafeAreaView>
   );
-  };
+};
+return (
+  <SafeAreaView style={styles.container}>
+    <FlatList
+      data={DATA}
+      renderItem={renderItem}
+      keyExtractor={(item) => item.id.toString()}
+      extraData={selectedId}
+      showsVerticalScrollIndicator={false}
+    />
+  </SafeAreaView>
+);
+};
   const styles = StyleSheet.create({
     title: {
        fontSize: 24,
