@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Text, StyleSheet, View } from "react-native";
 import { CheckBox } from "@rneui/themed";
 
-const Group = () => {
+const Choices = ( { onCheckboxChange } ) => {
   const [rectangleCheckboxchecked, setRectangleCheckboxchecked] =
     useState(false);
   const [rectangleCheckbox1checked, setRectangleCheckbox1checked] =
@@ -13,6 +13,11 @@ const Group = () => {
     useState(false);
   const [rectangleCheckbox4checked, setRectangleCheckbox4checked] =
     useState(false);
+
+  const handleCheckboxChange = (checked) => {
+    setRectangleCheckboxchecked(checked);
+    onCheckboxChange(checked); // Pass the checkbox state up to the parent component
+  };
   return (
     <View style={styles.deaconParent}>
       <Text style={[styles.deacon, styles.teacherTypo]}>Deacon</Text>
@@ -39,7 +44,9 @@ const Group = () => {
         style={styles.rectangleCheckbox}
         checked={rectangleCheckboxchecked}
         onPress={() => {
-          setRectangleCheckboxchecked(!rectangleCheckboxchecked);
+          const newCheckedState = !rectangleCheckboxchecked;
+          handleCheckboxChange(newCheckedState);
+
           rectangleCheckbox3checked
             ? setRectangleCheckbox3checked(!rectangleCheckbox3checked)
             : rectangleCheckbox3checked;
@@ -233,4 +240,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Group;
+export default Choices;
