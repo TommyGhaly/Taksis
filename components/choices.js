@@ -3,32 +3,32 @@ import { Text, StyleSheet, View } from "react-native";
 import { CheckBox } from "@rneui/themed";
 
 const Choices = ( { onDeaconChange, onAlhanChange, onSSTeachChange, onServantChange } ) => {
-  const [rectangleCheckboxchecked, setRectangleCheckboxchecked] =
+  const [deacon, setDeacon] =
     useState(false);
-  const [rectangleCheckbox1checked, setRectangleCheckbox1checked] =
+  const [alhan, setAlhan] =
     useState(false);
-  const [rectangleCheckbox2checked, setRectangleCheckbox2checked] =
+  const [ssTeach, setSSTeach] =
     useState(false);
-  const [rectangleCheckbox3checked, setRectangleCheckbox3checked] =
+  const [servant, setServant] =
     useState(false);
-  const [rectangleCheckbox4checked, setRectangleCheckbox4checked] =
+  const [none, setNone] =
     useState(false);
 
-  const handleDeaconChange = (checked) => {
-    setRectangleCheckboxchecked(checked);
+  const handleDeacon = (checked) => {
+    setDeacon(checked)
     onDeaconChange(checked); // Pass the checkbox state up to the parent component
   };
-  const handleAlhanChange = (checked) => {
-    setRectangleCheckbox4chekcked(checked);
-    onAlhanChange(checked);
+  const handleAlhan = (checked) => {
+    setAlhan(checked);
+    onAlhanChange(checked); // Pass the checkbox state up to the parent component
   };
-  const handleSSTeacherChange = (checked) => {
-    setRectangleCheckbox1chekcked(checked);
-    onAlhanChange(checked);
+  const handleSSTeach = (checked) => {
+    setSSTeach(checked);
+    onSSTeachChange(checked); // Pass the checkbox state up to the parent component
   };
-  const handleServantChange = (checked) => {
-    setRectangleCheckbox2chekcked(checked);
-    onAlhanChange(checked);
+  const handleServant = (checked) => {
+    setServant(checked);
+    onServantChange(checked); // Pass the checkbox state up to the parent component
   };
   return (
     <View style={styles.deaconParent}>
@@ -54,13 +54,10 @@ const Choices = ( { onDeaconChange, onAlhanChange, onSSTeachChange, onServantCha
       <View style={[styles.groupChild1, styles.groupChildLayout]} />
       <CheckBox
         style={styles.rectangleCheckbox}
-        checked={rectangleCheckboxchecked}
+        checked={deacon}
         onPress={() => {
-          handleDeaconChange(!rectangleCheckboxchecked);
-
-          rectangleCheckbox3checked
-            ? setRectangleCheckbox3checked(!rectangleCheckbox3checked)
-            : rectangleCheckbox3checked;
+          handleDeacon(!deacon);
+          none ? setNone(!none) : none;
         }}
         containerStyle={styles.rectangleCheckboxLayout}
         iconType="material-community"
@@ -70,12 +67,10 @@ const Choices = ( { onDeaconChange, onAlhanChange, onSSTeachChange, onServantCha
       />
       <CheckBox
         style={styles.rectangleCheckbox}
-        checked={rectangleCheckbox1checked}
+        checked={ssTeach}
         onPress={() => {
-          handleSSTeacherChange(!rectangleCheckbox1checked);
-          rectangleCheckbox3checked
-            ? setRectangleCheckbox3checked(!rectangleCheckbox3checked)
-            : rectangleCheckbox3checked;
+          handleSSTeach(!ssTeach);
+          none? setNone(!none) : none;
         }}
         containerStyle={styles.rectangleCheckbox1Layout}
         iconType="material-community"
@@ -85,12 +80,10 @@ const Choices = ( { onDeaconChange, onAlhanChange, onSSTeachChange, onServantCha
       />
       <CheckBox
         style={styles.rectangleCheckbox}
-        checked={rectangleCheckbox2checked}
+        checked={servant}
         onPress={() => {
-          handleServantChange(!rectangleCheckbox2checked)
-          rectangleCheckbox3checked
-            ? setRectangleCheckbox3checked(!rectangleCheckbox3checked)
-            : rectangleCheckbox3checked;
+          handleServant(!servant);
+          none ? setNone(!none) : none;
         }}
         containerStyle={styles.rectangleCheckbox2Layout}
         iconType="material-community"
@@ -100,21 +93,13 @@ const Choices = ( { onDeaconChange, onAlhanChange, onSSTeachChange, onServantCha
       />
       <CheckBox
         style={styles.rectangleCheckbox}
-        checked={rectangleCheckbox3checked}
+        checked={none}
         onPress={() => {
-          setRectangleCheckbox3checked(!rectangleCheckbox3checked);
-          rectangleCheckboxchecked
-            ? handleDeaconChange(!rectangleCheckboxchecked)
-            : rectangleCheckboxchecked;
-          rectangleCheckbox2checked
-            ? handleServantChange(!rectangleCheckbox2checked)
-            : rectangleCheckbox2checked;
-          rectangleCheckbox1checked
-            ? handleSSTeacherChange(!rectangleCheckbox1checked)
-            : rectangleCheckbox3checked;
-          rectangleCheckbox4checked
-            ? handleAlhanChange(!rectangleCheckbox4checked)
-            : rectangleCheckbox4checked;
+          setNone(!none);
+          deacon ? handleDeacon(!deacon) : deacon;
+          alhan ? handleAlhan(!alhan) : alhan
+          ssTeach ? handleSSTeach(!ssTeach) : ssTeach
+          servant ? handleServant(!servant) : servant 
         }}
         containerStyle={styles.rectangleCheckbox3Layout}
         iconType="material-community"
@@ -124,12 +109,10 @@ const Choices = ( { onDeaconChange, onAlhanChange, onSSTeachChange, onServantCha
       />
       <CheckBox
         style={styles.rectangleCheckbox}
-        checked={rectangleCheckbox4checked}
+        checked={alhan}
         onPress={() => {
-          setRectangleCheckbox4checked(!rectangleCheckbox4checked);
-          rectangleCheckbox3checked
-            ? setRectangleCheckbox3checked(!rectangleCheckbox3checked)
-            : rectangleCheckbox3checked;
+          handleAlhan(!alhan);
+          none ? setNone(!none) : none;
         }}
         containerStyle={styles.rectangleCheckbox4Layout}
         iconType="material-community"

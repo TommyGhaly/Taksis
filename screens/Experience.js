@@ -10,9 +10,23 @@ import {
 import Slider from "@react-native-community/slider";
 import { useNavigation } from "@react-navigation/native";
 import BackArrow from "../components/backArrow";
-const Experience = ({ route, navigation }) => {
-  const { person } = "you";
+import firestore from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth';
+
+const Experience = ({ navigation }) => {
   const [slider, setSlider] = useState(5);
+  const user = auth().currentUser;
+  const handleContinue = async (user) => {
+    try {
+      await firestore().collection('users').doc(user.uid).update({
+        experience: slider   
+      });
+      navigation.navigate("Frequency");
+    } catch (error) {
+      console.error("Error updating user experience: ", error);
+      Alert.alert("Error", "Could not update experience information. Please try again.");
+    }
+  };
   return (
     <View style={styles.frequency}>
       <View style={styles.backarrow}>
@@ -20,7 +34,7 @@ const Experience = ({ route, navigation }) => {
       </View>
       <View style={styles.title}>
         <Text style={styles.titleText}>
-          How much experience do you have on a scale from 1-10?
+          How much experience being a deacon do you have on a scale from 1-10?
         </Text>
       </View>
       <Text style={[styles.sliderText, styles.sliderTextPosition]}>
@@ -44,7 +58,7 @@ const Experience = ({ route, navigation }) => {
         </View>
       </View>
       <View style={styles.continueLayout}>
-        <Pressable onPress={() => navigation.navigate("Frequency")}>
+        <Pressable onPress={() => handleContinue(user)}>
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>
       </View>

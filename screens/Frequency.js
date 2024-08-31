@@ -6,16 +6,36 @@ import {
   Pressable,
   TouchableOpacity,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import ExperienceQuestions from "../components/experienceQuestions";
+import FrequencyQuestions from "../components/frequencyQuestions";
 import BackArrow from "../components/backArrow";
-import MainContainer from "./MainContainer";
+import firestore from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth';
 
 
-const Frequency = ({ route, navigation }) => {
-  const { person } = "you";
-  const [selectedAge, setSelectedAge] = useState('');
 
+const Frequency = ({ navigation }) => {
+  const user = auth().currentUser;
+  const [selectedAge, setSelectedAge] = useState();
+  const [frequency, setFrequency] = useState();
+
+  const handleAge = (checked) => {
+    setSelectedAge(checked);
+  };
+  const handleFrequency = (checked) => {
+    setFrequency(checked);
+  };
+  const handleContinue = async (user) => {
+    try {
+      await firestore().collection('users').doc(user.uid).update({
+        frequency: frequency,
+        age: selectedAge   
+      });
+      navigation.navigate("MainContainer");
+    } catch (error) {
+      console.error("Error updating user frequency: ", error);
+      Alert.alert("Error", "Could not update frequency information. Please try again.");
+    }; 
+  };
   return (
     <View style={styles.experience}>
       <View style={styles.backarrow}>
@@ -26,7 +46,7 @@ const Frequency = ({ route, navigation }) => {
       </View>
 
       <View style={styles.wrapper}>
-        <ExperienceQuestions />
+        <FrequencyQuestions onAgeChange={handleAge} onFrequencyChange={handleFrequency}/>
       </View>
       <View style={styles.title2}>
         <Text style={styles.titleText}>
@@ -35,7 +55,7 @@ const Frequency = ({ route, navigation }) => {
       </View>
       <View style={[styles.filled, styles.trackLayout]} />
       <View style={styles.continueLayout}>
-        <Pressable onPress={() => navigation.navigate('MainContainer')}>
+        <Pressable onPress={() => handleContinue(user)}>
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>
       </View>

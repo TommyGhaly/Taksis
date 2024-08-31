@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useState, useEffect } from "react";
 import {
   Image,
   StyleSheet,
@@ -8,9 +9,32 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import firestore from "@react-native-firebase/firestore";
+import auth from "@react-native-firebase/auth";
 
 const SettingsContent = () => {
   const navigation = useNavigation();
+  const [userRoles, setUserRoles] = useState({
+    name: ""
+  });
+
+  useEffect(() => {
+    const fetchUserRoles = async () => {
+      try {
+        const user = auth().currentUser;
+        if (user) {
+          const userDoc = await firestore().collection("users").doc(user.uid).get();
+          if (userDoc.exists) {
+            setUserRoles(userDoc.data());
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching user roles: ", error);
+      }
+    };
+
+    fetchUserRoles();
+  }, []);
   return (
     <View style={styles.component1}>
       <View style={styles.attendancetitleWrapper}>
@@ -25,7 +49,7 @@ const SettingsContent = () => {
       </View>
       <View style={[styles.rectangleParent, styles.groupChildPosition]}>
         <View style={[styles.groupChild, styles.groupChildPosition]} />
-        <Text style={styles.firstLast}>First Last</Text>
+        <Text style={styles.firstLast}>{userRoles.name}</Text>
       </View>
       <Text style={[styles.account, styles.roleTypo]}>Account</Text>
       <Text style={[styles.role, styles.roleTypo]}>Role</Text>

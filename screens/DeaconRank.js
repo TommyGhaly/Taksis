@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useState } from "react";
 import {
   StyleSheet,
   View,
@@ -8,23 +9,41 @@ import {
 } from "react-native";
 import Rank from "../components/rank";
 import BackArrow from "../components/backArrow";
-import { useNavigation } from "@react-navigation/native";
-const DeaconRank = ({ route, navigation }) => {
-  const { person } = "you";
+import firestore from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth';
+const DeaconRank = ({ navigation }) => {
+  const [rank, setRank] = useState(null);
+  const user = auth().currentUser;
+  const handleRank = (selectedRank) => {
+    setRank(selectedRank);
+  }
+  const handleContinue = async (user) => {
+    try {
+      await firestore().collection('users').doc(user.uid).update({
+        rank: rank, 
+      });
+
+      // Navigate to the next screen or show a success message
+      navigation.navigate("Experience");
+    } catch (error) {
+      console.error("Error updating user deacon: ", error);
+      Alert.alert("Error", "Could not update deacon information. Please try again.");
+    }
+};
   return (
     <View style={styles.deaconrank}>
       <View style={styles.backarrow}>
         <BackArrow />
       </View>
       <View style={styles.rank}>
-        <Rank style={styles.rank} />
+        <Rank style={styles.rank} onSelectRank={handleRank} />
       </View>
       <View style={styles.title}>
-        <Text style={styles.titleText}>What rank of deacon are {person}?</Text>
+        <Text style={styles.titleText}>What rank of deacon are you?</Text>
       </View>
       <View style={styles.continueLayout}>
         <Pressable
-          onPress={() => navigation.navigate("Experience")}
+          onPress={() => handleContinue(user)}
         >
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>

@@ -12,9 +12,8 @@ const SelectChurch = ({navigation}) => {
     setSelectedChurch(church);
   };
   const handleContinue = async (user) => {
-    console.log("Current User: ", user);
       try {
-        await firestore().collection('users').doc("107auoAkFCdnYjpB3pM59dUEXU82").set({
+        await firestore().collection('users').doc(user.uid).update({
           church: selectedChurch, 
         });
 
