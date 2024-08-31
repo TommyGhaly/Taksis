@@ -8,7 +8,6 @@ import BackArrow from "../components/backArrow";
 const SelectChurch = ({navigation}) => {
   const [selectedChurch, setSelectedChurch] = useState(null);
   const user = auth().currentUser;
-  const { person } = "you";
   const handleChurchSelection = (church) => {
     setSelectedChurch(church);
   };
@@ -33,7 +32,7 @@ const SelectChurch = ({navigation}) => {
       </View>
       <View style={styles.title}>
         <Text style={styles.titleText}>
-          Select the church {person} regularly attend
+          Select the church you regularly attend
         </Text>
       </View>
       <View style={styles.position}>

@@ -17,8 +17,6 @@ import Frequency from "./screens/Frequency";
 import PasswordReset from "./screens/PasswordReset";
 import ChurchRegistration from "./screens/ChurchRegistration";
 import MainContainer from "./screens/MainContainer";
-import ChurchInformation from "./screens/ChurchInformation";
-import ChurchLogo from "./screens/ChurchLogo";
 
 const Stack = createNativeStackNavigator();
 function AppNavigator() {
@@ -65,13 +63,15 @@ function AppNavigator() {
             { <Stack.Screen
               name="MainContainer"
               component={MainContainer}
-              options={{ gestureEnabled: false }}
               /> }
           </>
         ) : (
           <>
-            {/* <Stack.Screen name="Home" component={Home} /> */}
-            <Stack.Screen name="SelectChurch" component={SelectChurch} />
+            { <Stack.Screen
+              name="MainContainer"
+              component={MainContainer}
+              /> }       
+              <Stack.Screen name="SelectChurch" component={SelectChurch} />
             <Stack.Screen
               name="ChurchRegistration"
               component={ChurchRegistration}
@@ -83,13 +83,7 @@ function AppNavigator() {
             />
             <Stack.Screen name="DeaconRank" component={DeaconRank} />
             <Stack.Screen name="Experience" component={Experience} />
-            <Stack.Screen name="Frequency" component={Frequency} />
-            <Stack.Screen name="MainContainer" component={MainContainer} />
-            <Stack.Screen
-              name="ChurchInformation"
-              component={ChurchInformation}
-            />
-            <Stack.Screen name="ChurchLogo" component={ChurchLogo} />
+            <Stack.Screen name="Frequency" component={Frequency} />   
             {/* <Stack.Screen
               name="ChurchVerification"
               component={ChurchVerification}

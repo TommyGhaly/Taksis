@@ -1,19 +1,25 @@
 import React, { useState } from "react";
 import { StyleSheet, View, Text } from "react-native";
-import DropDownPicker from "react-native-dropdown-picker";
 import Slider from "@react-native-community/slider";
 import { Picker } from "@react-native-picker/picker";
 
-const ExperienceQuestions = () => {
+const FrequencyQuestions = ({ onAgeChange, onFrequencyChange }) => {
   const [slider, setSlider] = useState(5);
-  const [selectedAge, setSelectedAge] = useState("");
-
+  const [selectedAge, setSelectedAge] = useState(null);
+  const handleAge = (age) => {
+    setSelectedAge(age);
+    onAgeChange(age);
+  };
+  const handleFrequency = (frequency) => {
+    setSlider(frequency);
+    onFrequencyChange(frequency);
+  };
   return (
     <View style={styles.experiencequestions}>
       <View style={styles.wrapper}>
         <Picker
           selectedValue={selectedAge}
-          onValueChange={(itemValue, itemIndex) => setSelectedAge(itemValue)}
+          onValueChange={(itemValue, itemIndex) => handleAge(itemValue)}
           itemStyle={styles.pickertext}
         >
           {Array.from({ length: 100 }, (_, i) => (
@@ -34,7 +40,7 @@ const ExperienceQuestions = () => {
       <Slider
         style={styles.slider}
         value={slider}
-        onValueChange={(value) => setSlider(value)}
+        onValueChange={(value) => handleFrequency(value)}
         minimumValue={0}
         maximumValue={10}
         minimumTrackTintColor="#147efb"
@@ -147,4 +153,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ExperienceQuestions;
+export default FrequencyQuestions;

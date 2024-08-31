@@ -15,27 +15,18 @@ import BackArrow from "../components/backArrow";
 
 // TODO: fix the continue button and backarrow forgot password set new password
 const SignUp = ({ navigation }) => {
-  const [phoneNumber, setPhoneNumber] = useState("");
-
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   GoogleSignin.configure({
     webClientId:
       "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
   });
 
-  const isValidPhoneNumber = (phone) => {
-    const phoneRegex = /^\d{10}$/;
-    return phoneRegex.test(phone);
-  };
 
   const onGoogleButtonPress = async () => {
-    if (!isValidPhoneNumber(phoneNumber)) {
-      Alert.alert(
-        "Invalid Phone Number",
-        "Please enter your phone number with no dashes."
-      );
-      return;
-    }
-
+    
     try {
       // Check if your device supports Google Play
       await GoogleSignin.hasPlayServices({
@@ -72,7 +63,8 @@ const SignUp = ({ navigation }) => {
         await firestore().collection("users").doc(user.uid).set({
           uid: user.uid,
           name: user.displayName,
-          phoneNumber: phoneNumber,
+          admin: false,
+          superAdmin: false
         });
       }
     } catch (error) {
@@ -89,31 +81,38 @@ const SignUp = ({ navigation }) => {
         <Text style={styles.titleText}>Sign Up</Text>
       </View>
       <TextInput
+        value={name}
+        autoCapitalize="words"
         style={[styles.name, styles.nameBorder]}
         placeholder="Enter your name"
         placeholderTextColor="#8e8e93"
+        onChangeText={(text) => setName(text)}
       />
       <TextInput
-        style={[styles.phone, styles.nameBorder]}
-        placeholder="Enter your phone number (no dashes)"
-        placeholderTextColor="#8e8e93"
-        value={phoneNumber}
-        onChangeText={setPhoneNumber}
-      />
-      <TextInput
+        value={email}
+        autoCapitalize="none"
         style={[styles.email, styles.nameBorder]}
         placeholder="Enter your email"
         placeholderTextColor="#8e8e93"
+        onChangeText={(text) => setEmail(text)}
       />
       <TextInput
+        value={password}
+        autoCapitalize="none"
+        secureTextEntry={true}
         style={[styles.password, styles.nameBorder]}
         placeholder="Enter your password"
         placeholderTextColor="#8e8e93"
+        onChangeText={(text) => setPassword(text)}
       />
       <TextInput
+        value={confirmPassword}
+        autoCapitalize="none"
+        secureTextEntry={true}
         style={[styles.passwordconfirm, styles.nameBorder]}
         placeholder="Confirm your password"
         placeholderTextColor="#8e8e93"
+        onChangeText={(text) => setConfirmPassword(text)}
       />
       <View style={styles.divider}>
         <View style={[styles.dividerChild, styles.dividerPosition]} />
@@ -122,7 +121,7 @@ const SignUp = ({ navigation }) => {
       </View>
       <View style={styles.continueLayout}>
         <Pressable
-          onPress={() => navigation.navigate("SelectChurch", { person: "you" })}
+          onPress={() => navigation.navigate("SelectChurch")}
         >
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>
@@ -248,27 +247,22 @@ const styles = StyleSheet.create({
     position: "absolute",
   },
   name: {
-    top: "21.83%",
+    top: "26.83%",
     bottom: "72.42%",
     color: "#8e8e93",
   },
-  phone: {
-    top: "29.93%",
-    bottom: "64.32%",
-    color: "#8e8e93",
-  },
   email: {
-    top: "38.03%",
+    top: "35.03%",
     bottom: "56.22%",
     color: "#8e8e93",
   },
   password: {
-    top: "46.13%",
+    top: "43.13%",
     bottom: "48.12%",
     color: "#8e8e93",
   },
   passwordconfirm: {
-    top: "54.23%",
+    top: "51.23%",
     bottom: "40.02%",
     color: "#8e8e93",
   },
@@ -294,7 +288,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: "2.11%",
-    top: "70.54%",
+    top: "67.54%",
     right: "4.33%",
     bottom: "27.35%",
     left: "4.58%",
@@ -330,7 +324,7 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   appleregistration: {
-    bottom: "57.48%",
+    bottom: "59.48%",
     backgroundColor: "#333",
     top: "0%",
     left: "0%",
@@ -357,7 +351,7 @@ const styles = StyleSheet.create({
   },
   component2: {
     height: "14.91%",
-    top: "75%",
+    top: "72%",
     bottom: "10.09%",
     right: "4.83%",
     width: "91.09%",
@@ -365,7 +359,7 @@ const styles = StyleSheet.create({
     position: "absolute",
   },
   title: {
-    top: "15.023%",
+    top: "17.023%",
     left: 16,
     height: "6.103%",
     width: "88.295%",
@@ -379,7 +373,7 @@ const styles = StyleSheet.create({
     color: "#8e8e93",
   },
   continueLayout: {
-    bottom: 271,
+    bottom: 294,
     left: 16,
     height: 50,
     width: 358,
