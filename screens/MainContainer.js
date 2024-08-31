@@ -1,23 +1,53 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import HomeScreen from "./HomeScreen";
-import Attendence from "./Attendence";
+import AlhanAttendance from "./AlhanAttendance";
+import SundaySchoolAttendance from "./SundaySchoolAttendance";
+import ServantsMeetingAttendance from "./ServantsMeetingAttendance";
 import LearnItNavigation from "./LearnIt/LearnItNavigation";
-import Settings from "./Settings/SettingsNavigation";
+import SettingsNavigation from "./Settings/SettingsNavigation";
+import EditSchedule from "./EditSchedule";
+import firestore from "@react-native-firebase/firestore";
+import auth from "@react-native-firebase/auth";
 import DefaultTheme from "@react-navigation/native";
-import { defaultTheme } from "@rneui/base";
 
 const Tab = createBottomTabNavigator();
 const myTheme = {
   ...DefaultTheme,
   colors: {
     primary: "#147efb",
-    card: 'rgb(255, 255, 255)',
-    background: "#000"
+    card: "rgb(255, 255, 255)",
+    background: "#000",
   },
-}; 
+};
+
 export default function MainContainer() {
+  const [userRoles, setUserRoles] = useState({
+    isAlhan: false,
+    isSSTeacher: false,
+    isServant: false,
+    isAdmin: false,
+  });
+
+  useEffect(() => {
+    const fetchUserRoles = async () => {
+      try {
+        const user = auth().currentUser;
+        if (user) {
+          const userDoc = await firestore().collection("users").doc(user.uid).get();
+          if (userDoc.exists) {
+            setUserRoles(userDoc.data());
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching user roles: ", error);
+      }
+    };
+
+    fetchUserRoles();
+  }, []);
+
   return (
     <NavigationContainer independent={true} theme={myTheme}>
       <Tab.Navigator
@@ -33,9 +63,26 @@ export default function MainContainer() {
         }}
       >
         <Tab.Screen name="Home" component={HomeScreen} />
-        <Tab.Screen name="Attendence" component={Attendence} />
+        {userRoles.isAlhan && (
+          <Tab.Screen name="Alhan" component={AlhanAttendance} />
+        )}
+        {userRoles.isSSTeacher && (
+          <Tab.Screen
+            name="Sunday School"
+            component={SundaySchoolAttendance}
+          />
+        )}
         <Tab.Screen name="Learn It" component={LearnItNavigation} />
-        <Tab.Screen name="Settings" component={Settings} />
+        {userRoles.isServant && (
+          <Tab.Screen
+            name="Servants Meeting"
+            component={ServantsMeetingAttendance}
+          />
+        )}
+        {userRoles.isAdmin && (
+          <Tab.Screen name="Edit Schedule" component={EditSchedule} />
+        )}
+        <Tab.Screen name="Settings" component={SettingsNavigation} />
       </Tab.Navigator>
     </NavigationContainer>
   );

@@ -8,8 +8,7 @@ import {
   ScrollView,
 } from "react-native";
 import AttendenceList from "../components/attendenceList";
-const Attendence = () => {
-  //figure out the how to get the final ones in frame and fix the checkboxes
+const ServantsMeetingAttendance = () => {
   return (
     <ScrollView style={styles.attendence} showsVerticalScrollIndicator={false}>
       <View style={styles.attendancetitlePosition}>
@@ -72,4 +71,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Attendence;
+export default ServantsMeetingAttendance;

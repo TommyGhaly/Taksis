@@ -44,7 +44,7 @@ const SignIn = ({ navigation }) => {
 				<Pressable style={[styles.appleregistration, styles.appleregistrationLayout]}>
 					<View style={styles.appleFlexBox}>
 						<Image style={styles.applelogoIcon} resizeMode="cover" source={require("../assets/appleLogo.png")} />
-						<Text style={[styles.registerWithApple, styles.registerTypo]}>Register with apple</Text>
+						<Text style={[styles.registerWithApple, styles.registerTypo]}>Sign in with apple</Text>
 					</View>
 				</Pressable>
 				<Pressable 
