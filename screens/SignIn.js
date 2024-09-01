@@ -1,89 +1,161 @@
 import * as React from "react";
-import { ImageBackground, StyleSheet, View, TextInput, Pressable, Text, TouchableOpacity, Image } from "react-native";
-import auth from '@react-native-firebase/auth';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import BackArrow from '../components/backArrow';
+import { useState } from "react";  // Import useState from React
+import {
+  ImageBackground,
+  StyleSheet,
+  View,
+  TextInput,
+  Pressable,
+  Text,
+  TouchableOpacity,
+  Image,
+  Alert,
+} from "react-native";
+import auth from "@react-native-firebase/auth";
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import BackArrow from "../components/backArrow";
 
-//do the back arrow and set up the continue button with the right parameters
-function tabs(navigation) {
-	navigation.reset({
-		index: 0,
-		routes: [{ name: 'MainContainer' }],
-	});
-	return
-};
 const SignIn = ({ navigation }) => {
-	return (
-		<View style={[styles.signIn, styles.iconLayout]}>
-			<View style={styles.backarrow}>
-				<BackArrow />
-			</View>
-			<View style={styles.title}>
-				<Text style={styles.titleText}>Sign In</Text>
-			</View>
-			<ImageBackground style={styles.lastsuppericon} resizeMode="cover" source={require("../assets/lastSupperIcon.png")} />
-			<TextInput style={[styles.phoneOrEmail, styles.passwordBorder]} placeholder="Enter your phone or email" placeholderTextColor="#8e8e93" />
-			<TextInput style={[styles.password, styles.passwordBorder]} placeholder="Enter your password" placeholderTextColor="#8e8e93" />
-			<TouchableOpacity style={[styles.continuebutton, styles.appleFlexBox]} activeOpacity={0.2} onPress={() => (tabs(navigation))}>
-				<Text style={styles.continue}>Continue</Text>
-			</TouchableOpacity>
-			<Pressable style={[styles.forgotPasswordSetContainer, styles.containerPosition]} onPress={() => { navigation.navigate('PasswordReset') }}>
-				<Text style={[styles.text1, styles.orTypo]}>
-					<Text style={styles.forgotPassword}>{`Forgot password? `}</Text>
-					<Text style={styles.setNewPassword}>Set new password</Text>
-				</Text>
-			</Pressable>
-			<View style={styles.dividerWrapper}>
-				<View style={styles.divider}>
-					<View style={[styles.dividerChild, styles.dividerPosition]} />
-					<Text style={[styles.or, styles.orTypo]}>or</Text>
-					<View style={[styles.dividerItem, styles.dividerPosition]} />
-				</View>
-			</View>
-			<View style={styles.component2}>
-				<Pressable style={[styles.appleregistration, styles.appleregistrationLayout]}>
-					<View style={styles.appleFlexBox}>
-						<Image style={styles.applelogoIcon} resizeMode="cover" source={require("../assets/appleLogo.png")} />
-						<Text style={[styles.registerWithApple, styles.registerTypo]}>Sign in with apple</Text>
-					</View>
-				</Pressable>
-				<Pressable 
-				style={[styles.googleregistration, styles.appleregistrationLayout]}
-				onPress={onGoogleButtonPress}
-				>
-					<View style={styles.google}>
-						<Image style={styles.applelogoIcon} resizeMode="cover" source={require("../assets/googleLogo.png")} />
-						<Text style={[styles.registerWithGoogle, styles.registerTypo]}>Sign in with Google</Text>
-					</View>
-				</Pressable>
-			</View>
-			<TouchableOpacity style={[styles.dontHaveAccountContainer, styles.containerPosition]} activeOpacity={0.2} onPress={() => { navigation.navigate("SignUp") }}>
-				<Text style={[styles.text2, styles.orTypo]}>
-					<Text style={styles.forgotPassword}>{`Don’t have account? `}</Text>
-					<Text style={styles.setNewPassword}>Sign up</Text>
-				</Text>
-			</TouchableOpacity>
-		</View>);
+  // State for managing email and password input
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  // Function to handle sign-in with email and password
+  const handleSignIn = async () => {
+    try {
+      // Sign in with email and password
+      await auth().signInWithEmailAndPassword(email, password);
+      // If successful, navigate to the next screen (replace with your desired screen)
+      navigation.navigate("Home"); // Replace "Home" with your desired route name
+    } catch (error) {
+      // Handle errors, such as incorrect email/password
+      console.error("Sign In Error:", error);
+      Alert.alert("Sign In Error", error.message);
+    }
+  };
+
+  return (
+    <View style={[styles.signIn, styles.iconLayout]}>
+      <View style={styles.backarrow}>
+        <BackArrow />
+      </View>
+      <View style={styles.title}>
+        <Text style={styles.titleText}>Sign In</Text>
+      </View>
+      <ImageBackground
+        style={styles.lastsuppericon}
+        resizeMode="cover"
+        source={require("../assets/lastSupperIcon.png")}
+      />
+      <TextInput
+        style={[styles.phoneOrEmail, styles.passwordBorder]}
+        placeholder="Enter your email"
+        placeholderTextColor="#8e8e93"
+        onChangeText={setEmail}  // Update email state
+        value={email}  // Bind value to state
+        keyboardType="email-address"  // Ensure correct keyboard type
+        autoCapitalize="none"  // Avoid auto-capitalization for email
+      />
+      <TextInput
+        style={[styles.password, styles.passwordBorder]}
+        placeholder="Enter your password"
+        placeholderTextColor="#8e8e93"
+        onChangeText={setPassword}  // Update password state
+        value={password}  // Bind value to state
+        secureTextEntry  // Hide password input
+      />
+      <TouchableOpacity
+        style={[styles.continuebutton, styles.appleFlexBox]}
+        activeOpacity={0.2}
+        onPress={handleSignIn}  // Attach handleSignIn function
+      >
+        <Text style={styles.continue}>Continue</Text>
+      </TouchableOpacity>
+      <Pressable
+        style={[styles.forgotPasswordSetContainer, styles.containerPosition]}
+        onPress={() => {
+          navigation.navigate("PasswordReset");
+        }}
+      >
+        <Text style={[styles.text1, styles.orTypo]}>
+          <Text style={styles.forgotPassword}>{`Forgot password? `}</Text>
+          <Text style={styles.setNewPassword}>Set new password</Text>
+        </Text>
+      </Pressable>
+      <View style={styles.dividerWrapper}>
+        <View style={styles.divider}>
+          <View style={[styles.dividerChild, styles.dividerPosition]} />
+          <Text style={[styles.or, styles.orTypo]}>or</Text>
+          <View style={[styles.dividerItem, styles.dividerPosition]} />
+        </View>
+      </View>
+      <View style={styles.component2}>
+        <Pressable
+          style={[styles.appleregistration, styles.appleregistrationLayout]}
+        >
+          <View style={styles.appleFlexBox}>
+            <Image
+              style={styles.applelogoIcon}
+              resizeMode="cover"
+              source={require("../assets/appleLogo.png")}
+            />
+            <Text style={[styles.registerWithApple, styles.registerTypo]}>
+              Sign in with apple
+            </Text>
+          </View>
+        </Pressable>
+        <Pressable
+          style={[styles.googleregistration, styles.appleregistrationLayout]}
+          onPress={() => onGoogleButtonPress(navigation)}
+        >
+          <View style={styles.google}>
+            <Image
+              style={styles.applelogoIcon}
+              resizeMode="cover"
+              source={require("../assets/googleLogo.png")}
+            />
+            <Text style={[styles.registerWithGoogle, styles.registerTypo]}>
+              Sign in with Google
+            </Text>
+          </View>
+        </Pressable>
+      </View>
+      <TouchableOpacity
+        style={[styles.dontHaveAccountContainer, styles.containerPosition]}
+        activeOpacity={0.2}
+        onPress={() => {
+          navigation.navigate("SignUp");
+        }}
+      >
+        <Text style={[styles.text2, styles.orTypo]}>
+          <Text style={styles.forgotPassword}>{`Don’t have an account? `}</Text>
+          <Text style={styles.setNewPassword}>Sign up</Text>
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
 };
 
 async function onGoogleButtonPress(navigation) {
-	try {
-		// Check if your device supports Google Play
-		await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-		// Get the users ID token
-		const { idToken } = await GoogleSignin.signIn();
+  try {
+    // Check if your device supports Google Play
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    // Get the user's ID token
+    const { idToken } = await GoogleSignin.signIn();
 
-		// Create a Google credential with the token
-		const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+    // Create a Google credential with the token
+    const googleCredential = auth.GoogleAuthProvider.credential(idToken);
 
-		// Sign-in the user with the credential
-		const userCredential = await auth().signInWithCredential(googleCredential);
+    // Sign in the user with the credential
+    const userCredential = await auth().signInWithCredential(googleCredential);
 
-		return userCredential;
-	} catch (error) {
-		console.error(error);
-	}
+    return userCredential;
+  } catch (error) {
+    console.error(error);
+    Alert.alert("Google Sign-In Error", error.message);  // Show error alert
+  }
 }
+
 
 const styles = StyleSheet.create({
 	iconLayout: {
@@ -204,7 +276,7 @@ const styles = StyleSheet.create({
 	},
 	text2: {
 		textAlign: "center",
-		left: "50%",
+		left: "35%",
 	},
 	forgotPasswordSetContainer: {
 		top: "64.93%"

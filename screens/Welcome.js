@@ -24,19 +24,19 @@ const Welcome = ({ navigation }) => {
       <Pressable
         style={[styles.rectangleParent, styles.rectangleLayout]}
         onPress={() => {
-          navigation.navigate("SignUp");
+          navigation.navigate("SignIn");
         }}
       >
         <View style={[styles.frameChild, styles.frameLayout]} />
-        <Text style={[styles.signUp, styles.signTypo]}>Sign up</Text>
+        <Text style={[styles.signUp, styles.signTypo]}>Sign in</Text>
       </Pressable>
       <Pressable
         style={[styles.rectangleGroup, styles.rectangleLayout]}
         onPress={() => {
-          navigation.navigate("SignIn");
+          navigation.navigate("SignUp");
         }}
       >
-        <Text style={[styles.signIn, styles.signTypo]}>Sign in</Text>
+        <Text style={[styles.signIn, styles.signTypo]}>Sign up</Text>
       </Pressable>
     </View>
   );

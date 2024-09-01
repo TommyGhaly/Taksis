@@ -13,43 +13,52 @@ import firestore from "@react-native-firebase/firestore";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import BackArrow from "../components/backArrow";
 
-// TODO: fix the continue button and backarrow forgot password set new password
 const SignUp = ({ navigation }) => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
   GoogleSignin.configure({
-    webClientId:
-      "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
+    webClientId: "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
   });
 
+  const handleSignUp = async () => {
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match!");
+      return;
+    }
 
-  const onGoogleButtonPress = async () => {
-    
     try {
-      // Check if your device supports Google Play
-      await GoogleSignin.hasPlayServices({
-        showPlayServicesUpdateDialog: true,
-      });
-      // Get the users ID token
-      const { idToken } = await GoogleSignin.signIn();
+      // Create user with email and password
+      const userCredential = await auth().createUserWithEmailAndPassword(email, password);
+      const user = userCredential.user;
 
-      // Create a Google credential with the token
-      const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+      // Check if user object is created successfully
+      if (user) {
+        // Update display name
+        await user.updateProfile({ displayName: name });
 
-      // Sign-in the user with the credential
-      const userCredential = await auth().signInWithCredential(
-        googleCredential
-      );
+        // Ensure to reload the user profile to get the updated display name
+        await auth().currentUser.reload();
 
-      // Check if the user exists in Firestore and write them if they don't
-      await writeUserToDb(userCredential.user);
+        // Get the updated user after reload
+        const updatedUser = auth().currentUser;
 
-      // Navigate to the SelectChurch screen if sign-up is successful
-      navigation.navigate("SelectChurch");
+        if (updatedUser && updatedUser.displayName) {
+          // Write updated user to Firestore
+          await writeUserToDb(updatedUser);
+
+          // Navigate to SelectChurch after successful signup
+          navigation.navigate("SelectChurch");
+        } else {
+          console.error("Failed to get updated user profile.");
+          Alert.alert("Sign Up Error", "Failed to get updated user profile.");
+        }
+      }
     } catch (error) {
-      console.error(error);
+      console.error("Sign Up Error:", error);
+      Alert.alert("Sign Up Error", error.message);
     }
   };
 
@@ -57,18 +66,32 @@ const SignUp = ({ navigation }) => {
     try {
       // Check if the user exists in Firestore
       const userDoc = await firestore().collection("users").doc(user.uid).get();
-
       if (!userDoc.exists) {
         // Write the user to the database if they don't exist
         await firestore().collection("users").doc(user.uid).set({
           uid: user.uid,
           name: user.displayName,
+          email: user.email,
           admin: false,
-          superAdmin: false
+          superAdmin: false,
         });
       }
     } catch (error) {
       console.error("Error handling Firestore operations: ", error);
+    }
+  };
+
+  const onGoogleButtonPress = async () => {
+    try {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const { idToken } = await GoogleSignin.signIn();
+      const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+      const userCredential = await auth().signInWithCredential(googleCredential);
+      await writeUserToDb(userCredential.user);
+      navigation.navigate("SelectChurch");
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Google Sign-In Error", error.message);
     }
   };
 
@@ -120,9 +143,7 @@ const SignUp = ({ navigation }) => {
         <View style={[styles.dividerItem, styles.dividerPosition]} />
       </View>
       <View style={styles.continueLayout}>
-        <Pressable
-          onPress={() => navigation.navigate("SelectChurch")}
-        >
+        <Pressable onPress={handleSignUp}>
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>
       </View>
