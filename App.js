@@ -51,22 +51,6 @@ function AppNavigator() {
     setUser(user);
     if (initializing) setInitializing(false);
   }
-  
-  useEffect(() => {
-    const checkUserData = async () => {
-      if (user) {
-        try {
-          const userDoc = await firestore().collection("users").doc(user.uid).get();
-          console.log("User document exists:", userDoc.exists);
-          setIsNewUser(!userDoc.exists || Object.keys(userDoc.data()).length === 0);
-        } catch (error) {
-          console.error("Error checking user data:", error);
-        }
-      }
-    };
-  
-    checkUserData();
-  }, [user]);
 
   if (initializing) return null; // Return null or a loading indicator while initializing
 

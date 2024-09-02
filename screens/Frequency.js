@@ -5,6 +5,7 @@ import {
   Text,
   Pressable,
   TouchableOpacity,
+  Alert
 } from "react-native";
 import FrequencyQuestions from "../components/frequencyQuestions";
 import BackArrow from "../components/backArrow";
@@ -50,7 +51,7 @@ const Frequency = ({ navigation }) => {
       </View>
       <View style={styles.title2}>
         <Text style={styles.titleText}>
-          How much frequently do you go to church on a scale from 1-10?
+          How often do you go to church on a scale from 1-10?
         </Text>
       </View>
       <View style={[styles.filled, styles.trackLayout]} />

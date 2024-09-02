@@ -34,6 +34,18 @@ const SignIn = ({ navigation }) => {
     }
   };
 
+  const onGoogleButtonPress = async () => {
+    try {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const { idToken } = await GoogleSignin.signIn();
+      const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+      await auth().signInWithCredential(googleCredential);
+	
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   return (
     <View style={[styles.signIn, styles.iconLayout]}>
       <View style={styles.backarrow}>
@@ -106,7 +118,7 @@ const SignIn = ({ navigation }) => {
         </Pressable>
         <Pressable
           style={[styles.googleregistration, styles.appleregistrationLayout]}
-          onPress={() => onGoogleButtonPress(navigation)}
+          onPress={onGoogleButtonPress}
         >
           <View style={styles.google}>
             <Image
@@ -135,27 +147,6 @@ const SignIn = ({ navigation }) => {
     </View>
   );
 };
-
-async function onGoogleButtonPress(navigation) {
-  try {
-    // Check if your device supports Google Play
-    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-    // Get the user's ID token
-    const { idToken } = await GoogleSignin.signIn();
-
-    // Create a Google credential with the token
-    const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-
-    // Sign in the user with the credential
-    const userCredential = await auth().signInWithCredential(googleCredential);
-
-    return userCredential;
-  } catch (error) {
-    console.error(error);
-    Alert.alert("Google Sign-In Error", error.message);  // Show error alert
-  }
-}
-
 
 const styles = StyleSheet.create({
 	iconLayout: {
