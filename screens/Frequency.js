@@ -5,6 +5,7 @@ import {
   Text,
   Pressable,
   TouchableOpacity,
+  Alert
 } from "react-native";
 import FrequencyQuestions from "../components/frequencyQuestions";
 import BackArrow from "../components/backArrow";
@@ -15,8 +16,8 @@ import ProgressBar from "../components/progressBar";
 const Frequency = ({ route, navigation }) => {
   const { from } = route.params
   const user = auth().currentUser;
-  const [selectedAge, setSelectedAge] = useState();
-  const [frequency, setFrequency] = useState();
+  const [selectedAge, setSelectedAge] = useState(1);
+  const [frequency, setFrequency] = useState(5);
   const fromApplicable = (from === 'SelectApplicable')
   const handleAge = (checked) => {
     setSelectedAge(checked);

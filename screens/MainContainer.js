@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { StyleSheet } from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createDrawerNavigator } from "@react-navigation/drawer";
@@ -11,6 +12,7 @@ import SettingsNavigation from "./Settings/SettingsNavigation";
 import EditSchedule from "./EditSchedule";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import CustomHeader from '../components/customHeader';
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
@@ -22,14 +24,15 @@ const myTheme = {
     card: "rgb(255, 255, 255)",
     background: "#000",
   },
+  headerShown: false,
 };
 
 // Tab Navigator containing the main screens
-function TabNavigator({ userRoles }) {
+function TabNavigator({ userRoles, shouldShowDrawer }) {
   return (
     <Tab.Navigator
       screenOptions={{
-        headerShown: false,
+        headerShown: {shouldShowDrawer}, 
         gestureEnabled: true,
         gestureDirection: "horizontal",
         tabBarStyle: {
@@ -39,7 +42,14 @@ function TabNavigator({ userRoles }) {
         },
       }}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Home" component={HomeScreen} 
+      options={{
+        headerStyle: {
+          backgroundColor: '#000',
+          opacity: 1,
+        },
+        headerTintColor: 'white',
+      }}/>
       <Tab.Screen name="Learn It" component={LearnItNavigation} />
       {userRoles.admin && (
         <Tab.Screen name="Edit Schedule" component={EditSchedule} />
@@ -81,25 +91,34 @@ export default function MainContainer() {
     userRoles.isAlhan || userRoles.isSSTeacher || userRoles.isServant;
 
   return (
-    <NavigationContainer independent={true} theme={myTheme}>
+    <NavigationContainer independent={true} theme={myTheme} style={styles.header}>
       {shouldShowDrawer ? (
         <Drawer.Navigator
-          screenOptions={{
-            drawerStyle: {
-              backgroundColor: "#1e1e1e",
-              width: 270,
-            },
-            headerShown: false,
-            drawerActiveTintColor: "#147efb",
-            drawerInactiveTintColor: "#8e8e93"
-          }}
-        >
+        screenOptions={({ navigation }) => ({
+          drawerStyle: {
+            backgroundColor: "#1e1e1e",
+            width: 270,
+          },
+          headerShown: true,
+          headerLeft: () => <CustomHeader navigation={navigation} />,
+          drawerActiveTintColor: "#147efb",
+          drawerInactiveTintColor: "#8e8e93",
+          headerStyle: {
+            backgroundColor: 'black',
+            opacity: 1
+          },
+          headerTintColor: '#fff'
+        })}
+      >
           {/* Add the TabNavigator as the main content */}
+          {/* <Button title="Show drawer" onPress={() => console.log("Show drawer")} /> */}
           <Drawer.Screen
-            name="Home"
-            options={{ headerShown: false }}
+            name="This Week's Service"
+            options={{
+              headerShown: true
+            }}
           >
-            {() => <TabNavigator userRoles={userRoles} />}
+            {() => <TabNavigator userRoles={userRoles} shouldShowDrawer={shouldShowDrawer}/>}
           </Drawer.Screen>
           {/* Conditionally render attendance screens in the drawer */}
           {userRoles.isAlhan && (
@@ -119,8 +138,19 @@ export default function MainContainer() {
           )}
         </Drawer.Navigator>
       ) : (
-        <TabNavigator userRoles={userRoles} />
+        <TabNavigator userRoles={userRoles} shouldShowDrawer={shouldShowDrawer} />
       )}
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    marginTop: 60,
+    backgroundColor: "#000"
+  },
+  header: {
+    backgroundColor: '#1e1e1e',
+  },
+});

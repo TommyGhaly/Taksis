@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
     height: "100%",
     width: "100%",
-    marginTop: 60,
+    // marginTop: 60,
   },
 });
 

@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
     backgroundColor: "#000",
-    marginTop: 60,
+    marginTop: 0,
   },
   content: {
     marginTop: 20,

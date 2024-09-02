@@ -4,8 +4,8 @@ import { Image, StyleSheet, Text, View } from "react-native";
 const HomeScreenContent = ({ props }) => {
     return (
         <View style={styles.homescreencontent}>
-            <Image style={[styles.homescreencontentChild, styles.homescreencontentLayout]} resizeMode="cover" source={require("../assets/Rectangle 17.png")} />
-            <Text style={[styles.thisWeeksService, styles.serviceFlexBox]}>This Week’s Service</Text>
+            {/* <Image style={[styles.homescreencontentChild, styles.homescreencontentLayout]} resizeMode="cover" source={require("../assets/Rectangle 17.png")} /> */}
+            {/* <Text style={[styles.thisWeeksService, styles.serviceFlexBox]}>This Week’s Service</Text> */}
             <Image style={[styles.homescreencontentItem, styles.homescreencontentLayout]} resizeMode="cover" source={require("../assets/Rectangle 17.png")} />
             <Text style={[styles.yourNextService, styles.serviceFlexBox]}>Your Next Service</Text>
             <View style={[styles.homescreencontentInner, styles.homescreencontentPosition]} />

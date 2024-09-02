@@ -92,6 +92,7 @@ const SignUp = ({ navigation }) => {
       const googleCredential = auth.GoogleAuthProvider.credential(idToken);
       const userCredential = await auth().signInWithCredential(googleCredential);
       await writeUserToDb(userCredential.user);
+      setSignUp(true);
       navigation.navigate("SelectChurch");
     } catch (error) {
       console.error(error);
