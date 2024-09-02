@@ -10,14 +10,14 @@ import FrequencyQuestions from "../components/frequencyQuestions";
 import BackArrow from "../components/backArrow";
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
+import ProgressBar from "../components/progressBar";
 
-
-
-const Frequency = ({ navigation }) => {
+const Frequency = ({ route, navigation }) => {
+  const { from } = route.params
   const user = auth().currentUser;
   const [selectedAge, setSelectedAge] = useState();
   const [frequency, setFrequency] = useState();
-
+  const fromApplicable = (from === 'SelectApplicable')
   const handleAge = (checked) => {
     setSelectedAge(checked);
   };
@@ -53,7 +53,9 @@ const Frequency = ({ navigation }) => {
           How much frequently do you go to church on a scale from 1-10?
         </Text>
       </View>
-      <View style={[styles.filled, styles.trackLayout]} />
+      <View style={styles.progressBar}>
+        <ProgressBar startPercentage={fromApplicable? 40 : 80} endPercentage={100}/>
+      </View>
       <View style={styles.continueLayout}>
         <Pressable onPress={() => handleContinue(user)}>
           <Text style={styles.continuetext}>Continue</Text>
@@ -88,8 +90,13 @@ const styles = StyleSheet.create({
   wrapper: {
     top: "18.661%",
   },
-  progressbar: {
+  progressBar: {
     top: 84,
+    right: "12.2137%",
+    bottom: "88.26%",
+    left: "12.2137%",
+    position: "absolute",
+    backgroundColor: "#000",
   },
   trackLayout: {
     height: 4,

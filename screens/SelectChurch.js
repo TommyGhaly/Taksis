@@ -4,6 +4,7 @@ import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import Churches from "../components/churches";
 import BackArrow from "../components/backArrow";
+import ProgressBar from "../components/progressBar";
 
 const SelectChurch = ({navigation}) => {
   const [selectedChurch, setSelectedChurch] = useState(null);
@@ -62,9 +63,7 @@ const SelectChurch = ({navigation}) => {
         </Pressable>
       </View>
       <View style={styles.progressBar}>
-        <View style={styles.track}>
-          <View style={styles.filled} />
-        </View>
+        <ProgressBar startPercentage={1} endPercentage={20}/>
       </View>
       <View style={styles.backbutton}>
         <BackArrow />

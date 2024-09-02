@@ -12,8 +12,11 @@ import auth from "@react-native-firebase/auth";
 import firestore from "@react-native-firebase/firestore";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import BackArrow from "../components/backArrow";
+import { useUser } from "../UserContext";
+import ProgressBar from "../components/progressBar";
 
 const SignUp = ({ navigation }) => {
+  const { setSignUp } = useUser();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -50,7 +53,8 @@ const SignUp = ({ navigation }) => {
           await writeUserToDb(updatedUser);
 
           // Navigate to SelectChurch after successful signup
-          navigation.navigate("SelectChurch");
+          setSignUp(true); 
+          navigation.navigate("SelectChurch"); 
         } else {
           console.error("Failed to get updated user profile.");
           Alert.alert("Sign Up Error", "Failed to get updated user profile.");
@@ -148,9 +152,7 @@ const SignUp = ({ navigation }) => {
         </Pressable>
       </View>
       <View style={styles.progressBar}>
-        <View style={[styles.track, styles.trackPosition]}>
-          <View style={[styles.filled, styles.trackPosition]} />
-        </View>
+        <ProgressBar startPercentage={0} endPercentage={1}/>
       </View>
       <View style={styles.component2}>
         <Pressable

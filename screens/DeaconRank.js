@@ -11,6 +11,8 @@ import Rank from "../components/rank";
 import BackArrow from "../components/backArrow";
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
+import ProgressBar from "../components/progressBar";
+
 const DeaconRank = ({ navigation }) => {
   const [rank, setRank] = useState(null);
   const user = auth().currentUser;
@@ -49,9 +51,7 @@ const DeaconRank = ({ navigation }) => {
         </Pressable>
       </View>
       <View style={styles.progressBar}>
-        <View style={styles.track}>
-          <View style={styles.filled} />
-        </View>
+        <ProgressBar startPercentage={40} endPercentage={60}/>
       </View>
     </View>
   );

@@ -12,6 +12,7 @@ import { useNavigation } from "@react-navigation/native";
 import BackArrow from "../components/backArrow";
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
+import ProgressBar from "../components/progressBar";
 
 const Experience = ({ navigation }) => {
   const [slider, setSlider] = useState(5);
@@ -21,7 +22,7 @@ const Experience = ({ navigation }) => {
       await firestore().collection('users').doc(user.uid).update({
         experience: slider   
       });
-      navigation.navigate("Frequency");
+      navigation.navigate("Frequency", { from: 'Experience' });
     } catch (error) {
       console.error("Error updating user experience: ", error);
       Alert.alert("Error", "Could not update experience information. Please try again.");
@@ -53,9 +54,7 @@ const Experience = ({ navigation }) => {
         <Text style={[styles.veryVeryOften, styles.oftenTypo]}>Very often</Text>
       </View>
       <View style={styles.progressBar}>
-        <View style={styles.track}>
-          <View style={styles.filled} />
-        </View>
+        <ProgressBar startPercentage={60} endPercentage={80}/>
       </View>
       <View style={styles.continueLayout}>
         <Pressable onPress={() => handleContinue(user)}>

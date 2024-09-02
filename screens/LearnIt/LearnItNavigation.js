@@ -21,12 +21,20 @@ import LearnItSundayTheotokia from "./Tesbeha/LearnItSundayTheotokia";
 import LearnItResponses from "./Vespers/LearnItResponses";
 import LearnItDoxology from "./Vespers/LearnItDoxology";
 import LearnItVersesCymbols from "./Vespers/LearnItVersesCymbals";
+import DefaultTheme from "@react-navigation/native";
 
 const LearnNav = createNativeStackNavigator();
-
+const myTheme = {
+  ...DefaultTheme,
+  colors: {
+    primary: "#000",
+    card: "rgb(255, 255, 255)",
+    background: "#000",
+  },
+};
 export default function LearnNavigation() {
   return (
-    <NavigationContainer independent={true}>
+    <NavigationContainer independent={true} theme={myTheme}>
       <LearnNav.Navigator
         initialRouteName="MainMenu"
         screenOptions={{

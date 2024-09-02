@@ -4,6 +4,7 @@ import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import Choices from "../components/choices";
 import BackArrow from "../components/backArrow";
+import ProgressBar from "../components/progressBar";
 
 const SelectApplicable = ({ navigation }) => {
   const user = auth().currentUser;
@@ -46,7 +47,7 @@ const SelectApplicable = ({ navigation }) => {
     if (isDeacon) {
       navigation.navigate("DeaconRank"); // Navigate to rank.js
     } else {
-      navigation.navigate("Frequency"); // Navigate to Experience.js
+      navigation.navigate('Frequency', { from: 'SelectApplicable' });
     }
 
 };
@@ -68,9 +69,7 @@ const SelectApplicable = ({ navigation }) => {
         </Pressable>
       </View>
       <View style={styles.progressBar}>
-        <View style={styles.track}>
-          <View style={styles.filled} />
-        </View>
+        <ProgressBar startPercentage={20} endPercentage={40}/>
       </View>
     </View>
   );

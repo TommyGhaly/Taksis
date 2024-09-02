@@ -15,12 +15,19 @@ import ChildAccountInfo from "./ChildAccountInfo";
 import RequestAdmin from "./RequestAdmin";
 import Settings from "./Settings";
 import SettingsContent from "../../components/settingsContent";
-
+import DefaultTheme from "@react-navigation/native";
 const SettingsNav = createNativeStackNavigator();
-
+const myTheme = {
+  ...DefaultTheme,
+  colors: {
+    primary: "#000",
+    card: "rgb(255, 255, 255)",
+    background: "#000",
+  },
+};
 export default function SettingsNavigation() {
   return (
-    <NavigationContainer independent={true}>
+    <NavigationContainer independent={true} theme={myTheme}>
       <SettingsNav.Navigator
         initialRouteName="Settings"
         screenOptions={{

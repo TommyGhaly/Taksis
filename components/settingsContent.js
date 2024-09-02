@@ -291,10 +291,19 @@ const SettingsContent = () => {
           Apply for admin
         </Text>
         <Image
-          style={[styles.vectorIcon14, styles.vectorIconLayout]}
+          style={[styles.groupChild, styles.vectorIconLayout]}
           resizeMode="cover"
           source={require("../assets/Vector.png")}
         />
+      </TouchableOpacity>
+      <TouchableOpacity 
+      style={[styles.signOut, styles.signoutlayout]}
+      activeOpacity={0.2}
+      onPress={() => auth().signOut()}>
+        <View style={[styles.groupChild, styles.groupChildPosition]} />
+        <Text style={styles.signouttext}>
+          Log out
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -507,6 +516,30 @@ const styles = StyleSheet.create({
   rectangleParent10: {
     top: "100.29%",
     bottom: "-3.97%",
+  },
+  signOut: {
+    top: "112.15%"
+  },
+  signOutsize:{
+    height:50,
+  },
+  signoutlayout: {
+      height: "7.68%",
+      left: "0%",
+      right: "0%",
+      position: "absolute",
+      width: "100%",
+  },
+  signouttext: {
+    top: "25%",
+    height: "88%",
+    fontSize: 22,
+    textAlign: "left",
+    lineHeight: 22,
+    left: "39.16%",
+    color: "#ff000d",
+    fontFamily: "Roboto-Regular",
+    position: "absolute",
   },
   component1: {
     height: 680,

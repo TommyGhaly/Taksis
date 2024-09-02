@@ -14,7 +14,7 @@ const Settings = () => {
   const navigation = useNavigation();
   return (
     <View style={styles.settings}>
-      <ScrollView>
+      <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           <SettingsContent style={styles.settingscontent} navigation={this.navigation}/>
         </View>
@@ -25,14 +25,16 @@ const Settings = () => {
 
 const styles = StyleSheet.create({
   content: {
-    top: 80,
+    top: 20,
     height: "100%",
+    paddingBottom: 180
   },
   settings: {
     backgroundColor: "#000",
     flex: 1,
     height: 852,
     width: "100%",
+    marginTop: 60
   },
 });
 

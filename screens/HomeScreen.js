@@ -36,9 +36,7 @@ const HomeScreen = ({ route }) => {
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
-        <Button style={styles.signOut} mode="contained" onPress={() => auth().signOut()}>
-          Sign Out
-        </Button>
+
         <View style={styles.content}>
           <HomeScreenContent props={inputProps} />
         </View>
@@ -57,7 +55,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
   },
   scrollContainer: {
-    paddingBottom: 1, // Add padding to ensure content is above the bottom tab
+    paddingBottom: 0, // Add padding to ensure content is above the bottom tab
   },
   homescreen: {
     flex: 1,
@@ -67,7 +65,7 @@ const styles = StyleSheet.create({
   },
   content: {
     marginTop: 20,
-    marginLeft: 26,
+    marginLeft: 24,
     width: 317,
   },
   request: {
@@ -78,9 +76,6 @@ const styles = StyleSheet.create({
   },
   signOut: {
     marginTop: 10,
-  },
-  blackspace: {
-    height: 0, // Adjust height to match the bottom tab height
   },
 });
 
