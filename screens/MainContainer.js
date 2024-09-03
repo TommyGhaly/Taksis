@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet } from "react-native";
+import { StyleSheet, View, Text } from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createDrawerNavigator } from "@react-navigation/drawer";
-import HomeScreen from "./HomeScreen";
+import HomeScreenNavigation from "./Home/HomeScreenNavigator";
 import AlhanAttendance from "./AlhanAttendance";
 import SundaySchoolAttendance from "./SundaySchoolAttendance";
 import ServantsMeetingAttendance from "./ServantsMeetingAttendance";
@@ -12,7 +12,7 @@ import SettingsNavigation from "./Settings/SettingsNavigation";
 import EditSchedule from "./EditSchedule";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import CustomHeader from '../components/customHeader';
+import CustomHeader from "../components/customHeader";
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
@@ -24,38 +24,107 @@ const myTheme = {
     card: "rgb(255, 255, 255)",
     background: "#000",
   },
-  headerShown: false,
 };
 
-// Tab Navigator containing the main screens
-function TabNavigator({ userRoles, shouldShowDrawer }) {
+// Define a common header style
+const headerStyle = {
+  backgroundColor: "black",
+};
+
+function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
   return (
     <Tab.Navigator
-      screenOptions={{
-        headerShown: {shouldShowDrawer}, 
-        gestureEnabled: true,
-        gestureDirection: "horizontal",
+      screenOptions={({ route, navigation }) => ({
+        headerShown: true,  // Show the Tab header
+        headerStyle: headerStyle, // Apply common header style
+        headerTintColor: "#fff",
         tabBarStyle: {
           height: 90,
           backgroundColor: "rgba(34,36,40,1)",
           borderTopWidth: 0,
         },
-      }}
+        headerLeft: showDrawer ? () => <CustomHeader navigation={navigation}/> : undefined, // Conditionally render CustomHeader
+      })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} 
-      options={{
-        headerStyle: {
-          backgroundColor: '#000',
-          opacity: 1,
-        },
-        headerTintColor: 'white',
-      }}/>
-      <Tab.Screen name="Learn It" component={LearnItNavigation} />
+      <Tab.Screen
+        name="This Week's Services"
+        component={HomeScreenNavigation}
+        listeners={{
+          focus: () => setHomeTitle("This Week's Services"),
+        }}
+      />
+      <Tab.Screen
+        name="Learn to Serve"
+        component={LearnItNavigation}
+        listeners={{
+          focus: () => setHomeTitle("Learn to Serve"),
+        }}
+      />
       {userRoles.admin && (
-        <Tab.Screen name="Edit Schedule" component={EditSchedule} />
+        <Tab.Screen
+          name="Edit Schedule"
+          component={EditSchedule}
+          listeners={{
+            focus: () => setHomeTitle("Edit Schedule"),
+          }}
+        />
       )}
-      <Tab.Screen name="Settings" component={SettingsNavigation} />
+      <Tab.Screen
+        name="Settings"
+        component={SettingsNavigation}
+        listeners={{
+          focus: () => setHomeTitle("Settings"),
+        }}
+      />
     </Tab.Navigator>
+  );
+}
+
+function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
+  return (
+    <Drawer.Navigator
+      screenOptions={({ navigation, route }) => ({
+        drawerStyle: {
+          backgroundColor: "#1e1e1e",
+          width: 270,
+        },
+        headerShown: true,
+        headerTitle: route.name === 'Home' ? homeTitle : route.name, // Use homeTitle for Home, otherwise use route.name
+        headerLeft: () => <CustomHeader navigation={navigation} />,
+        drawerActiveTintColor: "#147efb",
+        drawerInactiveTintColor: "#8e8e93",
+        headerStyle: headerStyle,
+        headerTintColor: "#fff",
+      })}
+    >
+      <Drawer.Screen
+        name="Home"
+        options={{ headerShown: false }} // Hide the drawer header when the tab is active
+      >
+        {({ navigation }) => (
+          <TabNavigator
+            userRoles={userRoles}
+            setHomeTitle={setHomeTitle}
+            showDrawer={true} // Indicate that the drawer should be shown
+          />
+        )}
+      </Drawer.Screen>
+      {userRoles.isAlhan && (
+        <Drawer.Screen name="Alhan Attendance" component={AlhanAttendance} />
+      )}
+      {userRoles.isSSTeacher && (
+        <Drawer.Screen
+          name="Sunday School Attendance"
+          component={SundaySchoolAttendance}
+        />
+      )}
+      {userRoles.isServant && (
+        <Drawer.Screen
+          name="Servants Meeting Attendance"
+          component={ServantsMeetingAttendance}
+        />
+      )}
+    </Drawer.Navigator>
   );
 }
 
@@ -66,6 +135,7 @@ export default function MainContainer() {
     isServant: false,
     admin: false,
   });
+  const [homeTitle, setHomeTitle] = useState("This Week's Services");
 
   useEffect(() => {
     const user = auth().currentUser;
@@ -73,72 +143,39 @@ export default function MainContainer() {
       const unsubscribe = firestore()
         .collection("users")
         .doc(user.uid)
-        .onSnapshot((doc) => {
-          if (doc.exists) {
-            setUserRoles(doc.data());
+        .onSnapshot(
+          (doc) => {
+            if (doc.exists) {
+              setUserRoles(doc.data());
+            }
+          },
+          (error) => {
+            console.error("Error fetching user roles: ", error);
           }
-        }, (error) => {
-          console.error("Error fetching user roles: ", error);
-        });
+        );
 
       // Cleanup the subscription on unmount
       return () => unsubscribe();
     }
   }, []);
 
-  // Determine if the drawer should be shown
   const shouldShowDrawer =
     userRoles.isAlhan || userRoles.isSSTeacher || userRoles.isServant;
 
   return (
-    <NavigationContainer independent={true} theme={myTheme} style={styles.header}>
+    <NavigationContainer independent={true} theme={myTheme}>
       {shouldShowDrawer ? (
-        <Drawer.Navigator
-        screenOptions={({ navigation }) => ({
-          drawerStyle: {
-            backgroundColor: "#1e1e1e",
-            width: 270,
-          },
-          headerShown: true,
-          headerLeft: () => <CustomHeader navigation={navigation} />,
-          drawerActiveTintColor: "#147efb",
-          drawerInactiveTintColor: "#8e8e93",
-          headerStyle: {
-            backgroundColor: 'black',
-            opacity: 1
-          },
-          headerTintColor: '#fff'
-        })}
-      >
-          {/* Add the TabNavigator as the main content */}
-          {/* <Button title="Show drawer" onPress={() => console.log("Show drawer")} /> */}
-          <Drawer.Screen
-            name="This Week's Service"
-            options={{
-              headerShown: true
-            }}
-          >
-            {() => <TabNavigator userRoles={userRoles} shouldShowDrawer={shouldShowDrawer}/>}
-          </Drawer.Screen>
-          {/* Conditionally render attendance screens in the drawer */}
-          {userRoles.isAlhan && (
-            <Drawer.Screen name="Alhan Attendance" component={AlhanAttendance} />
-          )}
-          {userRoles.isSSTeacher && (
-            <Drawer.Screen
-              name="Sunday School Attendance"
-              component={SundaySchoolAttendance}
-            />
-          )}
-          {userRoles.isServant && (
-            <Drawer.Screen
-              name="Servants Meeting Attendance"
-              component={ServantsMeetingAttendance}
-            />
-          )}
-        </Drawer.Navigator>
+        <DrawerNavigator
+          userRoles={userRoles}
+          homeTitle={homeTitle}
+          setHomeTitle={setHomeTitle}
+        />
       ) : (
-        <TabNavigator userRoles={userRoles} shouldShowDrawer={shouldShowDrawer} />
+        <TabNavigator
+          userRoles={userRoles}
+          setHomeTitle={setHomeTitle}
+          showDrawer={false} // Indicate that the drawer is not shown
+        />
       )}
     </NavigationContainer>
   );
@@ -148,9 +185,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     marginTop: 60,
-    backgroundColor: "#000"
+    backgroundColor: "#000",
   },
   header: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: "#1e1e1e",
   },
 });

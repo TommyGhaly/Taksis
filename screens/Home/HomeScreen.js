@@ -6,9 +6,9 @@ import {
 } from "react-native";
 import auth from "@react-native-firebase/auth";
 import { Button } from "react-native-paper";
-import HomeScreenContent from "../components/homeScreenContent";
-import WeekRequest from "../components/weekRequest";
-import { useUser } from "../UserContext";
+import HomeScreenContent from "../../components/homeScreenContent";
+import WeekRequest from "../../components/weekRequest";
+import { useUser } from "../../UserContext";
 
 const HomeScreen = ({ route }) => {
   const { user } = useUser();
