@@ -13,9 +13,11 @@ import ChangeRank from "./ChangeRank";
 import ChangeRoles from "./ChangeRoles";
 import ChildAccountInfo from "./ChildAccountInfo";
 import RequestAdmin from "./RequestAdmin";
+import AddChild from "./AddChild";
 import Settings from "./Settings";
 import SettingsContent from "../../components/settingsContent";
 import DefaultTheme from "@react-navigation/native";
+import AddChild from "./AddChild";
 const SettingsNav = createNativeStackNavigator();
 const myTheme = {
   ...DefaultTheme,
@@ -62,6 +64,7 @@ export default function SettingsNavigation() {
           component={ChildAccountInfo}
         />
         <SettingsNav.Screen name="RequestAdmin" component={RequestAdmin} />
+        <SettingsNav.screen name="AddChild" component={AddChild}/>
       </SettingsNav.Navigator>
     </NavigationContainer>
   );

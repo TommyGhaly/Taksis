@@ -3,6 +3,8 @@ import { StyleSheet, View, Text } from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createDrawerNavigator } from "@react-navigation/drawer";
+import Icon from 'react-native-vector-icons/FontAwesome';  // Import FontAwesome icons
+
 import HomeScreenNavigation from "./Home/HomeScreenNavigator";
 import AlhanAttendance from "./AlhanAttendance";
 import SundaySchoolAttendance from "./SundaySchoolAttendance";
@@ -35,15 +37,38 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
   return (
     <Tab.Navigator
       screenOptions={({ route, navigation }) => ({
-        headerShown: true,  // Show the Tab header
-        headerStyle: headerStyle, // Apply common header style
+        headerShown: true,
+        headerStyle: { backgroundColor: '#333' },  // Apply common header style
         headerTintColor: "#fff",
         tabBarStyle: {
           height: 90,
           backgroundColor: "rgba(34,36,40,1)",
           borderTopWidth: 0,
         },
-        headerLeft: showDrawer ? () => <CustomHeader navigation={navigation}/> : undefined, // Conditionally render CustomHeader
+        tabBarLabel: () => null,  // Hide the labels
+        headerLeft: showDrawer ? () => <CustomHeader navigation={navigation}/> : undefined,
+        tabBarIcon: ({ color, size }) => {
+          let iconName;
+
+          switch (route.name) {
+            case "This Week's Services":
+              iconName = 'home';
+              break;
+            case "Learn to Serve":
+              iconName = 'book';  // Changed to 'book' icon
+              break;
+            case "Edit Schedule":
+              iconName = 'pencil';  // Using 'pencil' as an editing pen
+              break;
+            case "Settings":
+              iconName = 'gear';  // Using 'gear' as a settings icon
+              break;
+            default:
+              iconName = 'question';  // Default icon if route name is not matched
+          }
+
+          return <Icon name={iconName} size={size} color={color} />;
+        },
       })}
     >
       <Tab.Screen

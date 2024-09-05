@@ -32,6 +32,7 @@
     "expo-dev-client": "~4.0.23",
     "expo-firebase": "^0.0.0-alpha.0",
     "expo-image": "~1.12.14",
+    "expo-linear-gradient": "^13.0.2",
     "expo-splash-screen": "~0.27.5",
     "expo-status-bar": "~1.12.1",
     "firebase": "^10.13.0",

@@ -25,7 +25,7 @@ export default function HomeNavigation(){
               gestureDirection: "horizontal",
             }}>
                 <HomeNav.Screen name="Home" component={HomeScreen}/>
-                <HomeNav.Screen name="Request Week" component={RequestWeek}/>
+                <HomeNav.Screen name="RequestWeek" component={RequestWeek}/>
             </HomeNav.Navigator>
 
         </NavigationContainer>

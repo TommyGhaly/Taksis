@@ -26,7 +26,7 @@ const SignIn = ({ navigation }) => {
       // Sign in with email and password
       await auth().signInWithEmailAndPassword(email, password);
       // If successful, navigate to the next screen (replace with your desired screen)
-      navigation.navigate("Home"); // Replace "Home" with your desired route name
+      navigation.navigate("MainContainer"); // Replace "Home" with your desired route name
     } catch (error) {
       // Handle errors, such as incorrect email/password
       console.error("Sign In Error:", error);
