@@ -16,7 +16,7 @@ import { useUser } from "../UserContext";
 import ProgressBar from "../components/progressBar";
 
 const SignUp = ({ navigation }) => {
-  const { setSignUp } = useUser();
+  const { setSignUp } = useUser(true);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -105,6 +105,9 @@ const SignUp = ({ navigation }) => {
       <View style={styles.backarrow}>
         <BackArrow />
       </View>
+      <View style={styles.progressBar}>
+        <ProgressBar startPercentage={0} endPercentage={1}/>
+      </View>
       <View style={styles.title}>
         <Text style={styles.titleText}>Sign Up</Text>
       </View>
@@ -152,9 +155,7 @@ const SignUp = ({ navigation }) => {
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>
       </View>
-      <View style={styles.progressBar}>
-        <ProgressBar startPercentage={0} endPercentage={1}/>
-      </View>
+
       <View style={styles.component2}>
         <Pressable
           style={[styles.appleregistration, styles.appleregistrationPosition]}
@@ -332,8 +333,8 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: "3.29%",
-    width: "84.61%",
-    top: "8.45%",
+    width: 293,
+    top: 84,
     bottom: "88.26%",
     left: "12.2137%",
     position: "absolute",
