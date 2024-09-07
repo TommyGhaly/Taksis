@@ -1,121 +1,121 @@
 import * as React from "react";
-import { Text, StyleSheet, TextInput, Pressable, View } from "react-native";
-import { Button } from "react-native-paper";
+import {
+  Text,
+  StyleSheet,
+  View,
+  Pressable,
+  Alert,
+  ScrollView,
+} from "react-native";
+import { useState } from "react";
+import BackArrow from "../../components/backArrow";
+import firestore from "@react-native-firebase/firestore";
+import auth from "@react-native-firebase/auth";
+import { useNavigation } from "@react-navigation/native";
+import CustomPicker from "../../components/customPicker";
 
 const ChangeAge = () => {
+  const [age, setAge] = useState("18");
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const navigation = useNavigation();
+  const user = auth().currentUser;
+
+  const updateAgeInDB = async (age) => {
+    try {
+      await firestore().collection("users").doc(user.uid).update({
+        age: age,
+      });
+    } catch (error) {
+      Alert.alert(
+        "Error",
+        "Could not update age information. Please try again."
+      );
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (age.trim() === "") {
+      Alert.alert("Error", "Age cannot be empty.");
+      return;
+    }
+    try {
+      await updateAgeInDB(age); // Function to update the age in the DB
+      Alert.alert("Success", "Age updated successfully.");
+      navigation.goBack();
+    } catch (error) {
+      Alert.alert("Error", "Failed to update the age.");
+    }
+  };
+
+  const ageOptions = Array.from({ length: 100 }, (_, i) => (i + 1).toString());
+
   return (
-    <View style={styles.changeage}>
-      <Text style={[styles.howOldAre, styles.oldFlexBox]}>
-        How old are you?
-      </Text>
-      <TextInput style={[styles.changeageChild, styles.changeageChildBorder]} />
-      <Text style={[styles.yearsOld, styles.oldFlexBox]}>years old</Text>
-      <Button
-        style={[styles.backarrow, styles.backarrowPosition]}
-        mode="outlined"
-        onPress={() => navigation.goBack()}
-        contentStyle={styles.backArrowIconBtn}
-      />
+    <ScrollView contentContainerStyle={styles.container}>
+      <BackArrow style={styles.backarrow} />
+      <View style={styles.headerContainer}>
+        <Text style={styles.headerText}>Change Age</Text>
+      </View>
       <Pressable
-        style={[styles.continuebutton, styles.backarrowPosition]}
-        onPress={() => navigation.goBack()}
+        style={styles.pickerContainer}
+        onPress={() => setPickerVisible(true)}
       >
-        <Text style={styles.continue}>Confirm</Text>
+        <Text style={styles.pickerText}>{age}</Text>
       </Pressable>
-    </View>
+      <CustomPicker
+        visible={pickerVisible}
+        onClose={() => setPickerVisible(false)}
+        onSelect={(item) => setAge(item)}
+        data={ageOptions}
+      />
+      <Pressable style={styles.confirmButton} onPress={handleConfirm}>
+        <Text style={styles.confirmText}>Confirm</Text>
+      </Pressable>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  backArrowIconBtn: {
-    height: "2.82%",
-    width: "6.11%",
-  },
-  oldFlexBox: {
-    display: "flex",
-    textAlign: "left",
-    color: "#8e8e93",
-    fontFamily: "Roboto-Regular",
-    alignItems: "center",
-    position: "absolute",
-  },
-  changeageChildBorder: {
-    borderWidth: 1,
-    borderStyle: "solid",
-  },
-  backarrowPosition: {
-    left: "4.07%",
-    position: "absolute",
-  },
-  howOldAre: {
-    height: "6.1%",
-    width: "86.77%",
-    top: "18.66%",
-    left: "6.62%",
-    fontSize: 34,
-    letterSpacing: -0.3,
-    alignItems: "center",
-  },
-  changeageChild: {
-    height: "3.87%",
-    width: "7.38%",
-    top: "27.58%",
-    right: "53.44%",
-    bottom: "68.54%",
-    left: "39.19%",
-    borderRadius: 5,
-    borderColor: "#8e8e93",
-    position: "absolute",
-    borderWidth: 1,
-    borderStyle: "solid",
+  container: {
     backgroundColor: "#000",
-  },
-  yearsOld: {
-    height: "3.29%",
-    width: "30.03%",
-    top: "28.17%",
-    left: "49.36%",
-    fontSize: 14,
-    letterSpacing: -0.1,
-    alignItems: "center",
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 50,
   },
   backarrow: {
-    top: "8.69%",
-    right: "89.82%",
-    bottom: "88.5%",
-    overflow: "hidden",
+    position: "absolute",
+    top: 20,
+    left: 20,
   },
-  continue: {
-    fontSize: 17,
-    letterSpacing: -0.2,
-    fontWeight: "500",
-    fontFamily: "Roboto-Medium",
-    color: "#fff",
-    textAlign: "center",
-  },
-  continuebutton: {
-    height: "5.87%",
-    width: "91.09%",
-    top: "83.57%",
-    right: "4.83%",
-    bottom: "10.56%",
-    borderRadius: 10,
-    backgroundColor: "#333",
-    borderColor: "rgba(0, 0, 0, 0.15)",
-    flexDirection: "row",
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderWidth: 1,
-    borderStyle: "solid",
+  headerContainer: {
+    marginBottom: 30,
     alignItems: "center",
   },
-  changeage: {
-    flex: 1,
-    width: "100%",
-    height: 852,
-    overflow: "hidden",
-    backgroundColor: "#000",
+  headerText: {
+    fontSize: 28,
+    fontWeight: "500",
+    color: "#ffffff",
+  },
+  pickerContainer: {
+    marginBottom: 20,
+    backgroundColor: "#1e1e1e",
+    borderRadius: 10,
+    padding: 15,
+    alignItems: "center",
+  },
+  pickerText: {
+    fontSize: 24,
+    color: "#fff",
+  },
+  confirmButton: {
+    backgroundColor: "#333",
+    borderRadius: 10,
+    paddingVertical: 15,
+    alignItems: "center",
+  },
+  confirmText: {
+    fontSize: 17,
+    color: "#fff",
+    fontWeight: "500",
   },
 });
 

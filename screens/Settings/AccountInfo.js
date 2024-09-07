@@ -20,7 +20,10 @@ const AccountInfo = ({ navigation }) => {
       try {
         const user = auth().currentUser;
         if (user) {
-          const userDoc = await firestore().collection("users").doc(user.uid).get();
+          const userDoc = await firestore()
+            .collection("users")
+            .doc(user.uid)
+            .get();
           if (userDoc.exists) {
             setUserData(userDoc.data());
           }
@@ -49,7 +52,9 @@ const AccountInfo = ({ navigation }) => {
           <Text style={styles.infoText}>{userData.name || "First Last"}</Text>
         </View>
         <View style={styles.infoBlock}>
-          <Text style={styles.infoText}>{userData.email || "example@gmail.com"}</Text>
+          <Text style={styles.infoText}>
+            {userData.email || "example@gmail.com"}
+          </Text>
         </View>
 
         {/* Conditionally render the Rank field if the user is a deacon */}
@@ -70,8 +75,14 @@ const AccountInfo = ({ navigation }) => {
 
         {/* Safely map over children with fallback */}
         {(userData.children || []).map((child, index) => (
-          <TouchableOpacity key={index} style={styles.childInfo} onPress={() => {}}>
-            <Text style={styles.infoText}>{child.name || `Child ${index + 1} First Last`}</Text>
+          <TouchableOpacity
+            key={index}
+            style={styles.childInfo}
+            onPress={() => {}}
+          >
+            <Text style={styles.infoText}>
+              {child.name || `Child ${index + 1} First Last`}
+            </Text>
             <Image
               style={styles.vectorIcon}
               resizeMode="cover"

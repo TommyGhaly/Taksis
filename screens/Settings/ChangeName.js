@@ -1,117 +1,110 @@
 import * as React from "react";
-import { Text, StyleSheet, View, Pressable, TextInput } from "react-native";
-import { Button } from "react-native-paper";
+import {
+  Text,
+  StyleSheet,
+  View,
+  Pressable,
+  TextInput,
+  Alert,
+} from "react-native";
+import { useState } from "react";
+import BackArrow from "../../components/backArrow";
+import firestore from "@react-native-firebase/firestore";
+import auth from "@react-native-firebase/auth";
+import { useNavigation } from "@react-navigation/native";
 
 const ChangeName = () => {
+  const [name, setName] = useState("");
+  const navigation = useNavigation();
+  const user = auth().currentUser;
+
+  const updateNameInDB = async (name) => {
+    try {
+      await firestore().collection("users").doc(user.uid).update({
+        name: name,
+      });
+    } catch (error) {
+      Alert.alert(
+        "Error",
+        "Could not update name information. Please try again."
+      );
+    }
+  };
+  const handleConfirm = async () => {
+    if (name.trim() === "") {
+      Alert.alert("Error", "Name cannot be empty.");
+      return;
+    }
+    try {
+      await updateNameInDB(name); // Function to update the name in the DB
+      Alert.alert("Success", "Name updated successfully.");
+      navigation.goBack();
+    } catch (error) {
+      Alert.alert("Error", "Failed to update the name.");
+    }
+  };
+
   return (
-    <View style={styles.changename}>
-      <View style={styles.frame}>
-        <Text style={[styles.changeName, styles.continueTypo]}>
-          Change Name
-        </Text>
+    <View style={styles.container}>
+      <BackArrow style={styles.backarrow} />
+      <View style={styles.headerContainer}>
+        <Text style={styles.headerText}>Change Name</Text>
       </View>
-      <Pressable
-        style={[styles.continuebutton, styles.phoneOrEmailLayout]}
-        onPress={() => navigation.goBack()}
-      >
-        <Text style={[styles.continue, styles.continueTypo]}>Confirm</Text>
-      </Pressable>
-      <Button
-        style={styles.backarrow}
-        mode="outlined"
-        onPress={() => navigation.goBack()}
-        contentStyle={styles.backArrowIconBtn}
-      />
       <TextInput
-        style={[styles.phoneOrEmail, styles.phoneOrEmailLayout]}
-        placeholder="Enter your phone or email"
+        style={styles.input}
+        placeholder="Enter your name"
         placeholderTextColor="#8e8e93"
+        value={name}
+        onChangeText={setName}
       />
+      <Pressable style={styles.confirmButton} onPress={handleConfirm}>
+        <Text style={styles.confirmText}>Confirm</Text>
+      </Pressable>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  backArrowIconBtn: {
-    height: "2.82%",
-    width: "6.11%",
-  },
-  continueTypo: {
-    fontFamily: "Roboto-Medium",
-    fontWeight: "500",
-  },
-  phoneOrEmailLayout: {
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    alignItems: "center",
-    flexDirection: "row",
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderRadius: 10,
-    width: "91.09%",
-    position: "absolute",
-  },
-  changeName: {
-    height: "101.49%",
-    width: "82.87%",
-    top: "-0.36%",
-    left: "-0.03%",
-    fontSize: 34,
-    letterSpacing: -0.3,
-    color: "rgba(142, 142, 147, 0.8)",
-    textAlign: "left",
-    position: "absolute",
-  },
-  frame: {
-    height: "4.74%",
-    width: "91.81%",
-    top: "14.34%",
-    right: "4.09%",
-    bottom: "80.92%",
-    left: "4.1%",
-    position: "absolute",
-    overflow: "hidden",
-  },
-  continue: {
-    letterSpacing: -0.2,
-    color: "#fff",
-    textAlign: "center",
-    fontSize: 17,
-  },
-  continuebutton: {
-    height: "5.87%",
-    top: "83.57%",
-    right: "4.83%",
-    bottom: "10.56%",
-    backgroundColor: "#333",
-    borderColor: "rgba(0, 0, 0, 0.15)",
-    justifyContent: "center",
-    left: "4.07%",
-  },
-  backarrow: {
-    top: "8.69%",
-    right: "89.82%",
-    bottom: "88.5%",
-    left: "4.07%",
-    position: "absolute",
-    overflow: "hidden",
-  },
-  phoneOrEmail: {
-    height: "5.75%",
-    top: "21.95%",
-    right: "3.82%",
-    bottom: "72.3%",
-    left: "5.09%",
-    borderColor: "#8e8e93",
-    fontFamily: "Roboto-Regular",
-    fontSize: 17,
-  },
-  changename: {
+  container: {
     backgroundColor: "#000",
     flex: 1,
-    width: "100%",
-    height: 852,
-    overflow: "hidden",
+    paddingHorizontal: 20,
+    paddingTop: 50,
+  },
+  backarrow: {
+    position: "absolute",
+    top: 20,
+    left: 20,
+  },
+  headerContainer: {
+    marginBottom: 30,
+    alignItems: "center",
+  },
+  headerText: {
+    fontSize: 28,
+    fontWeight: "500",
+    color: "#ffffff",
+  },
+  input: {
+    height: 50,
+    borderColor: "#8e8e93",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    fontSize: 16,
+    color: "#fff",
+    marginBottom: 20,
+  },
+  confirmButton: {
+    backgroundColor: "#333",
+    borderRadius: 10,
+    paddingVertical: 15,
+    alignItems: "center",
+  },
+  confirmText: {
+    fontSize: 17,
+    color: "#fff",
+    fontWeight: "500",
   },
 });
 

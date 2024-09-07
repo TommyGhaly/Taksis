@@ -1,201 +1,185 @@
-import * as React from "react";
-import { Text, StyleSheet, Pressable, View } from "react-native";
-import { Button as RNEButton } from "@rneui/themed";
-import { Button } from "react-native-paper";
+import React, { useState, useEffect } from "react";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import firestore from "@react-native-firebase/firestore";
+import auth from "@react-native-firebase/auth";
+import BackArrow from "../../components/backArrow"; // Import your BackButton component
 
 const ChangeChildren = () => {
+  const navigation = useNavigation();
+  const [children, setChildren] = useState([]);
+
+  useEffect(() => {
+    const user = auth().currentUser;
+
+    if (user) {
+      const unsubscribe = firestore()
+        .collection("users")
+        .doc(user.uid)
+        .onSnapshot(
+          (doc) => {
+            const userData = doc.data();
+            if (userData && userData.children) {
+              setChildren(userData.children);
+            } else {
+              setChildren([]);
+            }
+          },
+          (error) => {
+            console.error("Error fetching children data: ", error);
+          }
+        );
+
+      // Cleanup subscription on unmount
+      return () => unsubscribe();
+    }
+  }, []);
+
+  const handleRemoveChild = async (childId) => {
+    Alert.alert(
+      "Remove Child",
+      "Are you sure you want to remove this child? This action cannot be undone.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const user = auth().currentUser;
+              if (user) {
+                const userDoc = await firestore()
+                  .collection("users")
+                  .doc(user.uid)
+                  .get();
+                const userData = userDoc.data();
+
+                if (userData && userData.children) {
+                  const childToRemove = userData.children.find(
+                    (child) => child.uid === childId
+                  );
+
+                  if (childToRemove) {
+                    await firestore()
+                      .collection("users")
+                      .doc(user.uid)
+                      .update({
+                        children:
+                          firestore.FieldValue.arrayRemove(childToRemove),
+                      });
+                  } else {
+                    Alert.alert("Error", "Child not found.");
+                  }
+                } else {
+                  Alert.alert("Error", "No children found.");
+                }
+              }
+            } catch (error) {
+              Alert.alert(
+                "Error",
+                "Failed to remove the child. Please try again."
+              );
+              console.error("Error removing child: ", error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
-    <View style={styles.changechildren}>
-      <Text style={[styles.child1, styles.childTypo]}>Child 1</Text>
-      <Text style={[styles.child2, styles.childTypo]}>Child 2</Text>
-      <Text style={[styles.child3, styles.childTypo]}>Child 3</Text>
-      <Pressable style={styles.rectangleParent}>
-        <View style={[styles.frameChild, styles.frameBg]} />
-        <Text style={[styles.remove, styles.removeTypo]}>Remove</Text>
-      </Pressable>
-      <Pressable style={[styles.rectangleGroup, styles.rectangleLayout]}>
-        <View style={[styles.frameItem, styles.removePosition]} />
-        <RNEButton
-          title="Remove"
-          type="clear"
-          color="#8e8e93"
-          titleStyle={styles.removeBtn}
-          containerStyle={styles.removeBtn1}
-          buttonStyle={styles.removeBtn2}
-        />
-      </Pressable>
-      <Pressable style={[styles.rectangleContainer, styles.rectangleLayout]}>
-        <View style={[styles.frameItem, styles.removePosition]} />
-        <Text style={[styles.remove1, styles.removeTypo]}>Remove</Text>
-      </Pressable>
-      <Button
-        style={[styles.backarrow, styles.backarrowPosition]}
-        mode="outlined"
-        onPress={() => navigation.goBack()}
-        contentStyle={styles.backArrowIconBtn}
-      />
-      <Pressable
-        style={[styles.continuebutton, styles.backarrowPosition]}
+    <View style={styles.container}>
+      <BackArrow style={styles.backArrow} />
+      {children.length === 0 ? (
+        <Text style={styles.noChildrenText}>You have no children</Text>
+      ) : (
+        <ScrollView style={styles.childrenList}>
+          {children.map((child) => (
+            <View key={child.uid} style={styles.childContainer}>
+              <Text style={styles.childName}>{child.name}</Text>
+              <TouchableOpacity
+                style={styles.removeButton}
+                onPress={() => handleRemoveChild(child.uid)}
+              >
+                <Text style={styles.removeButtonText}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </ScrollView>
+      )}
+      <TouchableOpacity
+        style={styles.confirmButton}
         onPress={() => navigation.goBack()}
       >
-        <Text style={styles.continue}>Confirm</Text>
-      </Pressable>
+        <Text style={styles.confirmButtonText}>Confirm</Text>
+      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  removeBtn: {
-    color: "#8e8e93",
-    fontSize: 20,
-    fontFamily: "Roboto-Regular",
-  },
-  removeBtn1: {
-    left: "21.97%",
-    top: "24.49%",
-    position: "absolute",
-  },
-  removeBtn2: {
-    height: "53.06%",
-    width: "55.3%",
-  },
-  backArrowIconBtn: {
-    height: "2.82%",
-    width: "6.11%",
-  },
-  childTypo: {
-    alignItems: "center",
-    display: "flex",
-    textAlign: "left",
-    color: "#8e8e93",
-    fontFamily: "Roboto-Regular",
-    letterSpacing: -0.3,
-    fontSize: 34,
-    left: "6.62%",
-    width: "33.08%",
-    height: "6.1%",
-    position: "absolute",
-  },
-  frameBg: {
+  container: {
+    flex: 1,
     backgroundColor: "#1e1e1e",
-    borderRadius: 10,
-    position: "absolute",
+    paddingHorizontal: 16,
+    paddingVertical: 20,
   },
-  removeTypo: {
-    fontSize: 20,
-    letterSpacing: -0.2,
-    alignItems: "center",
-    display: "flex",
-    textAlign: "left",
+  backArrow: {
+    marginBottom: 20,
+  },
+  noChildrenText: {
     color: "#8e8e93",
-    fontFamily: "Roboto-Regular",
-    position: "absolute",
+    fontSize: 25,
+    textAlign: "center",
+    marginTop: 50,
   },
-  rectangleLayout: {
-    height: 49,
-    width: 132,
-    left: 226,
-    position: "absolute",
+  childrenList: {
+    top: 30,
+    flex: 1,
   },
-  removePosition: {
-    left: "0%",
-    top: "0%",
-    height: "100%",
-    width: "100%",
-  },
-  backarrowPosition: {
-    left: "4.07%",
-    position: "absolute",
-  },
-  child1: {
-    top: "18.66%",
-  },
-  child2: {
-    top: "28.17%",
-  },
-  child3: {
-    top: "37.68%",
-  },
-  frameChild: {
-    height: "188.46%",
-    width: "180.82%",
-    top: "-46.15%",
-    right: "-41.1%",
-    bottom: "-42.31%",
-    left: "-39.73%",
-  },
-  remove: {
-    letterSpacing: -0.2,
-    left: "0%",
-    top: "0%",
-    height: "100%",
-    width: "100%",
-  },
-  rectangleParent: {
-    top: 172,
-    left: 255,
-    width: 73,
-    height: 26,
-    position: "absolute",
-  },
-  frameItem: {
-    right: "0%",
-    bottom: "0%",
-    backgroundColor: "#1e1e1e",
+  childContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#2e2e2e",
     borderRadius: 10,
-    position: "absolute",
+    padding: 15,
+    marginBottom: 10,
   },
-  rectangleGroup: {
-    top: 241,
+  childName: {
+    color: "#8e8e93",
+    fontSize: 18,
   },
-  remove1: {
-    height: "53.06%",
-    width: "55.3%",
-    top: "24.49%",
-    left: "21.97%",
-    letterSpacing: -0.2,
+  removeButton: {
+    backgroundColor: "#ff3b30",
+    borderRadius: 5,
+    padding: 10,
   },
-  rectangleContainer: {
-    top: 322,
+  removeButtonText: {
+    color: "#ffffff",
+    fontSize: 16,
   },
-  backarrow: {
-    top: "8.69%",
-    right: "89.82%",
-    bottom: "88.5%",
-    overflow: "hidden",
+  confirmButton: {
+    backgroundColor: "#333",
+    borderRadius: 10,
+    padding: 15,
+    marginTop: 20,
+    alignItems: "center",
   },
-  continue: {
+  confirmButtonText: {
+    color: "#ffffff",
     fontSize: 17,
     fontWeight: "500",
-    fontFamily: "Roboto-Medium",
-    color: "#fff",
-    textAlign: "center",
-    letterSpacing: -0.2,
-  },
-  continuebutton: {
-    height: "5.87%",
-    width: "91.09%",
-    top: "83.57%",
-    right: "4.83%",
-    bottom: "10.56%",
-    backgroundColor: "#333",
-    borderStyle: "solid",
-    borderColor: "rgba(0, 0, 0, 0.15)",
-    borderWidth: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderRadius: 10,
-    left: "4.07%",
-    alignItems: "center",
-  },
-  changechildren: {
-    backgroundColor: "#000",
-    flex: 1,
-    height: 852,
-    overflow: "hidden",
-    width: "100%",
   },
 });
 

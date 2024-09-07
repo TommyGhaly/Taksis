@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, ScrollView, View, Text, TouchableOpacity } from "react-native";
+import {
+  StyleSheet,
+  ScrollView,
+  View,
+  Text,
+  TouchableOpacity,
+} from "react-native";
 import HomeScreenContent from "../../components/homeScreenContent";
 import WeekRequest from "../../components/weekRequest";
 import { useUser } from "../../UserContext";
-import { Ionicons } from '@expo/vector-icons';  // Using Ionicons for icons
+import { Ionicons } from "@expo/vector-icons"; // Using Ionicons for icons
 
 const HomeScreen = ({ route }) => {
   const { user } = useUser();
@@ -14,7 +20,9 @@ const HomeScreen = ({ route }) => {
     let month = date.getMonth() + 1;
     let year = date.getFullYear();
 
-    return `${month < 10 ? `0${month}` : month}/${day < 10 ? `0${day}` : day}/${year}`;
+    return `${month < 10 ? `0${month}` : month}/${
+      day < 10 ? `0${day}` : day
+    }/${year}`;
   };
 
   // Get the current date and the next service date (e.g., 7 days later)
@@ -27,7 +35,9 @@ const HomeScreen = ({ route }) => {
     // Update dates every day when the component renders or updates
     const today = new Date();
     setCurDate(formatDate(today));
-    setNextDate(formatDate(new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000))); // 7 days from today
+    setNextDate(
+      formatDate(new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000))
+    ); // 7 days from today
   }, []);
 
   const inputProps = {
@@ -42,7 +52,7 @@ const HomeScreen = ({ route }) => {
     wine: "First Last",
     curDate, // Current date
     nextDate, // Next service date
-    nextRole: "Your Role Here",  // User's role for the next service
+    nextRole: "Your Role Here", // User's role for the next service
   };
 
   return (
@@ -53,7 +63,10 @@ const HomeScreen = ({ route }) => {
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
-        <Text style={styles.header}>Services of Week{"\n"}{inputProps.curDate}</Text>
+        <Text style={styles.header}>
+          Services of Week{"\n"}
+          {inputProps.curDate}
+        </Text>
 
         {/* Section for Readings */}
         <View style={styles.section}>
@@ -73,11 +86,15 @@ const HomeScreen = ({ route }) => {
           </View>
           <View style={styles.card}>
             <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>Pauline Epistle: {inputProps.pauline}</Text>
+            <Text style={styles.name}>
+              Pauline Epistle: {inputProps.pauline}
+            </Text>
           </View>
           <View style={styles.card}>
             <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>Catholic Epistle: {inputProps.catholic}</Text>
+            <Text style={styles.name}>
+              Catholic Epistle: {inputProps.catholic}
+            </Text>
           </View>
           <View style={styles.card}>
             <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
@@ -109,7 +126,9 @@ const HomeScreen = ({ route }) => {
           <Text style={styles.nextServiceText}>
             Your next service is on: {inputProps.nextDate}
           </Text>
-          <Text style={styles.nextServiceText}>Role: {inputProps.nextRole}</Text>
+          <Text style={styles.nextServiceText}>
+            Role: {inputProps.nextRole}
+          </Text>
         </View>
 
         {/* Request a Week Button */}
@@ -125,10 +144,10 @@ const HomeScreen = ({ route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1a1a1a",  // Very dark grey background
+    backgroundColor: "#1a1a1a", // Very dark grey background
   },
   scrollContainer: {
-    paddingBottom: 20,  // Padding at the bottom for better spacing
+    paddingBottom: 20, // Padding at the bottom for better spacing
   },
   homescreen: {
     flex: 1,
@@ -136,7 +155,7 @@ const styles = StyleSheet.create({
   },
   header: {
     fontSize: 28,
-    color: "#e0e0e0",  // Light gray for text
+    color: "#e0e0e0", // Light gray for text
     textAlign: "center",
     marginVertical: 20,
     fontWeight: "bold",
@@ -147,20 +166,20 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 22,
-    color: "#4d9cff",  // Soft blue for section titles
+    color: "#4d9cff", // Soft blue for section titles
     marginBottom: 10,
     fontWeight: "bold",
   },
   card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#2c2c2c",  // Darker card background
+    backgroundColor: "#2c2c2c", // Darker card background
     padding: 16,
     borderRadius: 10,
     marginBottom: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,  // Slightly lighter shadow for variety
+    shadowOpacity: 0.2, // Slightly lighter shadow for variety
     shadowRadius: 4,
     elevation: 4,
   },
@@ -169,46 +188,46 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 18,
-    color: "#e0e0e0",  // Light gray for text
+    color: "#e0e0e0", // Light gray for text
   },
   nextServiceBox: {
-    backgroundColor: "#333333",  // Dark gray background for the box
+    backgroundColor: "#333333", // Dark gray background for the box
     padding: 16,
     borderRadius: 10,
     marginHorizontal: 16,
     marginBottom: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,  // Slightly lighter shadow for variety
+    shadowOpacity: 0.2, // Slightly lighter shadow for variety
     shadowRadius: 4,
     elevation: 4,
   },
   nextServiceHeader: {
     fontSize: 20,
-    color: "#4d9cff",  // Soft blue for header
+    color: "#4d9cff", // Soft blue for header
     marginBottom: 10,
     textAlign: "center",
     fontWeight: "bold",
   },
   nextServiceText: {
     fontSize: 16,
-    color: "#e0e0e0",  // Light gray for text
+    color: "#e0e0e0", // Light gray for text
     textAlign: "center",
     marginBottom: 5,
   },
   // Request button styles
   requestButton: {
-    backgroundColor: "#147efb",  // Soft blue button color
+    backgroundColor: "#147efb", // Soft blue button color
     paddingVertical: 15,
     paddingHorizontal: 40,
-    borderRadius: 30,  // Rounded button
+    borderRadius: 30, // Rounded button
     marginVertical: 20,
-    alignSelf: "center",  // Center the button horizontally
+    alignSelf: "center", // Center the button horizontally
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 5,
-    elevation: 4,  // Lighter elevation for a softer look
+    elevation: 4, // Lighter elevation for a softer look
   },
   requestButtonText: {
     fontSize: 18,
@@ -218,7 +237,7 @@ const styles = StyleSheet.create({
   },
   blackspace: {
     height: 0,
-    backgroundColor: "#1a1a1a",  // Matching background color for spacing
+    backgroundColor: "#1a1a1a", // Matching background color for spacing
   },
 });
 

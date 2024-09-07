@@ -8,9 +8,9 @@ import ChangeChildren from "./ChangeChildren";
 import ChangeEmail from "./ChangeEmail";
 import ChangeHeadAdmin from "./ChangeHeadAdmin";
 import ChangeName from "./ChangeName";
-import ChangePhoneNumber from "./ChangePhoneNumber";
 import ChangeRank from "./ChangeRank";
 import ChangeRoles from "./ChangeRoles";
+import ChangeChurch from "./ChangeChurch";
 import ChildAccountInfo from "./ChildAccountInfo";
 import RequestAdmin from "./RequestAdmin";
 import AddChild from "./AddChild";
@@ -18,6 +18,7 @@ import Settings from "./Settings";
 import SettingsContent from "../../components/settingsContent";
 import ChildDeaconRank from "./ChildDeaconRank";
 import ChildAge from "./ChildAge";
+import PasswordReset from "../PasswordReset";
 import DefaultTheme from "@react-navigation/native";
 const SettingsNav = createNativeStackNavigator();
 const myTheme = {
@@ -54,10 +55,7 @@ export default function SettingsNavigation() {
           component={ChangeHeadAdmin}
         />
         <SettingsNav.Screen name="ChangeName" component={ChangeName} />
-        <SettingsNav.Screen
-          name="ChangePhoneNumber"
-          component={ChangePhoneNumber}
-        />
+        <SettingsNav.Screen name="ChangeChurch" component={ChangeChurch} />
         <SettingsNav.Screen name="ChangeRank" component={ChangeRank} />
         <SettingsNav.Screen name="ChangeRoles" component={ChangeRoles} />
         <SettingsNav.Screen
@@ -78,6 +76,11 @@ export default function SettingsNavigation() {
         <SettingsNav.Screen
           name="ChildAge"
           component={ChildAge}
+          options={{ animation: "none" }}
+        />
+        <SettingsNav.Screen
+          name="ChangePassword"
+          component={PasswordReset}
           options={{ animation: "none" }}
         />
       </SettingsNav.Navigator>

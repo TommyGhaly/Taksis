@@ -1,11 +1,6 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-} from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
@@ -13,26 +8,64 @@ import auth from "@react-native-firebase/auth";
 const SettingsContent = () => {
   const navigation = useNavigation();
   const [userRoles, setUserRoles] = useState({
-    name: ""
+    name: "",
   });
 
   useEffect(() => {
-    const fetchUserRoles = async () => {
-      try {
-        const user = auth().currentUser;
-        if (user) {
-          const userDoc = await firestore().collection("users").doc(user.uid).get();
-          if (userDoc.exists) {
-            setUserRoles(userDoc.data());
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching user roles: ", error);
-      }
-    };
+    const user = auth().currentUser;
 
-    fetchUserRoles();
+    if (user) {
+      const unsubscribe = firestore()
+        .collection("users")
+        .doc(user.uid)
+        .onSnapshot(
+          (doc) => {
+            if (doc.exists) {
+              setUserRoles(doc.data());
+            }
+          },
+          (error) => {
+            console.error("Error fetching user roles: ", error);
+          }
+        );
+
+      // Cleanup subscription on unmount
+      return () => unsubscribe();
+    }
   }, []);
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "Are you sure you want to delete your account? This action cannot be undone.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const user = auth().currentUser;
+              if (user) {
+                await firestore().collection("users").doc(user.uid).delete();
+                await user.delete();
+                Alert.alert("Success", "Your account has been deleted.");
+                // Navigate to a safe screen or log out
+              }
+            } catch (error) {
+              Alert.alert(
+                "Error",
+                "Failed to delete the account. Please try again."
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -42,7 +75,7 @@ const SettingsContent = () => {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
-        
+
         <TouchableOpacity
           style={styles.option}
           onPress={() => navigation.navigate("AccountInfo")}
@@ -63,7 +96,7 @@ const SettingsContent = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.option}
-          onPress={() => navigation.navigate("ChangePhoneNumber")}
+          onPress={() => navigation.navigate("ChangeAge")}
         >
           <Text style={styles.optionText}>Change age</Text>
         </TouchableOpacity>
@@ -93,7 +126,9 @@ const SettingsContent = () => {
           style={styles.option}
           onPress={() => navigation.navigate("ChangeRoles")}
         >
-          <Text style={styles.optionText}>Change church services that apply to you</Text>
+          <Text style={styles.optionText}>
+            Change church services that apply to you
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -123,11 +158,15 @@ const SettingsContent = () => {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity 
-        style={styles.signOut}
-        onPress={() => auth().signOut()}
-      >
+      <TouchableOpacity style={styles.signOut} onPress={() => auth().signOut()}>
         <Text style={styles.signOutText}>Log out</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.deleteAccount}
+        onPress={handleDeleteAccount}
+      >
+        <Text style={styles.deleteAccountText}>Delete Account</Text>
       </TouchableOpacity>
     </View>
   );
@@ -142,12 +181,12 @@ const styles = StyleSheet.create({
   },
   profileSection: {
     marginBottom: 20,
-    alignItems: 'center',
+    alignItems: "center",
   },
   userName: {
     fontSize: 36,
     color: "#aaa",
-    textAlign: 'center',
+    textAlign: "center",
   },
   section: {
     marginBottom: 20,
@@ -156,16 +195,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#ffffff",
     marginBottom: 10,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   option: {
     backgroundColor: "#2e2e2e",
     padding: 16,
     borderRadius: 10,
     marginBottom: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   optionText: {
     fontSize: 16,
@@ -175,12 +214,24 @@ const styles = StyleSheet.create({
     backgroundColor: "#147efb",
     padding: 16,
     borderRadius: 10,
-    alignItems: 'center',
+    alignItems: "center",
   },
   signOutText: {
     fontSize: 18,
     color: "#ffffff",
-    fontWeight: "bold"
+    fontWeight: "bold",
+  },
+  deleteAccount: {
+    backgroundColor: "#ff3b30",
+    padding: 16,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 20,
+  },
+  deleteAccountText: {
+    fontSize: 18,
+    color: "#ffffff",
+    fontWeight: "bold",
   },
 });
 
