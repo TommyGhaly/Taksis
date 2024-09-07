@@ -37,11 +37,11 @@ const DeaconRank = ({ navigation }) => {
       <View style={styles.backarrow}>
         <BackArrow />
       </View>
-      <View style={styles.rank}>
-        <Rank style={styles.rank} onSelectRank={handleRank} />
-      </View>
       <View style={styles.title}>
         <Text style={styles.titleText}>What rank of deacon are you?</Text>
+      </View> 
+      <View style={styles.rank}>
+        <Rank style={styles.rank} onSelectRank={handleRank}/>
       </View>
       <View style={styles.continueLayout}>
         <Pressable

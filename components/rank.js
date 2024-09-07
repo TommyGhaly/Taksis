@@ -25,7 +25,7 @@ const Item = ({ item, onPress, backgroundColor, textColor }) => (
   </TouchableOpacity>
 );
 
-const Rank = ({ onSelectRank }) => {
+const Rank = ({ onSelectRank , scroll}) => {
   const [selectedId, setSelectedId] = useState();
 
   const renderItem = ({ item }) => {

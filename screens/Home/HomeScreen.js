@@ -53,7 +53,7 @@ const HomeScreen = ({ route }) => {
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
-        <Text style={styles.header}>Services of Week {inputProps.curDate}</Text>
+        <Text style={styles.header}>Services of Week{"\n"}{inputProps.curDate}</Text>
 
         {/* Section for Readings */}
         <View style={styles.section}>

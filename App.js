@@ -39,26 +39,44 @@ function AppNavigator() {
     <NavigationContainer style={styles.container}>
       <Stack.Navigator
         initialRouteName={
-          !user
-            ? "Welcome"
-            : signUp
-            ? "SelectChurch"
-            : "MainContainer"
+          !user ? "Welcome" : signUp ? "SelectChurch" : "MainContainer"
         }
         screenOptions={{ headerShown: false, animation: "none" }}
       >
         {!user ? (
           <>
-            <Stack.Screen name="Welcome" component={Welcome} options={{ animation:"slide_from_left" }}/>
-            <Stack.Screen name="SignUp" component={SignUp} options={{ animation:"default" }}/>
-            <Stack.Screen name="PasswordReset" component={PasswordReset} options={{ animation:"default" }}/>
-            <Stack.Screen name="SignIn" component={SignIn} options={{ animation:"default" }}/>
+            <Stack.Screen
+              name="Welcome"
+              component={Welcome}
+              options={{ animation: "slide_from_left" }}
+            />
+            <Stack.Screen
+              name="SignUp"
+              component={SignUp}
+              options={{ animation: "default" }}
+            />
+            <Stack.Screen
+              name="PasswordReset"
+              component={PasswordReset}
+              options={{ animation: "default" }}
+            />
+            <Stack.Screen
+              name="SignIn"
+              component={SignIn}
+              options={{ animation: "default" }}
+            />
           </>
         ) : signUp ? (
           <>
             <Stack.Screen name="SelectChurch" component={SelectChurch} />
-            <Stack.Screen name="ChurchRegistration" component={ChurchRegistration} />
-            <Stack.Screen name="SelectApplicable" component={SelectApplicable} />
+            <Stack.Screen
+              name="ChurchRegistration"
+              component={ChurchRegistration}
+            />
+            <Stack.Screen
+              name="SelectApplicable"
+              component={SelectApplicable}
+            />
             <Stack.Screen name="DeaconRank" component={DeaconRank} />
             <Stack.Screen name="Experience" component={Experience} />
             <Stack.Screen name="Frequency" component={Frequency} />

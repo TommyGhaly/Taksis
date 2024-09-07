@@ -16,8 +16,9 @@ import RequestAdmin from "./RequestAdmin";
 import AddChild from "./AddChild";
 import Settings from "./Settings";
 import SettingsContent from "../../components/settingsContent";
+import ChildDeaconRank from "./ChildDeaconRank";
+import ChildAge from "./ChildAge";
 import DefaultTheme from "@react-navigation/native";
-import AddChild from "./AddChild";
 const SettingsNav = createNativeStackNavigator();
 const myTheme = {
   ...DefaultTheme,
@@ -64,7 +65,21 @@ export default function SettingsNavigation() {
           component={ChildAccountInfo}
         />
         <SettingsNav.Screen name="RequestAdmin" component={RequestAdmin} />
-        <SettingsNav.screen name="AddChild" component={AddChild}/>
+        <SettingsNav.Screen
+          name="AddChild"
+          component={AddChild}
+          options={{ animation: "none" }}
+        />
+        <SettingsNav.Screen
+          name="ChildDeaconRank"
+          component={ChildDeaconRank}
+          options={{ animation: "none" }}
+        />
+        <SettingsNav.Screen
+          name="ChildAge"
+          component={ChildAge}
+          options={{ animation: "none" }}
+        />
       </SettingsNav.Navigator>
     </NavigationContainer>
   );
