@@ -106,58 +106,63 @@ const SettingsContent = () => {
         >
           <Text style={styles.optionText}>Change password</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.option}
-          onPress={() => navigation.navigate("RequestAdmin")}
-        >
-          <Text style={styles.optionText}>Apply for admin</Text>
-        </TouchableOpacity>
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Role</Text>
-        <TouchableOpacity
-          style={styles.option}
-          onPress={() => navigation.navigate("ChangeRank")}
-        >
-          <Text style={styles.optionText}>Change deacon rank</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.option}
-          onPress={() => navigation.navigate("ChangeRoles")}
-        >
-          <Text style={styles.optionText}>
-            Change church services that apply to you
-          </Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Role</Text>
+          <TouchableOpacity
+            style={styles.option}
+            onPress={() => navigation.navigate("ChangeRank")}
+          >
+            <Text style={styles.optionText}>Change deacon rank</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.option}
+            onPress={() => navigation.navigate("ChangeRoles")}
+          >
+            <Text style={styles.optionText}>
+              Change church services that apply to you
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Children</Text>
-        <TouchableOpacity
-          style={styles.option}
-          onPress={() => navigation.navigate("ChangeChildren")}
-        >
-          <Text style={styles.optionText}>Change your children</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.option}
-          onPress={() => navigation.navigate("AddChild")}
-        >
-          <Text style={styles.optionText}>Add child</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Children</Text>
+          <TouchableOpacity
+            style={styles.option}
+            onPress={() => navigation.navigate("ChangeChildren")}
+          >
+            <Text style={styles.optionText}>Change your children</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.option}
+            onPress={() => navigation.navigate("AddChild")}
+          >
+            <Text style={styles.optionText}>Add child</Text>
+          </TouchableOpacity>
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Church Adjustments</Text>
-        <TouchableOpacity
-          style={styles.option}
-          onPress={() => navigation.navigate("ChangeChurch")}
-        >
-          <Text style={styles.optionText}>Change church</Text>
-        </TouchableOpacity>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Church Adjustments</Text>
+          <TouchableOpacity
+            style={styles.option}
+            onPress={() => navigation.navigate("ChangeChurch")}
+          >
+            <Text style={styles.optionText}>Change church</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.option}
+            onPress={() => navigation.navigate("RequestAdmin")}
+          >
+            <Text style={styles.optionText}>Apply for admin</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.option}
+            onPress={() => navigation.navigate("ChangeHeadAdmin")}
+          >
+            <Text style={styles.optionText}>Request to change Head Admin</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-
       <TouchableOpacity style={styles.signOut} onPress={() => auth().signOut()}>
         <Text style={styles.signOutText}>Log out</Text>
       </TouchableOpacity>

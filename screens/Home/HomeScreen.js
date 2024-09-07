@@ -6,8 +6,6 @@ import {
   Text,
   TouchableOpacity,
 } from "react-native";
-import HomeScreenContent from "../../components/homeScreenContent";
-import WeekRequest from "../../components/weekRequest";
 import { useUser } from "../../UserContext";
 import { Ionicons } from "@expo/vector-icons"; // Using Ionicons for icons
 
