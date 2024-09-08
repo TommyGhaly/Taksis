@@ -51,6 +51,7 @@ const HomeScreen = ({ route }) => {
     curDate, // Current date
     nextDate, // Next service date
     nextRole: "Your Role Here", // User's role for the next service
+    altarServers: ["Server 1", "Server 2", "Server 3", "Server 4"], // Placeholder names for altar servers
   };
 
   return (
@@ -116,6 +117,18 @@ const HomeScreen = ({ route }) => {
             <Ionicons name="wine" size={24} color="#fff" style={styles.icon} />
             <Text style={styles.name}>Wine: {inputProps.wine}</Text>
           </View>
+        </View>
+
+        {/* Section for Altar Servers */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Altar Servers</Text>
+
+          {inputProps.altarServers.map((server, index) => (
+            <View key={index} style={styles.card}>
+              <Ionicons name="people" size={24} color="#fff" style={styles.icon} />
+              <Text style={styles.name}>{server}</Text>
+            </View>
+          ))}
         </View>
 
         {/* Box for Next Service Week */}
