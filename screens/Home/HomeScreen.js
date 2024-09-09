@@ -8,9 +8,89 @@ import {
 } from "react-native";
 import { useUser } from "../../UserContext";
 import { Ionicons } from "@expo/vector-icons"; // Using Ionicons for icons
-
+import firestore from '@react-native-firebase/firestore';
 const HomeScreen = ({ route }) => {
   const { user } = useUser();
+
+  const updateChurchMembers = () => {
+    const usersRef = firestore().collection("users");
+    const churchesRef = firestore().collection("churches");
+  
+    usersRef.onSnapshot((snapshot) => {
+      snapshot.forEach(async (doc) => {
+        const userData = doc.data();
+        const userChurch = userData.church;
+        const userName = userData.name;
+        const userEmail = userData.email;
+        const userUid = doc.id;  // Assuming doc.id is the user's UID
+        const isDeacon = userData.isDeacon;
+        const isServant = userData.isSSTeacher;
+        const userExperience = userData.experience;
+        const userFrequency = userData.frequency;
+        const userAge = userData.age;
+  
+        if (userChurch && userName && userEmail && userUid) {
+          const churchDocRef = churchesRef.doc(userChurch);
+  
+          const churchDoc = await churchDocRef.get();
+  
+          if (!churchDoc.exists) {
+            // Initialize the church document with empty arrays
+            await churchDocRef.set({
+              members: [],
+              deacons: [],
+              servants: []
+            });
+          }
+  
+          // Create the member object
+          const memberObject = {
+            name: userName,
+            email: userEmail,
+            uid: userUid,
+          };
+  
+          // Now safely add the user to the members array
+          await churchDocRef.update({
+            members: firestore.FieldValue.arrayUnion(memberObject),
+          });
+  
+          // If the user is a deacon, add them to the deacons array with additional info
+          if (isDeacon) {
+            const deaconObject = {
+              name: userName,
+              uid: userUid,
+              experience: userExperience,
+              frequency: userFrequency,
+              age: userAge,
+            };
+  
+            await churchDocRef.update({
+              deacons: firestore.FieldValue.arrayUnion(deaconObject),
+            });
+          }
+  
+          // If the user is a servant, add them to the servants array
+          if (isServant) {
+            const servantObject = {
+              name: userName,
+              email: userEmail,
+              uid: userUid,
+            };
+  
+            await churchDocRef.update({
+              servants: firestore.FieldValue.arrayUnion(servantObject),
+            });
+          }
+        }
+      });
+    });
+  };
+  
+  useEffect(() => {
+    updateChurchMembers();
+  }, []);
+  
 
   // Function to format date as MM/DD/YYYY
   const formatDate = (date) => {
