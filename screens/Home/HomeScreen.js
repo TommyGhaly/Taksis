@@ -28,6 +28,7 @@ const HomeScreen = ({ route }) => {
         const userExperience = userData.experience;
         const userFrequency = userData.frequency;
         const userAge = userData.age;
+        const userWeeks = userData.weeksSince
   
         if (userChurch && userName && userEmail && userUid) {
           const churchDocRef = churchesRef.doc(userChurch);
@@ -63,6 +64,7 @@ const HomeScreen = ({ route }) => {
               experience: userExperience,
               frequency: userFrequency,
               age: userAge,
+              weeksSince: userWeeks
             };
   
             await churchDocRef.update({

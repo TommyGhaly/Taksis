@@ -78,6 +78,7 @@ const SignUp = ({ navigation }) => {
           email: user.email,
           admin: false,
           superAdmin: false,
+          weeksSince: 4
         });
       }
     } catch (error) {
