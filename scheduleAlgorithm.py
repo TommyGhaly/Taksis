@@ -3,7 +3,6 @@ from firebase_admin import credentials, firestore
 import numpy as np
 import tensorflow as tf
 
-
 # Path to your service account key file
 cred = credentials.Certificate('./taksis-a8ba7-firebase-adminsdk-hal48-c54bff4412.json')
 firebase_admin.initialize_app(cred)
@@ -36,22 +35,34 @@ def convertRank(rank):
 
 # Converts the deacons array into a tensor array and adjusts it to 250 elements
 def convertToTensor(deacons):
-   experience = 0
-   frequency = 0
-   rank = 0
-   age = 0
-   weeks = 0
-   names = [item['name'] for item in deacons]
-   uids = [item['uid'] for item in deacons]
-   attributes = []
-   for i in deacons:
-       experience = i['experience']
-       frequency = i['frequency']
-       rank = convertRank(i['rank'])
-       age = i['age']
-       weeks = i['weeksSince']
-       attributes.append([age, rank, experience, frequency, weeks])
-    np_array = np
+    attributes = []
+    for i in deacons:
+        age = i['age']
+        rank = convertRank(i['rank'])
+        experience = i['experience']
+        frequency = i['frequency']
+        weeks = i['weeksSince']
+        attributes.append([age, rank, experience, frequency, weeks])
+    
+    # Convert to a NumPy array
+    np_array = np.array(attributes)
 
+    # Calculate the number of elements needed to make a total of 250
+    num_elements = np_array.size
+    if num_elements < 250:
+        # If there are fewer than 250 elements, pad the array
+        pad_size = 250 - num_elements
+        np_array = np.pad(np_array, (0, pad_size), 'constant')
+    else:
+        # If there are more than 250 elements, truncate the array
+        np_array = np_array.flatten()[:250]
 
-print(getDeacons('St. Philopater and St. Mina, Wayland, MA'))
+    # Convert the adjusted NumPy array to a tensor
+    tf_tensor = tf.convert_to_tensor(np_array, dtype=tf.float32)
+    
+    return tf_tensor
+
+# Example usage
+deacons = getDeacons('St. Philopater and St. Mina, Wayland, MA')
+tensor = convertToTensor(deacons)
+print(tensor)

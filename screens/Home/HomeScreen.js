@@ -6,92 +6,121 @@ import {
   Text,
   TouchableOpacity,
 } from "react-native";
-import { useUser } from "../../UserContext";
 import { Ionicons } from "@expo/vector-icons"; // Using Ionicons for icons
 import firestore from "@react-native-firebase/firestore";
 const HomeScreen = ({ route }) => {
-  const { user } = useUser();
 
   const updateChurchMembers = () => {
     const usersRef = firestore().collection("users");
     const churchesRef = firestore().collection("churches");
-
-    usersRef.onSnapshot((snapshot) => {
-      snapshot.forEach(async (doc) => {
-        const userData = doc.data();
-        const userChurch = userData.church;
-        const userName = userData.name;
-        const userEmail = userData.email;
-        const userUid = doc.id; // Assuming doc.id is the user's UID
-        const isDeacon = userData.isDeacon;
-        const isServant = userData.isSSTeacher;
-        const userExperience = userData.experience;
-        const userFrequency = userData.frequency;
-        const userAge = userData.age;
-        const userWeeks = userData.weeksSince;
-
-        if (userChurch && userName && userEmail && userUid) {
-          const churchDocRef = churchesRef.doc(userChurch);
-
-          const churchDoc = await churchDocRef.get();
-
-          if (!churchDoc.exists) {
-            // Initialize the church document with empty arrays
-            await churchDocRef.set({
-              members: [],
-              deacons: [],
-              servants: [],
-            });
-          }
-
-          // Create the member object
-          const memberObject = {
-            name: userName,
-            email: userEmail,
-            uid: userUid,
-          };
-
-          // Now safely add the user to the members array
-          await churchDocRef.update({
-            members: firestore.FieldValue.arrayUnion(memberObject),
-          });
-
-          // If the user is a deacon, add them to the deacons array with additional info
-          if (isDeacon) {
-            const deaconObject = {
-              name: userName,
-              uid: userUid,
-              experience: userExperience,
-              frequency: userFrequency,
-              age: userAge,
-              weeksSince: userWeeks,
-            };
-
-            await churchDocRef.update({
-              deacons: firestore.FieldValue.arrayUnion(deaconObject),
-            });
-          }
-
-          // If the user is a servant, add them to the servants array
-          if (isServant) {
-            const servantObject = {
+  
+    usersRef.onSnapshot(async (snapshot) => {
+      console.log("Users snapshot received");
+  
+      for (const doc of snapshot.docs) {
+        try {
+          const userData = doc.data();
+          const userChurch = userData.church;
+          const userName = userData.name;
+          const userEmail = userData.email;
+          const userRank = userData.rank;
+          const userUid = doc.id; // Assuming doc.id is the user's UID
+          const userExperience = userData.experience;
+          const userFrequency = userData.frequency;
+          const userAge = userData.age;
+          const userWeeks = userData.weeksSince;
+  
+          if (userChurch && userName && userEmail && userUid) {
+            const churchDocRef = churchesRef.doc(userChurch);
+            const churchDoc = await churchDocRef.get();
+  
+            // Prepare to batch update
+            const batch = firestore().batch();
+  
+            // Initialize church document if it doesn't exist
+            if (!churchDoc.exists) {
+              batch.set(churchDocRef, {
+                members: [],
+                deacons: [],
+                servants: [],
+              });
+              console.log(`Initialized church document for ${userChurch}`);
+            }
+  
+            // Fetch current data from church document
+            const currentData = churchDoc.data();
+            const currentMembers = currentData.members || [];
+            const currentDeacons = currentData.deacons || [];
+            const currentServants = currentData.servants || [];
+  
+            // Create the member object
+            const memberObject = {
               name: userName,
               email: userEmail,
               uid: userUid,
             };
-
-            await churchDocRef.update({
-              servants: firestore.FieldValue.arrayUnion(servantObject),
+  
+            // Remove old entries if they exist
+            const updatedMembers = currentMembers.filter(member => member.uid !== userUid);
+            const updatedDeacons = currentDeacons.filter(deacon => deacon.uid !== userUid);
+            const updatedServants = currentServants.filter(servant => servant.uid !== userUid);
+  
+            // Add updated member entry
+            if (!updatedMembers.some(member => member.uid === userUid)) {
+              updatedMembers.push(memberObject);
+            }
+  
+            // Check and add/update deacons
+            if (userData.isDeacon) {
+              const deaconObject = {
+                name: userName,
+                uid: userUid,
+                rank: userRank,
+                experience: userExperience,
+                frequency: userFrequency,
+                age: userAge,
+                weeksSince: userWeeks || 4,
+              };
+  
+              if (!updatedDeacons.some(deacon => deacon.uid === userUid)) {
+                updatedDeacons.push(deaconObject);
+              }
+            }
+  
+            // Check and add/update servants
+            if (userData.isSSTeacher) {
+              const servantObject = {
+                name: userName,
+                email: userEmail,
+                uid: userUid,
+              };
+  
+              if (!updatedServants.some(servant => servant.uid === userUid)) {
+                updatedServants.push(servantObject);
+              }
+            }
+  
+            // Commit the batch update
+            batch.update(churchDocRef, {
+              members: updatedMembers,
+              deacons: updatedDeacons,
+              servants: updatedServants,
             });
+            await batch.commit();
+            console.log(`Updated church document for ${userChurch}.`);
           }
+        } catch (error) {
+          console.error("Error updating church members:", error);
         }
-      });
+      }
     });
   };
-
+  
   useEffect(() => {
     updateChurchMembers();
   }, []);
+  
+  
 
   // Function to format date as MM/DD/YYYY
   const formatDate = (date) => {
@@ -132,7 +161,7 @@ const HomeScreen = ({ route }) => {
     curDate, // Current date
     nextDate, // Next service date
     nextRole: "Your Role Here", // User's role for the next service
-    altarServers: ["Server 1", "Server 2", "Server 3", "Server 4"], // Placeholder names for altar servers
+    altarServers: ["Server 1", "Server 2", "Server 3", "Server 4", "Server 5"], // Placeholder names for altar servers
   };
 
   return (
@@ -154,15 +183,15 @@ const HomeScreen = ({ route }) => {
 
           <View style={styles.card}>
             <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>Matins: {inputProps.matins}</Text>
+            <Text style={styles.name}>Matins Gospel: {inputProps.matins}</Text>
           </View>
           <View style={styles.card}>
             <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>Third Hour: {inputProps.third}</Text>
+            <Text style={styles.name}>Third Hour Gospel: {inputProps.third}</Text>
           </View>
           <View style={styles.card}>
             <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>Sixth Hour: {inputProps.sixth}</Text>
+            <Text style={styles.name}>Sixth Hour Gosepl: {inputProps.sixth}</Text>
           </View>
           <View style={styles.card}>
             <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
