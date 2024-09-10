@@ -267,9 +267,14 @@ struct LaunchBatchMatrixTriangularSolve<GPUDevice, Scalar> {
     if (!bcast.IsBroadcastingRequired() || out->shape() == in_y.shape()) {
       auto src_device_mem = AsDeviceMemory(in_y.template flat<Scalar>().data());
       auto dst_device_mem = AsDeviceMemory(out->template flat<Scalar>().data());
-      OP_REQUIRES_OK(context, stream->MemcpyD2D(&dst_device_mem, src_device_mem,
-                                                bcast.y_batch_size() * m * n *
-                                                    sizeof(Scalar)));
+      OP_REQUIRES(
+          context,
+          stream
+              ->ThenMemcpyD2D(&dst_device_mem, src_device_mem,
+                              bcast.y_batch_size() * m * n * sizeof(Scalar))
+              .ok(),
+          errors::Internal("MatrixTriangularSolveOp: failed to copy rhs "
+                           "from device"));
     } else {
       std::vector<Scalar*> out_ptrs;
       std::vector<const Scalar*> b_tmp_ptrs;
@@ -282,9 +287,14 @@ struct LaunchBatchMatrixTriangularSolve<GPUDevice, Scalar> {
         auto src_device_mem = AsDeviceMemory(b_tmp_ptrs[b_batch_indices[i]]);
         auto dst_device_mem =
             AsDeviceMemory(out->template flat<Scalar>().data() + i * m * n);
-        OP_REQUIRES_OK(context,
-                       stream->MemcpyD2D(&dst_device_mem, src_device_mem,
-                                         m * n * sizeof(Scalar)));
+        OP_REQUIRES(
+            context,
+            stream
+                ->ThenMemcpyD2D(&dst_device_mem, src_device_mem,
+                                m * n * sizeof(Scalar))
+                .ok(),
+            errors::Internal("MatrixTriangularSolveOp: failed to copy rhs "
+                             "from device"));
       }
     }
 

@@ -1294,15 +1294,18 @@ struct SparseSegmentGradV2Functor<GPUDevice, T, Tindices, Tsegmentids> {
     // Copy the last element of sorted_indices_unique_ids back to the host to
     // obtain num_unique.
     ScratchSpace<Toffsets> last_idx_host(context, 1, /*on_host=*/true);
-    OP_REQUIRES_OK_ASYNC(
+    OP_REQUIRES_ASYNC(
         context,
-        stream->Memcpy(last_idx_host.mutable_data(),
-                       se::DeviceMemoryBase(const_cast<Toffsets*>(
-                                                sorted_indices_unique_ids_ptr) +
-                                                (nouter - 1),
-                                            sizeof(*last_idx_host.data())),
-                       sizeof(*last_idx_host.data())),
-        done);
+        stream
+            ->ThenMemcpy(
+                last_idx_host.mutable_data(),
+                se::DeviceMemoryBase(
+                    const_cast<Toffsets*>(sorted_indices_unique_ids_ptr) +
+                        (nouter - 1),
+                    sizeof(*last_idx_host.data())),
+                sizeof(*last_idx_host.data()))
+            .ok(),
+        absl::InternalError("Failed to copy last_idx to host"), done);
 
     auto async_finish_computation =
         [this, context, dense_output_shape, nouter, ninner, input,

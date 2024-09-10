@@ -128,9 +128,7 @@ def _restore_output_tensor_names(
   return graph_def
 
 
-def create_empty_output_dir(
-    output_directory: str, overwrite: bool = True
-) -> None:
+def _create_empty_output_dir(output_directory: str) -> None:
   """Creates the `output_directory`.
 
   If `output_directory` already exists, it recursively deletes all contents
@@ -140,11 +138,10 @@ def create_empty_output_dir(
 
   Args:
     output_directory: Output directory.
-    overwrite: Where to clean the output directory if exists.
   """
-  if overwrite and file_io.file_exists_v2(output_directory):
+  if file_io.file_exists_v2(output_directory):
     logging.info(
-        'Deleting existing output directory: %s .',
+        'Deleting existing directory for quantized model output: %s .',
         output_directory,
     )
     file_io.delete_recursively_v2(output_directory)
@@ -300,7 +297,7 @@ def save_model_v1(
     ValueError iff the graph does not contain a valid signature or the file
     prefix tensor is not found in the graph.
   """
-  create_empty_output_dir(output_dir)
+  _create_empty_output_dir(output_dir)
   v1_builder = builder.SavedModelBuilder(output_dir)
 
   graph_def = _restore_output_tensor_names(graph_def)

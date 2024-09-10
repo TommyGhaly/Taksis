@@ -57,7 +57,7 @@ class CustomDevice {
 
   // Returns true signifying to pin to the current custom device.
   // Returns false to pin to the physical device.
-  virtual absl::StatusOr<bool> ShallPinToThisDevice(
+  virtual StatusOr<bool> ShallPinToThisDevice(
       const ImmediateExecutionOperation* op) = 0;
 };
 

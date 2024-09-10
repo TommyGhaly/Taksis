@@ -37,8 +37,6 @@ class CollectiveExecutorMgr : public CollectiveExecutorMgrInterface {
 
   void Cleanup(int64_t step_id) override;
 
-  void CleanupAll() override;
-
   ParamResolverInterface* GetParamResolver() const override {
     return param_resolver_.get();
   }

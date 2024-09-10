@@ -68,7 +68,7 @@ Status TypedQueue<SubQueue>::Initialize() {
   for (int i = 0; i < num_components(); ++i) {
     queues_.push_back(SubQueue());
   }
-  return absl::OkStatus();
+  return OkStatus();
 }
 
 template <typename SubQueue>

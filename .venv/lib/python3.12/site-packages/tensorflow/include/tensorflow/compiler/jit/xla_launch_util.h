@@ -38,7 +38,7 @@ limitations under the License.
 namespace tensorflow {
 
 // Creates a list of updated resource variables.
-absl::StatusOr<std::vector<VariableInfo>> GatherVariableInfo(
+StatusOr<std::vector<VariableInfo>> GatherVariableInfo(
     OpKernelContext* ctx,
     const XlaCompiler::CompilationResult& compilation_result,
     int missing_ctx_input_prefix);
@@ -46,7 +46,7 @@ absl::StatusOr<std::vector<VariableInfo>> GatherVariableInfo(
 // Returns pointers to inputs stored in `ctx`.
 std::vector<const Tensor*> InputsFromContext(OpKernelContext* ctx);
 
-absl::StatusOr<std::vector<int>> GetConstantInputIndicesFromContext(
+StatusOr<std::vector<int>> GetConstantInputIndicesFromContext(
     OpKernelContext* ctx);
 
 Status SetOutputForConstant(
@@ -143,7 +143,7 @@ Status RunPjRtExecutable(
 // Similar to the above function but it does not take an OpKernelContext, and
 // it returns the output in PjRtBuffers, instead of populating results into
 // OpKernelContext.
-absl::StatusOr<std::vector<std::unique_ptr<xla::PjRtBuffer>>> RunPjRtExecutable(
+StatusOr<std::vector<std::unique_ptr<xla::PjRtBuffer>>> RunPjRtExecutable(
     int num_missing_prefix_ctx_inputs, const std::vector<const Tensor*>& inputs,
     const absl::flat_hash_map<int, const Tensor*>& variable_snapshots,
     const std::vector<VariableInfo>& updated_variables,
@@ -172,11 +172,10 @@ class XlaComputationLaunchContext {
   // Builds a XlaCompiler::Argument vector from the arguments to an XlaLaunch
   // op.
   // Precondition: variables in `variable_args` are locked.
-  static absl::StatusOr<std::vector<XlaCompiler::Argument>>
-  BuildXlaCompilerArguments(absl::Span<int const> must_be_constant_idxs,
-                            absl::Span<const Tensor* const> inputs,
-                            absl::Span<VariableInfo const> variable_args,
-                            Device* device);
+  static StatusOr<std::vector<XlaCompiler::Argument>> BuildXlaCompilerArguments(
+      absl::Span<int const> must_be_constant_idxs,
+      absl::Span<const Tensor* const> inputs,
+      absl::Span<VariableInfo const> variable_args, Device* device);
 
   // Add all inputs within `ctx` as XLA arguments (returned by arguments()).
   // `variables` is a map from TensorFlow argument number to resource variable.
@@ -185,7 +184,7 @@ class XlaComputationLaunchContext {
   // missing and adjusts input indices accordingly.  All elements in kernel's
   // input_mapping must be greater than or equal to `missing_ctx_input_prefix`
   // (in other words, no inputs actually required by the kernel can be missing).
-  absl::StatusOr<std::vector<xla::ExecutionInput>> PopulateInputs(
+  StatusOr<std::vector<xla::ExecutionInput>> PopulateInputs(
       OpKernelContext* ctx,
       const XlaCompiler::CompilationResult* compilation_result,
       const std::map<int, const Tensor*>& resource_vars,

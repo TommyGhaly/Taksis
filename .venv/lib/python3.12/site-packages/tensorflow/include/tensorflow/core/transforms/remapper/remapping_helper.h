@@ -17,7 +17,6 @@ limitations under the License.
 
 #include <string>
 
-#include "mlir/Support/LLVM.h"  // from @llvm-project
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/transforms/utils/op_cat_helper.h"
 #include "tensorflow/core/transforms/utils/utils.h"
@@ -112,9 +111,9 @@ class OpPropertyHelper : public OpCatHelper {
     if (!attr) return false;
     Type dtype = attr.getValue();
     if (dialect_->IsConv2D(contraction_op)) {
-      return mlir::isa<Float32Type>(dtype);
+      return dtype.isa<Float32Type>();
     } else if (dialect_->IsMatMul(contraction_op)) {
-      return mlir::isa<Float32Type, Float64Type>(dtype);
+      return dtype.isa<Float32Type, Float64Type>();
     } else {
       return false;
     }
@@ -132,13 +131,13 @@ class OpPropertyHelper : public OpCatHelper {
       // fusions are handled differently than contraction ops.
       bool is_supported = IsContraction(contraction_op) ||
                           dialect_->IsAnyBatchMatMul(contraction_op);
-      return is_supported && mlir::isa<Float32Type, BFloat16Type>(dtype);
+      return is_supported && dtype.isa<Float32Type, BFloat16Type>();
     }
 
     if (dialect_->IsConv2D(contraction_op)) {
-      return mlir::isa<Float32Type, Float64Type>(dtype);
+      return dtype.isa<Float32Type, Float64Type>();
     } else if (dialect_->IsMatMul(contraction_op)) {
-      return mlir::isa<Float32Type>(dtype);
+      return dtype.isa<Float32Type>();
     } else {
       return false;
     }

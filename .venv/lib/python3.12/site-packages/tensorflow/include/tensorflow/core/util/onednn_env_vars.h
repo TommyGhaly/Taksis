@@ -27,8 +27,6 @@ bool UseSystemAlloc();
 
 bool ThreadPoolUseCallerThread();
 
-bool UseOnednnSpmm();
-
 std::string FPMathModeSetting();
 }  // namespace tensorflow
 #endif  // INTEL_MKL

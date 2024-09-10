@@ -34,7 +34,7 @@ using tsl::TfCheckOpHelperOutOfLine;
 using tsl::ToAbslStatus;
 
 namespace errors {
-using tsl::errors::Code;
+typedef tsl::errors::Code Code;
 using tsl::errors::GetStackTrace;
 using tsl::errors::SetStackTrace;
 }  // namespace errors

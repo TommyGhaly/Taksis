@@ -19,7 +19,6 @@ limitations under the License.
 #include "mlir/IR/BuiltinTypes.h"  // from @llvm-project
 #include "mlir/IR/Operation.h"  // from @llvm-project
 #include "mlir/IR/Value.h"  // from @llvm-project
-#include "mlir/Support/LLVM.h"  // from @llvm-project
 
 namespace mlir {
 
@@ -37,7 +36,7 @@ RankedTensorType GetRankedTensorTypeForOperand(Value operand);
 // given `rank`.
 inline bool IsOfRankedFloatTensorType(RankedTensorType type, int rank) {
   return type && type.getRank() == rank &&
-         mlir::isa<FloatType>(type.getElementType());
+         type.getElementType().isa<FloatType>();
 }
 
 // Returns true if the given `value` has the specified rank or has unranked

@@ -198,7 +198,7 @@ class XlaOpRegistry {
                                      result);
   }
 
-  static absl::StatusOr<std::vector<int>> CompileTimeConstantInputs(
+  static StatusOr<std::vector<int>> CompileTimeConstantInputs(
       const NodeDef& node_def, const OpDef& op_def) {
     std::vector<int> out;
     TF_RETURN_IF_ERROR(CompileTimeConstantInputs(node_def, op_def, &out));

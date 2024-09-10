@@ -15,15 +15,12 @@ limitations under the License.
 #ifndef TENSORFLOW_C_EAGER_ABSTRACT_FUNCTION_H_
 #define TENSORFLOW_C_EAGER_ABSTRACT_FUNCTION_H_
 
-#include "absl/status/statusor.h"
 #include "tensorflow/core/framework/function.pb.h"
 #include "tensorflow/core/platform/intrusive_ptr.h"
 #include "tensorflow/core/platform/refcount.h"
 #include "tensorflow/core/platform/status.h"
 
 namespace tensorflow {
-
-class FunctionRecord;
 
 // A traced function: this hides the complexity of converting the serialized
 // representation between various supported formats e.g. FunctionDef and Mlir
@@ -38,11 +35,7 @@ class AbstractFunction : public core::RefCounted {
   AbstractFunctionKind getKind() const { return kind_; }
 
   // Returns the AbstractFunction as a FunctionDef.
-  virtual Status GetFunctionDef(const FunctionDef**) = 0;
-
-  // Returns a shared reference to the wrapped function.
-  virtual absl::StatusOr<core::RefCountPtr<FunctionRecord>>
-  GetFunctionRecord() = 0;
+  virtual Status GetFunctionDef(FunctionDef**) = 0;
 
  private:
   const AbstractFunctionKind kind_;

@@ -55,8 +55,8 @@ bool HasForwardedRefInput(const Node& node);
 //
 // Returns true for success and false for valid graphs that we can't handle yet
 // (b/127521408).
-absl::StatusOr<bool> CreateCycleDetectionGraph(const Graph* graph,
-                                               GraphCycles* cycles);
+StatusOr<bool> CreateCycleDetectionGraph(const Graph* graph,
+                                         GraphCycles* cycles);
 
 // Returns the XLA cluster in which `node` is placed if it is in an XLA cluster,
 // otherwise returns nullopt.
@@ -97,16 +97,16 @@ XlaAutoClusteringSummary GetXlaAutoClusteringSummary(const Graph& graph);
 //
 // We assume each node has a trivial path to itself so the returned set includes
 // all of the nodes that have ref variables as input or output.
-absl::StatusOr<absl::flat_hash_set<Node*>> GetNodesRelatedToRefVariables(
+StatusOr<absl::flat_hash_set<Node*>> GetNodesRelatedToRefVariables(
     const Graph& graph, FunctionLibraryRuntime* lib_runtime);
 
 // Deterministically serialized the graph to a byte string.
-absl::StatusOr<std::string> SerializeGraphDeterministic(const Graph& graph);
+StatusOr<std::string> SerializeGraphDeterministic(const Graph& graph);
 
 // Computes a fingerprint of the given `graph`. The fingerprint can use used to
 // check if two graphs are likely the same but should not be relied on
 // determining if the graphs are identical.
-absl::StatusOr<uint64> FingerprintGraph(const Graph& graph);
+StatusOr<uint64> FingerprintGraph(const Graph& graph);
 
 }  // namespace tensorflow
 

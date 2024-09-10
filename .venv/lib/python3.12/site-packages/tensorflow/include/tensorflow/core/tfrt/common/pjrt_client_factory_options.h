@@ -15,6 +15,8 @@ limitations under the License.
 #ifndef TENSORFLOW_CORE_TFRT_COMMON_PJRT_CLIENT_FACTORY_OPTIONS_H_
 #define TENSORFLOW_CORE_TFRT_COMMON_PJRT_CLIENT_FACTORY_OPTIONS_H_
 
+#include <functional>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>

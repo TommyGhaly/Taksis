@@ -99,10 +99,10 @@ class LogisticLossUpdater : public DualLossUpdater {
   Status ConvertLabel(float* const example_label) const final {
     if (*example_label == 0.0) {
       *example_label = -1;
-      return absl::OkStatus();
+      return OkStatus();
     }
     if (*example_label == 1.0) {
-      return absl::OkStatus();
+      return OkStatus();
     }
     return errors::InvalidArgument(
         "Only labels of 0.0 or 1.0 are supported right now. "

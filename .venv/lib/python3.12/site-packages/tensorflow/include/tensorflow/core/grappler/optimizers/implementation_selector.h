@@ -96,7 +96,7 @@ class ImplementationSelector : public CustomGraphOptimizer {
   ~ImplementationSelector() override = default;
   Status Init(
       const tensorflow::RewriterConfig_CustomGraphOptimizer* config) override {
-    return absl::OkStatus();
+    return OkStatus();
   }
   string name() const override {
     return "implementation_selector";

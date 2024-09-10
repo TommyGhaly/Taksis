@@ -46,7 +46,7 @@ struct DeviceCompilationClusterSignature {
   string HumanString() const;
 
   // Builds the signature for a compilation.
-  static absl::StatusOr<DeviceCompilationClusterSignature> Build(
+  static StatusOr<DeviceCompilationClusterSignature> Build(
       const NameAttrList& function,
       absl::Span<const XlaCompiler::Argument> args);
 };

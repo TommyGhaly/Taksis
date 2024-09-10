@@ -58,5 +58,4 @@ CONVERSION_RULES = (
     DoNotConvert('tensorflow_datasets.core'),
 
     DoNotConvert('keras'),
-    DoNotConvert('tf_keras'),
 )

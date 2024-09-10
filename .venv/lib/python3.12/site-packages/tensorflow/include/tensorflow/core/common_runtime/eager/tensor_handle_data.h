@@ -80,9 +80,9 @@ class LocalTensorHandleData {
   class NonBlockingControl {
    public:
     bool IsReady() const { return true; }
-    Status WaitReady(const char* caller) const { return absl::OkStatus(); }
+    Status WaitReady(const char* caller) const { return OkStatus(); }
     void Poison(Status status) {}
-    Status IsPoisoned() const { return absl::OkStatus(); }
+    Status IsPoisoned() const { return OkStatus(); }
   };
 
   class BlockingControl {

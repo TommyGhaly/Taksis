@@ -323,7 +323,7 @@ class GraphViewInternal {
   Status AddUniqueNode(NodeDefT* node) {
     auto inserted = nodes_.emplace(node->name(), node);
     return inserted.second
-               ? absl::OkStatus()
+               ? OkStatus()
                : absl::InvalidArgumentError(absl::StrCat(
                      "Non unique node name detected: ", node->name()));
   }

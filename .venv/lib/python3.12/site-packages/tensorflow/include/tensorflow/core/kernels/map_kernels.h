@@ -35,7 +35,7 @@ inline Status GetInputMap(OpKernelContext* ctx, int index,
         ctx->input(index).scalar<Variant>()().DebugString(), "'");
   }
   *ret_map = map;
-  return absl::OkStatus();
+  return OkStatus();
 }
 
 // TODO(kattian): change into templated function
@@ -62,7 +62,7 @@ inline Status ForwardInputOrCreateNewMap(OpKernelContext* ctx,
       // Woohoo, forwarding succeeded!
       ctx->set_output(output_index, *output_tensor);
       *output_map = tmp_out;
-      return absl::OkStatus();
+      return OkStatus();
     }
   }
 
@@ -75,7 +75,7 @@ inline Status ForwardInputOrCreateNewMap(OpKernelContext* ctx,
   output_tensor->scalar<Variant>()() = input_map.Copy();
 
   *output_map = output_tensor->scalar<Variant>()().get<TensorMap>();
-  return absl::OkStatus();
+  return OkStatus();
 }
 
 class EmptyTensorMap : public OpKernel {
@@ -240,14 +240,14 @@ Status TensorMapBinaryAdd(OpKernelContext* ctx, const TensorMap& a,
       out->tensors().emplace(p.first, p.second);
     }
   }
-  return absl::OkStatus();
+  return OkStatus();
 }
 
 template <typename Device>
 Status TensorMapZerosLike(OpKernelContext* ctx, const TensorMap& x,
                           TensorMap* y) {
   // Zeros like returns an empty map.
-  return absl::OkStatus();
+  return OkStatus();
 }
 
 }  // namespace tensorflow
