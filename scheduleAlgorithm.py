@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 
 # Path to your service account key file
 cred = credentials.Certificate('./taksis-a8ba7-firebase-adminsdk-hal48-c54bff4412.json')
@@ -86,20 +87,22 @@ def convertToTensor(deacons):
 class CustomModel(nn.Module):
     def __init__(self):
         super(CustomModel, self).__init__()
-        # Transforming 5 features into higher dimensionality
-        self.fc1 = nn.Linear(5, 1024)  # From 5 features to 1024 units
+        # Transforming 250 * 5 features into higher dimensionality
+        self.fc1 = nn.Linear(250 * 5, 1024)  # From 1250 units to 1024 units
         self.fc2 = nn.Linear(1024, 512)  # From 1024 units to 512 units
-        self.fc3 = nn.Linear(512, 250)  # From 512 units to 250 units (scores for each input array)
+        self.fc3 = nn.Linear(512, 250)  # Output a single array of size 250
 
     def forward(self, x):
         # x has shape (250, 5)
-        # We need to apply the same operations across the 250 arrays in the input
+        x = x.view(1, -1)  # Flatten to shape (1, 1250)
         x = torch.relu(self.fc1(x))  # Apply ReLU activation
         x = torch.relu(self.fc2(x))  # Apply ReLU activation
-        x = self.fc3(x)  # Output scores: shape (250)
+        x = self.fc3(x)  # Output raw scores: shape (1, 250)
+        x = F.softmax(x, dim=1)  # Apply softmax to get probabilities
         return x
     
 def rewards(results):
+    results = results[0]
     results = torch.tensor(results, dtype=torch.float32)
     print(results.shape)
     # Check for NaNs or Infs
@@ -113,7 +116,7 @@ def rewards(results):
     for i in range(results.shape[0]):
         users = results[i]
         if torch.all(users == 0):
-            return torch.tensor(-0.2, dtype=torch.float32)
+            return torch.tensor(-5, dtype=torch.float32)
 
         reward += (users[3] - 5) * 0.4
 
@@ -122,12 +125,12 @@ def rewards(results):
         else:
             reward -= 0.1 * users[4].sum()
 
-    if results[0, 0].item() >= 12:
+    if results[0, 0] >= 12:
         reward += 0.23
     else:
         reward -= 0.1
 
-    if results[0, 1].item() >= 2:
+    if results[0, 1] >= 2:
         reward += 0.2
 
     reward += (results[0, 2] - 5) * 0.15
@@ -137,75 +140,75 @@ def rewards(results):
     if (7 <= results[2, 0] <= 18).all():
         reward += 0.25
 
-    if results[1, 1].item() < 2:
+    if results[1, 1] < 2:
         reward += 0.25
-    elif results[1, 1].item() > 2:
+    elif results[1, 1] > 2:
         reward -= 0.3
-    if results[2, 1].item() < 2:
+    if results[2, 1] < 2:
         reward += 0.25
-    elif results[2, 1].item() > 2:
+    elif results[2, 1] > 2:
         reward -= 0.3
 
     for i in range(3, 6):
-        if results[i, 0].item() > 15:
+        if results[i, 0] > 15:
             reward += 0.4
-        elif results[i, 0].item() <= 12:
+        elif results[i, 0] <= 12:
             reward -= 0.8
 
     for i in range(3, 6):
-        if results[i, 1].item() >= 2:
+        if results[i, 1] >= 2:
             reward += 0.15
 
-    if results[6, 0].item() >= 18:
+    if results[6, 0] >= 18:
         reward += 0.5
     else:
         reward -= 0.67
 
-    if results[6, 1].item() < 2:
+    if results[6, 1] < 2:
         reward -= 0.35
 
-    if results[6, 2].item() > 7:
+    if results[6, 2] > 7:
         reward += 0.4
 
-    if results[7, 0].item() >= 16:
+    if results[7, 0] >= 16:
         reward += 0.27
-    elif results[7, 0].item() <= 11:
+    elif results[7, 0] <= 11:
         reward -= 0.33
 
-    if results[7, 1].item() >= 2:
+    if results[7, 1] >= 2:
         reward += 0.28
 
-    if results[7, 2].item() > 6.5:
+    if results[7, 2] > 6.5:
         reward += 0.43
     else:
         reward -= 0.13
 
-    if results[8, 0].item() >= 18:
+    if results[8, 0] >= 18:
         reward += 0.42
-    elif results[8, 0].item() <= 15:
+    elif results[8, 0] <= 15:
         reward -= 0.33
 
-    if results[8, 1].item() >= 3:
+    if results[8, 1] >= 3:
         reward += 0.4
 
-    if results[8, 2].item() > 7.2:
+    if results[8, 2] > 7.2:
         reward += 0.6
-    elif results[8, 2].item() < 4.2:
+    elif results[8, 2] < 4.2:
         reward -= 0.33
 
-    if results[9, 0].item() > 13:
+    if results[9, 0] > 13:
         reward += 0.26
-    if results[9, 1].item() >= 2:
+    if results[9, 1] >= 2:
         reward += 0.17
-    if results[9, 2].item() > 4.5:
+    if results[9, 2] > 4.5:
         reward += 0.24
 
-    if results[10, 0].item() > 11:
+    if results[10, 0] > 11:
         reward += 0.21
-    if results[10, 2].item() > 3.2:
+    if results[10, 2] > 3.2:
         reward += 0.15
 
-    if results[11, 0].item() > 8:
+    if results[11, 0] > 8:
         reward += 0.08
 
     return reward
@@ -242,50 +245,50 @@ def generate_custom_tensor(array_size=250):
     
     return tensor
 
+# Do not use torch.no_grad() during training
 def select_top_12_and_evaluate(model, data):
-    # Generate scores
-    with torch.no_grad():
-        scores = model(data)  # Output shape: [250]
-
-    # Get indices of top 12 scores
+    scores = model(data)  # Output shape: [250]
     _, top_indices = torch.topk(scores, 12)
-
-    # Select top 12 arrays based on indices
     selected_arrays = data[top_indices]  # Shape: [12, 5]
-
-    # Compute reward for the selected arrays
     reward = rewards(selected_arrays)
+    return  reward
 
-    return selected_arrays, reward
 
-# Training loop
+
 def train_model(model, optimizer, num_episodes=1000):
     for episode in range(num_episodes):
         optimizer.zero_grad()
 
-        input_array = generate_custom_tensor()  # Shape: (250, 5)
+        # Generate the input array: shape (250, 5)
+        input_array = generate_custom_tensor()  # Ensure this returns a torch tensor of shape (250, 5)
 
-        # Forward pass
-        scores = model(input_array)  # Output shape: (250)
+        # Select top 12 arrays based on the model's output probabilities
+        reward_value = select_top_12_and_evaluate(model, input_array)
 
-        # Select top 12 arrays
-        selected_arrays, reward = select_top_12_and_evaluate(model, input_array)
+        # Reward should be a scalar tensor
+        reward = torch.tensor(reward_value, dtype=torch.float32, requires_grad=True)
 
-        # Reward should be a scalar value
-        reward = torch.tensor(reward, dtype=torch.float32, requires_grad=False)
+        # Define the loss: maximize reward, so we minimize negative reward
+        loss = -reward  # Minimize the negative reward
 
-        # Define a dummy loss; in practice, you'd use reward to update the model
-        loss = -reward  # We want to maximize reward, so minimize negative reward
 
-        # Backward pass
+
+        # Ensure loss is a tensor and backward pass will be correct
         loss.backward()
-        
-        # Update weights
+
+        # Update model weights
         optimizer.step()
 
+        # Save the entire model
+        torch.save(model, 'full_model.pth')
+
+        # Print progress (using .item() to extract the scalar value of the loss)
         print(f'Episode {episode + 1}/{num_episodes}, Loss: {loss.item()}')
 
+
 # Initialize model, optimizer, and start training
-model = CustomModel()
+model = torch.load('full_model.pth')
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-train_model(model, optimizer)
+
+# Start training
+train_model(model, optimizer, num_episodes=1000000)
