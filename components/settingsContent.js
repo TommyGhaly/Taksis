@@ -90,12 +90,6 @@ const SettingsContent = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.option}
-          onPress={() => navigation.navigate("ChangeEmail")}
-        >
-          <Text style={styles.optionText}>Change email</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.option}
           onPress={() => navigation.navigate("ChangeAge")}
         >
           <Text style={styles.optionText}>Change age</Text>
