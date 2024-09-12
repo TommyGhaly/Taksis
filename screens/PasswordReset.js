@@ -6,10 +6,38 @@ import {
   Text,
   Pressable,
   ScrollView,
+  Alert,
 } from "react-native";
+import auth from '@react-native-firebase/auth';  // Import Firebase Auth
 import BackArrow from "../components/backArrow";
 
 const PasswordReset = ({ navigation }) => {
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+
+  const handlePasswordReset = () => {
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match");
+      return;
+    }
+
+    // Send a password reset email using react-native-firebase Auth
+    auth()
+      .sendPasswordResetEmail(email)
+      .then(() => {
+        Alert.alert(
+          "Success",
+          "A password reset email has been sent to the provided email address."
+        );
+        navigation.goBack();
+      })
+      .catch((error) => {
+        console.error("Error sending password reset email: ", error);
+        Alert.alert("Error", error.message);
+      });
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <BackArrow style={styles.backarrow} />
@@ -18,27 +46,30 @@ const PasswordReset = ({ navigation }) => {
         style={styles.input}
         placeholder="Enter your email"
         placeholderTextColor="#8e8e93"
+        value={email}
+        onChangeText={(text) => setEmail(text)}
       />
       <TextInput
         style={styles.input}
         placeholder="Enter your new password"
         placeholderTextColor="#8e8e93"
         secureTextEntry
+        value={password}
+        onChangeText={(text) => setPassword(text)}
       />
       <TextInput
         style={styles.input}
         placeholder="Confirm your new password"
         placeholderTextColor="#8e8e93"
         secureTextEntry
+        value={confirmPassword}
+        onChangeText={(text) => setConfirmPassword(text)}
       />
 
       <Text style={styles.infoText}>
         Please verify the change through the email sent to the provided address.
       </Text>
-      <Pressable
-        style={styles.confirmButton}
-        onPress={() => navigation.goBack()}
-      >
+      <Pressable style={styles.confirmButton} onPress={handlePasswordReset}>
         <Text style={styles.confirmText}>Continue</Text>
       </Pressable>
     </ScrollView>
