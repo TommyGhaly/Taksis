@@ -5,6 +5,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
+
 
 # Path to your service account key file
 cred = credentials.Certificate('./taksis-a8ba7-firebase-adminsdk-hal48-c54bff4412.json')
@@ -104,7 +106,6 @@ class CustomModel(nn.Module):
 def rewards(results):
     results = results[0]
     results = torch.tensor(results, dtype=torch.float32)
-    print(results.shape)
     # Check for NaNs or Infs
     if torch.isnan(results).any() or torch.isinf(results).any():
         raise ValueError("Results contain NaNs or Infs")
@@ -255,12 +256,22 @@ def select_top_12_and_evaluate(model, data):
 
 
 
+import torch
+import matplotlib.pyplot as plt
+
 def train_model(model, optimizer, num_episodes=1000):
+    loss_history = []
+    reward_history = []
+    count_rewards_above_threshold = 0
+    count_rewards_above_threshold_cumulative = []
+
+    reward_threshold = 0
+
     for episode in range(num_episodes):
         optimizer.zero_grad()
 
         # Generate the input array: shape (250, 5)
-        input_array = generate_custom_tensor()  # Ensure this returns a torch tensor of shape (250, 5)
+        input_array = generate_custom_tensor()
 
         # Select top 12 arrays based on the model's output probabilities
         reward_value = select_top_12_and_evaluate(model, input_array)
@@ -271,19 +282,68 @@ def train_model(model, optimizer, num_episodes=1000):
         # Define the loss: maximize reward, so we minimize negative reward
         loss = -reward  # Minimize the negative reward
 
-
-
         # Ensure loss is a tensor and backward pass will be correct
         loss.backward()
 
         # Update model weights
         optimizer.step()
 
-        # Save the entire model
-        torch.save(model, 'full_model.pth')
+        # Record loss and reward for this episode
+        loss_history.append(loss.item())
+        reward_history.append(reward_value)
 
-        # Print progress (using .item() to extract the scalar value of the loss)
-        print(f'Episode {episode + 1}/{num_episodes}, Loss: {loss.item()}')
+        # Count rewards greater than the threshold
+        if reward_value > reward_threshold:
+            count_rewards_above_threshold += 1
+
+        # Track cumulative count of rewards greater than the threshold
+        count_rewards_above_threshold_cumulative.append(count_rewards_above_threshold)
+
+        # Print progress every 100 episodes
+        if (episode + 1) % 100 == 0:
+            print(f'Episode {episode + 1}/{num_episodes}, Loss: {loss.item()}, Reward: {reward_value}')
+            torch.save(model, 'full_model.pth')
+
+    # Plot loss, rewards, and cumulative count of rewards greater than -5
+    plot_loss_rewards_and_counts(loss_history, reward_history, count_rewards_above_threshold_cumulative)
+
+    # Save the entire model after training
+    torch.save(model, 'full_model.pth')
+    
+    # Print the number of rewards above the threshold
+    print(f'Number of rewards greater than {reward_threshold}: {count_rewards_above_threshold}')
+
+
+def plot_loss_rewards_and_counts(losses, rewards, count_cumulative):
+    epochs = list(range(1, len(losses) + 1))
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+
+    # Plot loss on left y-axis
+    ax1.set_xlabel('Epoch')
+    ax1.set_ylabel('Loss', color='tab:red')
+    ax1.plot(epochs, losses, color='tab:red', label='Loss')
+    ax1.tick_params(axis='y', labelcolor='tab:red')
+    ax1.legend(loc='upper left')
+
+    # Plot reward on the second y-axis
+    ax1_twin = ax1.twinx()
+    ax1_twin.set_ylabel('Reward', color='tab:blue')
+    ax1_twin.plot(epochs, rewards, color='tab:blue', label='Reward')
+    ax1_twin.tick_params(axis='y', labelcolor='tab:blue')
+    ax1_twin.legend(loc='upper right')
+
+    ax1.set_title('Loss and Reward over Epochs')
+
+    # Plot cumulative count of rewards greater than -5
+    ax2.set_xlabel('Epoch')
+    ax2.set_ylabel('Cumulative Count of Rewards > 0')
+    ax2.plot(epochs, count_cumulative, color='tab:green', label='Cumulative Count > 0')
+    ax2.set_title('Cumulative Count of Rewards Greater Than 0')
+    ax2.legend(loc='upper left')
+
+    plt.tight_layout()
+    plt.show()
 
 
 # Initialize model, optimizer, and start training
@@ -291,4 +351,4 @@ model = torch.load('full_model.pth')
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 # Start training
-train_model(model, optimizer, num_episodes=1000000)
+train_model(model, optimizer, num_episodes=10000000)
