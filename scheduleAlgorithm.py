@@ -351,4 +351,4 @@ model = torch.load('full_model.pth')
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 # Start training
-train_model(model, optimizer, num_episodes=10000000)
+train_model(model, optimizer, num_episodes=10)
