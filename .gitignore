@@ -18,6 +18,11 @@ web-build/
 android
 ios
 
+# Functions
+taksis*
+algorithms/functions/venv/
+algorithms/functions/__pycache__/
+
 # Metro
 .metro-health-check*
 
@@ -37,4 +42,3 @@ yarn-error.*
 *.tsbuildinfo
 
 .idea
-.venv/
