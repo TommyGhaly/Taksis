@@ -8,6 +8,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Using Ionicons for icons
 import firestore from "@react-native-firebase/firestore";
+import { firebase } from '@react-native-firebase/functions';
+
 const HomeScreen = ({ route }) => {
 
   const updateChurchMembers = () => {
@@ -139,6 +141,11 @@ const HomeScreen = ({ route }) => {
     formatDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) // 7 days later
   );
 
+  async function getChurchMembers() {
+    const { churchMembers } = await firebase.functions().httpsCallable('on_request_example')();
+    return churchMembers;
+  }
+
   useEffect(() => {
     // Update dates every day when the component renders or updates
     const today = new Date();
@@ -146,6 +153,7 @@ const HomeScreen = ({ route }) => {
     setNextDate(
       formatDate(new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000))
     ); // 7 days from today
+    console.log(getChurchMembers());
   }, []);
 
   const inputProps = {
