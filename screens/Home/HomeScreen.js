@@ -8,17 +8,24 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Using Ionicons for icons
 import firestore from "@react-native-firebase/firestore";
-import { firebase } from '@react-native-firebase/functions';
+import { initializeApp } from "firebase/app";
+import { getFunctions, httpsCallable } from "firebase/functions";
+
+initializeApp({
+  projectId: "taksis-a8ba7",
+  apiKey: "AIzaSyBWxEgHXcJx19Rklr7P6HhhweT9_I70WkA",
+  authDomain: "taksis-a8ba7.firebaseapp.com"
+});
 
 const HomeScreen = ({ route }) => {
 
   const updateChurchMembers = () => {
     const usersRef = firestore().collection("users");
     const churchesRef = firestore().collection("churches");
-  
+
     usersRef.onSnapshot(async (snapshot) => {
       console.log("Users snapshot received");
-  
+
       for (const doc of snapshot.docs) {
         try {
           const userData = doc.data();
@@ -31,14 +38,14 @@ const HomeScreen = ({ route }) => {
           const userFrequency = userData.frequency;
           const userAge = userData.age;
           const userWeeks = userData.weeksSince;
-  
+
           if (userChurch && userName && userEmail && userUid) {
             const churchDocRef = churchesRef.doc(userChurch);
             const churchDoc = await churchDocRef.get();
-  
+
             // Prepare to batch update
             const batch = firestore().batch();
-  
+
             // Initialize church document if it doesn't exist
             if (!churchDoc.exists) {
               batch.set(churchDocRef, {
@@ -48,30 +55,30 @@ const HomeScreen = ({ route }) => {
               });
               console.log(`Initialized church document for ${userChurch}`);
             }
-  
+
             // Fetch current data from church document
             const currentData = churchDoc.data();
             const currentMembers = currentData.members || [];
             const currentDeacons = currentData.deacons || [];
             const currentServants = currentData.servants || [];
-  
+
             // Create the member object
             const memberObject = {
               name: userName,
               email: userEmail,
               uid: userUid,
             };
-  
+
             // Remove old entries if they exist
             const updatedMembers = currentMembers.filter(member => member.uid !== userUid);
             const updatedDeacons = currentDeacons.filter(deacon => deacon.uid !== userUid);
             const updatedServants = currentServants.filter(servant => servant.uid !== userUid);
-  
+
             // Add updated member entry
             if (!updatedMembers.some(member => member.uid === userUid)) {
               updatedMembers.push(memberObject);
             }
-  
+
             // Check and add/update deacons
             if (userData.isDeacon) {
               const deaconObject = {
@@ -83,12 +90,12 @@ const HomeScreen = ({ route }) => {
                 age: userAge,
                 weeksSince: userWeeks || 4,
               };
-  
+
               if (!updatedDeacons.some(deacon => deacon.uid === userUid)) {
                 updatedDeacons.push(deaconObject);
               }
             }
-  
+
             // Check and add/update servants
             if (userData.isSSTeacher) {
               const servantObject = {
@@ -96,12 +103,12 @@ const HomeScreen = ({ route }) => {
                 email: userEmail,
                 uid: userUid,
               };
-  
+
               if (!updatedServants.some(servant => servant.uid === userUid)) {
                 updatedServants.push(servantObject);
               }
             }
-  
+
             // Commit the batch update
             batch.update(churchDocRef, {
               members: updatedMembers,
@@ -117,12 +124,12 @@ const HomeScreen = ({ route }) => {
       }
     });
   };
-  
+
   useEffect(() => {
     updateChurchMembers();
   }, []);
-  
-  
+
+
 
   // Function to format date as MM/DD/YYYY
   const formatDate = (date) => {
@@ -130,9 +137,8 @@ const HomeScreen = ({ route }) => {
     let month = date.getMonth() + 1;
     let year = date.getFullYear();
 
-    return `${month < 10 ? `0${month}` : month}/${
-      day < 10 ? `0${day}` : day
-    }/${year}`;
+    return `${month < 10 ? `0${month}` : month}/${day < 10 ? `0${day}` : day
+      }/${year}`;
   };
 
   // Get the current date and the next service date (e.g., 7 days later)
@@ -141,11 +147,6 @@ const HomeScreen = ({ route }) => {
     formatDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) // 7 days later
   );
 
-  async function getChurchMembers() {
-    const { churchMembers } = await firebase.functions().httpsCallable('on_request_example')();
-    return churchMembers;
-  }
-
   useEffect(() => {
     // Update dates every day when the component renders or updates
     const today = new Date();
@@ -153,7 +154,34 @@ const HomeScreen = ({ route }) => {
     setNextDate(
       formatDate(new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000))
     ); // 7 days from today
-    console.log(getChurchMembers());
+    const callAddNumbersFunction = async () => {
+      try {
+        // Initialize the Cloud Functions module
+        const functions = getFunctions();
+
+        // Get a reference to the callable function 'addnumbers'
+        const addNumbers = httpsCallable(functions, 'addnumbers');
+
+        // Call the function with the two numbers you want to add
+        const response = await addNumbers({
+          firstNumber: 4,  // Change to your desired number
+          secondNumber: 3  // Change to your desired number
+        });
+
+        // Handle the response, set it in the state
+        // setResult(response.data);
+
+        console.log('Cloud function response:', response.data);
+      } catch (error) {
+        // Handle and log any errors
+        console.error('Error calling cloud function:', error.message, error.details);
+        // setError(error.message);
+      }
+    };
+
+    // Call the function when the component mounts
+    callAddNumbersFunction();
+  
   }, []);
 
   const inputProps = {
