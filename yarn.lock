@@ -2813,25 +2813,25 @@
   resolved "https://registry.npmjs.org/@react-native-community/slider/-/slider-4.5.2.tgz"
   integrity sha512-DbFyCyI7rwl0FkBkp0lzEVp+5mNfS5qU/nM2sK2aSguWhj0Odkt1aKHP2iW/ljruOhgS/O4dEixXlne4OdZJDQ==
 
-"@react-native-firebase/app@^20.4.0", "@react-native-firebase/app@20.4.0", "@react-native-firebase/app@20.5.0":
-  version "20.4.0"
-  resolved "https://registry.npmjs.org/@react-native-firebase/app/-/app-20.4.0.tgz"
-  integrity sha512-I3YswH5tq0kSezyFwyV0d3J+lnH+N/SdznFZ70Lr671X0YlrbEBb6BK7FzEiwq8rKeIPh+pbgnbYwzj/k9uEnQ==
+"@react-native-firebase/app@^20.5.0", "@react-native-firebase/app@20.5.0":
+  version "20.5.0"
+  resolved "https://registry.npmjs.org/@react-native-firebase/app/-/app-20.5.0.tgz"
+  integrity sha512-zW6jc9R8Ikxxo5qXv25No6QxdWOx37D4U0ppKZQoY6CzwGUzqc4oQUU9MclbUcx+H5p+GEzvT1EIGV6JG7/FAg==
   dependencies:
     firebase "10.12.2"
     superstruct "^0.6.2"
 
-"@react-native-firebase/auth@^20.4.0":
-  version "20.4.0"
-  resolved "https://registry.npmjs.org/@react-native-firebase/auth/-/auth-20.4.0.tgz"
-  integrity sha512-LUmlS9m62QdDoqJKxPyZIBLne1O7ZznY3QjGh5tfU1QVk4DM/b1iG4wR06nyEK9PqzFY5BdqWwWAKbquXl78HQ==
+"@react-native-firebase/auth@^20.5.0":
+  version "20.5.0"
+  resolved "https://registry.npmjs.org/@react-native-firebase/auth/-/auth-20.5.0.tgz"
+  integrity sha512-sKiifeVqsKWVAZXfYQJ6JjV8C+kuKJ0Jo82Cfj1L667l0OcwOchX9jTOP9dyt9NUEHOEIJMEzexWdFzL7nxT3g==
   dependencies:
     plist "^3.1.0"
 
-"@react-native-firebase/firestore@^20.4.0":
-  version "20.4.0"
-  resolved "https://registry.npmjs.org/@react-native-firebase/firestore/-/firestore-20.4.0.tgz"
-  integrity sha512-///YWJmZxCbDKM9QxaWnnEqvclIUbjsX+57hiwnzXzlNOd8dzOP1ub7EgBrzgZOT1VfybG9Fz16xTMjhxv21iQ==
+"@react-native-firebase/firestore@^20.5.0":
+  version "20.5.0"
+  resolved "https://registry.npmjs.org/@react-native-firebase/firestore/-/firestore-20.5.0.tgz"
+  integrity sha512-DsjMLHlVcj6If02kfQKpPDQ1S29mL8lAusQ8wRJ8oltQd64HBsANcjDXpWak6v7ohY6TmGvuHjBfNF73M+7LXA==
 
 "@react-native-firebase/functions@^20.5.0":
   version "20.5.0"

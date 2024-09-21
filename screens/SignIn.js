@@ -20,6 +20,10 @@ const SignIn = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  GoogleSignin.configure({
+    webClientId: "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
+  });
+
   // Function to handle sign-in with email and password
   const handleSignIn = async () => {
     try {
