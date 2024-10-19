@@ -1,7 +1,6 @@
 import * as React from "react";
-import { useState } from "react";  // Import useState from React
+import { useState } from "react";
 import {
-  ImageBackground,
   StyleSheet,
   View,
   TextInput,
@@ -16,381 +15,235 @@ import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import BackArrow from "../components/backArrow";
 
 const SignIn = ({ navigation }) => {
-  // State for managing email and password input
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   GoogleSignin.configure({
-    webClientId: "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
+    webClientId: "YOUR_WEB_CLIENT_ID",
   });
 
-  // Function to handle sign-in with email and password
   const handleSignIn = async () => {
     try {
-      // Sign in with email and password
       await auth().signInWithEmailAndPassword(email, password);
-      // If successful, navigate to the next screen (replace with your desired screen)
-      navigation.navigate("MainContainer"); // Replace "Home" with your desired route name
+      navigation.navigate("MainContainer");
     } catch (error) {
-      // Handle errors, such as incorrect email/password
       console.error("Sign In Error:", error);
       Alert.alert("Sign In Error", error.message);
     }
   };
 
   return (
-    <View style={[styles.signIn, styles.iconLayout]}>
+    <View style={styles.container}>
       <View style={styles.backarrow}>
         <BackArrow />
       </View>
-      <View style={styles.title}>
-        <Text style={styles.titleText}>Sign In</Text>
-      </View>
-      <ImageBackground
-        style={styles.lastsuppericon}
-        resizeMode="cover"
+      
+      <Image
+        style={styles.icon}
+        resizeMode="contain"
         source={require("../assets/lastSupperIcon.png")}
       />
+      <Text style={styles.titleText}>Sign In</Text>
       <TextInput
-        style={[styles.phoneOrEmail, styles.passwordBorder]}
+        style={styles.input}
         placeholder="Enter your email"
-        placeholderTextColor="#8e8e93"
-        onChangeText={setEmail}  // Update email state
-        value={email}  // Bind value to state
-        keyboardType="email-address"  // Ensure correct keyboard type
-        autoCapitalize="none"  // Avoid auto-capitalization for email
+        placeholderTextColor="#B0B0B0"
+        onChangeText={setEmail}
+        value={email}
+        keyboardType="email-address"
+        autoCapitalize="none"
       />
       <TextInput
-        style={[styles.password, styles.passwordBorder]}
+        style={styles.input}
         placeholder="Enter your password"
-        placeholderTextColor="#8e8e93"
-        onChangeText={setPassword}  // Update password state
-        value={password}  // Bind value to state
-        secureTextEntry  // Hide password input
+        placeholderTextColor="#B0B0B0"
+        onChangeText={setPassword}
+        value={password}
+        secureTextEntry
       />
-      <TouchableOpacity
-        style={[styles.continuebutton, styles.appleFlexBox]}
-        activeOpacity={0.2}
-        onPress={handleSignIn}  // Attach handleSignIn function
-      >
-        <Text style={styles.continue}>Continue</Text>
+      <TouchableOpacity style={styles.button} onPress={handleSignIn}>
+        <Text style={styles.buttonText}>Continue</Text>
       </TouchableOpacity>
-      <Pressable
-        style={[styles.forgotPasswordSetContainer, styles.containerPosition]}
-        onPress={() => {
-          navigation.navigate("PasswordReset");
-        }}
-      >
-        <Text style={[styles.text1, styles.orTypo]}>
-          <Text style={styles.forgotPassword}>{`Forgot password? `}</Text>
-          <Text style={styles.setNewPassword}>Set new password</Text>
-        </Text>
-      </Pressable>
-      <View style={styles.dividerWrapper}>
-        <View style={styles.divider}>
-          <View style={[styles.dividerChild, styles.dividerPosition]} />
-          <Text style={[styles.or, styles.orTypo]}>or</Text>
-          <View style={[styles.dividerItem, styles.dividerPosition]} />
-        </View>
-      </View>
-      <View style={styles.component2}>
+
+      {/* Wrap the links in a row */}
+      <View style={styles.linkRow}>
         <Pressable
-          style={[styles.appleregistration, styles.appleregistrationLayout]}
+          style={styles.link}
+          onPress={() => navigation.navigate("PasswordReset")}
         >
-          <View style={styles.appleFlexBox}>
-            <Image
-              style={styles.applelogoIcon}
-              resizeMode="cover"
-              source={require("../assets/appleLogo.png")}
-            />
-            <Text style={[styles.registerWithApple, styles.registerTypo]}>
-              Sign in with apple
-            </Text>
-          </View>
+          <Text style={styles.linkText1}>Forgot password?</Text>
+          <Text style={styles.linkText2}> Set new password</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.dividerWrapper}>
+        <View style={styles.divider} />
+        <Text style={styles.or}>or</Text>
+        <View style={styles.divider} />
+      </View>
+      <View style={styles.socialButtonsContainer}>
+        <Pressable style={styles.socialButtonApple}>
+          <Image
+            style={styles.socialIcon}
+            resizeMode="contain"
+            source={require("../assets/appleLogo.png")}
+          />
+          <Text style={styles.socialText}>Sign in with Apple</Text>
         </Pressable>
         <Pressable
-          style={[styles.googleregistration, styles.appleregistrationLayout]}
+          style={styles.socialButtonGoogle}
           onPress={() => onGoogleButtonPress(navigation)}
         >
-          <View style={styles.google}>
-            <Image
-              style={styles.applelogoIcon}
-              resizeMode="cover"
-              source={require("../assets/googleLogo.png")}
-            />
-            <Text style={[styles.registerWithGoogle, styles.registerTypo]}>
-              Sign in with Google
-            </Text>
-          </View>
+          <Image
+            style={styles.socialIcon}
+            resizeMode="contain"
+            source={require("../assets/googleLogo.png")}
+          />
+          <Text style={styles.socialText}>Sign in with Google</Text>
         </Pressable>
       </View>
-      <TouchableOpacity
-        style={[styles.dontHaveAccountContainer, styles.containerPosition]}
-        activeOpacity={0.2}
-        onPress={() => {
-          navigation.navigate("SignUp");
-        }}
-      >
-        <Text style={[styles.text2, styles.orTypo]}>
-          <Text style={styles.forgotPassword}>{`Don’t have an account? `}</Text>
-          <Text style={styles.setNewPassword}>Sign up</Text>
-        </Text>
-      </TouchableOpacity>
+      {/* New row for the sign-up link */}
+      <View style={styles.linkRow}>
+        <TouchableOpacity
+          style={styles.link}
+          onPress={() => navigation.navigate("SignUp")}
+        >
+          <Text style={styles.linkText1}>Don’t have an account?</Text>
+          <Text style={styles.linkText2}> Sign Up</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
 
 async function onGoogleButtonPress(navigation) {
   try {
-    // Check if your device supports Google Play
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-    // Get the user's ID token
     const { idToken } = await GoogleSignin.signIn();
-
-    // Create a Google credential with the token
     const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-
-    // Sign in the user with the credential
-    const userCredential = await auth().signInWithCredential(googleCredential);
-
-    return userCredential;
+    await auth().signInWithCredential(googleCredential);
   } catch (error) {
     console.error(error);
-    Alert.alert("Google Sign-In Error", error.message);  // Show error alert
+    Alert.alert("Google Sign-In Error", error.message);
   }
 }
 
-
 const styles = StyleSheet.create({
-	iconLayout: {
-		width: "100%",
-		overflow: "hidden"
-	},
-	containerPosition: {
-		left: "3.05%",
-		position: "absolute"
-	},
-	passwordBorder: {
-		fontSize: 17,
-		fontFamily: "Roboto-Regular",
-		borderColor: "#8e8e93",
-		height: "5.75%",
-		paddingVertical: 15,
-		paddingHorizontal: 20,
-		alignItems: "center",
-		flexDirection: "row",
-		borderWidth: 1,
-		borderStyle: "solid",
-		borderRadius: 10,
-		right: "5.85%",
-		width: "91.09%",
-		left: "3.05%",
-		position: "absolute"
-	},
-	appleFlexBox: {
-		justifyContent: "center",
-		alignItems: "center",
-		flexDirection: "row"
-	},
-	orTypo: {
-		letterSpacing: -0.1,
-		fontSize: 15,
-		fontFamily: "Roboto-Regular"
-	},
-	dividerPosition: {
-		borderTopWidth: 1,
-		bottom: "41.67%",
-		top: "52.78%",
-		width: "44.97%",
-		height: "5.56%",
-		borderColor: "#8e8e93",
-		borderStyle: "solid",
-		position: "absolute"
-	},
-	appleregistrationLayout: {
-		left: "0%",
-		right: "0%",
-		justifyContent: "center",
-		paddingVertical: 15,
-		paddingHorizontal: 20,
-		alignItems: "center",
-		flexDirection: "row",
-		borderRadius: 10,
-		position: "absolute",
-	},
-	registerTypo: {
-		marginLeft: 12,
-		textAlign: "left",
-		fontFamily: "Roboto-Medium",
-		fontWeight: "500",
-		letterSpacing: -0.2,
-		fontSize: 17
-	},
-	lastsuppericon: {
-		top: "12.21%",
-		right: "3.82%",
-		bottom: "68.31%",
-		left: "3.82%",
-		position: "absolute"
-	},
-	phoneOrEmail: {
-		top: "40.87%",
-		bottom: "53.38%",
-		color: "#8e8e93",
-	},
-	password: {
-		top: "48.85%",
-		bottom: "45.4%",
-		color: "#8e8e93",
-	},
-	continue: {
-		color: "#000",
-		textAlign: "left",
-		fontFamily: "Roboto-Medium",
-		fontWeight: "500",
-		letterSpacing: -0.2,
-		fontSize: 17
-	},
-	continuebutton: {
-		height: "5.87%",
-		top: "56.83%",
-		bottom: "37.3%",
-		backgroundColor: "#8e8e93",
-		borderColor: "#000",
-		paddingVertical: 15,
-		paddingHorizontal: 20,
-		borderWidth: 1,
-		borderStyle: "solid",
-		borderRadius: 10,
-		justifyContent: "center",
-		right: "5.85%",
-		width: "91.09%",
-		left: "3.05%",
-		position: "absolute"
-	},
-	forgotPassword: {
-		color: "#8e8e93"
-	},
-	setNewPassword: {
-		color: "#6e85e3"
-	},
-	text1: {
-		textAlign: "center",
-		left: "20%"
-	},
-	text2: {
-		textAlign: "center",
-		left: "35%",
-	},
-	forgotPasswordSetContainer: {
-		top: "64.93%"
-	},
-	dividerChild: {
-		right: "55.17%",
-		left: "-0.14%"
-	},
-	or: {
-		width: "3.91%",
-		left: "48.04%",
-		top: "0%",
-		height: "100%",
-		color: "#8e8e93",
-		textAlign: "left",
-		position: "absolute"
-	},
-	dividerItem: {
-		right: "-0.14%",
-		left: "55.17%"
-	},
-	divider: {
-		left: "0%",
-		right: "0%",
-		bottom: "0%",
-		top: "0%",
-		height: "100%",
-		position: "absolute",
-		width: "100%"
-	},
-	dividerWrapper: {
-		height: "2.11%",
-		top: "69.27%",
-		bottom: "28.62%",
-		right: "5.85%",
-		width: "91.09%",
-		left: "3.05%",
-		position: "absolute"
-	},
-	applelogoIcon: {
-		width: 24,
-		height: 24,
-		overflow: "hidden"
-	},
-	registerWithApple: {
-		color: "#fff"
-	},
-	appleregistration: {
-		bottom: "57.48%",
-		backgroundColor: "#333",
-		top: "0%"
-	},
-	registerWithGoogle: {
-		color: "#8e8e93"
-	},
-	google: {
-		alignItems: "center",
-		flexDirection: "row"
-	},
-	googleregistration: {
-		top: "57.48%",
-		borderColor: "rgba(185, 177, 177, 0.15)",
-		bottom: "0%",
-		height: "42.52%",
-		borderWidth: 1,
-		borderStyle: "solid"
-	},
-	component2: {
-		height: "14.91%",
-		top: "73.59%",
-		right: "4.07%",
-		bottom: "11.5%",
-		left: "4.83%",
-		width: "91.09%",
-		position: "absolute"
-	},
-	dontHaveAccountContainer: {
-		top: "90.75%"
-	},
-	icon: {
-		maxWidth: "100%",
-		maxHeight: "100%",
-		height: "100%",
-		overflow: "hidden"
-	},
-	backarrow: {
-		top: 74,
-		left: 16
-	},
-	title: {
-		top: 260,
-		left: 12,
-		height: "6.103%",
-		width: "88.295%",
-		flex: 1
-	},
-	titleText: {
-		fontSize: 34,
-		letterSpacing: -0.1,
-		fontFamily: "Roboto-Regular",
-		textAlign: "left",
-		color: "#8e8e93"
-	},
-	signIn: {
-		backgroundColor: "#000",
-		flex: 1,
-		height: "100%",
-		width: "100%",
-		overflow: "hidden"
-	}
+  container: {
+    flex: 1,
+    backgroundColor: "#000000", // Black background
+    padding: 20,
+  },
+  backarrow: {
+    marginTop: 50,
+    marginBottom: 20,
+  },
+  titleText: {
+    fontSize: 36, // Increased font size for the title
+    fontWeight: "bold",
+    color: "#8e8e93", // Color for the title
+    textAlign: "center",
+    marginBottom: 30,
+    textShadowColor: '#000', // Shadow color for title
+    textShadowOffset: { width: 0, height: 1 }, // Shadow offset for title
+    textShadowRadius: 2, // Shadow radius for title
+  },
+  icon: {
+    alignSelf: "center",
+    height: 200, // Increased height for the icon
+    marginBottom: 30,
+  },
+  input: {
+    height: 50,
+    borderColor: "#B0B0B0",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    fontSize: 16,
+    marginBottom: 15,
+    backgroundColor: "#000000", // Black input background
+    color: "#FFFFFF", // White text color
+  },
+  button: {
+    height: 50,
+    backgroundColor: "#8e8e93", // Gray-ish color for the button
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 15,
+  },
+  buttonText: {
+    color: "#000", // Dark text for button
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  linkRow: {
+    flexDirection: "row", // Set to row for horizontal alignment
+    justifyContent: "center", // Space between links
+    marginVertical:0,
+    alignItems: "center",
+  },
+  link: {
+    alignItems: "center",
+    flexDirection: "row", // Ensure the text elements are in a row
+  },
+  linkText1: {
+    color: "#8e8e93", // Color for the first part of the link
+    fontSize: 14,
+  },
+  linkText2: {
+    color: "#6e85e3", // Blue color for the second part of the link
+    fontSize: 14,
+  },
+  dividerWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 20,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#B0B0B0",
+  },
+  or: {
+    marginHorizontal: 10,
+    fontSize: 14,
+    color: "#B0B0B0",
+  },
+  socialButtonsContainer: {
+    flexDirection: "column",
+    alignItems: "center",
+  },
+  socialButtonApple: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#2C2C2E", // Dark gray for Apple button
+    borderRadius: 10,
+    height: 50,
+    width: "100%",
+    justifyContent: "center",
+    marginVertical: 10,
+  },
+  socialButtonGoogle: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#000000", // Black for Google button
+    borderRadius: 10,
+    height: 50,
+    width: "100%",
+    justifyContent: "center",
+    marginVertical: 10,
+  },
+  socialIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 10,
+  },
+  socialText: {
+    color: "#FFFFFF", // White text for social buttons
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
 
 export default SignIn;

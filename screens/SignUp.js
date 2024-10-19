@@ -23,7 +23,7 @@ const SignUp = ({ navigation }) => {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   GoogleSignin.configure({
-    webClientId: "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
+    webClientId: "YOUR_WEB_CLIENT_ID",
   });
 
   const handleSignUp = async () => {
@@ -53,8 +53,8 @@ const SignUp = ({ navigation }) => {
           await writeUserToDb(updatedUser);
 
           // Navigate to SelectChurch after successful signup
-          setSignUp(true); 
-          navigation.navigate("SelectChurch"); 
+          setSignUp(true);
+          navigation.navigate("SelectChurch");
         } else {
           console.error("Failed to get updated user profile.");
           Alert.alert("Sign Up Error", "Failed to get updated user profile.");
@@ -78,7 +78,7 @@ const SignUp = ({ navigation }) => {
           email: user.email,
           admin: false,
           superAdmin: false,
-          weeksSince: 4
+          weeksSince: 4,
         });
       }
     } catch (error) {
@@ -102,12 +102,12 @@ const SignUp = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.signup}>
+    <View style={styles.container}>
       <View style={styles.backarrow}>
         <BackArrow />
       </View>
       <View style={styles.progressBar}>
-        <ProgressBar startPercentage={0} endPercentage={1}/>
+        <ProgressBar startPercentage={0} endPercentage={1} />
       </View>
       <View style={styles.title}>
         <Text style={styles.titleText}>Sign Up</Text>
@@ -115,76 +115,76 @@ const SignUp = ({ navigation }) => {
       <TextInput
         value={name}
         autoCapitalize="words"
-        style={[styles.name, styles.nameBorder]}
+        style={[styles.input]}
         placeholder="Enter your name"
         placeholderTextColor="#8e8e93"
+        color="#8e8e93"
         onChangeText={(text) => setName(text)}
       />
       <TextInput
         value={email}
         autoCapitalize="none"
-        style={[styles.email, styles.nameBorder]}
+        style={[styles.input]}
         placeholder="Enter your email"
         placeholderTextColor="#8e8e93"
+        color="#8e8e93"
         onChangeText={(text) => setEmail(text)}
       />
       <TextInput
         value={password}
         autoCapitalize="none"
         secureTextEntry={true}
-        style={[styles.password, styles.nameBorder]}
+        style={[styles.input]}
         placeholder="Enter your password"
         placeholderTextColor="#8e8e93"
+        color="#8e8e93"
         onChangeText={(text) => setPassword(text)}
       />
       <TextInput
         value={confirmPassword}
         autoCapitalize="none"
         secureTextEntry={true}
-        style={[styles.passwordconfirm, styles.nameBorder]}
+        style={[styles.input]}
         placeholder="Confirm your password"
         placeholderTextColor="#8e8e93"
+        color="#8e8e93"
         onChangeText={(text) => setConfirmPassword(text)}
       />
-      <View style={styles.divider}>
-        <View style={[styles.dividerChild, styles.dividerPosition]} />
+
+      <View style={styles.dividerWrapper}>
+        <View style={styles.divider} />
         <Text style={styles.or}>or</Text>
-        <View style={[styles.dividerItem, styles.dividerPosition]} />
+        <View style={styles.divider} />
       </View>
+
       <View style={styles.continueLayout}>
         <Pressable onPress={handleSignUp}>
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>
       </View>
 
-      <View style={styles.component2}>
-        <Pressable
-          style={[styles.appleregistration, styles.appleregistrationPosition]}
-        >
-          <View style={styles.appleFlexBox}>
+      <View style={styles.componentContainer}>
+        <Pressable style={styles.socialButtonApple}>
+          <View style={styles.socialButtonContent}>
             <Image
-              style={styles.applelogoIcon}
+              style={styles.socialIcon}
               resizeMode="cover"
               source={require("../assets/appleLogo.png")}
             />
-            <Text style={[styles.registerWithApple, styles.registerTypo]}>
-              Register with Apple
-            </Text>
+            <Text style={styles.socialText}>Register with Apple</Text>
           </View>
         </Pressable>
         <Pressable
-          style={[styles.googleregistration, styles.appleregistrationPosition]}
+          style={styles.socialButtonGoogle}
           onPress={onGoogleButtonPress}
         >
-          <View style={styles.google}>
+          <View style={styles.socialButtonContent}>
             <Image
-              style={styles.applelogoIcon}
+              style={styles.socialIcon}
               resizeMode="cover"
               source={require("../assets/googleLogo.png")}
             />
-            <Text style={[styles.registerWithGoogle, styles.registerTypo]}>
-              Register with Google
-            </Text>
+            <Text style={styles.socialText}>Register with Google</Text>
           </View>
         </Pressable>
       </View>
@@ -193,233 +193,107 @@ const SignUp = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  backarrow: {
-    top: 74,
-    left: 16,
+  container: {
+    flex: 1,
+    backgroundColor: "#000000", // Black background
+    padding: 20,
   },
-  nameBorder: {
-    fontSize: 17,
-    fontFamily: "Roboto-Regular",
-    borderColor: "#8e8e93",
-    height: "5.75%",
-    paddingVertical: 15,
-    paddingHorizontal: 20,
+  backarrow: {
+    marginTop: 50,
+    marginBottom: 20,
+  },
+  title: {
     alignItems: "center",
-    flexDirection: "row",
+    marginBottom: 20,
+  },
+  titleText: {
+    fontSize: 36,
+    fontWeight: "bold",
+    color: "#8e8e93",
+    textShadowColor: '#000',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  input: {
+    height: 50,
+    borderColor: "#8e8e93",
     borderWidth: 1,
-    borderStyle: "solid",
     borderRadius: 10,
-    right: "4.83%",
-    width: "91.09%",
-    left: "4.07%",
-    position: "absolute",
+    paddingHorizontal: 15,
+    fontSize: 16,
+    marginBottom: 15,
+    backgroundColor: "#000000", // Black input background
+    color: "#FFFFFF", // White text color
   },
-  dividerPosition: {
-    borderTopWidth: 1,
-    bottom: "41.67%",
-    top: "52.78%",
-    width: "44.97%",
-    height: "5.56%",
-    borderColor: "#8e8e93",
-    borderStyle: "solid",
-    position: "absolute",
-  },
-  appleFlexBox: {
-    justifyContent: "center",
-    alignItems: "center",
+  dividerWrapper: {
     flexDirection: "row",
-  },
-  trackPosition: {
-    height: 4,
-    top: "50%",
-    marginTop: -2,
-    position: "absolute",
-  },
-  appleregistrationPosition: {
-    left: "0%",
-    right: "0%",
-    height: "42.52%",
-    justifyContent: "center",
-    paddingVertical: 15,
-    paddingHorizontal: 20,
     alignItems: "center",
-    flexDirection: "row",
-    borderRadius: 10,
-    position: "absolute",
-    width: "100%",
-  },
-  registerTypo: {
-    marginLeft: 12,
-    fontFamily: "Roboto-Medium",
-    fontWeight: "500",
-    letterSpacing: -0.2,
-    textAlign: "left",
-    fontSize: 17,
-  },
-  icon: {
-    maxWidth: "100%",
-    maxHeight: "100%",
-    height: "100%",
-    overflow: "hidden",
-    width: "100%",
-  },
-  backarrow: {
-    top: "8.69%",
-    right: "89.82%",
-    bottom: "88.5%",
-    width: "6.11%",
-    height: "2.82%",
-    left: "4.07%",
-    position: "absolute",
-  },
-  name: {
-    top: "26.83%",
-    bottom: "72.42%",
-    color: "#8e8e93",
-  },
-  email: {
-    top: "35.03%",
-    bottom: "56.22%",
-    color: "#8e8e93",
-  },
-  password: {
-    top: "43.13%",
-    bottom: "48.12%",
-    color: "#8e8e93",
-  },
-  passwordconfirm: {
-    top: "51.23%",
-    bottom: "40.02%",
-    color: "#8e8e93",
-  },
-  dividerChild: {
-    right: "55.17%",
-    left: "-0.14%",
-  },
-  or: {
-    width: "3.91%",
-    left: "48.04%",
-    fontSize: 15,
-    letterSpacing: -0.1,
-    textAlign: "left",
-    color: "#8e8e93",
-    top: "0%",
-    fontFamily: "Roboto-Regular",
-    height: "100%",
-    position: "absolute",
-  },
-  dividerItem: {
-    right: "-0.14%",
-    left: "55.17%",
+    marginVertical: 20,
   },
   divider: {
-    height: "2.11%",
-    top: "67.54%",
-    right: "4.33%",
-    bottom: "27.35%",
-    left: "4.58%",
-    width: "91.09%",
-    position: "absolute",
+    flex: 1,
+    height: 1,
+    backgroundColor: "#8e8e93",
   },
-  filled: {
-    left: 0,
-    borderRadius: 100,
-    backgroundColor: "#147efb",
-    width: 4,
+  or: {
+    marginHorizontal: 10,
+    fontSize: 14,
+    color: "#8e8e93",
   },
-  track: {
-    right: "12.2136%",
-    left: 0,
-    backgroundColor: "rgba(120, 120, 128, 0.32)",
+  continueLayout: {
+    backgroundColor: "#8e8e93",
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    height: 50,
+    marginVertical: 15,
+  },
+  continuetext: {
+    color: "#000", // Dark text for button
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  componentContainer: {
+    marginTop: 20,
+    alignItems: "center",
+  },
+  socialButtonApple: {
+    backgroundColor: "#2C2C2E", // Dark gray for Apple button
+    borderRadius: 10,
+    height: 50,
+    width: "100%",
+    justifyContent: "center",
+    marginVertical: 10,
+    alignItems: "center",
+  },
+  socialButtonGoogle: {
+    backgroundColor: "#000000", // Black for Google button
+    borderRadius: 10,
+    height: 50,
+    width: "100%",
+    justifyContent: "center",
+    marginVertical: 10,
+    alignItems: "center",
+  },
+  socialButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  socialIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 10,
+  },
+  socialText: {
+    color: "#FFFFFF", // White text for social buttons
+    fontSize: 16,
+    fontWeight: '600',
   },
   progressBar: {
     height: "3.29%",
     width: 293,
-    top: 84,
-    bottom: "88.26%",
-    left: "12.2137%",
-    position: "absolute",
-    backgroundColor: "#000",
-  },
-  applelogoIcon: {
-    width: 24,
-    height: 24,
-    overflow: "hidden",
-  },
-  registerWithApple: {
-    color: "#fff",
-  },
-  appleregistration: {
-    bottom: "59.48%",
-    backgroundColor: "#333",
-    top: "0%",
-    left: "0%",
-    right: "0%",
-    height: "42.52%",
-  },
-  registerWithGoogle: {
-    color: "#8e8e93",
-    marginLeft: 12,
-  },
-  google: {
-    alignItems: "center",
-    flexDirection: "row",
-  },
-  googleregistration: {
-    top: "57.48%",
-    bottom: "0%",
-    borderColor: "rgba(185, 177, 177, 0.15)",
-    left: "0%",
-    right: "0%",
-    height: "42.52%",
-    borderWidth: 1,
-    borderStyle: "solid",
-  },
-  component2: {
-    height: "14.91%",
-    top: "72%",
-    bottom: "10.09%",
-    right: "4.83%",
-    width: "91.09%",
-    left: "4.07%",
-    position: "absolute",
-  },
-  title: {
-    top: "17.023%",
-    left: 16,
-    height: "6.103%",
-    width: "88.295%",
-    flex: 1,
-  },
-  titleText: {
-    fontSize: 34,
-    letterSpacing: -0.1,
-    fontFamily: "Roboto-Regular",
-    textAlign: "left",
-    color: "#8e8e93",
-  },
-  continueLayout: {
-    bottom: 294,
-    left: 16,
-    height: 50,
-    width: 358,
-    backgroundColor: "#333",
-    borderRadius: 10,
-  },
-  continuetext: {
-    top: 15,
-    fontSize: 17,
-    letterSpacing: -0.2,
-    fontWeight: "500",
-    fontFamily: "Roboto-Medium",
-    color: "#fff",
-    textAlign: "center",
-  },
-  signup: {
-    flex: 1,
-    height: 852,
-    overflow: "hidden",
-    width: "100%",
+    marginBottom: 20,
+    alignSelf: "center",
     backgroundColor: "#000",
   },
 });

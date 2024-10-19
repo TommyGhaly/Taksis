@@ -1,121 +1,110 @@
 import * as React from "react";
 import {
-  ImageBackground,
+  Image,
   StyleSheet,
-  Pressable,
-  TouchableOpacity,
   Text,
   View,
+  Dimensions,
+  TouchableOpacity,
 } from "react-native";
+
+const { width, height } = Dimensions.get("window");
 
 const Welcome = ({ navigation }) => {
   return (
     <View style={styles.welcomescreen}>
-      <ImageBackground
+      <Image
         style={styles.icon}
         resizeMode="cover"
         source={require("../assets/Taksis.png")}
       />
-      <ImageBackground
+      <Image
         style={styles.crucifixionicon}
         resizeMode="center"
         source={require("../assets/crucifixionIcon.png")}
       />
-      <Pressable
-        style={[styles.rectangleParent, styles.rectangleLayout]}
-        onPress={() => {
-          navigation.navigate("SignIn");
-        }}
+      <TouchableOpacity
+        onPress={() => navigation.navigate("SignIn")}
+        style={styles.signInButton}
       >
-        <View style={[styles.frameChild, styles.frameLayout]} />
-        <Text style={[styles.signUp, styles.signTypo]}>Sign in</Text>
-      </Pressable>
-      <Pressable
-        style={[styles.rectangleGroup, styles.rectangleLayout]}
-        onPress={() => {
-          navigation.navigate("SignUp");
-        }}
+        <Text style={styles.signInButtonText}>Sign In</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => navigation.navigate("SignUp")}
+        style={styles.signUpButton}
       >
-        <Text style={[styles.signIn, styles.signTypo]}>Sign up</Text>
-      </Pressable>
+        <Text style={styles.buttonText}>Sign Up</Text>
+      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  rectangleLayout: {
-    height: "2.7%",
-    position: "absolute",
+  welcomescreen: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#000",
+    alignItems: "center",
+    justifyContent: "flex-end", // Align items to the bottom
+    paddingBottom: 40, // Add some padding to the bottom
   },
-  frameLayout: {
+  icon: {
+    marginTop: 40,
+    marginBottom: 20,
+    width: width * 0.8,
+    position: "absolute",
+    top: height * 0.05,
+  },
+  crucifixionicon: {
+    position: "absolute",
+    top: height * 0.05, // Adjust this value to move the icon closer to Taksis
+  },
+  signInButton: {
+    width: width * 0.8,
     height: 60,
-    width: 300,
     borderRadius: 10,
-    position: "absolute",
+    justifyContent: "center",
+    backgroundColor: "#8e8e93",
+    marginBottom: 30, // Add some space below the Sign In button
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  signTypo: {
+  signUpButton: {
+    width: width * 0.8,
+    height: 60,
+    borderRadius: 10,
+    justifyContent: "center",
+    backgroundColor: "#000",
+    marginBottom: 50, // Add some space below the Sign Up button
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  signInButtonText: {
     textAlign: "center",
     fontFamily: "Roboto-Bold",
     fontWeight: "600",
     fontSize: 20,
-    left: 0,
-    top: 0,
-    justifyContent: "center",
-    position: "absolute",
-  },
-  icon: {
-    width: 356,
-    height: 96,
-    top: "8.45%",
-    bottom: "80.28%",
-    left: "4.71%",
-    position: "absolute",
-  },
-  crucifixionicon: {
-    width: 342,
-    top: "30.52%",
-    right: 25.5,
-    bottom: "41.67%",
-    left: 25.5,
-    position: "absolute",
-  },
-  frameChild: {
-    top: -18,
-    left: -100,
-    backgroundColor: "#8e8e93",
-  },
-  signUp: {
     color: "#000",
-    width: 99,
   },
-  rectangleParent: {
-    width: "25.19%",
-    top: "71.24%",
-    right: "37.66%",
-    bottom: "26.06%",
-    left: "37.15%",
-  },
-  frameItem: {
-    top: -19,
-    left: -110,
-    backgroundColor: "#000",
-  },
-  signIn: {
-    color: "#8e8e93",
-    width: 78,
-  },
-  rectangleGroup: {
-    width: "19.77%",
-    top: "80.28%",
-    right: "40.28%",
-    bottom: "17.02%",
-    left: "39.95%",
-  },
-  welcomescreen: {
-    flex: 1,
-    width: "100%",
-    height: 852,
-    backgroundColor: "#000",
+  buttonText: {
+    textAlign: "center",
+    fontFamily: "Roboto-Bold",
+    fontWeight: "600",
+    fontSize: 20,
+    color: "#fff",
   },
 });
 
