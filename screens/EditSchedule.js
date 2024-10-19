@@ -1,61 +1,218 @@
 import React, { useState } from "react";
-import { Image, StyleSheet, Text, View, ScrollView } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  FlatList,
+  TouchableOpacity,
+} from "react-native";
 import DropDownPicker from "react-native-dropdown-picker";
 
-const EditSchedule = () => {
-  const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
-  const [groupDropdownValue, setGroupDropdownValue] = useState();
-  const [groupDropdown1Open, setGroupDropdown1Open] = useState(false);
-  const [groupDropdown1Value, setGroupDropdown1Value] = useState();
-  const [groupDropdown2Open, setGroupDropdown2Open] = useState(false);
-  const [groupDropdown2Value, setGroupDropdown2Value] = useState();
-  const [groupDropdown3Open, setGroupDropdown3Open] = useState(false);
-  const [groupDropdown3Value, setGroupDropdown3Value] = useState();
-  const [groupDropdown4Open, setGroupDropdown4Open] = useState(false);
-  const [groupDropdown4Value, setGroupDropdown4Value] = useState();
-  const [groupDropdown5Open, setGroupDropdown5Open] = useState(false);
-  const [groupDropdown5Value, setGroupDropdown5Value] = useState();
-  const [groupDropdown6Open, setGroupDropdown6Open] = useState(false);
-  const [groupDropdown6Value, setGroupDropdown6Value] = useState();
-  const [groupDropdown7Open, setGroupDropdown7Open] = useState(false);
-  const [groupDropdown7Value, setGroupDropdown7Value] = useState();
-  const [groupDropdown8Open, setGroupDropdown8Open] = useState(false);
-  const [groupDropdown8Value, setGroupDropdown8Value] = useState();
-  const [groupDropdown9Open, setGroupDropdown9Open] = useState(false);
-  const [groupDropdown9Value, setGroupDropdown9Value] = useState();
-  const [groupDropdown10Open, setGroupDropdown10Open] = useState(false);
-  const [groupDropdown10Value, setGroupDropdown10Value] = useState();
-  const [groupDropdown11Open, setGroupDropdown11Open] = useState(false);
-  const [groupDropdown11Value, setGroupDropdown11Value] = useState();
-  const [rectangleDropdownOpen, setRectangleDropdownOpen] = useState(false);
-  const [rectangleDropdownValue, setRectangleDropdownValue] = useState();
+const roles = [
+  "Matins Gospel Reader",
+  "Third Hour Reader",
+  "Sixth Hour Reader",
+  "Pauline Epistle Reader",
+  "Catholic Epistle Reader",
+  "Praxis Reader",
+  "Gospel Reader",
+  "Water Server",
+  "Wine Server",
+];
 
-  return (
-    <ScrollView style={styles.editschedule}>
-      <View style={styles.attendencetitleWrapper}>
-        <Image
-          resizeMode="cover"
-          source={require("../assets/Rectangle 17.png")}
+const people = [
+  { label: "John Doe", value: "johnDoe" },
+  { label: "Jane Smith", value: "janeSmith" },
+  { label: "Chris Johnson", value: "chrisJohnson" },
+  { label: "Alex Lee", value: "alexLee" },
+];
+
+const EditSchedule = () => {
+  const [numberOfServers, setNumberOfServers] = useState(2); // Default to 2
+  const [dropdownState, setDropdownState] = useState({
+    groupDropdownValue: Array(8).fill(null), // Adjust according to max number of servers
+    dropdownOpen: Array(8).fill(false),
+  });
+  const [roleDropdownState, setRoleDropdownState] = useState(Array(roles.length).fill(false));
+
+  const renderRoleDropdown = (role, index) => {
+    return (
+      <View style={styles.roleSection}>
+        <Text style={styles.roleTitle}>{role}</Text>
+        <DropDownPicker
+          open={roleDropdownState[index]}
+          value={null}
+          items={people}
+          setOpen={(open) => {
+            const newRoleDropdownOpen = [...roleDropdownState];
+            newRoleDropdownOpen[index] = open;
+            setRoleDropdownState(newRoleDropdownOpen);
+          }}
+          setValue={() => {}}
+          style={styles.dropdown}
+          dropDownContainerStyle={styles.dropdownContainer}
+          textStyle={styles.dropdownText}
+          placeholder="Select a person"
         />
       </View>
-    </ScrollView>
+    );
+  };
+
+  const renderAltarServerDropdown = (index) => {
+    return (
+      <View style={styles.roleSection}>
+        <Text style={styles.roleTitle}>Altar Server {index + 1}</Text>
+        <DropDownPicker
+          open={dropdownState.dropdownOpen[index]}
+          value={dropdownState.groupDropdownValue[index]}
+          items={people}
+          setOpen={(open) => {
+            const newDropdownOpen = [...dropdownState.dropdownOpen];
+            newDropdownOpen[index] = open;
+            setDropdownState((prevState) => ({
+              ...prevState,
+              dropdownOpen: newDropdownOpen,
+            }));
+          }}
+          setValue={(value) => {
+            const newValues = [...dropdownState.groupDropdownValue];
+            newValues[index] = value;
+            setDropdownState((prevState) => ({
+              ...prevState,
+              groupDropdownValue: newValues,
+            }));
+          }}
+          style={styles.dropdown}
+          dropDownContainerStyle={styles.dropdownContainer}
+          textStyle={styles.dropdownText}
+        />
+      </View>
+    );
+  };
+
+  const data = [
+    { type: "rolesHeader", title: "Readers" },
+    ...roles.map((role, index) => ({ type: "role", id: `role-${index}`, title: role, index })),
+    { type: "rolesHeader", title: "Altar Servers" },
+    ...Array.from({ length: numberOfServers }, (_, index) => ({
+      type: "server",
+      id: `server-${index}`,
+      index,
+    })),
+  ];
+
+  const renderItem = ({ item }) => {
+    if (item.type === "header") {
+      return <Text style={styles.headerText}>{item.title}</Text>;
+    } else if (item.type === "server") {
+      return renderAltarServerDropdown(item.index);
+    } else if (item.type === "rolesHeader") {
+      return <Text style={styles.rolesHeader}>{item.title}</Text>;
+    } else {
+      return renderRoleDropdown(item.title, item.index);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <FlatList
+        data={data}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.editschedule}
+        showsVerticalScrollIndicator={false}
+      />
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => setNumberOfServers((prev) => Math.max(2, prev - 1))}
+        >
+          <Text style={styles.buttonText}>- Remove Server</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => setNumberOfServers((prev) => Math.min(8, prev + 1))}
+        >
+          <Text style={styles.buttonText}>+ Add Server</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  attendencetitleWrapper: {
-    top: 52,
-    left: 34,
-    width: 280,
-    height: 71,
+  container: {
+    flex: 1,
+    backgroundColor: "#1a1a1a",
+    padding: 20,
   },
   editschedule: {
-    backgroundColor: "#000",
+    paddingBottom: 20,
+  },
+  headerText: {
+    fontSize: 28,
+    color: "#e0e0e0",
+    fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  roleSection: {
+    marginBottom: 15,
+    backgroundColor: "#2C2C2C",
+    borderRadius: 8,
+    padding: 10,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  roleTitle: {
+    fontSize: 18,
+    color: "#ffffff",
+    marginBottom: 8,
+  },
+  dropdown: {
+    backgroundColor: "#2C2C2C",
+    borderWidth: 0,
+    borderRadius: 8,
+  },
+  dropdownContainer: {
+    backgroundColor: "#2C2C2C",
+    borderWidth: 0,
+    borderRadius: 8,
+    zIndex: 999, // Ensure dropdown appears above other elements
+  },
+  dropdownText: {
+    color: "#e0e0e0",
+  },
+  rolesHeader: {
+    fontSize: 20,
+    color: "#e0e0e0",
+    marginBottom: 10,
+    marginTop: 20,
+    fontWeight: 'bold'
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  button: {
     flex: 1,
-    height: 852,
-    width: "100%",
-    marginTop: 60,
-    marginBottom: 90,
+    backgroundColor: "#007BFF",
+    borderRadius: 8,
+    padding: 10,
+    margin: 5,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 
