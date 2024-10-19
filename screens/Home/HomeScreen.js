@@ -14,11 +14,10 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 initializeApp({
   projectId: "taksis-a8ba7",
   apiKey: "AIzaSyBWxEgHXcJx19Rklr7P6HhhweT9_I70WkA",
-  authDomain: "taksis-a8ba7.firebaseapp.com"
+  authDomain: "taksis-a8ba7.firebaseapp.com",
 });
 
 const HomeScreen = ({ route }) => {
-
   const updateChurchMembers = () => {
     const usersRef = firestore().collection("users");
     const churchesRef = firestore().collection("churches");
@@ -70,12 +69,18 @@ const HomeScreen = ({ route }) => {
             };
 
             // Remove old entries if they exist
-            const updatedMembers = currentMembers.filter(member => member.uid !== userUid);
-            const updatedDeacons = currentDeacons.filter(deacon => deacon.uid !== userUid);
-            const updatedServants = currentServants.filter(servant => servant.uid !== userUid);
+            const updatedMembers = currentMembers.filter(
+              (member) => member.uid !== userUid
+            );
+            const updatedDeacons = currentDeacons.filter(
+              (deacon) => deacon.uid !== userUid
+            );
+            const updatedServants = currentServants.filter(
+              (servant) => servant.uid !== userUid
+            );
 
             // Add updated member entry
-            if (!updatedMembers.some(member => member.uid === userUid)) {
+            if (!updatedMembers.some((member) => member.uid === userUid)) {
               updatedMembers.push(memberObject);
             }
 
@@ -91,7 +96,7 @@ const HomeScreen = ({ route }) => {
                 weeksSince: userWeeks || 4,
               };
 
-              if (!updatedDeacons.some(deacon => deacon.uid === userUid)) {
+              if (!updatedDeacons.some((deacon) => deacon.uid === userUid)) {
                 updatedDeacons.push(deaconObject);
               }
             }
@@ -104,7 +109,7 @@ const HomeScreen = ({ route }) => {
                 uid: userUid,
               };
 
-              if (!updatedServants.some(servant => servant.uid === userUid)) {
+              if (!updatedServants.some((servant) => servant.uid === userUid)) {
                 updatedServants.push(servantObject);
               }
             }
@@ -129,16 +134,15 @@ const HomeScreen = ({ route }) => {
     updateChurchMembers();
   }, []);
 
-
-
   // Function to format date as MM/DD/YYYY
   const formatDate = (date) => {
     let day = date.getDate();
     let month = date.getMonth() + 1;
     let year = date.getFullYear();
 
-    return `${month < 10 ? `0${month}` : month}/${day < 10 ? `0${day}` : day
-      }/${year}`;
+    return `${month < 10 ? `0${month}` : month}/${
+      day < 10 ? `0${day}` : day
+    }/${year}`;
   };
 
   // Get the current date and the next service date (e.g., 7 days later)
@@ -160,28 +164,31 @@ const HomeScreen = ({ route }) => {
         const functions = getFunctions();
 
         // Get a reference to the callable function 'addnumbers'
-        const addNumbers = httpsCallable(functions, 'addnumbers');
+        const addNumbers = httpsCallable(functions, "addnumbers");
 
         // Call the function with the two numbers you want to add
         const response = await addNumbers({
-          firstNumber: 4,  // Change to your desired number
-          secondNumber: 3  // Change to your desired number
+          firstNumber: 4, // Change to your desired number
+          secondNumber: 3, // Change to your desired number
         });
 
         // Handle the response, set it in the state
         // setResult(response.data);
 
-        console.log('Cloud function response:', response.data);
+        console.log("Cloud function response:", response.data);
       } catch (error) {
         // Handle and log any errors
-        console.error('Error calling cloud function:', error.message, error.details);
+        console.error(
+          "Error calling cloud function:",
+          error.message,
+          error.details
+        );
         // setError(error.message);
       }
     };
 
     // Call the function when the component mounts
     callAddNumbersFunction();
-  
   }, []);
 
   const inputProps = {
@@ -223,11 +230,15 @@ const HomeScreen = ({ route }) => {
           </View>
           <View style={styles.card}>
             <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>Third Hour Gospel: {inputProps.third}</Text>
+            <Text style={styles.name}>
+              Third Hour Gospel: {inputProps.third}
+            </Text>
           </View>
           <View style={styles.card}>
             <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>Sixth Hour Gosepl: {inputProps.sixth}</Text>
+            <Text style={styles.name}>
+              Sixth Hour Gosepl: {inputProps.sixth}
+            </Text>
           </View>
           <View style={styles.card}>
             <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
@@ -291,8 +302,10 @@ const HomeScreen = ({ route }) => {
           <Text style={styles.nextServiceText}>
             Role: {inputProps.nextRole}
           </Text>
+          <TouchableOpacity style={styles.unavailableButton}>
+            <Text style={styles.requestButtonText}>Unavailable</Text>
+          </TouchableOpacity>
         </View>
-
         {/* Request a Week Button */}
         <TouchableOpacity style={styles.requestButton}>
           <Text style={styles.requestButtonText}>Request a Week</Text>
@@ -377,11 +390,24 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 5,
   },
+  unavailableButton: {
+    backgroundColor: "#ff3b30", // Soft blue button color
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 10, // Rounded button
+    marginVertical: 10,
+    alignSelf: "center", // Center the button horizontally
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 4, // Lighter elevation for a softer look
+  },
   // Request button styles
   requestButton: {
     backgroundColor: "#147efb", // Soft blue button color
     paddingVertical: 15,
-    paddingHorizontal: 40,
+    paddingHorizontal: 100,
     borderRadius: 30, // Rounded button
     marginVertical: 20,
     alignSelf: "center", // Center the button horizontally

@@ -37,7 +37,7 @@ const LearnItMainMenu = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   learnitmainmenu: {
-    backgroundColor: "#121212",  // Very dark grey background
+    backgroundColor: "#1a1a1a",  // Very dark grey background
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
