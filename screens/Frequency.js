@@ -72,12 +72,13 @@ const styles = StyleSheet.create({
     left: 16,
   },
   continueLayout: {
-    bottom: -103,
-    left: 16,
+    marginTop: 750,
+    marginLeft: 36,
     height: 50,
     width: 358,
     backgroundColor: "#333",
     borderRadius: 10,
+    position: 'absolute'
   },
   continuetext: {
     top: 15,
