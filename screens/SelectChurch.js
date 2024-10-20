@@ -39,6 +39,15 @@ const SelectChurch = ({navigation}) => {
       <View style={styles.position}>
         <Churches onSelectChurch={handleChurchSelection} />
       </View>
+      <View style={styles.continueLayout}>
+        <Pressable
+          onPress={() =>
+            handleContinue(user)
+          }
+        >
+          <Text style={styles.continuetext}>Continue</Text>
+        </Pressable>
+      </View>
       <View
         style={[styles.dontSeeYourChurchRegiste, styles.dontSeeYourContainer]}
       >
@@ -51,15 +60,6 @@ const SelectChurch = ({navigation}) => {
             <Text style={styles.dontSeeYour}>{`Don’t see your church? `}</Text>
             <Text style={styles.registerIt}>Register it</Text>
           </Text>
-        </Pressable>
-      </View>
-      <View style={styles.continueLayout}>
-        <Pressable
-          onPress={() =>
-            handleContinue(user)
-          }
-        >
-          <Text style={styles.continuetext}>Continue</Text>
         </Pressable>
       </View>
       <View style={styles.progressBar}>
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
   dontSeeYourContainer: {
     position: "absolute",
     left: 0,
-    top: 782,
+    marginTop: 830
   },
   dontSeeYourChurchRegiste: {
     width: "100%",
@@ -153,12 +153,13 @@ const styles = StyleSheet.create({
     left: "4.071%",
   },
   continueLayout: {
-    bottom: 60,
-    left: 16,
+    marginTop: 750,
+    marginLeft: 36,
     height: 50,
     width: 358,
     backgroundColor: "#333",
     borderRadius: 10,
+    position: 'absolute'
   },
   continuetext: {
     top: 15,

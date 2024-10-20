@@ -199,12 +199,22 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   backarrow: {
-    marginTop: 50,
-    marginBottom: 20,
+    marginTop: 24,
+    position: "absolute", // Position the back arrow absolutely
+    top: 50,
+    left: 16,
+  },
+  progressBar: {
+    top: 84,
+    right: "12.2137%",
+    bottom: "88.26%",
+    left: "12.2137%",
+    position: "absolute",
   },
   title: {
     alignItems: "center",
     marginBottom: 20,
+    marginTop: 120, // Add space after moving the progress bar up
   },
   titleText: {
     fontSize: 36,
@@ -288,13 +298,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF", // White text for social buttons
     fontSize: 16,
     fontWeight: '600',
-  },
-  progressBar: {
-    height: "3.29%",
-    width: 293,
-    marginBottom: 20,
-    alignSelf: "center",
-    backgroundColor: "#000",
   },
 });
 
