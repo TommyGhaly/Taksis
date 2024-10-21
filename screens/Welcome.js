@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     fontFamily: "Roboto-Bold",
     fontWeight: "600",
     fontSize: 20,
-    color: "#fff",
+    color: "#8e8e93",
   },
 });
 

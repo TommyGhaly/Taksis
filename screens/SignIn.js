@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
   socialText: {
     color: "#FFFFFF", // White text for social buttons
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
 });
 
