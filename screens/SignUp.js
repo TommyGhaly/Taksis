@@ -34,7 +34,10 @@ const SignUp = ({ navigation }) => {
 
     try {
       // Create user with email and password
-      const userCredential = await auth().createUserWithEmailAndPassword(email, password);
+      const userCredential = await auth().createUserWithEmailAndPassword(
+        email,
+        password
+      );
       const user = userCredential.user;
 
       // Check if user object is created successfully
@@ -88,10 +91,14 @@ const SignUp = ({ navigation }) => {
 
   const onGoogleButtonPress = async () => {
     try {
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      await GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
       const { idToken } = await GoogleSignin.signIn();
       const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-      const userCredential = await auth().signInWithCredential(googleCredential);
+      const userCredential = await auth().signInWithCredential(
+        googleCredential
+      );
       await writeUserToDb(userCredential.user);
       setSignUp(true);
       navigation.navigate("SelectChurch");
@@ -151,18 +158,16 @@ const SignUp = ({ navigation }) => {
         onChangeText={(text) => setConfirmPassword(text)}
       />
 
-      <View style={styles.dividerWrapper}>
-        <View style={styles.divider} />
-        <Text style={styles.or}>or</Text>
-        <View style={styles.divider} />
-      </View>
-
       <View style={styles.continueLayout}>
         <Pressable onPress={handleSignUp}>
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>
       </View>
-
+      <View style={styles.dividerWrapper}>
+        <View style={styles.divider} />
+        <Text style={styles.or}>or</Text>
+        <View style={styles.divider} />
+      </View>
       <View style={styles.componentContainer}>
         <Pressable style={styles.socialButtonApple}>
           <View style={styles.socialButtonContent}>
@@ -220,7 +225,7 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: "bold",
     color: "#8e8e93",
-    textShadowColor: '#000',
+    textShadowColor: "#000",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
@@ -238,7 +243,7 @@ const styles = StyleSheet.create({
   dividerWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 20,
+    marginVertical: 30,
   },
   divider: {
     flex: 1,
@@ -264,7 +269,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   componentContainer: {
-    marginTop: 20,
+    marginTop: 0,
     alignItems: "center",
   },
   socialButtonApple: {
@@ -297,7 +302,7 @@ const styles = StyleSheet.create({
   socialText: {
     color: "#FFFFFF", // White text for social buttons
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
 });
 
