@@ -38,7 +38,7 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
     <Tab.Navigator
       screenOptions={({ route, navigation }) => ({
         headerShown: true,
-        headerStyle: { backgroundColor: '#333' },  // Apply common header style
+        headerStyle: { backgroundColor: '#252525' },  // Apply common header style
         headerTintColor: "#fff",
         tabBarStyle: {
           height: 90,

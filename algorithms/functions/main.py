@@ -1,13 +1,24 @@
 from typing import Any
-
+import firebase_admin
+from firebase_admin import credentials, firestore
 # [START v2imports]
 # Dependencies for callable functions.
-from firebase_functions import https_fn, options
+from firebase_functions import https_fn, options, pubsub_fn
 
 # Dependencies for writing to Realtime Database.
 from firebase_admin import db, initialize_app
+cred = credentials.Certificate('algorithms/taksis-a8ba7-firebase-adminsdk-hal48-7ba92c6ad3.json')
+firebase_admin.initialize_app(cred)
 
-initialize_app()
+db = firestore.client()
+
+def get_documents(collection_name): 
+    collection_ref = db.collection(collection_name)
+
+    docs = collection_ref.stream()
+
+    for doc in docs:
+        print(f'{doc.id} => {doc.to_dict()}')
 
 @https_fn.on_call()
 def addnumbers(req: https_fn.CallableRequest) -> Any:
@@ -38,3 +49,13 @@ def addnumbers(req: https_fn.CallableRequest) -> Any:
         "operator": "+",
         "operationResult": first_number + second_number
     }
+
+@pubsub_fn.on_schedule('every sunday 16:00')
+def scheduled_function(event: pubsub_fn.ScheduleEvent) -> None:
+    """Runs every Sunday at 4 PM."""
+    print("This scheduled function runs every Sunday at 4 PM!")
+    # Add your scheduled task logic here
+# [END v2scheduledFunction]
+
+
+get_documents('churches')
