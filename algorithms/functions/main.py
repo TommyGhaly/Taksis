@@ -1,61 +1,36 @@
 from typing import Any
-import firebase_admin
-from firebase_admin import credentials, firestore
+
 # [START v2imports]
 # Dependencies for callable functions.
-from firebase_functions import https_fn, options, pubsub_fn
+from firebase_functions import https_fn, scheduler_fn, firestore_fn
 
-# Dependencies for writing to Realtime Database.
-from firebase_admin import db, initialize_app
-cred = credentials.Certificate('algorithms/taksis-a8ba7-firebase-adminsdk-hal48-7ba92c6ad3.json')
-firebase_admin.initialize_app(cred)
+# Dependencies for writing to Firestore.
+from firebase_admin import initialize_app, firestore
+import google.cloud.firestore
 
-db = firestore.client()
+initialize_app()
 
-def get_documents(collection_name): 
-    collection_ref = db.collection(collection_name)
+@scheduler_fn.on_schedule(
+    schedule="5 21 * * *",  # Run every day at 9:05 PM
+    timezone=scheduler_fn.Timezone("America/New_York"),
+)
+def my_scheduled_function(event: scheduler_fn.ScheduledEvent) -> https_fn.Response:
+    # [START adminSdkPush]
+    firestore_client: google.cloud.firestore.Client = firestore.client()
 
-    docs = collection_ref.stream()
+    # Read from the "churches" collection, document "St. Philopater and St. Mina, Wayland, MA"
+    doc_ref = firestore_client.collection("churches").document("St. Philopater and St. Mina, Wayland, MA")
+    doc = doc_ref.get()
 
-    for doc in docs:
-        print(f'{doc.id} => {doc.to_dict()}')
+    if doc.exists:
+        # Get the data from the document
+        doc_data = doc.to_dict()
 
-@https_fn.on_call()
-def addnumbers(req: https_fn.CallableRequest) -> Any:
-    """Adds two numbers to each other."""
-# [END v2addFunctionTrigger]
-    # [START v2addHttpsError]
-    # Checking that attributes are present and are numbers.
-    try:
-        # [START v2readAddData]
-        # Numbers passed from the client.
-        first_number_param = req.data["firstNumber"]
-        second_number_param = req.data["secondNumber"]
-        # [END v2readAddData]
-        first_number = int(first_number_param)
-        second_number = int(second_number_param)
-    except (ValueError, KeyError):
-        # Throwing an HttpsError so that the client gets the error details.
-        raise https_fn.HttpsError(
-            code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
-            message=('The function must be called with two arguments, "firstNumber"'
-                     ' and "secondNumber", which must both be numbers.'))
-    # [END v2addHttpsError]
+        # Push the document data into the "schedules" collection
+        _, new_doc_ref = firestore_client.collection("schedules").add(doc_data)
 
-    # [START v2returnAddData]
-    return {
-        "firstNumber": first_number,
-        "secondNumber": second_number,
-        "operator": "+",
-        "operationResult": first_number + second_number
-    }
-
-@pubsub_fn.on_schedule('every sunday 16:00')
-def scheduled_function(event: pubsub_fn.ScheduleEvent) -> None:
-    """Runs every Sunday at 4 PM."""
-    print("This scheduled function runs every Sunday at 4 PM!")
-    # Add your scheduled task logic here
-# [END v2scheduledFunction]
-
-
-get_documents('churches')
+        # Send back a message that we've successfully written the message
+        return https_fn.Response(f"Document with ID {new_doc_ref.id} added to schedules.")
+    else:
+        # If the document does not exist, return an error message
+        return https_fn.Response(f"Document not found in 'churches' collection.", status=404)
