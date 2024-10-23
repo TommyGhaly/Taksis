@@ -158,37 +158,37 @@ const HomeScreen = ({ route }) => {
     setNextDate(
       formatDate(new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000))
     ); // 7 days from today
-    const callAddNumbersFunction = async () => {
-      try {
-        // Initialize the Cloud Functions module
-        const functions = getFunctions();
+    // const callAddNumbersFunction = async () => {
+    //   try {
+    //     // Initialize the Cloud Functions module
+    //     const functions = getFunctions();
 
-        // Get a reference to the callable function 'addnumbers'
-        const addNumbers = httpsCallable(functions, "addnumbers");
+    //     // Get a reference to the callable function 'addnumbers'
+    //     const addNumbers = httpsCallable(functions, "addnumbers");
 
-        // Call the function with the two numbers you want to add
-        const response = await addNumbers({
-          firstNumber: 4, // Change to your desired number
-          secondNumber: 3, // Change to your desired number
-        });
+    //     // Call the function with the two numbers you want to add
+    //     const response = await addNumbers({
+    //       firstNumber: 4, // Change to your desired number
+    //       secondNumber: 3, // Change to your desired number
+    //     });
 
-        // Handle the response, set it in the state
-        // setResult(response.data);
+    //     // Handle the response, set it in the state
+    //     // setResult(response.data);
 
-        console.log("Cloud function response:", response.data);
-      } catch (error) {
-        // Handle and log any errors
-        console.error(
-          "Error calling cloud function:",
-          error.message,
-          error.details
-        );
-        // setError(error.message);
-      }
-    };
+    //     console.log("Cloud function response:", response.data);
+    //   } catch (error) {
+    //     // Handle and log any errors
+    //     console.error(
+    //       "Error calling cloud function:",
+    //       error.message,
+    //       error.details
+    //     );
+    //     // setError(error.message);
+    //   }
+    // };
 
     // Call the function when the component mounts
-    callAddNumbersFunction();
+    // callAddNumbersFunction();
   }, []);
 
   const inputProps = {
