@@ -275,8 +275,17 @@ def sort_deacons(deacons: List[Dict]) -> List[Dict]:
 
 
 # updates the user information to add one week to the people who had not served and restart the week count for the people who did serve
-def update_weeks(schedule):
-    pass
+def update_weeks(schedule, deacons):
+    # Create a set of uids for deacons who served
+    served_uids = {deacon["uid"] for deacon in schedule}
+
+    for deacon in deacons:
+        if deacon["uid"] in served_uids:
+            # Reset for those who served
+            deacon["weeksSince"] = 0
+        else:
+            # Increment for those who did not serve
+            deacon["weeksSince"] += 1
 
 
 # ensures the person added to the schedule isn't on there multiple times
@@ -352,7 +361,7 @@ def create_schedule(deacons, num_altar):
         "altar": schedule[7:],
     }
 
-    update_weeks(schedule)
+    update_weeks(schedule, deacons)
 
     return schedule_dict
 
@@ -369,12 +378,15 @@ def my_scheduled_function(event: scheduler_fn.ScheduledEvent) -> https_fn.Respon
     docs = collection_ref.stream()
 
     for doc in docs:
+        # TODO: remove once we have enough real users
+        if doc.id != "sample":
+            continue
         doc_data = doc.to_dict()
 
         if "deacons" in doc_data:
             deacons = doc_data["deacons"]
         else:
-            print("no deacons found in this chruch")
+            print("no deacons found in this church")
         # removes the current week
         if "schedule" in doc_data:
             doc_data["schedule"] = doc_data["schedule"][1:]
@@ -394,9 +406,10 @@ def my_scheduled_function(event: scheduler_fn.ScheduledEvent) -> https_fn.Respon
             # Calculate the date for the current document
             doc_date = start_date + datetime.timedelta(weeks=i)
             # Convert the date to a string format
-            doc_date_str = doc_date.strftime("%Y-%m-%d")
+            doc_date_str = doc_date.strftime("%m-%d-%y")
+            doc_name = f"{doc.id}-{doc_date_str}"
             # Push the document data into the "schedules" collection with the date as the document name
-            new_doc_ref = firestore_client.collection("schedules").document(doc_date_str).set(s)
+            new_doc_ref = firestore_client.collection("schedules").document(doc_name).set(s)
             response.append(new_doc_ref)
 
         # Send back a message that we've successfully written the message
