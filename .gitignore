@@ -20,8 +20,8 @@ ios
 
 # Functions
 taksis*
-algorithms/functions/venv/
-algorithms/functions/__pycache__/
+backend/functions/venv/
+backend/functions/__pycache__/
 
 # Metro
 .metro-health-check*
