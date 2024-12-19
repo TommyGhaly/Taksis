@@ -350,8 +350,8 @@ def create_schedule(deacons, num_altar):
 
     schedule_dict = {
         "matins": schedule[0],
-        "third hour": schedule[1],
-        "sixth hour": schedule[2],
+        "third": schedule[1],
+        "sixth": schedule[2],
         "pauline": schedule[3],
         "catholic": schedule[4],
         "praxis": schedule[5],

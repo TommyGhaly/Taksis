@@ -17,195 +17,92 @@ initializeApp({
   authDomain: "taksis-a8ba7.firebaseapp.com",
 });
 
-const HomeScreen = ({ route }) => {
-  const updateChurchMembers = () => {
-    const usersRef = firestore().collection("users");
-    const churchesRef = firestore().collection("churches");
+// Format date as MM-DD-YY
+const formatDate = (date) => {
+  let day = date.getDate();
+  let month = date.getMonth() + 1;
+  let year = date.getFullYear() % 100;
 
-    usersRef.onSnapshot(async (snapshot) => {
-      console.log("Users snapshot received");
+  return `${month < 10 ? `0${month}` : month}-${
+    day < 10 ? `0${day}` : day
+  }-${year}`;
+};
 
-      for (const doc of snapshot.docs) {
-        try {
-          const userData = doc.data();
-          const userChurch = userData.church;
-          const userName = userData.name;
-          const userEmail = userData.email;
-          const userRank = userData.rank;
-          const userUid = doc.id; // Assuming doc.id is the user's UID
-          const userExperience = userData.experience;
-          const userFrequency = userData.frequency;
-          const userAge = userData.age;
-          const userWeeks = userData.weeksSince;
+// Get the next upcoming Sunday
+const getNextSunday = () => {
+  const today = new Date();
+  const dayOfWeek = today.getDay(); // Sunday = 0, Monday = 1, ..., Saturday = 6
+  const daysUntilSunday = (7 - dayOfWeek) % 7; // Days until the next Sunday
+  const nextSunday = new Date(today.getTime() + daysUntilSunday * 24 * 60 * 60 * 1000);
+  return formatDate(nextSunday);
+};
 
-          if (userChurch && userName && userEmail && userUid) {
-            const churchDocRef = churchesRef.doc(userChurch);
-            const churchDoc = await churchDocRef.get();
+const HomeScreen = () => {
+  const [schedule, setSchedule] = useState({
+    matins: { name: "N/A" },
+    third: { name: "N/A" },
+    sixth: { name: "N/A" },
+    pauline: { name: "N/A" },
+    catholic: { name: "N/A" },
+    praxis: { name: "N/A" },
+    gospel: { name: "N/A" },
+    water: { name: "N/A" },
+    wine: { name: "N/A" },
+    altar: [],
+  });
 
-            // Prepare to batch update
-            const batch = firestore().batch();
-
-            // Initialize church document if it doesn't exist
-            if (!churchDoc.exists) {
-              batch.set(churchDocRef, {
-                members: [],
-                deacons: [],
-                servants: [],
-              });
-              console.log(`Initialized church document for ${userChurch}`);
-            }
-
-            // Fetch current data from church document
-            const currentData = churchDoc.data();
-            const currentMembers = currentData.members || [];
-            const currentDeacons = currentData.deacons || [];
-            const currentServants = currentData.servants || [];
-
-            // Create the member object
-            const memberObject = {
-              name: userName,
-              email: userEmail,
-              uid: userUid,
-            };
-
-            // Remove old entries if they exist
-            const updatedMembers = currentMembers.filter(
-              (member) => member.uid !== userUid
-            );
-            const updatedDeacons = currentDeacons.filter(
-              (deacon) => deacon.uid !== userUid
-            );
-            const updatedServants = currentServants.filter(
-              (servant) => servant.uid !== userUid
-            );
-
-            // Add updated member entry
-            if (!updatedMembers.some((member) => member.uid === userUid)) {
-              updatedMembers.push(memberObject);
-            }
-
-            // Check and add/update deacons
-            if (userData.isDeacon) {
-              const deaconObject = {
-                name: userName,
-                uid: userUid,
-                rank: userRank,
-                experience: userExperience,
-                frequency: userFrequency,
-                age: userAge,
-                weeksSince: userWeeks || 4,
-              };
-
-              if (!updatedDeacons.some((deacon) => deacon.uid === userUid)) {
-                updatedDeacons.push(deaconObject);
-              }
-            }
-
-            // Check and add/update servants
-            if (userData.isSSTeacher) {
-              const servantObject = {
-                name: userName,
-                email: userEmail,
-                uid: userUid,
-              };
-
-              if (!updatedServants.some((servant) => servant.uid === userUid)) {
-                updatedServants.push(servantObject);
-              }
-            }
-
-            // Commit the batch update
-            batch.update(churchDocRef, {
-              members: updatedMembers,
-              deacons: updatedDeacons,
-              servants: updatedServants,
-            });
-            await batch.commit();
-            console.log(`Updated church document for ${userChurch}.`);
-          }
-        } catch (error) {
-          console.error("Error updating church members:", error);
-        }
-      }
-    });
-  };
-
-  useEffect(() => {
-    updateChurchMembers();
-  }, []);
-
-  // Function to format date as MM/DD/YYYY
-  const formatDate = (date) => {
-    let day = date.getDate();
-    let month = date.getMonth() + 1;
-    let year = date.getFullYear();
-
-    return `${month < 10 ? `0${month}` : month}/${
-      day < 10 ? `0${day}` : day
-    }/${year}`;
-  };
-
-  // Get the current date and the next service date (e.g., 7 days later)
-  const [curDate, setCurDate] = useState(formatDate(new Date()));
-  const [nextDate, setNextDate] = useState(
-    formatDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) // 7 days later
+  const [currentWeek, setCurrentWeek] = useState(getNextSunday());
+  const [nextWeek, setNextWeek] = useState(
+    formatDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
   );
 
   useEffect(() => {
-    // Update dates every day when the component renders or updates
-    const today = new Date();
-    setCurDate(formatDate(today));
-    setNextDate(
-      formatDate(new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000))
-    ); // 7 days from today
-    // const callAddNumbersFunction = async () => {
-    //   try {
-    //     // Initialize the Cloud Functions module
-    //     const functions = getFunctions();
+    const fetchSchedule = async () => {
+      try {
+        const schedulesRef = firestore().collection("schedules");
+        schedulesRef.onSnapshot((snapshot) => {
+          let closestSchedule = null;
+          let closestDate = null;
 
-    //     // Get a reference to the callable function 'addnumbers'
-    //     const addNumbers = httpsCallable(functions, "addnumbers");
+          snapshot.docs.forEach((doc) => {
+            const scheduleData = doc.data();
+            const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
+            const [month, day, year] = scheduleDateStr.split("-").map(Number);
+            const scheduleDate = new Date(2000 + year, month - 1, day);
 
-    //     // Call the function with the two numbers you want to add
-    //     const response = await addNumbers({
-    //       firstNumber: 4, // Change to your desired number
-    //       secondNumber: 3, // Change to your desired number
-    //     });
+            if (scheduleDate > new Date()) {
+              if (!closestDate || scheduleDate < closestDate) {
+                closestDate = scheduleDate;
+                closestSchedule = scheduleData;
+              }
+            }
+          });
 
-    //     // Handle the response, set it in the state
-    //     // setResult(response.data);
+          if (closestSchedule) {
+            const defaultSchedule = {
+              matins: { name: "N/A" },
+              third: { name: "N/A" },
+              sixth: { name: "N/A" },
+              pauline: { name: "N/A" },
+              catholic: { name: "N/A" },
+              praxis: { name: "N/A" },
+              gospel: { name: "N/A" },
+              water: { name: "N/A" },
+              wine: { name: "N/A" },
+              altar: [],
+            };
 
-    //     console.log("Cloud function response:", response.data);
-    //   } catch (error) {
-    //     // Handle and log any errors
-    //     console.error(
-    //       "Error calling cloud function:",
-    //       error.message,
-    //       error.details
-    //     );
-    //     // setError(error.message);
-    //   }
-    // };
+            setSchedule({ ...defaultSchedule, ...closestSchedule });
+            console.log("Schedule updated:", closestSchedule);
+          }
+        });
+      } catch (error) {
+        console.error("Error fetching schedule:", error);
+      }
+    };
 
-    // Call the function when the component mounts
-    // callAddNumbersFunction();
+    fetchSchedule();
   }, []);
-
-  const inputProps = {
-    matins: "First Last",
-    third: "First Last",
-    sixth: "First Last",
-    pauline: "First Last",
-    catholic: "First Last",
-    praxis: "First Last",
-    gospel: "First Last",
-    water: "First Last",
-    wine: "First Last",
-    curDate, // Current date
-    nextDate, // Next service date
-    nextRole: "Your Role Here", // User's role for the next service
-    altarServers: ["Server 1", "Server 2", "Server 3", "Server 4", "Server 5"], // Placeholder names for altar servers
-  };
 
   return (
     <View style={styles.container}>
@@ -214,98 +111,65 @@ const HomeScreen = ({ route }) => {
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Header with Current Week */}
         <Text style={styles.header}>
           Services of Week{"\n"}
-          {inputProps.curDate}
+          Upcoming Sunday: {currentWeek}
         </Text>
 
-        {/* Section for Readings */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Readings</Text>
-
-          <View style={styles.card}>
-            <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>Matins Gospel: {inputProps.matins}</Text>
-          </View>
-          <View style={styles.card}>
-            <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>
-              Third Hour Gospel: {inputProps.third}
-            </Text>
-          </View>
-          <View style={styles.card}>
-            <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>
-              Sixth Hour Gosepl: {inputProps.sixth}
-            </Text>
-          </View>
-          <View style={styles.card}>
-            <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>
-              Pauline Epistle: {inputProps.pauline}
-            </Text>
-          </View>
-          <View style={styles.card}>
-            <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>
-              Catholic Epistle: {inputProps.catholic}
-            </Text>
-          </View>
-          <View style={styles.card}>
-            <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>Praxis: {inputProps.praxis}</Text>
-          </View>
-          <View style={styles.card}>
-            <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>Gospel: {inputProps.gospel}</Text>
-          </View>
+        {/* Render Schedule */}
+        <View style={styles.card}>
+          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
+          <Text style={styles.name}>Matins Gospel: {schedule.matins.name}</Text>
         </View>
-
-        {/* Section for Offerings */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Offering of the Lamb</Text>
-
-          <View style={styles.card}>
-            <Ionicons name="water" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>Water: {inputProps.water}</Text>
-          </View>
-          <View style={styles.card}>
-            <Ionicons name="wine" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>Wine: {inputProps.wine}</Text>
-          </View>
+        <View style={styles.card}>
+          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
+          <Text style={styles.name}>Third Hour Gospel: {schedule.third.name}</Text>
         </View>
-
-        {/* Section for Altar Servers */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Altar Servers</Text>
-
-          {inputProps.altarServers.map((server, index) => (
-            <View key={index} style={styles.card}>
-              <Ionicons
-                name="people"
-                size={24}
-                color="#fff"
-                style={styles.icon}
-              />
-              <Text style={styles.name}>{server}</Text>
-            </View>
-          ))}
+        <View style={styles.card}>
+          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
+          <Text style={styles.name}>Sixth Hour Gospel: {schedule.sixth.name}</Text>
         </View>
+        <View style={styles.card}>
+          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
+          <Text style={styles.name}>Pauline Epistle: {schedule.pauline.name}</Text>
+        </View>
+        <View style={styles.card}>
+          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
+          <Text style={styles.name}>Catholic Epistle: {schedule.catholic.name}</Text>
+        </View>
+        <View style={styles.card}>
+          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
+          <Text style={styles.name}>Praxis: {schedule.praxis.name}</Text>
+        </View>
+        <View style={styles.card}>
+          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
+          <Text style={styles.name}>Gospel: {schedule.gospel.name}</Text>
+        </View>
+        <View style={styles.card}>
+          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
+          <Text style={styles.name}>Water: {schedule.water.name}</Text>
+        </View>
+        <View style={styles.card}>
+          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
+          <Text style={styles.name}>Wine: {schedule.wine.name}</Text>
+        </View>
+        {schedule.altar.map((deacon, index) => (
+          <View key={index} style={styles.card}>
+            <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
+            <Text style={styles.name}>Altar: {deacon.name || "Unknown"}</Text>
+          </View>
+        ))}
 
         {/* Box for Next Service Week */}
         <View style={styles.nextServiceBox}>
           <Text style={styles.nextServiceHeader}>Next Service Week</Text>
-          <Text style={styles.nextServiceText}>
-            Your next service is on: {inputProps.nextDate}
-          </Text>
-          <Text style={styles.nextServiceText}>
-            Role: {inputProps.nextRole}
-          </Text>
+          <Text style={styles.nextServiceText}>Your next service is on: {nextWeek}</Text>
           <TouchableOpacity style={styles.unavailableButton}>
             <Text style={styles.requestButtonText}>Unavailable</Text>
           </TouchableOpacity>
         </View>
+
         {/* Request a Week Button */}
         <TouchableOpacity style={styles.requestButton}>
           <Text style={styles.requestButtonText}>Request a Week</Text>
