@@ -105,7 +105,7 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
   );
 }
 
-function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
+{/*function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
   return (
     <Drawer.Navigator
       screenOptions={({ navigation, route }) => ({
@@ -151,7 +151,7 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
       )}
     </Drawer.Navigator>
   );
-}
+}*/}
 
 export default function MainContainer() {
   const [userRoles, setUserRoles] = useState({
@@ -190,11 +190,19 @@ export default function MainContainer() {
   return (
     <NavigationContainer independent={true} theme={myTheme}>
       {shouldShowDrawer ? (
-        <DrawerNavigator
+        <TabNavigator
+        userRoles={userRoles}
+        setHomeTitle={setHomeTitle}
+        showDrawer={false} // Indicate that the drawer is not shown
+      />
+        /*<DrawerNavigator
           userRoles={userRoles}
           homeTitle={homeTitle}
           setHomeTitle={setHomeTitle}
-        />
+
+          Bring this back when adding attendences
+        />*/
+        
       ) : (
         <TabNavigator
           userRoles={userRoles}
