@@ -103,7 +103,6 @@ const HomeScreen = () => {
 
     fetchSchedule();
   }, []);
-
   return (
     <View style={styles.container}>
       <ScrollView
@@ -111,60 +110,67 @@ const HomeScreen = () => {
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header with Current Week */}
+        {/* Header */}
         <Text style={styles.header}>
           Services of Week{"\n"}
-          Upcoming Sunday: {currentWeek}
+          {currentWeek}
         </Text>
 
-        {/* Render Schedule */}
-        <View style={styles.card}>
-          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-          <Text style={styles.name}>Matins Gospel: {schedule.matins.name}</Text>
+        {/* Section for Readings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Readings</Text>
+          {[
+            { title: "Matins Gospel", value: schedule.matins.name },
+            { title: "Third Hour Gospel", value: schedule.third.name },
+            { title: "Sixth Hour Gospel", value: schedule.sixth.name },
+            { title: "Pauline Epistle", value: schedule.pauline.name },
+            { title: "Catholic Epistle", value: schedule.catholic.name },
+            { title: "Praxis", value: schedule.praxis.name },
+            { title: "Gospel", value: schedule.gospel.name },
+          ].map((item, index) => (
+            <View key={index} style={styles.card}>
+              <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
+              <Text style={styles.name}>{item.title}: {item.value}</Text>
+            </View>
+          ))}
         </View>
-        <View style={styles.card}>
-          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-          <Text style={styles.name}>Third Hour Gospel: {schedule.third.name}</Text>
+
+        {/* Section for Offerings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Offering of the Lamb</Text>
+          {[
+            { title: "Water", value: schedule.water.name },
+            { title: "Wine", value: schedule.wine.name },
+          ].map((item, index) => (
+            <View key={index} style={styles.card}>
+              <Ionicons
+                name={item.title === "Water" ? "water" : "wine"}
+                size={24}
+                color="#fff"
+                style={styles.icon}
+              />
+              <Text style={styles.name}>{item.title}: {item.value}</Text>
+            </View>
+          ))}
         </View>
-        <View style={styles.card}>
-          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-          <Text style={styles.name}>Sixth Hour Gospel: {schedule.sixth.name}</Text>
+
+        {/* Section for Altar Servers */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Altar Servers</Text>
+          {schedule.altar.map((deacon, index) => (
+            <View key={index} style={styles.card}>
+              <Ionicons name="people" size={24} color="#fff" style={styles.icon} />
+              <Text style={styles.name}>Altar: {deacon.name || "Unknown"}</Text>
+            </View>
+          ))}
         </View>
-        <View style={styles.card}>
-          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-          <Text style={styles.name}>Pauline Epistle: {schedule.pauline.name}</Text>
-        </View>
-        <View style={styles.card}>
-          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-          <Text style={styles.name}>Catholic Epistle: {schedule.catholic.name}</Text>
-        </View>
-        <View style={styles.card}>
-          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-          <Text style={styles.name}>Praxis: {schedule.praxis.name}</Text>
-        </View>
-        <View style={styles.card}>
-          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-          <Text style={styles.name}>Gospel: {schedule.gospel.name}</Text>
-        </View>
-        <View style={styles.card}>
-          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-          <Text style={styles.name}>Water: {schedule.water.name}</Text>
-        </View>
-        <View style={styles.card}>
-          <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-          <Text style={styles.name}>Wine: {schedule.wine.name}</Text>
-        </View>
-        {schedule.altar.map((deacon, index) => (
-          <View key={index} style={styles.card}>
-            <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-            <Text style={styles.name}>Altar: {deacon.name || "Unknown"}</Text>
-          </View>
-        ))}
 
         {/* Box for Next Service Week */}
         <View style={styles.nextServiceBox}>
           <Text style={styles.nextServiceHeader}>Next Service Week</Text>
-          <Text style={styles.nextServiceText}>Your next service is on: {nextWeek}</Text>
+          <Text style={styles.nextServiceText}>
+            Your next service is on: {nextWeek}
+          </Text>
           <TouchableOpacity style={styles.unavailableButton}>
             <Text style={styles.requestButtonText}>Unavailable</Text>
           </TouchableOpacity>
@@ -181,116 +187,75 @@ const HomeScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#1a1a1a", // Very dark grey background
-  },
-  scrollContainer: {
-    paddingBottom: 20, // Padding at the bottom for better spacing
-  },
-  homescreen: {
-    flex: 1,
-    width: "100%",
-  },
+  container: { flex: 1, backgroundColor: "#1a1a1a" },
+  scrollContainer: { paddingBottom: 20 },
+  homescreen: { flex: 1, width: "100%" },
   header: {
     fontSize: 28,
-    color: "#e0e0e0", // Light gray for text
+    color: "#e0e0e0",
     textAlign: "center",
     marginVertical: 20,
     fontWeight: "bold",
   },
-  section: {
-    paddingHorizontal: 16,
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    color: "#4d9cff", // Soft blue for section titles
-    marginBottom: 10,
-    fontWeight: "bold",
-  },
+  section: { paddingHorizontal: 16, marginBottom: 20 },
+  sectionTitle: { fontSize: 22, color: "#4d9cff", marginBottom: 10, fontWeight: "bold" },
   card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#2c2c2c", // Darker card background
+    backgroundColor: "#2c2c2c",
     padding: 16,
     borderRadius: 10,
     marginBottom: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2, // Slightly lighter shadow for variety
+    shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
   },
-  icon: {
-    marginRight: 10,
-  },
-  name: {
-    fontSize: 18,
-    color: "#e0e0e0", // Light gray for text
-  },
+  icon: { marginRight: 10 },
+  name: { fontSize: 18, color: "#e0e0e0" },
   nextServiceBox: {
-    backgroundColor: "#333333", // Dark gray background for the box
+    backgroundColor: "#333333",
     padding: 16,
     borderRadius: 10,
     marginHorizontal: 16,
     marginBottom: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2, // Slightly lighter shadow for variety
+    shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
   },
-  nextServiceHeader: {
-    fontSize: 20,
-    color: "#4d9cff", // Soft blue for header
-    marginBottom: 10,
-    textAlign: "center",
-    fontWeight: "bold",
-  },
-  nextServiceText: {
-    fontSize: 16,
-    color: "#e0e0e0", // Light gray for text
-    textAlign: "center",
-    marginBottom: 5,
-  },
+  nextServiceHeader: { fontSize: 20, color: "#4d9cff", marginBottom: 10, textAlign: "center", fontWeight: "bold" },
+  nextServiceText: { fontSize: 16, color: "#e0e0e0", textAlign: "center", marginBottom: 5 },
   unavailableButton: {
-    backgroundColor: "#ff3b30", // Soft blue button color
+    backgroundColor: "#ff3b30",
     paddingVertical: 12,
     paddingHorizontal: 30,
-    borderRadius: 10, // Rounded button
+    borderRadius: 10,
     marginVertical: 10,
-    alignSelf: "center", // Center the button horizontally
+    alignSelf: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 5,
-    elevation: 4, // Lighter elevation for a softer look
+    elevation: 4,
   },
-  // Request button styles
   requestButton: {
-    backgroundColor: "#147efb", // Soft blue button color
+    backgroundColor: "#147efb",
     paddingVertical: 15,
     paddingHorizontal: 100,
-    borderRadius: 30, // Rounded button
+    borderRadius: 30,
     marginVertical: 20,
-    alignSelf: "center", // Center the button horizontally
+    alignSelf: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 5,
-    elevation: 4, // Lighter elevation for a softer look
+    elevation: 4,
   },
-  requestButtonText: {
-    fontSize: 18,
-    color: "#ffffff",
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  blackspace: {
-    height: 0,
-    backgroundColor: "#1a1a1a", // Matching background color for spacing
-  },
+  requestButtonText: { fontSize: 18, color: "#ffffff", fontWeight: "bold", textAlign: "center" },
+  blackspace: { height: 0, backgroundColor: "#1a1a1a" },
 });
 
 export default HomeScreen;
