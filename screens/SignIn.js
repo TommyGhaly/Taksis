@@ -82,15 +82,7 @@ const SignIn = ({ navigation }) => {
         <View style={styles.divider} />
       </View>
       <View style={styles.socialButtonsContainer}>
-        <Pressable style={styles.socialButtonApple}>
-          <Image
-            style={styles.socialIcon}
-            resizeMode="contain"
-            source={require("../assets/appleLogo.png")}
-          />
-          <Text style={styles.socialText}>Sign in with Apple</Text>
-        </Pressable>
-        <Pressable
+      <Pressable
           style={styles.socialButtonGoogle}
           onPress={() => onGoogleButtonPress(navigation)}
         >
@@ -101,6 +93,15 @@ const SignIn = ({ navigation }) => {
           />
           <Text style={styles.socialText}>Sign in with Google</Text>
         </Pressable>
+        <Pressable style={styles.socialButtonApple}>
+          <Image
+            style={styles.socialIcon}
+            resizeMode="contain"
+            source={require("../assets/appleLogo.png")}
+          />
+          <Text style={styles.socialText}>Sign in with Apple</Text>
+        </Pressable>
+        
       </View>
       {/* New row for the sign-up link */}
       <View style={styles.linkRow}>
@@ -217,7 +218,7 @@ const styles = StyleSheet.create({
   socialButtonApple: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#2C2C2E", // Dark gray for Apple button
+    backgroundColor: "#000", // Dark gray for Apple button
     borderRadius: 10,
     height: 50,
     width: "100%",
@@ -227,12 +228,12 @@ const styles = StyleSheet.create({
   socialButtonGoogle: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#000000", // Black for Google button
+    backgroundColor: "#2C2C2E", // Black for Google button
     borderRadius: 10,
     height: 50,
     width: "100%",
     justifyContent: "center",
-    marginVertical: 10,
+    marginVertical: 0,
   },
   socialIcon: {
     width: 24,

@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
   icon: {
     marginTop: 40,
     marginBottom: 20,
-    width: width * 0.8,
+    width: width * 0.9,
     position: "absolute",
     top: height * 0.05,
   },
