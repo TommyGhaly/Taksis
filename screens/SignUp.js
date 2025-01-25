@@ -14,6 +14,12 @@ import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import BackArrow from "../components/backArrow";
 import { useUser } from "../UserContext";
 import ProgressBar from "../components/progressBar";
+import {
+  AppleButton,
+  AppleButtonStyle,
+  AppleButtonType,
+} from "@invertase/react-native-apple-authentication";
+import { appleAuth } from "@invertase/react-native-apple-authentication";
 
 const SignUp = ({ navigation }) => {
   const { setSignUp } = useUser(true);
@@ -108,6 +114,28 @@ const SignUp = ({ navigation }) => {
     }
   };
 
+  async function onAppleButtonPress() {
+    // Start the sign-in request
+    const appleAuthRequestResponse = await appleAuth.performRequest({
+      requestedOperation: appleAuth.Operation.LOGIN,
+      // As per the FAQ of react-native-apple-authentication, the name should come first in the following array.
+      // See: https://github.com/invertase/react-native-apple-authentication#faqs
+      requestedScopes: [appleAuth.Scope.FULL_NAME, appleAuth.Scope.EMAIL],
+    });
+  
+    // Ensure Apple returned a user identityToken
+    if (!appleAuthRequestResponse.identityToken) {
+      throw new Error('Apple Sign-In failed - no identify token returned');
+    }
+  
+    // Create a Firebase credential from the response
+    const { identityToken, nonce } = appleAuthRequestResponse;
+    const appleCredential = auth.AppleAuthProvider.credential(identityToken, nonce);
+  
+    // Sign the user in with the credential
+    return auth().signInWithCredential(appleCredential);
+  };
+  
   return (
     <View style={styles.container}>
       <View style={styles.backarrow}>
@@ -168,18 +196,7 @@ const SignUp = ({ navigation }) => {
         <Text style={styles.or}>or</Text>
         <View style={styles.divider} />
       </View>
-      <View style={styles.componentContainer}>
-        <Pressable style={styles.socialButtonApple}>
-          <View style={styles.socialButtonContent}>
-            <Image
-              style={styles.socialIcon}
-              resizeMode="cover"
-              source={require("../assets/appleLogo.png")}
-            />
-            <Text style={styles.socialText}>Register with Apple</Text>
-          </View>
-        </Pressable>
-        <Pressable
+      <Pressable
           style={styles.socialButtonGoogle}
           onPress={onGoogleButtonPress}
         >
@@ -189,9 +206,16 @@ const SignUp = ({ navigation }) => {
               resizeMode="cover"
               source={require("../assets/googleLogo.png")}
             />
-            <Text style={styles.socialText}>Register with Google</Text>
+            <Text style={styles.socialText}>Sign up with Google</Text>
           </View>
         </Pressable>
+      <View style={styles.componentContainer}>
+        <AppleButton
+          buttonStyle={AppleButton.Style.BLACK}
+          buttonType={AppleButton.Type.SIGN_UP}
+          onPreess={onAppleButtonPress}
+          style={[styles.socialButtonApple, {backgroundColor: "#2C2C2E" }]}
+        />
       </View>
     </View>
   );
@@ -282,7 +306,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   socialButtonGoogle: {
-    backgroundColor: "#000000", // Black for Google button
+    backgroundColor: "#2C2C2E", // Black for Google button
     borderRadius: 10,
     height: 50,
     width: "100%",
@@ -295,13 +319,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   socialIcon: {
-    width: 24,
-    height: 24,
+    width: 15,
+    height: 15,
     marginRight: 10,
   },
   socialText: {
     color: "#FFFFFF", // White text for social buttons
-    fontSize: 16,
+    fontSize: 19,
     fontWeight: "500",
   },
 });

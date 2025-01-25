@@ -34,6 +34,23 @@ const SettingsContent = () => {
     }
   }, []);
 
+  const revokeSignInWithAppleToken = async () => {
+    // Get an authorizationCode from Apple
+    const { authorizationCode } = await appleAuth.performRequest({
+      requestedOperation: appleAuth.Operation.REFRESH,
+    });
+
+    // Ensure Apple returned an authorizationCode
+    if (!authorizationCode) {
+      throw new Error(
+        "Apple Revocation failed - no authorizationCode returned"
+      );
+    }
+
+    // Revoke the token
+    return auth().revokeToken(authorizationCode);
+  };
+
   const handleDeleteAccount = () => {
     Alert.alert(
       "Delete Account",
@@ -52,6 +69,7 @@ const SettingsContent = () => {
               if (user) {
                 await firestore().collection("users").doc(user.uid).delete();
                 await user.delete();
+                await revokeSignInWithAppleToken;
                 Alert.alert("Success", "Your account has been deleted.");
                 // Navigate to a safe screen or log out
               }

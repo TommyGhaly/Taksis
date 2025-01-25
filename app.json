@@ -20,7 +20,8 @@
         "expo-build-properties",
         {
           "ios": {
-            "useFrameworks": "static"
+            "useFrameworks": "static",
+            "usesAppleSignIn": true
           }
         }
       ],
@@ -38,11 +39,11 @@
     },
     "ios": {
       "googleServicesFile": "./GoogleService-Info.plist",
-      "bundleIdentifier": "com.tghaly.Taxis"
+      "bundleIdentifier": "com.dgobron.Taxis"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
-      "package": "com.tghaly.Taxis"
+      "package": "com.dgobron.Taxis"
     }
   },
   "assetBundlePatterns": [
@@ -50,7 +51,7 @@
   ],
   "ios": {
     "supportsTablet": true,
-    "bundleIdentifier": "com.tghaly.Taxis",
+    "bundleIdentifier": "com.dgobron.Taxis",
     "usesAppleSignIn": true
   },
   "android": {
