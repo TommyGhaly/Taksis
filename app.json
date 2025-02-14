@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Ⲧⲁⲝⲓⲥ",
-    "slug": "Taxis",
+    "slug": "taksis",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -34,24 +34,28 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "c7fcee24-c58f-4c53-92a3-a8f6a2a376df"
+        "projectId": "3b1e338f-eb92-4c7d-a84b-62060e5a6c9f"
       }
     },
     "ios": {
       "googleServicesFile": "./GoogleService-Info.plist",
-      "bundleIdentifier": "com.dgobron.Taxis"
+      "bundleIdentifier": "com.tghaly.taksis",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "googleServicesFile": "./google-services.json",
-      "package": "com.dgobron.Taxis"
-    }
+      "package": "com.tghaly.taksis"
+    },
+    "owner": "dgobran"
   },
   "assetBundlePatterns": [
-    "**/*"
+    "assets/components/**/*"
   ],
   "ios": {
     "supportsTablet": true,
-    "bundleIdentifier": "com.dgobron.Taxis",
+    "bundleIdentifier": "com.tghaly.taksis",
     "usesAppleSignIn": true
   },
   "android": {

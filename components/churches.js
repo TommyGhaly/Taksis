@@ -15,17 +15,17 @@ const DATA = [
   {
     id: 1,
     title: "St. Philopater and St. Mina, Wayland, MA",
-    imageName: require("../assets/StPhiloStMinaLogo.png"),
+    imageName: require("../assets/stPhiloStMinaLogo.png"),
   },
   {
     id: 2,
     title: "St. Mary and Archangel Michael, Nashua, NH",
-    imageName: require("../assets/StMaryArchAMichLogo.png"),
+    imageName: require("../assets/stMaryArchAMichLogo.png"),
   },
   {
     id: 3,
     title: "St. Mark, Natick, MA",
-    imageName: require("../assets/StMarkLogo.png"),
+    imageName: require("../assets/stMarkLogo.png"),
   },
 ];
 const Item = ({ item, onPress, backgroundColor, textColor }) => (

@@ -86,7 +86,7 @@ const AccountInfo = ({ navigation }) => {
             <Image
               style={styles.vectorIcon}
               resizeMode="cover"
-              source={require("../../assets/Vector.png")}
+              source={require("../../assets/vector.png")}
             />
           </TouchableOpacity>
         ))}
