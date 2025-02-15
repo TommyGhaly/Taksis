@@ -57,14 +57,20 @@ const LearnItLiturgyMenu = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   learnitliturgymenu: {
-    backgroundColor: "#121212",  // Very dark grey background
+    backgroundColor: "#121212",
     flex: 1,
-    padding: 20,  // Add padding for better spacing
+    padding: 20,
     justifyContent: "center",
     alignItems: "center",
   },
   headerContainer: {
-    marginBottom: 40,  // Space between header and options
+    marginBottom: 40,
+    backgroundColor: "#2c2c2c", // Background color for the header
+    borderRadius: 8, // Added border radius
+    paddingVertical: 20,
+    paddingHorizontal: 80,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerText: {
     fontSize: 32,
@@ -72,8 +78,7 @@ const styles = StyleSheet.create({
     fontFamily: "Roboto-Bold",
     fontWeight: "700",
     textAlign: "center",
-    marginBottom: 20,
-  },
+  },  
   option: {
     width: "100%",
     height: 70,
