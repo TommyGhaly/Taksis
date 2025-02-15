@@ -51,7 +51,10 @@
     "owner": "dgobran"
   },
   "assetBundlePatterns": [
-    "assets/components/**/*"
+    "**/*",
+    "assets/**/*",
+    "screens/**/*",
+    "components/**/*"
   ],
   "ios": {
     "supportsTablet": true,
@@ -66,10 +69,5 @@
   },
   "web": {
     "favicon": "./assets/favicon.png"
-  },
-  "extra": {
-    "eas": {
-      "projectId": "c7fcee24-c58f-4c53-92a3-a8f6a2a376df"
-    }
   }
 }
