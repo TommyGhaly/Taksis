@@ -37,9 +37,8 @@ const LearnItMainMenu = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   learnitmainmenu: {
-    backgroundColor: "#1a1a1a",  // Very dark grey background
+    backgroundColor: "#121212",  // Very dark grey background
     flex: 1,
-    justifyContent: "center",
     alignItems: "center",
     padding: 20,  // Add some padding around
   },
@@ -47,6 +46,7 @@ const styles = StyleSheet.create({
     marginBottom: 40,  // Space between header and options
     width: "100%",
     alignItems: "center",
+    paddingTop: 50,  // Space between header and top of screen
   },
   headerText: {
     fontSize: 36,  // Large font size for the title
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,  // Space between options
+    marginBottom: 30,  // Space between options
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.5,
