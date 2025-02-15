@@ -5,7 +5,7 @@ const LearnItMainMenu = ({ navigation }) => {
   return (
     <View style={styles.learnitmainmenu}>
       <View style={styles.headerContainer}>
-        <Text style={styles.headerText}>LearnIt</Text>
+        <Text style={styles.headerText}>Learn It</Text>
       </View>
       <Pressable
         style={styles.option}
