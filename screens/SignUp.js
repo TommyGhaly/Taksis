@@ -122,20 +122,23 @@ const SignUp = ({ navigation }) => {
       // See: https://github.com/invertase/react-native-apple-authentication#faqs
       requestedScopes: [appleAuth.Scope.FULL_NAME, appleAuth.Scope.EMAIL],
     });
-  
+
     // Ensure Apple returned a user identityToken
     if (!appleAuthRequestResponse.identityToken) {
-      throw new Error('Apple Sign-In failed - no identify token returned');
+      throw new Error("Apple Sign-In failed - no identify token returned");
     }
-  
+
     // Create a Firebase credential from the response
     const { identityToken, nonce } = appleAuthRequestResponse;
-    const appleCredential = auth.AppleAuthProvider.credential(identityToken, nonce);
-  
+    const appleCredential = auth.AppleAuthProvider.credential(
+      identityToken,
+      nonce
+    );
+
     // Sign the user in with the credential
     return auth().signInWithCredential(appleCredential);
-  };
-  
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.backarrow}>
@@ -197,24 +200,24 @@ const SignUp = ({ navigation }) => {
         <View style={styles.divider} />
       </View>
       <Pressable
-          style={styles.socialButtonGoogle}
-          onPress={onGoogleButtonPress}
-        >
-          <View style={styles.socialButtonContent}>
-            <Image
-              style={styles.socialIcon}
-              resizeMode="cover"
-              source={require("../assets/googleLogo.png")}
-            />
-            <Text style={styles.socialText}>Sign up with Google</Text>
-          </View>
-        </Pressable>
+        style={styles.socialButtonGoogle}
+        onPress={onGoogleButtonPress}
+      >
+        <View style={styles.socialButtonContent}>
+          <Image
+            style={styles.socialIcon}
+            resizeMode="cover"
+            source={require("../assets/googleLogo.png")}
+          />
+          <Text style={styles.socialText}>Sign up with Google</Text>
+        </View>
+      </Pressable>
       <View style={styles.componentContainer}>
         <AppleButton
           buttonStyle={AppleButton.Style.BLACK}
           buttonType={AppleButton.Type.SIGN_UP}
           onPreess={onAppleButtonPress}
-          style={[styles.socialButtonApple, {backgroundColor: "#2C2C2E" }]}
+          style={[styles.socialButtonApple, { backgroundColor: "#2C2C2E" }]}
         />
       </View>
     </View>

@@ -1,53 +1,76 @@
 import * as React from "react";
-import { Pressable, StyleSheet, View, Text } from "react-native";
+import { Pressable, StyleSheet, View, Text, Animated } from "react-native";
+import { SharedElement } from "react-navigation-shared-element";
 import BackArrow from "../../../components/backArrow";
 
 const LearnItLiturgyMenu = ({ navigation }) => {
+  // Create an animated value for the header
+  const headerAnim = React.useRef(new Animated.Value(0)).current;
+
+  // Create animated values for the menu options
+  const animatedValues = [1, 2, 3, 4, 5].map(() => new Animated.Value(0));
+
+  React.useEffect(() => {
+    Animated.stagger(150, [
+      // Animate the header first...
+      Animated.spring(headerAnim, { toValue: 1, useNativeDriver: true }),
+      // Then animate each menu option
+      ...animatedValues.map(anim =>
+        Animated.spring(anim, { toValue: 1, useNativeDriver: true })
+      )
+    ]).start();
+  }, []);
+
   return (
     <View style={styles.learnitliturgymenu}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.headerText}>Liturgy</Text>
-      </View>
-      <Pressable
-        style={styles.option}
-        onPress={() => {
-          navigation.navigate("Matins");
-        }}
+      {/* Wrap header in an Animated.View and use headerAnim */}
+      <Animated.View
+        style={[
+          styles.headerContainer,
+          {
+            transform: [
+              {
+                translateY: headerAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0]
+                })
+              }
+            ],
+            opacity: headerAnim
+          }
+        ]}
       >
-        <Text style={styles.optionText}>Matins</Text>
-      </Pressable>
-      <Pressable
-        style={styles.option}
-        onPress={() => {
-          navigation.navigate("OfferingLamb");
-        }}
-      >
-        <Text style={styles.optionText}>Offering of the Lamb</Text>
-      </Pressable>
-      <Pressable
-        style={styles.option}
-        onPress={() => {
-          navigation.navigate("LiturgyWord");
-        }}
-      >
-        <Text style={styles.optionText}>Liturgy of the Word</Text>
-      </Pressable>
-      <Pressable
-        style={styles.option}
-        onPress={() => {
-          navigation.navigate("LiturgyFaithful");
-        }}
-      >
-        <Text style={styles.optionText}>Liturgy of the Faithful</Text>
-      </Pressable>
-      <Pressable
-        style={styles.option}
-        onPress={() => {
-          navigation.navigate("Distribution");
-        }}
-      >
-        <Text style={styles.optionText}>Distribution</Text>
-      </Pressable>
+        <Text style={styles.optionText}>Liturgy</Text>
+      </Animated.View>
+
+      {["Matins", "OfferingLamb", "LiturgyWord", "LiturgyFaithful", "Distribution"].map(
+        (screen, index) => (
+          <Animated.View
+            key={screen}
+            style={[
+              styles.option,
+              {
+                transform: [
+                  {
+                    translateY: animatedValues[index].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [50, 0]
+                    })
+                  }
+                ],
+                opacity: animatedValues[index]
+              }
+            ]}
+          >
+            <Pressable onPress={() => navigation.navigate(screen)}>
+              <Text style={styles.optionText}>
+                {screen.replace(/([A-Z])/g, " $1").trim()}
+              </Text>
+            </Pressable>
+          </Animated.View>
+        )
+      )}
+
       <View style={styles.backbutton}>
         <BackArrow />
       </View>
@@ -55,59 +78,52 @@ const LearnItLiturgyMenu = ({ navigation }) => {
   );
 };
 
+LearnItLiturgyMenu.sharedElements = () => ["liturgyBox"];
+
 const styles = StyleSheet.create({
   learnitliturgymenu: {
     backgroundColor: "#121212",
     flex: 1,
     padding: 20,
     justifyContent: "center",
-    alignItems: "center",
+    alignItems: "center"
   },
   headerContainer: {
     marginBottom: 40,
-    backgroundColor: "#2c2c2c", // Background color for the header
-    borderRadius: 8, // Added border radius
-    paddingVertical: 20,
-    paddingHorizontal: 80,
     alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: "#2c2c2c",
+    padding: 20,
+    paddingLeft: 120,
+    paddingRight: 120,
+    borderRadius: 10,
+    justifyContent: "center"
   },
-  headerText: {
-    fontSize: 32,
-    color: "#ffffff",
-    fontFamily: "Roboto-Bold",
-    fontWeight: "700",
-    textAlign: "center",
-  },  
   option: {
     width: "100%",
     height: 70,
-    backgroundColor: "#1a1a1a",  // Slightly lighter card background
+    backgroundColor: "#1a1a1a",
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,  // Space between options
+    marginBottom: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.5,
     shadowRadius: 6,
-    elevation: 8,
+    elevation: 8
   },
   optionText: {
     fontSize: 24,
-    color: "#ffffff",  // White text color for better contrast
-    fontFamily: "Roboto-Bold",
+    color: "#ffffff",
     textAlign: "center",
-    lineHeight: 30,
-    textShadowColor: "#000000",  // Text shadow for better visibility
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
+    fontWeight: "700",
+    lineHeight: 30
   },
   backbutton: {
     position: "absolute",
     top: 20,
-    left: 20,
-  },
+    left: 20
+  }
 });
 
 export default LearnItLiturgyMenu;

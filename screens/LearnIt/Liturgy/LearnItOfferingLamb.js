@@ -1,254 +1,326 @@
 import * as React from "react";
-import { StyleSheet, View, Text, Pressable, Image } from "react-native";
-import { Button } from "react-native-paper";
+import { useState } from "react";
+import {
+  StyleSheet,
+  View,
+  Text,
+  Pressable,
+  FlatList,
+  LayoutAnimation,
+  UIManager,
+  Platform,
+  ScrollView,
+  Animated,
+} from "react-native";
+import BackArrow from "../../../components/backArrow";
+import InAppBrowser from "react-native-inappbrowser-reborn";
+
+// Enable LayoutAnimation on Android
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const openUrl = async (url) => {
+  try {
+    const isAvailable = await InAppBrowser.isAvailable();
+    if (isAvailable) {
+      await InAppBrowser.open(url, {
+        dismissButtonStyle: "close",
+        preferredBarTintColor: "#000",
+        preferredControlTintColor: "white",
+        readerMode: false,
+        animated: true,
+        modalPresentationStyle: "fullScreen",
+        modalTransitionStyle: "coverVertical",
+        modalEnabled: true,
+        enableBarCollapsing: false,
+        showTitle: false,
+        enableUrlBarHiding: true,
+        enableDefaultShare: true,
+        forceCloseOnRedirection: false,
+        headers: { "my-custom-header": "my-custom-header-value" },
+      });
+    } else {
+      console.error("InAppBrowser is not available");
+    }
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+const hymnsData = [
+  {
+    id: "deacon",
+    title: "Deacon Responses",
+    subOptions: [
+      {
+        name: "The Oblations",
+        url: "https://tasbeha.org/hymn_library/view/1969",
+      },
+      {
+        name: "One is the Holy Father",
+        url: "https://tasbeha.org/hymn_library/view/1970",
+      },
+      {
+        name: "One is the Holy Father - Great",
+        url: "https://tasbeha.org/hymn_library/view/1971",
+      },
+      {
+        name: "Pray that God",
+        url: "https://tasbeha.org/hymn_library/view/1972",
+      },
+    ],
+  },
+  {
+    id: "full",
+    title: "Full Service",
+    subOptions: [
+      {
+        name: "Ten-oo-osht",
+        url: "https://tasbeha.org/hymn_library/view/1958", 
+      },
+      {
+        name: "Shere Maria Tee-oro",
+        url: "https://tasbeha.org/hymn_library/view/1959", 
+      },
+      {
+        name: "Apinav Shopi",
+        url: "https://tasbeha.org/hymn_library/view/1960", 
+      },
+      {
+        name: "Al El-orban",
+        url: "https://tasbeha.org/hymn_library/view/1961", 
+      },
+      {
+        name: "Kerie Leison (41 times)",
+        url: "https://tasbeha.org/hymn_library/view/1962", 
+      },
+      {
+        name: "Oo-o-oo Nem Otaio",
+        url: "https://tasbeha.org/hymn_library/view/1963", 
+      },
+      {
+        name: "Alleluia Fai be pi-ehoo",
+        url: "https://tasbeha.org/hymn_library/view/1964", 
+      },
+      {
+        name: "Alleluia. Je Efmevee",
+        url: "https://tasbeha.org/hymn_library/view/1965", 
+      },
+      {
+        name: "Khen Efran",
+        url: "https://tasbeha.org/hymn_library/view/1966", 
+      },
+      {
+        name: "Zoxa Patri",
+        url: "https://tasbeha.org/hymn_library/view/1967", 
+      },
+      {
+        name: "The Thanksgiving Prayer",
+        url: "https://tasbeha.org/hymn_library/view/1968", 
+      },
+      {
+        name: "The Absolution of the Servants",
+        url: "https://tasbeha.org/hymn_library/view/1973", 
+      },
+    ],
+  },
+
+];
 
 const LearnItOfferingLamb = () => {
+  const [expanded, setExpanded] = useState(null);
+
+  // Animated value for the header (title)
+  const headerAnim = React.useRef(new Animated.Value(0)).current;
+  // Create an animated value for each hymnsData item
+  const itemAnimValues = React.useRef(
+    hymnsData.map(() => new Animated.Value(0))
+  ).current;
+
+  React.useEffect(() => {
+    Animated.stagger(150, [
+      // Animate header first
+      Animated.spring(headerAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+      // Then animate each list item
+      ...itemAnimValues.map((anim) =>
+        Animated.spring(anim, { toValue: 1, useNativeDriver: true })
+      ),
+    ]).start();
+  }, []);
+
+  const toggleExpand = (id) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpanded(expanded === id ? null : id);
+  };
+
+  const renderItem = ({ item, index }) => {
+    // Calculate a max height for the sub-options container
+    const scrollViewHeight = Math.min(50 * item.subOptions.length, 300);
+
+    return (
+      <Animated.View
+        style={[
+          styles.animatedItem,
+          {
+            transform: [
+              {
+                translateY: itemAnimValues[index].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                }),
+              },
+            ],
+            opacity: itemAnimValues[index],
+          },
+        ]}
+      >
+        <View>
+          <Pressable
+            style={styles.button}
+            onPress={() => toggleExpand(item.id)}
+          >
+            <Text style={styles.buttonText}>{item.title}</Text>
+          </Pressable>
+          {expanded === item.id && (
+            <ScrollView
+              style={[styles.expandedContainer, { maxHeight: scrollViewHeight }]}
+              nestedScrollEnabled
+            >
+              {item.subOptions.map((sub, idx) => (
+                <Pressable
+                  key={idx}
+                  style={styles.subButton}
+                  onPress={() => openUrl(sub.url)}
+                >
+                  <Text style={styles.subButtonText}>{sub.name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      </Animated.View>
+    );
+  };
+
   return (
-    <View style={styles.learnitmatins}>
-      <View style={styles.rectangleParent}>
-        <View style={styles.frameChild} />
-        <Text style={styles.matins}>Matins</Text>
-      </View>
-      <Button
-        style={styles.backarrow}
-        mode="outlined"
-        onPress={() => navigation.goBack()}
-        contentStyle={styles.backArrowIconBtn}
+    <View style={styles.container}>
+      <BackArrow style={styles.backbutton} />
+      {/* Wrap the header in an Animated.View */}
+      <Animated.View
+        style={[
+          styles.titleContainer,
+          {
+            transform: [
+              {
+                translateY: headerAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                }),
+              },
+            ],
+            opacity: headerAnim,
+          },
+        ]}
+      >
+        <Text style={styles.title}>Offering of the Lamb</Text>
+      </Animated.View>
+      <FlatList
+        data={hymnsData}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.buttonContainer}
+        showsVerticalScrollIndicator={false}
       />
-      <View style={[styles.component7, styles.componentLayout]}>
-        <Text
-          style={[styles.thisIsWhere, styles.thisTypo]}
-        >{`This is where some english translation of whatever they are sayign will go `}</Text>
-        <Text
-          style={[styles.thisIsWhere1, styles.thisTypo]}
-        >{`This is where some English-coptic translation of whatever they are sayign will go `}</Text>
-        <Text
-          style={[styles.thisIsWhere2, styles.thisTypo]}
-        >{`This is where some coptic translation of whatever they are sayign will go `}</Text>
-        <Text style={[styles.englishAudio, styles.audioTypo]}>
-          English Audio
-        </Text>
-        <Text style={[styles.copticAudio, styles.audioTypo]}>Coptic Audio</Text>
-        <Image
-          style={[styles.component7Child, styles.component7Layout]}
-          resizeMode="cover"
-          source="Frame 23516.png"
-        />
-        <Image
-          style={[styles.component7Item, styles.component7Layout]}
-          resizeMode="cover"
-          source="Frame 23517.png"
-        />
-      </View>
-      <View style={[styles.component8, styles.componentPosition]}>
-        <Text
-          style={[styles.thisIsWhere, styles.thisTypo]}
-        >{`This is where some english translation of whatever they are sayign will go `}</Text>
-        <Text
-          style={[styles.thisIsWhere1, styles.thisTypo]}
-        >{`This is where some English-coptic translation of whatever they are sayign will go `}</Text>
-        <Text
-          style={[styles.thisIsWhere2, styles.thisTypo]}
-        >{`This is where some coptic translation of whatever they are sayign will go `}</Text>
-        <Text style={[styles.englishAudio, styles.audioTypo]}>
-          English Audio
-        </Text>
-        <Text style={[styles.copticAudio, styles.audioTypo]}>Coptic Audio</Text>
-        <Image
-          style={[styles.component7Child, styles.component7Layout]}
-          resizeMode="cover"
-          source="Frame 23516.png"
-        />
-        <Image
-          style={[styles.component7Item, styles.component7Layout]}
-          resizeMode="cover"
-          source="Frame 23517.png"
-        />
-      </View>
-      <View style={[styles.component9, styles.componentLayout]}>
-        <Text
-          style={[styles.thisIsWhere, styles.thisTypo]}
-        >{`This is where some english translation of whatever they are sayign will go `}</Text>
-        <Text
-          style={[styles.thisIsWhere1, styles.thisTypo]}
-        >{`This is where some English-coptic translation of whatever they are sayign will go `}</Text>
-        <Text
-          style={[styles.thisIsWhere2, styles.thisTypo]}
-        >{`This is where some coptic translation of whatever they are sayign will go `}</Text>
-        <Text style={[styles.englishAudio, styles.audioTypo]}>
-          English Audio
-        </Text>
-        <Text style={[styles.copticAudio, styles.audioTypo]}>Coptic Audio</Text>
-        <Image
-          style={[styles.component7Child, styles.component7Layout]}
-          resizeMode="cover"
-          source="Frame 23516.png"
-        />
-        <Image
-          style={[styles.component7Item, styles.component7Layout]}
-          resizeMode="cover"
-          source="Frame 23517.png"
-        />
-      </View>
-      <View style={[styles.component10, styles.componentPosition]}>
-        <Text
-          style={[styles.thisIsWhere, styles.thisTypo]}
-        >{`This is where some english translation of whatever they are sayign will go `}</Text>
-        <Text
-          style={[styles.thisIsWhere1, styles.thisTypo]}
-        >{`This is where some English-coptic translation of whatever they are sayign will go `}</Text>
-        <Text
-          style={[styles.thisIsWhere2, styles.thisTypo]}
-        >{`This is where some coptic translation of whatever they are sayign will go `}</Text>
-        <Text style={[styles.englishAudio, styles.audioTypo]}>
-          English Audio
-        </Text>
-        <Text style={[styles.copticAudio, styles.audioTypo]}>Coptic Audio</Text>
-        <Image
-          style={[styles.component7Child, styles.component7Layout]}
-          resizeMode="cover"
-          source="Frame 23516.png"
-        />
-        <Image
-          style={[styles.component7Item, styles.component7Layout]}
-          resizeMode="cover"
-          source="Frame 23517.png"
-        />
-      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  backArrowIconBtn: {
-    height: "2.82%",
-    width: "6.11%",
-  },
-  componentLayout: {
-    height: 215,
-    width: 362,
-    left: 16,
-    position: "absolute",
-  },
-  thisTypo: {
-    textAlign: "left",
-    color: "#8e8e93",
-    fontFamily: "Inter-Regular",
-    fontSize: 16,
-    width: "29.28%",
-    top: "0%",
-    position: "absolute",
-  },
-  audioTypo: {
-    color: "#fff",
-    letterSpacing: 0,
-    fontSize: 17,
-    top: "87.91%",
-    fontFamily: "Inter-Regular",
-    textAlign: "center",
-    lineHeight: 22,
-    position: "absolute",
-  },
-  component7Layout: {
-    maxHeight: "100%",
-    maxWidth: "100%",
-    top: "86.05%",
-    width: "8.29%",
-    height: "13.95%",
-    overflow: "hidden",
-    bottom: "0%",
-    position: "absolute",
-  },
-  componentPosition: {
-    left: 15,
-    height: 215,
-    width: 362,
-    position: "absolute",
-  },
-  frameChild: {
-    height: "100%",
-    right: "0%",
-    borderRadius: 10,
-    backgroundColor: "#8e8e93",
-    left: "0%",
-    bottom: "0%",
-    top: "0%",
-    position: "absolute",
-    width: "100%",
-  },
-  matins: {
-    height: "57.87%",
-    width: "31.26%",
-    top: "21.05%",
-    left: "34.17%",
-    fontSize: 24,
-    fontWeight: "700",
-    fontFamily: "Roboto-Bold",
-    color: "#000",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    textAlign: "center",
-    lineHeight: 22,
-    position: "absolute",
-  },
-  rectangleParent: {
-    height: "8.8%",
-    width: "82.7%",
-    top: "14.08%",
-    right: "8.65%",
-    bottom: "77.11%",
-    left: "8.65%",
-    position: "absolute",
-  },
-  backarrow: {
-    top: "8.69%",
-    right: "89.82%",
-    bottom: "88.5%",
-    left: "4.07%",
-    overflow: "hidden",
-    position: "absolute",
-  },
-  thisIsWhere: {
-    left: "0%",
-  },
-  thisIsWhere1: {
-    left: "35.36%",
-  },
-  thisIsWhere2: {
-    left: "70.72%",
-  },
-  englishAudio: {
-    left: "6.63%",
-  },
-  copticAudio: {
-    left: "54.42%",
-  },
-  component7Child: {
-    right: "54.7%",
-    left: "37.02%",
-  },
-  component7Item: {
-    right: "6.35%",
-    left: "85.36%",
-  },
-  component7: {
-    top: 253,
-  },
-  component8: {
-    top: 490,
-  },
-  component9: {
-    top: 727,
-  },
-  component10: {
-    top: 964,
-  },
-  learnitmatins: {
-    backgroundColor: "#000",
+  container: {
     flex: 1,
-    height: 852,
+    backgroundColor: "#121212",
+    padding: 20,
+    justifyContent: "flex-start",
+  },
+  titleContainer: {
+    backgroundColor: "#1a1a1a",
     width: "100%",
+    borderRadius: 12,
+    paddingVertical: 20,
+    marginBottom: 20,
+    marginTop: 40,
+    alignSelf: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#ffffff",
+    textAlign: "center",
+  },
+  buttonContainer: {
+    width: "90%",
+    paddingBottom: 20,
+    justifyContent: "center",
+    alignContent: "center",
+    alignSelf: "center",
+  },
+  animatedItem: {
+    marginBottom: 0,
+  },
+  buttonText: {
+    fontSize: 22,
+    color: "#ffffff",
+    fontWeight: "bold",
+  },
+  button: {
+    backgroundColor: "#2c2c2c",
+    paddingVertical: 25,
+    width: "95%", // Ensures uniform size
+    borderRadius: 8,
+    marginBottom: 20,
+    alignItems: "center",
+    alignSelf: "center",
+  },
+  expandedContainer: {
+    width: "90%",
+    backgroundColor: "#1a1a1a",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+    alignSelf: "center",
+  },
+  subButton: {
+    backgroundColor: "#3a3a3a",
+    paddingVertical: 15,
+    width: "100%",
+    borderRadius: 8,
+    marginBottom: 15,
+    alignItems: "center",
+    alignSelf: "center",
+  },
+  subButtonText: {
+    fontSize: 18,
+    color: "#ffffff",
+    fontWeight: "bold",
+    textAlign: "center",
+    marginHorizontal: 5,
+  },
+  backbutton: {
+    position: "absolute",
+    top: 20,
+    left: 20,
   },
 });
 

@@ -1,6 +1,6 @@
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { createSharedElementStackNavigator } from "react-navigation-shared-element";
 import LearnItMainMenu from "./LearnItMainMenu";
 import LearnItTesbehaMenu from "./Tesbeha/LearnItTesbehaMenu";
 import LearnItLiturgyMenu from "./Liturgy/LearnItLiturgyMenu";
@@ -22,8 +22,9 @@ import LearnItResponses from "./Vespers/LearnItResponses";
 import LearnItDoxology from "./Vespers/LearnItDoxology";
 import LearnItVersesCymbols from "./Vespers/LearnItVersesCymbals";
 import DefaultTheme from "@react-navigation/native";
+import "react-native-gesture-handler";
 
-const LearnNav = createNativeStackNavigator();
+const LearnNav = createSharedElementStackNavigator();
 const myTheme = {
   ...DefaultTheme,
   colors: {
@@ -45,6 +46,7 @@ export default function LearnNavigation() {
       >
         <LearnNav.Screen name="MainMenu" component={LearnItMainMenu} />
         <LearnNav.Screen name="TesbehaMenu" component={LearnItTesbehaMenu} />
+        <LearnNav.Screen name="LearnItMainMenu" component={LearnItMainMenu} />
         <LearnNav.Screen name="LiturgyMenu" component={LearnItLiturgyMenu} />
         <LearnNav.Screen name="VespersMenu" component={LearnItVespersMenu} />
         <LearnNav.Screen name="Matins" component={LearnItMatins} />
