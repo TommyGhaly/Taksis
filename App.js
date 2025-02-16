@@ -4,6 +4,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import auth from "@react-native-firebase/auth";
 import { UserProvider, useUser } from "./UserContext";
+import 'react-native-gesture-handler';
 
 import Welcome from "./screens/Welcome";
 import SignIn from "./screens/SignIn";

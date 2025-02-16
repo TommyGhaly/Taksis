@@ -20,6 +20,7 @@ import ChildDeaconRank from "./ChildDeaconRank";
 import ChildAge from "./ChildAge";
 import PasswordReset from "../PasswordReset";
 import DefaultTheme from "@react-navigation/native";
+import "react-native-gesture-handler";
 const SettingsNav = createNativeStackNavigator();
 const myTheme = {
   ...DefaultTheme,

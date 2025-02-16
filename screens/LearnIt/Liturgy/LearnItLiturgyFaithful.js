@@ -1,254 +1,842 @@
 import * as React from "react";
-import { StyleSheet, View, Text, Pressable, Image } from "react-native";
-import { Button } from "react-native-paper";
+import { useState } from "react";
+import {
+  StyleSheet,
+  View,
+  Text,
+  Pressable,
+  FlatList,
+  LayoutAnimation,
+  UIManager,
+  Platform,
+  ScrollView,
+  Animated,
+} from "react-native";
+import BackArrow from "../../../components/backArrow";
+import InAppBrowser from "react-native-inappbrowser-reborn";
+
+// Enable LayoutAnimation on Android
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const openUrl = async (url) => {
+  try {
+    const isAvailable = await InAppBrowser.isAvailable();
+    if (isAvailable) {
+      await InAppBrowser.open(url, {
+        dismissButtonStyle: "close",
+        preferredBarTintColor: "#000",
+        preferredControlTintColor: "white",
+        readerMode: false,
+        animated: true,
+        modalPresentationStyle: "fullScreen",
+        modalTransitionStyle: "coverVertical",
+        modalEnabled: true,
+        enableBarCollapsing: false,
+        showTitle: false,
+        enableUrlBarHiding: true,
+        enableDefaultShare: true,
+        forceCloseOnRedirection: false,
+        headers: { "my-custom-header": "my-custom-header-value" },
+      });
+    } else {
+      console.error("InAppBrowser is not available");
+    }
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+const hymnsData = [
+  {
+    id: "deacon",
+    title: "Deacon Responses",
+    subOptions: [
+      {
+        name: "Reconciliation Prayer",
+        url: "https://tasbeha.org/hymn_library/view/2671", 
+      },
+      {
+        name: "Great one another",
+        url: "https://tasbeha.org/hymn_library/view/2672", 
+      },
+      {
+        name: "Great one another - Great",
+        url: "https://tasbeha.org/hymn_library/view/1440", 
+      },
+      {
+        name: "In the wisdom of God",
+        url: "https://tasbeha.org/hymn_library/view/2670", 
+      },
+      {
+        name: "Let us Attend - Anaphora",
+        url: "https://tasbeha.org/hymn_library/view/2708", 
+      },
+      {
+        name: "Look towards the East",
+        url: "https://tasbeha.org/hymn_library/view/2707", 
+      },
+      {
+        name: "You who are seated, stand",
+        url: "https://tasbeha.org/hymn_library/view/2673", 
+      },
+      {
+        name: "Epiclesis Responses",
+        url: "https://tasbeha.org/hymn_library/view/2674", 
+      },
+      {
+        name: "Litany for the Peace",
+        url: "https://tasbeha.org/hymn_library/view/2675", 
+      },
+      {
+        name: "Litany for the Fathers",
+        url: "https://tasbeha.org/hymn_library/view/2676", 
+      },
+      {
+        name: "Litany for Priests and Deacons",
+        url: "https://tasbeha.org/hymn_library/view/2677", 
+      },
+      {
+        name: "Litany for the Place",
+        url: "https://tasbeha.org/hymn_library/view/2678", 
+      },
+      {
+        name: "Litany for the Waters",
+        url: "https://tasbeha.org/hymn_library/view/2679", 
+      },
+      {
+        name: "Litany for the Plants",
+        url: "https://tasbeha.org/hymn_library/view/2680", 
+      },
+      {
+        name: "Litany for the Fruits",
+        url: "https://tasbeha.org/hymn_library/view/2681", 
+      },
+      {
+        name: "Litany for the Oblations",
+        url: "https://tasbeha.org/hymn_library/view/2682", 
+      },
+      {
+        name: "St. Gregory: Worship the Lamb",
+        url: "https://tasbeha.org/hymn_library/view/2683", 
+      },
+      {
+        name: "St. Gregory: Litany for the Kings",
+        url: "https://tasbeha.org/hymn_library/view/2684", 
+      },
+      {
+        name: "St. Gregory: Litany for the Government",
+        url: "https://tasbeha.org/hymn_library/view/2685", 
+      },
+      {
+        name: "St. Gregory: Litany for the Captives",
+        url: "https://tasbeha.org/hymn_library/view/2686", 
+      },
+      {
+        name: "St. Gregory: Worship God",
+        url: "https://tasbeha.org/hymn_library/view/2687", 
+      },
+      {
+        name: "Let those who read",
+        url: "https://tasbeha.org/hymn_library/view/2688", 
+      },
+      {
+        name: "Evshes",
+        url: "https://tasbeha.org/hymn_library/view/2049", 
+      },
+      {
+        name: "Pi-nishti",
+        url: "https://tasbeha.org/hymn_library/view/195", 
+      },
+      {
+        name: "Great Pinishti",
+        url: "https://tasbeha.org/hymn_library/view/2050", 
+      },
+      {
+        name: "Amen. Amen. Let us pray",
+        url: "https://tasbeha.org/hymn_library/view/2689", 
+      },
+      {
+        name: "Before Confession Responses",
+        url: "https://tasbeha.org/hymn_library/view/2690", 
+      },
+      {
+        name: "Confession",
+        url: "https://tasbeha.org/hymn_library/view/2691", 
+      },
+      {
+        name: "Confession - Great",
+        url: "https://tasbeha.org/hymn_library/view/2692", 
+      },
+    ],
+  },
+  {
+    id: "prayers",
+    title: "The Creed & Reconciliation Prayers",
+    subOptions: [
+      {
+        name: "The Orthodox Creed",
+        url: "https://tasbeha.org/hymn_library/view/32", 
+      },
+      {
+        name: "The Prayer of Reconciliation (Saint Basil’s Liturgy)",
+        url: "https://tasbeha.org/hymn_library/view/2035", 
+      },
+      {
+        name: "Another Prayer of Reconciliation To The Father (Saint Basil’s Liturgy)",
+        url: "https://tasbeha.org/hymn_library/view/2036", 
+      },
+      {
+        name: "Prayer of Reconciliation to the Son (Saint Gregory’s Liturgy)",
+        url: "https://tasbeha.org/hymn_library/view/1934", 
+      },
+      {
+        name: "Another Prayer of Reconciliation (Saint Gregory’s Liturgy)",
+        url: "https://tasbeha.org/hymn_library/view/1934", 
+      },
+      {
+        name: "Prayer of Reconciliation (Saint Cyril’s Liturgy)",
+        url: "https://tasbeha.org/hymn_library/view/2237", 
+      },
+      {
+        name: "Another Prayer of Reconciliation (Saint Cyril’s Liturgy)",
+        url: "https://tasbeha.org/hymn_library/view/2238", 
+      },
+      {
+        name: "Through the intercessions",
+        url: "https://tasbeha.org/hymn_library/view/333", 
+      },
+    ],
+  },
+  {
+    id: "aspasmoses",
+    title: "Annual Aspasmoses",
+    subOptions: [
+      {
+        name: "Adam Aspasmos - Rejoice O Mary",
+        url: "https://tasbeha.org/hymn_library/view/176", 
+      },
+      {
+        name: "Second Annual Adam Aspasmos - Ari-aspazesta",
+        url: "https://tasbeha.org/hymn_library/view/2565", 
+      },
+      {
+        name: "Third Annual Adam Aspasmos - Pekhristos Pensoteer",
+        url: "https://tasbeha.org/hymn_library/view/328", 
+      },
+      {
+        name: "Fourth Annual Adam Aspasmos (The Maharraq Liturgy Book)",
+        url: "https://tasbeha.org/hymn_library/view/2595", 
+      },
+      {
+        name: "Aspasmos Watos - Epshois Efnouti",
+        url: "https://tasbeha.org/hymn_library/view/330", 
+      },
+      {
+        name: "Second Annual Watos Aspasmos",
+        url: "https://tasbeha.org/hymn_library/view/335", 
+      },
+      {
+        name: "Fourth Annual Watos Aspasmos - Nisherobim",
+        url: "https://tasbeha.org/hymn_library/view/332", 
+      },
+      {
+        name: "Third Annual Watos Aspasmos",
+        url: "https://tasbeha.org/hymn_library/view/336", 
+      },
+    ],
+  },
+  {
+    id: "Basil", 
+    title: "Saint Basil’s Liturgy",
+    subOptions: [
+      {
+        name: "The Anaphora",
+        url: "https://tasbeha.org/hymn_library/view/2038", 
+      },
+      {
+        name: "Agios, agios, agios",
+        url: "https://tasbeha.org/hymn_library/view/2039", 
+      },
+      {
+        name: "Was incarnate and became man",
+        url: "https://tasbeha.org/hymn_library/view/2040", 
+      },
+      {
+        name: "He rose from the dead",
+        url: "https://tasbeha.org/hymn_library/view/2041", 
+      },
+      {
+        name: "The Institution Narrative",
+        url: "https://tasbeha.org/hymn_library/view/2042", 
+      },
+      {
+        name: "The Descent of the Holy Spirit",
+        url: "https://tasbeha.org/hymn_library/view/2043", 
+      },
+      {
+        name: "The Seven Short Litanies",
+        url: "https://tasbeha.org/hymn_library/view/2044", 
+      },
+      {
+        name: "Have Mercy upon us",
+        url: "https://tasbeha.org/hymn_library/view/2045", 
+      },
+      {
+        name: "The Commemoration of the Saints",
+        url: "https://tasbeha.org/hymn_library/view/2046", 
+      },
+      {
+        name: "Diptych",
+        url: "https://tasbeha.org/hymn_library/view/2047", 
+      },
+      {
+        name: "Names of the Departed Patriarchs",
+        url: "https://tasbeha.org/hymn_library/view/2048", 
+      },
+      {
+        name: "Those, O Lord",
+        url: "https://tasbeha.org/hymn_library/view/2049", 
+      },
+      {
+        name: "Lead us",
+        url: "https://tasbeha.org/hymn_library/view/2050", 
+      },
+      {
+        name: "Introduction to the Fraction",
+        url: "https://tasbeha.org/hymn_library/view/2051", 
+      },
+      {
+        name: "The Fraction",
+        url: "https://tasbeha.org/hymn_library/view/2052", 
+      },
+      {
+        name: "Our Father who art in heaven",
+        url: "https://tasbeha.org/hymn_library/view/341", 
+      },
+      {
+        name: "Prayers after the Fraction",
+        url: "https://tasbeha.org/hymn_library/view/2053", 
+      },
+      {
+        name: "The Confession",
+        url: "https://tasbeha.org/hymn_library/view/2054", 
+      },
+      {
+        name: "Prayers Before the Distribution of the Holy Mysteries",
+        url: "https://tasbeha.org/hymn_library/view/2596", 
+      },
+      {
+        name: "A Prayer of Thanksgiving",
+        url: "https://tasbeha.org/hymn_library/view/2597", 
+      },
+      {
+        name: "The Prayer of Submission to the Father",
+        url: "https://tasbeha.org/hymn_library/view/2598", 
+      },
+    ],    
+  },
+  {
+    id: "Gregory", 
+    title: "Saint Gregory’s Liturgy",
+    subOptions: [
+      {
+        name: "The Anaphora",
+        url: "https://tasbeha.org/hymn_library/view/1936", 
+      },
+      {
+        name: "O You, THE BEING",
+        url: "https://tasbeha.org/hymn_library/view/1937", 
+      },
+      {
+        name: "You are He around whom stand",
+        url: "https://tasbeha.org/hymn_library/view/1938", 
+      },
+      {
+        name: "Agios, agios, agios",
+        url: "https://tasbeha.org/hymn_library/view/1939", 
+      },
+      {
+        name: "You, O my Master",
+        url: "https://tasbeha.org/hymn_library/view/1940", 
+      },
+      {
+        name: "You, who are THE BEING at all times",
+        url: "https://tasbeha.org/hymn_library/view/1941", 
+      },
+      {
+        name: "You have come to the slaughter",
+        url: "https://tasbeha.org/hymn_library/view/1942", 
+      },
+      {
+        name: "The Institution Narrative",
+        url: "https://tasbeha.org/hymn_library/view/1943", 
+      },
+      {
+        name: "The Descent of the Holy Spirit",
+        url: "https://tasbeha.org/hymn_library/view/1946", 
+      },
+      {
+        name: "Yea, we ask You",
+        url: "https://tasbeha.org/hymn_library/view/1948", 
+      },
+      {
+        name: "The Short Litanies",
+        url: "https://tasbeha.org/hymn_library/view/1947", 
+      },
+      {
+        name: "Healing to the sick",
+        url: "https://tasbeha.org/hymn_library/view/2599", 
+      },
+      {
+        name: "The Commemoration of the Saints",
+        url: "https://tasbeha.org/hymn_library/view/1950", 
+      },
+      {
+        name: "Remember, O Lord",
+        url: "https://tasbeha.org/hymn_library/view/193", 
+      },
+      {
+        name: "For You are God",
+        url: "https://tasbeha.org/hymn_library/view/1952", 
+      },
+      {
+        name: "That as in this",
+        url: "https://tasbeha.org/hymn_library/view/1953", 
+      },
+      {
+        name: "Introduction to the Fraction",
+        url: "https://tasbeha.org/hymn_library/view/1954", 
+      },
+      {
+        name: "The Fraction",
+        url: "https://tasbeha.org/hymn_library/view/1955", 
+      },
+      {
+        name: "Prayers after the Fraction",
+        url: "https://tasbeha.org/hymn_library/view/1956", 
+      },
+      {
+        name: "The Confession",
+        url: "https://tasbeha.org/hymn_library/view/1957", 
+      },
+    ]
+  },
+  {
+    id: "Cyril", 
+    title: "Saint Cyril’s Liturgy",
+    subOptions: [
+      {
+        name: "The Anaphora",
+        url: "https://tasbeha.org/hymn_library/view/2239",
+      },
+      {
+        name: "The Litany of the Peace",
+        url: "https://tasbeha.org/hymn_library/view/2240", 
+      },
+      {
+        name: "The Litany of the Sick",
+        url: "https://tasbeha.org/hymn_library/view/2241", 
+      },
+      {
+        name: "The Litany of the Travelers",
+        url: "https://tasbeha.org/hymn_library/view/2242", 
+      },
+      {
+        name: "The Litany of the Waters, Plants, Fruits",
+        url: "https://tasbeha.org/hymn_library/view/2243", 
+      },
+      {
+        name: "The Litany of the Leader",
+        url: "https://tasbeha.org/hymn_library/view/2244", 
+      },
+      {
+        name: "The Commemoration of the Saints",
+        url: "https://tasbeha.org/hymn_library/view/2245", 
+      },
+      {
+        name: "The Litany of the Departed Patriarch",
+        url: "https://tasbeha.org/hymn_library/view/2246", 
+      },
+      {
+        name: "The Litany of the Departed",
+        url: "https://tasbeha.org/hymn_library/view/2247", 
+      },
+      {
+        name: "Owah Nai Nem",
+        url: "https://tasbeha.org/hymn_library/view/2248", 
+      },
+      {
+        name: "The Litany of the Oblations",
+        url: "https://tasbeha.org/hymn_library/view/2249", 
+      },
+      {
+        name: "The Litany of the Patriarch",
+        url: "https://tasbeha.org/hymn_library/view/2250", 
+      },
+      {
+        name: "The Litany of the Bishops",
+        url: "https://tasbeha.org/hymn_library/view/2251", 
+      },
+      {
+        name: "The Litany of the Rest of the Orthodox",
+        url: "https://tasbeha.org/hymn_library/view/2252", 
+      },
+      {
+        name: "The Litany of the Place",
+        url: "https://tasbeha.org/hymn_library/view/2253", 
+      },
+      {
+        name: "The Litany of those who are Standing Here",
+        url: "https://tasbeha.org/hymn_library/view/2254", 
+      },
+      {
+        name: "The Litany of those who have asked us for Prayer",
+        url: "https://tasbeha.org/hymn_library/view/2255", 
+      },
+      {
+        name: "The Litany of the Servant Priest",
+        url: "https://tasbeha.org/hymn_library/view/2256", 
+      },
+      {
+        name: "The Litany of the Priesthood",
+        url: "https://tasbeha.org/hymn_library/view/2257", 
+      },
+      {
+        name: "The Litany of the Assemblies",
+        url: "https://tasbeha.org/hymn_library/view/2258", 
+      },
+      {
+        name: "The First Litany - Loose the Bound",
+        url: "https://tasbeha.org/hymn_library/view/2259", 
+      },
+      {
+        name: "For You are God...",
+        url: "https://tasbeha.org/hymn_library/view/2260", 
+      },
+      {
+        name: "Agios, Agios, Agios",
+        url: "https://tasbeha.org/hymn_library/view/2261", 
+      },
+      {
+        name: "The Institution Narrative",
+        url: "https://tasbeha.org/hymn_library/view/2262", 
+      },
+      {
+        name: "Therefore Now O God...",
+        url: "https://tasbeha.org/hymn_library/view/2263", 
+      },
+      {
+        name: "The Descent of the Holy Spirit",
+        url: "https://tasbeha.org/hymn_library/view/2264", 
+      },
+      {
+        name: "The Second Litany - That They May Be",
+        url: "https://tasbeha.org/hymn_library/view/2265", 
+      },
+      {
+        name: "The Introduction of the Fraction",
+        url: "https://tasbeha.org/hymn_library/view/2266", 
+      },
+      {
+        name: "The Fraction (For the Father)",
+        url: "https://tasbeha.org/hymn_library/view/2267", 
+      },
+      {
+        name: "Our Father who art in heaven",
+        url: "https://tasbeha.org/hymn_library/view/2268", 
+      },
+      {
+        name: "Before the Confession",
+        url: "https://tasbeha.org/hymn_library/view/2270", 
+      },
+      {
+        name: "The Confession",
+        url: "https://tasbeha.org/hymn_library/view/2269", 
+      },
+
+    ],
+  },
+  {
+    id: "Fractions",
+    title: "Fraction Prayers",
+    subOptions: [
+      {
+        name: "Advent and Nativity",
+        url: "https://tasbeha.org/hymn_library/view/2493", 
+      },
+      {
+        name: "Annual (Wisdom Fraction for St. Epiphanius)",
+        url: "https://tasbeha.org/hymn_library/view/2390", 
+      },
+      {
+        name: "Annual For the Son (O only-begotten Son)",
+        url: "https://tasbeha.org/hymn_library/view/2473", 
+      },
+      {
+        name: "Annual For the Son (O You, THE BEING)",
+        url: "https://tasbeha.org/hymn_library/view/2389", 
+      },
+      {
+        name: "Apostles Fast",
+        url: "https://tasbeha.org/hymn_library/view/2505", 
+      },
+      {
+        name: "Bright Saturday",
+        url: "https://tasbeha.org/hymn_library/view/2499", 
+      },
+      {
+        name: "Covenant Thursday",
+        url: "https://tasbeha.org/hymn_library/view/2498", 
+      },
+      {
+        name: "Epiphany",
+        url: "https://tasbeha.org/hymn_library/view/2494", 
+      },
+      {
+        name: "Epiphany - Another",
+        url: "https://tasbeha.org/hymn_library/view/2495", 
+      },
+      {
+        name: "Hosanna Sunday",
+        url: "https://tasbeha.org/hymn_library/view/2497", 
+      },
+      {
+        name: "Lent - For the Father",
+        url: "https://tasbeha.org/hymn_library/view/2496", 
+      },
+      {
+        name: "Lent - For the Lamb",
+        url: "https://tasbeha.org/hymn_library/view/2387", 
+      },
+      {
+        name: "Lent - For the Son",
+        url: "https://tasbeha.org/hymn_library/view/2374", 
+      },
+      {
+        name: "Lord's Feasts - For the Son",
+        url: "https://tasbeha.org/hymn_library/view/2507", 
+      },
+      {
+        name: "Resurrection & Holy 50 Days - For the Father",
+        url: "https://tasbeha.org/hymn_library/view/2500", 
+      },
+      {
+        name: "Resurrection - For the Son",
+        url: "https://tasbeha.org/hymn_library/view/2501", 
+      },
+      {
+        name: "Short Fraction - For the Father",
+        url: "https://tasbeha.org/hymn_library/view/2372", 
+      },
+      {
+        name: "St. Mary and the Heavenly",
+        url: "https://tasbeha.org/hymn_library/cat/303#:~:text=St.%20Mary%20and%20the%20Heavenly", 
+      },
+      {
+        name: "St. Mary Fast & Feast - Another",
+        url: "https://tasbeha.org/hymn_library/cat/303#:~:text=St.%20Mary%20Fast%20%26%20Feast%20%2D%20Another", 
+      },
+    ]
+  },
+
+];
 
 const LearnItLiturgyFaithful = () => {
+  const [expanded, setExpanded] = useState(null);
+
+  // Animated value for the header (title)
+  const headerAnim = React.useRef(new Animated.Value(0)).current;
+  // Create an animated value for each hymnsData item
+  const itemAnimValues = React.useRef(
+    hymnsData.map(() => new Animated.Value(0))
+  ).current;
+
+  React.useEffect(() => {
+    Animated.stagger(150, [
+      // Animate header first
+      Animated.spring(headerAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+      // Then animate each list item
+      ...itemAnimValues.map((anim) =>
+        Animated.spring(anim, { toValue: 1, useNativeDriver: true })
+      ),
+    ]).start();
+  }, []);
+
+  const toggleExpand = (id) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpanded(expanded === id ? null : id);
+  };
+
+  const renderItem = ({ item, index }) => {
+    // Calculate a max height for the sub-options container
+    const scrollViewHeight = Math.min(50 * item.subOptions.length, 300);
+
+    return (
+      <Animated.View
+        style={[
+          styles.animatedItem,
+          {
+            transform: [
+              {
+                translateY: itemAnimValues[index].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                }),
+              },
+            ],
+            opacity: itemAnimValues[index],
+          },
+        ]}
+      >
+        <View>
+          <Pressable
+            style={styles.button}
+            onPress={() => toggleExpand(item.id)}
+          >
+            <Text style={styles.buttonText}>{item.title}</Text>
+          </Pressable>
+          {expanded === item.id && (
+            <ScrollView
+              style={[styles.expandedContainer, { maxHeight: scrollViewHeight }]}
+              nestedScrollEnabled
+            >
+              {item.subOptions.map((sub, idx) => (
+                <Pressable
+                  key={idx}
+                  style={styles.subButton}
+                  onPress={() => openUrl(sub.url)}
+                >
+                  <Text style={styles.subButtonText}>{sub.name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      </Animated.View>
+    );
+  };
+
   return (
-    <View style={styles.learnitmatins}>
-      <View style={styles.rectangleParent}>
-        <View style={styles.frameChild} />
-        <Text style={styles.matins}>Matins</Text>
-      </View>
-      <Button
-        style={styles.backarrow}
-        mode="outlined"
-        onPress={() => navigation.goBack()}
-        contentStyle={styles.backArrowIconBtn}
+    <View style={styles.container}>
+      <BackArrow style={styles.backbutton} />
+      {/* Wrap the header in an Animated.View */}
+      <Animated.View
+        style={[
+          styles.titleContainer,
+          {
+            transform: [
+              {
+                translateY: headerAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                }),
+              },
+            ],
+            opacity: headerAnim,
+          },
+        ]}
+      >
+        <Text style={styles.title}>Litergy of the Faithful</Text>
+      </Animated.View>
+      <FlatList
+        data={hymnsData}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.buttonContainer}
+        showsVerticalScrollIndicator={false}
       />
-      <View style={[styles.component7, styles.componentLayout]}>
-        <Text
-          style={[styles.thisIsWhere, styles.thisTypo]}
-        >{`This is where some english translation of whatever they are sayign will go `}</Text>
-        <Text
-          style={[styles.thisIsWhere1, styles.thisTypo]}
-        >{`This is where some English-coptic translation of whatever they are sayign will go `}</Text>
-        <Text
-          style={[styles.thisIsWhere2, styles.thisTypo]}
-        >{`This is where some coptic translation of whatever they are sayign will go `}</Text>
-        <Text style={[styles.englishAudio, styles.audioTypo]}>
-          English Audio
-        </Text>
-        <Text style={[styles.copticAudio, styles.audioTypo]}>Coptic Audio</Text>
-        <Image
-          style={[styles.component7Child, styles.component7Layout]}
-          resizeMode="cover"
-          source="Frame 23516.png"
-        />
-        <Image
-          style={[styles.component7Item, styles.component7Layout]}
-          resizeMode="cover"
-          source="Frame 23517.png"
-        />
-      </View>
-      <View style={[styles.component8, styles.componentPosition]}>
-        <Text
-          style={[styles.thisIsWhere, styles.thisTypo]}
-        >{`This is where some english translation of whatever they are sayign will go `}</Text>
-        <Text
-          style={[styles.thisIsWhere1, styles.thisTypo]}
-        >{`This is where some English-coptic translation of whatever they are sayign will go `}</Text>
-        <Text
-          style={[styles.thisIsWhere2, styles.thisTypo]}
-        >{`This is where some coptic translation of whatever they are sayign will go `}</Text>
-        <Text style={[styles.englishAudio, styles.audioTypo]}>
-          English Audio
-        </Text>
-        <Text style={[styles.copticAudio, styles.audioTypo]}>Coptic Audio</Text>
-        <Image
-          style={[styles.component7Child, styles.component7Layout]}
-          resizeMode="cover"
-          source="Frame 23516.png"
-        />
-        <Image
-          style={[styles.component7Item, styles.component7Layout]}
-          resizeMode="cover"
-          source="Frame 23517.png"
-        />
-      </View>
-      <View style={[styles.component9, styles.componentLayout]}>
-        <Text
-          style={[styles.thisIsWhere, styles.thisTypo]}
-        >{`This is where some english translation of whatever they are sayign will go `}</Text>
-        <Text
-          style={[styles.thisIsWhere1, styles.thisTypo]}
-        >{`This is where some English-coptic translation of whatever they are sayign will go `}</Text>
-        <Text
-          style={[styles.thisIsWhere2, styles.thisTypo]}
-        >{`This is where some coptic translation of whatever they are sayign will go `}</Text>
-        <Text style={[styles.englishAudio, styles.audioTypo]}>
-          English Audio
-        </Text>
-        <Text style={[styles.copticAudio, styles.audioTypo]}>Coptic Audio</Text>
-        <Image
-          style={[styles.component7Child, styles.component7Layout]}
-          resizeMode="cover"
-          source="Frame 23516.png"
-        />
-        <Image
-          style={[styles.component7Item, styles.component7Layout]}
-          resizeMode="cover"
-          source="Frame 23517.png"
-        />
-      </View>
-      <View style={[styles.component10, styles.componentPosition]}>
-        <Text
-          style={[styles.thisIsWhere, styles.thisTypo]}
-        >{`This is where some english translation of whatever they are sayign will go `}</Text>
-        <Text
-          style={[styles.thisIsWhere1, styles.thisTypo]}
-        >{`This is where some English-coptic translation of whatever they are sayign will go `}</Text>
-        <Text
-          style={[styles.thisIsWhere2, styles.thisTypo]}
-        >{`This is where some coptic translation of whatever they are sayign will go `}</Text>
-        <Text style={[styles.englishAudio, styles.audioTypo]}>
-          English Audio
-        </Text>
-        <Text style={[styles.copticAudio, styles.audioTypo]}>Coptic Audio</Text>
-        <Image
-          style={[styles.component7Child, styles.component7Layout]}
-          resizeMode="cover"
-          source="Frame 23516.png"
-        />
-        <Image
-          style={[styles.component7Item, styles.component7Layout]}
-          resizeMode="cover"
-          source="Frame 23517.png"
-        />
-      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  backArrowIconBtn: {
-    height: "2.82%",
-    width: "6.11%",
-  },
-  componentLayout: {
-    height: 215,
-    width: 362,
-    left: 16,
-    position: "absolute",
-  },
-  thisTypo: {
-    textAlign: "left",
-    color: "#8e8e93",
-    fontFamily: "Inter-Regular",
-    fontSize: 16,
-    width: "29.28%",
-    top: "0%",
-    position: "absolute",
-  },
-  audioTypo: {
-    color: "#fff",
-    letterSpacing: 0,
-    fontSize: 17,
-    top: "87.91%",
-    fontFamily: "Inter-Regular",
-    textAlign: "center",
-    lineHeight: 22,
-    position: "absolute",
-  },
-  component7Layout: {
-    maxHeight: "100%",
-    maxWidth: "100%",
-    top: "86.05%",
-    width: "8.29%",
-    height: "13.95%",
-    overflow: "hidden",
-    bottom: "0%",
-    position: "absolute",
-  },
-  componentPosition: {
-    left: 15,
-    height: 215,
-    width: 362,
-    position: "absolute",
-  },
-  frameChild: {
-    height: "100%",
-    right: "0%",
-    borderRadius: 10,
-    backgroundColor: "#8e8e93",
-    left: "0%",
-    bottom: "0%",
-    top: "0%",
-    position: "absolute",
-    width: "100%",
-  },
-  matins: {
-    height: "57.87%",
-    width: "31.26%",
-    top: "21.05%",
-    left: "34.17%",
-    fontSize: 24,
-    fontWeight: "700",
-    fontFamily: "Roboto-Bold",
-    color: "#000",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    textAlign: "center",
-    lineHeight: 22,
-    position: "absolute",
-  },
-  rectangleParent: {
-    height: "8.8%",
-    width: "82.7%",
-    top: "14.08%",
-    right: "8.65%",
-    bottom: "77.11%",
-    left: "8.65%",
-    position: "absolute",
-  },
-  backarrow: {
-    top: "8.69%",
-    right: "89.82%",
-    bottom: "88.5%",
-    left: "4.07%",
-    overflow: "hidden",
-    position: "absolute",
-  },
-  thisIsWhere: {
-    left: "0%",
-  },
-  thisIsWhere1: {
-    left: "35.36%",
-  },
-  thisIsWhere2: {
-    left: "70.72%",
-  },
-  englishAudio: {
-    left: "6.63%",
-  },
-  copticAudio: {
-    left: "54.42%",
-  },
-  component7Child: {
-    right: "54.7%",
-    left: "37.02%",
-  },
-  component7Item: {
-    right: "6.35%",
-    left: "85.36%",
-  },
-  component7: {
-    top: 253,
-  },
-  component8: {
-    top: 490,
-  },
-  component9: {
-    top: 727,
-  },
-  component10: {
-    top: 964,
-  },
-  learnitmatins: {
-    backgroundColor: "#000",
+  container: {
     flex: 1,
-    height: 852,
+    backgroundColor: "#121212",
+    padding: 20,
+    justifyContent: "flex-start",
+  },
+  titleContainer: {
+    backgroundColor: "#1a1a1a",
     width: "100%",
+    borderRadius: 12,
+    paddingVertical: 20,
+    marginBottom: 20,
+    marginTop: 40,
+    alignSelf: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#ffffff",
+    textAlign: "center",
+  },
+  buttonContainer: {
+    width: "90%",
+    paddingBottom: 20,
+    justifyContent: "center",
+    alignContent: "center",
+    alignSelf: "center",
+  },
+  animatedItem: {
+    marginBottom: 0,
+  },
+  buttonText: {
+    fontSize: 22,
+    color: "#ffffff",
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  button: {
+    backgroundColor: "#2c2c2c",
+    paddingVertical: 25,
+    width: "95%", // Ensures uniform size
+    borderRadius: 8,
+    marginBottom: 20,
+    alignItems: "center",
+    alignSelf: "center",
+  },
+  expandedContainer: {
+    width: "90%",
+    backgroundColor: "#1a1a1a",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+    alignSelf: "center",
+  },
+  subButton: {
+    backgroundColor: "#3a3a3a",
+    paddingVertical: 15,
+    width: "100%",
+    borderRadius: 8,
+    marginBottom: 15,
+    alignItems: "center",
+    alignSelf: "center",
+  },
+  subButtonText: {
+    fontSize: 18,
+    color: "#ffffff",
+    fontWeight: "bold",
+    textAlign: "center",
+    marginHorizontal: 5,
+  },
+  backbutton: {
+    position: "absolute",
+    top: 20,
+    left: 20,
   },
 });
 

@@ -4,6 +4,8 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeScreen from "./HomeScreen";
 import RequestWeek from "./RequestWeek";
 import DefaultTheme from "@react-navigation/native";
+import 'react-native-gesture-handler';
+
 
 const HomeNav = createNativeStackNavigator();
 const myTheme = {

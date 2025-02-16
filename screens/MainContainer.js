@@ -4,6 +4,8 @@ import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import Icon from 'react-native-vector-icons/FontAwesome';  // Import FontAwesome icons
+import 'react-native-gesture-handler';
+
 
 import HomeScreenNavigation from "./Home/HomeScreenNavigator";
 import AlhanAttendance from "./AlhanAttendance";
