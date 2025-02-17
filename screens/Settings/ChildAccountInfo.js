@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
     right: "0%",
   },
   childaccountinfo: {
-    backgroundColor: "#000",
+    backgroundColor: "#121212",
     flex: 1,
     height: 852,
     overflow: "hidden",

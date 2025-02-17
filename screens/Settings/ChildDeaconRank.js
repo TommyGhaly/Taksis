@@ -41,7 +41,7 @@ const ChildDeaconRank = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   childdeaconrank: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#121212",
   },
   backarrow: {
     top: 10,

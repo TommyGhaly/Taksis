@@ -143,7 +143,7 @@ const EditSchedule = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: "#121212",
     padding: 20,
   },
   editschedule: {

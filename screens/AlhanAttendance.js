@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
   },
   attendence: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#121212",
     height: "100%",
     width: "100%",
     // marginTop: 60,

@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     marginTop: 60,
-    backgroundColor: "#000",
+    backgroundColor: "#121212",
   },
   header: {
     backgroundColor: "#1e1e1e",

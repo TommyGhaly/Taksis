@@ -98,14 +98,14 @@ const AccountInfo = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#121212",
   },
   scrollViewContent: {
     paddingVertical: 20,
     paddingHorizontal: 16,
   },
   text: {
-    color: "#8e8e93",
+    color: "#fff",
   },
   header: {
     flexDirection: "row",
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     marginLeft: 16, // Creates spacing between the back arrow and the title
   },
   infoBlock: {
-    backgroundColor: "#1e1e1e",
+    backgroundColor: "#2e2e2e",
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 16,
-    color: "#8e8e93",
+    color: "#fff",
   },
   childHeading: {
     fontSize: 18,
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#1e1e1e",
+    backgroundColor: "#2e2e2e",
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,

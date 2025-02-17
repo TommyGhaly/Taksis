@@ -2,7 +2,6 @@ import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import AccountInfo from "./AccountInfo";
-import AdminSelect from "./AdminSelect";
 import ChangeAge from "./ChangeAge";
 import ChangeChildren from "./ChangeChildren";
 import ChangeEmail from "./ChangeEmail";
@@ -47,7 +46,6 @@ export default function SettingsNavigation() {
           component={SettingsContent}
         />
         <SettingsNav.Screen name="AccountInfo" component={AccountInfo} />
-        <SettingsNav.Screen name="AdminSelect" component={AdminSelect} />
         <SettingsNav.Screen name="ChangeAge" component={ChangeAge} />
         <SettingsNav.Screen name="ChangeChildren" component={ChangeChildren} />
         <SettingsNav.Screen name="ChangeEmail" component={ChangeEmail} />

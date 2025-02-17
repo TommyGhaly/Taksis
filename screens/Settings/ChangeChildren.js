@@ -130,7 +130,7 @@ const ChangeChildren = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1e1e1e",
+    backgroundColor: "#000",
     paddingHorizontal: 16,
     paddingVertical: 20,
   },
