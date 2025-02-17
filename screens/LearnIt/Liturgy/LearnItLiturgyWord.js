@@ -76,55 +76,54 @@ const hymnsData = [
     subOptions: [
       {
         name: "Saved Amen - Sotees Amen",
-        url: "https://tasbeha.org/hymn_library/view/1974", 
+        url: "https://tasbeha.org/hymn_library/view/1974",
       },
       {
         name: "Tay-shory",
-        url: "https://tasbeha.org/hymn_library/view/675", 
+        url: "https://tasbeha.org/hymn_library/view/675",
       },
       {
         name: "The golden censer (Tee-shory)",
-        url: "https://tasbeha.org/hymn_library/view/76", 
+        url: "https://tasbeha.org/hymn_library/view/76",
       },
       {
         name: "The Hymn of the Intercessions",
-        url: "https://tasbeha.org/hymn_library/view/210", 
+        url: "https://tasbeha.org/hymn_library/view/210",
       },
       {
         name: "Pi-ehmot Ghar",
-        url: "https://tasbeha.org/hymn_library/view/320", 
+        url: "https://tasbeha.org/hymn_library/view/320",
       },
       {
         name: "Pi-ehmot Ghar - Great",
-        url: "https://tasbeha.org/hymn_library/view/318", 
+        url: "https://tasbeha.org/hymn_library/view/318",
       },
       {
         name: "The Catholic Response - Apitjeek Evol",
-        url: "https://tasbeha.org/hymn_library/view/435", 
+        url: "https://tasbeha.org/hymn_library/view/435",
       },
       {
         name: "Praxis Response - Shere Maria",
-        url: "https://tasbeha.org/hymn_library/view/322", 
+        url: "https://tasbeha.org/hymn_library/view/322",
       },
       {
         name: "Another Praxis Response - Tote Alithos",
-        url: "https://tasbeha.org/hymn_library/view/321", 
+        url: "https://tasbeha.org/hymn_library/view/321",
       },
       {
         name: "The Hymn of the Trisagion",
-        url: "https://tasbeha.org/hymn_library/view/325", 
+        url: "https://tasbeha.org/hymn_library/view/325",
       },
       {
         name: "The Gospel Response - Ouneiato",
-        url: "https://tasbeha.org/hymn_library/view/329", 
+        url: "https://tasbeha.org/hymn_library/view/329",
       },
       {
         name: "The 3 Long Litanies",
-        url: "https://tasbeha.org/hymn_library/view/1975", 
+        url: "https://tasbeha.org/hymn_library/view/1975",
       },
     ],
   },
-
 ];
 
 const LearnItLiturgyWord = () => {
@@ -186,7 +185,10 @@ const LearnItLiturgyWord = () => {
           </Pressable>
           {expanded === item.id && (
             <ScrollView
-              style={[styles.expandedContainer, { maxHeight: scrollViewHeight }]}
+              style={[
+                styles.expandedContainer,
+                { maxHeight: scrollViewHeight },
+              ]}
               nestedScrollEnabled
             >
               {item.subOptions.map((sub, idx) => (

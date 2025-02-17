@@ -58,119 +58,119 @@ const hymnsData = [
     subOptions: [
       {
         name: "Reconciliation Prayer",
-        url: "https://tasbeha.org/hymn_library/view/2671", 
+        url: "https://tasbeha.org/hymn_library/view/2671",
       },
       {
         name: "Great one another",
-        url: "https://tasbeha.org/hymn_library/view/2672", 
+        url: "https://tasbeha.org/hymn_library/view/2672",
       },
       {
         name: "Great one another - Great",
-        url: "https://tasbeha.org/hymn_library/view/1440", 
+        url: "https://tasbeha.org/hymn_library/view/1440",
       },
       {
         name: "In the wisdom of God",
-        url: "https://tasbeha.org/hymn_library/view/2670", 
+        url: "https://tasbeha.org/hymn_library/view/2670",
       },
       {
         name: "Let us Attend - Anaphora",
-        url: "https://tasbeha.org/hymn_library/view/2708", 
+        url: "https://tasbeha.org/hymn_library/view/2708",
       },
       {
         name: "Look towards the East",
-        url: "https://tasbeha.org/hymn_library/view/2707", 
+        url: "https://tasbeha.org/hymn_library/view/2707",
       },
       {
         name: "You who are seated, stand",
-        url: "https://tasbeha.org/hymn_library/view/2673", 
+        url: "https://tasbeha.org/hymn_library/view/2673",
       },
       {
         name: "Epiclesis Responses",
-        url: "https://tasbeha.org/hymn_library/view/2674", 
+        url: "https://tasbeha.org/hymn_library/view/2674",
       },
       {
         name: "Litany for the Peace",
-        url: "https://tasbeha.org/hymn_library/view/2675", 
+        url: "https://tasbeha.org/hymn_library/view/2675",
       },
       {
         name: "Litany for the Fathers",
-        url: "https://tasbeha.org/hymn_library/view/2676", 
+        url: "https://tasbeha.org/hymn_library/view/2676",
       },
       {
         name: "Litany for Priests and Deacons",
-        url: "https://tasbeha.org/hymn_library/view/2677", 
+        url: "https://tasbeha.org/hymn_library/view/2677",
       },
       {
         name: "Litany for the Place",
-        url: "https://tasbeha.org/hymn_library/view/2678", 
+        url: "https://tasbeha.org/hymn_library/view/2678",
       },
       {
         name: "Litany for the Waters",
-        url: "https://tasbeha.org/hymn_library/view/2679", 
+        url: "https://tasbeha.org/hymn_library/view/2679",
       },
       {
         name: "Litany for the Plants",
-        url: "https://tasbeha.org/hymn_library/view/2680", 
+        url: "https://tasbeha.org/hymn_library/view/2680",
       },
       {
         name: "Litany for the Fruits",
-        url: "https://tasbeha.org/hymn_library/view/2681", 
+        url: "https://tasbeha.org/hymn_library/view/2681",
       },
       {
         name: "Litany for the Oblations",
-        url: "https://tasbeha.org/hymn_library/view/2682", 
+        url: "https://tasbeha.org/hymn_library/view/2682",
       },
       {
         name: "St. Gregory: Worship the Lamb",
-        url: "https://tasbeha.org/hymn_library/view/2683", 
+        url: "https://tasbeha.org/hymn_library/view/2683",
       },
       {
         name: "St. Gregory: Litany for the Kings",
-        url: "https://tasbeha.org/hymn_library/view/2684", 
+        url: "https://tasbeha.org/hymn_library/view/2684",
       },
       {
         name: "St. Gregory: Litany for the Government",
-        url: "https://tasbeha.org/hymn_library/view/2685", 
+        url: "https://tasbeha.org/hymn_library/view/2685",
       },
       {
         name: "St. Gregory: Litany for the Captives",
-        url: "https://tasbeha.org/hymn_library/view/2686", 
+        url: "https://tasbeha.org/hymn_library/view/2686",
       },
       {
         name: "St. Gregory: Worship God",
-        url: "https://tasbeha.org/hymn_library/view/2687", 
+        url: "https://tasbeha.org/hymn_library/view/2687",
       },
       {
         name: "Let those who read",
-        url: "https://tasbeha.org/hymn_library/view/2688", 
+        url: "https://tasbeha.org/hymn_library/view/2688",
       },
       {
         name: "Evshes",
-        url: "https://tasbeha.org/hymn_library/view/2049", 
+        url: "https://tasbeha.org/hymn_library/view/2049",
       },
       {
         name: "Pi-nishti",
-        url: "https://tasbeha.org/hymn_library/view/195", 
+        url: "https://tasbeha.org/hymn_library/view/195",
       },
       {
         name: "Great Pinishti",
-        url: "https://tasbeha.org/hymn_library/view/2050", 
+        url: "https://tasbeha.org/hymn_library/view/2050",
       },
       {
         name: "Amen. Amen. Let us pray",
-        url: "https://tasbeha.org/hymn_library/view/2689", 
+        url: "https://tasbeha.org/hymn_library/view/2689",
       },
       {
         name: "Before Confession Responses",
-        url: "https://tasbeha.org/hymn_library/view/2690", 
+        url: "https://tasbeha.org/hymn_library/view/2690",
       },
       {
         name: "Confession",
-        url: "https://tasbeha.org/hymn_library/view/2691", 
+        url: "https://tasbeha.org/hymn_library/view/2691",
       },
       {
         name: "Confession - Great",
-        url: "https://tasbeha.org/hymn_library/view/2692", 
+        url: "https://tasbeha.org/hymn_library/view/2692",
       },
     ],
   },
@@ -180,35 +180,35 @@ const hymnsData = [
     subOptions: [
       {
         name: "The Orthodox Creed",
-        url: "https://tasbeha.org/hymn_library/view/32", 
+        url: "https://tasbeha.org/hymn_library/view/32",
       },
       {
         name: "The Prayer of Reconciliation (Saint Basil’s Liturgy)",
-        url: "https://tasbeha.org/hymn_library/view/2035", 
+        url: "https://tasbeha.org/hymn_library/view/2035",
       },
       {
         name: "Another Prayer of Reconciliation To The Father (Saint Basil’s Liturgy)",
-        url: "https://tasbeha.org/hymn_library/view/2036", 
+        url: "https://tasbeha.org/hymn_library/view/2036",
       },
       {
         name: "Prayer of Reconciliation to the Son (Saint Gregory’s Liturgy)",
-        url: "https://tasbeha.org/hymn_library/view/1934", 
+        url: "https://tasbeha.org/hymn_library/view/1934",
       },
       {
         name: "Another Prayer of Reconciliation (Saint Gregory’s Liturgy)",
-        url: "https://tasbeha.org/hymn_library/view/1934", 
+        url: "https://tasbeha.org/hymn_library/view/1934",
       },
       {
         name: "Prayer of Reconciliation (Saint Cyril’s Liturgy)",
-        url: "https://tasbeha.org/hymn_library/view/2237", 
+        url: "https://tasbeha.org/hymn_library/view/2237",
       },
       {
         name: "Another Prayer of Reconciliation (Saint Cyril’s Liturgy)",
-        url: "https://tasbeha.org/hymn_library/view/2238", 
+        url: "https://tasbeha.org/hymn_library/view/2238",
       },
       {
         name: "Through the intercessions",
-        url: "https://tasbeha.org/hymn_library/view/333", 
+        url: "https://tasbeha.org/hymn_library/view/333",
       },
     ],
   },
@@ -218,216 +218,216 @@ const hymnsData = [
     subOptions: [
       {
         name: "Adam Aspasmos - Rejoice O Mary",
-        url: "https://tasbeha.org/hymn_library/view/176", 
+        url: "https://tasbeha.org/hymn_library/view/176",
       },
       {
         name: "Second Annual Adam Aspasmos - Ari-aspazesta",
-        url: "https://tasbeha.org/hymn_library/view/2565", 
+        url: "https://tasbeha.org/hymn_library/view/2565",
       },
       {
         name: "Third Annual Adam Aspasmos - Pekhristos Pensoteer",
-        url: "https://tasbeha.org/hymn_library/view/328", 
+        url: "https://tasbeha.org/hymn_library/view/328",
       },
       {
         name: "Fourth Annual Adam Aspasmos (The Maharraq Liturgy Book)",
-        url: "https://tasbeha.org/hymn_library/view/2595", 
+        url: "https://tasbeha.org/hymn_library/view/2595",
       },
       {
         name: "Aspasmos Watos - Epshois Efnouti",
-        url: "https://tasbeha.org/hymn_library/view/330", 
+        url: "https://tasbeha.org/hymn_library/view/330",
       },
       {
         name: "Second Annual Watos Aspasmos",
-        url: "https://tasbeha.org/hymn_library/view/335", 
+        url: "https://tasbeha.org/hymn_library/view/335",
       },
       {
         name: "Fourth Annual Watos Aspasmos - Nisherobim",
-        url: "https://tasbeha.org/hymn_library/view/332", 
+        url: "https://tasbeha.org/hymn_library/view/332",
       },
       {
         name: "Third Annual Watos Aspasmos",
-        url: "https://tasbeha.org/hymn_library/view/336", 
+        url: "https://tasbeha.org/hymn_library/view/336",
       },
     ],
   },
   {
-    id: "Basil", 
+    id: "Basil",
     title: "Saint Basil’s Liturgy",
     subOptions: [
       {
         name: "The Anaphora",
-        url: "https://tasbeha.org/hymn_library/view/2038", 
+        url: "https://tasbeha.org/hymn_library/view/2038",
       },
       {
         name: "Agios, agios, agios",
-        url: "https://tasbeha.org/hymn_library/view/2039", 
+        url: "https://tasbeha.org/hymn_library/view/2039",
       },
       {
         name: "Was incarnate and became man",
-        url: "https://tasbeha.org/hymn_library/view/2040", 
+        url: "https://tasbeha.org/hymn_library/view/2040",
       },
       {
         name: "He rose from the dead",
-        url: "https://tasbeha.org/hymn_library/view/2041", 
+        url: "https://tasbeha.org/hymn_library/view/2041",
       },
       {
         name: "The Institution Narrative",
-        url: "https://tasbeha.org/hymn_library/view/2042", 
+        url: "https://tasbeha.org/hymn_library/view/2042",
       },
       {
         name: "The Descent of the Holy Spirit",
-        url: "https://tasbeha.org/hymn_library/view/2043", 
+        url: "https://tasbeha.org/hymn_library/view/2043",
       },
       {
         name: "The Seven Short Litanies",
-        url: "https://tasbeha.org/hymn_library/view/2044", 
+        url: "https://tasbeha.org/hymn_library/view/2044",
       },
       {
         name: "Have Mercy upon us",
-        url: "https://tasbeha.org/hymn_library/view/2045", 
+        url: "https://tasbeha.org/hymn_library/view/2045",
       },
       {
         name: "The Commemoration of the Saints",
-        url: "https://tasbeha.org/hymn_library/view/2046", 
+        url: "https://tasbeha.org/hymn_library/view/2046",
       },
       {
         name: "Diptych",
-        url: "https://tasbeha.org/hymn_library/view/2047", 
+        url: "https://tasbeha.org/hymn_library/view/2047",
       },
       {
         name: "Names of the Departed Patriarchs",
-        url: "https://tasbeha.org/hymn_library/view/2048", 
+        url: "https://tasbeha.org/hymn_library/view/2048",
       },
       {
         name: "Those, O Lord",
-        url: "https://tasbeha.org/hymn_library/view/2049", 
+        url: "https://tasbeha.org/hymn_library/view/2049",
       },
       {
         name: "Lead us",
-        url: "https://tasbeha.org/hymn_library/view/2050", 
+        url: "https://tasbeha.org/hymn_library/view/2050",
       },
       {
         name: "Introduction to the Fraction",
-        url: "https://tasbeha.org/hymn_library/view/2051", 
+        url: "https://tasbeha.org/hymn_library/view/2051",
       },
       {
         name: "The Fraction",
-        url: "https://tasbeha.org/hymn_library/view/2052", 
+        url: "https://tasbeha.org/hymn_library/view/2052",
       },
       {
         name: "Our Father who art in heaven",
-        url: "https://tasbeha.org/hymn_library/view/341", 
+        url: "https://tasbeha.org/hymn_library/view/341",
       },
       {
         name: "Prayers after the Fraction",
-        url: "https://tasbeha.org/hymn_library/view/2053", 
+        url: "https://tasbeha.org/hymn_library/view/2053",
       },
       {
         name: "The Confession",
-        url: "https://tasbeha.org/hymn_library/view/2054", 
+        url: "https://tasbeha.org/hymn_library/view/2054",
       },
       {
         name: "Prayers Before the Distribution of the Holy Mysteries",
-        url: "https://tasbeha.org/hymn_library/view/2596", 
+        url: "https://tasbeha.org/hymn_library/view/2596",
       },
       {
         name: "A Prayer of Thanksgiving",
-        url: "https://tasbeha.org/hymn_library/view/2597", 
+        url: "https://tasbeha.org/hymn_library/view/2597",
       },
       {
         name: "The Prayer of Submission to the Father",
-        url: "https://tasbeha.org/hymn_library/view/2598", 
+        url: "https://tasbeha.org/hymn_library/view/2598",
       },
-    ],    
+    ],
   },
   {
-    id: "Gregory", 
+    id: "Gregory",
     title: "Saint Gregory’s Liturgy",
     subOptions: [
       {
         name: "The Anaphora",
-        url: "https://tasbeha.org/hymn_library/view/1936", 
+        url: "https://tasbeha.org/hymn_library/view/1936",
       },
       {
         name: "O You, THE BEING",
-        url: "https://tasbeha.org/hymn_library/view/1937", 
+        url: "https://tasbeha.org/hymn_library/view/1937",
       },
       {
         name: "You are He around whom stand",
-        url: "https://tasbeha.org/hymn_library/view/1938", 
+        url: "https://tasbeha.org/hymn_library/view/1938",
       },
       {
         name: "Agios, agios, agios",
-        url: "https://tasbeha.org/hymn_library/view/1939", 
+        url: "https://tasbeha.org/hymn_library/view/1939",
       },
       {
         name: "You, O my Master",
-        url: "https://tasbeha.org/hymn_library/view/1940", 
+        url: "https://tasbeha.org/hymn_library/view/1940",
       },
       {
         name: "You, who are THE BEING at all times",
-        url: "https://tasbeha.org/hymn_library/view/1941", 
+        url: "https://tasbeha.org/hymn_library/view/1941",
       },
       {
         name: "You have come to the slaughter",
-        url: "https://tasbeha.org/hymn_library/view/1942", 
+        url: "https://tasbeha.org/hymn_library/view/1942",
       },
       {
         name: "The Institution Narrative",
-        url: "https://tasbeha.org/hymn_library/view/1943", 
+        url: "https://tasbeha.org/hymn_library/view/1943",
       },
       {
         name: "The Descent of the Holy Spirit",
-        url: "https://tasbeha.org/hymn_library/view/1946", 
+        url: "https://tasbeha.org/hymn_library/view/1946",
       },
       {
         name: "Yea, we ask You",
-        url: "https://tasbeha.org/hymn_library/view/1948", 
+        url: "https://tasbeha.org/hymn_library/view/1948",
       },
       {
         name: "The Short Litanies",
-        url: "https://tasbeha.org/hymn_library/view/1947", 
+        url: "https://tasbeha.org/hymn_library/view/1947",
       },
       {
         name: "Healing to the sick",
-        url: "https://tasbeha.org/hymn_library/view/2599", 
+        url: "https://tasbeha.org/hymn_library/view/2599",
       },
       {
         name: "The Commemoration of the Saints",
-        url: "https://tasbeha.org/hymn_library/view/1950", 
+        url: "https://tasbeha.org/hymn_library/view/1950",
       },
       {
         name: "Remember, O Lord",
-        url: "https://tasbeha.org/hymn_library/view/193", 
+        url: "https://tasbeha.org/hymn_library/view/193",
       },
       {
         name: "For You are God",
-        url: "https://tasbeha.org/hymn_library/view/1952", 
+        url: "https://tasbeha.org/hymn_library/view/1952",
       },
       {
         name: "That as in this",
-        url: "https://tasbeha.org/hymn_library/view/1953", 
+        url: "https://tasbeha.org/hymn_library/view/1953",
       },
       {
         name: "Introduction to the Fraction",
-        url: "https://tasbeha.org/hymn_library/view/1954", 
+        url: "https://tasbeha.org/hymn_library/view/1954",
       },
       {
         name: "The Fraction",
-        url: "https://tasbeha.org/hymn_library/view/1955", 
+        url: "https://tasbeha.org/hymn_library/view/1955",
       },
       {
         name: "Prayers after the Fraction",
-        url: "https://tasbeha.org/hymn_library/view/1956", 
+        url: "https://tasbeha.org/hymn_library/view/1956",
       },
       {
         name: "The Confession",
-        url: "https://tasbeha.org/hymn_library/view/1957", 
+        url: "https://tasbeha.org/hymn_library/view/1957",
       },
-    ]
+    ],
   },
   {
-    id: "Cyril", 
+    id: "Cyril",
     title: "Saint Cyril’s Liturgy",
     subOptions: [
       {
@@ -436,129 +436,128 @@ const hymnsData = [
       },
       {
         name: "The Litany of the Peace",
-        url: "https://tasbeha.org/hymn_library/view/2240", 
+        url: "https://tasbeha.org/hymn_library/view/2240",
       },
       {
         name: "The Litany of the Sick",
-        url: "https://tasbeha.org/hymn_library/view/2241", 
+        url: "https://tasbeha.org/hymn_library/view/2241",
       },
       {
         name: "The Litany of the Travelers",
-        url: "https://tasbeha.org/hymn_library/view/2242", 
+        url: "https://tasbeha.org/hymn_library/view/2242",
       },
       {
         name: "The Litany of the Waters, Plants, Fruits",
-        url: "https://tasbeha.org/hymn_library/view/2243", 
+        url: "https://tasbeha.org/hymn_library/view/2243",
       },
       {
         name: "The Litany of the Leader",
-        url: "https://tasbeha.org/hymn_library/view/2244", 
+        url: "https://tasbeha.org/hymn_library/view/2244",
       },
       {
         name: "The Commemoration of the Saints",
-        url: "https://tasbeha.org/hymn_library/view/2245", 
+        url: "https://tasbeha.org/hymn_library/view/2245",
       },
       {
         name: "The Litany of the Departed Patriarch",
-        url: "https://tasbeha.org/hymn_library/view/2246", 
+        url: "https://tasbeha.org/hymn_library/view/2246",
       },
       {
         name: "The Litany of the Departed",
-        url: "https://tasbeha.org/hymn_library/view/2247", 
+        url: "https://tasbeha.org/hymn_library/view/2247",
       },
       {
         name: "Owah Nai Nem",
-        url: "https://tasbeha.org/hymn_library/view/2248", 
+        url: "https://tasbeha.org/hymn_library/view/2248",
       },
       {
         name: "The Litany of the Oblations",
-        url: "https://tasbeha.org/hymn_library/view/2249", 
+        url: "https://tasbeha.org/hymn_library/view/2249",
       },
       {
         name: "The Litany of the Patriarch",
-        url: "https://tasbeha.org/hymn_library/view/2250", 
+        url: "https://tasbeha.org/hymn_library/view/2250",
       },
       {
         name: "The Litany of the Bishops",
-        url: "https://tasbeha.org/hymn_library/view/2251", 
+        url: "https://tasbeha.org/hymn_library/view/2251",
       },
       {
         name: "The Litany of the Rest of the Orthodox",
-        url: "https://tasbeha.org/hymn_library/view/2252", 
+        url: "https://tasbeha.org/hymn_library/view/2252",
       },
       {
         name: "The Litany of the Place",
-        url: "https://tasbeha.org/hymn_library/view/2253", 
+        url: "https://tasbeha.org/hymn_library/view/2253",
       },
       {
         name: "The Litany of those who are Standing Here",
-        url: "https://tasbeha.org/hymn_library/view/2254", 
+        url: "https://tasbeha.org/hymn_library/view/2254",
       },
       {
         name: "The Litany of those who have asked us for Prayer",
-        url: "https://tasbeha.org/hymn_library/view/2255", 
+        url: "https://tasbeha.org/hymn_library/view/2255",
       },
       {
         name: "The Litany of the Servant Priest",
-        url: "https://tasbeha.org/hymn_library/view/2256", 
+        url: "https://tasbeha.org/hymn_library/view/2256",
       },
       {
         name: "The Litany of the Priesthood",
-        url: "https://tasbeha.org/hymn_library/view/2257", 
+        url: "https://tasbeha.org/hymn_library/view/2257",
       },
       {
         name: "The Litany of the Assemblies",
-        url: "https://tasbeha.org/hymn_library/view/2258", 
+        url: "https://tasbeha.org/hymn_library/view/2258",
       },
       {
         name: "The First Litany - Loose the Bound",
-        url: "https://tasbeha.org/hymn_library/view/2259", 
+        url: "https://tasbeha.org/hymn_library/view/2259",
       },
       {
         name: "For You are God...",
-        url: "https://tasbeha.org/hymn_library/view/2260", 
+        url: "https://tasbeha.org/hymn_library/view/2260",
       },
       {
         name: "Agios, Agios, Agios",
-        url: "https://tasbeha.org/hymn_library/view/2261", 
+        url: "https://tasbeha.org/hymn_library/view/2261",
       },
       {
         name: "The Institution Narrative",
-        url: "https://tasbeha.org/hymn_library/view/2262", 
+        url: "https://tasbeha.org/hymn_library/view/2262",
       },
       {
         name: "Therefore Now O God...",
-        url: "https://tasbeha.org/hymn_library/view/2263", 
+        url: "https://tasbeha.org/hymn_library/view/2263",
       },
       {
         name: "The Descent of the Holy Spirit",
-        url: "https://tasbeha.org/hymn_library/view/2264", 
+        url: "https://tasbeha.org/hymn_library/view/2264",
       },
       {
         name: "The Second Litany - That They May Be",
-        url: "https://tasbeha.org/hymn_library/view/2265", 
+        url: "https://tasbeha.org/hymn_library/view/2265",
       },
       {
         name: "The Introduction of the Fraction",
-        url: "https://tasbeha.org/hymn_library/view/2266", 
+        url: "https://tasbeha.org/hymn_library/view/2266",
       },
       {
         name: "The Fraction (For the Father)",
-        url: "https://tasbeha.org/hymn_library/view/2267", 
+        url: "https://tasbeha.org/hymn_library/view/2267",
       },
       {
         name: "Our Father who art in heaven",
-        url: "https://tasbeha.org/hymn_library/view/2268", 
+        url: "https://tasbeha.org/hymn_library/view/2268",
       },
       {
         name: "Before the Confession",
-        url: "https://tasbeha.org/hymn_library/view/2270", 
+        url: "https://tasbeha.org/hymn_library/view/2270",
       },
       {
         name: "The Confession",
-        url: "https://tasbeha.org/hymn_library/view/2269", 
+        url: "https://tasbeha.org/hymn_library/view/2269",
       },
-
     ],
   },
   {
@@ -567,83 +566,82 @@ const hymnsData = [
     subOptions: [
       {
         name: "Advent and Nativity",
-        url: "https://tasbeha.org/hymn_library/view/2493", 
+        url: "https://tasbeha.org/hymn_library/view/2493",
       },
       {
         name: "Annual (Wisdom Fraction for St. Epiphanius)",
-        url: "https://tasbeha.org/hymn_library/view/2390", 
+        url: "https://tasbeha.org/hymn_library/view/2390",
       },
       {
         name: "Annual For the Son (O only-begotten Son)",
-        url: "https://tasbeha.org/hymn_library/view/2473", 
+        url: "https://tasbeha.org/hymn_library/view/2473",
       },
       {
         name: "Annual For the Son (O You, THE BEING)",
-        url: "https://tasbeha.org/hymn_library/view/2389", 
+        url: "https://tasbeha.org/hymn_library/view/2389",
       },
       {
         name: "Apostles Fast",
-        url: "https://tasbeha.org/hymn_library/view/2505", 
+        url: "https://tasbeha.org/hymn_library/view/2505",
       },
       {
         name: "Bright Saturday",
-        url: "https://tasbeha.org/hymn_library/view/2499", 
+        url: "https://tasbeha.org/hymn_library/view/2499",
       },
       {
         name: "Covenant Thursday",
-        url: "https://tasbeha.org/hymn_library/view/2498", 
+        url: "https://tasbeha.org/hymn_library/view/2498",
       },
       {
         name: "Epiphany",
-        url: "https://tasbeha.org/hymn_library/view/2494", 
+        url: "https://tasbeha.org/hymn_library/view/2494",
       },
       {
         name: "Epiphany - Another",
-        url: "https://tasbeha.org/hymn_library/view/2495", 
+        url: "https://tasbeha.org/hymn_library/view/2495",
       },
       {
         name: "Hosanna Sunday",
-        url: "https://tasbeha.org/hymn_library/view/2497", 
+        url: "https://tasbeha.org/hymn_library/view/2497",
       },
       {
         name: "Lent - For the Father",
-        url: "https://tasbeha.org/hymn_library/view/2496", 
+        url: "https://tasbeha.org/hymn_library/view/2496",
       },
       {
         name: "Lent - For the Lamb",
-        url: "https://tasbeha.org/hymn_library/view/2387", 
+        url: "https://tasbeha.org/hymn_library/view/2387",
       },
       {
         name: "Lent - For the Son",
-        url: "https://tasbeha.org/hymn_library/view/2374", 
+        url: "https://tasbeha.org/hymn_library/view/2374",
       },
       {
         name: "Lord's Feasts - For the Son",
-        url: "https://tasbeha.org/hymn_library/view/2507", 
+        url: "https://tasbeha.org/hymn_library/view/2507",
       },
       {
         name: "Resurrection & Holy 50 Days - For the Father",
-        url: "https://tasbeha.org/hymn_library/view/2500", 
+        url: "https://tasbeha.org/hymn_library/view/2500",
       },
       {
         name: "Resurrection - For the Son",
-        url: "https://tasbeha.org/hymn_library/view/2501", 
+        url: "https://tasbeha.org/hymn_library/view/2501",
       },
       {
         name: "Short Fraction - For the Father",
-        url: "https://tasbeha.org/hymn_library/view/2372", 
+        url: "https://tasbeha.org/hymn_library/view/2372",
       },
       {
         name: "St. Mary and the Heavenly",
-        url: "https://tasbeha.org/hymn_library/cat/303#:~:text=St.%20Mary%20and%20the%20Heavenly", 
+        url: "https://tasbeha.org/hymn_library/cat/303#:~:text=St.%20Mary%20and%20the%20Heavenly",
       },
       {
         name: "St. Mary Fast & Feast - Another",
-        url: "https://tasbeha.org/hymn_library/cat/303#:~:text=St.%20Mary%20Fast%20%26%20Feast%20%2D%20Another", 
+        url: "https://tasbeha.org/hymn_library/cat/303#:~:text=St.%20Mary%20Fast%20%26%20Feast%20%2D%20Another",
       },
-    ]
+    ],
   },
-
 ];
 
 const LearnItLiturgyFaithful = () => {
@@ -705,7 +703,10 @@ const LearnItLiturgyFaithful = () => {
           </Pressable>
           {expanded === item.id && (
             <ScrollView
-              style={[styles.expandedContainer, { maxHeight: scrollViewHeight }]}
+              style={[
+                styles.expandedContainer,
+                { maxHeight: scrollViewHeight },
+              ]}
               nestedScrollEnabled
             >
               {item.subOptions.map((sub, idx) => (
