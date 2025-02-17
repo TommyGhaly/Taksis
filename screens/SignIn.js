@@ -132,7 +132,7 @@ async function onGoogleButtonPress(navigation) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000", // Black background
+    backgroundColor: "#000", // Black background
     padding: 20,
   },
   backarrow: {
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     fontSize: 16,
     marginBottom: 15,
-    backgroundColor: "#000000", // Black input background
+    backgroundColor: "#000", // Black input background
     color: "#FFFFFF", // White text color
   },
   button: {

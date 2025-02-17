@@ -18,7 +18,7 @@ const Settings = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1a1a1a",  // Black background
+    backgroundColor: "#121212",  // Black background
   },
   scrollViewContent: {
   },

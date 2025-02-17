@@ -192,7 +192,7 @@ const SettingsContent = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: "#121212",
     paddingHorizontal: 16,
     paddingVertical: 20,
   },
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 36,
-    color: "#aaa",
+    color: "#fff",
     textAlign: "center",
   },
   section: {
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   },
   optionText: {
     fontSize: 16,
-    color: "#8e8e93",
+    color: "#fff",
   },
   signOut: {
     backgroundColor: "#147efb",

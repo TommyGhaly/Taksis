@@ -54,7 +54,7 @@ const ChangeRank = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#121212",
     padding: 16,
     justifyContent: "space-between", // Distribute space evenly
   },

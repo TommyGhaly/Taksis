@@ -21,7 +21,7 @@ const ChangeHeadAdmin = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#000",
+    backgroundColor: "#121212",
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 50,
@@ -40,7 +40,7 @@ const styles = StyleSheet.create({
   },
   message: {
     fontSize: 17,
-    color: "#8e8e93",
+    color: "#fff",
     textAlign: "center",
     marginBottom: 30,
   },

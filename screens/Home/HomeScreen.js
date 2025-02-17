@@ -187,7 +187,7 @@ const HomeScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#1a1a1a" },
+  container: { flex: 1, backgroundColor: "#121212" },
   scrollContainer: { paddingBottom: 20 },
   homescreen: { flex: 1, width: "100%" },
   header: {

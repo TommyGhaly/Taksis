@@ -66,7 +66,7 @@ const ChangeName = () => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#000",
+    backgroundColor: "#121212",
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 50,
