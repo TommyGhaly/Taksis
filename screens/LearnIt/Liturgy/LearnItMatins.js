@@ -466,7 +466,10 @@ const hymnsData = [
         name: "The Praise of the Angels",
         url: "https://tasbeha.org/hymn_library/view/1851",
       },
-      { name: "The Trisagion", url: "https://tasbeha.org/hymn_library/view/1836" },
+      {
+        name: "The Trisagion",
+        url: "https://tasbeha.org/hymn_library/view/1836",
+      },
       {
         name: "Hail to You - The Doxologies",
         url: "https://tasbeha.org/hymn_library/view/1850",
@@ -578,7 +581,10 @@ const LearnItMatins = () => {
           </Pressable>
           {expanded === item.id && (
             <ScrollView
-              style={[styles.expandedContainer, { maxHeight: scrollViewHeight }]}
+              style={[
+                styles.expandedContainer,
+                { maxHeight: scrollViewHeight },
+              ]}
               nestedScrollEnabled
             >
               {item.subOptions.map((sub, idx) => (

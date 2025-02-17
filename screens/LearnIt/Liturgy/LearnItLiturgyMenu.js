@@ -15,9 +15,9 @@ const LearnItLiturgyMenu = ({ navigation }) => {
       // Animate the header first...
       Animated.spring(headerAnim, { toValue: 1, useNativeDriver: true }),
       // Then animate each menu option
-      ...animatedValues.map(anim =>
+      ...animatedValues.map((anim) =>
         Animated.spring(anim, { toValue: 1, useNativeDriver: true })
-      )
+      ),
     ]).start();
   }, []);
 
@@ -32,44 +32,48 @@ const LearnItLiturgyMenu = ({ navigation }) => {
               {
                 translateY: headerAnim.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [50, 0]
-                })
-              }
+                  outputRange: [50, 0],
+                }),
+              },
             ],
-            opacity: headerAnim
-          }
+            opacity: headerAnim,
+          },
         ]}
       >
         <Text style={styles.optionText}>Liturgy</Text>
       </Animated.View>
 
-      {["Matins", "OfferingLamb", "LiturgyWord", "LiturgyFaithful", "Distribution"].map(
-        (screen, index) => (
-          <Animated.View
-            key={screen}
-            style={[
-              styles.option,
-              {
-                transform: [
-                  {
-                    translateY: animatedValues[index].interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [50, 0]
-                    })
-                  }
-                ],
-                opacity: animatedValues[index]
-              }
-            ]}
-          >
-            <Pressable onPress={() => navigation.navigate(screen)}>
-              <Text style={styles.optionText}>
-                {screen.replace(/([A-Z])/g, " $1").trim()}
-              </Text>
-            </Pressable>
-          </Animated.View>
-        )
-      )}
+      {[
+        "Matins",
+        "OfferingLamb",
+        "LiturgyWord",
+        "LiturgyFaithful",
+        "Distribution",
+      ].map((screen, index) => (
+        <Animated.View
+          key={screen}
+          style={[
+            styles.option,
+            {
+              transform: [
+                {
+                  translateY: animatedValues[index].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [50, 0],
+                  }),
+                },
+              ],
+              opacity: animatedValues[index],
+            },
+          ]}
+        >
+          <Pressable onPress={() => navigation.navigate(screen)}>
+            <Text style={styles.optionText}>
+              {screen.replace(/([A-Z])/g, " $1").trim()}
+            </Text>
+          </Pressable>
+        </Animated.View>
+      ))}
 
       <View style={styles.backbutton}>
         <BackArrow />
@@ -86,7 +90,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
   },
   headerContainer: {
     marginBottom: 40,
@@ -96,7 +100,7 @@ const styles = StyleSheet.create({
     paddingLeft: 120,
     paddingRight: 120,
     borderRadius: 10,
-    justifyContent: "center"
+    justifyContent: "center",
   },
   option: {
     width: "100%",
@@ -110,20 +114,20 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.5,
     shadowRadius: 6,
-    elevation: 8
+    elevation: 8,
   },
   optionText: {
     fontSize: 24,
     color: "#ffffff",
     textAlign: "center",
     fontWeight: "700",
-    lineHeight: 30
+    lineHeight: 30,
   },
   backbutton: {
     position: "absolute",
     top: 20,
-    left: 20
-  }
+    left: 20,
+  },
 });
 
 export default LearnItLiturgyMenu;

@@ -80,55 +80,54 @@ const hymnsData = [
     subOptions: [
       {
         name: "Ten-oo-osht",
-        url: "https://tasbeha.org/hymn_library/view/1958", 
+        url: "https://tasbeha.org/hymn_library/view/1958",
       },
       {
         name: "Shere Maria Tee-oro",
-        url: "https://tasbeha.org/hymn_library/view/1959", 
+        url: "https://tasbeha.org/hymn_library/view/1959",
       },
       {
         name: "Apinav Shopi",
-        url: "https://tasbeha.org/hymn_library/view/1960", 
+        url: "https://tasbeha.org/hymn_library/view/1960",
       },
       {
         name: "Al El-orban",
-        url: "https://tasbeha.org/hymn_library/view/1961", 
+        url: "https://tasbeha.org/hymn_library/view/1961",
       },
       {
         name: "Kerie Leison (41 times)",
-        url: "https://tasbeha.org/hymn_library/view/1962", 
+        url: "https://tasbeha.org/hymn_library/view/1962",
       },
       {
         name: "Oo-o-oo Nem Otaio",
-        url: "https://tasbeha.org/hymn_library/view/1963", 
+        url: "https://tasbeha.org/hymn_library/view/1963",
       },
       {
         name: "Alleluia Fai be pi-ehoo",
-        url: "https://tasbeha.org/hymn_library/view/1964", 
+        url: "https://tasbeha.org/hymn_library/view/1964",
       },
       {
         name: "Alleluia. Je Efmevee",
-        url: "https://tasbeha.org/hymn_library/view/1965", 
+        url: "https://tasbeha.org/hymn_library/view/1965",
       },
       {
         name: "Khen Efran",
-        url: "https://tasbeha.org/hymn_library/view/1966", 
+        url: "https://tasbeha.org/hymn_library/view/1966",
       },
       {
         name: "Zoxa Patri",
-        url: "https://tasbeha.org/hymn_library/view/1967", 
+        url: "https://tasbeha.org/hymn_library/view/1967",
       },
       {
         name: "The Thanksgiving Prayer",
-        url: "https://tasbeha.org/hymn_library/view/1968", 
+        url: "https://tasbeha.org/hymn_library/view/1968",
       },
       {
         name: "The Absolution of the Servants",
-        url: "https://tasbeha.org/hymn_library/view/1973", 
+        url: "https://tasbeha.org/hymn_library/view/1973",
       },
     ],
   },
-
 ];
 
 const LearnItOfferingLamb = () => {
@@ -190,7 +189,10 @@ const LearnItOfferingLamb = () => {
           </Pressable>
           {expanded === item.id && (
             <ScrollView
-              style={[styles.expandedContainer, { maxHeight: scrollViewHeight }]}
+              style={[
+                styles.expandedContainer,
+                { maxHeight: scrollViewHeight },
+              ]}
               nestedScrollEnabled
             >
               {item.subOptions.map((sub, idx) => (

@@ -53,469 +53,59 @@ const openUrl = async (url) => {
 
 const hymnsData = [
   {
-    id: "deacon",
-    title: "Deacon Responses",
-    subOptions: [
-      {
-        name: "Stand up for prayer",
-        url: "https://tasbeha.org/hymn_library/view/1909",
-      },
-      {
-        name: "Let us pray",
-        url: "https://tasbeha.org/hymn_library/view/1910",
-      },
-      {
-        name: "Pray that God may have mercy",
-        url: "https://tasbeha.org/hymn_library/view/1911",
-      },
-      {
-        name: "Litany of the Departed",
-        url: "https://tasbeha.org/hymn_library/view/1912",
-      },
-      {
-        name: "Litany of the Sick",
-        url: "https://tasbeha.org/hymn_library/view/1913",
-      },
-      {
-        name: "Litany of the Travelers",
-        url: "https://tasbeha.org/hymn_library/view/1914",
-      },
-      {
-        name: "Pray for the Oblations",
-        url: "https://tasbeha.org/hymn_library/view/1915",
-      },
-      {
-        name: "Pray for the Holy Gospel",
-        url: "https://tasbeha.org/hymn_library/view/1916",
-      },
-      {
-        name: "Stand in the fear of God",
-        url: "https://tasbeha.org/hymn_library/view/1917",
-      },
-      {
-        name: "Litany of the Peace",
-        url: "https://tasbeha.org/hymn_library/view/1918",
-      },
-      {
-        name: "Litany of the Fathers",
-        url: "https://tasbeha.org/hymn_library/view/1919",
-      },
-      {
-        name: "Litany of the Place",
-        url: "https://tasbeha.org/hymn_library/view/1920",
-      },
-      {
-        name: "Litany of the Fruits, Waters, Plants",
-        url: "https://tasbeha.org/hymn_library/view/1921",
-      },
-      {
-        name: "Litany of the Congregation",
-        url: "https://tasbeha.org/hymn_library/view/1922",
-      },
-      {
-        name: "Bow your heads",
-        url: "https://tasbeha.org/hymn_library/view/1923",
-      },
-      {
-        name: "Let us attend in the fear of God",
-        url: "https://tasbeha.org/hymn_library/view/1924",
-      },
-    ],
+    id: "psalm",
+    title: "Psalm 150",
+    url: "https://tasbeha.org/hymn_library/view/228",
   },
   {
-    id: "symbols",
-    title: "Verses of the Symbols",
-    subOptions: [
-      {
-        name: "Introduction of Adam Days",
-        url: "https://tasbeha.org/hymn_library/view/48",
-      },
-      {
-        name: "Introduction of Watos Days ",
-        url: "https://tasbeha.org/hymn_library/view/49",
-      },
-      {
-        name: "For the Intercessors",
-        url: "https://tasbeha.org/hymn_library/view/50",
-      },
-      {
-        name: "For the Apostles",
-        url: "https://tasbeha.org/hymn_library/view/2588",
-      },
-      {
-        name: "For the Martyrs",
-        url: "https://tasbeha.org/hymn_library/view/2589",
-      },
-      {
-        name: "For the Saints",
-        url: "https://tasbeha.org/hymn_library/view/2590",
-      },
-      {
-        name: "For the Fahers (Bishops)",
-        url: "https://tasbeha.org/hymn_library/view/2591",
-      },
-      {
-        name: "Annual Conclusion",
-        url: "https://tasbeha.org/hymn_library/view/2592",
-      },
-    ],
+    id: "blessed",
+    title: "Blessed be",
+    url: "https://tasbeha.org/hymn_library/view/343",
   },
   {
-    id: "doxology",
-    title: "Doxology",
-    subOptions: [
-      {
-        name: "Intro of the Doxologies",
-        url: "https://tasbeha.org/hymn_library/view/439",
-      },
-      {
-        name: "St. Mary Doxology (Matins)",
-        url: "https://tasbeha.org/hymn_library/view/23",
-      },
-      {
-        name: "The Heavenly Orders Doxology",
-        url: "https://tasbeha.org/hymn_library/view/419",
-      },
-      {
-        name: "Archangel Michael Doxology",
-        url: "https://tasbeha.org/hymn_library/view/418",
-      },
-      {
-        name: "Archangel Gabriel Doxology",
-        url: "https://tasbeha.org/hymn_library/view/1867",
-      },
-      {
-        name: "Archangel Raphael Doxology",
-        url: "https://tasbeha.org/hymn_library/view/1868",
-      },
-      {
-        name: "Archangels Mikhail and Gabriel Watos Doxology",
-        url: "https://tasbeha.org/hymn_library/view/2542",
-      },
-      {
-        name: "Archangel Suriel Doxology",
-        url: "https://tasbeha.org/hymn_library/view/1869",
-      },
-      {
-        name: "The Four Creatures Doxology",
-        url: "https://tasbeha.org/hymn_library/view/1870",
-      },
-      {
-        name: "24 Presbyters Doxology",
-        url: "https://tasbeha.org/hymn_library/view/1871",
-      },
-      {
-        name: "144,000 Doxology",
-        url: "https://tasbeha.org/hymn_library/view/1872",
-      },
-      {
-        name: "St. John the Baptist - 1st",
-        url: "https://tasbeha.org/hymn_library/view/421",
-      },
-      {
-        name: "St. John the Baptist - 2nd",
-        url: "https://tasbeha.org/hymn_library/view/1873",
-      },
-      {
-        name: "Apostles Doxology - 1st",
-        url: "https://tasbeha.org/hymn_library/view/422",
-      },
-      {
-        name: "Apostles Doxology - 2nd",
-        url: "https://tasbeha.org/hymn_library/view/437",
-      },
-      {
-        name: "St. Mark Doxology - 1st",
-        url: "https://tasbeha.org/hymn_library/view/420",
-      },
-      {
-        name: "St. Mark Doxology - 2nd",
-        url: "https://tasbeha.org/hymn_library/view/2027",
-      },
-      {
-        name: "St. Peter & St. Paul Doxology",
-        url: "https://tasbeha.org/hymn_library/view/1101",
-      },
-      {
-        name: "St. John the Evangelist",
-        url: "https://tasbeha.org/hymn_library/view/957",
-      },
-      {
-        name: "Any Apostle Doxology",
-        url: "https://tasbeha.org/hymn_library/view/1102",
-      },
-      {
-        name: "St. Abanoub of Nehis",
-        url: "https://tasbeha.org/hymn_library/view/2645",
-      },
-      {
-        name: "St. Maurice",
-        url: "https://tasbeha.org/hymn_library/view/2287",
-      },
-      {
-        name: "St. Stephen",
-        url: "https://tasbeha.org/hymn_library/view/1882",
-      },
-      {
-        name: "St. George Doxology - 1st",
-        url: "https://tasbeha.org/hymn_library/view/424",
-      },
-      {
-        name: "St. George Doxology - 2nd",
-        url: "https://tasbeha.org/hymn_library/view/2030",
-      },
-      {
-        name: "St. Theodorus El-Shotbe - 1st",
-        url: "https://tasbeha.org/hymn_library/view/1884",
-      },
-      {
-        name: "St. Theodorus El-Shotbe - 2nd",
-        url: "https://tasbeha.org/hymn_library/view/2031",
-      },
-      {
-        name: "St. Theodorus El-Mashriqi",
-        url: "https://tasbeha.org/hymn_library/view/1883",
-      },
-      {
-        name: "St. Philopater Mercurius",
-        url: "https://tasbeha.org/hymn_library/view/1880",
-      },
-      {
-        name: "St. Mina Doxology - 1st",
-        url: "https://tasbeha.org/hymn_library/view/1394",
-      },
-      {
-        name: "St. Mina Doxology - 2nd",
-        url: "https://tasbeha.org/hymn_library/view/2032",
-      },
-      {
-        name: "Sts. Sergius & Bacchus",
-        url: "https://tasbeha.org/hymn_library/view/1881",
-      },
-      {
-        name: "Sts. Cosmas & Demian",
-        url: "https://tasbeha.org/hymn_library/view/1885",
-      },
-      {
-        name: "St. Sarapamon Doxology (Bishop of Nikiou)",
-        url: "https://tasbeha.org/hymn_library/view/1876",
-      },
-      {
-        name: "Sts. Abakir & John Doxology",
-        url: "https://tasbeha.org/hymn_library/view/1875",
-      },
-      {
-        name: "St. Victor Doxology",
-        url: "https://tasbeha.org/hymn_library/view/1877",
-      },
-      {
-        name: "All the Martyrs",
-        url: "https://tasbeha.org/hymn_library/view/1276",
-      },
-      {
-        name: "St. Demiana Doxology - 1st",
-        url: "https://tasbeha.org/hymn_library/view/2029",
-      },
-      {
-        name: "St. Demiana Doxology - 2nd (Glorification Hymn)",
-        url: "https://tasbeha.org/hymn_library/view/2033",
-      },
-      {
-        name: "Sts. Berbara & Juliana",
-        url: "https://tasbeha.org/hymn_library/view/1878",
-      },
-      {
-        name: "St. Marina (Martyr)",
-        url: "https://tasbeha.org/hymn_library/view/1879",
-      },
-      {
-        name: "Any Female Martyr Doxology",
-        url: "https://tasbeha.org/hymn_library/view/2034",
-      },
-      {
-        name: "Another Doxology for St. Macarius the Great",
-        url: "https://tasbeha.org/hymn_library/view/2650",
-      },
-      {
-        name: "Doxology for Saint Joseph",
-        url: "https://tasbeha.org/hymn_library/view/2336",
-      },
-      {
-        name: "Pope Kyrillos VI",
-        url: "https://tasbeha.org/hymn_library/view/2654",
-      },
-      {
-        name: "St. Arsenius Doxology",
-        url: "https://tasbeha.org/hymn_library/view/2450",
-      },
-      {
-        name: "Abba Antony",
-        url: "https://tasbeha.org/hymn_library/view/1888",
-      },
-      {
-        name: "Doxology for Saint Augustine",
-        url: "https://tasbeha.org/hymn_library/view/2655",
-      },
-      {
-        name: "Doxology for Abba Anthony & Abba Paul",
-        url: "https://tasbeha.org/hymn_library/view/2648",
-      },
-      {
-        name: "St. Paul the Hermit",
-        url: "https://tasbeha.org/hymn_library/view/1898",
-      },
-      {
-        name: "St. Macarius the Great - 1st",
-        url: "https://tasbeha.org/hymn_library/view/1894",
-      },
-      {
-        name: "St. Macarius the Alexandrian",
-        url: "https://tasbeha.org/hymn_library/view/1893",
-      },
-      {
-        name: "St. Macarius (Bishop of Edkow)",
-        url: "https://tasbeha.org/hymn_library/view/1891",
-      },
-      {
-        name: "St. Shenouda the Archimandrite",
-        url: "https://tasbeha.org/hymn_library/view/1903",
-      },
-      {
-        name: "St. John the Short",
-        url: "https://tasbeha.org/hymn_library/view/1890",
-      },
-      {
-        name: "Sts. Pishoy & Paul of Tammoh",
-        url: "https://tasbeha.org/hymn_library/view/1899",
-      },
-      {
-        name: "St. Pachomius and Theodore",
-        url: "https://tasbeha.org/hymn_library/view/1896",
-      },
-      {
-        name: "Sts. Maximus and Dometius",
-        url: "https://tasbeha.org/hymn_library/view/1905",
-      },
-      {
-        name: "Doxology for Abba Moses the Strong",
-        url: "https://tasbeha.org/hymn_library/view/1895",
-      },
-      {
-        name: "St. Samuel the Confessor",
-        url: "https://tasbeha.org/hymn_library/view/1901",
-      },
-      {
-        name: "St. John Kame",
-        url: "https://tasbeha.org/hymn_library/view/1889",
-      },
-      {
-        name: "St. Roweis (Teji)",
-        url: "https://tasbeha.org/hymn_library/view/1900",
-      },
-      {
-        name: "St. Parsoum the Naked",
-        url: "https://tasbeha.org/hymn_library/view/1897",
-      },
-      {
-        name: "St. Takla Haymanout",
-        url: "https://tasbeha.org/hymn_library/view/1904",
-      },
-      {
-        name: "The 3 Old Patriarchs",
-        url: "https://tasbeha.org/hymn_library/view/1906",
-      },
-      {
-        name: "St. Severus (Patriarch of Antioch)",
-        url: "https://tasbeha.org/hymn_library/view/1902",
-      },
-      {
-        name: "St. Abraam (Bishop of Fayoum)",
-        url: "https://tasbeha.org/hymn_library/view/1886",
-      },
-      {
-        name: "Conclusion of Doxologies",
-        url: "https://tasbeha.org/hymn_library/view/423",
-      },
-    ],
+    id: "bread_of_life",
+    title: "The Bread of Life - Pi-oik",
+    url: "https://tasbeha.org/hymn_library/view/378",
   },
   {
-    id: "fullService",
-    title: "Full Service",
-    subOptions: [
-      {
-        name: "The Thanksgiving Prayer",
-        url: "https://tasbeha.org/hymn_library/view/1833",
-      },
-      {
-        name: "The Litany for the Departed",
-        url: "https://tasbeha.org/hymn_library/view/1834",
-      },
-      {
-        name: "The Litany for the Sick",
-        url: "https://tasbeha.org/hymn_library/view/1846",
-      },
-      {
-        name: "The Litany for the Travelers",
-        url: "https://tasbeha.org/hymn_library/view/1847",
-      },
-      {
-        name: "The Litany for the Oblations",
-        url: "https://tasbeha.org/hymn_library/view/6",
-      },
-      {
-        name: "The Praise of the Angels",
-        url: "https://tasbeha.org/hymn_library/view/1851",
-      },
-      { name: "The Trisagion", url: "https://tasbeha.org/hymn_library/view/1836" },
-      {
-        name: "Hail to You - The Doxologies",
-        url: "https://tasbeha.org/hymn_library/view/1850",
-      },
-      {
-        name: "Introduction to the Creed",
-        url: "https://tasbeha.org/hymn_library/view/1837",
-      },
-      {
-        name: "The Orthodox Creed",
-        url: "https://tasbeha.org/hymn_library/view/1852",
-      },
-      {
-        name: "O God, have mercy upon us",
-        url: "https://tasbeha.org/hymn_library/view/1840",
-      },
-      {
-        name: "The Litany for the Gospel",
-        url: "https://tasbeha.org/hymn_library/view/1842",
-      },
-      {
-        name: "Another Litany for the Gospel",
-        url: "https://tasbeha.org/hymn_library/view/2593",
-      },
-      {
-        name: "The Psalm and Gospel",
-        url: "https://tasbeha.org/hymn_library/view/1849",
-      },
-      {
-        name: "The Gospel Response (Annual)",
-        url: "https://tasbeha.org/hymn_library/view/1843",
-      },
-      {
-        name: "The Five Short Litanies",
-        url: "https://tasbeha.org/hymn_library/view/1844",
-      },
-      {
-        name: "The Three Absolutions",
-        url: "https://tasbeha.org/hymn_library/view/2594",
-      },
-      {
-        name: "The Conclusion (Amen Alleluia)",
-        url: "https://tasbeha.org/hymn_library/view/1853",
-      },
-      {
-        name: "The Short Blessing",
-        url: "https://tasbeha.org/hymn_library/view/1854",
-      },
-    ],
+    id: "je_efis_maroot",
+    title: "Je Efis-maroot",
+    url: "https://tasbeha.org/hymn_library/view/334",
+  },
+  {
+    id: "our_father",
+    title: "Our Father who art in heaven",
+    url: "https://tasbeha.org/hymn_library/view/2058",
+  },
+  {
+    id: "listen_congregation",
+    title: "Listen O Christ´s congregation",
+    url: "https://tasbeha.org/hymn_library/view/2057",
+  },
+  {
+    id: "listen_congregation_arabic",
+    title: "Listen O Christ´s congregation - Arabic",
+    url: "https://tasbeha.org/hymn_library/view/2325",
+  },
+  {
+    id: "lord_have_mercy",
+    title: "O Lord have mercy on Your creation",
+    url: "https://tasbeha.org/hymn_library/view/1385",
+  },
+  {
+    id: "mother_of_light",
+    title: "O Mother of Light",
+    url: "https://tasbeha.org/hymn_library/view/2059",
+  },
+  {
+    id: "hosanna_son_of_david",
+    title: "Osana Ya Ebn Dawod (Hossana O Son of David)",
+    url: "https://tasbeha.org/hymn_library/view/1410",
+  },
+  {
+    id: "our_redeemer",
+    title: "Our Redeemer, invited us",
+    url: "https://tasbeha.org/hymn_library/view/1386",
   },
 ];
 
@@ -542,15 +132,8 @@ const LearnItDistribution = () => {
       ),
     ]).start();
   }, []);
-
-  const toggleExpand = (id) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpanded(expanded === id ? null : id);
-  };
-
   const renderItem = ({ item, index }) => {
     // Calculate a max height for the sub-options container
-    const scrollViewHeight = Math.min(50 * item.subOptions.length, 300);
 
     return (
       <Animated.View
@@ -570,28 +153,9 @@ const LearnItDistribution = () => {
         ]}
       >
         <View>
-          <Pressable
-            style={styles.button}
-            onPress={() => toggleExpand(item.id)}
-          >
+          <Pressable style={styles.button} onPress={() => openUrl(item.url)}>
             <Text style={styles.buttonText}>{item.title}</Text>
           </Pressable>
-          {expanded === item.id && (
-            <ScrollView
-              style={[styles.expandedContainer, { maxHeight: scrollViewHeight }]}
-              nestedScrollEnabled
-            >
-              {item.subOptions.map((sub, idx) => (
-                <Pressable
-                  key={idx}
-                  style={styles.subButton}
-                  onPress={() => openUrl(sub.url)}
-                >
-                  <Text style={styles.subButtonText}>{sub.name}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          )}
         </View>
       </Animated.View>
     );
@@ -617,7 +181,7 @@ const LearnItDistribution = () => {
           },
         ]}
       >
-        <Text style={styles.title}>Matins</Text>
+        <Text style={styles.title}>Communion</Text>
       </Animated.View>
       <FlatList
         data={hymnsData}
