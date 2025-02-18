@@ -459,3 +459,15 @@ def generate_test_data(num_people):
 
 # test_data = generate_test_data(100)
 # add_test_data_to_firestore(test_data)
+
+
+@https_fn.on_request()
+def update_user(req: https_fn.Request) -> https_fn.Response:
+    pass
+
+@scheduler_fn.on_schedule (
+    schedule = "0 21 * * 5",  # Every Friday at 9:00 PM
+    timezone=scheduler_fn.Timezone("America/New_York"),
+)
+def notify (event: scheduler_fn.ScheduledEvent) -> https_fn.Response:
+    pass

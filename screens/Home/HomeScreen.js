@@ -9,7 +9,6 @@ import {
 import { Ionicons } from "@expo/vector-icons"; // Using Ionicons for icons
 import firestore from "@react-native-firebase/firestore";
 import { initializeApp } from "firebase/app";
-import { getFunctions, httpsCallable } from "firebase/functions";
 
 initializeApp({
   projectId: "taksis-a8ba7",

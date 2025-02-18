@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import BackArrow from "../../../components/backArrow";
 import InAppBrowser from "react-native-inappbrowser-reborn";
+import hymnsData from "./Distribution.json"; 
 
 // Enable LayoutAnimation on Android
 if (
@@ -50,64 +51,6 @@ const openUrl = async (url) => {
     console.error(error);
   }
 };
-
-const hymnsData = [
-  {
-    id: "psalm",
-    title: "Psalm 150",
-    url: "https://tasbeha.org/hymn_library/view/228",
-  },
-  {
-    id: "blessed",
-    title: "Blessed be",
-    url: "https://tasbeha.org/hymn_library/view/343",
-  },
-  {
-    id: "bread_of_life",
-    title: "The Bread of Life - Pi-oik",
-    url: "https://tasbeha.org/hymn_library/view/378",
-  },
-  {
-    id: "je_efis_maroot",
-    title: "Je Efis-maroot",
-    url: "https://tasbeha.org/hymn_library/view/334",
-  },
-  {
-    id: "our_father",
-    title: "Our Father who art in heaven",
-    url: "https://tasbeha.org/hymn_library/view/2058",
-  },
-  {
-    id: "listen_congregation",
-    title: "Listen O Christ´s congregation",
-    url: "https://tasbeha.org/hymn_library/view/2057",
-  },
-  {
-    id: "listen_congregation_arabic",
-    title: "Listen O Christ´s congregation - Arabic",
-    url: "https://tasbeha.org/hymn_library/view/2325",
-  },
-  {
-    id: "lord_have_mercy",
-    title: "O Lord have mercy on Your creation",
-    url: "https://tasbeha.org/hymn_library/view/1385",
-  },
-  {
-    id: "mother_of_light",
-    title: "O Mother of Light",
-    url: "https://tasbeha.org/hymn_library/view/2059",
-  },
-  {
-    id: "hosanna_son_of_david",
-    title: "Osana Ya Ebn Dawod (Hossana O Son of David)",
-    url: "https://tasbeha.org/hymn_library/view/1410",
-  },
-  {
-    id: "our_redeemer",
-    title: "Our Redeemer, invited us",
-    url: "https://tasbeha.org/hymn_library/view/1386",
-  },
-];
 
 const LearnItDistribution = () => {
   const [expanded, setExpanded] = useState(null);
@@ -235,6 +178,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: "#ffffff",
     fontWeight: "bold",
+    textAlign: "center",
   },
   button: {
     backgroundColor: "#2c2c2c",
@@ -252,6 +196,7 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 10,
     alignSelf: "center",
+    textAlign: "center",
   },
   subButton: {
     backgroundColor: "#3a3a3a",
@@ -261,6 +206,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     alignItems: "center",
     alignSelf: "center",
+    textAlign: "center",
   },
   subButtonText: {
     fontSize: 18,
