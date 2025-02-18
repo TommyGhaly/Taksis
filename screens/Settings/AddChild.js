@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 10,
     marginBottom: 20,
-    backgroundColor: "#333",
+    backgroundColor: "#121212",
     color: "#8e8e93",
   },
   continueButton: {
