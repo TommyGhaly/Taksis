@@ -21,39 +21,33 @@ import MainContainer from "./screens/MainContainer";
 const Stack = createNativeStackNavigator();
 
 function AppNavigator() {
-  const { user, setUser, signUp } = useUser(); // Access user, setUser, and signUp from UserContext
-  const [initializing, setInitializing] = useState(null);
+  const { user, setUser, signUp } = useUser(); 
+  const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
-    const subscriber = auth().onAuthStateChanged(onAuthStateChanged);
-    return subscriber; // unsubscribe on unmount
+    const subscriber = auth().onAuthStateChanged((user) => {
+      setUser(user);
+      setInitializing(false);
+    });
+    return subscriber; 
   }, []);
 
-  function onAuthStateChanged(user) {
-    setUser(user);
-    if (initializing) setInitializing(false);
-  }
-
-  if (initializing) return null; // Return null or a loading indicator while initializing
+  if (initializing) return null; 
 
   return (
     <NavigationContainer style={styles.container}>
       <Stack.Navigator
         initialRouteName={
-          !user
-            ? "Welcome"
-            : signUp
-            ? "SelectChurch"
-            : "MainContainer"
+          !user ? "Welcome" : signUp ? "SelectChurch" : "MainContainer"
         }
         screenOptions={{ headerShown: false, animation: "none" }}
       >
         {!user ? (
           <>
-            <Stack.Screen name="Welcome" component={Welcome} options={{ animation:"slide_from_left" }}/>
-            <Stack.Screen name="SignUp" component={SignUp} options={{ animation:"default" }}/>
-            <Stack.Screen name="PasswordReset" component={PasswordReset} options={{ animation:"default" }}/>
-            <Stack.Screen name="SignIn" component={SignIn} options={{ animation:"default" }}/>
+            <Stack.Screen name="Welcome" component={Welcome} options={{ animation: "slide_from_left" }}/>
+            <Stack.Screen name="SignUp" component={SignUp} options={{ animation: "default" }}/>
+            <Stack.Screen name="PasswordReset" component={PasswordReset} options={{ animation: "default" }}/>
+            <Stack.Screen name="SignIn" component={SignIn} options={{ animation: "default" }}/>
           </>
         ) : signUp ? (
           <>

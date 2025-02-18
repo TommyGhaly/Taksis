@@ -5,37 +5,68 @@ import {
   Text,
   Pressable,
   TouchableOpacity,
-  Alert
+  Alert,
 } from "react-native";
 import FrequencyQuestions from "../components/frequencyQuestions";
 import BackArrow from "../components/backArrow";
-import firestore from '@react-native-firebase/firestore';
-import auth from '@react-native-firebase/auth';
+import firestore from "@react-native-firebase/firestore";
+import auth from "@react-native-firebase/auth";
 import ProgressBar from "../components/progressBar";
 
 const Frequency = ({ route, navigation }) => {
-  const { from } = route.params
+  const { from } = route.params;
   const user = auth().currentUser;
   const [selectedAge, setSelectedAge] = useState(1);
   const [frequency, setFrequency] = useState(5);
-  const fromApplicable = (from === 'SelectApplicable')
+  const fromApplicable = from === "SelectApplicable";
   const handleAge = (checked) => {
     setSelectedAge(checked);
   };
   const handleFrequency = (checked) => {
     setFrequency(checked);
   };
+
+  const callUpdateUser = async (userId) => {
+    try {
+      const response = await fetch(
+        "https://update-user-hy6oofbihq-uc.a.run.app",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            // Include Authorization header if you're verifying tokens on the server
+            // 'Authorization': 'Bearer YOUR_FIREBASE_ID_TOKEN'
+          },
+          body: JSON.stringify({ user_id: userId }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Network response was not ok");
+      }
+
+      const data = await response.json();
+      console.log("Function result:", data.result);
+    } catch (error) {
+      console.error("Error calling function:", error);
+    }
+  };
+
   const handleContinue = async (user) => {
     try {
-      await firestore().collection('users').doc(user.uid).update({
+      await firestore().collection("users").doc(user.uid).update({
         frequency: frequency,
-        age: selectedAge   
+        age: selectedAge,
       });
+      callUpdateUser(user.uid);
       navigation.navigate("MainContainer");
     } catch (error) {
       console.error("Error updating user frequency: ", error);
-      Alert.alert("Error", "Could not update frequency information. Please try again.");
-    }; 
+      Alert.alert(
+        "Error",
+        "Could not update frequency information. Please try again."
+      );
+    }
   };
   return (
     <View style={styles.experience}>
@@ -47,7 +78,10 @@ const Frequency = ({ route, navigation }) => {
       </View>
 
       <View style={styles.wrapper}>
-        <FrequencyQuestions onAgeChange={handleAge} onFrequencyChange={handleFrequency}/>
+        <FrequencyQuestions
+          onAgeChange={handleAge}
+          onFrequencyChange={handleFrequency}
+        />
       </View>
       <View style={styles.title2}>
         <Text style={styles.titleText}>
@@ -55,7 +89,10 @@ const Frequency = ({ route, navigation }) => {
         </Text>
       </View>
       <View style={styles.progressBar}>
-        <ProgressBar startPercentage={fromApplicable? 40 : 80} endPercentage={100}/>
+        <ProgressBar
+          startPercentage={fromApplicable ? 40 : 80}
+          endPercentage={100}
+        />
       </View>
       <View style={styles.continueLayout}>
         <Pressable onPress={() => handleContinue(user)}>
@@ -78,7 +115,7 @@ const styles = StyleSheet.create({
     width: 358,
     backgroundColor: "#333",
     borderRadius: 10,
-    position: 'absolute'
+    position: "absolute",
   },
   continuetext: {
     top: 15,
