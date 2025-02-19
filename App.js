@@ -45,12 +45,14 @@ function AppNavigator() {
         {!user ? (
           <>
             <Stack.Screen name="Welcome" component={Welcome} options={{ animation: "slide_from_left" }}/>
-            <Stack.Screen name="SignUp" component={SignUp} options={{ animation: "default" }}/>
             <Stack.Screen name="PasswordReset" component={PasswordReset} options={{ animation: "default" }}/>
             <Stack.Screen name="SignIn" component={SignIn} options={{ animation: "default" }}/>
+            <Stack.Screen name="SignUp" component={SignUp} options={{ animation: "default" }}/>
+ 
           </>
         ) : signUp ? (
           <>
+            <Stack.Screen name="SignUp" component={SignUp} options={{ animation: "default" }}/>
             <Stack.Screen name="SelectChurch" component={SelectChurch} />
             <Stack.Screen name="ChurchRegistration" component={ChurchRegistration} />
             <Stack.Screen name="SelectApplicable" component={SelectApplicable} />

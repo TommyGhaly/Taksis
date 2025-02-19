@@ -115,29 +115,30 @@ const SignUp = ({ navigation }) => {
   };
 
   async function onAppleButtonPress() {
-    // Start the sign-in request
-    const appleAuthRequestResponse = await appleAuth.performRequest({
-      requestedOperation: appleAuth.Operation.LOGIN,
-      // As per the FAQ of react-native-apple-authentication, the name should come first in the following array.
-      // See: https://github.com/invertase/react-native-apple-authentication#faqs
-      requestedScopes: [appleAuth.Scope.FULL_NAME, appleAuth.Scope.EMAIL],
-    });
-
-    // Ensure Apple returned a user identityToken
-    if (!appleAuthRequestResponse.identityToken) {
-      throw new Error("Apple Sign-In failed - no identify token returned");
+    try {
+      const appleAuthRequestResponse = await appleAuth.performRequest({
+        requestedOperation: appleAuth.Operation.LOGIN,
+        requestedScopes: [appleAuth.Scope.FULL_NAME, appleAuth.Scope.EMAIL],
+      });
+  
+      if (!appleAuthRequestResponse.identityToken) {
+        console.error("No identity token returned.");
+        return;
+      }
+  
+      const { identityToken, nonce } = appleAuthRequestResponse;
+      const appleCredential = auth.AppleAuthProvider.credential(
+        identityToken,
+        nonce
+      );
+  
+      return auth().signInWithCredential(appleCredential);
+    } catch (error) {
+      console.error("Apple Sign-In Error:", error);
+      alert(`Apple Sign-In failed: ${error.message}`);
     }
-
-    // Create a Firebase credential from the response
-    const { identityToken, nonce } = appleAuthRequestResponse;
-    const appleCredential = auth.AppleAuthProvider.credential(
-      identityToken,
-      nonce
-    );
-
-    // Sign the user in with the credential
-    return auth().signInWithCredential(appleCredential);
   }
+  
 
   return (
     <View style={styles.container}>
