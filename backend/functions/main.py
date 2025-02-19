@@ -642,16 +642,6 @@ def handle_children(children):
     for child in children:
         update_user(child["uid"])
 
-
-# make sure to check for user children too
-@scheduler_fn.on_schedule (
-    schedule = "0 21 * * 5",  # Every Friday at 9:00 PM
-    timezone=scheduler_fn.Timezone("America/New_York"),
-)
-def notify (event: scheduler_fn.ScheduledEvent):
-    pass
-
-
 @scheduler_fn.on_schedule (
     schedule = "0 9 * * 0",  # Every Sunday at 9:00 AM
     timezone=scheduler_fn.Timezone("America/New_York"),

@@ -41,7 +41,11 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "bundleIdentifier": "com.tghaly.taksis",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["remote-notification"]
+      },
+      "entitlements": {
+        "aps-environment": "production"
       }
     },
     "android": {

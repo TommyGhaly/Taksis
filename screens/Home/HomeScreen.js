@@ -9,6 +9,11 @@ import {
 import { Ionicons } from "@expo/vector-icons"; // Using Ionicons for icons
 import firestore from "@react-native-firebase/firestore";
 import { initializeApp } from "firebase/app";
+import messaging from '@react-native-firebase/messaging';
+import { PermissionsAndroid, Platform } from 'react-native';
+import { Alert } from 'react-native';
+
+
 
 initializeApp({
   projectId: "taksis-a8ba7",
@@ -35,6 +40,51 @@ const getNextSunday = () => {
   const nextSunday = new Date(today.getTime() + daysUntilSunday * 24 * 60 * 60 * 1000);
   return formatDate(nextSunday);
 };
+
+async function requestUserPermission() {
+  const authStatus = await messaging().requestPermission();
+  const enabled =
+    authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+    authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+  if (enabled) {
+    console.log('Notification Permission Granted:', authStatus);
+    await getFCMToken(); // Get the token after permission is granted
+  } else {
+    Alert.alert('Notifications Disabled', 'Please enable notifications in settings.');
+  }
+}
+
+async function getFCMToken() {
+  try {
+    const token = await messaging().getToken();
+    if (token) {
+      console.log('FCM Token:', token);
+      // Send this token to your backend for push notifications
+    } else {
+      console.log('Failed to get FCM token');
+    }
+  } catch (error) {
+    console.error('Error getting FCM token:', error);
+  }
+}
+requestUserPermission();
+
+async function requestAndroidNotificationPermission() {
+  if (Platform.OS === 'android' && Platform.Version >= 33) {
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+    );
+
+    if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+      console.log('Notification permission granted.');
+    } else {
+      console.log('Notification permission denied.');
+    }
+  }
+}
+
+requestAndroidNotificationPermission();
 
 const HomeScreen = () => {
   const [schedule, setSchedule] = useState({
