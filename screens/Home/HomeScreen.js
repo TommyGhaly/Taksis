@@ -9,17 +9,19 @@ import {
 import { Ionicons } from "@expo/vector-icons"; // Using Ionicons for icons
 import firestore from "@react-native-firebase/firestore";
 import { initializeApp } from "firebase/app";
-import messaging from '@react-native-firebase/messaging';
-import { PermissionsAndroid, Platform } from 'react-native';
-import { Alert } from 'react-native';
-
-
+import messaging from "@react-native-firebase/messaging";
+import { PermissionsAndroid, Platform, Alert, NativeEventEmitter, NativeModules } from "react-native";
+import Geolocation from "react-native-geolocation-service";
+import { check, request, PERMISSIONS, RESULTS } from "react-native-permissions";
 
 initializeApp({
   projectId: "taksis-a8ba7",
   apiKey: "AIzaSyBWxEgHXcJx19Rklr7P6HhhweT9_I70WkA",
   authDomain: "taksis-a8ba7.firebaseapp.com",
 });
+
+/*const { YourNativeModule } = NativeModules;
+const eventEmitter = new NativeEventEmitter(YourNativeModule);*/
 
 // Format date as MM-DD-YY
 const formatDate = (date) => {
@@ -37,7 +39,9 @@ const getNextSunday = () => {
   const today = new Date();
   const dayOfWeek = today.getDay(); // Sunday = 0, Monday = 1, ..., Saturday = 6
   const daysUntilSunday = (7 - dayOfWeek) % 7; // Days until the next Sunday
-  const nextSunday = new Date(today.getTime() + daysUntilSunday * 24 * 60 * 60 * 1000);
+  const nextSunday = new Date(
+    today.getTime() + daysUntilSunday * 24 * 60 * 60 * 1000
+  );
   return formatDate(nextSunday);
 };
 
@@ -48,10 +52,13 @@ async function requestUserPermission() {
     authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
   if (enabled) {
-    console.log('Notification Permission Granted:', authStatus);
+    console.log("Notification Permission Granted:", authStatus);
     await getFCMToken(); // Get the token after permission is granted
   } else {
-    Alert.alert('Notifications Disabled', 'Please enable notifications in settings.');
+    Alert.alert(
+      "Notifications Disabled",
+      "Please enable notifications in settings."
+    );
   }
 }
 
@@ -59,27 +66,27 @@ async function getFCMToken() {
   try {
     const token = await messaging().getToken();
     if (token) {
-      console.log('FCM Token:', token);
+      console.log("FCM Token:", token);
       // Send this token to your backend for push notifications
     } else {
-      console.log('Failed to get FCM token');
+      console.log("Failed to get FCM token");
     }
   } catch (error) {
-    console.error('Error getting FCM token:', error);
+    console.error("Error getting FCM token:", error);
   }
 }
 requestUserPermission();
 
 async function requestAndroidNotificationPermission() {
-  if (Platform.OS === 'android' && Platform.Version >= 33) {
+  if (Platform.OS === "android" && Platform.Version >= 33) {
     const granted = await PermissionsAndroid.request(
       PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
     );
 
     if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-      console.log('Notification permission granted.');
+      console.log("Notification permission granted.");
     } else {
-      console.log('Notification permission denied.');
+      console.log("Notification permission denied.");
     }
   }
 }
@@ -104,6 +111,83 @@ const HomeScreen = () => {
   const [nextWeek, setNextWeek] = useState(
     formatDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
   );
+
+
+  /*async function requestBackgroundLocation() {
+    try {
+      let permission;
+  
+      // **Android Permission Handling**
+      if (Platform.OS === "android") {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: "Location Permission",
+            message: "This app requires access to your location to track attendance.",
+            buttonNeutral: "Ask Me Later",
+            buttonNegative: "Cancel",
+            buttonPositive: "OK",
+          }
+        );
+  
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          console.log("Location permission denied");
+          Alert.alert("Permission Denied", "Location access is required for attendance tracking.");
+          return;
+        }
+        permission = PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION;
+      } 
+      
+      // **iOS Permission Handling**
+      else if (Platform.OS === "ios") {
+        permission = PERMISSIONS.IOS.LOCATION_ALWAYS;
+      }
+  
+      // **Check and Request Background Location Permission**
+      const status = await check(permission);
+  
+      if (status === RESULTS.DENIED) {
+        const requestStatus = await request(permission);
+        if (requestStatus !== RESULTS.GRANTED) {
+          Alert.alert("Location Permission Denied", "Please enable location permissions in Settings.");
+          return;
+        }
+      } else if (status !== RESULTS.GRANTED) {
+        Alert.alert("Location Permission Denied", "Please enable location permissions in Settings.");
+        return;
+      }
+  
+      // **Get Current Location**
+      Geolocation.getCurrentPosition(
+        async (position) => {
+          console.log("Location retrieved:", position.coords);
+          
+          try {
+            // **Send Location to Firestore**
+            await firestore().collection("user_locations").doc("your_user_id").set(
+              {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                timestamp: firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+            console.log("Location saved to Firestore.");
+          } catch (firestoreError) {
+            console.error("Error saving location to Firestore:", firestoreError);
+          }
+        },
+        (error) => {
+          console.error("Error getting location:", error);
+          Alert.alert("Location Error", "Unable to retrieve location. Ensure GPS is enabled.");
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+      );
+    } catch (error) {
+      console.error("Error in location request:", error);
+      Alert.alert("Unexpected Error", "An error occurred while requesting location.");
+    }
+  }*/
 
   useEffect(() => {
     const fetchSchedule = async () => {
@@ -178,8 +262,15 @@ const HomeScreen = () => {
             { title: "Gospel", value: schedule.gospel.name },
           ].map((item, index) => (
             <View key={index} style={styles.card}>
-              <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-              <Text style={styles.name}>{item.title}: {item.value}</Text>
+              <Ionicons
+                name="book"
+                size={24}
+                color="#fff"
+                style={styles.icon}
+              />
+              <Text style={styles.name}>
+                {item.title}: {item.value}
+              </Text>
             </View>
           ))}
         </View>
@@ -198,7 +289,9 @@ const HomeScreen = () => {
                 color="#fff"
                 style={styles.icon}
               />
-              <Text style={styles.name}>{item.title}: {item.value}</Text>
+              <Text style={styles.name}>
+                {item.title}: {item.value}
+              </Text>
             </View>
           ))}
         </View>
@@ -208,7 +301,12 @@ const HomeScreen = () => {
           <Text style={styles.sectionTitle}>Altar Servers</Text>
           {schedule.altar.map((deacon, index) => (
             <View key={index} style={styles.card}>
-              <Ionicons name="people" size={24} color="#fff" style={styles.icon} />
+              <Ionicons
+                name="people"
+                size={24}
+                color="#fff"
+                style={styles.icon}
+              />
               <Text style={styles.name}>Altar: {deacon.name || "Unknown"}</Text>
             </View>
           ))}
@@ -247,7 +345,12 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   section: { paddingHorizontal: 16, marginBottom: 20 },
-  sectionTitle: { fontSize: 22, color: "#4d9cff", marginBottom: 10, fontWeight: "bold" },
+  sectionTitle: {
+    fontSize: 22,
+    color: "#4d9cff",
+    marginBottom: 10,
+    fontWeight: "bold",
+  },
   card: {
     flexDirection: "row",
     alignItems: "center",
@@ -275,8 +378,19 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  nextServiceHeader: { fontSize: 20, color: "#4d9cff", marginBottom: 10, textAlign: "center", fontWeight: "bold" },
-  nextServiceText: { fontSize: 16, color: "#e0e0e0", textAlign: "center", marginBottom: 5 },
+  nextServiceHeader: {
+    fontSize: 20,
+    color: "#4d9cff",
+    marginBottom: 10,
+    textAlign: "center",
+    fontWeight: "bold",
+  },
+  nextServiceText: {
+    fontSize: 16,
+    color: "#e0e0e0",
+    textAlign: "center",
+    marginBottom: 5,
+  },
   unavailableButton: {
     backgroundColor: "#ff3b30",
     paddingVertical: 12,
@@ -303,7 +417,12 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 4,
   },
-  requestButtonText: { fontSize: 18, color: "#ffffff", fontWeight: "bold", textAlign: "center" },
+  requestButtonText: {
+    fontSize: 18,
+    color: "#ffffff",
+    fontWeight: "bold",
+    textAlign: "center",
+  },
   blackspace: { height: 0, backgroundColor: "#1a1a1a" },
 });
 

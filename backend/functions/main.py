@@ -3,7 +3,7 @@ import datetime
 import random
 import uuid
 from firebase_functions import https_fn, scheduler_fn, firestore_fn
-from firebase_admin import initialize_app, firestore, credentials,auth
+from firebase_admin import initialize_app, firestore, credentials, auth
 import google.cloud.firestore
 
 
@@ -13,7 +13,8 @@ initialize_app()
 
 # takes in the 30 deacons and scores them based off best fit
 
-#add like 5 extra deacons to the list for bakcups
+
+# add like 5 extra deacons to the list for bakcups
 def sort_values(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Sorts a list of deacons based on the 'value' attribute
@@ -368,11 +369,12 @@ def create_schedule(deacons, num_altar):
 
     return schedule_dict
 
+
 # uncomment on_request and comment on_schedule to test locally
 # @https_fn.on_request()
 # def my_scheduled_function(req: https_fn.Request) -> https_fn.Response:
 @scheduler_fn.on_schedule(
-    schedule = "0 16 * * 0",  # Every Sunday at 4:00 PM
+    schedule="0 16 * * 0",  # Every Sunday at 4:00 PM
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def my_scheduled_function(event: scheduler_fn.ScheduledEvent):
@@ -412,7 +414,9 @@ def my_scheduled_function(event: scheduler_fn.ScheduledEvent):
             doc_date_str = doc_date.strftime("%m-%d-%y")
             doc_name = f"{doc.id}-{doc_date_str}"
             # Push the document data into the "schedules" collection with the date as the document name
-            new_doc_ref = firestore_client.collection("schedules").document(doc_name).set(s)
+            new_doc_ref = (
+                firestore_client.collection("schedules").document(doc_name).set(s)
+            )
             response.append(new_doc_ref)
 
         # Send back a message that we've successfully written the message
@@ -447,6 +451,7 @@ def generate_test_data(num_people):
 
     return test_data
 
+
 # Uncomment everything below to test locally
 # def add_test_data_to_firestore(test_data):
 #     # create churches collection
@@ -459,6 +464,7 @@ def generate_test_data(num_people):
 #         db.collection("churches").document(
 #             "St. Philopater and St. Mina, Wayland, MA"
 #         ).update({"deacons": firestore.ArrayUnion([deacon])})
+
 
 # test_data = generate_test_data(100)
 # add_test_data_to_firestore(test_data)
@@ -477,11 +483,15 @@ def set_up_arrays():
             church_data["deacons"] = []
             updated_data = True
 
-        if "servants" not in church_data or not isinstance(church_data["servants"], list):
+        if "servants" not in church_data or not isinstance(
+            church_data["servants"], list
+        ):
             church_data["servants"] = []
             updated_data = True
 
-        if "schedules" not in church_data or not isinstance(church_data["schedules"], list):
+        if "schedules" not in church_data or not isinstance(
+            church_data["schedules"], list
+        ):
             church_data["schedules"] = []
             updated_data = True
 
@@ -491,6 +501,7 @@ def set_up_arrays():
             print(f"Updated church document: {church_id}")
 
     print("Validation complete.")
+
 
 def remove_user_from_churches(user_id):
     # Reference the "church_data" collection
@@ -523,8 +534,8 @@ def remove_user_from_churches(user_id):
     print("User removed from all relevant churches.")
 
 
-
 # split this into multiple functions
+
 
 @https_fn.on_request()
 def update_user(req: https_fn.Request) -> https_fn.Response:
@@ -548,12 +559,10 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
             # You can now use decoded_token to get user details if needed
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
-        
 
     firestore_client: google.cloud.firestore.Client = firestore.client()
     collection_ref = firestore_client.collection("churches")
     church_docs = collection_ref.stream()
-
 
     try:
         doc_ref = firestore_client.collection("users").document(user_id)
@@ -563,7 +572,7 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
         user_data = doc.to_dict()
     except Exception as e:
         return https_fn.Response(f"Error retrieving user data: {str(e)}", status=500)
-    
+
     firestore_client: google.cloud.firestore.Client = firestore.client()
     church_ref = firestore_client.collection("churches")
     church_docs = church_ref.stream()
@@ -571,7 +580,7 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
     for doc in church_docs:
         church_data = doc.to_dict()  # Convert document to dictionary
 
-# Prepare the filtered user data
+    # Prepare the filtered user data
     filtered_user_data = {
         "name": user_data.get("name"),
         "uid": user_data.get("uid"),
@@ -584,7 +593,7 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
         "weeksSince": user_data.get("weeksSince"),
         "isServant": user_data.get("isServant"),
     }
-    
+
     if "children" in user_data:
         handle_children(user_data["children"])
 
@@ -599,13 +608,17 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
     if church_doc.exists:
         church_data = church_doc.to_dict()
     else:
-        return https_fn.Response(f"Church document not found for church id: {church_id}", status=404)
+        return https_fn.Response(
+            f"Church document not found for church id: {church_id}", status=404
+        )
 
     # Update deacons list if the user is a deacon
     if filtered_user_data["isDeacon"]:
         deacons = church_data.get("deacons", [])
         # Check if the user is already listed (assuming each deacon is a dict with a "uid" key)
-        if not any(deacon.get("uid") == filtered_user_data["uid"] for deacon in deacons):
+        if not any(
+            deacon.get("uid") == filtered_user_data["uid"] for deacon in deacons
+        ):
             new_deacon = {
                 "uid": filtered_user_data["uid"],
                 "name": filtered_user_data["name"],
@@ -621,7 +634,9 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
     # Update servants list if the user is a servant
     if filtered_user_data["isServant"]:
         servants = church_data.get("servants", [])
-        if not any(servant.get("uid") == filtered_user_data["uid"] for servant in servants):
+        if not any(
+            servant.get("uid") == filtered_user_data["uid"] for servant in servants
+        ):
             new_servant = {
                 "uid": filtered_user_data["uid"],
                 "name": filtered_user_data["name"],
@@ -638,37 +653,43 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
 
     return https_fn.Response("User update successful", status=200)
 
+
 def handle_children(children):
     for child in children:
         update_user(child["uid"])
 
-@scheduler_fn.on_schedule (
-    schedule = "0 9 * * 0",  # Every Sunday at 9:00 AM
+
+@scheduler_fn.on_schedule(
+    schedule="0 9 * * 0",  # Every Sunday at 9:00 AM
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def locate_for_liturgy(event: scheduler_fn.ScheduledEvent):
     pass
 
+
 def update_user_frequency(uid):
     pass
 
+
 # adjust weeks since
 @https_fn.on_request()
-def reschedule_user (req: https_fn.Request) -> https_fn.Response:
+def reschedule_user(req: https_fn.Request) -> https_fn.Response:
     pass
+
 
 def notify_new_servant(uid):
     pass
 
-@scheduler_fn.on_schedule (
-    schedule = "30 12 * * 0",  # Every Sunday at 12:30 AM
+
+@scheduler_fn.on_schedule(
+    schedule="30 12 * * 0",  # Every Sunday at 12:30 AM
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
-def locate_for_servants (event: scheduler_fn.ScheduledEvent):
+def locate_for_servants(event: scheduler_fn.ScheduledEvent):
     pass
 
 
-# Handles deleting a user and all theri children 
+# Handles deleting a user and all theri children
 @https_fn.on_request()
-def delete_user ( req: https_fn.Request) -> https_fn.Response:
+def delete_user(req: https_fn.Request) -> https_fn.Response:
     pass
