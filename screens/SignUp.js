@@ -14,12 +14,7 @@ import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import BackArrow from "../components/backArrow";
 import { useUser } from "../UserContext";
 import ProgressBar from "../components/progressBar";
-import {
-  AppleButton,
-  AppleButtonStyle,
-  AppleButtonType,
-} from "@invertase/react-native-apple-authentication";
-import { appleAuth } from "@invertase/react-native-apple-authentication";
+import * as AppleAuthentication from "expo-apple-authentication";
 
 const SignUp = ({ navigation }) => {
   const { setSignUp } = useUser(true);
@@ -114,31 +109,42 @@ const SignUp = ({ navigation }) => {
     }
   };
 
-  async function onAppleButtonPress() {
+  const onAppleButtonPress = async () => {
     try {
-      const appleAuthRequestResponse = await appleAuth.performRequest({
-        requestedOperation: appleAuth.Operation.LOGIN,
-        requestedScopes: [appleAuth.Scope.FULL_NAME, appleAuth.Scope.EMAIL],
+      // Perform Apple Sign-In
+      const appleAuthRequestResponse = await AppleAuthentication.signInAsync({
+        clientId: "com.taksis.serviceID", // Replace with your actual Apple Service ID
+        redirectUri: "https://taksis-a8ba7.firebaseapp.com/__/auth/handler", // Replace with your Firebase redirect URI
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
       });
   
       if (!appleAuthRequestResponse.identityToken) {
-        console.error("No identity token returned.");
-        return;
+        throw new Error("Apple Sign-In failed - No identity token received.");
       }
   
-      const { identityToken, nonce } = appleAuthRequestResponse;
-      const appleCredential = auth.AppleAuthProvider.credential(
-        identityToken,
-        nonce
-      );
+      // Create Firebase credential with Apple identity token
+      const { identityToken, user } = appleAuthRequestResponse;
+      const appleCredential = auth.AppleAuthProvider.credential(identityToken);
   
-      return auth().signInWithCredential(appleCredential);
+      // Sign in with Firebase
+      const userCredential = await auth().signInWithCredential(appleCredential);
+  
+      // Save user to Firestore if it's a new user
+      if (userCredential.additionalUserInfo.isNewUser) {
+        await writeUserToDb(userCredential.user);
+      }
+  
+      // Navigate to next screen
+      setSignUp(true);
+      navigation.navigate("SelectChurch");
     } catch (error) {
       console.error("Apple Sign-In Error:", error);
-      alert(`Apple Sign-In failed: ${error.message}`);
+      Alert.alert("Apple Sign-In Error", error.message);
     }
-  }
-  
+  };
 
   return (
     <View style={styles.container}>
@@ -214,11 +220,12 @@ const SignUp = ({ navigation }) => {
         </View>
       </Pressable>
       <View style={styles.componentContainer}>
-        <AppleButton
-          buttonStyle={AppleButton.Style.BLACK}
-          buttonType={AppleButton.Type.SIGN_UP}
-          onPreess={onAppleButtonPress}
-          style={[styles.socialButtonApple, { backgroundColor: "#2C2C2E" }]}
+        <AppleAuthentication.AppleAuthenticationButton
+          buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP}
+          buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+          cornerRadius={10}
+          style={styles.socialButtonApple}
+          onPress={onAppleButtonPress}
         />
       </View>
     </View>

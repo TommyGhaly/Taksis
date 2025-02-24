@@ -1,6 +1,5 @@
 import * as React from "react";
 import { StyleSheet, Text, View, Pressable } from "react-native";
-import { SharedElement } from "react-navigation-shared-element";
 
 const LearnItMainMenu = ({ navigation }) => {
   return (
@@ -29,8 +28,6 @@ const LearnItMainMenu = ({ navigation }) => {
     </View>
   );
 };
-
-LearnItMainMenu.sharedElements = () => ["liturgyBox"];
 
 const styles = StyleSheet.create({
   learnitmainmenu: {

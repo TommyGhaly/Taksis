@@ -12,9 +12,10 @@ import {
   ScrollView,
   Animated,
 } from "react-native";
+import * as WebBrowser from "expo-web-browser"; // Import Expo WebBrowser
 import BackArrow from "../../../components/backArrow";
-import InAppBrowser from "react-native-inappbrowser-reborn";
 import hymnsData from "./Vespers.json";
+
 // Enable LayoutAnimation on Android
 if (
   Platform.OS === "android" &&
@@ -25,33 +26,13 @@ if (
 
 const openUrl = async (url) => {
   try {
-    const isAvailable = await InAppBrowser.isAvailable();
-    if (isAvailable) {
-      await InAppBrowser.open(url, {
-        dismissButtonStyle: "close",
-        preferredBarTintColor: "#000",
-        preferredControlTintColor: "white",
-        readerMode: false,
-        animated: true,
-        modalPresentationStyle: "fullScreen",
-        modalTransitionStyle: "coverVertical",
-        modalEnabled: true,
-        enableBarCollapsing: false,
-        showTitle: false,
-        enableUrlBarHiding: true,
-        enableDefaultShare: true,
-        forceCloseOnRedirection: false,
-        headers: { "my-custom-header": "my-custom-header-value" },
-      });
-    } else {
-      console.error("InAppBrowser is not available");
-    }
+    await WebBrowser.openBrowserAsync(url); // Open URL using Expo WebBrowser
   } catch (error) {
-    console.error(error);
+    console.error("Failed to open URL:", error);
   }
 };
 
-const LearnItMatins = () => {
+const LearnItVespers = () => {
   const [expanded, setExpanded] = useState(null);
 
   // Animated value for the header (title)
@@ -135,7 +116,6 @@ const LearnItMatins = () => {
   return (
     <View style={styles.container}>
       <BackArrow style={styles.backbutton} />
-      {/* Wrap the header in an Animated.View */}
       <Animated.View
         style={[
           styles.titleContainer,
@@ -173,11 +153,11 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
   },
   titleContainer: {
-    backgroundColor: "#2c2c2c", // Matching the header color from the first screen
+    backgroundColor: "#2c2c2c",
     width: "80%",
     borderRadius: 12,
-    paddingVertical: 20, // Smaller padding for a more compact title
-    marginBottom: 30, // Adjusted for more consistent spacing
+    paddingVertical: 20,
+    marginBottom: 30,
     marginTop: 20,
     alignSelf: "center",
     shadowColor: "#000",
@@ -187,8 +167,8 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   title: {
-    fontSize: 24, // Smaller title size to match first screen
-    fontWeight: "700", // Consistent font weight
+    fontSize: 24,
+    fontWeight: "700",
     color: "#ffffff",
     textAlign: "center",
   },
@@ -200,48 +180,47 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   animatedItem: {
-    marginBottom: 20, // Adjusted for consistent spacing between items
+    marginBottom: 20,
   },
   buttonText: {
     fontSize: 22,
     color: "#ffffff",
-    fontWeight: "700", // Matching the style of first screen
+    fontWeight: "700",
     textAlign: "center",
   },
   button: {
     backgroundColor: "#1a1a1a",
-    paddingVertical: 30, // Slightly smaller padding for consistent button sizes
-    width: "100%", // Full width for uniform button size
+    paddingVertical: 30,
+    width: "100%",
     borderRadius: 12,
     marginBottom: 0,
     alignItems: "center",
     alignSelf: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 3 },
-    shadowColor: "#000",
     shadowOpacity: 0.5,
     shadowRadius: 6,
     elevation: 8,
   },
   expandedContainer: {
-    width: "100%", // Ensure suboption container takes full width
-    backgroundColor: "#1a1a1a", // Match expanded section's background color
-    borderRadius: 12, // Rounded corners
+    width: "100%",
+    backgroundColor: "#1a1a1a",
+    borderRadius: 12,
     padding: 10,
     marginBottom: 20,
     alignSelf: "center",
   },
   subButton: {
-    backgroundColor: "#2a2a2a", // Match suboption button color
+    backgroundColor: "#2a2a2a",
     paddingVertical: 15,
-    width: "100%", // Stretch across
-    borderRadius: 12, // Rounded corners
+    width: "100%",
+    borderRadius: 12,
     marginBottom: 20,
     justifyContent: "center",
     alignItems: "center",
   },
   subButtonText: {
-    fontSize: 18, // Consistent font size with suboptions
+    fontSize: 18,
     color: "#ffffff",
     fontWeight: "bold",
     textAlign: "center",
@@ -254,4 +233,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LearnItMatins;
+export default LearnItVespers;

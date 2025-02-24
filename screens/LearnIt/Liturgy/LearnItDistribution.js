@@ -13,7 +13,7 @@ import {
   Animated,
 } from "react-native";
 import BackArrow from "../../../components/backArrow";
-import InAppBrowser from "react-native-inappbrowser-reborn";
+import * as WebBrowser from "expo-web-browser"; // Import Expo WebBrowser
 import hymnsData from "./Distribution.json"; 
 
 // Enable LayoutAnimation on Android
@@ -26,27 +26,7 @@ if (
 
 const openUrl = async (url) => {
   try {
-    const isAvailable = await InAppBrowser.isAvailable();
-    if (isAvailable) {
-      await InAppBrowser.open(url, {
-        dismissButtonStyle: "close",
-        preferredBarTintColor: "#000",
-        preferredControlTintColor: "white",
-        readerMode: false,
-        animated: true,
-        modalPresentationStyle: "fullScreen",
-        modalTransitionStyle: "coverVertical",
-        modalEnabled: true,
-        enableBarCollapsing: false,
-        showTitle: false,
-        enableUrlBarHiding: true,
-        enableDefaultShare: true,
-        forceCloseOnRedirection: false,
-        headers: { "my-custom-header": "my-custom-header-value" },
-      });
-    } else {
-      console.error("InAppBrowser is not available");
-    }
+    await WebBrowser.openBrowserAsync(url); // Use WebBrowser's openBrowserAsync
   } catch (error) {
     console.error(error);
   }
@@ -75,6 +55,7 @@ const LearnItDistribution = () => {
       ),
     ]).start();
   }, []);
+
   const renderItem = ({ item, index }) => {
     // Calculate a max height for the sub-options container
 
