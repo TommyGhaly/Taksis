@@ -10,9 +10,13 @@ import { Ionicons } from "@expo/vector-icons"; // Using Ionicons for icons
 import firestore from "@react-native-firebase/firestore";
 import { initializeApp } from "firebase/app";
 import messaging from "@react-native-firebase/messaging";
-import { PermissionsAndroid, Platform, Alert, NativeEventEmitter, NativeModules } from "react-native";
-import Geolocation from "react-native-geolocation-service";
-import { check, request, PERMISSIONS, RESULTS } from "react-native-permissions";
+import {
+  PermissionsAndroid,
+  Platform,
+  Alert,
+  NativeEventEmitter,
+  NativeModules,
+} from "react-native";
 
 initializeApp({
   projectId: "taksis-a8ba7",
@@ -45,7 +49,7 @@ const getNextSunday = () => {
   return formatDate(nextSunday);
 };
 
-async function requestUserPermission() {
+/*async function requestUserPermission() {
   const authStatus = await messaging().requestPermission();
   const enabled =
     authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
@@ -75,7 +79,7 @@ async function getFCMToken() {
     console.error("Error getting FCM token:", error);
   }
 }
-requestUserPermission();
+requestUserPermission();*/
 
 async function requestAndroidNotificationPermission() {
   if (Platform.OS === "android" && Platform.Version >= 33) {
@@ -111,7 +115,6 @@ const HomeScreen = () => {
   const [nextWeek, setNextWeek] = useState(
     formatDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
   );
-
 
   /*async function requestBackgroundLocation() {
     try {

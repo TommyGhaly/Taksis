@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import LearnItMainMenu from "./LearnItMainMenu";
 import LearnItTesbehaMenu from "./Tesbeha/LearnItTesbehaMenu";
 import LearnItLiturgyMenu from "./Liturgy/LearnItLiturgyMenu";
-import LearnItVespersMenu from "./Vespers/LearnItVespersMenu";
+import LearnItVespersMenu from "./Vespers/LearnItVespers";
 import LearnItMatins from "./Liturgy/LearnItMatins";
 import LearnItOfferingLamb from "./Liturgy/LearnItOfferingLamb";
 import LearnItLiturgyWord from "./Liturgy/LearnItLiturgyWord";
