@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { StyleSheet, View, Text, Pressable } from "react-native";
-import firestore from '@react-native-firebase/firestore';
-import auth from '@react-native-firebase/auth';
+import firestore from "@react-native-firebase/firestore";
+import auth from "@react-native-firebase/auth";
 import Choices from "../components/choices";
 import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
@@ -12,7 +12,6 @@ const SelectApplicable = ({ navigation }) => {
   const [isAlhan, setIsAlhan] = useState(false);
   const [isSSTeach, setIsSSTeach] = useState(false);
   const [isServant, setIsServant] = useState(false);
-
 
   const handleDeacon = (checked) => {
     setIsDeacon(checked);
@@ -27,30 +26,30 @@ const SelectApplicable = ({ navigation }) => {
     setIsServant(checked);
   };
 
-
   const handleContinue = async (user) => {
     try {
-      await firestore().collection('users').doc(user.uid).update({
+      await firestore().collection("users").doc(user.uid).update({
         isDeacon: isDeacon,
         isAlhan: isAlhan,
         alhanClass: [],
         isSSTeacher: isSSTeach,
         sundaySchoolClass: [],
-        isServant: isServant,   
+        isServant: isServant,
       });
-
     } catch (error) {
       console.error("Error updating user church: ", error);
-      Alert.alert("Error", "Could not update church information. Please try again.");
+      Alert.alert(
+        "Error",
+        "Could not update church information. Please try again."
+      );
     }
 
     if (isDeacon) {
       navigation.navigate("DeaconRank"); // Navigate to rank.js
     } else {
-      navigation.navigate('Frequency', { from: 'SelectApplicable' });
+      navigation.navigate("Frequency", { from: "SelectApplicable" });
     }
-
-};
+  };
 
   return (
     <View style={styles.selectapplicable}>
@@ -61,7 +60,12 @@ const SelectApplicable = ({ navigation }) => {
         <Text style={styles.titleText}>Select all that apply</Text>
       </View>
       <View style={styles.choices}>
-        <Choices onDeaconChange={handleDeacon} onAlhanChange={handleAlhan} onSSTeachChange={handleSSTeach} onServantChange={handleServant}/>
+        <Choices
+          onDeaconChange={handleDeacon}
+          onAlhanChange={handleAlhan}
+          onSSTeachChange={handleSSTeach}
+          onServantChange={handleServant}
+        />
       </View>
       <View style={styles.continueLayout}>
         <Pressable onPress={() => handleContinue(user)}>
@@ -69,7 +73,7 @@ const SelectApplicable = ({ navigation }) => {
         </Pressable>
       </View>
       <View style={styles.progressBar}>
-        <ProgressBar startPercentage={20} endPercentage={40}/>
+        <ProgressBar startPercentage={20} endPercentage={40} />
       </View>
     </View>
   );
@@ -130,18 +134,18 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "#000",
   },
-
   continueLayout: {
-    marginTop: 750,
-    marginLeft: 36,
+    position: "absolute",
+    bottom: 80,
+    alignSelf: "center",
     height: 50,
     width: 358,
     backgroundColor: "#333",
     borderRadius: 10,
-    position: 'absolute'
+    justifyContent: "center",
+    alignItems: "center",
   },
   continuetext: {
-    top: 15,
     fontSize: 17,
     letterSpacing: -0.2,
     fontWeight: "500",

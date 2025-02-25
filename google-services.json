@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "642693016544",
+    "firebase_url": "https://taksis-a8ba7-default-rtdb.firebaseio.com",
     "project_id": "taksis-a8ba7",
     "storage_bucket": "taksis-a8ba7.appspot.com"
   },
@@ -9,7 +10,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:642693016544:android:4425026c6baee2cff61985",
         "android_client_info": {
-          "package_name": "com.tghaly.Taxis"
+          "package_name": "com.dgobran.Taxis"
         }
       },
       "oauth_client": [
@@ -31,10 +32,10 @@
               "client_type": 3
             },
             {
-              "client_id": "642693016544-l0t3pr869448tv7m3ticnopkgqsqnmk0.apps.googleusercontent.com",
+              "client_id": "642693016544-dr28c8dj2ent50gvcr7mnvvpdn6ppagi.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.dgobran.Taxis"
+                "bundle_id": "com.tghaly.taksis"
               }
             }
           ]
