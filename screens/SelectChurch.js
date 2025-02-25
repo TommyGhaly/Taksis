@@ -1,29 +1,32 @@
 import React, { useState } from "react";
 import { StyleSheet, View, Pressable, Text, Alert } from "react-native";
-import firestore from '@react-native-firebase/firestore';
-import auth from '@react-native-firebase/auth';
+import firestore from "@react-native-firebase/firestore";
+import auth from "@react-native-firebase/auth";
 import Churches from "../components/churches";
 import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
 
-const SelectChurch = ({navigation}) => {
+const SelectChurch = ({ navigation }) => {
   const [selectedChurch, setSelectedChurch] = useState(null);
   const user = auth().currentUser;
   const handleChurchSelection = (church) => {
     setSelectedChurch(church);
   };
   const handleContinue = async (user) => {
-      try {
-        await firestore().collection('users').doc(user.uid).update({
-          church: selectedChurch, 
-        });
+    try {
+      await firestore().collection("users").doc(user.uid).update({
+        church: selectedChurch,
+      });
 
-        // Navigate to the next screen or show a success message
-        navigation.navigate("SelectApplicable");
-      } catch (error) {
-        console.error("Error updating user church: ", error);
-        Alert.alert("Error", "Could not update church information. Please try again.");
-      }
+      // Navigate to the next screen or show a success message
+      navigation.navigate("SelectApplicable");
+    } catch (error) {
+      console.error("Error updating user church: ", error);
+      Alert.alert(
+        "Error",
+        "Could not update church information. Please try again."
+      );
+    }
   };
 
   return (
@@ -40,11 +43,7 @@ const SelectChurch = ({navigation}) => {
         <Churches onSelectChurch={handleChurchSelection} />
       </View>
       <View style={styles.continueLayout}>
-        <Pressable
-          onPress={() =>
-            handleContinue(user)
-          }
-        >
+        <Pressable onPress={() => handleContinue(user)}>
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>
       </View>
@@ -63,7 +62,7 @@ const SelectChurch = ({navigation}) => {
         </Pressable>
       </View>
       <View style={styles.progressBar}>
-        <ProgressBar startPercentage={1} endPercentage={20}/>
+        <ProgressBar startPercentage={1} endPercentage={20} />
       </View>
       <View style={styles.backbutton}>
         <BackArrow />
@@ -105,7 +104,7 @@ const styles = StyleSheet.create({
   dontSeeYourContainer: {
     position: "absolute",
     left: 0,
-    marginTop: 830
+    marginTop: 830,
   },
   dontSeeYourChurchRegiste: {
     width: "100%",
@@ -153,16 +152,17 @@ const styles = StyleSheet.create({
     left: "4.071%",
   },
   continueLayout: {
-    marginTop: 750,
-    marginLeft: 36,
+    position: "absolute",
+    bottom: 80,
+    alignSelf: "center",
     height: 50,
     width: 358,
     backgroundColor: "#333",
     borderRadius: 10,
-    position: 'absolute'
+    justifyContent: "center",
+    alignItems: "center",
   },
   continuetext: {
-    top: 15,
     fontSize: 17,
     letterSpacing: -0.2,
     fontWeight: "500",

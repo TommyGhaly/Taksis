@@ -15,6 +15,7 @@ import BackArrow from "../components/backArrow";
 import { useUser } from "../UserContext";
 import ProgressBar from "../components/progressBar";
 import * as AppleAuthentication from "expo-apple-authentication";
+import * as Crypto from "expo-crypto";
 
 const SignUp = ({ navigation }) => {
   const { setSignUp } = useUser(true);
@@ -54,7 +55,7 @@ const SignUp = ({ navigation }) => {
 
         if (updatedUser && updatedUser.displayName) {
           // Write updated user to Firestore
-          await writeUserToDb(updatedUser);
+          await writeUserToDb(updatedUser, updatedUser.displayName);
 
           // Navigate to SelectChurch after successful signup
           setSignUp(true);
@@ -70,15 +71,15 @@ const SignUp = ({ navigation }) => {
     }
   };
 
-  const writeUserToDb = async (user) => {
+  const writeUserToDb = async (user, fullName) => {
     try {
-      // Check if the user exists in Firestore
-      const userDoc = await firestore().collection("users").doc(user.uid).get();
+      const userRef = firestore().collection("users").doc(user.uid);
+      const userDoc = await userRef.get();
+  
       if (!userDoc.exists) {
-        // Write the user to the database if they don't exist
-        await firestore().collection("users").doc(user.uid).set({
+        await userRef.set({
           uid: user.uid,
-          name: user.displayName,
+          name: fullName || "", // Store name if available
           email: user.email,
           admin: false,
           superAdmin: false,
@@ -89,6 +90,7 @@ const SignUp = ({ navigation }) => {
       console.error("Error handling Firestore operations: ", error);
     }
   };
+  
 
   const onGoogleButtonPress = async () => {
     try {
@@ -100,7 +102,7 @@ const SignUp = ({ navigation }) => {
       const userCredential = await auth().signInWithCredential(
         googleCredential
       );
-      await writeUserToDb(userCredential.user);
+      await writeUserToDb(userCredential.user, userCredential.user.displayName);
       setSignUp(true);
       navigation.navigate("SelectChurch");
     } catch (error) {
@@ -109,35 +111,61 @@ const SignUp = ({ navigation }) => {
     }
   };
 
+  // Helper: Generate a random nonce string
+  const generateNonce = (length = 32) => {
+    let text = "";
+    const possible =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    for (let i = 0; i < length; i++) {
+      text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return text;
+  };
+
   const onAppleButtonPress = async () => {
     try {
-      // Perform Apple Sign-In
+      const rawNonce = generateNonce();
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce
+      );
+  
       const appleAuthRequestResponse = await AppleAuthentication.signInAsync({
-        clientId: "com.taksis.serviceID", // Replace with your actual Apple Service ID
-        redirectUri: "https://taksis-a8ba7.firebaseapp.com/__/auth/handler", // Replace with your Firebase redirect URI
+        clientId: "com.taksis.serviceID",
+        redirectUri: "https://taksis-a8ba7.firebaseapp.com/__/auth/handler",
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
+        nonce: hashedNonce,
       });
   
       if (!appleAuthRequestResponse.identityToken) {
         throw new Error("Apple Sign-In failed - No identity token received.");
       }
   
-      // Create Firebase credential with Apple identity token
-      const { identityToken, user } = appleAuthRequestResponse;
-      const appleCredential = auth.AppleAuthProvider.credential(identityToken);
+      const { identityToken, fullName } = appleAuthRequestResponse;
+      const appleCredential = auth.AppleAuthProvider.credential(
+        identityToken,
+        rawNonce
+      );
   
-      // Sign in with Firebase
       const userCredential = await auth().signInWithCredential(appleCredential);
   
-      // Save user to Firestore if it's a new user
       if (userCredential.additionalUserInfo.isNewUser) {
-        await writeUserToDb(userCredential.user);
+        // Check for fullName, if it's missing, set the default "Apple User"
+        let userFullName = "Apple User";
+  
+        if (fullName) {
+          const firstName = fullName.givenName || "Apple";
+          const lastName = fullName.familyName || "User";
+          userFullName = `${firstName} ${lastName}`;
+        }
+  
+        // Update your database with the user's full name
+        await writeUserToDb(userCredential.user, userFullName);
       }
   
-      // Navigate to next screen
       setSignUp(true);
       navigation.navigate("SelectChurch");
     } catch (error) {
@@ -145,6 +173,8 @@ const SignUp = ({ navigation }) => {
       Alert.alert("Apple Sign-In Error", error.message);
     }
   };
+  
+  
 
   return (
     <View style={styles.container}>

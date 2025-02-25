@@ -9,8 +9,8 @@ import {
 } from "react-native";
 import Rank from "../components/rank";
 import BackArrow from "../components/backArrow";
-import firestore from '@react-native-firebase/firestore';
-import auth from '@react-native-firebase/auth';
+import firestore from "@react-native-firebase/firestore";
+import auth from "@react-native-firebase/auth";
 import ProgressBar from "../components/progressBar";
 
 const DeaconRank = ({ navigation }) => {
@@ -18,41 +18,42 @@ const DeaconRank = ({ navigation }) => {
   const user = auth().currentUser;
   const handleRank = (selectedRank) => {
     setRank(selectedRank);
-  }
+  };
   const handleContinue = async (user) => {
     try {
-      await firestore().collection('users').doc(user.uid).update({
-        rank: rank, 
+      await firestore().collection("users").doc(user.uid).update({
+        rank: rank,
       });
 
       // Navigate to the next screen or show a success message
       navigation.navigate("Experience");
     } catch (error) {
       console.error("Error updating user deacon: ", error);
-      Alert.alert("Error", "Could not update deacon information. Please try again.");
+      Alert.alert(
+        "Error",
+        "Could not update deacon information. Please try again."
+      );
     }
-};
+  };
   return (
     <View style={styles.deaconrank}>
       <View style={styles.backarrow}>
         <BackArrow />
-      </View> 
+      </View>
       <View style={styles.rank}>
-        <Rank style={styles.rank} onSelectRank={handleRank}/>
+        <Rank style={styles.rank} onSelectRank={handleRank} />
       </View>
       <View style={styles.title}>
         <Text style={styles.titleText}>What rank of deacon are you?</Text>
-      </View> 
+      </View>
 
       <View style={styles.continueLayout}>
-        <Pressable
-          onPress={() => handleContinue(user)}
-        >
+        <Pressable onPress={() => handleContinue(user)}>
           <Text style={styles.continuetext}>Continue</Text>
         </Pressable>
       </View>
       <View style={styles.progressBar}>
-        <ProgressBar startPercentage={40} endPercentage={60}/>
+        <ProgressBar startPercentage={40} endPercentage={60} />
       </View>
     </View>
   );
@@ -64,16 +65,17 @@ const styles = StyleSheet.create({
     left: 16,
   },
   continueLayout: {
-    marginTop: 750,
-    marginLeft: 36,
+    position: "absolute",
+    bottom: 80,
+    alignSelf: "center",
     height: 50,
     width: 358,
     backgroundColor: "#333",
     borderRadius: 10,
-    position: 'absolute'
+    justifyContent: "center",
+    alignItems: "center",
   },
   continuetext: {
-    top: 15,
     fontSize: 17,
     letterSpacing: -0.2,
     fontWeight: "500",
