@@ -4,8 +4,11 @@ import { StyleSheet, Text, View, TouchableOpacity, Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import { UserProvider, useUser } from "../UserContext";
+
 
 const SettingsContent = () => {
+  const { setSignUp } = useUser(true);
   const navigation = useNavigation();
   const [userRoles, setUserRoles] = useState({
     name: "",
@@ -70,6 +73,7 @@ const SettingsContent = () => {
                 await firestore().collection("users").doc(user.uid).delete();
                 await user.delete();
                 await revokeSignInWithAppleToken;
+                await setSignUp(false);
                 Alert.alert("Success", "Your account has been deleted.");
                 // Navigate to a safe screen or log out
               }
