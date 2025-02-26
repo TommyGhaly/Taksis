@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -13,11 +13,17 @@ import {
 import auth from "@react-native-firebase/auth";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import BackArrow from "../components/backArrow";
+import { useUser } from "../UserContext";  
+import * as AppleAuthentication from "expo-apple-authentication";
+import * as Crypto from "expo-crypto";
+
+
 
 const SignIn = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
+  const { setSignUp } = useUser();
+  setSignUp(true);
   GoogleSignin.configure({
     webClientId: "YOUR_WEB_CLIENT_ID",
   });
@@ -37,7 +43,7 @@ const SignIn = ({ navigation }) => {
       <View style={styles.backarrow}>
         <BackArrow />
       </View>
-      
+
       <Image
         style={styles.icon}
         resizeMode="contain"
@@ -81,28 +87,28 @@ const SignIn = ({ navigation }) => {
         <Text style={styles.or}>or</Text>
         <View style={styles.divider} />
       </View>
-      <View style={styles.socialButtonsContainer}>
       <Pressable
-          style={styles.socialButtonGoogle}
-          onPress={() => onGoogleButtonPress(navigation)}
-        >
+        style={styles.socialButtonGoogle}
+        onPress={onGoogleButtonPress}
+      >
+        <View style={styles.socialButtonContent}>
           <Image
             style={styles.socialIcon}
-            resizeMode="contain"
+            resizeMode="cover"
             source={require("../assets/googleLogo.png")}
           />
-          <Text style={styles.socialText}>Sign in with Google</Text>
-        </Pressable>
-        <Pressable style={styles.socialButtonApple}>
-          <Image
-            style={styles.socialIcon}
-            resizeMode="contain"
-            source={require("../assets/appleLogo.png")}
-          />
-          <Text style={styles.socialText}>Sign in with Apple</Text>
-        </Pressable>
-        
-      </View>
+          <Text style={styles.socialText}>Sign up with Google</Text>
+        </View>
+      </Pressable>
+      <Pressable style={styles.socialButtonApple}>
+        <AppleAuthentication.AppleAuthenticationButton
+          buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN} // Change to SIGN_IN if needed
+          buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+          cornerRadius={10}
+          style={styles.socialButtonApple}
+          onPress={onAppleButtonPress}
+        />
+      </Pressable>
       {/* New row for the sign-up link */}
       <View style={styles.linkRow}>
         <TouchableOpacity
@@ -129,6 +135,50 @@ async function onGoogleButtonPress(navigation) {
   }
 }
 
+// Helper: Generate a random nonce string
+const generateNonce = (length = 32) => {
+  let text = "";
+  const possible =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  for (let i = 0; i < length; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+  return text;
+};
+
+async function onAppleButtonPress(navigation) {
+  try {
+    const rawNonce = generateNonce();
+    const hashedNonce = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      rawNonce
+    );
+
+    const appleAuthRequestResponse = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+      nonce: hashedNonce,
+    });
+
+    if (!appleAuthRequestResponse.identityToken) {
+      throw new Error("Apple Sign-In failed - No identity token received.");
+    }
+
+    const { identityToken, fullName, email } = appleAuthRequestResponse;
+    const appleCredential = auth.AppleAuthProvider.credential(
+      identityToken,
+      rawNonce
+    );
+
+    await auth().signInWithCredential(appleCredential);
+  } catch (error) {
+    console.error(error);
+    Alert.alert("Apple Sign-In Error", error.message);
+  }
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -145,7 +195,7 @@ const styles = StyleSheet.create({
     color: "#8e8e93", // Color for the title
     textAlign: "center",
     marginBottom: 30,
-    textShadowColor: '#000', // Shadow color for title
+    textShadowColor: "#000", // Shadow color for title
     textShadowOffset: { width: 0, height: 1 }, // Shadow offset for title
     textShadowRadius: 2, // Shadow radius for title
   },
@@ -181,7 +231,7 @@ const styles = StyleSheet.create({
   linkRow: {
     flexDirection: "row", // Set to row for horizontal alignment
     justifyContent: "center", // Space between links
-    marginVertical:0,
+    marginVertical: 0,
     alignItems: "center",
   },
   link: {
@@ -211,39 +261,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#B0B0B0",
   },
-  socialButtonsContainer: {
-    flexDirection: "column",
+  componentContainer: {
+    marginTop: 0,
     alignItems: "center",
   },
   socialButtonApple: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#000", // Dark gray for Apple button
+    backgroundColor: "#2C2C2E", // Dark gray for Apple button
     borderRadius: 10,
     height: 50,
     width: "100%",
     justifyContent: "center",
     marginVertical: 10,
+    alignItems: "center",
   },
   socialButtonGoogle: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: "#2C2C2E", // Black for Google button
     borderRadius: 10,
     height: 50,
     width: "100%",
     justifyContent: "center",
-    marginVertical: 0,
+    marginVertical: 10,
+    alignItems: "center",
+  },
+  socialButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   socialIcon: {
-    width: 24,
-    height: 24,
+    width: 15,
+    height: 15,
     marginRight: 10,
   },
   socialText: {
     color: "#FFFFFF", // White text for social buttons
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 19,
+    fontWeight: "500",
   },
 });
 

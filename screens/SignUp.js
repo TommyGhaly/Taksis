@@ -12,13 +12,11 @@ import auth from "@react-native-firebase/auth";
 import firestore from "@react-native-firebase/firestore";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import BackArrow from "../components/backArrow";
-import { useUser } from "../UserContext";
 import ProgressBar from "../components/progressBar";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 
 const SignUp = ({ navigation }) => {
-  const { setSignUp } = useUser(true);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -58,7 +56,6 @@ const SignUp = ({ navigation }) => {
           await writeUserToDb(updatedUser, updatedUser.displayName);
 
           // Navigate to SelectChurch after successful signup
-          setSignUp(true);
           navigation.navigate("SelectChurch");
         } else {
           console.error("Failed to get updated user profile.");
@@ -103,7 +100,6 @@ const SignUp = ({ navigation }) => {
         googleCredential
       );
       await writeUserToDb(userCredential.user, userCredential.user.displayName);
-      setSignUp(true);
       navigation.navigate("SelectChurch");
     } catch (error) {
       console.error(error);
@@ -131,8 +127,6 @@ const SignUp = ({ navigation }) => {
       );
   
       const appleAuthRequestResponse = await AppleAuthentication.signInAsync({
-        clientId: "com.taksis.serviceID",
-        redirectUri: "https://taksis-a8ba7.firebaseapp.com/__/auth/handler",
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
@@ -144,35 +138,31 @@ const SignUp = ({ navigation }) => {
         throw new Error("Apple Sign-In failed - No identity token received.");
       }
   
-      const { identityToken, fullName } = appleAuthRequestResponse;
+      const { identityToken, fullName, email } = appleAuthRequestResponse;
+      if (!email) {
+        throw new Error("Apple Sign-In Error: email already in use.");
+      }
+  
       const appleCredential = auth.AppleAuthProvider.credential(
         identityToken,
         rawNonce
       );
   
+      // Sign in with Apple credential
       const userCredential = await auth().signInWithCredential(appleCredential);
   
-      if (userCredential.additionalUserInfo.isNewUser) {
-        // Check for fullName, if it's missing, set the default "Apple User"
-        let userFullName = "Apple User";
+      // Format the full name as "First Name Last Name"
+      const formattedFullName = `${fullName.givenName} ${fullName.familyName}`;
   
-        if (fullName) {
-          const firstName = fullName.givenName || "Apple";
-          const lastName = fullName.familyName || "User";
-          userFullName = `${firstName} ${lastName}`;
-        }
+      writeUserToDb(userCredential.user, formattedFullName);
   
-        // Update your database with the user's full name
-        await writeUserToDb(userCredential.user, userFullName);
-      }
-  
-      setSignUp(true);
       navigation.navigate("SelectChurch");
     } catch (error) {
       console.error("Apple Sign-In Error:", error);
       Alert.alert("Apple Sign-In Error", error.message);
     }
   };
+  
   
   
 
