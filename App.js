@@ -21,10 +21,13 @@ import MainContainer from "./screens/MainContainer";
 const Stack = createNativeStackNavigator();
 
 function AppNavigator() {
-  const { user, setUser, signUp } = useUser(); 
+  const { user, setUser, signUp, setSignUp } = useUser(); 
   const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
+    if (!user) {
+      setSignUp(false);
+    }
     const subscriber = auth().onAuthStateChanged((user) => {
       setUser(user);
       setInitializing(false);
@@ -50,9 +53,8 @@ function AppNavigator() {
             <Stack.Screen name="SignUp" component={SignUp} options={{ animation: "default" }}/>
  
           </>
-        ) : signUp ? (
+        ) : !signUp ? (
           <>
-            <Stack.Screen name="SignUp" component={SignUp} options={{ animation: "default" }}/>
             <Stack.Screen name="SelectChurch" component={SelectChurch} />
             <Stack.Screen name="ChurchRegistration" component={ChurchRegistration} />
             <Stack.Screen name="SelectApplicable" component={SelectApplicable} />
