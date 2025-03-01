@@ -9,7 +9,6 @@ import ChangeName from "./ChangeName";
 import ChangeRank from "./ChangeRank";
 import ChangeRoles from "./ChangeRoles";
 import ChangeChurch from "./ChangeChurch";
-import ChangeHeadAdmin from "./ChangeHeadAdmin";
 import ChildAccountInfo from "./ChildAccountInfo";
 import RequestAdmin from "./RequestAdmin";
 import AddChild from "./AddChild";
@@ -49,10 +48,6 @@ export default function SettingsNavigation() {
         <SettingsNav.Screen name="ChangeAge" component={ChangeAge} />
         <SettingsNav.Screen name="ChangeChildren" component={ChangeChildren} />
         <SettingsNav.Screen name="ChangeEmail" component={ChangeEmail} />
-        <SettingsNav.Screen
-          name="ChangeHeadAdmin"
-          component={ChangeHeadAdmin}
-        />
         <SettingsNav.Screen name="ChangeName" component={ChangeName} />
         <SettingsNav.Screen name="ChangeChurch" component={ChangeChurch} />
         <SettingsNav.Screen name="ChangeRank" component={ChangeRank} />

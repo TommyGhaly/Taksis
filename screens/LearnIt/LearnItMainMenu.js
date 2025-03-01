@@ -15,9 +15,9 @@ const LearnItMainMenu = ({ navigation }) => {
       </Pressable>
       <Pressable
         style={styles.option}
-        onPress={() => navigation.navigate("TesbehaMenu")}
+        onPress={() => navigation.navigate("TasbehaMenu")}
       >
-        <Text style={styles.optionText}>Midnight Praises (Tesbeha)</Text>
+        <Text style={styles.optionText}>Midnight Praises (Tasbeha)</Text>
       </Pressable>
       <Pressable
         style={styles.option}

@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import * as WebBrowser from "expo-web-browser"; // Import Expo WebBrowser
 import BackArrow from "../../../components/backArrow";
-import hymnsData from "./Tesbeha.json";
+import hymnsData from "./Tasbeha.json";
 
 // Enable LayoutAnimation on Android
 if (
@@ -32,7 +32,7 @@ const openUrl = async (url) => {
   }
 };
 
-const LearnItTesbehaMenu = () => {
+const LearnItTasbehaMenu = () => {
   const [expanded, setExpanded] = useState(null);
 
   // Animated value for the header (title)
@@ -144,7 +144,7 @@ const LearnItTesbehaMenu = () => {
           },
         ]}
       >
-        <Text style={styles.title}>Tesbeha</Text>
+        <Text style={styles.title}>Tasbeha</Text>
       </Animated.View>
       <FlatList
         data={hymnsData}
@@ -246,4 +246,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LearnItTesbehaMenu;
+export default LearnItTasbehaMenu;

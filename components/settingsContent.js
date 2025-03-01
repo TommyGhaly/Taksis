@@ -171,12 +171,6 @@ const SettingsContent = () => {
           >
             <Text style={styles.optionText}>Apply for admin</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.option}
-            onPress={() => navigation.navigate("ChangeHeadAdmin")}
-          >
-            <Text style={styles.optionText}>Request to change Head Admin</Text>
-          </TouchableOpacity>
         </View>
       </View>
       <TouchableOpacity style={styles.signOut} onPress={() => auth().signOut()}>
