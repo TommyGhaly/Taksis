@@ -246,6 +246,7 @@ const HomeScreen = () => {
   useEffect(() => {
     checkNotificationPermission();
     checkLocationPermission();
+    getCurrentLocation();
   }, []);
   
   useEffect(() => {
