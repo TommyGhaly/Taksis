@@ -16,7 +16,11 @@ import {
   Alert,
   NativeEventEmitter,
   NativeModules,
+  AsyncStorage,
 } from "react-native";
+import auth from "@react-native-firebase/auth";
+import * as Location from "expo-location";
+
 
 initializeApp({
   projectId: "taksis-a8ba7",
@@ -24,8 +28,10 @@ initializeApp({
   authDomain: "taksis-a8ba7.firebaseapp.com",
 });
 
-/*const { YourNativeModule } = NativeModules;
-const eventEmitter = new NativeEventEmitter(YourNativeModule);*/
+const { YourNativeModule } = NativeModules;
+const eventEmitter = YourNativeModule
+  ? new NativeEventEmitter(YourNativeModule)
+  : null;
 
 // Format date as MM-DD-YY
 const formatDate = (date) => {
@@ -49,53 +55,173 @@ const getNextSunday = () => {
   return formatDate(nextSunday);
 };
 
-/*async function requestUserPermission() {
-  const authStatus = await messaging().requestPermission();
-  const enabled =
-    authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-    authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+async function requestUserPermissionAndroid() {
+  try {
+    let permissionGranted = false;
 
-  if (enabled) {
-    console.log("Notification Permission Granted:", authStatus);
-    await getFCMToken(); // Get the token after permission is granted
-  } else {
-    Alert.alert(
-      "Notifications Disabled",
-      "Please enable notifications in settings."
-    );
+    while (!permissionGranted) {
+      const authStatus = await messaging().hasPermission();
+      permissionGranted = authStatus === messaging.AuthorizationStatus.AUTHORIZED;
+
+      if (!permissionGranted) {
+        await messaging().requestPermission();
+        permissionGranted = (await messaging().hasPermission()) === messaging.AuthorizationStatus.AUTHORIZED;
+      }
+
+      if (permissionGranted) {
+        console.log("Android Notification Permission Granted");
+        await AsyncStorage.setItem("notification_permission", "granted");
+        await getFCMToken();
+      } else {
+        Alert.alert(
+          "Notifications Required",
+          "You need to enable notifications for important updates. Please grant permission.",
+          [
+            { text: "Retry", onPress: requestUserPermissionAndroid },
+            { text: "Cancel", style: "cancel" },
+          ]
+        );
+      }
+    }
+  } catch (error) {
+    console.error("Error requesting Android notification permission:", error);
+  }
+}
+
+async function requestUserPermissionIOS() {
+  try {
+    let permissionGranted = false;
+
+    while (!permissionGranted) {
+      const authStatus = await messaging().requestPermission();
+      permissionGranted =
+        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+      if (permissionGranted) {
+        console.log("iOS Notification Permission Granted:", authStatus);
+        await AsyncStorage.setItem("notification_permission", "granted");
+        await getFCMToken();
+      } else {
+        Alert.alert(
+          "Notifications Required",
+          "You need to enable notifications for important updates. Please grant permission.",
+          [
+            { text: "Retry", onPress: requestUserPermissionIOS },
+            { text: "Cancel", style: "cancel" },
+          ]
+        );
+      }
+    }
+  } catch (error) {
+    console.error("Error requesting iOS notification permission:", error);
   }
 }
 
 async function getFCMToken() {
   try {
-    const token = await messaging().getToken();
-    if (token) {
-      console.log("FCM Token:", token);
-      // Send this token to your backend for push notifications
+    const fcmToken = await messaging().getToken();
+    if (fcmToken) {
+      console.log("FCM Token:", fcmToken);
+      await AsyncStorage.setItem("fcm_token", fcmToken);
     } else {
-      console.log("Failed to get FCM token");
+      console.warn("Failed to get FCM token");
     }
   } catch (error) {
     console.error("Error getting FCM token:", error);
   }
 }
-requestUserPermission();*/
 
-async function requestAndroidNotificationPermission() {
-  if (Platform.OS === "android" && Platform.Version >= 33) {
-    const granted = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
-    );
+async function checkNotificationPermission() {
+  const storedPermission = await AsyncStorage.getItem("notification_permission");
 
-    if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-      console.log("Notification permission granted.");
+  if (!storedPermission) {
+    if (Platform.OS === "ios") {
+      await requestUserPermissionIOS();
     } else {
-      console.log("Notification permission denied.");
+      await requestUserPermissionAndroid();
     }
   }
 }
 
-requestAndroidNotificationPermission();
+async function requestLocationPermission() {
+  try {
+    let permissionGranted = false;
+
+    while (!permissionGranted) {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      permissionGranted = status === "granted";
+
+      if (permissionGranted) {
+        console.log("Location Permission Granted");
+        await AsyncStorage.setItem("location_permission", "granted");
+        await getCurrentLocation();
+      } else {
+        Alert.alert(
+          "Location Required",
+          "You need to enable location for attendance tracking. Please grant permission.",
+          [
+            { text: "Retry", onPress: requestLocationPermission },
+            { text: "Cancel", style: "cancel" },
+          ]
+        );
+      }
+    }
+  } catch (error) {
+    console.error("Error requesting location permission:", error);
+  }
+}
+
+async function getCurrentLocation() {
+  try {
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== "granted") {
+      console.log("Location permission not granted.");
+      return;
+    }
+
+    const location = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.High,
+    });
+
+    if (location) {
+      console.log("Location retrieved:", location.coords);
+
+      const userId = auth().currentUser?.uid;
+      if (!userId) {
+        console.log("No authenticated user found.");
+        return;
+      }
+
+      await firestore()
+        .collection("users")
+        .doc(userId)
+        .set(
+          {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+            timestamp: firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+      console.log("Location saved to Firestore.");
+    }
+  } catch (error) {
+    console.error("Error getting location:", error);
+    Alert.alert("Location Error", "Unable to retrieve location.");
+  }
+}
+
+async function checkLocationPermission() {
+  const storedPermission = await AsyncStorage.getItem("location_permission");
+  if (!storedPermission) {
+    requestLocationPermission();
+  }
+  else {
+    console.log("location permission granted")
+  }
+}
 
 const HomeScreen = () => {
   const [schedule, setSchedule] = useState({
@@ -116,82 +242,12 @@ const HomeScreen = () => {
     formatDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
   );
 
-  /*async function requestBackgroundLocation() {
-    try {
-      let permission;
   
-      // **Android Permission Handling**
-      if (Platform.OS === "android") {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: "Location Permission",
-            message: "This app requires access to your location to track attendance.",
-            buttonNeutral: "Ask Me Later",
-            buttonNegative: "Cancel",
-            buttonPositive: "OK",
-          }
-        );
+  useEffect(() => {
+    checkNotificationPermission();
+    checkLocationPermission();
+  }, []);
   
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          console.log("Location permission denied");
-          Alert.alert("Permission Denied", "Location access is required for attendance tracking.");
-          return;
-        }
-        permission = PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION;
-      } 
-      
-      // **iOS Permission Handling**
-      else if (Platform.OS === "ios") {
-        permission = PERMISSIONS.IOS.LOCATION_ALWAYS;
-      }
-  
-      // **Check and Request Background Location Permission**
-      const status = await check(permission);
-  
-      if (status === RESULTS.DENIED) {
-        const requestStatus = await request(permission);
-        if (requestStatus !== RESULTS.GRANTED) {
-          Alert.alert("Location Permission Denied", "Please enable location permissions in Settings.");
-          return;
-        }
-      } else if (status !== RESULTS.GRANTED) {
-        Alert.alert("Location Permission Denied", "Please enable location permissions in Settings.");
-        return;
-      }
-  
-      // **Get Current Location**
-      Geolocation.getCurrentPosition(
-        async (position) => {
-          console.log("Location retrieved:", position.coords);
-          
-          try {
-            // **Send Location to Firestore**
-            await firestore().collection("user_locations").doc("your_user_id").set(
-              {
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude,
-                timestamp: firestore.FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            );
-            console.log("Location saved to Firestore.");
-          } catch (firestoreError) {
-            console.error("Error saving location to Firestore:", firestoreError);
-          }
-        },
-        (error) => {
-          console.error("Error getting location:", error);
-          Alert.alert("Location Error", "Unable to retrieve location. Ensure GPS is enabled.");
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-      );
-    } catch (error) {
-      console.error("Error in location request:", error);
-      Alert.alert("Unexpected Error", "An error occurred while requesting location.");
-    }
-  }*/
-
   useEffect(() => {
     const fetchSchedule = async () => {
       try {
@@ -325,11 +381,6 @@ const HomeScreen = () => {
             <Text style={styles.requestButtonText}>Unavailable</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Request a Week Button */}
-        <TouchableOpacity style={styles.requestButton}>
-          <Text style={styles.requestButtonText}>Request a Week</Text>
-        </TouchableOpacity>
       </ScrollView>
       <View style={styles.blackspace} />
     </View>

@@ -2,7 +2,7 @@ import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import LearnItMainMenu from "./LearnItMainMenu";
-import LearnItTesbehaMenu from "./Tesbeha/LearnItTesbehaMenu";
+import LearnItTasbehaMenu from "./Tasbeha/LearnItTasbehaMenu";
 import LearnItLiturgyMenu from "./Liturgy/LearnItLiturgyMenu";
 import LearnItVespersMenu from "./Vespers/LearnItVespers";
 import LearnItMatins from "./Liturgy/LearnItMatins";
@@ -36,7 +36,7 @@ export default function LearnNavigation() {
         <LearnNav.Screen name="MainMenu" component={LearnItMainMenu} />
         <LearnNav.Screen
           name="TesbehaMenu"
-          component={LearnItTesbehaMenu}
+          component={LearnItTasbehaMenu}
           options={{ animation: "none" }}
         />
         <LearnNav.Screen

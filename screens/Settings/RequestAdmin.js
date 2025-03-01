@@ -12,14 +12,13 @@ const RequestAdmin = ({ navigation }) => {
         source={require("../../assets/verificationSticker.png")}
       />
       <Text style={styles.message}>
-        A request has been sent to the head admin. Waiting on approval to
-        appoint you admin.
+        To be appointed as Admin, please contact us at spsmdevs@gmail.com.
       </Text>
       <Pressable
         style={styles.confirmButton}
         onPress={() => navigation.goBack()}
       >
-        <Text style={styles.confirmText}>Confirm</Text>
+        <Text style={styles.confirmText}>Return</Text>
       </Pressable>
     </View>
   );
