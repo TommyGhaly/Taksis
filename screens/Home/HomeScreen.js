@@ -17,10 +17,10 @@ import {
   NativeEventEmitter,
   NativeModules,
   AsyncStorage,
+  Linking,
 } from "react-native";
 import auth from "@react-native-firebase/auth";
-import * as Location from "expo-location";
-
+import * as Location from "expo-location" ;
 
 initializeApp({
   projectId: "taksis-a8ba7",
@@ -61,11 +61,14 @@ async function requestUserPermissionAndroid() {
 
     while (!permissionGranted) {
       const authStatus = await messaging().hasPermission();
-      permissionGranted = authStatus === messaging.AuthorizationStatus.AUTHORIZED;
+      permissionGranted =
+        authStatus === messaging.AuthorizationStatus.AUTHORIZED;
 
       if (!permissionGranted) {
         await messaging().requestPermission();
-        permissionGranted = (await messaging().hasPermission()) === messaging.AuthorizationStatus.AUTHORIZED;
+        permissionGranted =
+          (await messaging().hasPermission()) ===
+          messaging.AuthorizationStatus.AUTHORIZED;
       }
 
       if (permissionGranted) {
@@ -133,7 +136,9 @@ async function getFCMToken() {
 }
 
 async function checkNotificationPermission() {
-  const storedPermission = await AsyncStorage.getItem("notification_permission");
+  const storedPermission = await AsyncStorage.getItem(
+    "notification_permission"
+  );
 
   if (!storedPermission) {
     if (Platform.OS === "ios") {
@@ -146,32 +151,52 @@ async function checkNotificationPermission() {
 
 async function requestLocationPermission() {
   try {
-    let permissionGranted = false;
+    // Check the current status of location permissions
+    const { status: foregroundStatus } = await Location.getForegroundPermissionsAsync();
+    console.log(`Current Foreground Permission Status: ${foregroundStatus}`);
 
-    while (!permissionGranted) {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      permissionGranted = status === "granted";
+    // If permission is already granted, do nothing
+    if (foregroundStatus === 'granted') {
+      console.log('Location permission already granted.');
+      return;
+    }
 
-      if (permissionGranted) {
-        console.log("Location Permission Granted");
-        await AsyncStorage.setItem("location_permission", "granted");
-        await getCurrentLocation();
+    // Request foreground location permission if not granted
+    console.log('Requesting location permission...');
+    const { status: newForegroundStatus } = await Location.requestForegroundPermissionsAsync();
+    console.log(`New Foreground Permission Status: ${newForegroundStatus}`);
+
+    if (newForegroundStatus === 'granted') {
+      console.log('Foreground location permission granted.');
+    } else {
+      console.log('Foreground location permission denied.');
+      // Ask user to enable permissions manually if denied
+      Alert.alert(
+        'Permission Required',
+        'Please enable location permissions in your settings.',
+        [
+          { text: 'Cancel' },
+          { text: 'Share Location', onPress: () => requestLocationPermission() },
+        ]
+      );
+      return;
+    }
+
+    // Optionally request background location permission if foreground permission is granted
+    if (newForegroundStatus === 'granted') {
+      const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
+      console.log(`Background Permission Status: ${backgroundStatus}`);
+
+      if (backgroundStatus === 'granted') {
+        console.log('Background location permission granted.');
       } else {
-        Alert.alert(
-          "Location Required",
-          "You need to enable location for attendance tracking. Please grant permission.",
-          [
-            { text: "Retry", onPress: requestLocationPermission },
-            { text: "Cancel", style: "cancel" },
-          ]
-        );
+        console.log('Background location permission denied.');
       }
     }
   } catch (error) {
-    console.error("Error requesting location permission:", error);
+    console.error('Error requesting location permissions:', error);
   }
 }
-
 async function getCurrentLocation() {
   try {
     const { status } = await Location.getForegroundPermissionsAsync();
@@ -198,9 +223,10 @@ async function getCurrentLocation() {
         .doc(userId)
         .set(
           {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            timestamp: firestore.FieldValue.serverTimestamp(),
+            location: {
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+            },
           },
           { merge: true }
         );
@@ -214,12 +240,14 @@ async function getCurrentLocation() {
 }
 
 async function checkLocationPermission() {
-  const storedPermission = await AsyncStorage.getItem("location_permission");
-  if (!storedPermission) {
-    requestLocationPermission();
-  }
-  else {
-    console.log("location permission granted")
+  const { status } = await Location.getForegroundPermissionsAsync(); // Check current permission status
+  console.log("Current Permission Status:", status);
+
+  if (status !== "granted") {
+    console.log("Requesting location permission...");
+    await requestLocationPermission(); // Call the request function
+  } else {
+    console.log("Location permission already granted.");
   }
 }
 
@@ -242,13 +270,11 @@ const HomeScreen = () => {
     formatDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
   );
 
-  
   useEffect(() => {
     checkNotificationPermission();
     checkLocationPermission();
-    getCurrentLocation();
   }, []);
-  
+
   useEffect(() => {
     const fetchSchedule = async () => {
       try {
