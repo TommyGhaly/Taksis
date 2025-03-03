@@ -13,6 +13,8 @@ import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 import CustomPicker from "../../components/customPicker";
+import { callFunction } from "../../components/functionCalls";
+
 
 const ChangeAge = () => {
   const [age, setAge] = useState("18");
@@ -40,6 +42,7 @@ const ChangeAge = () => {
     }
     try {
       await updateAgeInDB(age); // Function to update the age in the DB
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
       Alert.alert("Success", "Age updated successfully.");
       navigation.goBack();
     } catch (error) {

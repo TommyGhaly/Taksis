@@ -5,6 +5,8 @@ import Rank from "../../components/rank";
 import BackArrow from "../../components/backArrow";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import { callFunction } from "../../components/functionCalls";
+
 
 const ChangeRank = ({ navigation }) => {
   const [rank, setRank] = useState(null);
@@ -20,7 +22,7 @@ const ChangeRank = ({ navigation }) => {
         await firestore().collection("users").doc(user.uid).update({
           rank: rank,
         });
-
+        await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
         // Navigate to the next screen or show a success message
         navigation.goBack(); // Replace "NextScreen" with your target screen
       } else {

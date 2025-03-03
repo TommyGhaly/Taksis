@@ -71,25 +71,28 @@ const AccountInfo = ({ navigation }) => {
           <Text style={styles.infoText}>{userData.age || "Age"}</Text>
         </View>
 
-        <Text style={[styles.childHeading, styles.text]}>Children</Text>
-
-        {/* Safely map over children with fallback */}
-        {(userData.children || []).map((child, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.childInfo}
-            onPress={() => {}}
-          >
-            <Text style={styles.infoText}>
-              {child.name || `Child ${index + 1} First Last`}
-            </Text>
-            <Image
-              style={styles.vectorIcon}
-              resizeMode="cover"
-              source={require("../../assets/vector.png")}
-            />
-          </TouchableOpacity>
-        ))}
+        {/* Conditionally render the Children heading and list if children exist */}
+        {userData.children && userData.children.length > 0 && (
+          <>
+            <Text style={[styles.childHeading, styles.text]}>Children</Text>
+            {(userData.children || []).map((child, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.childInfo}
+                onPress={() => navigation.navigate("ChildAccountInfo", { childUid: child.uid })}
+              >
+                <Text style={styles.infoText}>
+                  {child.name || `Child ${index + 1} First Last`}
+                </Text>
+                <Image
+                  style={styles.vectorIcon}
+                  resizeMode="cover"
+                  source={require("../../assets/vector.png")}
+                />
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
       </ScrollView>
     </View>
   );

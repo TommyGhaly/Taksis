@@ -7,32 +7,6 @@ import auth from "@react-native-firebase/auth";
 import { UserProvider, useUser } from "../UserContext";
 import { callFunction } from "./functionCalls";
 
-const callUserDeleteFunction = async (userId) => {
-  try {
-    // Await the Firebase ID token
-  const idToken = await user.getIdToken();
-
-  // Fire the request without awaiting the response (this makes it run in the background)
-  fetch(
-    "https://delete-user-hy6oofbihq-uc.a.run.app",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${idToken}`, // Use the actual token here
-      },
-      body: JSON.stringify({ uid: userId }), // Send the correct uid parameter
-    }
-  ).catch((error) => {
-    console.error("Error calling function in the background:", error);
-  });
-
-  // No need to wait or return anything
-  console.log("Function call fired, backend will process the request.");
-} catch (error) {
-  console.error("Error preparing function call:", error);
-}
-};
 
 
 
@@ -43,7 +17,6 @@ const SettingsContent = () => {
     name: "",
   });
   
-
   useEffect(() => {
     const user = auth().currentUser;
 

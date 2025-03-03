@@ -5,6 +5,8 @@ import { Picker } from "@react-native-picker/picker";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
 import auth from "@react-native-firebase/auth";
+import { callFunction } from "../../components/functionCalls";
+
 
 const ChildAge = ({ route, navigation }) => {
   const user = auth().currentUser; // Directly access currentUser
@@ -17,46 +19,48 @@ const ChildAge = ({ route, navigation }) => {
       Alert.alert("Error", "User not authenticated");
       return;
     }
-
+  
+    // Add the age to the updatedChildData
     const updatedChildData = { ...childData, age: selectedAge };
-
+  
     try {
       // Log userId and updatedChildData to verify values
       console.log("User ID:", userId);
       console.log("Updated Child Data:", updatedChildData);
-
+  
       // Get the current user's document
       const userDocRef = firestore().collection("users").doc(userId);
       const userDoc = await userDocRef.get();
-
+  
       if (userDoc.exists) {
         const userData = userDoc.data();
         console.log("User Data:", userData); // Log user data
-
-        // Check if the children array exists
+  
+        // Check if the children array exists, if not, initialize it
         if (!userData.children) {
           userData.children = [];
         }
-
-        // Check if the child already exists in the array
+  
+        // Find the child in the array by matching the unique child identifier (e.g., UID)
         const existingChildIndex = userData.children.findIndex(
           (child) => child.uid === updatedChildData.uid
         );
-
+  
         if (existingChildIndex !== -1) {
-          // If the child exists, update the existing entry
+          // If the child exists, update the existing entry with the updated child data
           userData.children[existingChildIndex] = updatedChildData;
         } else {
-          // If the child does not exist, add a new entry
+          // If the child doesn't exist, add the updated child data as a new entry
           userData.children.push(updatedChildData);
         }
-
+  
         // Update the user's document with the new children array
         await userDocRef.update({ children: userData.children });
+        await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
         console.log("Children updated successfully");
-
+  
         // Show alert once the data is successfully updated
-        Alert.alert("Success", "Child has been added");
+        Alert.alert("Success", "Child data has been updated");
         navigation.navigate("Settings");
       } else {
         console.log("User document does not exist");
@@ -64,9 +68,11 @@ const ChildAge = ({ route, navigation }) => {
       }
     } catch (error) {
       console.error("Error updating child data: ", error);
-      Alert.alert("Error", "Failed to add child data");
+      Alert.alert("Error", "Failed to update child data");
     }
   };
+  
+  
 
   return (
     <View style={styles.container}>
@@ -74,7 +80,7 @@ const ChildAge = ({ route, navigation }) => {
         <BackArrow onPress={() => navigation.goBack()} />
       </View>
       <View style={styles.progressBar}>
-        <ProgressBar startPercentage={50} endPercentage={100} />
+        <ProgressBar startPercentage={75} endPercentage={100} />
       </View>
       <Text style={styles.title}>What is your child's age?</Text>
       <View style={styles.pickerContainer}>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Pressable,
   TextInput,
@@ -10,11 +10,11 @@ import {
 } from "react-native";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
+import firestore from '@react-native-firebase/firestore';
+import auth from "@react-native-firebase/auth";
 
 // Custom function to generate a UID
-const generateUID = () => {
-  return Math.random().toString(36).substr(2, 9);
-};
+const generateUID = () => firestore().collection("dummy").doc().id;
 
 const AddChild = ({ navigation }) => {
   const [name, setName] = useState("");
@@ -22,9 +22,39 @@ const AddChild = ({ navigation }) => {
     uid: generateUID(), // Use custom function to generate UID
     name: "",
     age: "",
-    deaconRank: "",
+    rank: "",
+    experience: "",
+    church: "",
+    frequency: "",
+    isDeacon: true,
+    isSSTeacher: false
     // other child data fields
   });
+
+  useEffect(() => {
+    const getUserData = async () => {
+      try {
+        // Get the current user's UID
+        const user = auth().currentUser;
+        if (user) {
+          // Fetch the user's data from Firestore
+          const userDoc = await firestore().collection("users").doc(user.uid).get();
+          if (userDoc.exists) {
+            const userData = userDoc.data();
+            setChildData((prevData) => ({
+              ...prevData,
+              church: userData.church,
+              frequency: userData.frequency,
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching user data: ", error);
+      }
+    };
+
+    getUserData();
+  }, []);
 
   const handleContinue = () => {
     const updatedChildData = { ...childData, name };
@@ -37,7 +67,7 @@ const AddChild = ({ navigation }) => {
         <BackArrow />
       </View>
       <View style={styles.progressBar}>
-        <ProgressBar startPercentage={0} endPercentage={1} />
+        <ProgressBar startPercentage={0} endPercentage={25} />
       </View>
       <View style={styles.titleContainer}>
         <Text style={styles.titleText}>Add Child</Text>
