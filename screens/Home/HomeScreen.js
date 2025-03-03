@@ -151,52 +151,57 @@ async function checkNotificationPermission() {
 
 async function requestLocationPermission() {
   try {
-    // Check the current status of location permissions
-    const { status: foregroundStatus } = await Location.getForegroundPermissionsAsync();
+    // Request foreground location permission directly
+    let { status: foregroundStatus } = await Location.getForegroundPermissionsAsync();
     console.log(`Current Foreground Permission Status: ${foregroundStatus}`);
 
-    // If permission is already granted, do nothing
-    if (foregroundStatus === 'granted') {
-      console.log('Location permission already granted.');
-      return;
+    if (foregroundStatus !== 'granted') {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      foregroundStatus = status;
+      console.log(`Updated Foreground Permission Status: ${foregroundStatus}`);
     }
 
-    // Request foreground location permission if not granted
-    console.log('Requesting location permission...');
-    const { status: newForegroundStatus } = await Location.requestForegroundPermissionsAsync();
-    console.log(`New Foreground Permission Status: ${newForegroundStatus}`);
-
-    if (newForegroundStatus === 'granted') {
-      console.log('Foreground location permission granted.');
-    } else {
-      console.log('Foreground location permission denied.');
-      // Ask user to enable permissions manually if denied
+    if (foregroundStatus !== 'granted') {
       Alert.alert(
         'Permission Required',
-        'Please enable location permissions in your settings.',
+        'Location permission is required for this feature.',
         [
           { text: 'Cancel' },
-          { text: 'Share Location', onPress: () => requestLocationPermission() },
+          { text: 'Grant Permission', onPress: requestLocationPermission },
         ]
       );
       return;
     }
 
-    // Optionally request background location permission if foreground permission is granted
-    if (newForegroundStatus === 'granted') {
-      const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
-      console.log(`Background Permission Status: ${backgroundStatus}`);
+    console.log('Foreground location permission granted.');
 
-      if (backgroundStatus === 'granted') {
-        console.log('Background location permission granted.');
-      } else {
-        console.log('Background location permission denied.');
-      }
+    // Request background location permission after foreground permission is granted
+    let { status: backgroundStatus } = await Location.getBackgroundPermissionsAsync();
+    console.log(`Current Background Permission Status: ${backgroundStatus}`);
+
+    if (backgroundStatus !== 'granted') {
+      const { status } = await Location.requestBackgroundPermissionsAsync();
+      backgroundStatus = status;
+      console.log(`Updated Background Permission Status: ${backgroundStatus}`);
+    }
+
+    if (backgroundStatus !== 'granted') {
+      Alert.alert(
+        'Background Permission Needed',
+        'Enable background location for full functionality.',
+        [
+          { text: 'Cancel' },
+          { text: 'Grant Permission', onPress: requestLocationPermission },
+        ]
+      );
+    } else {
+      console.log('Background location permission granted.');
     }
   } catch (error) {
     console.error('Error requesting location permissions:', error);
   }
 }
+
 async function getCurrentLocation() {
   try {
     const { status } = await Location.getForegroundPermissionsAsync();

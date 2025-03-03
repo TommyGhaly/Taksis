@@ -13,6 +13,7 @@ const SettingsContent = () => {
   const [userRoles, setUserRoles] = useState({
     name: "",
   });
+  
 
   useEffect(() => {
     const user = auth().currentUser;
@@ -53,7 +54,10 @@ const SettingsContent = () => {
     // Revoke the token
     return auth().revokeToken(authorizationCode);
   };
-
+  const handleSignOut = () => {
+    setSignUp(false)
+    auth().signOut();
+  };
   const handleDeleteAccount = () => {
     Alert.alert(
       "Delete Account",
@@ -73,7 +77,7 @@ const SettingsContent = () => {
                 await firestore().collection("users").doc(user.uid).delete();
                 await user.delete();
                 await revokeSignInWithAppleToken;
-                await setSignUp(false);
+                await setSignUp(false)
                 Alert.alert("Success", "Your account has been deleted.");
                 // Navigate to a safe screen or log out
               }
@@ -173,7 +177,7 @@ const SettingsContent = () => {
           </TouchableOpacity>
         </View>
       </View>
-      <TouchableOpacity style={styles.signOut} onPress={() => auth().signOut()}>
+      <TouchableOpacity style={styles.signOut} onPress={handleSignOut}>
         <Text style={styles.signOutText}>Log out</Text>
       </TouchableOpacity>
 

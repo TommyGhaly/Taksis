@@ -27,6 +27,8 @@ function AppNavigator() {
   useEffect(() => {
     if (!user) {
       setSignUp(false);
+      console.log("user :", !user)
+      console.log("sign Up :", signUp)
     }
     const subscriber = auth().onAuthStateChanged((user) => {
       setUser(user);
@@ -41,7 +43,7 @@ function AppNavigator() {
     <NavigationContainer style={styles.container}>
       <Stack.Navigator
         initialRouteName={
-          !user ? "Welcome" : signUp ? "SelectChurch" : "MainContainer"
+          !user ? "Welcome" : !signUp ? "SelectChurch" : "MainContainer"
         }
         screenOptions={{ headerShown: false, animation: "none" }}
       >

@@ -349,7 +349,7 @@ def create_schedule(deacons, num_altar):
         schedule = add_person(schedule, list)
 
     # adds the number of altar servers minus two because blood and wine are in the altar
-    for i in range(num_altar - 2):
+    for i in range(17):
         schedule = add_person(schedule, altar_list)
 
     schedule_dict = {
@@ -560,6 +560,7 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
 
+    set_up_arrays()
     firestore_client: google.cloud.firestore.Client = firestore.client()
     collection_ref = firestore_client.collection("churches")
     church_docs = collection_ref.stream()
@@ -591,7 +592,7 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
         "frequency": user_data.get("frequency"),
         "rank": user_data.get("rank"),
         "weeksSince": user_data.get("weeksSince"),
-        "isServant": user_data.get("isServant"),
+        "isSSTeacher": user_data.get("isSSTeacher"),
     }
 
     if "children" in user_data:
@@ -626,13 +627,13 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
                 "experience": filtered_user_data["experience"],
                 "frequency": filtered_user_data["frequency"],
                 "rank": filtered_user_data["rank"],
-                "weeksSince": filtered_user_data["weeksSince"],
+                "weeksSince": 4,
             }
             deacons.append(new_deacon)
             church_data["deacons"] = deacons
 
     # Update servants list if the user is a servant
-    if filtered_user_data["isServant"]:
+    if filtered_user_data["isSSTeacher"]:
         servants = church_data.get("servants", [])
         if not any(
             servant.get("uid") == filtered_user_data["uid"] for servant in servants
@@ -651,7 +652,7 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
     except Exception as e:
         return https_fn.Response(f"Error updating church data: {str(e)}", status=500)
 
-    return https_fn.Response("User update successful", status=200)
+    return 
 
 
 def handle_children(children):
@@ -689,7 +690,7 @@ def locate_for_servants(event: scheduler_fn.ScheduledEvent):
     pass
 
 
-# Handles deleting a user and all theri children
+# Handles deleting a user and all their children
 @https_fn.on_request()
 def delete_user(req: https_fn.Request) -> https_fn.Response:
     pass

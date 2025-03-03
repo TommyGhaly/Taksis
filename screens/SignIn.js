@@ -13,17 +13,17 @@ import {
 import auth from "@react-native-firebase/auth";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import BackArrow from "../components/backArrow";
-import { useUser } from "../UserContext";  
+import { UserProvider, useUser } from "../UserContext";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
-
-
 
 const SignIn = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { setSignUp } = useUser();
-  setSignUp(true);
+    useEffect(() => {
+      setSignUp(true);
+    });
   GoogleSignin.configure({
     webClientId: "YOUR_WEB_CLIENT_ID",
   });
@@ -97,7 +97,7 @@ const SignIn = ({ navigation }) => {
             resizeMode="cover"
             source={require("../assets/googleLogo.png")}
           />
-          <Text style={styles.socialText}>Sign up with Google</Text>
+          <Text style={styles.socialText}>Sign in with Google</Text>
         </View>
       </Pressable>
       <Pressable style={styles.socialButtonApple}>

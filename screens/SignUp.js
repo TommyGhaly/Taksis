@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Pressable,
   Image,
@@ -15,15 +15,22 @@ import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
+import { UserProvider, useUser } from "../UserContext";
 
 const SignUp = ({ navigation }) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const { setSignUp } = useUser();
+
+  useEffect(() => {
+    setSignUp(false);
+  });
 
   GoogleSignin.configure({
-    webClientId: "YOUR_WEB_CLIENT_ID",
+    webClientId:
+      "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
   });
 
   const handleSignUp = async () => {
@@ -72,22 +79,19 @@ const SignUp = ({ navigation }) => {
     try {
       const userRef = firestore().collection("users").doc(user.uid);
       const userDoc = await userRef.get();
-  
+
       if (!userDoc.exists) {
         await userRef.set({
           uid: user.uid,
           name: fullName || "", // Store name if available
           email: user.email,
           admin: false,
-          superAdmin: false,
-          weeksSince: 4,
         });
       }
     } catch (error) {
       console.error("Error handling Firestore operations: ", error);
     }
   };
-  
 
   const onGoogleButtonPress = async () => {
     try {
@@ -125,7 +129,7 @@ const SignUp = ({ navigation }) => {
         Crypto.CryptoDigestAlgorithm.SHA256,
         rawNonce
       );
-  
+
       const appleAuthRequestResponse = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
@@ -133,38 +137,35 @@ const SignUp = ({ navigation }) => {
         ],
         nonce: hashedNonce,
       });
-  
+
       if (!appleAuthRequestResponse.identityToken) {
         throw new Error("Apple Sign-In failed - No identity token received.");
       }
-  
+
       const { identityToken, fullName, email } = appleAuthRequestResponse;
       if (!email) {
         throw new Error("Apple Sign-In Error: email already in use.");
       }
-  
+
       const appleCredential = auth.AppleAuthProvider.credential(
         identityToken,
         rawNonce
       );
-  
+
       // Sign in with Apple credential
       const userCredential = await auth().signInWithCredential(appleCredential);
-  
+
       // Format the full name as "First Name Last Name"
       const formattedFullName = `${fullName.givenName} ${fullName.familyName}`;
-  
+
       writeUserToDb(userCredential.user, formattedFullName);
-  
+
       navigation.navigate("SelectChurch");
     } catch (error) {
       console.error("Apple Sign-In Error:", error);
       Alert.alert("Apple Sign-In Error", error.message);
     }
   };
-  
-  
-  
 
   return (
     <View style={styles.container}>
