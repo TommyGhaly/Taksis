@@ -12,6 +12,8 @@ import BackArrow from "../components/backArrow";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import ProgressBar from "../components/progressBar";
+import { UserProvider, useUser } from "../UserContext";
+
 
 const Frequency = ({ route, navigation }) => {
   const { from } = route.params;
@@ -19,6 +21,9 @@ const Frequency = ({ route, navigation }) => {
   const [selectedAge, setSelectedAge] = useState(1);
   const [frequency, setFrequency] = useState(5);
   const fromApplicable = from === "SelectApplicable";
+  const { setSignUp } = useUser();
+
+  
   const handleAge = (checked) => {
     setSelectedAge(checked);
   };
@@ -28,29 +33,31 @@ const Frequency = ({ route, navigation }) => {
 
   const callUpdateUser = async (userId) => {
     try {
-      const response = await fetch(
-        "https://update-user-hy6oofbihq-uc.a.run.app",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            // Include Authorization header if you're verifying tokens on the server
-            // 'Authorization': 'Bearer YOUR_FIREBASE_ID_TOKEN'
-          },
-          body: JSON.stringify({ user_id: userId }),
-        }
-      );
+      // Await the Firebase ID token
+    const idToken = await user.getIdToken();
 
-      if (!response.ok) {
-        throw new Error("Network response was not ok");
+    // Fire the request without awaiting the response (this makes it run in the background)
+    fetch(
+      "https://update-user-hy6oofbihq-uc.a.run.app",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}`, // Use the actual token here
+        },
+        body: JSON.stringify({ uid: userId }), // Send the correct uid parameter
       }
+    ).catch((error) => {
+      console.error("Error calling function in the background:", error);
+    });
 
-      const data = await response.json();
-      console.log("Function result:", data.result);
-    } catch (error) {
-      console.error("Error calling function:", error);
-    }
-  };
+    // No need to wait or return anything
+    console.log("Function call fired, backend will process the request.");
+  } catch (error) {
+    console.error("Error preparing function call:", error);
+  }
+};
+  
 
   const handleContinue = async (user) => {
     try {
@@ -59,6 +66,7 @@ const Frequency = ({ route, navigation }) => {
         age: selectedAge,
       });
       callUpdateUser(user.uid);
+      setSignUp(true)
       navigation.navigate("MainContainer");
     } catch (error) {
       console.error("Error updating user frequency: ", error);
@@ -110,7 +118,7 @@ const styles = StyleSheet.create({
   },
   continueLayout: {
     position: "absolute",
-    bottom: 80, 
+    bottom: 80,
     alignSelf: "center",
     height: 50,
     width: 358,
@@ -126,7 +134,7 @@ const styles = StyleSheet.create({
     fontFamily: "Roboto-Medium",
     color: "#fff",
     textAlign: "center",
-  },  
+  },
   wrapper: {
     top: "18.661%",
   },
