@@ -42,11 +42,12 @@ const SelectChurch = ({ navigation }) => {
       <View style={styles.position}>
         <Churches onSelectChurch={handleChurchSelection} />
       </View>
-      <View style={styles.continueLayout}>
-        <Pressable onPress={() => handleContinue(user)}>
-          <Text style={styles.continuetext}>Continue</Text>
-        </Pressable>
-      </View>
+      <Pressable
+        onPress={() => handleContinue(user)}
+        style={styles.continueLayout}
+      >
+        <Text style={styles.continuetext}>Continue</Text>
+      </Pressable>
       <View
         style={[styles.dontSeeYourChurchRegiste, styles.dontSeeYourContainer]}
       >

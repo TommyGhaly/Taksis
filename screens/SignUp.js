@@ -22,10 +22,11 @@ const SignUp = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const { setSignUp } = useUser();
+  const { signUp, setSignUp } = useUser();
 
   useEffect(() => {
     setSignUp(false);
+    console.log("sign Up :", signUp);
   });
 
   GoogleSignin.configure({
@@ -217,11 +218,9 @@ const SignUp = ({ navigation }) => {
         onChangeText={(text) => setConfirmPassword(text)}
       />
 
-      <View style={styles.continueLayout}>
-        <Pressable onPress={handleSignUp}>
-          <Text style={styles.continuetext}>Continue</Text>
-        </Pressable>
-      </View>
+      <Pressable onPress={handleSignUp} style={styles.continueLayout}>
+        <Text style={styles.continuetext}>Continue</Text>
+      </Pressable>
       <View style={styles.dividerWrapper}>
         <View style={styles.divider} />
         <Text style={styles.or}>or</Text>

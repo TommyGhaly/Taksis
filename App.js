@@ -43,7 +43,7 @@ function AppNavigator() {
     <NavigationContainer style={styles.container}>
       <Stack.Navigator
         initialRouteName={
-          !user ? "Welcome" : !signUp ? "SelectChurch" : "MainContainer"
+          !user ? "Welcome" : "MainContainer"
         }
         screenOptions={{ headerShown: false, animation: "none" }}
       >
