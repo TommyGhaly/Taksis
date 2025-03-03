@@ -12,6 +12,7 @@ import BackArrow from "../../components/backArrow";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
+import { callFunction } from "../../components/functionCalls";
 
 const ChangeName = () => {
   const [name, setName] = useState("");
@@ -37,6 +38,7 @@ const ChangeName = () => {
     }
     try {
       await updateNameInDB(name); // Function to update the name in the DB
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
       Alert.alert("Success", "Name updated successfully.");
       navigation.goBack();
     } catch (error) {

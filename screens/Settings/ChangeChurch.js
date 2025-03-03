@@ -11,8 +11,9 @@ import {
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import BackArrow from "../../components/backArrow";
-import ProgressBar from "../../components/progressBar";
 import Churches from "../../components/churches"; // Assuming you have a Churches component for displaying church options
+import { callFunction } from "../../components/functionCalls";
+
 
 const ChangeChurch = ({ navigation }) => {
   const [selectedChurch, setSelectedChurch] = useState(null);
@@ -27,7 +28,8 @@ const ChangeChurch = ({ navigation }) => {
       await firestore().collection("users").doc(user.uid).update({
         church: selectedChurch,
       });
-
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
+      
       // Navigate to the next screen or show a success message
       navigation.goBack();
     } catch (error) {

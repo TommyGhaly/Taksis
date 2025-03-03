@@ -4,7 +4,7 @@ import Choices from "../../components/choices";
 import BackArrow from "../../components/backArrow";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import ProgressBar from "../../components/progressBar";
+import { callFunction } from "../../components/functionCalls";
 
 const ChangeRoles = ({ navigation }) => {
   const [isDeacon, setIsDeacon] = useState(false);
@@ -21,14 +21,13 @@ const ChangeRoles = ({ navigation }) => {
   const handleContinue = async () => {
     try {
       await firestore().collection("users").doc(user.uid).update({
-        isDeacon,
-        isAlhan,
-        alhanClass: [],
+        isDeacon: isDeacon,
+        isAlhan: isAlhan,
         isSSTeacher: isSSTeach,
-        sundaySchoolClass: [],
-        isServant,
+        isServant: isServant,
       });
-
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
+      
       // Navigate to the next screen based on the selected roles
       navigation.goBack();
     } catch (error) {

@@ -11,6 +11,7 @@ import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import BackArrow from "../../components/backArrow"; // Import your BackButton component
+import { callFunction } from "../../components/functionCalls";
 
 const ChangeChildren = () => {
   const navigation = useNavigation();
@@ -130,7 +131,7 @@ const ChangeChildren = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#121212",
     paddingHorizontal: 16,
     paddingVertical: 20,
   },

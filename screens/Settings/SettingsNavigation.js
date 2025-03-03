@@ -15,6 +15,7 @@ import AddChild from "./AddChild";
 import Settings from "./Settings";
 import SettingsContent from "../../components/settingsContent";
 import ChildDeaconRank from "./ChildDeaconRank";
+import ChildExperience from "./ChildExperience";
 import ChildAge from "./ChildAge";
 import PasswordReset from "../PasswordReset";
 import DefaultTheme from "@react-navigation/native";
@@ -65,6 +66,11 @@ export default function SettingsNavigation() {
         <SettingsNav.Screen
           name="ChildDeaconRank"
           component={ChildDeaconRank}
+          options={{ animation: "none" }}
+        />
+        <SettingsNav.Screen
+          name="ChildExperience"
+          component={ChildExperience}
           options={{ animation: "none" }}
         />
         <SettingsNav.Screen

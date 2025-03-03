@@ -1,45 +1,57 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
+import { TouchableOpacity, StyleSheet, View, Text, SafeAreaView } from "react-native";
+import firestore from "@react-native-firebase/firestore";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
-import Rank from "../../components/rank";
+import auth from "@react-native-firebase/auth";
+import Rank from "../../components/rank"; // Import Rank component
 
-const ChildDeaconRank = ({ route, navigation }) => {
+const ChildRank = ({ route, navigation }) => {
   const { childData } = route.params; // Get child data from the previous screen
-  const [deaconRank, setDeaconRank] = useState(childData.deaconRank || "");
-  const handleRank = (rank) => {
-    setDeaconRank(rank);
+  const [selectedRank, setSelectedRank] = useState(childData.rank || ""); // Default rank to the value from childData
+
+  // Handle rank selection in the Rank component
+  const handleSelectRank = (rank) => {
+    setSelectedRank(rank);
   };
-  const handleContinue = () => {
-    const updatedChildData = { ...childData, deaconRank };
-    navigation.navigate("ChildAge", { childData: updatedChildData });
+
+  const handleContinue = async () => {
+    // Update childData with selectedRank
+    const updatedChildData = { ...childData, rank: selectedRank };
+
+    // Navigate to ChildAge screen and pass updated data
+    navigation.navigate("ChildExperience", { childData: updatedChildData });
   };
 
   return (
-    <View style={styles.childdeaconrank}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.backarrow}>
         <BackArrow onPress={() => navigation.goBack()} />
       </View>
       <View style={styles.progressBar}>
-        <ProgressBar startPercentage={1} endPercentage={50} />
+        <ProgressBar startPercentage={25} endPercentage={50} />
       </View>
-      <Text style={styles.title}>What rank of deacon is your child?</Text>
-      <View style={styles.rank}>
-        <Rank onSelectRank={handleRank} />
+
+      {/* Title Section */}
+      <Text style={styles.title}>What is your child's rank?</Text>
+
+      {/* Rank Component for selecting rank */}
+      <View style={styles.rankContainer}>
+        <Rank onSelectRank={handleSelectRank} />
       </View>
-      <TouchableOpacity
-        onPress={handleContinue}
-        style={styles.continueLayout}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.continuetext}>Continue</Text>
-      </TouchableOpacity>
-    </View>
+
+      {/* Continue Button */}
+      <View style={styles.continueLayout}>
+        <TouchableOpacity onPress={handleContinue} style={styles.continueButton}>
+          <Text style={styles.continuetext}>Continue</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  childdeaconrank: {
+  container: {
     flex: 1,
     backgroundColor: "#121212",
   },
@@ -50,37 +62,42 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: 12,
-    width: "84%", // Ensures width matches the AddChild progress bar
-    top: 60, // Keeps the same top offset as in AddChild
+    width: "84%",
+    top: 60,
     alignSelf: "center",
     position: "absolute",
-    backgroundColor: "#000",
   },
   title: {
-    top: 85,
-    left: 20,
-    width: "88%",
+    marginTop: 100, // Adjusted to move title further down for better alignment
     textAlign: "center",
-    position: "absolute",
-    fontSize: 34,
-    letterSpacing: -0.1,
+    fontSize: 32, // Adjusted font size for better readability
     fontFamily: "Roboto-Regular",
     color: "#8e8e93",
+    letterSpacing: -0.5,
+    marginBottom: 30, // Added margin for spacing between title and Rank component
   },
-  rank: {
-    top: 160,
-    marginTop: 10,
+  rankContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 40, // Added margin for spacing between Rank and button
   },
   continueLayout: {
+    position: "absolute",
     bottom: 20,
-    left: 16,
-    height: 50,
     width: "91%",
+    left: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    height: 50,
+  },
+  continueButton: {
+    width: "100%",
     backgroundColor: "#333",
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    position: "absolute",
+    height: "100%",
   },
   continuetext: {
     fontSize: 17,
@@ -92,4 +109,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ChildDeaconRank;
+export default ChildRank;
