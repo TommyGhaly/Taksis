@@ -5,10 +5,39 @@ import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import { UserProvider, useUser } from "../UserContext";
+import { callFunction } from "./functionCalls";
+
+const callUserDeleteFunction = async (userId) => {
+  try {
+    // Await the Firebase ID token
+  const idToken = await user.getIdToken();
+
+  // Fire the request without awaiting the response (this makes it run in the background)
+  fetch(
+    "https://delete-user-hy6oofbihq-uc.a.run.app",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${idToken}`, // Use the actual token here
+      },
+      body: JSON.stringify({ uid: userId }), // Send the correct uid parameter
+    }
+  ).catch((error) => {
+    console.error("Error calling function in the background:", error);
+  });
+
+  // No need to wait or return anything
+  console.log("Function call fired, backend will process the request.");
+} catch (error) {
+  console.error("Error preparing function call:", error);
+}
+};
+
 
 
 const SettingsContent = () => {
-  const { setSignUp } = useUser(true);
+  const { signUp, setSignUp } = useUser(true);
   const navigation = useNavigation();
   const [userRoles, setUserRoles] = useState({
     name: "",
@@ -56,6 +85,7 @@ const SettingsContent = () => {
   };
   const handleSignOut = () => {
     setSignUp(false)
+    console.log("sign Up :", signUp)
     auth().signOut();
   };
   const handleDeleteAccount = () => {
@@ -74,10 +104,11 @@ const SettingsContent = () => {
             try {
               const user = auth().currentUser;
               if (user) {
+                await callFunction(user, "https://delete-user-hy6oofbihq-uc.a.run.app");
                 await firestore().collection("users").doc(user.uid).delete();
+                await setSignUp(false);
                 await user.delete();
                 await revokeSignInWithAppleToken;
-                await setSignUp(false)
                 Alert.alert("Success", "Your account has been deleted.");
                 // Navigate to a safe screen or log out
               }

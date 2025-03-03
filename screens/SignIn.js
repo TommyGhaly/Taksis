@@ -20,9 +20,10 @@ import * as Crypto from "expo-crypto";
 const SignIn = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const { setSignUp } = useUser();
+  const { signUp, setSignUp } = useUser();
     useEffect(() => {
       setSignUp(true);
+      console.log("sign Up :", signUp)
     });
   GoogleSignin.configure({
     webClientId: "YOUR_WEB_CLIENT_ID",

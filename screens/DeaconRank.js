@@ -47,11 +47,12 @@ const DeaconRank = ({ navigation }) => {
         <Text style={styles.titleText}>What rank of deacon are you?</Text>
       </View>
 
-      <View style={styles.continueLayout}>
-        <Pressable onPress={() => handleContinue(user)}>
-          <Text style={styles.continuetext}>Continue</Text>
-        </Pressable>
-      </View>
+      <Pressable
+        onPress={() => handleContinue(user)}
+        style={styles.continueLayout}
+      >
+        <Text style={styles.continuetext}>Continue</Text>
+      </Pressable>
       <View style={styles.progressBar}>
         <ProgressBar startPercentage={40} endPercentage={60} />
       </View>

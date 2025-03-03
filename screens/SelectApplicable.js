@@ -67,11 +67,12 @@ const SelectApplicable = ({ navigation }) => {
           onServantChange={handleServant}
         />
       </View>
-      <View style={styles.continueLayout}>
-        <Pressable onPress={() => handleContinue(user)}>
-          <Text style={styles.continuetext}>Continue</Text>
-        </Pressable>
-      </View>
+      <Pressable
+              onPress={() => handleContinue(user)}
+              style={styles.continueLayout}
+            >
+              <Text style={styles.continuetext}>Continue</Text>
+      </Pressable>
       <View style={styles.progressBar}>
         <ProgressBar startPercentage={20} endPercentage={40} />
       </View>
