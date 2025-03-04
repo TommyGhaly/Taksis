@@ -5,9 +5,14 @@ import uuid
 from firebase_functions import https_fn, scheduler_fn, firestore_fn
 from firebase_admin import initialize_app, firestore, credentials, auth
 import google.cloud.firestore
+from google.cloud import firestore
+
+
 
 
 initialize_app()
+
+
 # Uncomment to test locally
 # db = firestore.client()
 
@@ -469,10 +474,9 @@ def generate_test_data(num_people):
 # test_data = generate_test_data(100)
 # add_test_data_to_firestore(test_data)
 def set_up_arrays():
-    firestore_client: google.cloud.firestore.Client = firestore.client()
+    firestore_client = firestore.Client()
     church_ref = firestore_client.collection("churches")
     church_docs = church_ref.stream()
-
     for doc in church_docs:
         church_id = doc.id  # Get document ID
         church_data = doc.to_dict()  # Convert document to dictionary
@@ -503,27 +507,47 @@ def set_up_arrays():
     print("Validation complete.")
 
 
+
+def handle_children(children):
+    for child in children:
+        print(child)
+        remove_user_from_churches(child["uid"])
+        add_user_to_churches(child)
+    return 
+
+
+
 def remove_user_from_churches(user_id):
-    # Reference the "church_data" collection
-    firestore_client: google.cloud.firestore.Client = firestore.client()
-    church_ref = firestore_client.collection("churches")
-
     # Fetch all church documents
+    firestore_client = firestore.Client()
+    church_ref = firestore_client.collection("churches")
     church_docs = church_ref.stream()
-
     for doc in church_docs:
         church_id = doc.id  # Get document ID
         church_data = doc.to_dict()  # Convert document to dictionary
         updated_data = False  # Track if updates are needed
+        filtered_deacons = []
+        filtered_servants = []
+        # Remove entire dictionary from "deacons" if it contains user_id
+        for deacon in church_data["deacons"]:
+            if deacon["uid"] == user_id:
+                pass
+            else:
+                filtered_deacons.append(deacon)
 
-        # Remove user from "deacons" if present
-        if "deacons" in church_data and user_id in church_data["deacons"]:
-            church_data["deacons"].remove(user_id)
+        # Remove entire dictionary from "servants" if it contains user_id
+        for servant in church_data["servants"]:
+            if servant["uid"] == user_id:
+                pass
+            else:
+                filtered_servants.append(servant)
+
+        # Update the church data with the filtered lists
+        if len(church_data["deacons"]) != len(filtered_deacons):
+            church_data["deacons"] = filtered_deacons
             updated_data = True
-
-        # Remove user from "servants" if present
-        if "servants" in church_data and user_id in church_data["servants"]:
-            church_data["servants"].remove(user_id)
+        elif len(church_data["servants"]) != len(filtered_servants):
+            church_data["servants"] = filtered_servants
             updated_data = True
 
         # Update Firestore only if changes were made
@@ -534,7 +558,88 @@ def remove_user_from_churches(user_id):
     print("User removed from all relevant churches.")
 
 
-# split this into multiple functions
+
+def filter_data(user_data):
+    filtered_data = {
+        "name": user_data.get("name"),
+        "uid": user_data.get("uid"),
+        "age": user_data.get("age"),
+        "church": user_data.get("church"),
+        "isDeacon": user_data.get("isDeacon"),
+        "experience": user_data.get("experience"),
+        "frequency": user_data.get("frequency"),
+        "rank": user_data.get("rank"),
+        "weeksSince": user_data.get("weeksSince"),
+        "isSSTeacher": user_data.get("isSSTeacher"),
+    }
+    return filtered_data
+
+
+
+def add_user_to_churches(user_data):
+    firestore_client = firestore.Client()
+
+    user_id = user_data["uid"]
+
+    print(user_data)
+    # Handle children if present
+    if "children" in user_data:
+        print(user_data["children"])
+        handle_children(user_data["children"])
+
+    # Ensure user_data is properly filtered
+    user_data = filter_data(user_data)
+
+    # Call helper function (assumed to be defined elsewhere)
+    reschedule_user(user_id)
+
+    # Retrieve the specific church document based on the user's church ID
+    church_id = user_data.get("church")
+    if not church_id:
+        return https_fn.Response("User has no associated church ID", status=400)
+
+    church_doc_ref = firestore_client.collection("churches").document(church_id)
+    church_doc = church_doc_ref.get()
+
+    if not church_doc.exists:
+        return https_fn.Response(f"Church document not found for church id: {church_id}", status=404)
+
+    church_data = church_doc.to_dict() or {}  # Ensure church_data is a dictionary
+
+    # Initialize lists if missing
+    church_data.setdefault("deacons", [])
+    church_data.setdefault("servants", [])
+
+    # Add user to deacons list if applicable
+    if user_data.get("isDeacon"):
+        if not any(deacon.get("uid") == user_data["uid"] for deacon in church_data["deacons"]):
+            new_deacon = {
+                "uid": user_data["uid"],
+                "name": user_data["name"],
+                "age": user_data["age"],
+                "experience": user_data["experience"],
+                "frequency": user_data["frequency"],
+                "rank": user_data["rank"],
+                "weeksSince": 4,
+            }
+            church_data["deacons"].append(new_deacon)
+
+    # Add user to servants list if applicable
+    if user_data.get("isSSTeacher"):
+        if not any(servant.get("uid") == user_data["uid"] for servant in church_data["servants"]):
+            new_servant = {
+                "uid": user_data["uid"],
+                "name": user_data["name"],
+            }
+            church_data["servants"].append(new_servant)
+
+    # Write the updated data back to Firestore
+    try:
+        church_doc_ref.set(church_data, merge=True)
+    except Exception as e:
+        return https_fn.Response(f"Error updating church data: {str(e)}", status=500)
+
+    return https_fn.Response("User successfully added to the church", status=200) 
 
 
 @https_fn.on_request()
@@ -561,10 +666,10 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
 
     set_up_arrays()
-    firestore_client: google.cloud.firestore.Client = firestore.client()
-    collection_ref = firestore_client.collection("churches")
-    church_docs = collection_ref.stream()
+    remove_user_from_churches(user_id)
+    firestore_client = firestore.Client()
 
+    # Retrieve the user document from Firestore
     try:
         doc_ref = firestore_client.collection("users").document(user_id)
         doc = doc_ref.get()
@@ -573,92 +678,9 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
         user_data = doc.to_dict()
     except Exception as e:
         return https_fn.Response(f"Error retrieving user data: {str(e)}", status=500)
-
-    firestore_client: google.cloud.firestore.Client = firestore.client()
-    church_ref = firestore_client.collection("churches")
-    church_docs = church_ref.stream()
-
-    for doc in church_docs:
-        church_data = doc.to_dict()  # Convert document to dictionary
-
-    # Prepare the filtered user data
-    filtered_user_data = {
-        "name": user_data.get("name"),
-        "uid": user_data.get("uid"),
-        "age": user_data.get("age"),
-        "church": user_data.get("church"),
-        "isDeacon": user_data.get("isDeacon"),
-        "experience": user_data.get("experience"),
-        "frequency": user_data.get("frequency"),
-        "rank": user_data.get("rank"),
-        "weeksSince": user_data.get("weeksSince"),
-        "isSSTeacher": user_data.get("isSSTeacher"),
-    }
-
-    if "children" in user_data:
-        handle_children(user_data["children"])
-
-    # Call helper functions (assumed to be defined elsewhere)
-    remove_user_from_churches(filtered_user_data["uid"])
-    reschedule_user(filtered_user_data["uid"])
-
-    # Retrieve the specific church document based on the user's church ID
-    church_id = filtered_user_data["church"]
-    church_doc_ref = firestore_client.collection("churches").document(church_id)
-    church_doc = church_doc_ref.get()
-    if church_doc.exists:
-        church_data = church_doc.to_dict()
-    else:
-        return https_fn.Response(
-            f"Church document not found for church id: {church_id}", status=404
-        )
-
-    # Update deacons list if the user is a deacon
-    if filtered_user_data["isDeacon"]:
-        deacons = church_data.get("deacons", [])
-        # Check if the user is already listed (assuming each deacon is a dict with a "uid" key)
-        if not any(
-            deacon.get("uid") == filtered_user_data["uid"] for deacon in deacons
-        ):
-            new_deacon = {
-                "uid": filtered_user_data["uid"],
-                "name": filtered_user_data["name"],
-                "age": filtered_user_data["age"],
-                "experience": filtered_user_data["experience"],
-                "frequency": filtered_user_data["frequency"],
-                "rank": filtered_user_data["rank"],
-                "weeksSince": 4,
-            }
-            deacons.append(new_deacon)
-            church_data["deacons"] = deacons
-
-    # Update servants list if the user is a servant
-    if filtered_user_data["isSSTeacher"]:
-        servants = church_data.get("servants", [])
-        if not any(
-            servant.get("uid") == filtered_user_data["uid"] for servant in servants
-        ):
-            new_servant = {
-                "uid": filtered_user_data["uid"],
-                "name": filtered_user_data["name"],
-            }
-            servants.append(new_servant)
-            church_data["servants"] = servants
-
-    # Write the updated church_data back to Firestore
-    try:
-        # Using merge=True so we only update the fields that have changed
-        church_doc_ref.set(church_data, merge=True)
-    except Exception as e:
-        return https_fn.Response(f"Error updating church data: {str(e)}", status=500)
-
-    return 
-
-
-def handle_children(children):
-    for child in children:
-        update_user(child["uid"])
-
+    add_user_to_churches(user_data)
+    return https_fn.Response("User update completed successfully", status=200) 
+    
 
 @scheduler_fn.on_schedule(
     schedule="0 9 * * 0",  # Every Sunday at 9:00 AM
@@ -689,8 +711,56 @@ def notify_new_servant(uid):
 def locate_for_servants(event: scheduler_fn.ScheduledEvent):
     pass
 
+def delete_children(children):
+    for child in children:
+        delete_user(child["uid"])
+    return
+def check_children(user_id):
+    firestore_client = firestore.Client()
+    user_doc_ref = firestore_client.collection('users').document(user_id)
+    user_doc = user_doc_ref.get()
 
+    # Check if the user document exists
+    if user_doc.exists:
+        user_data = user_doc.to_dict()
+        
+        # Check if the 'children' field exists and is not empty
+        if 'children' in user_data and user_data['children']:
+            delete_children(user_data["children"])  # The user has children
+        else:
+            return   # The user has no children
+    else:
+        return   # No such user document exists
 # Handles deleting a user and all their children
 @https_fn.on_request()
 def delete_user(req: https_fn.Request) -> https_fn.Response:
+    try:
+        request_data = req.get_json()
+        if request_data is None:
+            return https_fn.Response("Missing JSON body", status=400)
+    except Exception as e:
+        return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
+
+    # Extract the user_id from the payload
+    user_id = request_data.get("uid")
+    if not user_id:
+        return https_fn.Response("Missing 'uid' parameter", status=400)
+
+    # Optional: Verify Firebase Auth token if provided
+    id_token = req.headers.get("Authorization")
+    if id_token:
+        try:
+            decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
+            # You can now use decoded_token to get user details if needed
+        except Exception as e:
+            return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+    print("uid:", user_id)
+    check_children(user_id)
+    remove_user_from_churches(user_id)
+    return https_fn.Response("User delete completed successfully", status=200) 
+
+
+
+@https_fn.on_request
+def sync_child_params (req: https_fn.Request) -> https_fn.Response:
     pass

@@ -66,6 +66,8 @@ const ChangeEmail = () => {
         onChangeText={setEmail}
         keyboardType="email-address"
         autoCapitalize="none"
+        color="#8e8e93"
+
       />
       <TextInput
         style={styles.input}
@@ -74,6 +76,7 @@ const ChangeEmail = () => {
         value={password}
         onChangeText={setPassword}
         secureTextEntry
+        color="#8e8e93"
       />
       <Pressable style={styles.confirmButton} onPress={handleConfirm}>
         <Text style={styles.confirmText}>Confirm</Text>

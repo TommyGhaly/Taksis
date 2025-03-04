@@ -5,7 +5,7 @@ import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import { UserProvider, useUser } from "../UserContext";
-import { callFunction } from "./functionCalls";
+import { callFunction, callDeleteUser } from "./functionCalls";
 
 
 
@@ -77,7 +77,7 @@ const SettingsContent = () => {
             try {
               const user = auth().currentUser;
               if (user) {
-                await callFunction(user, "https://delete-user-hy6oofbihq-uc.a.run.app");
+                await callFunction(user, user.uid, "https://delete-user-hy6oofbihq-uc.a.run.app");
                 await firestore().collection("users").doc(user.uid).delete();
                 await setSignUp(false);
                 await user.delete();

@@ -27,6 +27,7 @@ const ChangeRoles = ({ navigation }) => {
         isServant: isServant,
       });
       await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
+      Alert.alert("Success", "Roles updated successfully.");
       
       // Navigate to the next screen based on the selected roles
       navigation.goBack();
