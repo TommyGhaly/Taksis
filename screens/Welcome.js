@@ -7,20 +7,12 @@ import {
   Dimensions,
   TouchableOpacity,
 } from "react-native";
-import { CommonActions } from "@react-navigation/native"; // Import correctly
 
 
 const { width, height } = Dimensions.get("window");
 
 const Welcome = ({ navigation }) => {
-  React.useEffect(() => {
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [{ name: "Welcome" }], // Resets stack to only have Welcome
-      })
-    );
-  }, [navigation]); // Dependency array prevents infinite loop
+
   return (
     <View style={styles.welcomescreen}>
       <Image
