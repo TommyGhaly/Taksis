@@ -23,6 +23,8 @@ const ChangeRank = ({ navigation }) => {
           rank: rank,
         });
         await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
+        Alert.alert("Success", "Deacon rank updated successfully.");
+        
         // Navigate to the next screen or show a success message
         navigation.goBack(); // Replace "NextScreen" with your target screen
       } else {

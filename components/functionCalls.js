@@ -21,7 +21,7 @@ export const callFunction = async (user, url) => {
     }
   };
   
-  export const callFunctionNavigate = async (user, url, screen) => {
+  export const callDeleteUser = async (user, uid, url) => {
     try {
       // Await the Firebase ID token
       const idToken = await user.getIdToken(); 
@@ -33,13 +33,13 @@ export const callFunction = async (user, url) => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`, // Use the actual token here
         },
-        body: JSON.stringify({ uid: user.uid }), // Send the correct uid parameter
+        body: JSON.stringify({ uid: uid }), // Send the correct uid parameter
       }).catch((error) => {
         console.error("Error calling function in the background:", error);
       });
   
       console.log("Function call fired, backend will process the request.");
-      return screen; // If screen navigation depends on this function call, ensure it's awaited where used.
+      return 
     } catch (error) {
       console.error("Error preparing function call:", error);
       return null; // Return null in case of failure

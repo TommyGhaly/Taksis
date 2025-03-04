@@ -58,10 +58,12 @@ const ChangeName = () => {
         placeholderTextColor="#8e8e93"
         value={name}
         onChangeText={setName}
+        color="#8e8e93"
       />
       <Pressable style={styles.confirmButton} onPress={handleConfirm}>
         <Text style={styles.confirmText}>Confirm</Text>
       </Pressable>
+      <Text style={styles.disclaimer}>Please enter your first and last name.</Text>
     </View>
   );
 };
@@ -86,6 +88,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "500",
     color: "#ffffff",
+  },
+  disclaimer: {
+    fontSize: 14,
+    color: "#ff6347",
+    marginTop: 10,
+    textAlign: "center",
   },
   input: {
     height: 50,

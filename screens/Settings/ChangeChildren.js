@@ -11,7 +11,7 @@ import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import BackArrow from "../../components/backArrow"; // Import your BackButton component
-import { callFunction } from "../../components/functionCalls";
+import { callDeleteUser } from "../../components/functionCalls";
 
 const ChangeChildren = () => {
   const navigation = useNavigation();
@@ -71,6 +71,8 @@ const ChangeChildren = () => {
                   );
 
                   if (childToRemove) {
+                    console.log("child being removed: ", childToRemove)
+                    await callDeleteUser(user, childToRemove.uid, "https://delete-user-hy6oofbihq-uc.a.run.app")
                     await firestore()
                       .collection("users")
                       .doc(user.uid)
