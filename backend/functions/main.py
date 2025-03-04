@@ -767,6 +767,6 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
 
 
 #call this function with the parameter of the uid update the children then call update user on the original user 
-@https_fn.on_request
+@https_fn.on_request()
 def sync_child_params (req: https_fn.Request) -> https_fn.Response:
     pass
