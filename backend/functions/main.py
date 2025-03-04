@@ -711,10 +711,14 @@ def notify_new_servant(uid):
 def locate_for_servants(event: scheduler_fn.ScheduledEvent):
     pass
 
+
 def delete_children(children):
     for child in children:
         delete_user(child["uid"])
     return
+
+
+
 def check_children(user_id):
     firestore_client = firestore.Client()
     user_doc_ref = firestore_client.collection('users').document(user_id)
@@ -731,7 +735,9 @@ def check_children(user_id):
             return   # The user has no children
     else:
         return   # No such user document exists
-# Handles deleting a user and all their children
+
+
+
 @https_fn.on_request()
 def delete_user(req: https_fn.Request) -> https_fn.Response:
     try:
