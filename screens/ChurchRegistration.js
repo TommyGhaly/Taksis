@@ -14,7 +14,7 @@ const ChurchRegistrationV = () => {
       <Text style={styles.title}>Register your church</Text>
       <Text style={styles.description}>
         If you would like to register your church, please send an email to 
-        stphilopaterstmina@gmail.com. Please verify the name of the church, 
+        spsmdevs@gmail.com. Please verify the name of the church, 
         the location, who the head admin should be, and any other needed 
         information.
       </Text>

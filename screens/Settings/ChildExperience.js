@@ -2,7 +2,6 @@ import * as React from "react";
 import { useState } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, Alert } from "react-native";
 import Slider from "@react-native-community/slider";
-import { useNavigation } from "@react-navigation/native";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
 
@@ -73,6 +72,7 @@ const styles = StyleSheet.create({
     top: 10,
     left: 16,
     position: "absolute",
+    zIndex: 10, // Ensures it stays on top
   },
   progressBar: {
     height: 12,
@@ -133,19 +133,20 @@ const styles = StyleSheet.create({
   },
   continueLayout: {
     position: "absolute",
-    bottom: 30, // Adjusted for better visual balance
-    width: "100%",
+    bottom: 20,
+    width: "91%",
+    left: 16,
     justifyContent: "center",
     alignItems: "center",
+    height: 50,
   },
   continueButton: {
-    width: "91%", // Match width of slider container
+    width: "100%",
     backgroundColor: "#333",
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    height: 50,
-    marginBottom: 20, // Added margin for spacing
+    height: "100%",
   },
   continuetext: {
     fontSize: 17,

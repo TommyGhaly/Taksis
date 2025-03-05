@@ -714,7 +714,8 @@ def locate_for_servants(event: scheduler_fn.ScheduledEvent):
 
 def delete_children(children):
     for child in children:
-        delete_user(child["uid"])
+        print("child uid", child["uid"])
+        remove_user_from_churches(child["uid"])
     return
 
 
@@ -730,6 +731,7 @@ def check_children(user_id):
         
         # Check if the 'children' field exists and is not empty
         if 'children' in user_data and user_data['children']:
+            print(user_data["children"])
             delete_children(user_data["children"])  # The user has children
         else:
             return   # The user has no children

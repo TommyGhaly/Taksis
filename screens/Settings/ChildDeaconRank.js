@@ -1,9 +1,7 @@
 import React, { useState } from "react";
-import { TouchableOpacity, StyleSheet, View, Text, SafeAreaView } from "react-native";
-import firestore from "@react-native-firebase/firestore";
+import { TouchableOpacity, StyleSheet, View, Text, SafeAreaView, Alert} from "react-native";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
-import auth from "@react-native-firebase/auth";
 import Rank from "../../components/rank"; // Import Rank component
 
 const ChildRank = ({ route, navigation }) => {
@@ -16,6 +14,10 @@ const ChildRank = ({ route, navigation }) => {
   };
 
   const handleContinue = async () => {
+    if (!selectedRank) {
+      Alert.alert("Please select a rank before continuing.");
+      return;
+    }
     // Update childData with selectedRank
     const updatedChildData = { ...childData, rank: selectedRank };
 

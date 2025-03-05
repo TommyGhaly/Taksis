@@ -77,7 +77,7 @@ const SettingsContent = () => {
             try {
               const user = auth().currentUser;
               if (user) {
-                await callFunction(user, user.uid, "https://delete-user-hy6oofbihq-uc.a.run.app");
+                await callDeleteUser(user, user.uid, "https://delete-user-hy6oofbihq-uc.a.run.app");
                 await firestore().collection("users").doc(user.uid).delete();
                 await setSignUp(false);
                 await user.delete();
