@@ -8,11 +8,9 @@ import {
   TouchableOpacity,
 } from "react-native";
 
-
 const { width, height } = Dimensions.get("window");
 
 const Welcome = ({ navigation }) => {
-
   return (
     <View style={styles.welcomescreen}>
       <Image

@@ -3,7 +3,6 @@ import { StyleSheet, View, Pressable, Text, Alert } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import Churches from "../components/churches";
-import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
 
 const SelectChurch = ({ navigation }) => {
@@ -31,9 +30,6 @@ const SelectChurch = ({ navigation }) => {
 
   return (
     <View style={styles.loadout}>
-      <View style={styles.backarrow}>
-        <BackArrow />
-      </View>
       <View style={styles.title}>
         <Text style={styles.titleText}>
           Select the church you regularly attend
@@ -65,18 +61,12 @@ const SelectChurch = ({ navigation }) => {
       <View style={styles.progressBar}>
         <ProgressBar startPercentage={1} endPercentage={20} />
       </View>
-      <View style={styles.backbutton}>
-        <BackArrow />
-      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  backarrow: {
-    top: 74,
-    left: 16,
-  },
+
   position: {
     top: "27.230%",
     height: 450,
@@ -105,7 +95,7 @@ const styles = StyleSheet.create({
   dontSeeYourContainer: {
     position: "absolute",
     left: 0,
-    marginTop: 830,
+    marginTop: 805,
   },
   dontSeeYourChurchRegiste: {
     width: "100%",
@@ -147,10 +137,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(120, 120, 128, 0.32)",
     width: "100%",
     height: 4,
-  },
-  backbutton: {
-    top: "8.68545%",
-    left: "4.071%",
   },
   continueLayout: {
     position: "absolute",

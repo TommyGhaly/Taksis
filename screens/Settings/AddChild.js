@@ -57,6 +57,10 @@ const AddChild = ({ navigation }) => {
   }, []);
 
   const handleContinue = () => {
+    if (!name) {
+      Alert.alert("Please input a name before continuing.");
+      return;
+    }
     const updatedChildData = { ...childData, name };
     navigation.navigate("ChildDeaconRank", { childData: updatedChildData });
   };
