@@ -92,7 +92,7 @@ const AddChild = ({ navigation }) => {
       </TouchableOpacity>
       {/* Disclaimer Text */}
       <Text style={styles.disclaimerText}>
-        Please only add a child if they are a deacon.
+        Please only add a child if they are a deacon and not already registered.
       </Text>
     </View>
   );
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   disclaimerText: {
     fontSize: 14,
     fontFamily: "Roboto-Regular",
-    color: "#ff6347", // Choose a color that stands out
+    color: "#8e8e93", // Choose a color that stands out
     textAlign: "center",
     marginBottom: 10,
     marginTop: 10,
