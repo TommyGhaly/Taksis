@@ -12,7 +12,7 @@ const ChildAge = ({ route, navigation }) => {
   const user = auth().currentUser; // Directly access currentUser
   const userId = user ? user.uid : null; // Access uid directly
   const { childData } = route.params; // Get child data from the previous screen
-  const [selectedAge, setSelectedAge] = useState(childData.age || "");
+  const [selectedAge, setSelectedAge] = useState(childData.age || "1");
 
   const handleContinue = async () => {
     if (!userId) {

@@ -22,24 +22,37 @@ const ChangeChurch = ({ navigation }) => {
   };
 
   const handleContinue = async () => {
+    // Ensure user and selectedChurch are defined
+    if (!user) {
+      Alert.alert("Error", "User information is not available.");
+      return;
+    }
+    if (!selectedChurch) {
+      Alert.alert("Selection Required", "Please select a church before proceeding.");
+      return;
+    }
+  
     try {
+      // Update the user's church information in Firestore
       await firestore().collection("users").doc(user.uid).update({
         church: selectedChurch,
       });
-      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
-      await callFunction(user, "https://sync-child-params-hy6oofbihq-uc.a.run.app")
-      
-      // Navigate to the next screen or show a success message
+  
+      // Call external functions
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
+      await callFunction(user, "https://sync-child-params-hy6oofbihq-uc.a.run.app");
+  
+      // Display success message
       Alert.alert("Success", "Church has been updated.");
+  
+      // Navigate back to the previous screen
       navigation.goBack();
     } catch (error) {
       console.error("Error updating user church: ", error);
-      Alert.alert(
-        "Error",
-        "Could not update church information. Please try again."
-      );
+      Alert.alert("Error", "Could not update church information. Please try again.");
     }
   };
+  
 
   return (
     <View style={styles.container}>

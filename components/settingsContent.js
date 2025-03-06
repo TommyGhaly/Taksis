@@ -56,6 +56,33 @@ const SettingsContent = () => {
     // Revoke the token
     return auth().revokeToken(authorizationCode);
   };
+
+
+
+  const handleDelete = async () => {
+    const user = auth().currentUser;
+    if (!user) {
+      console.log('No authenticated user found.');
+      return;
+    }
+  
+    if (userRoles && userRoles.children) {
+      for (const child of userRoles.children) {
+        try {
+          await callDeleteUser(user, child.uid, "https://delete-user-hy6oofbihq-uc.a.run.app");
+          console.log(`Successfully deleted child user with UID: ${child.uid}`);
+        } catch (error) {
+          console.error(`Failed to delete child user with UID: ${child.uid}`, error);
+        }
+      }
+    } else {
+      console.log('No child users found.');
+    }
+    await callDeleteUser(user, user.uid, "https://delete-user-hy6oofbihq-uc.a.run.app");
+  };
+  
+
+
   const handleSignOut = () => {
     setSignUp(false)
     console.log("sign Up :", signUp)
@@ -77,9 +104,9 @@ const SettingsContent = () => {
             try {
               const user = auth().currentUser;
               if (user) {
-                await callDeleteUser(user, user.uid, "https://delete-user-hy6oofbihq-uc.a.run.app");
-                await firestore().collection("users").doc(user.uid).delete();
+                await handleDelete();
                 await setSignUp(false);
+                await firestore().collection("users").doc(user.uid).delete();
                 await user.delete();
                 await revokeSignInWithAppleToken;
                 Alert.alert("Success", "Your account has been deleted.");
