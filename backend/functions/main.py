@@ -730,7 +730,7 @@ def check_children(user_id):
         user_data = user_doc.to_dict()
         
         # Check if the 'children' field exists and is not empty
-        if 'children' in user_data and user_data['children']:
+        if 'children' in user_data and len(user_data['children']) > 0:
             print(user_data["children"])
             delete_children(user_data["children"])  # The user has children
         else:
@@ -771,4 +771,48 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
 #call this function with the parameter of the uid update the children then call update user on the original user 
 @https_fn.on_request()
 def sync_child_params (req: https_fn.Request) -> https_fn.Response:
-    pass
+    try:
+        request_data = req.get_json()
+        if request_data is None:
+            return https_fn.Response("Missing JSON body", status=400)
+    except Exception as e:
+        return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
+
+    # Extract the user_id from the payload
+    user_id = request_data.get("uid")
+    if not user_id:
+        return https_fn.Response("Missing 'uid' parameter", status=400)
+
+    # Optional: Verify Firebase Auth token if provided
+    id_token = req.headers.get("Authorization")
+    if id_token:
+        try:
+            decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
+            # You can now use decoded_token to get user details if needed
+        except Exception as e:
+            return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+        
+
+    firestore_client = firestore.Client()
+    user_doc_ref = firestore_client.collection('users').document(user_id)
+    user_doc = user_doc_ref.get()
+    updated_children = []
+
+
+    if user_doc.exists:
+        user_data = user_doc.to_dict()
+    
+    if "children" in user_data and len(user_data["children"]) > 0:
+        print("children", user_data["children"])
+        for child in user_data["children"]:
+            child["church"] = user_data["church"]
+            child["frequency"] = user_data["frequency"]
+            print("child uid", child["uid"])
+            update_user(child["uid"])
+            updated_children.append(child)
+        user_data["children"] = updated_children
+
+    user_doc_ref.update(user_data)
+
+
+    return https_fn.Response("Children frequency and church synced properly", status=200)

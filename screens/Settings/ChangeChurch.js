@@ -5,8 +5,6 @@ import {
   Text,
   Pressable,
   Alert,
-  TextInput,
-  Image,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
@@ -29,8 +27,10 @@ const ChangeChurch = ({ navigation }) => {
         church: selectedChurch,
       });
       await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
+      await callFunction(user, "https://sync-child-params-hy6oofbihq-uc.a.run.app")
       
       // Navigate to the next screen or show a success message
+      Alert.alert("Success", "Church has been updated.");
       navigation.goBack();
     } catch (error) {
       console.error("Error updating user church: ", error);
