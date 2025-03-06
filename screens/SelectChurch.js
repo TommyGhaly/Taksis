@@ -11,22 +11,33 @@ const SelectChurch = ({ navigation }) => {
   const handleChurchSelection = (church) => {
     setSelectedChurch(church);
   };
+  
   const handleContinue = async (user) => {
+    // Check if selectedChurch is null
+    if (!selectedChurch) {
+      Alert.alert("Selection Required", "Please select a church before proceeding.");
+      return; // Exit the function if no church is selected
+    }
+  
     try {
+      // Proceed with updating the user's church information
       await firestore().collection("users").doc(user.uid).update({
         church: selectedChurch,
       });
-
-      // Navigate to the next screen or show a success message
+  
+      // Navigate to the next screen
       navigation.navigate("SelectApplicable");
     } catch (error) {
       console.error("Error updating user church: ", error);
       Alert.alert(
         "Error",
-        "Could not update church information. Please try again."
+        "Could not update church information. Please try again.",
+        [{ text: "OK" }],
+        { cancelable: false }
       );
     }
   };
+  
 
   return (
     <View style={styles.loadout}>

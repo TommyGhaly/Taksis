@@ -511,7 +511,7 @@ def set_up_arrays():
 def handle_children(children):
     for child in children:
         print(child)
-        remove_user_from_churches(child["uid"])
+        remove_user_from_churches(child.get("uid"))
         add_user_to_churches(child)
     return 
 
@@ -712,34 +712,6 @@ def locate_for_servants(event: scheduler_fn.ScheduledEvent):
     pass
 
 
-def delete_children(children):
-    for child in children:
-        print("child uid", child["uid"])
-        remove_user_from_churches(child["uid"])
-    return
-
-
-
-def check_children(user_id):
-    firestore_client = firestore.Client()
-    user_doc_ref = firestore_client.collection('users').document(user_id)
-    user_doc = user_doc_ref.get()
-
-    # Check if the user document exists
-    if user_doc.exists:
-        user_data = user_doc.to_dict()
-        
-        # Check if the 'children' field exists and is not empty
-        if 'children' in user_data and len(user_data['children']) > 0:
-            print(user_data["children"])
-            delete_children(user_data["children"])  # The user has children
-        else:
-            return   # The user has no children
-    else:
-        return   # No such user document exists
-
-
-
 @https_fn.on_request()
 def delete_user(req: https_fn.Request) -> https_fn.Response:
     try:
@@ -763,7 +735,6 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
     print("uid:", user_id)
-    check_children(user_id)
     remove_user_from_churches(user_id)
     return https_fn.Response("User delete completed successfully", status=200) 
 
@@ -807,8 +778,9 @@ def sync_child_params (req: https_fn.Request) -> https_fn.Response:
         for child in user_data["children"]:
             child["church"] = user_data["church"]
             child["frequency"] = user_data["frequency"]
+            print("child", child)
             print("child uid", child["uid"])
-            update_user(child["uid"])
+            update_user(child.get('uid'))
             updated_children.append(child)
         user_data["children"] = updated_children
 

@@ -4,7 +4,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import auth from "@react-native-firebase/auth";
 import { UserProvider, useUser } from "./UserContext";
-import 'react-native-gesture-handler';
+import "react-native-gesture-handler";
 
 import Welcome from "./screens/Welcome";
 import SignIn from "./screens/SignIn";
@@ -42,7 +42,7 @@ function AppNavigator() {
   return (
     <NavigationContainer style={styles.container}>
       <Stack.Navigator
-        initialRouteName={!user ? "Welcome" : "MainContainer"}
+        initialRouteName={(!user ? "Welcome" : (!signUp ? "SignUp" : "MainContainer"))}
         screenOptions={{ headerShown: false, animation: "none" }}
       >
         {!user ? (
@@ -87,7 +87,9 @@ function AppNavigator() {
               options={{ animation: "default" }}
             />
           </>
-        ) : !signUp ? (
+        ) : signUp ? (
+          <Stack.Screen name="MainContainer" component={MainContainer} />
+        ) : (
           <>
             <Stack.Screen name="SelectChurch" component={SelectChurch} />
             <Stack.Screen
@@ -103,8 +105,6 @@ function AppNavigator() {
             <Stack.Screen name="Frequency" component={Frequency} />
             <Stack.Screen name="MainContainer" component={MainContainer} />
           </>
-        ) : (
-          <Stack.Screen name="MainContainer" component={MainContainer} />
         )}
       </Stack.Navigator>
     </NavigationContainer>
