@@ -45,4 +45,26 @@ export const callFunction = async (user, url) => {
       return null; // Return null in case of failure
     }
   };
+  export const testFunction = async (user, url) => {
+    try {
+      // Ensure the user is logged in and get the Firebase ID token
+      const idToken = await user.getIdToken(); // Use the user object to get the token
+  
+      // Fire the request without awaiting the response (runs in the background)
+      fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`, // Send the token in the Authorization header
+        },
+        body: JSON.stringify({}), // Send an empty body if no parameters are needed
+      }).catch((error) => {
+        console.error("Error calling function in the background:", error);
+      });
+  
+      console.log("Function call fired, backend will process the request.");
+    } catch (error) {
+      console.error("Error preparing function call:", error);
+    }
+  };
   

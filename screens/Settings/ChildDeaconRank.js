@@ -31,7 +31,7 @@ const ChildRank = ({ route, navigation }) => {
         <BackArrow onPress={() => navigation.goBack()} />
       </View>
       <View style={styles.progressBar}>
-        <ProgressBar startPercentage={25} endPercentage={50} />
+        <ProgressBar startPercentage={1} endPercentage={33} />
       </View>
 
       {/* Title Section */}

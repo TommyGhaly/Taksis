@@ -71,7 +71,7 @@ const AddChild = ({ navigation }) => {
         <BackArrow />
       </View>
       <View style={styles.progressBar}>
-        <ProgressBar startPercentage={0} endPercentage={25} />
+        <ProgressBar startPercentage={0} endPercentage={1} />
       </View>
       <View style={styles.titleContainer}>
         <Text style={styles.titleText}>Add Child</Text>

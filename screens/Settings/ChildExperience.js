@@ -20,7 +20,7 @@ const ChildExperience = ({ navigation, route }) => {
         <BackArrow onPress={() => navigation.goBack()} />
       </View>
       <View style={styles.progressBar}>
-        <ProgressBar startPercentage={50} endPercentage={75} />
+        <ProgressBar startPercentage={33} endPercentage={67} />
       </View>
 
       {/* Title Section */}
@@ -43,19 +43,17 @@ const ChildExperience = ({ navigation, route }) => {
           minimumValue={0}
           maximumValue={10}
           minimumTrackTintColor="#147efb"
-          thumbTintColor="white" // Change knob color to white
+          maximumTrackTintColor="#444"
+          thumbTintColor="#147efb"
         />
         <View style={styles.sliderLabels}>
-          <Text style={styles.notOften}>Not often</Text>
-          <Text style={styles.veryVeryOften}>Very often</Text>
+          <Text style={styles.notOften}>Not experienced</Text>
+          <Text style={styles.veryVeryOften}>Very experienced</Text>
         </View>
       </View>
       {/* Continue Button */}
       <View style={styles.continueLayout}>
-        <TouchableOpacity
-          onPress={handleContinue}
-          style={styles.continueButton}
-        >
+        <TouchableOpacity onPress={handleContinue} style={styles.continueButton}>
           <Text style={styles.continuetext}>Continue</Text>
         </TouchableOpacity>
       </View>
@@ -119,12 +117,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   notOften: {
-    color: "#8e8e93",
+    color: "#ccc",
     fontSize: 14,
+    fontFamily: "Roboto-Regular",
   },
   veryVeryOften: {
-    color: "#8e8e93",
+    color: "#ccc",
     fontSize: 14,
+    fontFamily: "Roboto-Regular",
   },
   slider: {
     height: 40,

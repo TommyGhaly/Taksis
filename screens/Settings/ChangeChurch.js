@@ -39,13 +39,13 @@ const ChangeChurch = ({ navigation }) => {
       });
   
       // Call external functions
-      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
       await callFunction(user, "https://sync-child-params-hy6oofbihq-uc.a.run.app");
-  
+
       // Display success message
       Alert.alert("Success", "Church has been updated.");
   
       // Navigate back to the previous screen
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
       navigation.goBack();
     } catch (error) {
       console.error("Error updating user church: ", error);
