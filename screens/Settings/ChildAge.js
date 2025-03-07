@@ -53,7 +53,7 @@ const ChildAge = ({ route, navigation }) => {
           // If the child doesn't exist, add the updated child data as a new entry
           userData.children.push(updatedChildData);
         }
-  
+        console.log(updatedChildData)
         // Update the user's document with the new children array
         await userDocRef.update({ children: userData.children });
         await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
@@ -80,7 +80,7 @@ const ChildAge = ({ route, navigation }) => {
         <BackArrow onPress={() => navigation.goBack()} />
       </View>
       <View style={styles.progressBar}>
-        <ProgressBar startPercentage={75} endPercentage={100} />
+        <ProgressBar startPercentage={67} endPercentage={100} />
       </View>
       <Text style={styles.title}>What is your child's age?</Text>
       <View style={styles.pickerContainer}>

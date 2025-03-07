@@ -1,4 +1,4 @@
-import * as React from "react";
+import React, { useState } from "react";
 import {
   Text,
   StyleSheet,
@@ -7,18 +7,15 @@ import {
   Alert,
   ScrollView,
 } from "react-native";
-import { useState } from "react";
 import BackArrow from "../../components/backArrow";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
-import CustomPicker from "../../components/customPicker";
+import { Picker } from "@react-native-picker/picker";
 import { callFunction } from "../../components/functionCalls";
-
 
 const ChangeAge = () => {
   const [age, setAge] = useState("18");
-  const [pickerVisible, setPickerVisible] = useState(false);
   const navigation = useNavigation();
   const user = auth().currentUser;
 
@@ -41,8 +38,8 @@ const ChangeAge = () => {
       return;
     }
     try {
-      await updateAgeInDB(age); // Function to update the age in the DB
-      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
+      await updateAgeInDB(age);
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
       Alert.alert("Success", "Age updated successfully.");
       navigation.goBack();
     } catch (error) {
@@ -50,30 +47,27 @@ const ChangeAge = () => {
     }
   };
 
-  const ageOptions = Array.from({ length: 100 }, (_, i) => (i + 1).toString());
-
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <View style={styles.container}>
       <BackArrow style={styles.backarrow} />
       <View style={styles.headerContainer}>
         <Text style={styles.headerText}>Change Age</Text>
       </View>
-      <Pressable
-        style={styles.pickerContainer}
-        onPress={() => setPickerVisible(true)}
-      >
-        <Text style={styles.pickerText}>{age}</Text>
-      </Pressable>
-      <CustomPicker
-        visible={pickerVisible}
-        onClose={() => setPickerVisible(false)}
-        onSelect={(item) => setAge(item)}
-        data={ageOptions}
-      />
+      <View style={styles.pickerContainer}>
+        <Picker
+          selectedValue={age}
+          onValueChange={(itemValue) => setAge(itemValue)}
+          style={styles.picker}
+        >
+          {Array.from({ length: 100 }, (_, i) => (
+            <Picker.Item key={i} label={`${i + 1}`} value={`${i + 1}`} color="#fff" />
+          ))}
+        </Picker>
+      </View>
       <Pressable style={styles.confirmButton} onPress={handleConfirm}>
         <Text style={styles.confirmText}>Confirm</Text>
       </Pressable>
-    </ScrollView>
+    </View>
   );
 };
 
@@ -90,7 +84,7 @@ const styles = StyleSheet.create({
     left: 20,
   },
   headerContainer: {
-    marginBottom: 30,
+    marginBottom: 10,
     alignItems: "center",
   },
   headerText: {
@@ -99,14 +93,14 @@ const styles = StyleSheet.create({
     color: "#ffffff",
   },
   pickerContainer: {
-    marginBottom: 20,
-    backgroundColor: "#1e1e1e",
+    width: "91%",
+    alignSelf: "center",
+    backgroundColor: "#333",
     borderRadius: 10,
-    padding: 15,
-    alignItems: "center",
+    paddingHorizontal: 10,
   },
-  pickerText: {
-    fontSize: 24,
+  picker: {
+    height: 0, // Match the previous picker style
     color: "#fff",
   },
   confirmButton: {
@@ -114,6 +108,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 15,
     alignItems: "center",
+    marginTop: 300,
   },
   confirmText: {
     fontSize: 17,

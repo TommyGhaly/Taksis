@@ -6,14 +6,17 @@ import { Picker } from "@react-native-picker/picker";
 const FrequencyQuestions = ({ onAgeChange, onFrequencyChange }) => {
   const [slider, setSlider] = useState(5);
   const [selectedAge, setSelectedAge] = useState(null);
+  
   const handleAge = (age) => {
     setSelectedAge(age);
     onAgeChange(age);
   };
+  
   const handleFrequency = (frequency) => {
     setSlider(frequency);
     onFrequencyChange(frequency);
   };
+  
   return (
     <View style={styles.experiencequestions}>
       <View style={styles.wrapper}>
@@ -28,12 +31,10 @@ const FrequencyQuestions = ({ onAgeChange, onFrequencyChange }) => {
         </Picker>
       </View>
       <Text style={styles.yearsOld}>years old</Text>
-      <Text style={[styles.notExperienced, styles.experiencedTypo]}>
-        Not experienced
-      </Text>
-      <Text style={[styles.veryExperienced, styles.experiencedTypo]}>
-        Very experienced
-      </Text>
+      <View style={styles.sliderLabels}>
+        <Text style={styles.label}>Not experienced</Text>
+        <Text style={styles.label}>Very experienced</Text>
+      </View>
       <Text style={[styles.sliderText, styles.sliderTextPosition]}>
         {slider.toString().slice(0, 3)}
       </Text>
@@ -44,6 +45,8 @@ const FrequencyQuestions = ({ onAgeChange, onFrequencyChange }) => {
         minimumValue={0}
         maximumValue={10}
         minimumTrackTintColor="#147efb"
+        maximumTrackTintColor="#444"
+        thumbTintColor="#147efb"
       />
     </View>
   );
@@ -59,15 +62,6 @@ const styles = StyleSheet.create({
   howLayout: {
     width: "94.46%",
     height: "12.15%",
-    position: "absolute",
-  },
-  experiencedTypo: {
-    fontSize: 12,
-    top: "87.85%",
-    textAlign: "left",
-    color: "#8e8e93",
-    fontFamily: "Roboto-Regular",
-    letterSpacing: -0.1,
     position: "absolute",
   },
   knobLayout: {
@@ -102,11 +96,18 @@ const styles = StyleSheet.create({
     letterSpacing: -0.1,
     position: "absolute",
   },
-  notExperienced: {
-    left: "0.83%",
+  sliderLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "95%",
+    position: "absolute",
+    top: "105%", // Adjust as needed
+    left: "2.5%",
   },
-  veryExperienced: {
-    left: "75.07%",
+  label: {
+    fontSize: 14,
+    color: "#8e8e93",
+    fontFamily: "Roboto-Regular",
   },
   unfilled: {
     right: 0,
@@ -140,12 +141,12 @@ const styles = StyleSheet.create({
     alignContent: "center",
   },
   sliderTextPosition: {
-    top: "74%",
+    top: "77%",
   },
   pickertext: {
     color: "#8e8e93",
     fontSize: 20,
-    lineHeight: 21
+    lineHeight: 21,
   },  
   experiencequestions: {
     width: "100%",

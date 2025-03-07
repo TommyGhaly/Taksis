@@ -5,7 +5,7 @@ import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import { UserProvider, useUser } from "../UserContext";
-import { callFunction, callDeleteUser } from "./functionCalls";
+import { callFunction } from "./functionCalls";
 
 
 
@@ -16,7 +16,7 @@ const SettingsContent = () => {
   const [userRoles, setUserRoles] = useState({
     name: "",
   });
-  
+
   useEffect(() => {
     const user = auth().currentUser;
 
@@ -57,15 +57,13 @@ const SettingsContent = () => {
     return auth().revokeToken(authorizationCode);
   };
 
-
-
   const handleDelete = async () => {
     const user = auth().currentUser;
     if (!user) {
       console.log('No authenticated user found.');
       return;
     }
-  
+
     if (userRoles && userRoles.children) {
       for (const child of userRoles.children) {
         try {
@@ -80,12 +78,10 @@ const SettingsContent = () => {
     }
     await callDeleteUser(user, user.uid, "https://delete-user-hy6oofbihq-uc.a.run.app");
   };
-  
-
 
   const handleSignOut = () => {
-    setSignUp(false)
-    console.log("sign Up :", signUp)
+    setSignUp(false);
+    console.log("sign Up :", signUp);
     auth().signOut();
   };
   const handleDeleteAccount = () => {
@@ -104,7 +100,7 @@ const SettingsContent = () => {
             try {
               const user = auth().currentUser;
               if (user) {
-                await handleDelete();
+                await callFunction(user, "https://delete-user-hy6oofbihq-uc.a.run.app");
                 await setSignUp(false);
                 await firestore().collection("users").doc(user.uid).delete();
                 await user.delete();

@@ -87,6 +87,8 @@ const SignUp = ({ navigation }) => {
           name: fullName || "", // Store name if available
           email: user.email,
           admin: false,
+          rank: "Chanter (Epsaltos)",
+          experience: "1"
         });
       }
     } catch (error) {
