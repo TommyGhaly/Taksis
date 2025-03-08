@@ -45,8 +45,12 @@ const ChangeChurch = ({ navigation }) => {
       Alert.alert("Success", "Church has been updated.");
   
       // Navigate back to the previous screen
-      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
       navigation.goBack();
+
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      //call twice to ensure nothing gets left behind by accident 
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
     } catch (error) {
       console.error("Error updating user church: ", error);
       Alert.alert("Error", "Could not update church information. Please try again.");
