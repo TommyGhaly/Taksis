@@ -285,7 +285,10 @@ def sort_deacons(deacons: List[Dict]) -> List[Dict]:
 # updates the user information to add one week to the people who had not served and restart the week count for the people who did serve
 def update_weeks(schedule, deacons):
     # Create a set of uids for deacons who served
-    served_uids = {deacon["uid"] for deacon in schedule}
+    served_uids = []
+    for deacon in schedule:
+        if "uid" in deacon:
+            served_uids.append(deacon["uid"])
 
     for deacon in deacons:
         if deacon["uid"] in served_uids:
@@ -298,23 +301,19 @@ def update_weeks(schedule, deacons):
 
 # ensures the person added to the schedule isn't on there multiple times
 def add_person(schedule_list, deacon_list):
-    uids = []
-    for deacon in schedule_list:
-        uids.append(deacon["uid"])
+    uids = [deacon["uid"] for deacon in deacon_list]  # Collect UIDs
 
     added = False
 
     while not added:
-        if len(deacon_list) == 0:
+        if not deacon_list:  # Check if deacon_list is empty
             schedule_list.append("N/A")
             added = True
+            break  # Exit the loop
 
         if deacon_list[0]["uid"] in uids:
-
-            deacon_list = deacon_list[1:]
-
+            deacon_list = deacon_list[1:]  # Remove the first element
         else:
-
             schedule_list.append(deacon_list[0])
             added = True
 
@@ -350,7 +349,7 @@ def create_schedule(deacons):
         water_list,
         wine_list,
     ]
-
+    print(all_lists)
     # adds one person that is not already in the schedule for each roll
     for list in all_lists:
         schedule = add_person(schedule, list)
@@ -359,18 +358,76 @@ def create_schedule(deacons):
     for i in range(9):
         schedule = add_person(schedule, altar_list)
 
+    print(schedule)
+
     schedule_dict = {
-        "matins": schedule[0],
-        "third": schedule[1],
-        "sixth": schedule[2],
-        "pauline": schedule[3],
-        "catholic": schedule[4],
-        "praxis": schedule[5],
-        "gospel": schedule[6],
-        "water": schedule[7],
-        "wine": schedule[8],
-        "altar": schedule[7:14],
-        "extra": schedule[14:],
+        "matins": (
+            {"name": schedule[0]["name"], "uid": schedule[0]["uid"]}
+            if schedule[0] != "N/A"
+            else {"name" : "N/A", "uid" : "N/A"}
+        ),
+        "third": (
+            {"name": schedule[1]["name"], "uid": schedule[1]["uid"]}
+            if schedule[1] != "N/A"
+            else {"name" : "N/A", "uid" : "N/A"}
+        ),
+        "sixth": (
+            {"name": schedule[2]["name"], "uid": schedule[2]["uid"]}
+            if schedule[2] != "N/A"
+            else {"name" : "N/A", "uid" : "N/A"}
+        ),
+        "pauline": (
+            {"name": schedule[3]["name"], "uid": schedule[3]["uid"]}
+            if schedule[3] != "N/A"
+            else {"name" : "N/A", "uid" : "N/A"}
+        ),
+        "catholic": (
+            {"name": schedule[4]["name"], "uid": schedule[4]["uid"]}
+            if schedule[4] != "N/A"
+            else {"name" : "N/A", "uid" : "N/A"}
+        ),
+        "praxis": (
+            {"name": schedule[5]["name"], "uid": schedule[5]["uid"]}
+            if schedule[5] != "N/A"
+            else {"name" : "N/A", "uid" : "N/A"}
+        ),
+        "gospel": (
+            {"name": schedule[6]["name"], "uid": schedule[6]["uid"]}
+            if schedule[6] != "N/A"
+            else {"name" : "N/A", "uid" : "N/A"}
+        ),
+        "water": (
+            {"name": schedule[7]["name"], "uid": schedule[7]["uid"]}
+            if schedule[7] != "N/A"
+            else {"name" : "N/A", "uid" : "N/A"}
+        ),
+        "wine": (
+            {"name": schedule[8]["name"], "uid": schedule[8]["uid"]}
+            if schedule[8] != "N/A"
+            else {"name" : "N/A", "uid" : "N/A"}
+        ),
+        "altar": (
+            [{"name": item["name"], "uid": item["uid"]} for item in schedule[7:14] if item != "N/A"]
+            if len(schedule) > 7
+            else [
+                    {"name" : "N/A", "uid" : "N/A"},
+                    {"name" : "N/A", "uid" : "N/A"},
+                    {"name" : "N/A", "uid" : "N/A"},
+                    {"name" : "N/A", "uid" : "N/A"},
+                    {"name" : "N/A", "uid" : "N/A"},
+                    {"name" : "N/A", "uid" : "N/A"},
+            ]
+        ),
+        "extra": (
+            [{"name": item["name"], "uid": item["uid"]} for item in schedule[14:] if item != "N/A"]
+            if len(schedule) > 14
+            else [
+                    {"name" : "N/A", "uid" : "N/A"},
+                    {"name" : "N/A", "uid" : "N/A"},
+                    {"name" : "N/A", "uid" : "N/A"},
+
+            ]
+        ),
     }
 
     update_weeks(schedule, deacons)
@@ -379,14 +436,18 @@ def create_schedule(deacons):
 
 
 def get_deacons(church):
-    firestore_client = firestore.client()
+    firestore_client = firestore.Client()
     collection_ref = firestore_client.collection("churches")
     doc_ref = collection_ref.document(church)
-    doc_data = doc_ref
-    if "deacon" in doc_data:
-        return doc_data["deacons"]
+    doc_snapshot = doc_ref.get()  # Use .get() instead of .stream()
+
+    if doc_snapshot.exists:  # Check if document exists
+        doc_data = doc_snapshot.to_dict()  # Convert to dictionary
+        return doc_data.get(
+            "deacons", "No deacon array"
+        )  # Use .get() to avoid KeyError
     else:
-        return f"no deacon array"
+        return "Document does not exist"
 
 
 # @scheduler_fn.on_schedule(
@@ -397,13 +458,13 @@ def get_deacons(church):
 # uncomment on_request and comment on_schedule to test locally
 @https_fn.on_request()
 def my_scheduled_function(req: https_fn.Request) -> https_fn.Response:
-    firestore_client = firestore.client()
+    firestore_client = firestore.Client()
     collection_ref = firestore_client.collection("churches")
     docs = collection_ref.stream()
 
     for doc in docs:
 
-        schedule_ref = doc.collection("schedule")
+        schedule_ref = doc.reference.collection("schedule")
         schedules = list(schedule_ref.stream())
 
         if not schedules:
@@ -413,9 +474,7 @@ def my_scheduled_function(req: https_fn.Request) -> https_fn.Response:
                 schedule = create_schedule(get_deacons(doc.id))
                 doc_date = start_date + datetime.timedelta(weeks=i)
                 doc_date_str = doc_date.strftime("%m-%d-%y")
-                doc_name = f"{doc.id}-{doc_date_str}"
-
-                schedule_doc = schedule_ref.document(doc_name)
+                schedule_doc = schedule_ref.document(doc_date_str)
                 schedule_doc.set(schedule)
         else:
             schedule = create_schedule(get_deacons(doc.id))
@@ -426,49 +485,11 @@ def my_scheduled_function(req: https_fn.Request) -> https_fn.Response:
             delete_doc_ref.delete()
             doc_date = start_date + datetime.timedelta(weeks=5)
             doc_date_str = doc_date.strftime("%m-%d-%y")
-            doc_name = f"{doc.id}-{doc_date_str}"
-            schedule_doc = schedule_ref.document(doc_name)
+            schedule_doc = schedule_ref.document(doc_date_str)
             schedule_doc.set(schedule)
 
     return https_fn.Response(f"Successfully wrote documents to 'schedules' collection.")
 
-
-"""        if "schedule" in doc_data:
-            doc_data["schedule"] = doc_data["schedule"][1:]
-            while len(doc_data["schedule"]) > 5:
-                create_schedule(deacons, 2)
-        else:
-            schedule_list = []
-            for _ in range(5):
-                schedule_list.append(create_schedule(deacons, 2))
-            doc_data["schedule"] = schedule_list
-
-    if schedule_list:
-        start_date = datetime.datetime.now()
-
-        response = []
-        for i, s in enumerate(schedule_list):
-            # Calculate the date for the current document
-            doc_date = start_date + datetime.timedelta(weeks=i)
-            # Convert the date to a string format
-            doc_date_str = doc_date.strftime("%m-%d-%y")
-            doc_name = f"{doc.id}-{doc_date_str}"
-            # Push the document data into the "schedules" collection with the date as the document name
-            new_doc_ref = (
-                firestore_client.collection("schedules").document(doc_name).set(s)
-            )
-            response.append(new_doc_ref)
-
-        # Send back a message that we've successfully written the message
-        return https_fn.Response(
-            f"Successfully wrote {len(schedule_list)} documents to 'schedules' collection."
-        )
-    else:
-        # If the document does not exist, return an error message
-        return https_fn.Response(
-            f"Document not found in 'churches' collection.", status=404
-        )
-    # [END adminSdkPush]"""
 
 
 def generate_test_data(num_people):
@@ -516,7 +537,6 @@ def handle_children(children):
         remove_user_from_churches(child.get("uid"))
         add_user_to_churches(child)
     return
-
 
 
 def remove_user_from_churches(user_id):
@@ -616,9 +636,9 @@ def add_user_to_churches(user_data):
             new_deacon = {
                 "uid": user_data["uid"],
                 "name": user_data["name"],
-                "age": user_data["age"],
-                "experience": user_data["experience"],
-                "frequency": user_data["frequency"],
+                "age": int(user_data["age"]),
+                "experience": float(user_data["experience"]),
+                "frequency": float(user_data["frequency"]),
                 "rank": user_data["rank"],
                 "weeksSince": 4,
                 "lastWeeksSince": 4,
@@ -763,6 +783,7 @@ def sync_child_params(req: https_fn.Request) -> https_fn.Response:
         "Children frequency and church synced properly", status=200
     )
 
+
 @https_fn.on_request()
 def delete_child(req: https_fn.Request) -> https_fn.Response:
     try:
@@ -786,12 +807,11 @@ def delete_child(req: https_fn.Request) -> https_fn.Response:
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
     remove_user_from_churches(user_id)
-    return https_fn.Response(
-        "child deleted", status=200
-    )
+    return https_fn.Response("child deleted", status=200)
+
 
 @https_fn.on_request()
-def delete_user (req: https_fn.Request) -> https_fn.Response:
+def delete_user(req: https_fn.Request) -> https_fn.Response:
     try:
         request_data = req.get_json()
         if request_data is None:
@@ -812,7 +832,7 @@ def delete_user (req: https_fn.Request) -> https_fn.Response:
             # You can now use decoded_token to get user details if needed
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
-        
+
     firestore_client = firestore.Client()
     user_doc_ref = firestore_client.collection("users").document(user_id)
     user_doc = user_doc_ref.get()
@@ -824,9 +844,6 @@ def delete_user (req: https_fn.Request) -> https_fn.Response:
         print("children", user_data["children"])
         for child in user_data["children"]:
             remove_user_from_churches(child.get("uid"))
-    
 
     remove_user_from_churches(user_id)
-    return https_fn.Response(
-        "user and children deleted", status=200
-    )
+    return https_fn.Response("user and children deleted", status=200)
