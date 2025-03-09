@@ -2,7 +2,6 @@ import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeScreen from "./HomeScreen";
-import RequestWeek from "./RequestWeek";
 import DefaultTheme from "@react-navigation/native";
 import 'react-native-gesture-handler';
 
@@ -28,7 +27,6 @@ export default function HomeNavigation() {
         }}
       >
         <HomeNav.Screen name="Home" component={HomeScreen} />
-        <HomeNav.Screen name="RequestWeek" component={RequestWeek} />
       </HomeNav.Navigator>
     </NavigationContainer>
   );

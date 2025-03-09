@@ -280,53 +280,75 @@ const HomeScreen = () => {
     checkLocationPermission();
   }, []);
 
+
   useEffect(() => {
     const fetchSchedule = async () => {
       try {
-        const schedulesRef = firestore().collection("schedules");
-        schedulesRef.onSnapshot((snapshot) => {
-          let closestSchedule = null;
-          let closestDate = null;
+        const user = auth().currentUser;
 
-          snapshot.docs.forEach((doc) => {
-            const scheduleData = doc.data();
-            const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
-            const [month, day, year] = scheduleDateStr.split("-").map(Number);
-            const scheduleDate = new Date(2000 + year, month - 1, day);
+        // Fetch user data
+        const userDoc = await firestore().collection("users").doc(user.uid).get();
+        if (!userDoc.exists) {
+          console.log("User not found");
+          return;
+        }
 
-            if (scheduleDate > new Date()) {
-              if (!closestDate || scheduleDate < closestDate) {
-                closestDate = scheduleDate;
-                closestSchedule = scheduleData;
-              }
+        const userData = userDoc.data();
+        const churchId = userData.church;
+
+        // Fetch schedules from the church
+        const schedulesRef = firestore().collection("churches").doc(churchId).collection("schedule");
+        const snapshot = await schedulesRef.get();
+
+        let closestSchedule = null;
+        let closestDate = null;
+
+        snapshot.docs.forEach((doc) => {
+          const scheduleData = doc.data();
+          const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
+          const [month, day, year] = scheduleDateStr.split("-").map(Number);
+          const scheduleDate = new Date(2000 + year, month - 1, day);
+
+          // Check if the schedule date is in the future and the closest to today
+          if (scheduleDate > new Date()) {
+            if (!closestDate || scheduleDate < closestDate) {
+              closestDate = scheduleDate;
+              closestSchedule = scheduleData;
             }
-          });
-
-          if (closestSchedule) {
-            const defaultSchedule = {
-              matins: { name: "N/A" },
-              third: { name: "N/A" },
-              sixth: { name: "N/A" },
-              pauline: { name: "N/A" },
-              catholic: { name: "N/A" },
-              praxis: { name: "N/A" },
-              gospel: { name: "N/A" },
-              water: { name: "N/A" },
-              wine: { name: "N/A" },
-              altar: [],
-            };
-
-            setSchedule({ ...defaultSchedule, ...closestSchedule });
-            console.log("Schedule updated:", closestSchedule);
           }
         });
+
+        if (closestSchedule) {
+          const defaultSchedule = {
+            matins: { name: "N/A" },
+            third: { name: "N/A" },
+            sixth: { name: "N/A" },
+            pauline: { name: "N/A" },
+            catholic: { name: "N/A" },
+            praxis: { name: "N/A" },
+            gospel: { name: "N/A" },
+            water: { name: "N/A" },
+            wine: { name: "N/A" },
+            altar: [],
+          };
+
+          // Merge the default schedule with the fetched closest schedule
+          setSchedule({ ...defaultSchedule, ...closestSchedule });
+          console.log("Schedule updated:", closestSchedule);
+        } else {
+          console.log("No upcoming schedule found");
+        }
       } catch (error) {
         console.error("Error fetching schedule:", error);
       }
     };
 
     fetchSchedule();
-  }, []);
+  }, []); // Only run once when the component mounts
+
+
+
+
   return (
     <View style={styles.container}>
       <ScrollView
