@@ -283,7 +283,7 @@ def sort_deacons(deacons: List[Dict]) -> List[Dict]:
 
 
 # updates the user information to add one week to the people who had not served and restart the week count for the people who did serve
-def update_weeks(schedule, deacons):
+def update_weeks(schedule, deacons, doc_ref):
     # Create a set of uids for deacons who served
     served_uids = []
     for deacon in schedule:
@@ -293,20 +293,24 @@ def update_weeks(schedule, deacons):
     for deacon in deacons:
         if deacon["uid"] in served_uids:
             # Reset for those who served
+            deacon["lastWeeksSince"] = deacon["weeksSince"]
             deacon["weeksSince"] = 0
         else:
             # Increment for those who did not serve
             deacon["weeksSince"] += 1
-
+    doc_ref.update({"deacons": deacons})
 
 # ensures the person added to the schedule isn't on there multiple times
 def add_person(schedule_list, deacon_list):
-    uids = [deacon["uid"] for deacon in deacon_list]  # Collect UIDs
-
+    uids = []  # Collect UIDs
+    for deacon in schedule_list:
+        if "uid" in deacon:
+            uids.append(deacon["uid"])
     added = False
-
+    print("deacons list:", deacon_list, "\n\n\n\n")
     while not added:
-        if not deacon_list:  # Check if deacon_list is empty
+        print(len(deacon_list))
+        if len(deacon_list) == 0:  # Check if deacon_list is empty
             schedule_list.append("N/A")
             added = True
             break  # Exit the loop
@@ -315,13 +319,14 @@ def add_person(schedule_list, deacon_list):
             deacon_list = deacon_list[1:]  # Remove the first element
         else:
             schedule_list.append(deacon_list[0])
+            print(deacon_list[0])
             added = True
-
+        print("schedule list:", schedule_list, "\n\n\n")
     return schedule_list
 
 
 # takes in all the deacons for a church (one at a time) sorts them based off how long it has been since they served and passes them into the other functions
-def create_schedule(deacons):
+def create_schedule(deacons, church_ref):
 
     deacons = sort_deacons(deacons)
     schedule = []
@@ -355,82 +360,84 @@ def create_schedule(deacons):
         schedule = add_person(schedule, list)
 
     # adds the number of altar servers minus two because blood and wine are in the altar
-    for i in range(9):
+    for i in range(8):
         schedule = add_person(schedule, altar_list)
 
-    print(schedule)
+    print("schedule:", schedule, "\n\n\n\n")
 
     schedule_dict = {
         "matins": (
             {"name": schedule[0]["name"], "uid": schedule[0]["uid"]}
             if schedule[0] != "N/A"
-            else {"name" : "N/A", "uid" : "N/A"}
+            else {"name": "N/A", "uid": "N/A"}
         ),
         "third": (
             {"name": schedule[1]["name"], "uid": schedule[1]["uid"]}
             if schedule[1] != "N/A"
-            else {"name" : "N/A", "uid" : "N/A"}
+            else {"name": "N/A", "uid": "N/A"}
         ),
         "sixth": (
             {"name": schedule[2]["name"], "uid": schedule[2]["uid"]}
             if schedule[2] != "N/A"
-            else {"name" : "N/A", "uid" : "N/A"}
+            else {"name": "N/A", "uid": "N/A"}
         ),
         "pauline": (
             {"name": schedule[3]["name"], "uid": schedule[3]["uid"]}
             if schedule[3] != "N/A"
-            else {"name" : "N/A", "uid" : "N/A"}
+            else {"name": "N/A", "uid": "N/A"}
         ),
         "catholic": (
             {"name": schedule[4]["name"], "uid": schedule[4]["uid"]}
             if schedule[4] != "N/A"
-            else {"name" : "N/A", "uid" : "N/A"}
+            else {"name": "N/A", "uid": "N/A"}
         ),
         "praxis": (
             {"name": schedule[5]["name"], "uid": schedule[5]["uid"]}
             if schedule[5] != "N/A"
-            else {"name" : "N/A", "uid" : "N/A"}
+            else {"name": "N/A", "uid": "N/A"}
         ),
         "gospel": (
             {"name": schedule[6]["name"], "uid": schedule[6]["uid"]}
             if schedule[6] != "N/A"
-            else {"name" : "N/A", "uid" : "N/A"}
+            else {"name": "N/A", "uid": "N/A"}
         ),
         "water": (
             {"name": schedule[7]["name"], "uid": schedule[7]["uid"]}
             if schedule[7] != "N/A"
-            else {"name" : "N/A", "uid" : "N/A"}
+            else {"name": "N/A", "uid": "N/A"}
         ),
         "wine": (
             {"name": schedule[8]["name"], "uid": schedule[8]["uid"]}
             if schedule[8] != "N/A"
-            else {"name" : "N/A", "uid" : "N/A"}
+            else {"name": "N/A", "uid": "N/A"}
         ),
         "altar": (
-            [{"name": item["name"], "uid": item["uid"]} for item in schedule[7:14] if item != "N/A"]
-            if len(schedule) > 7
-            else [
-                    {"name" : "N/A", "uid" : "N/A"},
-                    {"name" : "N/A", "uid" : "N/A"},
-                    {"name" : "N/A", "uid" : "N/A"},
-                    {"name" : "N/A", "uid" : "N/A"},
-                    {"name" : "N/A", "uid" : "N/A"},
-                    {"name" : "N/A", "uid" : "N/A"},
+            [
+                (
+                    {"name": item["name"], "uid": item["uid"]}
+                    if item != "N/A"
+                    else {"name": "N/A", "uid": "N/A"}
+                )
+                for item in schedule[7:14]
             ]
+            if len(schedule) > 7
+            else [{"name": "N/A", "uid": "N/A"} for _ in range(6)]
         ),
         "extra": (
-            [{"name": item["name"], "uid": item["uid"]} for item in schedule[14:] if item != "N/A"]
-            if len(schedule) > 14
-            else [
-                    {"name" : "N/A", "uid" : "N/A"},
-                    {"name" : "N/A", "uid" : "N/A"},
-                    {"name" : "N/A", "uid" : "N/A"},
-
+            [
+                (
+                    {"name": item["name"], "uid": item["uid"]}
+                    if item != "N/A"
+                    else {"name": "N/A", "uid": "N/A"}
+                )
+                for item in schedule[14:]
             ]
+            if len(schedule) > 14
+            else [{"name": "N/A", "uid": "N/A"} for _ in range(3)]
         ),
     }
 
-    update_weeks(schedule, deacons)
+    update_weeks(schedule, deacons, church_ref)
 
     return schedule_dict
 
@@ -454,7 +461,7 @@ def get_deacons(church):
 #   schedule="0 16 * * 0",  # Every Sunday at 4:00 PM
 #   timezone=scheduler_fn.Timezone("America/New_York"),
 # )
-# def my_scheduled_function(event: scheduler_fn.ScheduledEvent):
+# def generate_schedule(event: scheduler_fn.ScheduledEvent):
 # uncomment on_request and comment on_schedule to test locally
 @https_fn.on_request()
 def my_scheduled_function(req: https_fn.Request) -> https_fn.Response:
@@ -471,17 +478,16 @@ def my_scheduled_function(req: https_fn.Request) -> https_fn.Response:
             start_date = datetime.datetime.now()
 
             for i in range(5):
-                schedule = create_schedule(get_deacons(doc.id))
+                schedule = create_schedule(get_deacons(doc.id), doc.reference)
                 doc_date = start_date + datetime.timedelta(weeks=i)
                 doc_date_str = doc_date.strftime("%m-%d-%y")
                 schedule_doc = schedule_ref.document(doc_date_str)
                 schedule_doc.set(schedule)
         else:
-            schedule = create_schedule(get_deacons(doc.id))
+            schedule = create_schedule(get_deacons(doc.id), doc.reference)
             start_date = datetime.datetime.now()
-            doc_delete_str = doc_date.strftime("%m-%d-%y")
-            doc_name = f"{doc.id}-{doc_delete_str}"
-            delete_doc_ref = schedule_ref.document(doc_name)
+            doc_delete_str = start_date.strftime("%m-%d-%y")
+            delete_doc_ref = schedule_ref.document(doc_delete_str)
             delete_doc_ref.delete()
             doc_date = start_date + datetime.timedelta(weeks=5)
             doc_date_str = doc_date.strftime("%m-%d-%y")
@@ -489,7 +495,6 @@ def my_scheduled_function(req: https_fn.Request) -> https_fn.Response:
             schedule_doc.set(schedule)
 
     return https_fn.Response(f"Successfully wrote documents to 'schedules' collection.")
-
 
 
 def generate_test_data(num_people):
@@ -847,3 +852,4 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
 
     remove_user_from_churches(user_id)
     return https_fn.Response("user and children deleted", status=200)
+
