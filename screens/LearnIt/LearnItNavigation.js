@@ -35,7 +35,7 @@ export default function LearnNavigation() {
       >
         <LearnNav.Screen name="MainMenu" component={LearnItMainMenu} />
         <LearnNav.Screen
-          name="TesbehaMenu"
+          name="TasbehaMenu"
           component={LearnItTasbehaMenu}
           options={{ animation: "none" }}
         />

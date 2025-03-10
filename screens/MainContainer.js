@@ -3,14 +3,12 @@ import { StyleSheet, View, Text } from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createDrawerNavigator } from "@react-navigation/drawer";
-import Icon from 'react-native-vector-icons/FontAwesome';  // Import FontAwesome icons
+import Icon from 'react-native-vector-icons/FontAwesome';  
 import 'react-native-gesture-handler';
 
-
 import HomeScreenNavigation from "./Home/HomeScreenNavigator";
-import AlhanAttendance from "./AlhanAttendance";
-import SundaySchoolAttendance from "./SundaySchoolAttendance";
-import ServantsMeetingAttendance from "./ServantsMeetingAttendance";
+import AlhanNavigator from "./Alhan/AlhanNavigator";
+import SundaySchoolNavigator from "./SundaySchool/SundaySchoolNavigator"
 import LearnItNavigation from "./LearnIt/LearnItNavigation";
 import SettingsNavigation from "./Settings/SettingsNavigation";
 import EditSchedule from "./EditSchedule";
@@ -30,7 +28,6 @@ const myTheme = {
   },
 };
 
-// Define a common header style
 const headerStyle = {
   backgroundColor: "black",
 };
@@ -40,14 +37,14 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
     <Tab.Navigator
       screenOptions={({ route, navigation }) => ({
         headerShown: true,
-        headerStyle: { backgroundColor: '#252525' },  // Apply common header style
+        headerStyle: { backgroundColor: '#252525' },
         headerTintColor: "#fff",
         tabBarStyle: {
           height: 90,
           backgroundColor: "rgba(34,36,40,1)",
           borderTopWidth: 0,
         },
-        tabBarLabel: () => null,  // Hide the labels
+        tabBarLabel: () => null,
         headerLeft: showDrawer ? () => <CustomHeader navigation={navigation}/> : undefined,
         tabBarIcon: ({ color, size }) => {
           let iconName;
@@ -57,16 +54,16 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
               iconName = 'home';
               break;
             case "Learn to Serve":
-              iconName = 'book';  // Changed to 'book' icon
+              iconName = 'book';
               break;
             case "Edit Schedule":
-              iconName = 'pencil';  // Using 'pencil' as an editing pen
+              iconName = 'pencil';
               break;
             case "Settings":
-              iconName = 'gear';  // Using 'gear' as a settings icon
+              iconName = 'gear';
               break;
             default:
-              iconName = 'question';  // Default icon if route name is not matched
+              iconName = 'question';
           }
 
           return <Icon name={iconName} size={size} color={color} />;
@@ -107,7 +104,7 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
   );
 }
 
-{/*function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
+function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
   return (
     <Drawer.Navigator
       screenOptions={({ navigation, route }) => ({
@@ -116,7 +113,7 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
           width: 270,
         },
         headerShown: true,
-        headerTitle: route.name === 'Home' ? homeTitle : route.name, // Use homeTitle for Home, otherwise use route.name
+        headerTitle: route.name === 'Home' ? homeTitle : route.name,
         headerLeft: () => <CustomHeader navigation={navigation} />,
         drawerActiveTintColor: "#147efb",
         drawerInactiveTintColor: "#8e8e93",
@@ -126,34 +123,28 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
     >
       <Drawer.Screen
         name="Home"
-        options={{ headerShown: false }} // Hide the drawer header when the tab is active
+        options={{ headerShown: false }}
       >
         {({ navigation }) => (
           <TabNavigator
             userRoles={userRoles}
             setHomeTitle={setHomeTitle}
-            showDrawer={true} // Indicate that the drawer should be shown
+            showDrawer={true}
           />
         )}
       </Drawer.Screen>
       {userRoles.isAlhan && (
-        <Drawer.Screen name="Alhan Attendance" component={AlhanAttendance} />
+        <Drawer.Screen name="Alhan Attendance" component={AlhanNavigator} />
       )}
       {userRoles.isSSTeacher && (
         <Drawer.Screen
           name="Sunday School Attendance"
-          component={SundaySchoolAttendance}
-        />
-      )}
-      {userRoles.isServant && (
-        <Drawer.Screen
-          name="Servants Meeting Attendance"
-          component={ServantsMeetingAttendance}
+          component={SundaySchoolNavigator}
         />
       )}
     </Drawer.Navigator>
   );
-}*/}
+}
 
 export default function MainContainer() {
   const [userRoles, setUserRoles] = useState({
@@ -181,7 +172,6 @@ export default function MainContainer() {
           }
         );
 
-      // Cleanup the subscription on unmount
       return () => unsubscribe();
     }
   }, []);
@@ -192,24 +182,16 @@ export default function MainContainer() {
   return (
     <NavigationContainer independent={true} theme={myTheme}>
       {shouldShowDrawer ? (
-        <TabNavigator
-        userRoles={userRoles}
-        setHomeTitle={setHomeTitle}
-        showDrawer={false} // Indicate that the drawer is not shown
-      />
-        /*<DrawerNavigator
+        <DrawerNavigator
           userRoles={userRoles}
           homeTitle={homeTitle}
           setHomeTitle={setHomeTitle}
-
-          Bring this back when adding attendences
-        />*/
-        
+        />
       ) : (
         <TabNavigator
           userRoles={userRoles}
           setHomeTitle={setHomeTitle}
-          showDrawer={false} // Indicate that the drawer is not shown
+          showDrawer={false}
         />
       )}
     </NavigationContainer>

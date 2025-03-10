@@ -88,7 +88,9 @@ const SignUp = ({ navigation }) => {
           email: user.email,
           admin: false,
           rank: "Chanter (Epsaltos)",
-          experience: "1"
+          experience: "1",
+          alhanSetUp: false,
+          ssSetUp: false
         });
       }
     } catch (error) {

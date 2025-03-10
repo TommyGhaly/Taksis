@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+/*import React, { useState } from "react";
 import {
   Image,
   StyleSheet,
@@ -73,3 +73,4 @@ const styles = StyleSheet.create({
 });
 
 export default AlhanAttendence;
+*/
