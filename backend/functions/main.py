@@ -853,3 +853,96 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
     remove_user_from_churches(user_id)
     return https_fn.Response("user and children deleted", status=200)
 
+
+#removes 
+def remove_servant_from_attendance(user_id):
+    firestore_client = firestore.Client()
+    church_docs = firestore_client.collection("churches").stream()
+
+    for church_doc in church_docs:
+        # Process Alhan collection
+        alhan_ref = church_doc.reference.collection("alhan")
+        alhan_docs = alhan_ref.stream()
+
+        for alhan_doc in alhan_docs:
+            alhan_data = alhan_doc.to_dict()
+            if "servants" in alhan_data:
+                updated_servants = [s for s in alhan_data["servants"] if s["uid"] != user_id]
+
+                if updated_servants != alhan_data["servants"]:
+                    alhan_doc.reference.update({"servants": updated_servants})
+
+        # Process Sunday School collection
+        ss_ref = church_doc.reference.collection("sunday school")
+        ss_docs = ss_ref.stream()
+
+        for ss_doc in ss_docs:
+            ss_data = ss_doc.to_dict()
+            if "servants" in ss_data:
+                updated_servants = [s for s in ss_data["servants"] if s["uid"] != user_id]
+
+                if updated_servants != ss_data["servants"]:
+                    ss_doc.reference.update({"servants": updated_servants})
+
+def check_clases():
+    
+
+@https_fn.on_request()
+def set_up_attendance(req: https_fn.Request) -> https_fn.Response:
+    try:
+        request_data = req.get_json()
+        if request_data is None:
+            return https_fn.Response("Missing JSON body", status=400)
+    except Exception as e:
+        return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
+
+    # Extract the user_id from the payload
+    user_id = request_data.get("uid")
+    if not user_id:
+        return https_fn.Response("Missing 'uid' parameter", status=400)
+
+    # Optional: Verify Firebase Auth token if provided
+    id_token = req.headers.get("Authorization")
+    if id_token:
+        try:
+            decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
+        except Exception as e:
+            return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+
+    firestore_client = firestore.Client()
+    user_doc_ref = firestore_client.collection("users").document(user_id)
+    user_doc = user_doc_ref.get()
+
+    if not user_doc.exists:
+        return https_fn.Response("User not found", status=404)
+
+    user_data = user_doc.to_dict()
+
+    # Remove user from attendance
+    remove_servant_from_attendance(user_data["uid"])
+
+    church_doc_ref = firestore_client.collection("churches").document(user_data["church"])
+
+    # Check and update Alhan setup
+    if user_data.get("alhanSetUp"):
+        alhan_ref = church_doc_ref.collection("alhan")
+        existing_alhan_classes = {doc.id for doc in alhan_ref.stream()}  # Get existing classes
+
+        for grade in user_data.get("alhanGrades", []):
+            if grade not in existing_alhan_classes:
+                alhan_ref.document(grade).set({"students": [user_id]})
+            else:
+                alhan_ref.document(grade).update({"students": firestore.ArrayUnion([user_id])})
+
+    # Check and update Sunday School setup
+    if user_data.get("ssSetUp"):
+        ss_ref = church_doc_ref.collection("sunday school")
+        existing_ss_classes = {doc.id for doc in ss_ref.stream()}  # Get existing classes
+
+        for grade in user_data.get("ssGrades", []):
+            if grade not in existing_ss_classes:
+                ss_ref.document(grade).set({"students": [user_id]})
+            else:
+                ss_ref.document(grade).update({"students": firestore.ArrayUnion([user_id])})
+
+    return https_fn.Response("Attendance setup completed successfully", status=200)

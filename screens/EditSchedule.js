@@ -1,218 +1,237 @@
-import React, { useState } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  FlatList,
-  TouchableOpacity,
-} from "react-native";
-import DropDownPicker from "react-native-dropdown-picker";
+import React, { useState, useEffect, useRef } from "react";
+import { View, Text, TouchableOpacity, ScrollView, Animated, StyleSheet, Alert, FlatList, Modal } from "react-native";
 
-const roles = [
-  "Matins Gospel Reader",
-  "Third Hour Reader",
-  "Sixth Hour Reader",
-  "Pauline Epistle Reader",
-  "Catholic Epistle Reader",
-  "Praxis Reader",
-  "Gospel Reader",
-  "Water Server",
-  "Wine Server",
-];
-
-const people = [
-  { label: "John Doe", value: "johnDoe" },
-  { label: "Jane Smith", value: "janeSmith" },
-  { label: "Chris Johnson", value: "chrisJohnson" },
-  { label: "Alex Lee", value: "alexLee" },
+const readings = [
+  "Matins Gospel",
+  "Third Hour Gospel",
+  "Sixth Hour Gospel",
+  "Pauline Epistle",
+  "Catholic Epistle",
+  "Praxis",
+  "Gospel",
+  "Water",
+  "Wine"
 ];
 
 const EditSchedule = () => {
-  const [numberOfServers, setNumberOfServers] = useState(2); // Default to 2
-  const [dropdownState, setDropdownState] = useState({
-    groupDropdownValue: Array(8).fill(null), // Adjust according to max number of servers
-    dropdownOpen: Array(8).fill(false),
-  });
-  const [roleDropdownState, setRoleDropdownState] = useState(Array(roles.length).fill(false));
+  const [servers, setServers] = useState([]);
+  const [availableServers, setAvailableServers] = useState([]);
+  const [assignedReaders, setAssignedReaders] = useState({});
+  const [assignedServers, setAssignedServers] = useState({});
+  const [serverDropdownIndex, setServerDropdownIndex] = useState(null);
+  const [readerDropdownIndex, setReaderDropdownIndex] = useState(null);
+  const fadeAnim = useState(new Animated.Value(0))[0];
+  const scrollViewRef = useRef(null);
 
-  const renderRoleDropdown = (role, index) => {
-    return (
-      <View style={styles.roleSection}>
-        <Text style={styles.roleTitle}>{role}</Text>
-        <DropDownPicker
-          open={roleDropdownState[index]}
-          value={null}
-          items={people}
-          setOpen={(open) => {
-            const newRoleDropdownOpen = [...roleDropdownState];
-            newRoleDropdownOpen[index] = open;
-            setRoleDropdownState(newRoleDropdownOpen);
-          }}
-          setValue={() => {}}
-          style={styles.dropdown}
-          dropDownContainerStyle={styles.dropdownContainer}
-          textStyle={styles.dropdownText}
-          placeholder="Select a person"
-        />
-      </View>
-    );
+  useEffect(() => {
+    setAvailableServers(["John Doe", "Jane Smith", "Michael Lee", "Emma Wilson"]);
+    const initialAssignments = {};
+    readings.forEach((reading) => {
+      initialAssignments[reading] = "Select Reader";
+    });
+    setAssignedReaders(initialAssignments);
+  }, []);
+
+  const assignReader = (index, reader) => {
+    setAssignedReaders({ ...assignedReaders, [index]: reader });
+    setReaderDropdownIndex(null);
   };
 
-  const renderAltarServerDropdown = (index) => {
-    return (
-      <View style={styles.roleSection}>
-        <Text style={styles.roleTitle}>Altar Server {index + 1}</Text>
-        <DropDownPicker
-          open={dropdownState.dropdownOpen[index]}
-          value={dropdownState.groupDropdownValue[index]}
-          items={people}
-          setOpen={(open) => {
-            const newDropdownOpen = [...dropdownState.dropdownOpen];
-            newDropdownOpen[index] = open;
-            setDropdownState((prevState) => ({
-              ...prevState,
-              dropdownOpen: newDropdownOpen,
-            }));
-          }}
-          setValue={(value) => {
-            const newValues = [...dropdownState.groupDropdownValue];
-            newValues[index] = value;
-            setDropdownState((prevState) => ({
-              ...prevState,
-              groupDropdownValue: newValues,
-            }));
-          }}
-          style={styles.dropdown}
-          dropDownContainerStyle={styles.dropdownContainer}
-          textStyle={styles.dropdownText}
-        />
-      </View>
-    );
+  const assignServer = (index, name) => {
+    setAssignedServers({ ...assignedServers, [index]: name });
+    setServerDropdownIndex(null);
   };
 
-  const data = [
-    { type: "rolesHeader", title: "Readers" },
-    ...roles.map((role, index) => ({ type: "role", id: `role-${index}`, title: role, index })),
-    { type: "rolesHeader", title: "Altar Servers" },
-    ...Array.from({ length: numberOfServers }, (_, index) => ({
-      type: "server",
-      id: `server-${index}`,
-      index,
-    })),
-  ];
-
-  const renderItem = ({ item }) => {
-    if (item.type === "header") {
-      return <Text style={styles.headerText}>{item.title}</Text>;
-    } else if (item.type === "server") {
-      return renderAltarServerDropdown(item.index);
-    } else if (item.type === "rolesHeader") {
-      return <Text style={styles.rolesHeader}>{item.title}</Text>;
-    } else {
-      return renderRoleDropdown(item.title, item.index);
+  const addServer = () => {
+    if (servers.length >= 6) {
+      Alert.alert("Limit Reached", "You cannot add more than 6 altar servers.");
+      return;
     }
+    setServers((prevServers) => [...prevServers, `Altar Server ${prevServers.length + 1}`]);
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 300);
+  };
+
+  const removeServer = (index) => {
+    setServers((prevServers) => prevServers.filter((_, i) => i !== index).map((s, i) => `Altar Server ${i + 1}`));
+    setAssignedServers((prevAssigned) => {
+      const newAssigned = {};
+      Object.keys(prevAssigned).forEach((key, i) => {
+        if (parseInt(key) !== index) {
+          newAssigned[i < index ? i : i - 1] = prevAssigned[key];
+        }
+      });
+      return newAssigned;
+    });
   };
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={data}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.editschedule}
-        showsVerticalScrollIndicator={false}
-      />
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => setNumberOfServers((prev) => Math.max(2, prev - 1))}
-        >
-          <Text style={styles.buttonText}>- Remove Server</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => setNumberOfServers((prev) => Math.min(8, prev + 1))}
-        >
-          <Text style={styles.buttonText}>+ Add Server</Text>
-        </TouchableOpacity>
-      </View>
+      <Text style={styles.title}>Edit Schedule</Text>
+      <ScrollView style={styles.scrollView} ref={scrollViewRef} showsVerticalScrollIndicator={false}>
+        <Text style={styles.sectionHeader}>Assign Readers</Text>
+        {readings.map((item, index) => (
+          <View key={index} style={styles.listItem}>
+            <Text style={styles.itemText}>{item}</Text>
+            <TouchableOpacity
+              style={styles.dropdown}
+              onPress={() => setReaderDropdownIndex(index)}
+            >
+              <Text style={styles.dropdownText}>{assignedReaders[index] || "Select Reader"}</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+
+        <Text style={styles.sectionHeader}>Altar Servers</Text>
+        {servers.map((_, index) => (
+          <View key={index} style={styles.listItem}>
+            <TouchableOpacity
+              style={styles.dropdown}
+              onPress={() => setServerDropdownIndex(index)}
+            >
+              <Text style={styles.dropdownText}>{assignedServers[index] || "Select Server"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => removeServer(index)}>
+              <Text style={styles.removeButton}>Remove</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+      </ScrollView>
+
+      <TouchableOpacity style={styles.addButton} onPress={addServer}>
+        <Text style={styles.addButtonText}>Add Server</Text>
+      </TouchableOpacity>
+
+      <Modal visible={serverDropdownIndex !== null} transparent animationType="slide">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <FlatList
+              data={availableServers}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity onPress={() => assignServer(serverDropdownIndex, item)}>
+                  <Text style={styles.modalItem}>{item}</Text>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity onPress={() => setServerDropdownIndex(null)}>
+              <Text style={styles.closeButton}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={readerDropdownIndex !== null} transparent animationType="slide">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <FlatList
+              data={availableServers}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity onPress={() => assignReader(readerDropdownIndex, item)}>
+                  <Text style={styles.modalItem}>{item}</Text>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity onPress={() => setReaderDropdownIndex(null)}>
+              <Text style={styles.closeButton}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#121212",
     padding: 20,
+    paddingBottom: 100,
   },
-  editschedule: {
-    paddingBottom: 20,
-  },
-  headerText: {
-    fontSize: 28,
-    color: "#e0e0e0",
+  title: {
+    fontSize: 24,
     fontWeight: "bold",
+    color: "#fff",
+    textAlign: "center",
     marginBottom: 20,
-    textAlign: 'center',
   },
-  roleSection: {
-    marginBottom: 15,
-    backgroundColor: "#2C2C2C",
-    borderRadius: 8,
-    padding: 10,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+  scrollView: {
+    flexGrow: 1,
   },
-  roleTitle: {
+  itemText: {
+    color: "#bbb"
+  },
+  sectionHeader: {
     fontSize: 18,
-    color: "#ffffff",
-    marginBottom: 8,
-  },
-  dropdown: {
-    backgroundColor: "#2C2C2C",
-    borderWidth: 0,
-    borderRadius: 8,
-  },
-  dropdownContainer: {
-    backgroundColor: "#2C2C2C",
-    borderWidth: 0,
-    borderRadius: 8,
-    zIndex: 999, // Ensure dropdown appears above other elements
-  },
-  dropdownText: {
-    color: "#e0e0e0",
-  },
-  rolesHeader: {
-    fontSize: 20,
-    color: "#e0e0e0",
+    color: "#bbb",
     marginBottom: 10,
     marginTop: 20,
-    fontWeight: 'bold'
+    fontWeight: "bold",
   },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
+  listItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#1e1e1e",
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
   },
-  button: {
-    flex: 1,
-    backgroundColor: "#007BFF",
-    borderRadius: 8,
-    padding: 10,
-    margin: 5,
-    alignItems: 'center',
+  dropdown: {
+    backgroundColor: "#333",
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 5,
   },
-  buttonText: {
-    color: "#ffffff",
+  dropdownText: {
+    color: "#fff",
     fontSize: 16,
-    fontWeight: 'bold',
+  },
+  removeButton: {
+    color: "#ff3b30",
+    fontSize: 16,
+  },
+  addButton: {
+    backgroundColor: "#147efb",
+    padding: 15,
+    borderRadius: 10,
+    alignItems: "center",
+    position: "absolute",
+    bottom: 20,
+    left: 20,
+    right: 20,
+  },
+  addButtonText: {
+    fontSize: 18,
+    color: "#fff",
+    fontWeight: "bold",
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+  },
+  modalContent: {
+    backgroundColor: "#222",
+    padding: 20,
+    borderRadius: 10,
+    width: "80%",
+  },
+  modalItem: {
+    color: "#fff",
+    fontSize: 18,
+    padding: 10,
+  },
+  closeButton: {
+    color: "#ff3b30",
+    fontSize: 18,
+    textAlign: "center",
+    marginTop: 10,
   },
 });
 
