@@ -170,6 +170,12 @@ const SettingsContent = () => {
               Change church services that apply to you
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.option}
+            onPress={() => navigation.navigate("RequestServants")}
+          >
+            <Text style={styles.optionText}>Apply to be a servants meeting tracker</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>

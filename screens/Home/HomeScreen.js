@@ -20,7 +20,7 @@ import {
   Linking,
 } from "react-native";
 import auth from "@react-native-firebase/auth";
-import * as Location from "expo-location" ;
+import * as Location from "expo-location";
 
 initializeApp({
   projectId: "taksis-a8ba7",
@@ -152,53 +152,55 @@ async function checkNotificationPermission() {
 async function requestLocationPermission() {
   try {
     // Request foreground location permission directly
-    let { status: foregroundStatus } = await Location.getForegroundPermissionsAsync();
+    let { status: foregroundStatus } =
+      await Location.getForegroundPermissionsAsync();
     console.log(`Current Foreground Permission Status: ${foregroundStatus}`);
 
-    if (foregroundStatus !== 'granted') {
+    if (foregroundStatus !== "granted") {
       const { status } = await Location.requestForegroundPermissionsAsync();
       foregroundStatus = status;
       console.log(`Updated Foreground Permission Status: ${foregroundStatus}`);
     }
 
-    if (foregroundStatus !== 'granted') {
+    if (foregroundStatus !== "granted") {
       Alert.alert(
-        'Permission Required',
-        'Location permission is required for this feature.',
+        "Permission Required",
+        "Location permission is required for this feature.",
         [
-          { text: 'Cancel' },
-          { text: 'Grant Permission', onPress: requestLocationPermission },
+          { text: "Cancel" },
+          { text: "Grant Permission", onPress: requestLocationPermission },
         ]
       );
       return;
     }
 
-    console.log('Foreground location permission granted.');
+    console.log("Foreground location permission granted.");
 
     // Request background location permission after foreground permission is granted
-    let { status: backgroundStatus } = await Location.getBackgroundPermissionsAsync();
+    let { status: backgroundStatus } =
+      await Location.getBackgroundPermissionsAsync();
     console.log(`Current Background Permission Status: ${backgroundStatus}`);
 
-    if (backgroundStatus !== 'granted') {
+    if (backgroundStatus !== "granted") {
       const { status } = await Location.requestBackgroundPermissionsAsync();
       backgroundStatus = status;
       console.log(`Updated Background Permission Status: ${backgroundStatus}`);
     }
 
-    if (backgroundStatus !== 'granted') {
+    if (backgroundStatus !== "granted") {
       Alert.alert(
-        'Background Permission Needed',
-        'Enable background location for full functionality.',
+        "Background Permission Needed",
+        "Enable background location for full functionality.",
         [
-          { text: 'Cancel' },
-          { text: 'Grant Permission', onPress: requestLocationPermission },
+          { text: "Cancel" },
+          { text: "Grant Permission", onPress: requestLocationPermission },
         ]
       );
     } else {
-      console.log('Background location permission granted.');
+      console.log("Background location permission granted.");
     }
   } catch (error) {
-    console.error('Error requesting location permissions:', error);
+    console.error("Error requesting location permissions:", error);
   }
 }
 
@@ -280,14 +282,16 @@ const HomeScreen = () => {
     checkLocationPermission();
   }, []);
 
-
   useEffect(() => {
     const fetchSchedule = async () => {
       try {
         const user = auth().currentUser;
 
         // Fetch user data
-        const userDoc = await firestore().collection("users").doc(user.uid).get();
+        const userDoc = await firestore()
+          .collection("users")
+          .doc(user.uid)
+          .get();
         if (!userDoc.exists) {
           console.log("User not found");
           return;
@@ -296,8 +300,24 @@ const HomeScreen = () => {
         const userData = userDoc.data();
         const churchId = userData.church;
 
+        // Fetch church data to get the altarServers count
+        const churchDoc = await firestore()
+          .collection("churches")
+          .doc(churchId)
+          .get();
+        if (!churchDoc.exists) {
+          console.log("Church not found");
+          return;
+        }
+
+        const churchData = churchDoc.data();
+        const altarServers = churchData.altarServers || 2; // Default to 2 if no value found
+
         // Fetch schedules from the church
-        const schedulesRef = firestore().collection("churches").doc(churchId).collection("schedule");
+        const schedulesRef = firestore()
+          .collection("churches")
+          .doc(churchId)
+          .collection("schedule");
         const snapshot = await schedulesRef.get();
 
         let closestSchedule = null;
@@ -332,8 +352,18 @@ const HomeScreen = () => {
             altar: [],
           };
 
+          // Limit the altar servers to the first 'altarServers' deacons
+          const limitedAltarServers = closestSchedule.altar.slice(
+            0,
+            altarServers + 2
+          );
+
           // Merge the default schedule with the fetched closest schedule
-          setSchedule({ ...defaultSchedule, ...closestSchedule });
+          setSchedule({
+            ...defaultSchedule,
+            ...closestSchedule,
+            altar: limitedAltarServers, // Only show the limited number of altar servers
+          });
           console.log("Schedule updated:", closestSchedule);
         } else {
           console.log("No upcoming schedule found");
@@ -345,9 +375,6 @@ const HomeScreen = () => {
 
     fetchSchedule();
   }, []); // Only run once when the component mounts
-
-
-
 
   return (
     <View style={styles.container}>

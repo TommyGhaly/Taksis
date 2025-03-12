@@ -39,11 +39,6 @@ const Choices = ( { onDeaconChange, onAlhanChange, onSSTeachChange, onServantCha
       <Text style={[styles.sundaySchoolTeacher, styles.teacherTypo]}>
         Sunday School Teacher
       </Text>
-      <Text
-        style={[styles.servantsMeetingAttendance, styles.noneApplicableTypo]}
-      >
-        Servants Meeting Attendance Tracker
-      </Text>
       <Text style={[styles.noneApplicable, styles.noneApplicableTypo]}>
         None applicable
       </Text>
@@ -51,7 +46,6 @@ const Choices = ( { onDeaconChange, onAlhanChange, onSSTeachChange, onServantCha
       <View style={[styles.groupItem, styles.groupChildLayout]} />
       <View style={[styles.groupInner, styles.groupChildLayout]} />
       <View style={[styles.lineView, styles.groupChildLayout]} />
-      <View style={[styles.groupChild1, styles.groupChildLayout]} />
       <CheckBox
         style={styles.rectangleCheckbox}
         checked={deacon}
@@ -73,19 +67,6 @@ const Choices = ( { onDeaconChange, onAlhanChange, onSSTeachChange, onServantCha
           none? setNone(!none) : none;
         }}
         containerStyle={styles.rectangleCheckbox1Layout}
-        iconType="material-community"
-        checkedIcon="checkbox-outline"
-        uncheckedIcon={"checkbox-blank-outline"}
-        size={40}
-      />
-      <CheckBox
-        style={styles.rectangleCheckbox}
-        checked={servant}
-        onPress={() => {
-          handleServant(!servant);
-          none ? setNone(!none) : none;
-        }}
-        containerStyle={styles.rectangleCheckbox2Layout}
         iconType="material-community"
         checkedIcon="checkbox-outline"
         uncheckedIcon={"checkbox-blank-outline"}
@@ -139,20 +120,14 @@ const styles = StyleSheet.create({
     top: 104,
     position: "absolute",
   },
-  rectangleCheckbox2Layout: {
+  rectangleCheckbox3Layout: {
     backgroundColor: "transparent",
     padding: 0,
     left: -10,
     top: 161,
     position: "absolute",
   },
-  rectangleCheckbox3Layout: {
-    backgroundColor: "transparent",
-    padding: 0,
-    left: -10,
-    top: 218,
-    position: "absolute",
-  },
+
   rectangleCheckbox4Layout: {
     backgroundColor: "transparent",
     padding: 0,
@@ -199,11 +174,8 @@ const styles = StyleSheet.create({
   sundaySchoolTeacher: {
     top: 114,
   },
-  servantsMeetingAttendance: {
-    top: 171,
-  },
   noneApplicable: {
-    top: 240,
+    top: 171,
   },
   groupChild: {
     top: 31,
@@ -215,7 +187,7 @@ const styles = StyleSheet.create({
     top: 148,
   },
   lineView: {
-    top: 226,
+    top: 206,
   },
   groupChild1: {
     top: 268,

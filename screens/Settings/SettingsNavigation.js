@@ -11,6 +11,7 @@ import ChangeRoles from "./ChangeRoles";
 import ChangeChurch from "./ChangeChurch";
 import ChildAccountInfo from "./ChildAccountInfo";
 import RequestAdmin from "./RequestAdmin";
+import RequestServants from "./RequestServants";
 import AddChild from "./AddChild";
 import Settings from "./Settings";
 import SettingsContent from "../../components/settingsContent";
@@ -58,6 +59,7 @@ export default function SettingsNavigation() {
           component={ChildAccountInfo}
         />
         <SettingsNav.Screen name="RequestAdmin" component={RequestAdmin} />
+        <SettingsNav.Screen name="RequestServants" component={RequestServants} />
         <SettingsNav.Screen
           name="AddChild"
           component={AddChild}

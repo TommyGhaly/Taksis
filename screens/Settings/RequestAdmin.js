@@ -1,6 +1,5 @@
 import * as React from "react";
 import { StyleSheet, Text, Pressable, Image, View } from "react-native";
-import BackArrow from "../../components/backArrow"; // Assuming you have a BackArrow component
 
 const RequestAdmin = ({ navigation }) => {
   return (
