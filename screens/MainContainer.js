@@ -32,12 +32,16 @@ const headerStyle = {
   backgroundColor: "black",
 };
 
+const consistentHeaderStyle = {
+  backgroundColor: "#252525", // Unified header color
+};
+
 function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
   return (
     <Tab.Navigator
       screenOptions={({ route, navigation }) => ({
         headerShown: true,
-        headerStyle: { backgroundColor: '#252525' },
+        headerStyle: consistentHeaderStyle, // Use the unified header style
         headerTintColor: "#fff",
         tabBarStyle: {
           height: 90,
@@ -48,24 +52,13 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
         headerLeft: showDrawer ? () => <CustomHeader navigation={navigation}/> : undefined,
         tabBarIcon: ({ color, size }) => {
           let iconName;
-
           switch (route.name) {
-            case "This Week's Services":
-              iconName = 'home';
-              break;
-            case "Learn to Serve":
-              iconName = 'book';
-              break;
-            case "Edit Schedule":
-              iconName = 'pencil';
-              break;
-            case "Settings":
-              iconName = 'gear';
-              break;
-            default:
-              iconName = 'question';
+            case "This Week's Services": iconName = 'home'; break;
+            case "Learn to Serve": iconName = 'book'; break;
+            case "Edit Schedule": iconName = 'pencil'; break;
+            case "Settings": iconName = 'gear'; break;
+            default: iconName = 'question';
           }
-
           return <Icon name={iconName} size={size} color={color} />;
         },
       })}
@@ -73,32 +66,24 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
       <Tab.Screen
         name="This Week's Services"
         component={HomeScreenNavigation}
-        listeners={{
-          focus: () => setHomeTitle("This Week's Services"),
-        }}
+        listeners={{ focus: () => setHomeTitle("This Week's Services") }}
       />
       <Tab.Screen
         name="Learn to Serve"
         component={LearnItNavigation}
-        listeners={{
-          focus: () => setHomeTitle("Learn to Serve"),
-        }}
+        listeners={{ focus: () => setHomeTitle("Learn to Serve") }}
       />
       {userRoles.admin && (
         <Tab.Screen
           name="Edit Schedule"
           component={EditSchedule}
-          listeners={{
-            focus: () => setHomeTitle("Edit Schedule"),
-          }}
+          listeners={{ focus: () => setHomeTitle("Edit Schedule") }}
         />
       )}
       <Tab.Screen
         name="Settings"
         component={SettingsNavigation}
-        listeners={{
-          focus: () => setHomeTitle("Settings"),
-        }}
+        listeners={{ focus: () => setHomeTitle("Settings") }}
       />
     </Tab.Navigator>
   );
@@ -117,14 +102,11 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
         headerLeft: () => <CustomHeader navigation={navigation} />,
         drawerActiveTintColor: "#147efb",
         drawerInactiveTintColor: "#8e8e93",
-        headerStyle: headerStyle,
+        headerStyle: consistentHeaderStyle, // Apply the same header style
         headerTintColor: "#fff",
       })}
     >
-      <Drawer.Screen
-        name="Home"
-        options={{ headerShown: false }}
-      >
+      <Drawer.Screen name="Home" options={{ headerShown: false }}>
         {({ navigation }) => (
           <TabNavigator
             userRoles={userRoles}
@@ -137,10 +119,7 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
         <Drawer.Screen name="Alhan Attendance" component={AlhanNavigator} />
       )}
       {userRoles.isSSTeacher && (
-        <Drawer.Screen
-          name="Sunday School Attendance"
-          component={SundaySchoolNavigator}
-        />
+        <Drawer.Screen name="Sunday School Attendance" component={SundaySchoolNavigator} />
       )}
     </Drawer.Navigator>
   );
