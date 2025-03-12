@@ -3,15 +3,18 @@ import { View, ActivityIndicator } from "react-native";
 import { createStackNavigator } from "@react-navigation/stack";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import { useNavigation } from '@react-navigation/native';
 
 import AlhanAttendance from "./AlhanAttendance";
 import AlhanGrades from "./AlhanGrades";
+import IndividualAttendance from "../IndividualAttendance";
 
 const Stack = createStackNavigator();
 
 const AlhanNavigator = () => {
   const [initialRoute, setInitialRoute] = useState(null);
   const user = auth().currentUser;
+  const navigation = useNavigation();  // Get the navigation object
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -42,6 +45,16 @@ const AlhanNavigator = () => {
     fetchUserData();
   }, [user]);
 
+  useEffect(() => {
+    // Reset the navigation stack when the initial route changes to "AlhanGrades"
+    if (initialRoute === "AlhanGrades") {
+      navigation.reset({
+        index: 0,  // Reset to the first screen
+        routes: [{ name: "AlhanGrades" }],
+      });
+    }
+  }, [initialRoute, navigation]);
+
   if (!initialRoute) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -60,6 +73,13 @@ const AlhanNavigator = () => {
       <Stack.Screen
         name="AlhanGrades"
         component={AlhanGrades}
+        options={{ headerShown: false ,
+          animation: "slide_from_left",
+        }}
+      />
+      <Stack.Screen
+        name="IndividualAttendance"
+        component={IndividualAttendance}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>

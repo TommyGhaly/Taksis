@@ -41,18 +41,18 @@ const AlhanGrades = ({navigation}) => {
       }
 
       const churchRef = firestore().collection("churches").doc(userChurch);
-      const hymnsClassRef = churchRef.collection("hymnsClass");
+      const hymnsClassRef = churchRef.collection("Hymns Class");
       
       const gradeRef = hymnsClassRef.doc(selectedGrades.join(", "));
       const gradeDoc = await gradeRef.get();
         
       if (!gradeDoc.exists) {
         await gradeRef.set({
-          servants: [{ uid: user.uid, name: userData.name }]
+          servants: [{ uid: user.uid }]
         });
       } else {
         await gradeRef.update({
-          servants: firestore.FieldValue.arrayUnion({ uid: user.uid, name: userData.name })
+          servants: firestore.FieldValue.arrayUnion({ uid: user.uid })
         });
       }
       navigation.navigate("AlhanAttendance")
