@@ -51,24 +51,17 @@ const AlhanAttendance = ({ navigation }) => {
   useEffect(() => {
     if (!userData) return;
 
-    const fetchStudents = async () => {
-      try {
-        const hymnsClassDoc = await firestore()
-          .collection("churches")
-          .doc(userData.church)
-          .collection("Hymns Class")
-          .doc(userData.alhanGrades)
-          .get();
+    const fetchStudents = () => {
+      const hymnsClassRef = firestore()
+        .collection("churches")
+        .doc(userData.church)
+        .collection("Hymns Class")
+        .doc(userData.alhanGrades)
+        .collection("students");
 
-        if (!hymnsClassDoc.exists) {
-          Alert.alert("Error", "Hymns class not found.");
-          return;
-        }
-
-        const studentsCollection = await hymnsClassDoc.ref
-          .collection("students")
-          .get();
-        let studentsData = studentsCollection.docs.map((doc) => ({
+      // Listen for real-time updates to the students' collection
+      const unsubscribe = hymnsClassRef.onSnapshot(async (snapshot) => {
+        let studentsData = snapshot.docs.map((doc) => ({
           uid: doc.id,
           ...doc.data(),
         }));
@@ -98,11 +91,11 @@ const AlhanAttendance = ({ navigation }) => {
         );
 
         setStudents(studentsWithAttendance);
-      } catch (error) {
-        Alert.alert("Error", error.message);
-      } finally {
-        setLoading(false);
-      }
+        setLoading(false); // Stop loading after the data is fetched
+      });
+
+      // Clean up the listener when the component unmounts
+      return () => unsubscribe();
     };
 
     fetchStudents();
@@ -175,6 +168,7 @@ const AlhanAttendance = ({ navigation }) => {
       Alert.alert("Error", "Failed to add student");
     }
   };
+
   const confirmClassChange = () => {
     Alert.alert(
       "Are you sure you want to change hymns class?",
@@ -203,7 +197,6 @@ const AlhanAttendance = ({ navigation }) => {
       Alert.alert('Error', 'Failed to change hymns class. Please try again.');
     }
   };
-
 
   if (loading) {
     return (
@@ -305,6 +298,7 @@ const AlhanAttendance = ({ navigation }) => {
     </View>
   );
 };
+
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: "#121212" },
   headerText: {
@@ -391,7 +385,11 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     marginBottom: 10,
   },
-  cancelButtonText: { color: "#888", marginTop: 10 },
+  cancelButtonText: {
+    fontSize: 16, // Increase font size for visibility
+    color: "#AAA", // Lighter text color for the cancel button
+    marginTop: 10,
+  },
   changeClassButton: {
     backgroundColor: "#D32F2F",
     paddingVertical: 15,
