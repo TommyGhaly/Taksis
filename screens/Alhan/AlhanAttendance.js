@@ -154,14 +154,6 @@ const AlhanAttendance = ({ navigation }) => {
         uid: newStudentRef.id,
       });
 
-      setStudents((prevStudents) => {
-        const updatedStudents = [
-          ...prevStudents,
-          { uid: newStudentRef.id, name: newStudentName, attendance: null },
-        ];
-        return updatedStudents.sort((a, b) => a.name.localeCompare(b.name)); // Ensure sorting
-      });
-
       setModalVisible(false);
       setNewStudentName("");
     } catch (error) {
@@ -183,18 +175,15 @@ const AlhanAttendance = ({ navigation }) => {
   const handleClassChange = async () => {
     try {
       // Update Firestore to set alhanGrades to null and alhan to false
-      await firestore()
-        .collection('users')
-        .doc(user.uid)
-        .update({
-          alhanGrades: null,
-          alhanSetUp: false,
-        });
-  
+      await firestore().collection("users").doc(user.uid).update({
+        alhanGrades: null,
+        alhanSetUp: false,
+      });
+
       // After updating, navigate to the AlhanGrades screen
-      navigation.navigate('AlhanGrades');
+      navigation.navigate("AlhanGrades");
     } catch (error) {
-      Alert.alert('Error', 'Failed to change hymns class. Please try again.');
+      Alert.alert("Error", "Failed to change hymns class. Please try again.");
     }
   };
 
@@ -217,48 +206,52 @@ const AlhanAttendance = ({ navigation }) => {
         contentContainerStyle={styles.studentsContainer}
         showsVerticalScrollIndicator={false}
       >
-        {students.map((student) => (
-          <View key={student.uid} style={styles.studentContainer}>
-            <View style={styles.studentHeader}>
-              <Text style={styles.studentName}>{student.name}</Text>
-              <TouchableOpacity
-                onPress={() =>
-                  navigation.navigate("IndividualAttendance", {
-                    church: userData.church,
-                    category: "Hymns Class",
-                    grade: userData.alhanGrades,
-                    studentId: student.uid,
-                  })
-                }
-              >
-                <Image
-                  source={require("../../assets/vector.png")}
-                  style={styles.icon}
-                />
-              </TouchableOpacity>
+        {students.length === 0 ? (
+          <Text style={styles.noStudentsText}>Class has no students</Text>
+        ) : (
+          students.map((student) => (
+            <View key={student.uid} style={styles.studentContainer}>
+              <View style={styles.studentHeader}>
+                <Text style={styles.studentName}>{student.name}</Text>
+                <TouchableOpacity
+                  onPress={() =>
+                    navigation.navigate("IndividualAttendance", {
+                      church: userData.church,
+                      category: "Hymns Class",
+                      grade: userData.alhanGrades,
+                      studentId: student.uid,
+                    })
+                  }
+                >
+                  <Image
+                    source={require("../../assets/vector.png")}
+                    style={styles.icon}
+                  />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.attendanceButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.attendanceButton,
+                    student.attendance === false && styles.absentSelected,
+                  ]}
+                  onPress={() => handleAttendance(student.uid, false)}
+                >
+                  <Text style={styles.attendanceButtonText}>Absent</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.attendanceButton,
+                    student.attendance === true && styles.presentSelected,
+                  ]}
+                  onPress={() => handleAttendance(student.uid, true)}
+                >
+                  <Text style={styles.attendanceButtonText}>Present</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <View style={styles.attendanceButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.attendanceButton,
-                  student.attendance === false && styles.absentSelected,
-                ]}
-                onPress={() => handleAttendance(student.uid, false)}
-              >
-                <Text style={styles.attendanceButtonText}>Absent</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.attendanceButton,
-                  student.attendance === true && styles.presentSelected,
-                ]}
-                onPress={() => handleAttendance(student.uid, true)}
-              >
-                <Text style={styles.attendanceButtonText}>Present</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))}
+          ))
+        )}
         <TouchableOpacity
           style={styles.changeClassButton}
           onPress={() => confirmClassChange()}
@@ -266,6 +259,7 @@ const AlhanAttendance = ({ navigation }) => {
           <Text style={styles.changeClassButtonText}>Change Hymns Class</Text>
         </TouchableOpacity>
       </ScrollView>
+
       {/* Change Class Button */}
       <TouchableOpacity
         style={styles.addButton}
@@ -410,6 +404,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#FFFFFF",
+  },
+  noStudentsText: {
+    fontSize: 18,
+    color: "#fff",
+    textAlign: "center",
+    marginTop: 20,
   },
 });
 
