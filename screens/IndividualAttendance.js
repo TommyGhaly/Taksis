@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Button, Alert } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import BackArrow from "../components/backArrow"; // Importing the custom back arrow component
@@ -52,6 +52,41 @@ const IndividualAttendance = () => {
     return status === false ? styles.absent : styles.present;
   };
 
+  // Delete student function
+  const deleteStudent = async () => {
+    Alert.alert(
+      "Delete Student",
+      `Are you sure you want to delete ${studentName}'s record? This action cannot be undone.`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          onPress: async () => {
+            try {
+              await firestore()
+                .collection("churches")
+                .doc(church)
+                .collection(category)
+                .doc(grade)
+                .collection("students")
+                .doc(studentId)
+                .delete();
+              
+              Alert.alert("Success", `${studentName}'s record has been deleted.`);
+              navigation.goBack(); // Go back to the previous screen after deletion
+            } catch (error) {
+              console.error("Error deleting student:", error);
+              Alert.alert("Error", "An error occurred while deleting the student's record.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <BackArrow style={styles.backArrow} onPress={() => navigation.goBack()} />
@@ -77,6 +112,7 @@ const IndividualAttendance = () => {
           </View>
         ))}
       </ScrollView>
+      <Button title="Delete Student" color="#F44336" onPress={deleteStudent} />
     </View>
   );
 };
