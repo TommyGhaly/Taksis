@@ -49,7 +49,7 @@ const EditSchedule = () => {
     }
     setServers((prevServers) => [...prevServers, `Altar Server ${prevServers.length + 1}`]);
     setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
+      scrollViewRef.current?.scrollToEnd({ animated: false });
     }, 300);
   };
 

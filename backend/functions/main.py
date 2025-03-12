@@ -884,8 +884,29 @@ def remove_servant_from_attendance(user_id):
                 if updated_servants != ss_data["servants"]:
                     ss_doc.reference.update({"servants": updated_servants})
 
-def check_clases():
-    
+def check_classes():
+    firestore_client = firestore.Client()
+    church_docs = firestore_client.collection("churches").stream()
+
+    for church_doc in church_docs:
+        # Process Alhan collection
+        alhan_ref = church_doc.reference.collection("alhan")
+        alhan_docs = alhan_ref.stream()
+
+        for alhan_doc in alhan_docs:
+            alhan_data = alhan_doc.to_dict()
+            if "servants" not in alhan_data or len(alhan_data["servants"]) == 0:
+                alhan_doc.reference.delete()
+
+        # Process Sunday School collection
+        ss_ref = church_doc.reference.collection("sunday school")
+        ss_docs = ss_ref.stream()
+
+        for ss_doc in ss_docs:
+            ss_data = ss_doc.to_dict()
+            if "servants" not in ss_data or len(ss_data["servants"]) == 0:
+                ss_doc.reference.delete()
+
 
 @https_fn.on_request()
 def set_up_attendance(req: https_fn.Request) -> https_fn.Response:
@@ -944,5 +965,5 @@ def set_up_attendance(req: https_fn.Request) -> https_fn.Response:
                 ss_ref.document(grade).set({"students": [user_id]})
             else:
                 ss_ref.document(grade).update({"students": firestore.ArrayUnion([user_id])})
-
+    check_classes()
     return https_fn.Response("Attendance setup completed successfully", status=200)

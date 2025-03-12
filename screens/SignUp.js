@@ -90,7 +90,9 @@ const SignUp = ({ navigation }) => {
           rank: "Chanter (Epsaltos)",
           experience: "1",
           alhanSetUp: false,
-          ssSetUp: false
+          ssSetUp: false, 
+          alhanGrades: null,
+          ssGrades: null
         });
       }
     } catch (error) {

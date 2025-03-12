@@ -31,9 +31,7 @@ const SelectApplicable = ({ navigation }) => {
       await firestore().collection("users").doc(user.uid).update({
         isDeacon: isDeacon,
         isAlhan: isAlhan,
-        alhanClass: [],
         isSSTeacher: isSSTeach,
-        sundaySchoolClass: [],
         isServant: isServant,
       });
     } catch (error) {
