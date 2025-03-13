@@ -11,6 +11,7 @@ import AlhanNavigator from "./Alhan/AlhanNavigator";
 import SundaySchoolNavigator from "./SundaySchool/SundaySchoolNavigator"
 import LearnItNavigation from "./LearnIt/LearnItNavigation";
 import SettingsNavigation from "./Settings/SettingsNavigation";
+import ServantsMeetingNavigator from "./ServantsMeeting/ServantsMeetingNavigator";
 import EditSchedule from "./EditSchedule";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
@@ -120,6 +121,9 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
       )}
       {userRoles.isSSTeacher && (
         <Drawer.Screen name="Sunday School Attendance" component={SundaySchoolNavigator} />
+      )}
+      {userRoles.isServant && (
+        <Drawer.Screen name="Servants Meeting Attendance" component={ServantsMeetingNavigator} />
       )}
     </Drawer.Navigator>
   );
