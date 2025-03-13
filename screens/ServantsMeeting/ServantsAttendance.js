@@ -1,149 +1,320 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Alert,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  Image,
+  Modal,
+  TextInput,
+} from "react-native";
 import firestore from "@react-native-firebase/firestore";
-import BackArrow from "../../components/backArrow"; // Importing the custom back arrow component
+import auth from "@react-native-firebase/auth";
 
-const IndividualAttendance = () => {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { church, category, servantID } = route.params;
-  const [attendanceData, setAttendanceData] = useState([]);
-  const [studentName, setStudentName] = useState("");
+const ServantsAttendance = ({ navigation }) => {
+  const user = auth().currentUser;
+  const [students, setServants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [userData, setUserData] = useState(null);
 
   useEffect(() => {
-    const fetchAttendance = async () => {
+    const fetchUserData = async () => {
+      if (!user) {
+        Alert.alert("Error", "No user found.");
+        return;
+      }
+
       try {
-        const studentRef = firestore()
-          .collection("churches")
-          .doc(church)
-          .collection(category)
-          .doc(servantID)
-
-        const studentDoc = await studentRef.get();
-        if (studentDoc.exists) {
-          setStudentName(studentDoc.data().name);
-
-          const studentData = studentDoc.data();
-          const attendance = [];
-
-          for (const [key, value] of Object.entries(studentData)) {
-            if (key !== "name" && key !== "uid") {
-              attendance.push({ date: key, status: value });
-            }
-          }
-
-          attendance.sort((a, b) => new Date(b.date) - new Date(a.date));
-          console.log(attendance)
-          setAttendanceData(attendance);
+        const userDoc = await firestore()
+          .collection("users")
+          .doc(user.uid)
+          .get();
+        if (!userDoc.exists) {
+          Alert.alert("Error", "User not found.");
+          return;
         }
+
+        setUserData(userDoc.data());
       } catch (error) {
-        console.error("Error fetching attendance data:", error);
+        Alert.alert("Error", error.message);
       }
     };
 
-    fetchAttendance();
-  }, [church, studentId]);
+    fetchUserData();
+  }, [user]);
 
-  const getStatusStyle = (status) => {
-    // Adjusted to handle true/false for Present/Absent
-    return status === false ? styles.absent : styles.present;
+  useEffect(() => {
+    if (!userData) return;
+
+    const fetchServants = () => {
+      const hymnsClassRef = firestore()
+        .collection("churches")
+        .doc(userData.church)
+        .collection("Servants")
+
+      // Listen for real-time updates to the students' collection
+      const unsubscribe = hymnsClassRef.onSnapshot(async (snapshot) => {
+        let servantsData = snapshot.docs.map((doc) => ({
+          uid: doc.id,
+          ...doc.data(),
+        }));
+        servantsData.sort((a, b) => a.name.localeCompare(b.name));
+
+        const dateKey = getNextSunday();
+        const servantsWithAttendance = await Promise.all(
+          servantsData.map(async (servant) => {
+            const attendanceDoc = await firestore()
+              .collection("churches")
+              .doc(userData.church)
+              .collection("Servants")
+              .doc(servant.uid)
+              .get();
+
+            const attendanceStatus = attendanceDoc.exists
+              ? attendanceDoc.data()[dateKey]
+              : null;
+
+            return {
+              ...servant,
+              attendance: attendanceStatus,
+            };
+          })
+        );
+
+        setServants(servantsWithAttendance);
+        setLoading(false); // Stop loading after the data is fetched
+      });
+
+      // Clean up the listener when the component unmounts
+      return () => unsubscribe();
+    };
+
+    fetchServants();
+  }, [userData]);
+
+  const getNextSunday = () => {
+    const today = new Date();
+    const nextSunday = new Date(today);
+    nextSunday.setDate(today.getDate() + (7 - today.getDay()));
+    const month = String(nextSunday.getMonth() + 1).padStart(2, "0");
+    const day = String(nextSunday.getDate()).padStart(2, "0");
+    const year = nextSunday.getFullYear();
+    return `${month}-${day}-${year}`;
   };
+
+  const handleAttendance = (servantID, status) => {
+    const dateKey = getNextSunday();
+    firestore()
+      .collection("churches")
+      .doc(userData.church)
+      .collection("Servants")
+      .doc(servantID)
+      .update({
+        [dateKey]: status,
+      })
+      .then(() => {
+        setServants((prevStudents) =>
+          prevStudents.map((servant) =>
+            servant.uid === servantID
+              ? { ...servant, attendance: status }
+              : servant
+          )
+        );
+      });
+  };
+
+
+
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#fff" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <BackArrow style={styles.backArrow} onPress={() => navigation.goBack()} />
-      <Text style={styles.title}>{`Attendance for ${studentName}`}</Text>
-      <Text
-        style={styles.subtitle}
-      >{`Category: ${category}`}</Text>
-      <ScrollView contentContainerStyle={styles.attendanceContainer}>
-        {attendanceData.map((attendance, index) => (
-          <View key={index} style={styles.attendanceItem}>
-            <Text style={styles.dateText}>{attendance.date}</Text>
-            <View
-              style={[
-                styles.statusContainer,
-                getStatusStyle(attendance.status),
-              ]}
-            >
-              <Text style={styles.statusText}>
-                {/* Display "Present" or "Absent" based on the status */}
-                {attendance.status === false ? "Absent" : attendance.status === true ? "Present" : "No Status"}
-              </Text>
+      <Text style={styles.headerText}>
+        Attendance for the week of {getNextSunday()}
+      </Text>
+
+      <ScrollView
+        contentContainerStyle={styles.studentsContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {students.length === 0 ? (
+          <Text style={styles.noStudentsText}>Church has no servants</Text>
+        ) : (
+          students.map((servant) => (
+            <View key={servant.uid} style={styles.studentContainer}>
+              <View style={styles.studentHeader}>
+                <Text style={styles.studentName}>{servant.name}</Text>
+                <TouchableOpacity
+                  onPress={() =>
+                    navigation.navigate("IndividualServant", {
+                      church: userData.church,
+                      servantID: servant.uid,
+                    })
+                  }
+                >
+                  <Image
+                    source={require("../../assets/vector.png")}
+                    style={styles.icon}
+                  />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.attendanceButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.attendanceButton,
+                    servant.attendance === false && styles.absentSelected,
+                  ]}
+                  onPress={() => handleAttendance(servant.uid, false)}
+                >
+                  <Text style={styles.attendanceButtonText}>Absent</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.attendanceButton,
+                    servant.attendance === true && styles.presentSelected,
+                  ]}
+                  onPress={() => handleAttendance(servant.uid, true)}
+                >
+                  <Text style={styles.attendanceButtonText}>Present</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        ))}
+          ))
+        )}
       </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#121212", // Dark background color
-    padding: 20,
-  },
-  title: {
-    fontSize: 26,
+  container: { flex: 1, padding: 20, backgroundColor: "#121212" },
+  headerText: {
+    fontSize: 20,
     fontWeight: "bold",
-    color: "#ffffff", // White text for contrast
-    marginBottom: 10,
+    color: "#fff",
+    textAlign: "center",
+    marginBottom: 20,
   },
-  subtitle: {
-    fontSize: 18,
-    color: "#b0b0b0", // Lighter text color for subtitle
-    marginBottom: 25,
+  studentContainer: {
+    backgroundColor: "#1E1E1E",
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 15,
   },
-  attendanceContainer: {
-    flexGrow: 1,
-    paddingBottom: 20,
-  },
-  attendanceItem: {
+  studentHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 15,
-    marginBottom: 15, // Increased margin for spacing
-    borderBottomWidth: 1,
-    borderBottomColor: "#444",
   },
-  dateText: {
-    fontSize: 18,
-    color: "#ffffff", // White text for date
-  },
-  statusContainer: {
+  studentName: { fontSize: 18, color: "#FFFFFF" },
+  icon: { width: 8, height: 15 }, // Adjust size as needed
+  attendanceButtons: {
     flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    justifyContent: "center",
-    minWidth: 120,
-    marginLeft: 20,
-    height: 40, // Make the status box taller
+    justifyContent: "space-between",
+    marginTop: 10,
   },
-  statusText: {
+  attendanceButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 6,
+    alignItems: "center",
+    marginHorizontal: 5,
+    backgroundColor: "#444",
+  },
+  presentSelected: { backgroundColor: "#147efb" },
+  absentSelected: { backgroundColor: "#D32F2F" },
+  attendanceButtonText: { fontSize: 16, fontWeight: "bold", color: "#FFFFFF" },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#121212",
+  },
+
+  // Updated Add Button
+  addButton: {
+    backgroundColor: "#147efb",
+    paddingVertical: 15,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
+    width: "90%",
+    alignSelf: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5, // Android shadow
+  },
+  addButtonText: { fontSize: 18, fontWeight: "bold", color: "#FFFFFF" },
+
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  modalContent: {
+    width: 320,
+    padding: 20,
+    backgroundColor: "#1E1E1E",
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  modalTitle: { fontSize: 18, color: "#FFF", marginBottom: 15 },
+  input: {
+    width: "100%",
+    padding: 12,
+    backgroundColor: "#333",
+    color: "#FFF",
+    borderRadius: 5,
+    marginBottom: 10,
+  },
+  cancelButtonText: {
+    fontSize: 16, // Increase font size for visibility
+    color: "#AAA", // Lighter text color for the cancel button
+    marginTop: 10,
+  },
+  changeClassButton: {
+    backgroundColor: "#D32F2F",
+    paddingVertical: 15,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
+    marginBottom: 20,
+    width: "90%",
+    alignSelf: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  changeClassButtonText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#ffffff", // White text for status
+    color: "#FFFFFF",
   },
-  present: {
-    backgroundColor: "#147efb", // Blue for Present
-    borderColor: "#0f64d2", // Darker blue for the border
-    borderWidth: 1,
-  },
-  absent: {
-    backgroundColor: "#F44336", // Red for Absent
-    borderColor: "#D32F2F", // Darker red for the border
-    borderWidth: 1,
-  },
-  backArrow: {
-    position: "absolute",
-    top: 50,
-    left: 16,
+  noStudentsText: {
+    fontSize: 18,
+    color: "#fff",
+    textAlign: "center",
+    marginTop: 20,
   },
 });
 
-export default IndividualAttendance;
+export default ServantsAttendance;

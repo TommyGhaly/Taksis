@@ -2,14 +2,14 @@ import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
-import BackArrow from "../components/backArrow"; // Importing the custom back arrow component
+import BackArrow from "../../components/backArrow"; // Importing the custom back arrow component
 
-const IndividualAttendance = () => {
+const IndividualServant = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { church, category, servantID } = route.params;
   const [attendanceData, setAttendanceData] = useState([]);
-  const [studentName, setStudentName] = useState("");
+  const [servantName, setServantName] = useState("");
 
   useEffect(() => {
     const fetchAttendance = async () => {
@@ -20,14 +20,14 @@ const IndividualAttendance = () => {
           .collection(category)
           .doc(servantID)
 
-        const studentDoc = await studentRef.get();
-        if (studentDoc.exists) {
-          setStudentName(studentDoc.data().name);
+        const servantDoc = await studentRef.get();
+        if (servantDoc.exists) {
+          setServantName(servantDoc.data().name);
 
-          const studentData = studentDoc.data();
+          const servatnData = servantDoc.data();
           const attendance = [];
 
-          for (const [key, value] of Object.entries(studentData)) {
+          for (const [key, value] of Object.entries(servatnData)) {
             if (key !== "name" && key !== "uid") {
               attendance.push({ date: key, status: value });
             }
@@ -43,7 +43,7 @@ const IndividualAttendance = () => {
     };
 
     fetchAttendance();
-  }, [church, studentId]);
+  }, [church, servantID]);
 
   const getStatusStyle = (status) => {
     // Adjusted to handle true/false for Present/Absent
@@ -53,7 +53,7 @@ const IndividualAttendance = () => {
   return (
     <View style={styles.container}>
       <BackArrow style={styles.backArrow} onPress={() => navigation.goBack()} />
-      <Text style={styles.title}>{`Attendance for ${studentName}`}</Text>
+      <Text style={styles.title}>{`Attendance for ${servantName}`}</Text>
       <Text
         style={styles.subtitle}
       >{`Category: ${category}`}</Text>
@@ -146,4 +146,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default IndividualAttendance;
+export default IndividualServant;
