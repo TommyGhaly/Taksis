@@ -283,98 +283,93 @@ const HomeScreen = () => {
   }, []);
 
   useEffect(() => {
-    const fetchSchedule = async () => {
+    const fetchScheduleRealtime = async () => {
       try {
         const user = auth().currentUser;
-
-        // Fetch user data
-        const userDoc = await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .get();
-        if (!userDoc.exists) {
-          console.log("User not found");
+        if (!user) {
+          console.log("No authenticated user found.");
           return;
         }
-
+  
+        const userDoc = await firestore().collection("users").doc(user.uid).get();
+        if (!userDoc.exists) {
+          console.log("User not found.");
+          return;
+        }
+  
         const userData = userDoc.data();
         const churchId = userData.church;
-
-        // Fetch church data to get the altarServers count
-        const churchDoc = await firestore()
-          .collection("churches")
-          .doc(churchId)
-          .get();
+  
+        const churchDoc = await firestore().collection("churches").doc(churchId).get();
         if (!churchDoc.exists) {
-          console.log("Church not found");
+          console.log("Church not found.");
           return;
         }
-
+  
         const churchData = churchDoc.data();
-        const altarServers = churchData.altarServers || 2; // Default to 2 if no value found
-
-        // Fetch schedules from the church
+        const altarServers = churchData.altarServers || 2; // Default to 2
+  
+        // Reference to the schedules collection
         const schedulesRef = firestore()
           .collection("churches")
           .doc(churchId)
           .collection("schedule");
-        const snapshot = await schedulesRef.get();
-
-        let closestSchedule = null;
-        let closestDate = null;
-
-        snapshot.docs.forEach((doc) => {
-          const scheduleData = doc.data();
-          const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
-          const [month, day, year] = scheduleDateStr.split("-").map(Number);
-          const scheduleDate = new Date(2000 + year, month - 1, day);
-
-          // Check if the schedule date is in the future and the closest to today
-          if (scheduleDate > new Date()) {
-            if (!closestDate || scheduleDate < closestDate) {
-              closestDate = scheduleDate;
-              closestSchedule = scheduleData;
+  
+        // Listen for real-time updates
+        const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
+          let closestSchedule = null;
+          let closestDate = null;
+  
+          snapshot.docs.forEach((doc) => {
+            const scheduleData = doc.data();
+            const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
+            const [month, day, year] = scheduleDateStr.split("-").map(Number);
+            const scheduleDate = new Date(2000 + year, month - 1, day);
+  
+            if (scheduleDate > new Date()) {
+              if (!closestDate || scheduleDate < closestDate) {
+                closestDate = scheduleDate;
+                closestSchedule = scheduleData;
+              }
             }
+          });
+  
+          if (closestSchedule) {
+            const defaultSchedule = {
+              matins: { name: "N/A" },
+              third: { name: "N/A" },
+              sixth: { name: "N/A" },
+              pauline: { name: "N/A" },
+              catholic: { name: "N/A" },
+              praxis: { name: "N/A" },
+              gospel: { name: "N/A" },
+              water: { name: "N/A" },
+              wine: { name: "N/A" },
+              altar: [],
+            };
+  
+            // Limit the number of altar servers displayed
+  
+            setSchedule({
+              ...defaultSchedule,
+              ...closestSchedule,
+            });
+  
+            console.log("Real-time schedule updated:", closestSchedule);
+          } else {
+            console.log("No upcoming schedule found.");
           }
         });
-
-        if (closestSchedule) {
-          const defaultSchedule = {
-            matins: { name: "N/A" },
-            third: { name: "N/A" },
-            sixth: { name: "N/A" },
-            pauline: { name: "N/A" },
-            catholic: { name: "N/A" },
-            praxis: { name: "N/A" },
-            gospel: { name: "N/A" },
-            water: { name: "N/A" },
-            wine: { name: "N/A" },
-            altar: [],
-          };
-
-          // Limit the altar servers to the first 'altarServers' deacons
-          const limitedAltarServers = closestSchedule.altar.slice(
-            0,
-            altarServers + 2
-          );
-
-          // Merge the default schedule with the fetched closest schedule
-          setSchedule({
-            ...defaultSchedule,
-            ...closestSchedule,
-            altar: limitedAltarServers, // Only show the limited number of altar servers
-          });
-          console.log("Schedule updated:", closestSchedule);
-        } else {
-          console.log("No upcoming schedule found");
-        }
+  
+        return () => unsubscribe(); // Clean up listener on unmount
       } catch (error) {
-        console.error("Error fetching schedule:", error);
+        console.error("Error setting up real-time updates:", error);
       }
     };
-
-    fetchSchedule();
-  }, []); // Only run once when the component mounts
+  
+    fetchScheduleRealtime();
+  }, []);
+  
 
   return (
     <View style={styles.container}>

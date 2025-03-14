@@ -1,44 +1,122 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Animated, StyleSheet, Alert, FlatList, Modal } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, FlatList, Modal } from "react-native";
+import firestore from "@react-native-firebase/firestore"; 
+import auth from "@react-native-firebase/auth";
 
+// Sample readings list
 const readings = [
-  "Matins Gospel",
-  "Third Hour Gospel",
-  "Sixth Hour Gospel",
-  "Pauline Epistle",
-  "Catholic Epistle",
-  "Praxis",
-  "Gospel",
-  "Water",
-  "Wine"
+  "matins",
+  "third",
+  "sixth",
+  "pauline",
+  "catholic",
+  "praxis",
+  "gospel",
+  "water",
+  "wine"
 ];
+// Mapping of database keys to display names
+const displayNames = {
+  matins: "Matins Gospel",
+  third: "Third Hour Gospel",
+  sixth: "Sixth Hour Gospel",
+  pauline: "Pauline Epistle",
+  catholic: "Catholic Epistle",
+  praxis: "Praxis",
+  gospel: "Gospel",
+  water: "Water",
+  wine: "Wine"
+};
 
 const EditSchedule = () => {
+  const [churchId, setChurchId] = useState(null); // Church ID state
   const [servers, setServers] = useState([]);
   const [availableServers, setAvailableServers] = useState([]);
   const [assignedReaders, setAssignedReaders] = useState({});
   const [assignedServers, setAssignedServers] = useState({});
   const [serverDropdownIndex, setServerDropdownIndex] = useState(null);
   const [readerDropdownIndex, setReaderDropdownIndex] = useState(null);
-  const fadeAnim = useState(new Animated.Value(0))[0];
   const scrollViewRef = useRef(null);
+  const user = auth().currentUser;
 
   useEffect(() => {
-    setAvailableServers(["John Doe", "Jane Smith", "Michael Lee", "Emma Wilson"]);
-    const initialAssignments = {};
-    readings.forEach((reading) => {
-      initialAssignments[reading] = "Select Reader";
-    });
-    setAssignedReaders(initialAssignments);
+    // Fetch user's document to get churchId
+    const fetchUserData = async () => {
+      const userDoc = await firestore().collection('users').doc(user.uid).get(); 
+      if (userDoc.exists) {
+        const userData = userDoc.data();
+        setChurchId(userData?.church); 
+      } else {
+        console.log("User not found");
+      }
+    };
+
+    fetchUserData();
   }, []);
 
+  useEffect(() => {
+    if (churchId) {
+      const getClosestSunday = () => {
+        const today = new Date();
+        const dayOfWeek = today.getDay();
+        const daysUntilSunday = (7 - dayOfWeek) % 7;
+        today.setDate(today.getDate() + daysUntilSunday);
+  
+        const month = (today.getMonth() + 1).toString().padStart(2, '0');
+        const day = today.getDate().toString().padStart(2, '0');
+        const year = today.getFullYear().toString().slice(-2);
+  
+        return `${month}-${day}-${year}`;
+      };
+  
+      const closestSunday = getClosestSunday();
+      console.log("Closest Sunday:", closestSunday);
+  
+      const schedulesRef = firestore()
+        .collection("churches")
+        .doc(churchId)
+        .collection("schedule")
+        .doc(closestSunday);
+  
+      const unsubscribe = schedulesRef.onSnapshot((doc) => {
+        if (doc.exists) {
+          const scheduleForTheWeek = doc.data();
+          console.log("Schedule for the week:", scheduleForTheWeek);
+  
+          const initialAssignments = {};
+  
+          readings.forEach((reading) => {
+            const reader = scheduleForTheWeek[reading];
+            if (reader && reader.name) {
+              initialAssignments[displayNames[reading]] = reader.name;
+            } else {
+              initialAssignments[displayNames[reading]] = "Select Reader";
+            }
+          });
+  
+          console.log("Initial Assignments:", initialAssignments);
+  
+          setAssignedReaders(initialAssignments);
+        } else {
+          console.log("No schedule found for this Sunday");
+        }
+      });
+  
+      return () => unsubscribe();
+    }
+  }, [churchId]);
+
   const assignReader = (index, reader) => {
-    setAssignedReaders({ ...assignedReaders, [index]: reader });
+    const updatedReaders = { ...assignedReaders };
+    updatedReaders[displayNames[readings[index]]] = reader;
+    setAssignedReaders(updatedReaders);
     setReaderDropdownIndex(null);
   };
 
   const assignServer = (index, name) => {
-    setAssignedServers({ ...assignedServers, [index]: name });
+    const updatedServers = { ...assignedServers };
+    updatedServers[index] = name;
+    setAssignedServers(updatedServers);
     setServerDropdownIndex(null);
   };
 
@@ -73,12 +151,12 @@ const EditSchedule = () => {
         <Text style={styles.sectionHeader}>Assign Readers</Text>
         {readings.map((item, index) => (
           <View key={index} style={styles.listItem}>
-            <Text style={styles.itemText}>{item}</Text>
+            <Text style={styles.itemText}>{displayNames[item]}</Text>
             <TouchableOpacity
               style={styles.dropdown}
               onPress={() => setReaderDropdownIndex(index)}
             >
-              <Text style={styles.dropdownText}>{assignedReaders[index] || "Select Reader"}</Text>
+              <Text style={styles.dropdownText}>{assignedReaders[displayNames[item]] || "Select Reader"}</Text>
             </TouchableOpacity>
           </View>
         ))}
@@ -144,7 +222,6 @@ const EditSchedule = () => {
   );
 };
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -163,7 +240,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   itemText: {
-    color: "#bbb"
+    color: "#bbb",
   },
   sectionHeader: {
     fontSize: 18,

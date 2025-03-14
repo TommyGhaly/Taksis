@@ -73,9 +73,7 @@ const AlhanNavigator = () => {
       <Stack.Screen
         name="AlhanGrades"
         component={AlhanGrades}
-        options={{ headerShown: false ,
-          animation: "slide_from_left",
-        }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="IndividualAttendance"

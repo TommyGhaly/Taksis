@@ -54,6 +54,7 @@ const ChangeName = () => {
       </View>
       <TextInput
         style={styles.input}
+        autoCapitalize="words"
         placeholder="Enter your name"
         placeholderTextColor="#8e8e93"
         value={name}

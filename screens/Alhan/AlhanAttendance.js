@@ -67,7 +67,7 @@ const AlhanAttendance = ({ navigation }) => {
         }));
         studentsData.sort((a, b) => a.name.localeCompare(b.name));
 
-        const dateKey = getNextSunday();
+        const dateKey = getNextSaturday();
         const studentsWithAttendance = await Promise.all(
           studentsData.map(async (student) => {
             const attendanceDoc = await firestore()
@@ -101,18 +101,18 @@ const AlhanAttendance = ({ navigation }) => {
     fetchStudents();
   }, [userData]);
 
-  const getNextSunday = () => {
+  const getNextSaturday = () => {
     const today = new Date();
-    const nextSunday = new Date(today);
-    nextSunday.setDate(today.getDate() + (7 - today.getDay()));
-    const month = String(nextSunday.getMonth() + 1).padStart(2, "0");
-    const day = String(nextSunday.getDate()).padStart(2, "0");
-    const year = nextSunday.getFullYear();
+    const nextSaturday = new Date(today);
+    nextSaturday.setDate(today.getDate() + (6 - today.getDay() + 7) % 7);
+    const month = String(nextSaturday.getMonth() + 1).padStart(2, "0");
+    const day = String(nextSaturday.getDate()).padStart(2, "0");
+    const year = nextSaturday.getFullYear();
     return `${month}-${day}-${year}`;
-  };
+};
 
   const handleAttendance = (studentId, status) => {
-    const dateKey = getNextSunday();
+    const dateKey = getNextSaturday();
     firestore()
       .collection("churches")
       .doc(userData.church)
@@ -199,7 +199,7 @@ const AlhanAttendance = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Text style={styles.headerText}>
-        Attendance for the week of {getNextSunday()}
+        Attendance for the week of {getNextSaturday()}
       </Text>
 
       <ScrollView
@@ -253,10 +253,10 @@ const AlhanAttendance = ({ navigation }) => {
           ))
         )}
         <TouchableOpacity
-          style={styles.changeClassButton}
           onPress={() => confirmClassChange()}
+          style={styles.changeClassContainer}
         >
-          <Text style={styles.changeClassButtonText}>Change Hymns Class</Text>
+          <Text style={styles.changeClassText}>Change Hymns Class</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -275,6 +275,7 @@ const AlhanAttendance = ({ navigation }) => {
             <Text style={styles.modalTitle}>Add New Student</Text>
             <TextInput
               style={styles.input}
+              autoCapitalize="words"
               placeholder="Enter student name"
               placeholderTextColor="#888"
               value={newStudentName}
@@ -384,26 +385,14 @@ const styles = StyleSheet.create({
     color: "#AAA", // Lighter text color for the cancel button
     marginTop: 10,
   },
-  changeClassButton: {
-    backgroundColor: "#D32F2F",
-    paddingVertical: 15,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 20,
-    marginBottom: 20,
-    width: "90%",
-    alignSelf: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+  changeClassContainer: {
+    alignItems: "center", // Centers the text horizontally
+    justifyContent: "center", // Centers if used in a flex container
+    paddingTop: 30
   },
-  changeClassButtonText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFFFFF",
+  changeClassText: {
+    color: "red",
+    fontSize: 16,
   },
   noStudentsText: {
     fontSize: 18,

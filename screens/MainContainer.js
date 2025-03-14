@@ -117,7 +117,7 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
         )}
       </Drawer.Screen>
       {userRoles.isAlhan && (
-        <Drawer.Screen name="Alhan Attendance" component={AlhanNavigator} />
+        <Drawer.Screen name="Hymns Class Attendance" component={AlhanNavigator} />
       )}
       {userRoles.isSSTeacher && (
         <Drawer.Screen name="Sunday School Attendance" component={SundaySchoolNavigator} />
