@@ -181,7 +181,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
       });
 
       // After updating, navigate to the ssGrades screen
-      navigation.navigate("ssGrades");
+      navigation.navigate("SundaySchoolGrades");
     } catch (error) {
       Alert.alert("Error", "Failed to change Sunday School. Please try again.");
     }
@@ -253,10 +253,10 @@ const SundaySchoolAttendance = ({ navigation }) => {
           ))
         )}
         <TouchableOpacity
-          style={styles.changeClassButton}
           onPress={() => confirmClassChange()}
+          style={styles.changeClassContainer}
         >
-          <Text style={styles.changeClassButtonText}>Change Sunday School Class</Text>
+          <Text style={styles.changeClassText}>Change Sunday School Class</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -275,6 +275,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
             <Text style={styles.modalTitle}>Add New Student</Text>
             <TextInput
               style={styles.input}
+              autoCapitalize="words"
               placeholder="Enter student name"
               placeholderTextColor="#888"
               value={newStudentName}
@@ -384,26 +385,14 @@ const styles = StyleSheet.create({
     color: "#AAA", // Lighter text color for the cancel button
     marginTop: 10,
   },
-  changeClassButton: {
-    backgroundColor: "#D32F2F",
-    paddingVertical: 15,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 20,
-    marginBottom: 20,
-    width: "90%",
-    alignSelf: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+  changeClassContainer: {
+    alignItems: "center", // Centers the text horizontally
+    justifyContent: "center", // Centers if used in a flex container
+    paddingTop: 30
   },
-  changeClassButtonText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFFFFF",
+  changeClassText: {
+    color: "red",
+    fontSize: 16,
   },
   noStudentsText: {
     fontSize: 18,

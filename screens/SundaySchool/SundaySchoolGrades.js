@@ -17,18 +17,30 @@ const SundaySchoolGrades = ({navigation}) => {
       prev.includes(grade) ? prev.filter((g) => g !== grade) : [...prev, grade]
     );
   };
-
+  const setGrades = async (selectedGrades) => {
+    orderedGrades = []
+    for(let i = 0; i < grades.length; i++) {
+      for (let j = 0; j < selectedGrades.length; j++) {
+        if (grades[i] == selectedGrades[j]){
+          orderedGrades.push(selectedGrades[j])
+        }
+      }
+    }
+    console.log(orderedGrades)
+    return orderedGrades
+  };
   const handleSubmit = async () => {
     if (!user) {
       Alert.alert("Error", "User not found.");
       return;
     }
-    
+    const orderedGrades = await setGrades(selectedGrades)
+    console.log(orderedGrades)
     try {
       const userRef = firestore().collection("users").doc(user.uid);
       await userRef.update({
         ssSetUp: true,
-        ssGrades: selectedGrades.join(", ")
+        ssGrades: orderedGrades.join(", ")
       });
 
       const userDoc = await userRef.get();
@@ -43,7 +55,7 @@ const SundaySchoolGrades = ({navigation}) => {
       const churchRef = firestore().collection("churches").doc(userChurch);
       const hymnsClassRef = churchRef.collection("Sunday School");
       
-      const gradeRef = hymnsClassRef.doc(selectedGrades.join(", "));
+      const gradeRef = hymnsClassRef.doc(orderedGrades.join(", "));
       const gradeDoc = await gradeRef.get();
         
       if (!gradeDoc.exists) {
