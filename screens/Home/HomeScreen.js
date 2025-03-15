@@ -307,7 +307,6 @@ const HomeScreen = () => {
         }
   
         const churchData = churchDoc.data();
-        const altarServers = churchData.altarServers || 2; // Default to 2
   
         // Reference to the schedules collection
         const schedulesRef = firestore()
@@ -325,7 +324,7 @@ const HomeScreen = () => {
             const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
             const [month, day, year] = scheduleDateStr.split("-").map(Number);
             const scheduleDate = new Date(2000 + year, month - 1, day);
-  
+            console.log(scheduleDate)
             if (scheduleDate > new Date()) {
               if (!closestDate || scheduleDate < closestDate) {
                 closestDate = scheduleDate;
