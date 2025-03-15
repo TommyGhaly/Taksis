@@ -269,7 +269,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
       </TouchableOpacity>
 
       {/* Add Student Modal */}
-      <Modal visible={modalVisible} transparent animationType="slide">
+      <Modal visible={modalVisible} transparent animationType="none">
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add New Student</Text>

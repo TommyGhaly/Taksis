@@ -7,6 +7,7 @@ from firebase_admin import initialize_app, firestore, credentials, auth
 import google.cloud.firestore
 from google.cloud import firestore
 import requests
+import random
 
 
 initialize_app()
@@ -326,7 +327,7 @@ def add_person(schedule_list, deacon_list):
 
 
 # takes in all the deacons for a church (one at a time) sorts them based off how long it has been since they served and passes them into the other functions
-def create_schedule(deacons, church_ref):
+def create_schedule(deacons, church_ref, num_altar_servers):
 
     deacons = sort_deacons(deacons)
     schedule = []
@@ -360,7 +361,7 @@ def create_schedule(deacons, church_ref):
         schedule = add_person(schedule, list)
 
     # adds the number of altar servers minus two because blood and wine are in the altar
-    for i in range(8):
+    for i in range(9):
         schedule = add_person(schedule, altar_list)
 
     print("schedule:", schedule, "\n\n\n\n")
@@ -369,71 +370,71 @@ def create_schedule(deacons, church_ref):
         "matins": (
             {"name": schedule[0]["name"], "uid": schedule[0]["uid"]}
             if schedule[0] != "N/A"
-            else {"name": "N/A", "uid": "N/A"}
+            else {"name": "N/A", "uid": "1"}
         ),
         "third": (
             {"name": schedule[1]["name"], "uid": schedule[1]["uid"]}
             if schedule[1] != "N/A"
-            else {"name": "N/A", "uid": "N/A"}
+            else {"name": "N/A", "uid": "2"}
         ),
         "sixth": (
             {"name": schedule[2]["name"], "uid": schedule[2]["uid"]}
             if schedule[2] != "N/A"
-            else {"name": "N/A", "uid": "N/A"}
+            else {"name": "N/A", "uid": "3"}
         ),
         "pauline": (
             {"name": schedule[3]["name"], "uid": schedule[3]["uid"]}
             if schedule[3] != "N/A"
-            else {"name": "N/A", "uid": "N/A"}
+            else {"name": "N/A", "uid": "4"}
         ),
         "catholic": (
             {"name": schedule[4]["name"], "uid": schedule[4]["uid"]}
             if schedule[4] != "N/A"
-            else {"name": "N/A", "uid": "N/A"}
+            else {"name": "N/A", "uid": "5"}
         ),
         "praxis": (
             {"name": schedule[5]["name"], "uid": schedule[5]["uid"]}
             if schedule[5] != "N/A"
-            else {"name": "N/A", "uid": "N/A"}
+            else {"name": "N/A", "uid": "6"}
         ),
         "gospel": (
             {"name": schedule[6]["name"], "uid": schedule[6]["uid"]}
             if schedule[6] != "N/A"
-            else {"name": "N/A", "uid": "N/A"}
+            else {"name": "N/A", "uid": "7"}
         ),
         "water": (
             {"name": schedule[7]["name"], "uid": schedule[7]["uid"]}
             if schedule[7] != "N/A"
-            else {"name": "N/A", "uid": "N/A"}
+            else {"name": "N/A", "uid": "8"}
         ),
         "wine": (
             {"name": schedule[8]["name"], "uid": schedule[8]["uid"]}
             if schedule[8] != "N/A"
-            else {"name": "N/A", "uid": "N/A"}
+            else {"name": "N/A", "uid": "9"}
         ),
         "altar": (
             [
                 (
                     {"name": item["name"], "uid": item["uid"]}
                     if item != "N/A"
-                    else {"name": "N/A", "uid": "N/A"}
+                    else {"name": "N/A", "uid": str(random.randint(1, 100))}
                 )
-                for item in schedule[7:14]
+                for item in schedule[9:9+num_altar_servers]
             ]
             if len(schedule) > 7
-            else [{"name": "N/A", "uid": "N/A"} for _ in range(6)]
+            else [{"name": "N/A", "uid": str(_+20)} for _ in range(num_altar_servers)]
         ),
         "extra": (
             [
                 (
                     {"name": item["name"], "uid": item["uid"]}
                     if item != "N/A"
-                    else {"name": "N/A", "uid": "N/A"}
+                    else {"name": "N/A", "uid": str(random.randint(1,100))}
                 )
-                for item in schedule[14:]
+                for item in schedule[9+num_altar_servers:]
             ]
             if len(schedule) > 14
-            else [{"name": "N/A", "uid": "N/A"} for _ in range(3)]
+            else [{"name": "N/A", "uid": str(_+30)} for _ in range(9-num_altar_servers)]
         ),
     }
 
@@ -470,7 +471,10 @@ def my_scheduled_function(req: https_fn.Request) -> https_fn.Response:
     docs = collection_ref.stream()
 
     for doc in docs:
-
+        church_doc = doc.reference.get()
+        church_data = church_doc.to_dict()
+        num_altar_servers = church_data["altarServers"]
+        print("altar servers: ",num_altar_servers)
         schedule_ref = doc.reference.collection("schedule")
         schedules = list(schedule_ref.stream())
 
@@ -478,13 +482,13 @@ def my_scheduled_function(req: https_fn.Request) -> https_fn.Response:
             start_date = datetime.datetime.now()
 
             for i in range(5):
-                schedule = create_schedule(get_deacons(doc.id), doc.reference)
+                schedule = create_schedule(get_deacons(doc.id), doc.reference, num_altar_servers)
                 doc_date = start_date + datetime.timedelta(weeks=i)
                 doc_date_str = doc_date.strftime("%m-%d-%y")
                 schedule_doc = schedule_ref.document(doc_date_str)
                 schedule_doc.set(schedule)
         else:
-            schedule = create_schedule(get_deacons(doc.id), doc.reference)
+            schedule = create_schedule(get_deacons(doc.id), doc.reference, num_altar_servers)
             start_date = datetime.datetime.now()
             doc_delete_str = start_date.strftime("%m-%d-%y")
             delete_doc_ref = schedule_ref.document(doc_delete_str)
@@ -967,3 +971,132 @@ def set_up_attendance(req: https_fn.Request) -> https_fn.Response:
                 ss_ref.document(grade).update({"students": firestore.ArrayUnion([user_id])})
     check_classes()
     return https_fn.Response("Attendance setup completed successfully", status=200)
+
+
+@https_fn.on_request()
+def remove_server(req: https_fn.Request) -> https_fn.Response:
+    try:
+        request_data = req.get_json()
+        if not request_data:
+            return https_fn.Response("Missing JSON body", status=400)
+    except Exception as e:
+        return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
+
+    # Extract required parameters
+    user_id = request_data.get("uid")
+    church_id = request_data.get("church")
+    week_id = request_data.get("week")
+    server_uid = request_data.get("server")
+
+    if not all([user_id, church_id, week_id, server_uid]):
+        return https_fn.Response("Missing required parameters", status=400)
+
+    # Optional: Verify Firebase Auth token
+    id_token = req.headers.get("Authorization")
+    if id_token:
+        try:
+            decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
+        except Exception as e:
+            return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+
+    # Firestore setup
+    firestore_client = firestore.Client()
+    schedule_ref = (
+        firestore_client.collection("churches")
+        .document(church_id)
+        .collection("schedule")
+        .document(week_id)
+    )
+    schedule_doc = schedule_ref.get()
+
+    if not schedule_doc.exists:
+        return https_fn.Response("Schedule not found", status=404)
+
+    schedule_data = schedule_doc.to_dict()
+    if not schedule_data:
+        return https_fn.Response("Invalid schedule data", status=500)
+
+    altar_servers = schedule_data.get("altar", [])
+    extra_servers = schedule_data.get("extra", [])
+    print(altar_servers)
+    updated_altar_servers = [s for s in altar_servers if s["uid"] != server_uid]
+    print(updated_altar_servers)
+    removed_servers = [s for s in altar_servers if s["uid"] == server_uid]
+
+    if not removed_servers:
+        return https_fn.Response("Server not found in 'altar' list", status=404)
+
+    # Insert the server at the first index of the extra list
+    extra_servers.insert(0, removed_servers[0])
+
+    # Update Firestore
+    schedule_ref.update({"altar": updated_altar_servers, "extra": extra_servers})
+
+    return https_fn.Response("User removed from altar and moved to extra", status=200)
+
+
+
+@https_fn.on_request()
+def add_server(req: https_fn.Request) -> https_fn.Response:
+    try:
+        request_data = req.get_json()
+        if not request_data:
+            return https_fn.Response("Missing JSON body", status=400)
+    except Exception as e:
+        return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
+
+    # Extract required parameters
+    user_id = request_data.get("uid")
+    church_id = request_data.get("church")
+    week_id = request_data.get("week")
+
+    if not all([user_id, church_id, week_id]):
+        return https_fn.Response("Missing required parameters", status=400)
+
+    # Optional: Verify Firebase Auth token
+    id_token = req.headers.get("Authorization")
+    if id_token:
+        try:
+            decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
+        except Exception as e:
+            return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+
+    # Firestore setup
+    firestore_client = firestore.Client()
+    schedule_ref = (
+        firestore_client.collection("churches")
+        .document(church_id)
+        .collection("schedule")
+        .document(week_id)
+    )
+    schedule_doc = schedule_ref.get()
+
+    if not schedule_doc.exists:
+        return https_fn.Response("Schedule not found", status=404)
+
+    schedule_data = schedule_doc.to_dict()
+    if not schedule_data:
+        return https_fn.Response("Invalid schedule data", status=500)
+
+    altar_servers = schedule_data.get("altar", [])
+    extra_servers = schedule_data.get("extra", [])
+
+    print("Before update:")
+    print("Altar Servers:", altar_servers)
+    print("Extra Servers:", extra_servers)
+
+    # Ensure extra_servers is not empty before accessing index 0
+    if extra_servers:
+        altar_servers.append(extra_servers[0])  # Move first extra server to altar
+        updated_extra_servers = extra_servers[1:]  # Remove first element from extra list
+
+        # Update Firestore
+        schedule_ref.update({"altar": altar_servers, "extra": updated_extra_servers})
+
+        print("After update:")
+        print("Altar Servers:", altar_servers)
+        print("Extra Servers:", updated_extra_servers)
+
+        return https_fn.Response("User moved from extra to altar", status=200)
+    else:
+        return https_fn.Response("No extra servers available to move", status=400)
