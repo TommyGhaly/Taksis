@@ -1,5 +1,4 @@
 from typing import Any, List, Dict
-import datetime
 import random
 import uuid
 from firebase_functions import https_fn, scheduler_fn, firestore_fn
@@ -7,9 +6,7 @@ from firebase_admin import initialize_app, firestore, credentials, auth
 import google.cloud.firestore
 from google.cloud import firestore
 import requests
-import random
-
-
+import datetime
 initialize_app()
 
 
@@ -301,6 +298,7 @@ def update_weeks(schedule, deacons, doc_ref):
             deacon["weeksSince"] += 1
     doc_ref.update({"deacons": deacons})
 
+
 # ensures the person added to the schedule isn't on there multiple times
 def add_person(schedule_list, deacon_list):
     uids = []  # Collect UIDs
@@ -345,15 +343,15 @@ def create_schedule(deacons, church_ref, num_altar_servers):
 
     # makes a list of all the lists besides altar_list
     all_lists = [
-        matins_list,
-        third_list,
-        sixth_list,
-        pauline_list,
-        catholic_list,
-        praxis_list,
         gospel_list,
-        water_list,
         wine_list,
+        water_list,
+        praxis_list,
+        catholic_list,
+        pauline_list,
+        sixth_list,
+        third_list,
+        matins_list,
     ]
     print(all_lists)
     # adds one person that is not already in the schedule for each roll
@@ -367,22 +365,22 @@ def create_schedule(deacons, church_ref, num_altar_servers):
     print("schedule:", schedule, "\n\n\n\n")
 
     schedule_dict = {
-        "matins": (
+        "gospel": (
             {"name": schedule[0]["name"], "uid": schedule[0]["uid"]}
             if schedule[0] != "N/A"
             else {"name": "N/A", "uid": "1"}
         ),
-        "third": (
+        "wine": (
             {"name": schedule[1]["name"], "uid": schedule[1]["uid"]}
             if schedule[1] != "N/A"
             else {"name": "N/A", "uid": "2"}
         ),
-        "sixth": (
+        "water": (
             {"name": schedule[2]["name"], "uid": schedule[2]["uid"]}
             if schedule[2] != "N/A"
             else {"name": "N/A", "uid": "3"}
         ),
-        "pauline": (
+        "praxis": (
             {"name": schedule[3]["name"], "uid": schedule[3]["uid"]}
             if schedule[3] != "N/A"
             else {"name": "N/A", "uid": "4"}
@@ -392,22 +390,22 @@ def create_schedule(deacons, church_ref, num_altar_servers):
             if schedule[4] != "N/A"
             else {"name": "N/A", "uid": "5"}
         ),
-        "praxis": (
+        "pauline": (
             {"name": schedule[5]["name"], "uid": schedule[5]["uid"]}
             if schedule[5] != "N/A"
             else {"name": "N/A", "uid": "6"}
         ),
-        "gospel": (
+        "sixth": (
             {"name": schedule[6]["name"], "uid": schedule[6]["uid"]}
             if schedule[6] != "N/A"
             else {"name": "N/A", "uid": "7"}
         ),
-        "water": (
+        "third": (
             {"name": schedule[7]["name"], "uid": schedule[7]["uid"]}
             if schedule[7] != "N/A"
             else {"name": "N/A", "uid": "8"}
         ),
-        "wine": (
+        "matins": (
             {"name": schedule[8]["name"], "uid": schedule[8]["uid"]}
             if schedule[8] != "N/A"
             else {"name": "N/A", "uid": "9"}
@@ -419,22 +417,25 @@ def create_schedule(deacons, church_ref, num_altar_servers):
                     if item != "N/A"
                     else {"name": "N/A", "uid": str(random.randint(1, 100))}
                 )
-                for item in schedule[9:9+num_altar_servers]
+                for item in schedule[9 : 9 + num_altar_servers]
             ]
             if len(schedule) > 7
-            else [{"name": "N/A", "uid": str(_+20)} for _ in range(num_altar_servers)]
+            else [{"name": "N/A", "uid": str(_ + 20)} for _ in range(num_altar_servers)]
         ),
         "extra": (
             [
                 (
                     {"name": item["name"], "uid": item["uid"]}
                     if item != "N/A"
-                    else {"name": "N/A", "uid": str(random.randint(1,100))}
+                    else {"name": "N/A", "uid": str(random.randint(1, 100))}
                 )
-                for item in schedule[9+num_altar_servers:]
+                for item in schedule[9 + num_altar_servers :]
             ]
             if len(schedule) > 14
-            else [{"name": "N/A", "uid": str(_+30)} for _ in range(9-num_altar_servers)]
+            else [
+                {"name": "N/A", "uid": str(_ + 30)}
+                for _ in range(9 - num_altar_servers)
+            ]
         ),
     }
 
@@ -473,8 +474,10 @@ def my_scheduled_function(req: https_fn.Request) -> https_fn.Response:
     for doc in docs:
         church_doc = doc.reference.get()
         church_data = church_doc.to_dict()
-        num_altar_servers = church_data["altarServers"]
-        print("altar servers: ",num_altar_servers)
+        num_altar_servers = int(
+            church_data.get("altarServers", 0)
+        )  # Ensure it's an integer, defaulting to 0
+        print("altar servers: ", num_altar_servers)
         schedule_ref = doc.reference.collection("schedule")
         schedules = list(schedule_ref.stream())
 
@@ -482,13 +485,17 @@ def my_scheduled_function(req: https_fn.Request) -> https_fn.Response:
             start_date = datetime.datetime.now()
 
             for i in range(5):
-                schedule = create_schedule(get_deacons(doc.id), doc.reference, num_altar_servers)
+                schedule = create_schedule(
+                    get_deacons(doc.id), doc.reference, num_altar_servers
+                )
                 doc_date = start_date + datetime.timedelta(weeks=i)
                 doc_date_str = doc_date.strftime("%m-%d-%y")
                 schedule_doc = schedule_ref.document(doc_date_str)
                 schedule_doc.set(schedule)
         else:
-            schedule = create_schedule(get_deacons(doc.id), doc.reference, num_altar_servers)
+            schedule = create_schedule(
+                get_deacons(doc.id), doc.reference, num_altar_servers
+            )
             start_date = datetime.datetime.now()
             doc_delete_str = start_date.strftime("%m-%d-%y")
             delete_doc_ref = schedule_ref.document(doc_delete_str)
@@ -497,7 +504,7 @@ def my_scheduled_function(req: https_fn.Request) -> https_fn.Response:
             doc_date_str = doc_date.strftime("%m-%d-%y")
             schedule_doc = schedule_ref.document(doc_date_str)
             schedule_doc.set(schedule)
-
+        set_next_week_serve(doc.id)
     return https_fn.Response(f"Successfully wrote documents to 'schedules' collection.")
 
 
@@ -554,28 +561,28 @@ def remove_user_from_churches(user_id):
     firestore_client = firestore.Client()
     church_ref = firestore_client.collection("churches")
     church_docs = church_ref.stream()
+
     for doc in church_docs:
         church_id = doc.id  # Get document ID
         church_data = doc.to_dict()  # Convert document to dictionary
         updated_data = False  # Track if updates are needed
         filtered_deacons = []
-        filtered_servants = []
+
         # Remove entire dictionary from "deacons" if it contains user_id
-        for deacon in church_data["deacons"]:
+        for deacon in church_data.get("deacons", []):
             if deacon["uid"] == user_id:
                 updated_data = True
             else:
                 filtered_deacons.append(deacon)
 
-        # Remove entire dictionary from "servants" if it contains user_id
-        for servant in church_data["servants"]:
-            if servant["uid"] == user_id:
-                updated_data = True
-            else:
-                filtered_servants.append(servant)
+        # Query only servants with the matching uid
+        servants_ref = doc.reference.collection("Servants Meeting")
+        servants_docs = servants_ref.where("uid", "==", user_id).stream()
+        for servant in servants_docs:
+            servant.reference.delete()
+            updated_data = True
 
         church_data["deacons"] = filtered_deacons
-        church_data["servants"] = filtered_servants
 
         # Update Firestore only if changes were made
         if updated_data:
@@ -635,7 +642,6 @@ def add_user_to_churches(user_data):
 
     # Initialize lists if missing
     church_data.setdefault("deacons", [])
-    church_data.setdefault("servants", [])
 
     # Add user to deacons list if applicable
     if user_data.get("isDeacon"):
@@ -654,19 +660,26 @@ def add_user_to_churches(user_data):
             }
             church_data["deacons"].append(new_deacon)
 
-    # Add user to servants list if applicable
-    if user_data.get("isSSTeacher"):
-        if not any(
-            servant.get("uid") == user_data["uid"]
-            for servant in church_data["servants"]
-        ):
-            new_servant = {
-                "uid": user_data["uid"],
-                "name": user_data["name"],
-            }
-            church_data["servants"].append(new_servant)
+    # Delete existing servant record, if it exists (deletion is safe even if the document doesn’t exist)
+    servant_ref = (
+        firestore_client.collection("churches")
+        .document(church_id)
+        .collection("Servants Meeting")
+        .document(user_data["uid"])
+    )
+    servant_ref.delete()
 
-    # Write the updated data back to Firestore
+    # Conditionally add the user back if they are an SSTeacher
+    if user_data.get("isSSTeacher"):
+        new_servant = {
+            "uid": user_data["uid"],
+            "name": user_data["name"],
+        }
+        servant_doc_ref = church_doc_ref.collection("Servants Meeting").document(
+            new_servant["uid"]
+        )
+        servant_doc_ref.set(new_servant, merge=True)
+        # Write the updated data back to Firestore
     try:
         church_doc_ref.set(church_data, merge=True)
     except Exception as e:
@@ -858,7 +871,7 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
     return https_fn.Response("user and children deleted", status=200)
 
 
-#removes 
+# removes
 def remove_servant_from_attendance(user_id):
     firestore_client = firestore.Client()
     church_docs = firestore_client.collection("churches").stream()
@@ -871,7 +884,9 @@ def remove_servant_from_attendance(user_id):
         for alhan_doc in alhan_docs:
             alhan_data = alhan_doc.to_dict()
             if "servants" in alhan_data:
-                updated_servants = [s for s in alhan_data["servants"] if s["uid"] != user_id]
+                updated_servants = [
+                    s for s in alhan_data["servants"] if s["uid"] != user_id
+                ]
 
                 if updated_servants != alhan_data["servants"]:
                     alhan_doc.reference.update({"servants": updated_servants})
@@ -883,10 +898,13 @@ def remove_servant_from_attendance(user_id):
         for ss_doc in ss_docs:
             ss_data = ss_doc.to_dict()
             if "servants" in ss_data:
-                updated_servants = [s for s in ss_data["servants"] if s["uid"] != user_id]
+                updated_servants = [
+                    s for s in ss_data["servants"] if s["uid"] != user_id
+                ]
 
                 if updated_servants != ss_data["servants"]:
                     ss_doc.reference.update({"servants": updated_servants})
+
 
 def check_classes():
     firestore_client = firestore.Client()
@@ -946,31 +964,46 @@ def set_up_attendance(req: https_fn.Request) -> https_fn.Response:
     # Remove user from attendance
     remove_servant_from_attendance(user_data["uid"])
 
-    church_doc_ref = firestore_client.collection("churches").document(user_data["church"])
+    church_doc_ref = firestore_client.collection("churches").document(
+        user_data["church"]
+    )
 
     # Check and update Alhan setup
     if user_data.get("alhanSetUp"):
         alhan_ref = church_doc_ref.collection("alhan")
-        existing_alhan_classes = {doc.id for doc in alhan_ref.stream()}  # Get existing classes
+        existing_alhan_classes = {
+            doc.id for doc in alhan_ref.stream()
+        }  # Get existing classes
 
         for grade in user_data.get("alhanGrades", []):
             if grade not in existing_alhan_classes:
                 alhan_ref.document(grade).set({"students": [user_id]})
             else:
-                alhan_ref.document(grade).update({"students": firestore.ArrayUnion([user_id])})
+                alhan_ref.document(grade).update(
+                    {"students": firestore.ArrayUnion([user_id])}
+                )
 
     # Check and update Sunday School setup
     if user_data.get("ssSetUp"):
         ss_ref = church_doc_ref.collection("sunday school")
-        existing_ss_classes = {doc.id for doc in ss_ref.stream()}  # Get existing classes
+        existing_ss_classes = {
+            doc.id for doc in ss_ref.stream()
+        }  # Get existing classes
 
         for grade in user_data.get("ssGrades", []):
             if grade not in existing_ss_classes:
                 ss_ref.document(grade).set({"students": [user_id]})
             else:
-                ss_ref.document(grade).update({"students": firestore.ArrayUnion([user_id])})
+                ss_ref.document(grade).update(
+                    {"students": firestore.ArrayUnion([user_id])}
+                )
     check_classes()
     return https_fn.Response("Attendance setup completed successfully", status=200)
+
+
+@https_fn.on_request()
+def switch_server():
+    pass
 
 
 @https_fn.on_request()
@@ -983,12 +1016,11 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
 
     # Extract required parameters
-    user_id = request_data.get("uid")
     church_id = request_data.get("church")
     week_id = request_data.get("week")
     server_uid = request_data.get("server")
 
-    if not all([user_id, church_id, week_id, server_uid]):
+    if not all([church_id, week_id, server_uid]):
         return https_fn.Response("Missing required parameters", status=400)
 
     # Optional: Verify Firebase Auth token
@@ -1031,9 +1063,9 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
 
     # Update Firestore
     schedule_ref.update({"altar": updated_altar_servers, "extra": extra_servers})
-
+    update_future_schedules(church_id)
+    set_next_week_serve(church_id)
     return https_fn.Response("User removed from altar and moved to extra", status=200)
-
 
 
 @https_fn.on_request()
@@ -1046,11 +1078,10 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
 
     # Extract required parameters
-    user_id = request_data.get("uid")
     church_id = request_data.get("church")
     week_id = request_data.get("week")
 
-    if not all([user_id, church_id, week_id]):
+    if not all([church_id, week_id]):
         return https_fn.Response("Missing required parameters", status=400)
 
     # Optional: Verify Firebase Auth token
@@ -1088,7 +1119,9 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
     # Ensure extra_servers is not empty before accessing index 0
     if extra_servers:
         altar_servers.append(extra_servers[0])  # Move first extra server to altar
-        updated_extra_servers = extra_servers[1:]  # Remove first element from extra list
+        updated_extra_servers = extra_servers[
+            1:
+        ]  # Remove first element from extra list
 
         # Update Firestore
         schedule_ref.update({"altar": altar_servers, "extra": updated_extra_servers})
@@ -1096,7 +1129,134 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
         print("After update:")
         print("Altar Servers:", altar_servers)
         print("Extra Servers:", updated_extra_servers)
+        update_future_schedules(church_id)
+        set_next_week_serve(church_id)
 
         return https_fn.Response("User moved from extra to altar", status=200)
     else:
         return https_fn.Response("No extra servers available to move", status=400)
+
+
+def update_future_schedules(church):
+    firestore_client = firestore.Client()
+    church_ref = firestore_client.collection("churches").document(church)
+    church_doc = church_ref.get()
+
+    # Check if the church document exists
+    if not church_doc.exists:
+        print(f"Church document for {church} does not exist.")
+        return
+
+    church_data = church_doc.to_dict()
+    num_altar_servers = int(
+        church_data.get("altarServers", 0)
+    )  # Ensure it's an integer, defaulting to 0
+
+    schedule_ref = (
+        firestore_client.collection("churches").document(church).collection("schedule")
+    )
+
+    docs = schedule_ref.stream()
+    for doc in docs:
+        schedule_data = doc.to_dict()
+        # Ensure default values if keys are missing
+        altar_list = schedule_data.get("altar", [])
+        extra_list = schedule_data.get("extra", [])
+
+        servers = []
+        for server in altar_list:
+            servers.append(server)
+        for extra in extra_list:
+            servers.append(extra)
+
+        updated_altar_servers = servers[: num_altar_servers + 1]
+        updated_extra_servers = servers[num_altar_servers + 1 :]
+
+        doc.reference.update(
+            {"altar": updated_altar_servers, "extra": updated_extra_servers}
+        )
+
+    return
+
+
+@https_fn.on_request()
+def unavailable_for_week():
+    pass
+
+
+def reset_next_dates():
+    firestore_client = firestore.Client()
+    users_ref = firestore_client.collection("users")
+    users_docs = users_ref.stream()
+    for user in users_docs:
+        user.reference.update({"nextWeekServe": "N/A"})
+    return
+
+
+def set_user_next_week(user_id, week):
+    firestore_client = firestore.Client()
+    user_ref = firestore_client.collection("users").document(user_id)
+    user_data = user_ref.get()
+
+    if user_data.exists:
+        user_info = user_data.to_dict()
+        next_week_serve = user_info.get("nextWeekServe")  # May be None
+
+        if next_week_serve == "N/A":
+            user_ref.update({"nextWeekServe": week})
+
+        try:
+            new_date = datetime.datetime.strptime(week, "%m-%d-%y")  # Convert input date
+
+            if next_week_serve:
+                existing_date = datetime.datetime.strptime(next_week_serve, "%m-%d-%y")
+
+                # Update only if the new date is earlier
+                if new_date < existing_date:
+                    user_ref.update({"nextWeekServe": week})
+            else:
+                # If nextWeekServe doesn't exist, set it
+                user_ref.update({"nextWeekServe": week})
+        except ValueError:
+            print(f"Invalid date format: {week}")
+    else:
+        print(f"User {user_id} not found.")
+
+
+def set_next_week_serve(church_id):
+    reset_next_dates()
+
+    firestore_client = firestore.Client()
+    schedules_ref = (
+        firestore_client.collection("churches")
+        .document(church_id)
+        .collection("schedule")
+    )
+    schedules = schedules_ref.stream()
+
+    for schedule in schedules:
+        schedule_id = schedule.id
+        schedule_data = schedule.to_dict()
+
+        for key, value in schedule_data.items():
+
+            if key == "extra":
+                continue
+
+            if key == "altar":
+
+                for altar_server in value:
+
+                    for individual_key, individual_value in altar_server.items():
+
+                        if individual_key == "uid" and individual_value != "N/A":
+                            print(f'{individual_value} individual value')
+                            set_user_next_week(individual_value, str(schedule_id))
+
+            if isinstance(value, dict):
+                for individual_key, individual_value in value.items():
+                    if individual_key == "uid" and individual_value != "N/A":
+                        print(f'{individual_value} individual value')
+                        set_user_next_week(individual_value, str(schedule_id))
+
+    return

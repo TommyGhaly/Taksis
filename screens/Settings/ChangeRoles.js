@@ -16,7 +16,6 @@ const ChangeRoles = ({ navigation }) => {
   const handleDeacon = (checked) => setIsDeacon(checked);
   const handleAlhan = (checked) => setIsAlhan(checked);
   const handleSSTeach = (checked) => setIsSSTeach(checked);
-  const handleServant = (checked) => setIsServant(checked);
 
   const handleContinue = async () => {
     try {
@@ -24,11 +23,10 @@ const ChangeRoles = ({ navigation }) => {
         isDeacon: isDeacon,
         isAlhan: isAlhan,
         isSSTeacher: isSSTeach,
-        isServant: isServant,
       });
-      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
       Alert.alert("Success", "Roles updated successfully.");
-      
+
       // Navigate to the next screen based on the selected roles
       navigation.goBack();
     } catch (error) {
@@ -48,7 +46,6 @@ const ChangeRoles = ({ navigation }) => {
           onDeaconChange={handleDeacon}
           onAlhanChange={handleAlhan}
           onSSTeachChange={handleSSTeach}
-          onServantChange={handleServant}
         />
       </View>
       <Pressable style={styles.continueLayout} onPress={handleContinue}>

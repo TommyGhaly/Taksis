@@ -2,20 +2,19 @@ import React, { useState } from "react";
 import { Text, StyleSheet, View } from "react-native";
 import { CheckBox } from "@rneui/themed";
 
-const Choices = ( { onDeaconChange, onAlhanChange, onSSTeachChange, onServantChange } ) => {
-  const [deacon, setDeacon] =
-    useState(false);
-  const [alhan, setAlhan] =
-    useState(false);
-  const [ssTeach, setSSTeach] =
-    useState(false);
-  const [servant, setServant] =
-    useState(false);
-  const [none, setNone] =
-    useState(false);
+const Choices = ({
+  onDeaconChange,
+  onAlhanChange,
+  onSSTeachChange,
+  onServantChange,
+}) => {
+  const [deacon, setDeacon] = useState(false);
+  const [alhan, setAlhan] = useState(false);
+  const [ssTeach, setSSTeach] = useState(false);
+  const [none, setNone] = useState(false);
 
   const handleDeacon = (checked) => {
-    setDeacon(checked)
+    setDeacon(checked);
     onDeaconChange(checked); // Pass the checkbox state up to the parent component
   };
   const handleAlhan = (checked) => {
@@ -64,7 +63,7 @@ const Choices = ( { onDeaconChange, onAlhanChange, onSSTeachChange, onServantCha
         checked={ssTeach}
         onPress={() => {
           handleSSTeach(!ssTeach);
-          none? setNone(!none) : none;
+          none ? setNone(!none) : none;
         }}
         containerStyle={styles.rectangleCheckbox1Layout}
         iconType="material-community"
@@ -78,9 +77,9 @@ const Choices = ( { onDeaconChange, onAlhanChange, onSSTeachChange, onServantCha
         onPress={() => {
           setNone(!none);
           deacon ? handleDeacon(!deacon) : deacon;
-          alhan ? handleAlhan(!alhan) : alhan
-          ssTeach ? handleSSTeach(!ssTeach) : ssTeach
-          servant ? handleServant(!servant) : servant 
+          alhan ? handleAlhan(!alhan) : alhan;
+          ssTeach ? handleSSTeach(!ssTeach) : ssTeach;
+          servant ? handleServant(!servant) : servant;
         }}
         containerStyle={styles.rectangleCheckbox3Layout}
         iconType="material-community"

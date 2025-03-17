@@ -103,11 +103,24 @@ const SundaySchoolAttendance = ({ navigation }) => {
 
   const getNextSunday = () => {
     const today = new Date();
+    const currentDay = today.getDay(); // Get the current day of the week (0 is Sunday)
+
+    // If today is Sunday, return the current date
+    if (currentDay === 0) {
+      return formatDate(today);
+    }
+
+    // If not Sunday, find the next Sunday
     const nextSunday = new Date(today);
-    nextSunday.setDate(today.getDate() + (7 - today.getDay()));
-    const month = String(nextSunday.getMonth() + 1).padStart(2, "0");
-    const day = String(nextSunday.getDate()).padStart(2, "0");
-    const year = nextSunday.getFullYear();
+    nextSunday.setDate(today.getDate() + (7 - currentDay));
+    return formatDate(nextSunday);
+  };
+
+  // Helper function to format the date as MM-DD-YYYY
+  const formatDate = (date) => {
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const year = date.getFullYear();
     return `${month}-${day}-${year}`;
   };
 
@@ -388,7 +401,7 @@ const styles = StyleSheet.create({
   changeClassContainer: {
     alignItems: "center", // Centers the text horizontally
     justifyContent: "center", // Centers if used in a flex container
-    paddingTop: 30
+    paddingTop: 30,
   },
   changeClassText: {
     color: "red",
