@@ -203,7 +203,7 @@ const AlhanAttendance = ({ navigation }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#147efb" />
+        <ActivityIndicator size="large" color="#fff" />
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );

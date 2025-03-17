@@ -42,7 +42,10 @@ const AccountInfo = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollViewContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollViewContent}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
           <BackArrow />
           <Text style={[styles.accountInfo, styles.text]}>Account info</Text>
@@ -79,7 +82,11 @@ const AccountInfo = ({ navigation }) => {
               <TouchableOpacity
                 key={index}
                 style={styles.childInfo}
-                onPress={() => navigation.navigate("ChildAccountInfo", { childUid: child.uid })}
+                onPress={() =>
+                  navigation.navigate("ChildAccountInfo", {
+                    childUid: child.uid,
+                  })
+                }
               >
                 <Text style={styles.infoText}>
                   {child.name || `Child ${index + 1} First Last`}

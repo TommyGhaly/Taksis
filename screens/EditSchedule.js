@@ -142,7 +142,7 @@ const EditSchedule = () => {
 
       return () => unsubscribe();
     }
-  }, [churchId]);
+  }, []);
 
   const assignReader = (index, reader) => {
     const updatedReaders = { ...assignedReaders };
