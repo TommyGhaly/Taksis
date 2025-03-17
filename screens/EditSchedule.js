@@ -12,7 +12,7 @@ import {
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import {
-  removeServer,
+  removeServer as removeServerAPI,
   addServer as addServerAPI,
 } from "../components/functionCalls";
 
@@ -28,6 +28,7 @@ const readings = [
   "water",
   "wine",
 ];
+
 // Mapping of database keys to display names
 const displayNames = {
   matins: "Matins Gospel",
@@ -85,15 +86,13 @@ const EditSchedule = () => {
       const closestSunday = getClosestSunday();
       console.log("Closest Sunday:", closestSunday);
 
-      // Using a hardcoded date for now ("03-17-25") – you can substitute closestSunday if desired
       const schedulesRef = firestore()
         .collection("churches")
         .doc(churchId)
         .collection("schedule")
         .doc("03-17-25");
-      
-  
-      const unsubscribe = schedulesRef.onSnapshot((doc) => {
+
+      const unsubscribe = schedulesRef.onSnapshot(async (doc) => {
         if (doc.exists) {
           const scheduleForTheWeek = doc.data();
           console.log("Schedule for the week:", scheduleForTheWeek);
@@ -118,6 +117,24 @@ const EditSchedule = () => {
             initialServerAssignments[index] = server.name;
           });
           setAssignedServers(initialServerAssignments);
+
+          // Fetch available servers (those who are not altar servers or readers)
+          const allServers = await firestore()
+            .collection("churches")
+            .doc(churchId)
+            .collection("servers")
+            .get();
+
+          const assignedNames = [
+            ...Object.values(assignedReaders),
+            ...altarServers.map((server) => server.name),
+          ];
+
+          const available = allServers.docs
+            .map((doc) => doc.data().name)
+            .filter((name) => !assignedNames.includes(name));
+
+          setAvailableServers(available);
         } else {
           console.log("No schedule found for this Sunday");
         }
@@ -126,10 +143,7 @@ const EditSchedule = () => {
       return () => unsubscribe();
     }
   }, [churchId]);
-  useEffect(() => {
-    
 
-  });
   const assignReader = (index, reader) => {
     const updatedReaders = { ...assignedReaders };
     updatedReaders[displayNames[readings[index]]] = reader;
@@ -207,7 +221,7 @@ const EditSchedule = () => {
         return;
       }
 
-      await removeServer(
+      await removeServerAPI(
         auth().currentUser,
         churchId,
         "03-17-25",
