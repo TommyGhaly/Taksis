@@ -103,13 +103,26 @@ const AlhanAttendance = ({ navigation }) => {
 
   const getNextSaturday = () => {
     const today = new Date();
+    const currentDay = today.getDay(); // Get the current day of the week (6 is Saturday)
+
+    // If today is Saturday, return the current date
+    if (currentDay === 6) {
+      return formatDate(today);
+    }
+
+    // If not Saturday, find the next Saturday
     const nextSaturday = new Date(today);
-    nextSaturday.setDate(today.getDate() + (6 - today.getDay() + 7) % 7);
-    const month = String(nextSaturday.getMonth() + 1).padStart(2, "0");
-    const day = String(nextSaturday.getDate()).padStart(2, "0");
-    const year = nextSaturday.getFullYear();
+    nextSaturday.setDate(today.getDate() + (6 - currentDay)); // 6 is Saturday
+    return formatDate(nextSaturday);
+  };
+
+  // Helper function to format the date as MM-DD-YYYY
+  const formatDate = (date) => {
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const year = date.getFullYear();
     return `${month}-${day}-${year}`;
-};
+  };
 
   const handleAttendance = (studentId, status) => {
     const dateKey = getNextSaturday();
@@ -388,7 +401,7 @@ const styles = StyleSheet.create({
   changeClassContainer: {
     alignItems: "center", // Centers the text horizontally
     justifyContent: "center", // Centers if used in a flex container
-    paddingTop: 30
+    paddingTop: 30,
   },
   changeClassText: {
     color: "red",

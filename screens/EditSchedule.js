@@ -11,7 +11,10 @@ import {
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import { removeServer, addServer as addServerAPI } from "../components/functionCalls";
+import {
+  removeServer,
+  addServer as addServerAPI,
+} from "../components/functionCalls";
 
 // Sample readings list
 const readings = [
@@ -48,7 +51,7 @@ const EditSchedule = () => {
   const [readerDropdownIndex, setReaderDropdownIndex] = useState(null);
   const scrollViewRef = useRef(null);
   const user = auth().currentUser;
-  
+
   const getClosestSunday = () => {
     const today = new Date();
     const dayOfWeek = today.getDay();
@@ -82,13 +85,14 @@ const EditSchedule = () => {
       const closestSunday = getClosestSunday();
       console.log("Closest Sunday:", closestSunday);
 
-      // Using a hardcoded date for now ("03-22-25") – you can substitute closestSunday if desired
+      // Using a hardcoded date for now ("03-17-25") – you can substitute closestSunday if desired
       const schedulesRef = firestore()
         .collection("churches")
         .doc(churchId)
         .collection("schedule")
-        .doc("03-22-25");
-
+        .doc("03-17-25");
+      
+  
       const unsubscribe = schedulesRef.onSnapshot((doc) => {
         if (doc.exists) {
           const scheduleForTheWeek = doc.data();
@@ -122,7 +126,10 @@ const EditSchedule = () => {
       return () => unsubscribe();
     }
   }, [churchId]);
+  useEffect(() => {
+    
 
+  });
   const assignReader = (index, reader) => {
     const updatedReaders = { ...assignedReaders };
     updatedReaders[displayNames[readings[index]]] = reader;
@@ -143,89 +150,87 @@ const EditSchedule = () => {
       Alert.alert("Error", "Church ID not found.");
       return;
     }
-  
+
     // Check if servers array already has 6 entries
     if (servers.length >= 6) {
       Alert.alert("Limit Reached", "You cannot add more than 6 servers.");
       return;
     }
-  
+
     try {
       await addServerAPI(
         auth().currentUser,
         churchId,
-        "03-22-25", // Ensure correct date or use getClosestSunday()
+        "03-17-25", // Ensure correct date or use getClosestSunday()
         "https://add-server-hy6oofbihq-uc.a.run.app" // Backend function URL
       );
-  
+
       // Increment altarServers count in church document
       const churchRef = firestore().collection("churches").doc(churchId);
       await churchRef.update({
         altarServers: firestore.FieldValue.increment(1),
       });
-  
+
       scrollViewRef.current?.scrollToEnd({ animated: false });
     } catch (error) {
       console.error("Error adding server:", error);
       Alert.alert("Error", `Failed to add server: ${error.message}`);
     }
   };
-  
-  
 
   const removeServerFromSchedule = async (index) => {
     if (!churchId) {
       Alert.alert("Error", "Church ID not found.");
       return;
     }
-  
+
     const schedulesRef = firestore()
       .collection("churches")
       .doc(churchId)
       .collection("schedule")
-      .doc("03-22-25");
-  
+      .doc("03-17-25");
+
     try {
       const scheduleDoc = await schedulesRef.get();
       if (!scheduleDoc.exists) {
         Alert.alert("Error", "Schedule not found.");
         return;
       }
-  
+
       const scheduleData = scheduleDoc.data();
       const altarServers = scheduleData?.altar || [];
-  
+
       const serverToRemove = altarServers[index];
-  
+
       if (!serverToRemove || !serverToRemove.uid) {
         Alert.alert("Error", "Server UID not found.");
         return;
       }
-  
+
       await removeServer(
         auth().currentUser,
         churchId,
-        "03-22-25",
+        "03-17-25",
         serverToRemove.uid,
         "https://remove-server-hy6oofbihq-uc.a.run.app"
       );
-  
+
       // Decrement altarServers count in church document
       const churchRef = firestore().collection("churches").doc(churchId);
       await churchRef.update({
         altarServers: firestore.FieldValue.increment(-1),
       });
-  
     } catch (error) {
       Alert.alert("Error", `Failed to remove server: ${error.message}`);
     }
   };
-  
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Edit Schedule</Text>
       <ScrollView
         style={styles.scrollView}
+        contentContainerStyle={{ paddingBottom: 90 }} // Extra space at the bottom
         ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
       >
@@ -324,7 +329,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#121212",
     padding: 20,
-    paddingBottom: 100,
   },
   title: {
     fontSize: 24,

@@ -53,7 +53,7 @@ const ServantsAttendance = ({ navigation }) => {
       const hymnsClassRef = firestore()
         .collection("churches")
         .doc(userData.church)
-        .collection("Servants")
+        .collection("Servants Meeting");
 
       // Listen for real-time updates to the students' collection
       const unsubscribe = hymnsClassRef.onSnapshot(async (snapshot) => {
@@ -69,7 +69,7 @@ const ServantsAttendance = ({ navigation }) => {
             const attendanceDoc = await firestore()
               .collection("churches")
               .doc(userData.church)
-              .collection("Servants")
+              .collection("Servants Meeting")
               .doc(servant.uid)
               .get();
 
@@ -97,11 +97,24 @@ const ServantsAttendance = ({ navigation }) => {
 
   const getNextSunday = () => {
     const today = new Date();
+    const currentDay = today.getDay(); // Get the current day of the week (0 is Sunday)
+
+    // If today is Sunday, return the current date
+    if (currentDay === 0) {
+      return formatDate(today);
+    }
+
+    // If not Sunday, find the next Sunday
     const nextSunday = new Date(today);
-    nextSunday.setDate(today.getDate() + (7 - today.getDay()));
-    const month = String(nextSunday.getMonth() + 1).padStart(2, "0");
-    const day = String(nextSunday.getDate()).padStart(2, "0");
-    const year = nextSunday.getFullYear();
+    nextSunday.setDate(today.getDate() + (7 - currentDay));
+    return formatDate(nextSunday);
+  };
+
+  // Helper function to format the date as MM-DD-YYYY
+  const formatDate = (date) => {
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const year = date.getFullYear();
     return `${month}-${day}-${year}`;
   };
 
@@ -110,7 +123,7 @@ const ServantsAttendance = ({ navigation }) => {
     firestore()
       .collection("churches")
       .doc(userData.church)
-      .collection("Servants")
+      .collection("Servants Meeting")
       .doc(servantID)
       .update({
         [dateKey]: status,
@@ -125,9 +138,6 @@ const ServantsAttendance = ({ navigation }) => {
         );
       });
   };
-
-
-
 
   if (loading) {
     return (

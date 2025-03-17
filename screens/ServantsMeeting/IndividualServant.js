@@ -17,8 +17,8 @@ const IndividualServant = () => {
         const studentRef = firestore()
           .collection("churches")
           .doc(church)
-          .collection(category)
-          .doc(servantID)
+          .collection("Servants Meeting")
+          .doc(servantID);
 
         const servantDoc = await studentRef.get();
         if (servantDoc.exists) {
@@ -34,7 +34,7 @@ const IndividualServant = () => {
           }
 
           attendance.sort((a, b) => new Date(b.date) - new Date(a.date));
-          console.log(attendance)
+          console.log(attendance);
           setAttendanceData(attendance);
         }
       } catch (error) {
@@ -54,9 +54,7 @@ const IndividualServant = () => {
     <View style={styles.container}>
       <BackArrow style={styles.backArrow} onPress={() => navigation.goBack()} />
       <Text style={styles.title}>{`Attendance for ${servantName}`}</Text>
-      <Text
-        style={styles.subtitle}
-      >{`Category: ${category}`}</Text>
+      <Text style={styles.subtitle}>{`Category: Servants Meeting`}</Text>
       <ScrollView contentContainerStyle={styles.attendanceContainer}>
         {attendanceData.map((attendance, index) => (
           <View key={index} style={styles.attendanceItem}>
@@ -69,7 +67,11 @@ const IndividualServant = () => {
             >
               <Text style={styles.statusText}>
                 {/* Display "Present" or "Absent" based on the status */}
-                {attendance.status === false ? "Absent" : attendance.status === true ? "Present" : "No Status"}
+                {attendance.status === false
+                  ? "Absent"
+                  : attendance.status === true
+                  ? "Present"
+                  : "No Status"}
               </Text>
             </View>
           </View>

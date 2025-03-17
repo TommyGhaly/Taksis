@@ -5,20 +5,17 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Alert,
+  Platform,
+  Linking,
+  AsyncStorage,
+  NativeEventEmitter,
+  NativeModules,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Using Ionicons for icons
 import firestore from "@react-native-firebase/firestore";
 import { initializeApp } from "firebase/app";
 import messaging from "@react-native-firebase/messaging";
-import {
-  PermissionsAndroid,
-  Platform,
-  Alert,
-  NativeEventEmitter,
-  NativeModules,
-  AsyncStorage,
-  Linking,
-} from "react-native";
 import auth from "@react-native-firebase/auth";
 import * as Location from "expo-location";
 
@@ -258,6 +255,8 @@ async function checkLocationPermission() {
   }
 }
 
+// ... (imports and other code remain unchanged)
+
 const HomeScreen = () => {
   const [schedule, setSchedule] = useState({
     matins: { name: "N/A" },
@@ -273,9 +272,7 @@ const HomeScreen = () => {
   });
 
   const [currentWeek, setCurrentWeek] = useState(getNextSunday());
-  const [nextWeek, setNextWeek] = useState(
-    formatDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
-  );
+  const [nextWeek, setNextWeek] = useState();
 
   useEffect(() => {
     checkNotificationPermission();
@@ -290,41 +287,46 @@ const HomeScreen = () => {
           console.log("No authenticated user found.");
           return;
         }
-  
-        const userDoc = await firestore().collection("users").doc(user.uid).get();
+
+        const userDoc = await firestore()
+          .collection("users")
+          .doc(user.uid)
+          .get();
         if (!userDoc.exists) {
           console.log("User not found.");
           return;
         }
-  
+
         const userData = userDoc.data();
         const churchId = userData.church;
-  
-        const churchDoc = await firestore().collection("churches").doc(churchId).get();
+        setNextWeek(userData.nextWeekServe)
+
+        const churchDoc = await firestore()
+          .collection("churches")
+          .doc(churchId)
+          .get();
         if (!churchDoc.exists) {
           console.log("Church not found.");
           return;
         }
-  
-        const churchData = churchDoc.data();
-  
+
         // Reference to the schedules collection
         const schedulesRef = firestore()
           .collection("churches")
           .doc(churchId)
           .collection("schedule");
-  
+
         // Listen for real-time updates
         const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
           let closestSchedule = null;
           let closestDate = null;
-  
+
           snapshot.docs.forEach((doc) => {
             const scheduleData = doc.data();
             const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
             const [month, day, year] = scheduleDateStr.split("-").map(Number);
             const scheduleDate = new Date(2000 + year, month - 1, day);
-            console.log(scheduleDate)
+            console.log(scheduleDate);
             if (scheduleDate > new Date()) {
               if (!closestDate || scheduleDate < closestDate) {
                 closestDate = scheduleDate;
@@ -332,7 +334,7 @@ const HomeScreen = () => {
               }
             }
           });
-  
+
           if (closestSchedule) {
             const defaultSchedule = {
               matins: { name: "N/A" },
@@ -346,29 +348,55 @@ const HomeScreen = () => {
               wine: { name: "N/A" },
               altar: [],
             };
-  
-            // Limit the number of altar servers displayed
-  
-            setSchedule({
+
+            // Merge the fetched schedule with defaults
+            const updatedSchedule = {
               ...defaultSchedule,
               ...closestSchedule,
-            });
-  
-            console.log("Real-time schedule updated:", closestSchedule);
+            };
+
+            // Ensure "altar" is an array
+            if (!Array.isArray(updatedSchedule.altar)) {
+              updatedSchedule.altar = [];
+            }
+
+            // Create an array for altar servers starting with water and wine (if they exist)
+            const altarServers = [];
+            if (
+              updatedSchedule.water &&
+              typeof updatedSchedule.water === "object"
+            ) {
+              altarServers.push(updatedSchedule.water);
+            }
+            if (
+              updatedSchedule.wine &&
+              typeof updatedSchedule.wine === "object"
+            ) {
+              altarServers.push(updatedSchedule.wine);
+            }
+            // Filter out any invalid entries from the existing altar array
+            altarServers.push(
+              ...updatedSchedule.altar.filter(
+                (server) => server && typeof server === "object"
+              )
+            );
+            updatedSchedule.altar = altarServers;
+
+            setSchedule(updatedSchedule);
+            console.log("Real-time schedule updated:", updatedSchedule);
           } else {
             console.log("No upcoming schedule found.");
           }
         });
-  
+
         return () => unsubscribe(); // Clean up listener on unmount
       } catch (error) {
         console.error("Error setting up real-time updates:", error);
       }
     };
-  
+
     fetchScheduleRealtime();
   }, []);
-  
 
   return (
     <View style={styles.container}>
@@ -441,7 +469,9 @@ const HomeScreen = () => {
                 color="#fff"
                 style={styles.icon}
               />
-              <Text style={styles.name}>Altar: {deacon.name || "Unknown"}</Text>
+              <Text style={styles.name}>
+                Altar: {deacon?.name || "Unknown"}
+              </Text>
             </View>
           ))}
         </View>
