@@ -688,7 +688,6 @@ def add_user_to_churches(user_data):
     return https_fn.Response("User successfully added to the church", status=200)
 
 
-from google.cloud import firestore
 
 def add_user_to_extra_servers(church, name, uid):
     firestore_client = firestore.Client()
@@ -1042,6 +1041,22 @@ def set_up_attendance(req: https_fn.Request) -> https_fn.Response:
     return https_fn.Response("Attendance setup completed successfully", status=200)
 
 
+def find_server(schedule_data, target_uid):
+    """Search schedule_data for a server with the given uid.
+    Returns a tuple (location, server) where location is a tuple like (key, i) for list items or (key,) for dict items.
+    Returns (None, None) if not found.
+    """
+    for key, value in schedule_data.items():
+        if isinstance(value, list):
+            for i in range(len(value)):
+                if isinstance(value[i], dict) and value[i].get("uid") == target_uid:
+                    return ((key, i), value[i])
+        elif isinstance(value, dict):
+            if value.get("uid") == target_uid:
+                return ((key,), value)
+    return (None, None)
+
+
 @https_fn.on_request()
 def switch_server(req: https_fn.Request) -> https_fn.Response:
     try:
@@ -1083,30 +1098,28 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
             return https_fn.Response("Schedule not found", status=404)
 
         schedule_data = schedule_doc.to_dict()
-        servers = schedule_data.get("servers", [])
 
         # Locate the two servers
-        first_server_index = next(
-            (i for i, s in enumerate(servers) if s["uid"] == first_server_uid), None
-        )
-        second_server_index = next(
-            (i for i, s in enumerate(servers) if s["uid"] == second_server_uid), None
-        )
+        first_location, first_server = find_server(schedule_data, first_server_uid)
+        second_location, second_server = find_server(schedule_data, second_server_uid)
 
-        if first_server_index is None or second_server_index is None:
-            return https_fn.Response(
-                "One or both servers not found in the schedule", status=404
-            )
+        if not first_location or not second_location:
+            return https_fn.Response("One or both servers not found", status=404)
 
-        # Swap their positions
-        servers[first_server_index], servers[second_server_index] = (
-            servers[second_server_index],
-            servers[first_server_index],
-        )
+        # Swap the server objects in schedule_data
+        # For a location stored as (key, i) or (key,), use the first element for dict access.
+        if len(first_location) == 2:
+            schedule_data[first_location[0]][first_location[1]] = second_server
+        else:
+            schedule_data[first_location[0]] = second_server
 
-        # Update Firestore
-        schedule_ref.update({"servers": servers})
+        if len(second_location) == 2:
+            schedule_data[second_location[0]][second_location[1]] = first_server
+        else:
+            schedule_data[second_location[0]] = first_server
 
+        schedule_ref.update(schedule_data)
+            
         return https_fn.Response("Servers swapped successfully", status=200)
 
     except Exception as e:
