@@ -14,7 +14,7 @@ import auth from "@react-native-firebase/auth";
 import {
   removeServer as removeServerAPI,
   addServer as addServerAPI,
-  switchServers as switchServersAP,
+  switchServers as switchServersAPI,
 } from "../components/functionCalls";
 
 // Sample readings list and display names mapping
@@ -142,12 +142,13 @@ const EditSchedule = () => {
   const assignReader = async (index, newReader) => {
     const readingKey = readings[index]; // e.g., "matins"
     const oldReader = currentReaders[readingKey];
+    console.log(oldReader, readingKey, newReader)
     if (!oldReader || !oldReader.uid) {
       Alert.alert("Error", "Old reader not found.");
       return;
     }
     try {
-      await switchServersAP(
+      await switchServersAPI(
         user,
         churchId,
         "03-25-25",
@@ -171,7 +172,7 @@ const EditSchedule = () => {
     }
     try {
       console.log("servers to swap",oldServer, newServer)
-      await switchServersAP(
+      await switchServersAPI(
         user,
         churchId,
         "03-25-25",
