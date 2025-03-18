@@ -11,7 +11,6 @@ import datetime
 initialize_app()
 
 
-
 # takes in the 30 deacons and scores them based off best fit
 
 
@@ -688,10 +687,11 @@ def add_user_to_churches(user_data):
     return https_fn.Response("User successfully added to the church", status=200)
 
 
-
 def add_user_to_extra_servers(church, name, uid):
     firestore_client = firestore.Client()
-    schedules_ref = firestore_client.collection("churches").document(church).collection("schedule")
+    schedules_ref = (
+        firestore_client.collection("churches").document(church).collection("schedule")
+    )
     schedules_docs = schedules_ref.stream()
 
     # Iterate over each schedule
@@ -701,7 +701,9 @@ def add_user_to_extra_servers(church, name, uid):
 
         # Check all fields to see if the user already exists (in any field)
         for key, value in schedule_data.items():
-            if isinstance(value, list):  # Check list fields (e.g., 'extra', 'altar', etc.)
+            if isinstance(
+                value, list
+            ):  # Check list fields (e.g., 'extra', 'altar', etc.)
                 for deacon in value:
                     if isinstance(deacon, dict):
                         if deacon.get("uid") == uid:
@@ -718,13 +720,16 @@ def add_user_to_extra_servers(church, name, uid):
 
         # If user not found, append the user to the 'extra' field
         if add_user:
-            extras = schedule_data.get("extra", [])  # Get the existing 'extra' list, or an empty list
+            extras = schedule_data.get(
+                "extra", []
+            )  # Get the existing 'extra' list, or an empty list
             extras.append({"name": name, "uid": uid})  # Add the new user
-            schedule.reference.update({"extra": extras})  # Update the 'extra' field in Firestore
+            schedule.reference.update(
+                {"extra": extras}
+            )  # Update the 'extra' field in Firestore
 
 
-
-def remove_user_from_schedules(church, name, uid):
+def remove_user_from_schedules(church, uid, schedules, alhan, sunday_school):
     pass
 
 
@@ -898,7 +903,7 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
     firestore_client = firestore.Client()
     user_doc_ref = firestore_client.collection("users").document(user_id)
     user_doc = user_doc_ref.get()
-
+    
     if user_doc.exists:
         user_data = user_doc.to_dict()
 
@@ -909,41 +914,6 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
 
     remove_user_from_churches(user_id)
     return https_fn.Response("user and children deleted", status=200)
-
-
-# removes
-def remove_servant_from_attendance(user_id):
-    firestore_client = firestore.Client()
-    church_docs = firestore_client.collection("churches").stream()
-
-    for church_doc in church_docs:
-        # Process Alhan collection
-        alhan_ref = church_doc.reference.collection("alhan")
-        alhan_docs = alhan_ref.stream()
-
-        for alhan_doc in alhan_docs:
-            alhan_data = alhan_doc.to_dict()
-            if "servants" in alhan_data:
-                updated_servants = [
-                    s for s in alhan_data["servants"] if s["uid"] != user_id
-                ]
-
-                if updated_servants != alhan_data["servants"]:
-                    alhan_doc.reference.update({"servants": updated_servants})
-
-        # Process Sunday School collection
-        ss_ref = church_doc.reference.collection("sunday school")
-        ss_docs = ss_ref.stream()
-
-        for ss_doc in ss_docs:
-            ss_data = ss_doc.to_dict()
-            if "servants" in ss_data:
-                updated_servants = [
-                    s for s in ss_data["servants"] if s["uid"] != user_id
-                ]
-
-                if updated_servants != ss_data["servants"]:
-                    ss_doc.reference.update({"servants": updated_servants})
 
 
 def check_classes():
@@ -1071,7 +1041,7 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
     week_id = request_data.get("week")
     first_server_uid = request_data.get("firstServer")
     second_server_uid = request_data.get("secondServer")
-
+    print(church_id, week_id, first_server_uid, second_server_uid)
     if not all([church_id, week_id, first_server_uid, second_server_uid]):
         return https_fn.Response("Missing required parameters", status=400)
 
@@ -1089,12 +1059,14 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
         schedule_ref = (
             firestore_client.collection("churches")
             .document(church_id)
-            .collection("schedules")
+            .collection("schedule")
             .document(week_id)
         )
         schedule_doc = schedule_ref.get()
-
+        print(schedule_doc)
+        print(not schedule_doc.exists)
         if not schedule_doc.exists:
+            print("Hello World 1")
             return https_fn.Response("Schedule not found", status=404)
 
         schedule_data = schedule_doc.to_dict()
@@ -1102,24 +1074,36 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
         # Locate the two servers
         first_location, first_server = find_server(schedule_data, first_server_uid)
         second_location, second_server = find_server(schedule_data, second_server_uid)
-
         if not first_location or not second_location:
+            print("Hello World 2")
             return https_fn.Response("One or both servers not found", status=404)
 
         # Swap the server objects in schedule_data
         # For a location stored as (key, i) or (key,), use the first element for dict access.
+        print(first_location)
         if len(first_location) == 2:
-            schedule_data[first_location[0]][first_location[1]] = second_server
+            schedule_data[str(first_location[0])][
+                int(first_location[1])
+            ] = second_server
+            print(schedule_data)
+            print(second_location)
+
         else:
-            schedule_data[first_location[0]] = second_server
+            print(schedule_data)
+            schedule_data[str(first_location[0])] = second_server
+            print(schedule_data)
+            print(first_location)
+            print(second_location)
 
         if len(second_location) == 2:
-            schedule_data[second_location[0]][second_location[1]] = first_server
+            schedule_data[str(second_location[0])][
+                int(second_location[1])
+            ] = first_server
         else:
-            schedule_data[second_location[0]] = first_server
+            schedule_data[str(second_location[0])] = first_server
 
         schedule_ref.update(schedule_data)
-            
+
         return https_fn.Response("Servers swapped successfully", status=200)
 
     except Exception as e:
