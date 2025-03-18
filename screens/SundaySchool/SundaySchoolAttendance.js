@@ -52,7 +52,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
     if (!userData) return;
 
     const fetchStudents = () => {
-      const hymnsClassRef = firestore()
+      const sundaySchoolRef = firestore()
         .collection("churches")
         .doc(userData.church)
         .collection("Sunday School")
@@ -60,7 +60,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
         .collection("students");
 
       // Listen for real-time updates to the students' collection
-      const unsubscribe = hymnsClassRef.onSnapshot(async (snapshot) => {
+      const unsubscribe = sundaySchoolRef.onSnapshot(async (snapshot) => {
         let studentsData = snapshot.docs.map((doc) => ({
           uid: doc.id,
           ...doc.data(),
@@ -282,7 +282,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
       </TouchableOpacity>
 
       {/* Add Student Modal */}
-      <Modal visible={modalVisible} transparent animationType="none">
+      <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add New Student</Text>
@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   studentName: { fontSize: 18, color: "#FFFFFF" },
-  icon: { width: 8, height: 15 }, // Adjust size as needed
+  icon: { width: 8, height: 15 },
   attendanceButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -351,8 +351,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#121212",
   },
-
-  // Updated Add Button
   addButton: {
     backgroundColor: "#147efb",
     paddingVertical: 15,
@@ -362,27 +360,21 @@ const styles = StyleSheet.create({
     marginTop: 20,
     width: "90%",
     alignSelf: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5, // Android shadow
   },
   addButtonText: { fontSize: 18, fontWeight: "bold", color: "#FFFFFF" },
-
-  // Modal Styles
   modalContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.7)",
   },
   modalContent: {
     width: 320,
     padding: 20,
     backgroundColor: "#1E1E1E",
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: "center",
+    elevation: 10,
   },
   modalTitle: { fontSize: 18, color: "#FFF", marginBottom: 15 },
   input: {
@@ -394,13 +386,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   cancelButtonText: {
-    fontSize: 16, // Increase font size for visibility
-    color: "#AAA", // Lighter text color for the cancel button
+    fontSize: 16,
+    color: "#AAA",
     marginTop: 10,
   },
   changeClassContainer: {
-    alignItems: "center", // Centers the text horizontally
-    justifyContent: "center", // Centers if used in a flex container
+    alignItems: "center",
+    justifyContent: "center",
     paddingTop: 30,
   },
   changeClassText: {

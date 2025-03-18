@@ -59,7 +59,6 @@ const AlhanAttendance = ({ navigation }) => {
         .doc(userData.alhanGrades)
         .collection("students");
 
-      // Listen for real-time updates to the students' collection
       const unsubscribe = hymnsClassRef.onSnapshot(async (snapshot) => {
         let studentsData = snapshot.docs.map((doc) => ({
           uid: doc.id,
@@ -94,7 +93,6 @@ const AlhanAttendance = ({ navigation }) => {
         setLoading(false); // Stop loading after the data is fetched
       });
 
-      // Clean up the listener when the component unmounts
       return () => unsubscribe();
     };
 
@@ -103,20 +101,17 @@ const AlhanAttendance = ({ navigation }) => {
 
   const getNextSaturday = () => {
     const today = new Date();
-    const currentDay = today.getDay(); // Get the current day of the week (6 is Saturday)
+    const currentDay = today.getDay();
 
-    // If today is Saturday, return the current date
     if (currentDay === 6) {
       return formatDate(today);
     }
 
-    // If not Saturday, find the next Saturday
     const nextSaturday = new Date(today);
-    nextSaturday.setDate(today.getDate() + (6 - currentDay)); // 6 is Saturday
+    nextSaturday.setDate(today.getDate() + (6 - currentDay));
     return formatDate(nextSaturday);
   };
 
-  // Helper function to format the date as MM-DD-YYYY
   const formatDate = (date) => {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
@@ -187,13 +182,11 @@ const AlhanAttendance = ({ navigation }) => {
 
   const handleClassChange = async () => {
     try {
-      // Update Firestore to set alhanGrades to null and alhan to false
       await firestore().collection("users").doc(user.uid).update({
         alhanGrades: null,
         alhanSetUp: false,
       });
 
-      // After updating, navigate to the AlhanGrades screen
       navigation.navigate("AlhanGrades");
     } catch (error) {
       Alert.alert("Error", "Failed to change hymns class. Please try again.");
@@ -273,7 +266,7 @@ const AlhanAttendance = ({ navigation }) => {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Change Class Button */}
+      {/* Add Student Button */}
       <TouchableOpacity
         style={styles.addButton}
         onPress={() => setModalVisible(true)}
@@ -328,7 +321,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   studentName: { fontSize: 18, color: "#FFFFFF" },
-  icon: { width: 8, height: 15 }, // Adjust size as needed
+  icon: { width: 8, height: 15 },
   attendanceButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -351,8 +344,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#121212",
   },
-
-  // Updated Add Button
   addButton: {
     backgroundColor: "#147efb",
     paddingVertical: 15,
@@ -366,11 +357,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
-    elevation: 5, // Android shadow
+    elevation: 5,
   },
   addButtonText: { fontSize: 18, fontWeight: "bold", color: "#FFFFFF" },
-
-  // Modal Styles
   modalContainer: {
     flex: 1,
     justifyContent: "center",
@@ -394,13 +383,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   cancelButtonText: {
-    fontSize: 16, // Increase font size for visibility
-    color: "#AAA", // Lighter text color for the cancel button
+    fontSize: 16,
+    color: "#AAA",
     marginTop: 10,
   },
   changeClassContainer: {
-    alignItems: "center", // Centers the text horizontally
-    justifyContent: "center", // Centers if used in a flex container
+    alignItems: "center",
+    justifyContent: "center",
     paddingTop: 30,
   },
   changeClassText: {

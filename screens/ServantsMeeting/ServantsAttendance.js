@@ -8,8 +8,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
-  Modal,
-  TextInput,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
@@ -21,79 +19,66 @@ const ServantsAttendance = ({ navigation }) => {
   const [userData, setUserData] = useState(null);
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user) {
-        Alert.alert("Error", "No user found.");
-        return;
-      }
-
-      try {
-        const userDoc = await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .get();
-        if (!userDoc.exists) {
+    // Fetch user data in real-time
+    const unsubscribeUserData = firestore()
+      .collection("users")
+      .doc(user.uid)
+      .onSnapshot((userDoc) => {
+        if (userDoc.exists) {
+          setUserData(userDoc.data());
+        } else {
           Alert.alert("Error", "User not found.");
-          return;
         }
+      });
 
-        setUserData(userDoc.data());
-      } catch (error) {
-        Alert.alert("Error", error.message);
-      }
-    };
-
-    fetchUserData();
-  }, [user]);
+    // Clean up real-time listener when component unmounts
+    return () => unsubscribeUserData();
+  }, [user.uid]);
 
   useEffect(() => {
     if (!userData) return;
 
-    const fetchServants = () => {
-      const hymnsClassRef = firestore()
-        .collection("churches")
-        .doc(userData.church)
-        .collection("Servants Meeting");
+    // Fetch servants data in real-time
+    const servantsMeetingRef = firestore()
+      .collection("churches")
+      .doc(userData.church)
+      .collection("Servants Meeting");
 
-      // Listen for real-time updates to the students' collection
-      const unsubscribe = hymnsClassRef.onSnapshot(async (snapshot) => {
-        let servantsData = snapshot.docs.map((doc) => ({
-          uid: doc.id,
-          ...doc.data(),
-        }));
-        servantsData.sort((a, b) => a.name.localeCompare(b.name));
+    const unsubscribeServants = servantsMeetingRef.onSnapshot(async (snapshot) => {
+      let servantsData = snapshot.docs.map((doc) => ({
+        uid: doc.id,
+        ...doc.data(),
+      }));
+      servantsData.sort((a, b) => a.name.localeCompare(b.name));
 
-        const dateKey = getNextSunday();
-        const servantsWithAttendance = await Promise.all(
-          servantsData.map(async (servant) => {
-            const attendanceDoc = await firestore()
-              .collection("churches")
-              .doc(userData.church)
-              .collection("Servants Meeting")
-              .doc(servant.uid)
-              .get();
+      const dateKey = getNextSunday();
+      const servantsWithAttendance = await Promise.all(
+        servantsData.map(async (servant) => {
+          const attendanceDoc = await firestore()
+            .collection("churches")
+            .doc(userData.church)
+            .collection("Servants Meeting")
+            .doc(servant.uid)
+            .get();
 
-            const attendanceStatus = attendanceDoc.exists
-              ? attendanceDoc.data()[dateKey]
-              : null;
+          const attendanceStatus = attendanceDoc.exists
+            ? attendanceDoc.data()[dateKey]
+            : null;
 
-            return {
-              ...servant,
-              attendance: attendanceStatus,
-            };
-          })
-        );
+          return {
+            ...servant,
+            attendance: attendanceStatus,
+          };
+        })
+      );
 
-        setServants(servantsWithAttendance);
-        setLoading(false); // Stop loading after the data is fetched
-      });
+      setServants(servantsWithAttendance);
+      setLoading(false); // Stop loading after data is fetched
+    });
 
-      // Clean up the listener when the component unmounts
-      return () => unsubscribe();
-    };
-
-    fetchServants();
-  }, [userData]);
+    // Clean up listener when component unmounts
+    return () => unsubscribeServants();
+  }, [userData]); // Re-fetch servants when userData changes
 
   const getNextSunday = () => {
     const today = new Date();
@@ -250,74 +235,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#121212",
-  },
-
-  // Updated Add Button
-  addButton: {
-    backgroundColor: "#147efb",
-    paddingVertical: 15,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 20,
-    width: "90%",
-    alignSelf: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5, // Android shadow
-  },
-  addButtonText: { fontSize: 18, fontWeight: "bold", color: "#FFFFFF" },
-
-  // Modal Styles
-  modalContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  modalContent: {
-    width: 320,
-    padding: 20,
-    backgroundColor: "#1E1E1E",
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  modalTitle: { fontSize: 18, color: "#FFF", marginBottom: 15 },
-  input: {
-    width: "100%",
-    padding: 12,
-    backgroundColor: "#333",
-    color: "#FFF",
-    borderRadius: 5,
-    marginBottom: 10,
-  },
-  cancelButtonText: {
-    fontSize: 16, // Increase font size for visibility
-    color: "#AAA", // Lighter text color for the cancel button
-    marginTop: 10,
-  },
-  changeClassButton: {
-    backgroundColor: "#D32F2F",
-    paddingVertical: 15,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 20,
-    marginBottom: 20,
-    width: "90%",
-    alignSelf: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  changeClassButtonText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFFFFF",
   },
   noStudentsText: {
     fontSize: 18,

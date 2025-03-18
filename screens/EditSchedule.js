@@ -14,6 +14,7 @@ import auth from "@react-native-firebase/auth";
 import {
   removeServer as removeServerAPI,
   addServer as addServerAPI,
+  switchServers as switchServersAPI
 } from "../components/functionCalls";
 
 // Sample readings list
@@ -85,18 +86,18 @@ const EditSchedule = () => {
     if (churchId) {
       const closestSunday = getClosestSunday();
       console.log("Closest Sunday:", closestSunday);
-
+  
       const schedulesRef = firestore()
         .collection("churches")
         .doc(churchId)
         .collection("schedule")
-        .doc("03-17-25");
-
+        .doc("03-18-25");
+  
       const unsubscribe = schedulesRef.onSnapshot(async (doc) => {
         if (doc.exists) {
           const scheduleForTheWeek = doc.data();
           console.log("Schedule for the week:", scheduleForTheWeek);
-
+  
           // Assign readers
           const initialAssignments = {};
           readings.forEach((reading) => {
@@ -105,45 +106,30 @@ const EditSchedule = () => {
               reader?.name || "Select Reader";
           });
           setAssignedReaders(initialAssignments);
-
+  
           // Assign altar servers
           const altarServers = scheduleForTheWeek.altar || [];
           setServers(
             altarServers.map((server, index) => `Altar Server ${index + 1}`)
           );
-
           const initialServerAssignments = {};
           altarServers.forEach((server, index) => {
             initialServerAssignments[index] = server.name;
           });
           setAssignedServers(initialServerAssignments);
-
-          // Fetch available servers (those who are not altar servers or readers)
-          const allServers = await firestore()
-            .collection("churches")
-            .doc(churchId)
-            .collection("servers")
-            .get();
-
-          const assignedNames = [
-            ...Object.values(assignedReaders),
-            ...altarServers.map((server) => server.name),
-          ];
-
-          const available = allServers.docs
-            .map((doc) => doc.data().name)
-            .filter((name) => !assignedNames.includes(name));
-
-          setAvailableServers(available);
+  
+          // Extract and set available extra servers, excluding "N/A"
+          const extraServers = scheduleForTheWeek.extra || [];
+          setAvailableServers(extraServers.filter(server => server.name !== "N/A").map(server => server.name));
         } else {
           console.log("No schedule found for this Sunday");
         }
       });
-
+  
       return () => unsubscribe();
     }
-  }, []);
-
+  }, [churchId]);
+  
   const assignReader = (index, reader) => {
     const updatedReaders = { ...assignedReaders };
     updatedReaders[displayNames[readings[index]]] = reader;
@@ -175,7 +161,7 @@ const EditSchedule = () => {
       await addServerAPI(
         auth().currentUser,
         churchId,
-        "03-17-25", // Ensure correct date or use getClosestSunday()
+        "03-18-25", // Ensure correct date or use getClosestSunday()
         "https://add-server-hy6oofbihq-uc.a.run.app" // Backend function URL
       );
 
@@ -202,7 +188,7 @@ const EditSchedule = () => {
       .collection("churches")
       .doc(churchId)
       .collection("schedule")
-      .doc("03-17-25");
+      .doc("03-18-25");
 
     try {
       const scheduleDoc = await schedulesRef.get();
@@ -224,7 +210,7 @@ const EditSchedule = () => {
       await removeServerAPI(
         auth().currentUser,
         churchId,
-        "03-17-25",
+        "03-18-25",
         serverToRemove.uid,
         "https://remove-server-hy6oofbihq-uc.a.run.app"
       );
