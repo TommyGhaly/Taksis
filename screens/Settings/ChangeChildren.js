@@ -106,7 +106,8 @@ const ChangeChildren = () => {
       {children.length === 0 ? (
         <Text style={styles.noChildrenText}>You have no children</Text>
       ) : (
-        <ScrollView style={styles.childrenList}>
+        <ScrollView style={styles.childrenList}
+        showsVerticalScrollIndicator={false}>
           {children.map((child) => (
             <View key={child.uid} style={styles.childContainer}>
               <Text style={styles.childName}>{child.name}</Text>

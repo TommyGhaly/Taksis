@@ -7,11 +7,10 @@ import google.cloud.firestore
 from google.cloud import firestore
 import requests
 import datetime
+
 initialize_app()
 
 
-# Uncomment to test locally
-# db = firestore.client()
 
 # takes in the 30 deacons and scores them based off best fit
 
@@ -281,12 +280,19 @@ def sort_deacons(deacons: List[Dict]) -> List[Dict]:
 
 
 # updates the user information to add one week to the people who had not served and restart the week count for the people who did serve
-def update_weeks(schedule, deacons, doc_ref):
+def update_weeks(schedule_dict, deacons, doc_ref):
     # Create a set of uids for deacons who served
+    unused_deacons = []
     served_uids = []
-    for deacon in schedule:
-        if "uid" in deacon:
-            served_uids.append(deacon["uid"])
+    for key, value in schedule_dict.items():
+        if key == "altar":
+            for server in schedule_dict["altar"]:
+                if "uid" in server:
+                    served_uids.append(server["uid"])
+        if isinstance(value, dict):
+            for individual_key, individual_value in value.items():
+                if individual_key == "uid" and individual_value != "N/A":
+                    served_uids.append(individual_value)
 
     for deacon in deacons:
         if deacon["uid"] in served_uids:
@@ -296,7 +302,14 @@ def update_weeks(schedule, deacons, doc_ref):
         else:
             # Increment for those who did not serve
             deacon["weeksSince"] += 1
+            unused_deacons.append(deacon)
     doc_ref.update({"deacons": deacons})
+    extras = []
+    for deacon in unused_deacons:
+        extras.append({"name": deacon["name"], "uid": deacon["uid"]})
+    schedule_dict["extra"] = extras
+
+    return schedule_dict
 
 
 # ensures the person added to the schedule isn't on there multiple times
@@ -327,19 +340,19 @@ def add_person(schedule_list, deacon_list):
 # takes in all the deacons for a church (one at a time) sorts them based off how long it has been since they served and passes them into the other functions
 def create_schedule(deacons, church_ref, num_altar_servers):
 
-    deacons = sort_deacons(deacons)
+    sorted_deacons = sort_deacons(deacons)
     schedule = []
 
-    matins_list = matins(deacons)
-    third_list = third(deacons)
-    sixth_list = sixth(deacons)
-    pauline_list = pauline(deacons)
-    catholic_list = catholic(deacons)
-    praxis_list = praxis(deacons)
-    gospel_list = gospel(deacons)
-    water_list = water(deacons)
-    wine_list = wine(deacons)
-    altar_list = altar(deacons)
+    matins_list = matins(sorted_deacons)
+    third_list = third(sorted_deacons)
+    sixth_list = sixth(sorted_deacons)
+    pauline_list = pauline(sorted_deacons)
+    catholic_list = catholic(sorted_deacons)
+    praxis_list = praxis(sorted_deacons)
+    gospel_list = gospel(sorted_deacons)
+    water_list = water(sorted_deacons)
+    wine_list = wine(sorted_deacons)
+    altar_list = altar(sorted_deacons)
 
     # makes a list of all the lists besides altar_list
     all_lists = [
@@ -422,25 +435,9 @@ def create_schedule(deacons, church_ref, num_altar_servers):
             if len(schedule) > 7
             else [{"name": "N/A", "uid": str(_ + 20)} for _ in range(num_altar_servers)]
         ),
-        "extra": (
-            [
-                (
-                    {"name": item["name"], "uid": item["uid"]}
-                    if item != "N/A"
-                    else {"name": "N/A", "uid": str(random.randint(1, 100))}
-                )
-                for item in schedule[9 + num_altar_servers :]
-            ]
-            if len(schedule) > 14
-            else [
-                {"name": "N/A", "uid": str(_ + 30)}
-                for _ in range(9 - num_altar_servers)
-            ]
-        ),
     }
 
-    update_weeks(schedule, deacons, church_ref)
-
+    schedule_dict = update_weeks(schedule_dict, deacons, church_ref)
     return schedule_dict
 
 
@@ -659,6 +656,9 @@ def add_user_to_churches(user_data):
                 "lastWeeksSince": 4,
             }
             church_data["deacons"].append(new_deacon)
+        add_user_to_extra_servers(church_id, user_data["name"], user_id)
+    else:
+        remove_user_from_schedules(church_id, user_data["name"], user_id)
 
     # Delete existing servant record, if it exists (deletion is safe even if the document doesn’t exist)
     servant_ref = (
@@ -686,6 +686,47 @@ def add_user_to_churches(user_data):
         return https_fn.Response(f"Error updating church data: {str(e)}", status=500)
 
     return https_fn.Response("User successfully added to the church", status=200)
+
+
+from google.cloud import firestore
+
+def add_user_to_extra_servers(church, name, uid):
+    firestore_client = firestore.Client()
+    schedules_ref = firestore_client.collection("churches").document(church).collection("schedule")
+    schedules_docs = schedules_ref.stream()
+
+    # Iterate over each schedule
+    for schedule in schedules_docs:
+        schedule_data = schedule.to_dict()
+        add_user = True  # Assume the user should be added unless found
+
+        # Check all fields to see if the user already exists (in any field)
+        for key, value in schedule_data.items():
+            if isinstance(value, list):  # Check list fields (e.g., 'extra', 'altar', etc.)
+                for deacon in value:
+                    if isinstance(deacon, dict):
+                        if deacon.get("uid") == uid:
+                            add_user = False
+                            break  # Stop checking if user is found
+
+            if isinstance(value, dict):  # Check dict fields (if any)
+                if value.get("uid") == uid:
+                    add_user = False
+                    break  # Stop checking if user is found
+
+            if not add_user:
+                break  # Stop checking other fields if user is found
+
+        # If user not found, append the user to the 'extra' field
+        if add_user:
+            extras = schedule_data.get("extra", [])  # Get the existing 'extra' list, or an empty list
+            extras.append({"name": name, "uid": uid})  # Add the new user
+            schedule.reference.update({"extra": extras})  # Update the 'extra' field in Firestore
+
+
+
+def remove_user_from_schedules(church, name, uid):
+    pass
 
 
 @https_fn.on_request()
@@ -1002,8 +1043,74 @@ def set_up_attendance(req: https_fn.Request) -> https_fn.Response:
 
 
 @https_fn.on_request()
-def switch_server():
-    pass
+def switch_server(req: https_fn.Request) -> https_fn.Response:
+    try:
+        request_data = req.get_json()
+        if not request_data:
+            return https_fn.Response("Missing JSON body", status=400)
+    except Exception as e:
+        return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
+
+    # Extract required parameters
+    church_id = request_data.get("church")
+    week_id = request_data.get("week")
+    first_server_uid = request_data.get("firstServer")
+    second_server_uid = request_data.get("secondServer")
+
+    if not all([church_id, week_id, first_server_uid, second_server_uid]):
+        return https_fn.Response("Missing required parameters", status=400)
+
+    # Optional: Verify Firebase Auth token
+    id_token = req.headers.get("Authorization")
+    if id_token:
+        try:
+            decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
+        except Exception as e:
+            return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+
+    try:
+        # Reference to the week's schedule
+        firestore_client = firestore.Client()
+        schedule_ref = (
+            firestore_client.collection("churches")
+            .document(church_id)
+            .collection("schedules")
+            .document(week_id)
+        )
+        schedule_doc = schedule_ref.get()
+
+        if not schedule_doc.exists:
+            return https_fn.Response("Schedule not found", status=404)
+
+        schedule_data = schedule_doc.to_dict()
+        servers = schedule_data.get("servers", [])
+
+        # Locate the two servers
+        first_server_index = next(
+            (i for i, s in enumerate(servers) if s["uid"] == first_server_uid), None
+        )
+        second_server_index = next(
+            (i for i, s in enumerate(servers) if s["uid"] == second_server_uid), None
+        )
+
+        if first_server_index is None or second_server_index is None:
+            return https_fn.Response(
+                "One or both servers not found in the schedule", status=404
+            )
+
+        # Swap their positions
+        servers[first_server_index], servers[second_server_index] = (
+            servers[second_server_index],
+            servers[first_server_index],
+        )
+
+        # Update Firestore
+        schedule_ref.update({"servers": servers})
+
+        return https_fn.Response("Servers swapped successfully", status=200)
+
+    except Exception as e:
+        return https_fn.Response(f"Error: {str(e)}", status=500)
 
 
 @https_fn.on_request()
@@ -1206,7 +1313,9 @@ def set_user_next_week(user_id, week):
             user_ref.update({"nextWeekServe": week})
 
         try:
-            new_date = datetime.datetime.strptime(week, "%m-%d-%y")  # Convert input date
+            new_date = datetime.datetime.strptime(
+                week, "%m-%d-%y"
+            )  # Convert input date
 
             if next_week_serve:
                 existing_date = datetime.datetime.strptime(next_week_serve, "%m-%d-%y")
@@ -1250,13 +1359,13 @@ def set_next_week_serve(church_id):
                     for individual_key, individual_value in altar_server.items():
 
                         if individual_key == "uid" and individual_value != "N/A":
-                            print(f'{individual_value} individual value')
+                            print(f"{individual_value} individual value")
                             set_user_next_week(individual_value, str(schedule_id))
 
             if isinstance(value, dict):
                 for individual_key, individual_value in value.items():
                     if individual_key == "uid" and individual_value != "N/A":
-                        print(f'{individual_value} individual value')
+                        print(f"{individual_value} individual value")
                         set_user_next_week(individual_value, str(schedule_id))
 
     return
