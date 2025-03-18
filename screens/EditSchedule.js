@@ -14,10 +14,10 @@ import auth from "@react-native-firebase/auth";
 import {
   removeServer as removeServerAPI,
   addServer as addServerAPI,
-  switchServers as switchServersAPI
+  switchServers as switchServersAP,
 } from "../components/functionCalls";
 
-// Sample readings list
+// Sample readings list and display names mapping
 const readings = [
   "matins",
   "third",
@@ -30,7 +30,6 @@ const readings = [
   "wine",
 ];
 
-// Mapping of database keys to display names
 const displayNames = {
   matins: "Matins Gospel",
   third: "Third Hour Gospel",
@@ -45,10 +44,15 @@ const displayNames = {
 
 const EditSchedule = () => {
   const [churchId, setChurchId] = useState(null);
+  // These states now hold only display values
   const [servers, setServers] = useState([]);
-  const [availableServers, setAvailableServers] = useState([]);
   const [assignedReaders, setAssignedReaders] = useState({});
   const [assignedServers, setAssignedServers] = useState({});
+  // New state variables for storing full objects (including uid)
+  const [altarServers, setAltarServers] = useState([]);
+  const [currentReaders, setCurrentReaders] = useState({});
+  const [availableServers, setAvailableServers] = useState([]);
+
   const [serverDropdownIndex, setServerDropdownIndex] = useState(null);
   const [readerDropdownIndex, setReaderDropdownIndex] = useState(null);
   const scrollViewRef = useRef(null);
@@ -84,74 +88,110 @@ const EditSchedule = () => {
 
   useEffect(() => {
     if (churchId) {
-      const closestSunday = getClosestSunday();
-      console.log("Closest Sunday:", closestSunday);
-  
+      // Use a hard-coded week for now; you can swap in getClosestSunday()
+      const week = "03-25-25";
       const schedulesRef = firestore()
         .collection("churches")
         .doc(churchId)
         .collection("schedule")
-        .doc("03-18-25");
-  
-      const unsubscribe = schedulesRef.onSnapshot(async (doc) => {
+        .doc(week);
+
+      const unsubscribe = schedulesRef.onSnapshot((doc) => {
         if (doc.exists) {
           const scheduleForTheWeek = doc.data();
           console.log("Schedule for the week:", scheduleForTheWeek);
-  
-          // Assign readers
-          const initialAssignments = {};
+
+          // Store readers as full objects for later UID access
+          const readersObj = {};
+          const readersDisplay = {};
           readings.forEach((reading) => {
             const reader = scheduleForTheWeek[reading];
-            initialAssignments[displayNames[reading]] =
-              reader?.name || "Select Reader";
+            readersObj[reading] = reader;
+            readersDisplay[displayNames[reading]] = reader?.name || "Select Reader";
           });
-          setAssignedReaders(initialAssignments);
-  
-          // Assign altar servers
-          const altarServers = scheduleForTheWeek.altar || [];
-          setServers(
-            altarServers.map((server, index) => `Altar Server ${index + 1}`)
-          );
+          setCurrentReaders(readersObj);
+          setAssignedReaders(readersDisplay);
+
+          // Store full altar server objects
+          const fetchedAltarServers = scheduleForTheWeek.altar || [];
+          setAltarServers(fetchedAltarServers);
           const initialServerAssignments = {};
-          altarServers.forEach((server, index) => {
+          fetchedAltarServers.forEach((server, index) => {
             initialServerAssignments[index] = server.name;
           });
           setAssignedServers(initialServerAssignments);
-  
-          // Extract and set available extra servers, excluding "N/A"
+          // Also update servers array (for rendering list headers, etc.)
+          setServers(fetchedAltarServers.map((_, index) => `Altar Server ${index + 1}`));
+
+          // Set available extra servers as full objects (filtering out any placeholder like "N/A")
           const extraServers = scheduleForTheWeek.extra || [];
-          setAvailableServers(extraServers.filter(server => server.name !== "N/A").map(server => server.name));
+          const filteredExtraServers = extraServers.filter(
+            (server) => server.name !== "N/A"
+          );
+          setAvailableServers(filteredExtraServers);
         } else {
           console.log("No schedule found for this Sunday");
         }
       });
-  
+
       return () => unsubscribe();
     }
   }, [churchId]);
-  
-  const assignReader = (index, reader) => {
-    const updatedReaders = { ...assignedReaders };
-    updatedReaders[displayNames[readings[index]]] = reader;
-    setAssignedReaders(updatedReaders);
+
+  // When a new reader is selected, we retrieve the old reader’s UID and call switchServersAP
+  const assignReader = async (index, newReader) => {
+    const readingKey = readings[index]; // e.g., "matins"
+    const oldReader = currentReaders[readingKey];
+    if (!oldReader || !oldReader.uid) {
+      Alert.alert("Error", "Old reader not found.");
+      return;
+    }
+    try {
+      await switchServersAP(
+        user,
+        churchId,
+        "03-25-25",
+        oldReader.uid,
+        newReader.uid,
+        "https://switch-server-hy6oofbihq-uc.a.run.app"
+      );
+    } catch (error) {
+      console.error("Error switching readers:", error);
+      Alert.alert("Error", "Failed to switch reader.");
+    }
     setReaderDropdownIndex(null);
   };
 
-  const assignServer = (index, name) => {
-    const updatedServers = { ...assignedServers };
-    updatedServers[index] = name;
-    setAssignedServers(updatedServers);
+  // When a new server is selected, we retrieve the old server’s UID and call switchServersAP
+  const assignServer = async (index, newServer) => {
+    const oldServer = altarServers[index];
+    if (!oldServer || !oldServer.uid) {
+      Alert.alert("Error", "Old server not found.");
+      return;
+    }
+    try {
+      console.log("servers to swap",oldServer, newServer)
+      await switchServersAP(
+        user,
+        churchId,
+        "03-25-25",
+        oldServer.uid,
+        newServer.uid,
+        "https://switch-server-hy6oofbihq-uc.a.run.app"
+      );
+    } catch (error) {
+      console.error("Error switching servers:", error);
+      Alert.alert("Error", "Failed to switch server.");
+    }
     setServerDropdownIndex(null);
   };
 
-  // Renamed from addServer to avoid naming conflicts with the imported function
   const handleAddServer = async () => {
     if (!churchId) {
       Alert.alert("Error", "Church ID not found.");
       return;
     }
 
-    // Check if servers array already has 6 entries
     if (servers.length >= 6) {
       Alert.alert("Limit Reached", "You cannot add more than 6 servers.");
       return;
@@ -159,13 +199,12 @@ const EditSchedule = () => {
 
     try {
       await addServerAPI(
-        auth().currentUser,
+        user,
         churchId,
-        "03-18-25", // Ensure correct date or use getClosestSunday()
-        "https://add-server-hy6oofbihq-uc.a.run.app" // Backend function URL
+        "03-25-25", // or getClosestSunday() if needed
+        "https://add-server-hy6oofbihq-uc.a.run.app"
       );
 
-      // Increment altarServers count in church document
       const churchRef = firestore().collection("churches").doc(churchId);
       await churchRef.update({
         altarServers: firestore.FieldValue.increment(1),
@@ -188,7 +227,7 @@ const EditSchedule = () => {
       .collection("churches")
       .doc(churchId)
       .collection("schedule")
-      .doc("03-18-25");
+      .doc("03-25-25");
 
     try {
       const scheduleDoc = await schedulesRef.get();
@@ -199,7 +238,6 @@ const EditSchedule = () => {
 
       const scheduleData = scheduleDoc.data();
       const altarServers = scheduleData?.altar || [];
-
       const serverToRemove = altarServers[index];
 
       if (!serverToRemove || !serverToRemove.uid) {
@@ -208,14 +246,13 @@ const EditSchedule = () => {
       }
 
       await removeServerAPI(
-        auth().currentUser,
+        user,
         churchId,
-        "03-18-25",
+        "03-25-25",
         serverToRemove.uid,
         "https://remove-server-hy6oofbihq-uc.a.run.app"
       );
 
-      // Decrement altarServers count in church document
       const churchRef = firestore().collection("churches").doc(churchId);
       await churchRef.update({
         altarServers: firestore.FieldValue.increment(-1),
@@ -230,7 +267,7 @@ const EditSchedule = () => {
       <Text style={styles.title}>Edit Schedule</Text>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: 90 }} // Extra space at the bottom
+        contentContainerStyle={{ paddingBottom: 90 }}
         ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
       >
@@ -271,6 +308,7 @@ const EditSchedule = () => {
         <Text style={styles.addButtonText}>Add Server</Text>
       </TouchableOpacity>
 
+      {/* Server selection modal */}
       <Modal
         visible={serverDropdownIndex !== null}
         transparent
@@ -280,12 +318,12 @@ const EditSchedule = () => {
           <View style={styles.modalContent}>
             <FlatList
               data={availableServers}
-              keyExtractor={(item) => item}
+              keyExtractor={(item) => item.uid}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   onPress={() => assignServer(serverDropdownIndex, item)}
                 >
-                  <Text style={styles.modalItem}>{item}</Text>
+                  <Text style={styles.modalItem}>{item.name}</Text>
                 </TouchableOpacity>
               )}
             />
@@ -296,6 +334,7 @@ const EditSchedule = () => {
         </View>
       </Modal>
 
+      {/* Reader selection modal */}
       <Modal
         visible={readerDropdownIndex !== null}
         transparent
@@ -305,12 +344,12 @@ const EditSchedule = () => {
           <View style={styles.modalContent}>
             <FlatList
               data={availableServers}
-              keyExtractor={(item) => item}
+              keyExtractor={(item) => item.uid}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   onPress={() => assignReader(readerDropdownIndex, item)}
                 >
-                  <Text style={styles.modalItem}>{item}</Text>
+                  <Text style={styles.modalItem}>{item.name}</Text>
                 </TouchableOpacity>
               )}
             />
