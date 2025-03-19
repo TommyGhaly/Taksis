@@ -657,7 +657,9 @@ def add_user_to_churches(user_data):
             church_data["deacons"].append(new_deacon)
         add_user_to_extra_servers(church_id, user_data["name"], user_id)
     else:
-        remove_user_from_schedules(church_id, user_data["name"], user_id)
+        pass
+        #come back to this
+        #remove_user_from_schedules(church_id, user_data["name"], user_id)
 
     # Delete existing servant record, if it exists (deletion is safe even if the document doesn’t exist)
     servant_ref = (
@@ -729,7 +731,7 @@ def add_user_to_extra_servers(church, name, uid):
             )  # Update the 'extra' field in Firestore
 
 
-def remove_user_from_schedules(church, uid, schedules, alhan, sunday_school):
+def remove_user_from_schedules(church, uid, week, schedules, alhan, sunday_school):
     pass
 
 
@@ -874,6 +876,8 @@ def delete_child(req: https_fn.Request) -> https_fn.Response:
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
     remove_user_from_churches(user_id)
+    #adjust this 
+    #remove_user_from_schedules()
     return https_fn.Response("child deleted", status=200)
 
 
@@ -911,8 +915,9 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
         print("children", user_data["children"])
         for child in user_data["children"]:
             remove_user_from_churches(child.get("uid"))
-
+            remove_user_from_schedules(child.get("uid"), True, False, False)
     remove_user_from_churches(user_id)
+    remove_user_from_schedules(user_id, True, True, True)
     return https_fn.Response("user and children deleted", status=200)
 
 
@@ -940,7 +945,7 @@ def check_classes():
                 ss_doc.reference.delete()
 
 
-@https_fn.on_request()
+'''@https_fn.on_request()
 def set_up_attendance(req: https_fn.Request) -> https_fn.Response:
     try:
         request_data = req.get_json()
@@ -1009,7 +1014,7 @@ def set_up_attendance(req: https_fn.Request) -> https_fn.Response:
                 )
     check_classes()
     return https_fn.Response("Attendance setup completed successfully", status=200)
-
+'''
 
 def find_server(schedule_data, target_uid):
     """Search schedule_data for a server with the given uid.
@@ -1103,7 +1108,7 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
             schedule_data[str(second_location[0])] = first_server
 
         schedule_ref.update(schedule_data)
-
+        set_next_week_serve(church_id)
         return https_fn.Response("Servers swapped successfully", status=200)
 
     except Exception as e:
