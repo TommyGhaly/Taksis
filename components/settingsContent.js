@@ -237,6 +237,7 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 36,
+    fontWeight: 600,
     color: "#fff",
     textAlign: "center",
   },
@@ -244,8 +245,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 18,
-    color: "#ffffff",
+    fontSize: 20,
+    color: "#4d9cff",
     marginBottom: 10,
     fontWeight: "bold",
   },

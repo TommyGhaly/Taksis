@@ -44,6 +44,8 @@ const displayNames = {
 
 const EditSchedule = () => {
   const [churchId, setChurchId] = useState(null);
+  // Week will now be determined dynamically (doc id from the schedule collection)
+  const [week, setWeek] = useState(null);
   // These states now hold only display values
   const [servers, setServers] = useState([]);
   const [assignedReaders, setAssignedReaders] = useState({});
@@ -58,50 +60,55 @@ const EditSchedule = () => {
   const scrollViewRef = useRef(null);
   const user = auth().currentUser;
 
-  const getClosestSunday = () => {
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const daysUntilSunday = (7 - dayOfWeek) % 7;
-    today.setDate(today.getDate() + daysUntilSunday);
-
-    const month = (today.getMonth() + 1).toString().padStart(2, "0");
-    const day = today.getDate().toString().padStart(2, "0");
-    const year = today.getFullYear().toString().slice(-2);
-
-    return `${month}-${day}-${year}`;
-  };
-
+  // Fetch the current user's churchId from Firestore
   useEffect(() => {
-    // Fetch user's document to get churchId
     const fetchUserData = async () => {
-      const userDoc = await firestore().collection("users").doc(user.uid).get();
-      if (userDoc.exists) {
-        const userData = userDoc.data();
-        setChurchId(userData?.church);
-      } else {
-        console.log("User not found");
+      try {
+        const userDoc = await firestore().collection("users").doc(user.uid).get();
+        if (userDoc.exists) {
+          const userData = userDoc.data();
+          setChurchId(userData?.church);
+        } else {
+          console.log("User not found");
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
       }
     };
 
     fetchUserData();
-  }, []);
+  }, [user.uid]);
 
+  // Query the schedule subcollection and determine the nearest upcoming week (schedule)
   useEffect(() => {
     if (churchId) {
-      // Use a hard-coded week for now; you can swap in getClosestSunday()
-      const week = "03-25-25";
       const schedulesRef = firestore()
         .collection("churches")
         .doc(churchId)
-        .collection("schedule")
-        .doc(week);
+        .collection("schedule");
 
-      const unsubscribe = schedulesRef.onSnapshot((doc) => {
-        if (doc.exists) {
-          const scheduleForTheWeek = doc.data();
-          console.log("Schedule for the week:", scheduleForTheWeek);
+      const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
+        let closestScheduleDoc = null;
+        let closestDate = null;
+        snapshot.docs.forEach((doc) => {
+          // Assume doc.id is in the format "MM-DD-YY"
+          const scheduleDateStr = doc.id;
+          const [month, day, year] = scheduleDateStr.split("-").map(Number);
+          // Assuming years are stored as two digits (e.g., "25" means 2025)
+          const scheduleDate = new Date(2000 + year, month - 1, day);
+          if (scheduleDate > new Date()) {
+            if (!closestDate || scheduleDate < closestDate) {
+              closestDate = scheduleDate;
+              closestScheduleDoc = doc;
+            }
+          }
+        });
+        if (closestScheduleDoc) {
+          setWeek(closestScheduleDoc.id);
+          const scheduleForTheWeek = closestScheduleDoc.data();
+          console.log("Nearest schedule for the week:", scheduleForTheWeek);
 
-          // Store readers as full objects for later UID access
+          // Build objects for readers and display names
           const readersObj = {};
           const readersDisplay = {};
           readings.forEach((reading) => {
@@ -112,7 +119,7 @@ const EditSchedule = () => {
           setCurrentReaders(readersObj);
           setAssignedReaders(readersDisplay);
 
-          // Store full altar server objects
+          // Process altar servers (full objects)
           const fetchedAltarServers = scheduleForTheWeek.altar || [];
           setAltarServers(fetchedAltarServers);
           const initialServerAssignments = {};
@@ -120,17 +127,17 @@ const EditSchedule = () => {
             initialServerAssignments[index] = server.name;
           });
           setAssignedServers(initialServerAssignments);
-          // Also update servers array (for rendering list headers, etc.)
+          // Update servers array (for rendering list headers, etc.)
           setServers(fetchedAltarServers.map((_, index) => `Altar Server ${index + 1}`));
 
-          // Set available extra servers as full objects (filtering out any placeholder like "N/A")
+          // Also update available extra servers as full objects (filtering out placeholders)
           const extraServers = scheduleForTheWeek.extra || [];
           const filteredExtraServers = extraServers.filter(
             (server) => server.name !== "N/A"
           );
           setAvailableServers(filteredExtraServers);
         } else {
-          console.log("No schedule found for this Sunday");
+          console.log("No upcoming schedule found.");
         }
       });
 
@@ -138,11 +145,15 @@ const EditSchedule = () => {
     }
   }, [churchId]);
 
-  // When a new reader is selected, we retrieve the old reader’s UID and call switchServersAP
+  // When a new reader is selected, retrieve the old reader’s UID and call switchServersAPI
   const assignReader = async (index, newReader) => {
+    if (!week) {
+      Alert.alert("Error", "Schedule week not determined yet.");
+      return;
+    }
     const readingKey = readings[index]; // e.g., "matins"
     const oldReader = currentReaders[readingKey];
-    console.log(oldReader, readingKey, newReader)
+    console.log(oldReader, readingKey, newReader);
     if (!oldReader || !oldReader.uid) {
       Alert.alert("Error", "Old reader not found.");
       return;
@@ -151,7 +162,7 @@ const EditSchedule = () => {
       await switchServersAPI(
         user,
         churchId,
-        "03-25-25",
+        week,
         oldReader.uid,
         newReader.uid,
         "https://switch-server-hy6oofbihq-uc.a.run.app"
@@ -163,19 +174,23 @@ const EditSchedule = () => {
     setReaderDropdownIndex(null);
   };
 
-  // When a new server is selected, we retrieve the old server’s UID and call switchServersAP
+  // When a new server is selected, retrieve the old server’s UID and call switchServersAPI
   const assignServer = async (index, newServer) => {
+    if (!week) {
+      Alert.alert("Error", "Schedule week not determined yet.");
+      return;
+    }
     const oldServer = altarServers[index];
     if (!oldServer || !oldServer.uid) {
       Alert.alert("Error", "Old server not found.");
       return;
     }
     try {
-      console.log("servers to swap",oldServer, newServer)
+      console.log("Servers to swap:", oldServer, newServer);
       await switchServersAPI(
         user,
         churchId,
-        "03-25-25",
+        week,
         oldServer.uid,
         newServer.uid,
         "https://switch-server-hy6oofbihq-uc.a.run.app"
@@ -187,9 +202,10 @@ const EditSchedule = () => {
     setServerDropdownIndex(null);
   };
 
+  // Add a new server to the schedule
   const handleAddServer = async () => {
-    if (!churchId) {
-      Alert.alert("Error", "Church ID not found.");
+    if (!churchId || !week) {
+      Alert.alert("Error", "Church ID or schedule week not found.");
       return;
     }
 
@@ -202,7 +218,7 @@ const EditSchedule = () => {
       await addServerAPI(
         user,
         churchId,
-        "03-25-25", // or getClosestSunday() if needed
+        week,
         "https://add-server-hy6oofbihq-uc.a.run.app"
       );
 
@@ -212,15 +228,17 @@ const EditSchedule = () => {
       });
 
       scrollViewRef.current?.scrollToEnd({ animated: false });
+      Alert.alert("Success", "Server added successfully.");
     } catch (error) {
       console.error("Error adding server:", error);
       Alert.alert("Error", `Failed to add server: ${error.message}`);
     }
   };
 
+  // Remove a server from the schedule
   const removeServerFromSchedule = async (index) => {
-    if (!churchId) {
-      Alert.alert("Error", "Church ID not found.");
+    if (!churchId || !week) {
+      Alert.alert("Error", "Church ID or schedule week not found.");
       return;
     }
 
@@ -228,7 +246,7 @@ const EditSchedule = () => {
       .collection("churches")
       .doc(churchId)
       .collection("schedule")
-      .doc("03-25-25");
+      .doc(week);
 
     try {
       const scheduleDoc = await schedulesRef.get();
@@ -249,7 +267,7 @@ const EditSchedule = () => {
       await removeServerAPI(
         user,
         churchId,
-        "03-25-25",
+        week,
         serverToRemove.uid,
         "https://remove-server-hy6oofbihq-uc.a.run.app"
       );
@@ -258,6 +276,7 @@ const EditSchedule = () => {
       await churchRef.update({
         altarServers: firestore.FieldValue.increment(-1),
       });
+      Alert.alert("Success", "Server removed successfully.");
     } catch (error) {
       Alert.alert("Error", `Failed to remove server: ${error.message}`);
     }
@@ -384,8 +403,8 @@ const styles = StyleSheet.create({
     color: "#bbb",
   },
   sectionHeader: {
-    fontSize: 18,
-    color: "#bbb",
+    fontSize: 20,
+    color: "#4d9cff",
     marginBottom: 10,
     marginTop: 20,
     fontWeight: "bold",

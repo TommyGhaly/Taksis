@@ -7,35 +7,35 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
-  Linking,
   AsyncStorage,
   NativeEventEmitter,
   NativeModules,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons"; // Using Ionicons for icons
+import { Ionicons } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
 import { initializeApp } from "firebase/app";
 import messaging from "@react-native-firebase/messaging";
 import auth from "@react-native-firebase/auth";
 import * as Location from "expo-location";
 
+// Initialize Firebase
 initializeApp({
   projectId: "taksis-a8ba7",
   apiKey: "AIzaSyBWxEgHXcJx19Rklr7P6HhhweT9_I70WkA",
   authDomain: "taksis-a8ba7.firebaseapp.com",
 });
 
+// Setup native module event emitter (if needed)
 const { YourNativeModule } = NativeModules;
 const eventEmitter = YourNativeModule
   ? new NativeEventEmitter(YourNativeModule)
   : null;
 
-// Format date as MM-DD-YY
+// Utility to format a Date as MM-DD-YY
 const formatDate = (date) => {
   let day = date.getDate();
   let month = date.getMonth() + 1;
   let year = date.getFullYear() % 100;
-
   return `${month < 10 ? `0${month}` : month}-${
     day < 10 ? `0${day}` : day
   }-${year}`;
@@ -44,30 +44,28 @@ const formatDate = (date) => {
 // Get the next upcoming Sunday
 const getNextSunday = () => {
   const today = new Date();
-  const dayOfWeek = today.getDay(); // Sunday = 0, Monday = 1, ..., Saturday = 6
-  const daysUntilSunday = (7 - dayOfWeek) % 7; // Days until the next Sunday
+  const dayOfWeek = today.getDay();
+  const daysUntilSunday = (7 - dayOfWeek) % 7;
   const nextSunday = new Date(
     today.getTime() + daysUntilSunday * 24 * 60 * 60 * 1000
   );
   return formatDate(nextSunday);
 };
 
+// Notification & FCM token logic for Android
 async function requestUserPermissionAndroid() {
   try {
     let permissionGranted = false;
-
     while (!permissionGranted) {
       const authStatus = await messaging().hasPermission();
       permissionGranted =
         authStatus === messaging.AuthorizationStatus.AUTHORIZED;
-
       if (!permissionGranted) {
         await messaging().requestPermission();
         permissionGranted =
           (await messaging().hasPermission()) ===
           messaging.AuthorizationStatus.AUTHORIZED;
       }
-
       if (permissionGranted) {
         console.log("Android Notification Permission Granted");
         await AsyncStorage.setItem("notification_permission", "granted");
@@ -88,16 +86,15 @@ async function requestUserPermissionAndroid() {
   }
 }
 
+// Notification & FCM token logic for iOS
 async function requestUserPermissionIOS() {
   try {
     let permissionGranted = false;
-
     while (!permissionGranted) {
       const authStatus = await messaging().requestPermission();
       permissionGranted =
         authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
         authStatus === messaging.AuthorizationStatus.PROVISIONAL;
-
       if (permissionGranted) {
         console.log("iOS Notification Permission Granted:", authStatus);
         await AsyncStorage.setItem("notification_permission", "granted");
@@ -118,6 +115,7 @@ async function requestUserPermissionIOS() {
   }
 }
 
+// Get the Firebase Cloud Messaging token
 async function getFCMToken() {
   try {
     const fcmToken = await messaging().getToken();
@@ -132,11 +130,9 @@ async function getFCMToken() {
   }
 }
 
+// Check and request notification permissions
 async function checkNotificationPermission() {
-  const storedPermission = await AsyncStorage.getItem(
-    "notification_permission"
-  );
-
+  const storedPermission = await AsyncStorage.getItem("notification_permission");
   if (!storedPermission) {
     if (Platform.OS === "ios") {
       await requestUserPermissionIOS();
@@ -146,19 +142,17 @@ async function checkNotificationPermission() {
   }
 }
 
+// Request location permission (foreground and background)
 async function requestLocationPermission() {
   try {
-    // Request foreground location permission directly
     let { status: foregroundStatus } =
       await Location.getForegroundPermissionsAsync();
     console.log(`Current Foreground Permission Status: ${foregroundStatus}`);
-
     if (foregroundStatus !== "granted") {
       const { status } = await Location.requestForegroundPermissionsAsync();
       foregroundStatus = status;
       console.log(`Updated Foreground Permission Status: ${foregroundStatus}`);
     }
-
     if (foregroundStatus !== "granted") {
       Alert.alert(
         "Permission Required",
@@ -170,20 +164,15 @@ async function requestLocationPermission() {
       );
       return;
     }
-
     console.log("Foreground location permission granted.");
-
-    // Request background location permission after foreground permission is granted
     let { status: backgroundStatus } =
       await Location.getBackgroundPermissionsAsync();
     console.log(`Current Background Permission Status: ${backgroundStatus}`);
-
     if (backgroundStatus !== "granted") {
       const { status } = await Location.requestBackgroundPermissionsAsync();
       backgroundStatus = status;
       console.log(`Updated Background Permission Status: ${backgroundStatus}`);
     }
-
     if (backgroundStatus !== "granted") {
       Alert.alert(
         "Background Permission Needed",
@@ -201,6 +190,7 @@ async function requestLocationPermission() {
   }
 }
 
+// Get the current location and save it to Firestore for the authenticated user
 async function getCurrentLocation() {
   try {
     const { status } = await Location.getForegroundPermissionsAsync();
@@ -208,20 +198,16 @@ async function getCurrentLocation() {
       console.log("Location permission not granted.");
       return;
     }
-
     const location = await Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.High,
     });
-
     if (location) {
       console.log("Location retrieved:", location.coords);
-
       const userId = auth().currentUser?.uid;
       if (!userId) {
         console.log("No authenticated user found.");
         return;
       }
-
       await firestore()
         .collection("users")
         .doc(userId)
@@ -234,7 +220,6 @@ async function getCurrentLocation() {
           },
           { merge: true }
         );
-
       console.log("Location saved to Firestore.");
     }
   } catch (error) {
@@ -243,19 +228,17 @@ async function getCurrentLocation() {
   }
 }
 
+// Check for location permissions
 async function checkLocationPermission() {
-  const { status } = await Location.getForegroundPermissionsAsync(); // Check current permission status
+  const { status } = await Location.getForegroundPermissionsAsync();
   console.log("Current Permission Status:", status);
-
   if (status !== "granted") {
     console.log("Requesting location permission...");
-    await requestLocationPermission(); // Call the request function
+    await requestLocationPermission();
   } else {
     console.log("Location permission already granted.");
   }
 }
-
-// ... (imports and other code remain unchanged)
 
 const HomeScreen = () => {
   const [schedule, setSchedule] = useState({
@@ -270,15 +253,45 @@ const HomeScreen = () => {
     wine: { name: "N/A" },
     altar: [],
   });
-
   const [currentWeek, setCurrentWeek] = useState(getNextSunday());
   const [nextWeek, setNextWeek] = useState();
+  const [isDeacon, setIsDeacon] = useState(false);
 
+  // Check notification and location permissions on mount
   useEffect(() => {
     checkNotificationPermission();
     checkLocationPermission();
   }, []);
 
+  // Realtime listener on the user document to update the next week service date and isDeacon status
+  useEffect(() => {
+    const user = auth().currentUser;
+    if (!user) {
+      console.log("No authenticated user found for realtime user updates.");
+      return;
+    }
+    const unsubscribeUser = firestore()
+      .collection("users")
+      .doc(user.uid)
+      .onSnapshot(
+        (doc) => {
+          const userData = doc.data();
+          if (userData) {
+            setIsDeacon(userData.isDeacon);
+            if (userData.nextWeekServe) {
+              setNextWeek(userData.nextWeekServe);
+              console.log("Next week serve updated:", userData.nextWeekServe);
+            }
+          }
+        },
+        (error) => {
+          console.error("Error listening to user document:", error);
+        }
+      );
+    return () => unsubscribeUser();
+  }, []);
+
+  // Realtime listener for the church schedule
   useEffect(() => {
     const fetchScheduleRealtime = async () => {
       try {
@@ -287,46 +300,29 @@ const HomeScreen = () => {
           console.log("No authenticated user found.");
           return;
         }
-
-        const userDoc = await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .get();
+        const userDoc = await firestore().collection("users").doc(user.uid).get();
         if (!userDoc.exists) {
           console.log("User not found.");
           return;
         }
-
         const userData = userDoc.data();
         const churchId = userData.church;
-        setNextWeek(userData.nextWeekServe)
-
-        const churchDoc = await firestore()
-          .collection("churches")
-          .doc(churchId)
-          .get();
-        if (!churchDoc.exists) {
-          console.log("Church not found.");
-          return;
+        if (userData.nextWeekServe) {
+          setNextWeek(userData.nextWeekServe);
         }
-
-        // Reference to the schedules collection
         const schedulesRef = firestore()
           .collection("churches")
           .doc(churchId)
           .collection("schedule");
 
-        // Listen for real-time updates
         const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
           let closestSchedule = null;
           let closestDate = null;
-
           snapshot.docs.forEach((doc) => {
             const scheduleData = doc.data();
             const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
             const [month, day, year] = scheduleDateStr.split("-").map(Number);
             const scheduleDate = new Date(2000 + year, month - 1, day);
-            console.log(scheduleDate);
             if (scheduleDate > new Date()) {
               if (!closestDate || scheduleDate < closestDate) {
                 closestDate = scheduleDate;
@@ -334,7 +330,6 @@ const HomeScreen = () => {
               }
             }
           });
-
           if (closestSchedule) {
             const defaultSchedule = {
               matins: { name: "N/A" },
@@ -348,53 +343,37 @@ const HomeScreen = () => {
               wine: { name: "N/A" },
               altar: [],
             };
-
-            // Merge the fetched schedule with defaults
             const updatedSchedule = {
               ...defaultSchedule,
               ...closestSchedule,
             };
-
-            // Ensure "altar" is an array
             if (!Array.isArray(updatedSchedule.altar)) {
               updatedSchedule.altar = [];
             }
-
-            // Create an array for altar servers starting with water and wine (if they exist)
             const altarServers = [];
-            if (
-              updatedSchedule.water &&
-              typeof updatedSchedule.water === "object"
-            ) {
+            if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
               altarServers.push(updatedSchedule.water);
             }
-            if (
-              updatedSchedule.wine &&
-              typeof updatedSchedule.wine === "object"
-            ) {
+            if (updatedSchedule.wine && typeof updatedSchedule.wine === "object") {
               altarServers.push(updatedSchedule.wine);
             }
-            // Filter out any invalid entries from the existing altar array
             altarServers.push(
               ...updatedSchedule.altar.filter(
                 (server) => server && typeof server === "object"
               )
             );
             updatedSchedule.altar = altarServers;
-
             setSchedule(updatedSchedule);
             console.log("Real-time schedule updated:", updatedSchedule);
           } else {
             console.log("No upcoming schedule found.");
           }
         });
-
-        return () => unsubscribe(); // Clean up listener on unmount
+        return () => unsubscribe();
       } catch (error) {
-        console.error("Error setting up real-time updates:", error);
+        console.error("Error setting up realtime schedule:", error);
       }
     };
-
     fetchScheduleRealtime();
   }, []);
 
@@ -424,12 +403,7 @@ const HomeScreen = () => {
             { title: "Gospel", value: schedule.gospel.name },
           ].map((item, index) => (
             <View key={index} style={styles.card}>
-              <Ionicons
-                name="book"
-                size={24}
-                color="#fff"
-                style={styles.icon}
-              />
+              <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
               <Text style={styles.name}>
                 {item.title}: {item.value}
               </Text>
@@ -463,12 +437,7 @@ const HomeScreen = () => {
           <Text style={styles.sectionTitle}>Altar Servers</Text>
           {schedule.altar.map((deacon, index) => (
             <View key={index} style={styles.card}>
-              <Ionicons
-                name="people"
-                size={24}
-                color="#fff"
-                style={styles.icon}
-              />
+              <Ionicons name="people" size={24} color="#fff" style={styles.icon} />
               <Text style={styles.name}>
                 Altar: {deacon?.name || "Unknown"}
               </Text>
@@ -476,16 +445,18 @@ const HomeScreen = () => {
           ))}
         </View>
 
-        {/* Box for Next Service Week */}
-        <View style={styles.nextServiceBox}>
-          <Text style={styles.nextServiceHeader}>Next Service Week</Text>
-          <Text style={styles.nextServiceText}>
-            Your next service is on: {nextWeek}
-          </Text>
-          <TouchableOpacity style={styles.unavailableButton}>
-            <Text style={styles.requestButtonText}>Unavailable</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Conditionally render Next Service Week box if the user is a deacon */}
+        {isDeacon && (
+          <View style={styles.nextServiceBox}>
+            <Text style={styles.nextServiceHeader}>Next Service Week</Text>
+            <Text style={styles.nextServiceText}>
+              Your next service is on: {nextWeek}
+            </Text>
+            <TouchableOpacity style={styles.unavailableButton}>
+              <Text style={styles.requestButtonText}>Unavailable</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
       <View style={styles.blackspace} />
     </View>
@@ -556,19 +527,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     borderRadius: 10,
     marginVertical: 10,
-    alignSelf: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 4,
-  },
-  requestButton: {
-    backgroundColor: "#147efb",
-    paddingVertical: 15,
-    paddingHorizontal: 100,
-    borderRadius: 30,
-    marginVertical: 20,
     alignSelf: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
