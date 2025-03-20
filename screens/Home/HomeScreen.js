@@ -17,6 +17,7 @@ import { initializeApp } from "firebase/app";
 import messaging from "@react-native-firebase/messaging";
 import auth from "@react-native-firebase/auth";
 import * as Location from "expo-location";
+import { unavailableToServe } from "../../components/functionCalls";
 
 // Initialize Firebase
 initializeApp({
@@ -132,7 +133,9 @@ async function getFCMToken() {
 
 // Check and request notification permissions
 async function checkNotificationPermission() {
-  const storedPermission = await AsyncStorage.getItem("notification_permission");
+  const storedPermission = await AsyncStorage.getItem(
+    "notification_permission"
+  );
   if (!storedPermission) {
     if (Platform.OS === "ios") {
       await requestUserPermissionIOS();
@@ -257,6 +260,31 @@ const HomeScreen = () => {
   const [nextWeek, setNextWeek] = useState();
   const [isDeacon, setIsDeacon] = useState(false);
 
+  const handleUnavalebleToServe = async () => {
+    const user = auth().currentUser;
+    if (!user) {
+      console.log("No authenticated user found.");
+      return;
+    }
+    const userDoc = await firestore().collection("users").doc(user.uid).get();
+    if (!userDoc.exists) {
+      console.log("User not found.");
+      return;
+    }
+    const userData = userDoc.data();
+    const churchId = userData.church;
+    await unavailableToServe(
+      user,
+      churchId,
+      nextWeek,
+      "https://unavailable-for-week-hy6oofbihq-uc.a.run.app"
+    );
+    Alert.alert(
+      "Request Sent",
+      "You have been marked as unavailable for this service and the schedule will update accordingly."
+    );
+  };
+
   // Check notification and location permissions on mount
   useEffect(() => {
     checkNotificationPermission();
@@ -300,7 +328,10 @@ const HomeScreen = () => {
           console.log("No authenticated user found.");
           return;
         }
-        const userDoc = await firestore().collection("users").doc(user.uid).get();
+        const userDoc = await firestore()
+          .collection("users")
+          .doc(user.uid)
+          .get();
         if (!userDoc.exists) {
           console.log("User not found.");
           return;
@@ -351,10 +382,16 @@ const HomeScreen = () => {
               updatedSchedule.altar = [];
             }
             const altarServers = [];
-            if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
+            if (
+              updatedSchedule.water &&
+              typeof updatedSchedule.water === "object"
+            ) {
               altarServers.push(updatedSchedule.water);
             }
-            if (updatedSchedule.wine && typeof updatedSchedule.wine === "object") {
+            if (
+              updatedSchedule.wine &&
+              typeof updatedSchedule.wine === "object"
+            ) {
               altarServers.push(updatedSchedule.wine);
             }
             altarServers.push(
@@ -403,7 +440,12 @@ const HomeScreen = () => {
             { title: "Gospel", value: schedule.gospel.name },
           ].map((item, index) => (
             <View key={index} style={styles.card}>
-              <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
+              <Ionicons
+                name="book"
+                size={24}
+                color="#fff"
+                style={styles.icon}
+              />
               <Text style={styles.name}>
                 {item.title}: {item.value}
               </Text>
@@ -437,7 +479,12 @@ const HomeScreen = () => {
           <Text style={styles.sectionTitle}>Altar Servers</Text>
           {schedule.altar.map((deacon, index) => (
             <View key={index} style={styles.card}>
-              <Ionicons name="people" size={24} color="#fff" style={styles.icon} />
+              <Ionicons
+                name="people"
+                size={24}
+                color="#fff"
+                style={styles.icon}
+              />
               <Text style={styles.name}>
                 Altar: {deacon?.name || "Unknown"}
               </Text>
@@ -452,7 +499,12 @@ const HomeScreen = () => {
             <Text style={styles.nextServiceText}>
               Your next service is on: {nextWeek}
             </Text>
-            <TouchableOpacity style={styles.unavailableButton}>
+            <TouchableOpacity
+              style={styles.unavailableButton}
+              onPress={() => {
+                handleUnavalebleToServe();
+              }}
+            >
               <Text style={styles.requestButtonText}>Unavailable</Text>
             </TouchableOpacity>
           </View>
