@@ -148,3 +148,34 @@ export const switchServers = async (
     console.error("Error preparing function call:", error);
   }
 };
+export const unavailableToServe = async (
+  user,
+  church,
+  week,
+  url
+) => {
+  try {
+    // Await the Firebase ID token
+    const idToken = await user.getIdToken();
+
+    // Fire the request without awaiting the response (runs in the background)
+    fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`, // Use the actual token here
+      },
+      body: JSON.stringify({
+        church: church,
+        week: week,
+        uid: user.uid,
+      }), // Send the correct uid parameter
+    }).catch((error) => {
+      console.error("Error calling function in the background:", error);
+    });
+
+    console.log("Function call fired, backend will process the request.");
+  } catch (error) {
+    console.error("Error preparing function call:", error);
+  }
+};

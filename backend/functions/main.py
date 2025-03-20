@@ -796,14 +796,6 @@ def notify_new_servant(uid):
     pass
 
 
-@scheduler_fn.on_schedule(
-    schedule="30 12 * * 0",  # Every Sunday at 12:30 AM
-    timezone=scheduler_fn.Timezone("America/New_York"),
-)
-def locate_for_servants(event: scheduler_fn.ScheduledEvent):
-    pass
-
-
 # call this function with the parameter of the uid update the children then call update user on the original user
 @https_fn.on_request()
 def sync_child_params(req: https_fn.Request) -> https_fn.Response:
@@ -1046,7 +1038,6 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
     week_id = request_data.get("week")
     first_server_uid = request_data.get("firstServer")
     second_server_uid = request_data.get("secondServer")
-    print(church_id, week_id, first_server_uid, second_server_uid)
     if not all([church_id, week_id, first_server_uid, second_server_uid]):
         return https_fn.Response("Missing required parameters", status=400)
 
@@ -1068,10 +1059,7 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
             .document(week_id)
         )
         schedule_doc = schedule_ref.get()
-        print(schedule_doc)
-        print(not schedule_doc.exists)
         if not schedule_doc.exists:
-            print("Hello World 1")
             return https_fn.Response("Schedule not found", status=404)
 
         schedule_data = schedule_doc.to_dict()
@@ -1080,25 +1068,17 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
         first_location, first_server = find_server(schedule_data, first_server_uid)
         second_location, second_server = find_server(schedule_data, second_server_uid)
         if not first_location or not second_location:
-            print("Hello World 2")
             return https_fn.Response("One or both servers not found", status=404)
 
         # Swap the server objects in schedule_data
         # For a location stored as (key, i) or (key,), use the first element for dict access.
-        print(first_location)
         if len(first_location) == 2:
             schedule_data[str(first_location[0])][
                 int(first_location[1])
             ] = second_server
-            print(schedule_data)
-            print(second_location)
 
         else:
-            print(schedule_data)
             schedule_data[str(first_location[0])] = second_server
-            print(schedule_data)
-            print(first_location)
-            print(second_location)
 
         if len(second_location) == 2:
             schedule_data[str(second_location[0])][
@@ -1159,9 +1139,7 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
 
     altar_servers = schedule_data.get("altar", [])
     extra_servers = schedule_data.get("extra", [])
-    print(altar_servers)
     updated_altar_servers = [s for s in altar_servers if s["uid"] != server_uid]
-    print(updated_altar_servers)
     removed_servers = [s for s in altar_servers if s["uid"] == server_uid]
 
     if not removed_servers:
@@ -1221,9 +1199,6 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
     altar_servers = schedule_data.get("altar", [])
     extra_servers = schedule_data.get("extra", [])
 
-    print("Before update:")
-    print("Altar Servers:", altar_servers)
-    print("Extra Servers:", extra_servers)
 
     # Ensure extra_servers is not empty before accessing index 0
     if extra_servers:
@@ -1235,9 +1210,6 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
         # Update Firestore
         schedule_ref.update({"altar": altar_servers, "extra": updated_extra_servers})
 
-        print("After update:")
-        print("Altar Servers:", altar_servers)
-        print("Extra Servers:", updated_extra_servers)
         update_future_schedules(church_id)
         set_next_week_serve(church_id)
 
@@ -1287,10 +1259,173 @@ def update_future_schedules(church):
 
     return
 
+def create_extra_deacons(church_id, extra_deacons):
+    firestore_client = firestore.Client()
+    church_ref = (
+        firestore_client.collection("churches").document(church_id)
+    )
+    church_doc = church_ref.get()
+    church_data = church_doc.to_dict()
+    deacons = []
+    for deacon in church_data["deacons"]:
+            for extra_deacon in extra_deacons:
+                if deacon["uid"] == extra_deacon["uid"]:
+                    deacons.append(deacon)
+    return deacons
 
 @https_fn.on_request()
-def unavailable_for_week():
-    pass
+def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:  
+    try:    
+        request_data = req.get_json()
+        if not request_data:
+            return https_fn.Response("Missing JSON body", status=400)
+    except Exception as e:
+        return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
+
+
+    # Extract required parameters
+    church_id = request_data.get("church")
+    week_id = request_data.get("week")
+    user_id = request_data.get("uid")
+
+    if not all([church_id, week_id, user_id]):
+        return https_fn.Response("Missing required parameters", status=400) 
+    
+    # Optional: Verify Firebase Auth token
+    id_token = req.headers.get("Authorization")
+    if id_token:
+        try:
+            decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
+        except Exception as e:
+
+
+
+            return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+
+    # Firestore setup
+    firestore_client = firestore.Client()
+    schedule_ref = (
+        firestore_client.collection("churches")
+        .document(church_id)
+        .collection("schedule")
+        .document(week_id)
+    )
+    schedule_doc = schedule_ref.get()
+    if not schedule_doc.exists:
+        return https_fn.Response("Schedule not found", status=404)
+    
+    schedule_data = schedule_doc.to_dict()
+    key, _ = find_server(schedule_data, user_id)
+
+    if len(key) == 1:
+        key = str(key[0])
+    else:
+        key[0] = str(key[0])
+
+
+    new_deacon = []
+    extra_deacons = create_extra_deacons(church_id, schedule_data["extra"])
+    if len(extra_deacons) == 0:
+        if len(key) == 1:
+            schedule_data[key] = {"name": "N/A", "uid": "N/A"}
+        else:
+            schedule_data[key[0]][key[1]] = {"name": "N/A", "uid": "N/A"}
+        schedule_ref.update(schedule_data)
+        return https_fn.Response("No extra deacons available", status=400)
+
+    if not isinstance(key, tuple):
+        if key == "matins":
+            new_deacon = matins(extra_deacons)[0]
+            new_deacon = {
+                "name": new_deacon["name"],
+                "uid": new_deacon["uid"],
+            }
+            new_key, _ = find_server(schedule_data, new_deacon["uid"])
+            schedule_data["matins"] = new_deacon
+            del schedule_data["extra"][new_key[1]]
+
+        elif key == "third":
+            new_deacon = third(extra_deacons)[0]
+            new_deacon = {
+                "name": new_deacon["name"],
+                "uid": new_deacon["uid"],
+            }
+            new_key, _ = find_server(schedule_data, new_deacon["uid"])
+            schedule_data["third"] = new_deacon
+            del schedule_data["extra"][new_key[1]]
+
+        elif key == "sixth":
+            new_deacon = sixth(extra_deacons)[0]
+            new_deacon = {
+                "name": new_deacon["name"],
+                "uid": new_deacon["uid"],
+            }
+            new_key, _ = find_server(schedule_data, new_deacon["uid"])
+            schedule_data["sixth"] = new_deacon
+            del schedule_data["extra"][new_key[1]]
+
+        elif key == "pauline":
+            new_deacon = pauline(extra_deacons)[0]
+            new_deacon = {
+                "name": new_deacon["name"],
+                "uid": new_deacon["uid"],
+            }
+            new_key, _ = find_server(schedule_data, new_deacon["uid"])
+            schedule_data["pauline"] = new_deacon
+            del schedule_data["extra"][new_key[1]]
+
+        elif key == "catholic":
+            new_deacon = catholic(extra_deacons)[0]
+            new_deacon = {
+                "name": new_deacon["name"],
+                "uid": new_deacon["uid"],
+            }
+            new_key, _ = find_server(schedule_data, new_deacon["uid"])
+            schedule_data["catholic"] = new_deacon 
+            del schedule_data["extra"][new_key[1]]
+
+        elif key == "gospel":
+            new_deacon = gospel(extra_deacons)[0]
+            new_deacon = {
+                "name": new_deacon["name"],
+                "uid": new_deacon["uid"],
+            }
+            new_key, _ = find_server(schedule_data, new_deacon["uid"])
+            schedule_data["gospel"] = new_deacon
+            del schedule_data["extra"][new_key[1]]
+        elif key == "water":
+            new_deacon = water(extra_deacons)[0]
+            new_deacon = {
+                "name": new_deacon["name"],
+                "uid": new_deacon["uid"],
+            }
+            new_key, _ = find_server(schedule_data, new_deacon["uid"])
+            schedule_data["water"] = new_deacon
+            del schedule_data["extra"][new_key[1]]
+        elif key == "wine":
+            new_deacon = wine(extra_deacons)[0]
+            new_deacon = {
+                "name": new_deacon["name"],
+                "uid": new_deacon["uid"],
+            }
+            new_key, _ = find_server(schedule_data, new_deacon["uid"])
+            schedule_data["wine"] = new_deacon
+            del schedule_data["extra"][new_key[1]]
+    else:
+        if key[0] == "altar":
+            new_deacon = altar(extra_deacons)[0]
+            new_deacon = {
+                "name": new_deacon["name"],
+                "uid": new_deacon["uid"],
+            }
+            new_key, _ = find_server(schedule_data, new_deacon["uid"])
+            schedule_data["altar"][key[1]] = new_deacon
+            del schedule_data["extra"][new_key[1]]
+
+    schedule_ref.update(schedule_data)
+    set_next_week_serve(church_id)
+    return https_fn.Response("User moved from extra to altar", status=200)
+
 
 
 def reset_next_dates():
