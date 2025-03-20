@@ -1320,7 +1320,7 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
     if len(key) == 1:
         key = str(key[0])
     else:
-        key[0] = str(key[0])
+        key = (str(key[0]), key[1])
 
 
     new_deacon = []
