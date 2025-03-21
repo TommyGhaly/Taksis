@@ -500,7 +500,7 @@ def my_scheduled_function(req: https_fn.Request) -> https_fn.Response:
             schedule_doc = schedule_ref.document(doc_date_str)
             schedule_doc.set(schedule)
         print(doc.id)
-        set_next_week_serve(str(church_doc.id))
+    next_week_all_servants()
     return https_fn.Response(f"Successfully wrote documents to 'schedules' collection.")
 
 
@@ -541,6 +541,12 @@ def generate_test_data(num_people):
 
 # test_data = generate_test_data(100)
 # add_test_data_to_firestore(test_data)
+def next_week_all_servants():
+    firestore_client = firestore.Client()
+    church_docs = firestore_client.collection("churches").stream()
+    for church_doc in church_docs:
+        church_id = church_doc.id
+        set_next_week_serve(church_id)
 
 
 def handle_children(children):

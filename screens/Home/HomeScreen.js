@@ -260,30 +260,44 @@ const HomeScreen = () => {
   const [nextWeek, setNextWeek] = useState();
   const [isDeacon, setIsDeacon] = useState(false);
 
-  const handleUnavalebleToServe = async () => {
+  const handleUnavailebleToServe = async () => {
     const user = auth().currentUser;
     if (!user) {
       console.log("No authenticated user found.");
       return;
     }
-    const userDoc = await firestore().collection("users").doc(user.uid).get();
-    if (!userDoc.exists) {
-      console.log("User not found.");
-      return;
-    }
-    const userData = userDoc.data();
-    const churchId = userData.church;
-    await unavailableToServe(
-      user,
-      churchId,
-      nextWeek,
-      "https://unavailable-for-week-hy6oofbihq-uc.a.run.app"
-    );
+  
     Alert.alert(
-      "Request Sent",
-      "You have been marked as unavailable for this service and the schedule will update accordingly."
+      "Confirm Unavailability",
+      "Are you sure you are unavailable? This action cannot be undone, and your children will be marked as unavailable too.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          onPress: async () => {
+            const userDoc = await firestore().collection("users").doc(user.uid).get();
+            if (!userDoc.exists) {
+              console.log("User not found.");
+              return;
+            }
+            const userData = userDoc.data();
+            const churchId = userData.church;
+            await unavailableToServe(
+              user,
+              churchId,
+              nextWeek,
+              "https://unavailable-for-week-hy6oofbihq-uc.a.run.app"
+            );
+            Alert.alert(
+              "Request Sent",
+              "You have been marked as unavailable for this service, and the schedule will update accordingly."
+            );
+          },
+        },
+      ]
     );
   };
+  
 
   // Check notification and location permissions on mount
   useEffect(() => {
@@ -502,7 +516,7 @@ const HomeScreen = () => {
             <TouchableOpacity
               style={styles.unavailableButton}
               onPress={() => {
-                handleUnavalebleToServe();
+                handleUnavailebleToServe();
               }}
             >
               <Text style={styles.requestButtonText}>Unavailable</Text>
