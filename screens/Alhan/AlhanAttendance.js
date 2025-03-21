@@ -182,6 +182,16 @@ const AlhanAttendance = ({ navigation }) => {
 
   const handleClassChange = async () => {
     try {
+      const hymnsClassRef = firestore()
+        .collection("churches")
+        .doc(userData.church)
+        .collection("Hymns Class")
+        .doc(userData.alhanGrades);
+
+      await hymnsClassRef.update({
+        servants: firestore.FieldValue.arrayRemove(user.uid),
+      });
+
       await firestore().collection("users").doc(user.uid).update({
         alhanGrades: null,
         alhanSetUp: false,

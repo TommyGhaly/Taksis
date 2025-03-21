@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, FlatList, StyleSheet, Alert } from "react
 import { Ionicons } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import { checkClasses } from "../../components/functionCalls";
 const grades = [
   "Pre-School", "Kindergarten", "1st", "2nd", "3rd", "4th", "5th", "6th", 
   "7th", "8th", "9th", "10th", "11th", "12th", "College"
@@ -68,6 +69,7 @@ const AlhanGrades = ({navigation}) => {
       }
       navigation.navigate("AlhanAttendance")
       Alert.alert("Success", "Your selections have been saved.");
+      await checkClasses(user, "https://check-classes-hy6oofbihq-uc.a.run.app");
     } catch (error) {
       console.error("Error updating Firestore:", error);
       Alert.alert("Error", "Failed to update data.");

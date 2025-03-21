@@ -187,6 +187,15 @@ const SundaySchoolAttendance = ({ navigation }) => {
 
   const handleClassChange = async () => {
     try {
+      const ssClassRef = firestore()
+        .collection("churches")
+        .doc(userData.church)
+        .collection("Sunday School")
+        .doc(userData.ssGrades);
+
+      await ssClassRef.update({
+        servants: firestore.FieldValue.arrayRemove(user.uid),
+      });
       // Update Firestore to set ssGrades to null and alhan to false
       await firestore().collection("users").doc(user.uid).update({
         ssGrades: null,
