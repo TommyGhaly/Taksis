@@ -7,7 +7,6 @@ import google.cloud.firestore
 from google.cloud import firestore
 import requests
 import datetime
-
 initialize_app()
 
 
@@ -36,12 +35,12 @@ def matins(deacons):
 
     for deacon in deacons:
         value = 0
-        value += deacon["weeksSince"] * 0.25
+        value += deacon["weeksSince"] * 4
 
         if int(deacon["age"]) > 14 and int(deacon["age"]) < 22:
             value += 30
 
-        value += (deacon["frequency"] - 3) * 0.13
+        value += (deacon["frequency"] - 3) * 0.4
         value += (deacon["experience"] - 4) * 0.12
 
         deacon["value"] = value
@@ -54,12 +53,12 @@ def third(deacons):
 
     for deacon in deacons:
         value = 0
-        value += deacon["weeksSince"] * 0.25
+        value += deacon["weeksSince"] * 4
 
         if int(deacon["age"]) > 8 and int(deacon["age"]) < 18:
             value += 30
 
-        value += (deacon["frequency"] - 3) * 0.13
+        value += (deacon["frequency"] - 3) * 0.4
 
         if deacon["rank"] == "Chanter (Epsaltos)":
             value += 12
@@ -74,12 +73,12 @@ def sixth(deacons):
 
     for deacon in deacons:
         value = 0
-        value += deacon["weeksSince"] * 0.25
+        value += deacon["weeksSince"] * 4
 
         if int(deacon["age"]) > 8 and int(deacon["age"]) < 18:
             value += 30
 
-        value += (deacon["frequency"] - 3) * 0.13
+        value += (deacon["frequency"] - 3) * 0.4
 
         if deacon["rank"] == "Chanter (Epsaltos)":
             value += 12
@@ -95,13 +94,13 @@ def pauline(deacons):
     for deacon in deacons:
 
         value = 0
-        value += deacon["weeksSince"] * 0.25
+        value += deacon["weeksSince"] * 4
 
         if int(deacon["age"]) > 16 and int(deacon["age"]) < 35:
 
             value += 30
 
-        value += (deacon["frequency"] - 3) * 0.13
+        value += (deacon["frequency"] - 3) * 0.4
 
         if deacon["rank"] == "Chanter (Epsaltos)":
 
@@ -122,13 +121,13 @@ def catholic(deacons):
     for deacon in deacons:
 
         value = 0
-        value += deacon["weeksSince"] * 0.25
+        value += deacon["weeksSince"] * 4
 
         if int(deacon["age"]) > 16 and int(deacon["age"]) < 35:
 
             value += 30
 
-        value += (deacon["frequency"] - 3) * 0.13
+        value += (deacon["frequency"] - 3) * 0.4
 
         if deacon["rank"] == "Chanter (Epsaltos)":
 
@@ -148,13 +147,13 @@ def praxis(deacons):
     for deacon in deacons:
 
         value = 0
-        value += deacon["weeksSince"] * 0.25
+        value += deacon["weeksSince"] * 4
 
         if int(deacon["age"]) > 16 and int(deacon["age"]) < 35:
 
             value += 30
 
-        value += (deacon["frequency"] - 3) * 0.13
+        value += (deacon["frequency"] - 3) * 0.4
 
         if deacon["rank"] == "Chanter (Epsaltos)":
 
@@ -175,13 +174,13 @@ def gospel(deacons):
     for deacon in deacons:
 
         value = 0
-        value += deacon["weeksSince"] * 0.25
+        value += deacon["weeksSince"] * 4
 
         if int(deacon["age"]) > 20 and int(deacon["age"]) < 40:
 
             value += 30
 
-        value += (deacon["frequency"] - 5) * 0.13
+        value += (deacon["frequency"] - 5) * 0.4
 
         value += (deacon["experience"] - 5) * 0.3
 
@@ -204,13 +203,13 @@ def water(deacons):
     for deacon in deacons:
 
         value = 0
-        value += deacon["weeksSince"] * 0.25
+        value += deacon["weeksSince"] * 4
 
         if int(deacon["age"]) > 15 and int(deacon["age"]) < 40:
 
             value += 30
 
-        value += (deacon["frequency"] - 6) * 0.13
+        value += (deacon["frequency"] - 6) * 0.4
 
         value += (deacon["experience"] - 7) * 0.23
 
@@ -225,13 +224,13 @@ def wine(deacons):
     for deacon in deacons:
 
         value = 0
-        value += deacon["weeksSince"] * 0.25
+        value += deacon["weeksSince"] * 4
 
         if int(deacon["age"]) > 25 and int(deacon["age"]) < 60:
 
             value += 30
 
-        value += (deacon["frequency"] - 7) * 0.13
+        value += (deacon["frequency"] - 7) * 0.4
 
         value += (deacon["experience"] - 8.4) * 0.23
 
@@ -246,13 +245,13 @@ def altar(deacons):
     for deacon in deacons:
 
         value = 0
-        value += deacon["weeksSince"] * 0.25
+        value += deacon["weeksSince"] * 4
 
         if int(deacon["age"]) > 10 and int(deacon["age"]) < 25:
 
             value += 30
 
-        value += (deacon["frequency"] - 4) * 0.13
+        value += (deacon["frequency"] - 4) * 0.4
 
         deacon["value"] = value
         # print(deacon)
@@ -500,7 +499,8 @@ def my_scheduled_function(req: https_fn.Request) -> https_fn.Response:
             doc_date_str = doc_date.strftime("%m-%d-%y")
             schedule_doc = schedule_ref.document(doc_date_str)
             schedule_doc.set(schedule)
-        set_next_week_serve(doc.id)
+        print(doc.id)
+        set_next_week_serve(str(church_doc.id))
     return https_fn.Response(f"Successfully wrote documents to 'schedules' collection.")
 
 
@@ -617,9 +617,6 @@ def add_user_to_churches(user_data):
         handle_children(user_data["children"])
     # Ensure user_data is properly filtered
     user_data = filter_data(user_data)
-
-    # Call helper function (assumed to be defined elsewhere)
-    reschedule_user(user_id)
 
     # Retrieve the specific church document based on the user's church ID
     church_id = user_data.get("church")
@@ -786,11 +783,6 @@ def update_user_frequency(uid):
     pass
 
 
-# adjust weeks since
-@https_fn.on_request()
-def reschedule_user(req: https_fn.Request) -> https_fn.Response:
-    pass
-
 
 def notify_new_servant(uid):
     pass
@@ -912,8 +904,16 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
     remove_user_from_schedules(user_id, True, True, True)
     return https_fn.Response("user and children deleted", status=200)
 
-
-def check_classes():
+@https_fn.on_request()
+def check_classes(req: https_fn.Request) -> https_fn.Response:
+    # Optional: Verify Firebase Auth token if provided
+    id_token = req.headers.get("Authorization")
+    if id_token:
+        try:
+            decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
+            # You can now use decoded_token to get user details if needed
+        except Exception as e:
+            return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
     firestore_client = firestore.Client()
     church_docs = firestore_client.collection("churches").stream()
 
@@ -1009,10 +1009,7 @@ def set_up_attendance(req: https_fn.Request) -> https_fn.Response:
 '''
 
 def find_server(schedule_data, target_uid):
-    """Search schedule_data for a server with the given uid.
-    Returns a tuple (location, server) where location is a tuple like (key, i) for list items or (key,) for dict items.
-    Returns (None, None) if not found.
-    """
+
     for key, value in schedule_data.items():
         if isinstance(value, list):
             for i in range(len(value)):
@@ -1215,6 +1212,9 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
 
         return https_fn.Response("User moved from extra to altar", status=200)
     else:
+        altar_servers.append({"name": "N/A", "uid": str(uuid.uuid4())})
+        schedule_ref.update({"altar": altar_servers})
+        update_future_schedules(church_id)
         return https_fn.Response("No extra servers available to move", status=400)
 
 
@@ -1250,8 +1250,8 @@ def update_future_schedules(church):
         for extra in extra_list:
             servers.append(extra)
 
-        updated_altar_servers = servers[: num_altar_servers + 1]
-        updated_extra_servers = servers[num_altar_servers + 1 :]
+        updated_altar_servers = servers[: num_altar_servers]
+        updated_extra_servers = servers[num_altar_servers:]
 
         doc.reference.update(
             {"altar": updated_altar_servers, "extra": updated_extra_servers}
@@ -1287,6 +1287,7 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
     church_id = request_data.get("church")
     week_id = request_data.get("week")
     user_id = request_data.get("uid")
+    print(f'church_id: {church_id}, week_id: {week_id}, user_id: {user_id}')
 
     if not all([church_id, week_id, user_id]):
         return https_fn.Response("Missing required parameters", status=400) 
@@ -1304,6 +1305,15 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
 
     # Firestore setup
     firestore_client = firestore.Client()
+    user_ref = firestore_client.collection("users").document(user_id)
+    user_doc = user_ref.get()
+    all_uids = [user_id]
+    if user_doc.exists:
+        user_data = user_doc.to_dict()
+        if "children" in user_data:
+            for child in user_data["children"]:
+                all_uids.append(child["uid"])
+        update_attendance(user_ref)
     schedule_ref = (
         firestore_client.collection("churches")
         .document(church_id)
@@ -1311,122 +1321,147 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
         .document(week_id)
     )
     schedule_doc = schedule_ref.get()
-    if not schedule_doc.exists:
-        return https_fn.Response("Schedule not found", status=404)
     
     schedule_data = schedule_doc.to_dict()
-    key, _ = find_server(schedule_data, user_id)
-
-    if len(key) == 1:
-        key = str(key[0])
-    else:
-        key = (str(key[0]), key[1])
-
-
-    new_deacon = []
-    extra_deacons = create_extra_deacons(church_id, schedule_data["extra"])
-    if len(extra_deacons) == 0:
+    for user_id in all_uids:
+        key, _ = find_server(schedule_data, user_id)
+        print(f'key: {key} , user_id: {user_id}')
         if len(key) == 1:
-            schedule_data[key] = {"name": "N/A", "uid": "N/A"}
+            key = str(key[0])
         else:
-            schedule_data[key[0]][key[1]] = {"name": "N/A", "uid": "N/A"}
-        schedule_ref.update(schedule_data)
-        return https_fn.Response("No extra deacons available", status=400)
+            key = (str(key[0]), key[1])
 
-    if not isinstance(key, tuple):
-        if key == "matins":
-            new_deacon = matins(extra_deacons)[0]
-            new_deacon = {
-                "name": new_deacon["name"],
-                "uid": new_deacon["uid"],
-            }
-            new_key, _ = find_server(schedule_data, new_deacon["uid"])
-            schedule_data["matins"] = new_deacon
-            del schedule_data["extra"][new_key[1]]
 
-        elif key == "third":
-            new_deacon = third(extra_deacons)[0]
-            new_deacon = {
-                "name": new_deacon["name"],
-                "uid": new_deacon["uid"],
-            }
-            new_key, _ = find_server(schedule_data, new_deacon["uid"])
-            schedule_data["third"] = new_deacon
-            del schedule_data["extra"][new_key[1]]
+        new_deacon = []
+        extra_deacons = create_extra_deacons(church_id, schedule_data["extra"])
+        if len(extra_deacons) == 0:
+            if isinstance(key, tuple) and len(key) > 1:
+                schedule_data[key[0]][key[1]] = {"name": "N/A", "uid": str(uuid.uuid4())}
+            else:
+                schedule_data[key] = {"name": "N/A", "uid": str(uuid.uuid4())}
+                
+            schedule_ref.update(schedule_data)
+            continue
 
-        elif key == "sixth":
-            new_deacon = sixth(extra_deacons)[0]
-            new_deacon = {
-                "name": new_deacon["name"],
-                "uid": new_deacon["uid"],
-            }
-            new_key, _ = find_server(schedule_data, new_deacon["uid"])
-            schedule_data["sixth"] = new_deacon
-            del schedule_data["extra"][new_key[1]]
+        if not isinstance(key, tuple):
+            if key == "matins":
+                new_deacon = matins(extra_deacons)[0]
+                new_deacon = {
+                    "name": new_deacon["name"],
+                    "uid": new_deacon["uid"],
+                }
+                new_key, _ = find_server(schedule_data, new_deacon["uid"])
+                schedule_data["matins"] = new_deacon
+                del schedule_data["extra"][new_key[1]]
 
-        elif key == "pauline":
-            new_deacon = pauline(extra_deacons)[0]
-            new_deacon = {
-                "name": new_deacon["name"],
-                "uid": new_deacon["uid"],
-            }
-            new_key, _ = find_server(schedule_data, new_deacon["uid"])
-            schedule_data["pauline"] = new_deacon
-            del schedule_data["extra"][new_key[1]]
+            elif key == "third":
+                new_deacon = third(extra_deacons)[0]
+                new_deacon = {
+                    "name": new_deacon["name"],
+                    "uid": new_deacon["uid"],
+                }
+                new_key, _ = find_server(schedule_data, new_deacon["uid"])
+                schedule_data["third"] = new_deacon
+                del schedule_data["extra"][new_key[1]]
 
-        elif key == "catholic":
-            new_deacon = catholic(extra_deacons)[0]
-            new_deacon = {
-                "name": new_deacon["name"],
-                "uid": new_deacon["uid"],
-            }
-            new_key, _ = find_server(schedule_data, new_deacon["uid"])
-            schedule_data["catholic"] = new_deacon 
-            del schedule_data["extra"][new_key[1]]
+            elif key == "sixth":
+                new_deacon = sixth(extra_deacons)[0]
+                new_deacon = {
+                    "name": new_deacon["name"],
+                    "uid": new_deacon["uid"],
+                }
+                new_key, _ = find_server(schedule_data, new_deacon["uid"])
+                schedule_data["sixth"] = new_deacon
+                del schedule_data["extra"][new_key[1]]
 
-        elif key == "gospel":
-            new_deacon = gospel(extra_deacons)[0]
-            new_deacon = {
-                "name": new_deacon["name"],
-                "uid": new_deacon["uid"],
-            }
-            new_key, _ = find_server(schedule_data, new_deacon["uid"])
-            schedule_data["gospel"] = new_deacon
-            del schedule_data["extra"][new_key[1]]
-        elif key == "water":
-            new_deacon = water(extra_deacons)[0]
-            new_deacon = {
-                "name": new_deacon["name"],
-                "uid": new_deacon["uid"],
-            }
-            new_key, _ = find_server(schedule_data, new_deacon["uid"])
-            schedule_data["water"] = new_deacon
-            del schedule_data["extra"][new_key[1]]
-        elif key == "wine":
-            new_deacon = wine(extra_deacons)[0]
-            new_deacon = {
-                "name": new_deacon["name"],
-                "uid": new_deacon["uid"],
-            }
-            new_key, _ = find_server(schedule_data, new_deacon["uid"])
-            schedule_data["wine"] = new_deacon
-            del schedule_data["extra"][new_key[1]]
-    else:
-        if key[0] == "altar":
-            new_deacon = altar(extra_deacons)[0]
-            new_deacon = {
-                "name": new_deacon["name"],
-                "uid": new_deacon["uid"],
-            }
-            new_key, _ = find_server(schedule_data, new_deacon["uid"])
-            schedule_data["altar"][key[1]] = new_deacon
-            del schedule_data["extra"][new_key[1]]
+            elif key == "pauline":
+                new_deacon = pauline(extra_deacons)[0]
+                new_deacon = {
+                    "name": new_deacon["name"],
+                    "uid": new_deacon["uid"],
+                }
+                new_key, _ = find_server(schedule_data, new_deacon["uid"])
+                schedule_data["pauline"] = new_deacon
+                del schedule_data["extra"][new_key[1]]
+
+            elif key == "catholic":
+                new_deacon = catholic(extra_deacons)[0]
+                new_deacon = {
+                    "name": new_deacon["name"],
+                    "uid": new_deacon["uid"],
+                }
+                new_key, _ = find_server(schedule_data, new_deacon["uid"])
+                schedule_data["catholic"] = new_deacon 
+                del schedule_data["extra"][new_key[1]]
+
+            elif key == "praxis":
+                new_deacon = praxis(extra_deacons)[0]
+                new_deacon = {
+                    "name": new_deacon["name"],
+                    "uid": new_deacon["uid"],
+                }
+                new_key, _ = find_server(schedule_data, new_deacon["uid"])
+                schedule_data["praxis"] = new_deacon
+                del schedule_data["extra"][new_key[1]]
+                
+            elif key == "gospel":
+                new_deacon = gospel(extra_deacons)[0]
+                new_deacon = {
+                    "name": new_deacon["name"],
+                    "uid": new_deacon["uid"],
+                }
+                new_key, _ = find_server(schedule_data, new_deacon["uid"])
+                schedule_data["gospel"] = new_deacon
+                del schedule_data["extra"][new_key[1]]
+            elif key == "water":
+                new_deacon = water(extra_deacons)[0]
+                new_deacon = {
+                    "name": new_deacon["name"],
+                    "uid": new_deacon["uid"],
+                }
+                new_key, _ = find_server(schedule_data, new_deacon["uid"])
+                schedule_data["water"] = new_deacon
+                del schedule_data["extra"][new_key[1]]
+            elif key == "wine":
+                new_deacon = wine(extra_deacons)[0]
+                new_deacon = {
+                    "name": new_deacon["name"],
+                    "uid": new_deacon["uid"],
+                }
+                new_key, _ = find_server(schedule_data, new_deacon["uid"])
+                schedule_data["wine"] = new_deacon
+                del schedule_data["extra"][new_key[1]]
+        else:
+            if key[0] == "altar":
+                new_deacon = altar(extra_deacons)[0]
+                new_deacon = {
+                    "name": new_deacon["name"],
+                    "uid": new_deacon["uid"],
+                }
+                new_key, _ = find_server(schedule_data, new_deacon["uid"])
+                schedule_data["altar"][key[1]] = new_deacon
+                del schedule_data["extra"][new_key[1]]
+            
+            elif key[0] == "extra":
+                del schedule_data["extra"][key[1]]
 
     schedule_ref.update(schedule_data)
     set_next_week_serve(church_id)
+    if not schedule_doc.exists:
+        return https_fn.Response("Schedule not found", status=404)
     return https_fn.Response("User moved from extra to altar", status=200)
 
-
+def update_attendance (user_ref):
+    user_doc = user_ref.get()
+    user_data = user_doc.to_dict()
+    if "frequency" in user_data:
+        frequency = user_data["frequency"] *0.8
+        if frequency > 0.1:
+            user_data["frequency"] = 0.1
+        user_data["frequency"] = int(user_data["frequency"]) *0.8
+    user_ref.update(user_data)
+    sync_child_params(user_data["uid"])
+    return
 
 def reset_next_dates():
     firestore_client = firestore.Client()
@@ -1448,14 +1483,20 @@ def set_user_next_week(user_id, week):
 
         if next_week_serve == "N/A":
             user_ref.update({"nextWeekServe": week})
+            return
+
+        # Debug: Check the incoming week format
+        print(f"DEBUG: Received week = '{week}'")  
+
+        if not week:
+            print("ERROR: week is empty or None!")
+            return
 
         try:
-            new_date = datetime.datetime.strptime(
-                week, "%m-%d-%y"
-            )  # Convert input date
+            new_date = datetime.datetime.strptime(week, "%m-%d-%y")  # ✅ Correct format
 
             if next_week_serve:
-                existing_date = datetime.datetime.strptime(next_week_serve, "%m-%d-%y")
+                existing_date = datetime.datetime.strptime(next_week_serve, "%m-%d-%y")  # ✅ Correct format
 
                 # Update only if the new date is earlier
                 if new_date < existing_date:
@@ -1463,10 +1504,11 @@ def set_user_next_week(user_id, week):
             else:
                 # If nextWeekServe doesn't exist, set it
                 user_ref.update({"nextWeekServe": week})
-        except ValueError:
-            print(f"Invalid date format: {week}")
+        except ValueError as e:
+            print(f"ERROR: Invalid date format for week '{week}' - {e}")  # More informative error
     else:
-        print(f"User {user_id} not found.")
+        print(f"WARNING: User ID {user_id} not found in Firestore")
+
 
 
 def set_next_week_serve(church_id):
@@ -1496,13 +1538,11 @@ def set_next_week_serve(church_id):
                     for individual_key, individual_value in altar_server.items():
 
                         if individual_key == "uid" and individual_value != "N/A":
-                            print(f"{individual_value} individual value")
                             set_user_next_week(individual_value, str(schedule_id))
 
             if isinstance(value, dict):
                 for individual_key, individual_value in value.items():
                     if individual_key == "uid" and individual_value != "N/A":
-                        print(f"{individual_value} individual value")
                         set_user_next_week(individual_value, str(schedule_id))
 
     return
