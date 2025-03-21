@@ -912,35 +912,33 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
 
 @https_fn.on_request()
 def check_classes(req: https_fn.Request) -> https_fn.Response:
-    # Optional: Verify Firebase Auth token if provided
+    # Verify Firebase Auth token if provided
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
             decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
-            # You can now use decoded_token to get user details if needed
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+
     firestore_client = firestore.Client()
     church_docs = firestore_client.collection("churches").stream()
 
     for church_doc in church_docs:
-        # Process Alhan collection
-        alhan_ref = church_doc.reference.collection("alhan")
-        alhan_docs = alhan_ref.stream()
+        delete_empty_classes(church_doc.reference, "alhan")
+        delete_empty_classes(church_doc.reference, "sunday school")
 
-        for alhan_doc in alhan_docs:
-            alhan_data = alhan_doc.to_dict()
-            if "servants" not in alhan_data or len(alhan_data["servants"]) == 0:
-                alhan_doc.reference.delete()
+    return https_fn.Response("Cleanup completed successfully", status=200)
 
-        # Process Sunday School collection
-        ss_ref = church_doc.reference.collection("sunday school")
-        ss_docs = ss_ref.stream()
 
-        for ss_doc in ss_docs:
-            ss_data = ss_doc.to_dict()
-            if "servants" not in ss_data or len(ss_data["servants"]) == 0:
-                ss_doc.reference.delete()
+def delete_empty_classes(church_ref, collection_name):
+    """Deletes documents from the specified collection if they have no servants."""
+    collection_ref = church_ref.collection(collection_name)
+    docs = collection_ref.stream()
+
+    for doc in docs:
+        data = doc.to_dict()
+        if not data.get("servants"):  # Checks if "servants" key is missing or empty
+            doc.reference.delete()
 
 
 '''@https_fn.on_request()
