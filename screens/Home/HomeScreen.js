@@ -32,26 +32,6 @@ const eventEmitter = YourNativeModule
   ? new NativeEventEmitter(YourNativeModule)
   : null;
 
-// Utility to format a Date as MM-DD-YY
-const formatDate = (date) => {
-  let day = date.getDate();
-  let month = date.getMonth() + 1;
-  let year = date.getFullYear() % 100;
-  return `${month < 10 ? `0${month}` : month}-${
-    day < 10 ? `0${day}` : day
-  }-${year}`;
-};
-
-// Get the next upcoming Sunday
-const getNextSunday = () => {
-  const today = new Date();
-  const dayOfWeek = today.getDay();
-  const daysUntilSunday = (7 - dayOfWeek) % 7;
-  const nextSunday = new Date(
-    today.getTime() + daysUntilSunday * 24 * 60 * 60 * 1000
-  );
-  return formatDate(nextSunday);
-};
 
 // Notification & FCM token logic for Android
 async function requestUserPermissionAndroid() {
@@ -256,7 +236,7 @@ const HomeScreen = () => {
     wine: { name: "N/A" },
     altar: [],
   });
-  const [currentWeek, setCurrentWeek] = useState(getNextSunday());
+  const [currentWeek, setCurrentWeek] = useState();
   const [nextWeek, setNextWeek] = useState();
   const [isDeacon, setIsDeacon] = useState(false);
 
@@ -333,100 +313,108 @@ const HomeScreen = () => {
     return () => unsubscribeUser();
   }, []);
 
-  // Realtime listener for the church schedule
-  useEffect(() => {
-    const fetchScheduleRealtime = async () => {
-      try {
-        const user = auth().currentUser;
-        if (!user) {
-          console.log("No authenticated user found.");
-          return;
-        }
-        const userDoc = await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .get();
-        if (!userDoc.exists) {
-          console.log("User not found.");
-          return;
-        }
-        const userData = userDoc.data();
-        const churchId = userData.church;
-        if (userData.nextWeekServe) {
-          setNextWeek(userData.nextWeekServe);
-        }
-        const schedulesRef = firestore()
-          .collection("churches")
-          .doc(churchId)
-          .collection("schedule");
+ // Realtime listener for the church schedule
+ useEffect(() => {
+  const fetchScheduleRealtime = async () => {
+    try {
+      const user = auth().currentUser;
+      if (!user) {
+        console.log("No authenticated user found.");
+        return;
+      }
 
-        const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
-          let closestSchedule = null;
-          let closestDate = null;
-          snapshot.docs.forEach((doc) => {
-            const scheduleData = doc.data();
-            const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
-            const [month, day, year] = scheduleDateStr.split("-").map(Number);
-            const scheduleDate = new Date(2000 + year, month - 1, day);
-            if (scheduleDate > new Date()) {
-              if (!closestDate || scheduleDate < closestDate) {
-                closestDate = scheduleDate;
-                closestSchedule = scheduleData;
-              }
+      const userDoc = await firestore().collection("users").doc(user.uid).get();
+      if (!userDoc.exists) {
+        console.log("User not found.");
+        return;
+      }
+
+      const userData = userDoc.data();
+      if (userData.nextWeekServe) {
+        setNextWeek(userData.nextWeekServe);
+      }
+
+      const churchId = userData.church;
+      const schedulesRef = firestore()
+        .collection("churches")
+        .doc(churchId)
+        .collection("schedule");
+
+      const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
+        let closestSchedule = null;
+        let closestDate = null;
+        let chosenDocId = ""; 
+        const today = new Date().setHours(0, 0, 0, 0); // Normalize today's date
+
+        snapshot.docs.forEach((doc) => {
+          const scheduleData = doc.data();
+          const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
+          const [month, day, year] = scheduleDateStr.split("-").map(Number);
+          const scheduleDate = new Date(2000 + year, month - 1, day).setHours(0, 0, 0, 0); // Normalize schedule date
+
+          if (scheduleDate >= today) { // Include today as valid
+            if (!closestDate || scheduleDate < closestDate) {
+              closestDate = scheduleDate;
+              closestSchedule = scheduleData;
+              chosenDocId = doc.id;
             }
-          });
-          if (closestSchedule) {
-            const defaultSchedule = {
-              matins: { name: "N/A" },
-              third: { name: "N/A" },
-              sixth: { name: "N/A" },
-              pauline: { name: "N/A" },
-              catholic: { name: "N/A" },
-              praxis: { name: "N/A" },
-              gospel: { name: "N/A" },
-              water: { name: "N/A" },
-              wine: { name: "N/A" },
-              altar: [],
-            };
-            const updatedSchedule = {
-              ...defaultSchedule,
-              ...closestSchedule,
-            };
-            if (!Array.isArray(updatedSchedule.altar)) {
-              updatedSchedule.altar = [];
-            }
-            const altarServers = [];
-            if (
-              updatedSchedule.water &&
-              typeof updatedSchedule.water === "object"
-            ) {
-              altarServers.push(updatedSchedule.water);
-            }
-            if (
-              updatedSchedule.wine &&
-              typeof updatedSchedule.wine === "object"
-            ) {
-              altarServers.push(updatedSchedule.wine);
-            }
-            altarServers.push(
-              ...updatedSchedule.altar.filter(
-                (server) => server && typeof server === "object"
-              )
-            );
-            updatedSchedule.altar = altarServers;
-            setSchedule(updatedSchedule);
-            console.log("Real-time schedule updated:", updatedSchedule);
-          } else {
-            console.log("No upcoming schedule found.");
           }
         });
-        return () => unsubscribe();
-      } catch (error) {
-        console.error("Error setting up realtime schedule:", error);
-      }
-    };
-    fetchScheduleRealtime();
-  }, []);
+
+        if (closestSchedule) {
+          setCurrentWeek(chosenDocId);
+          const defaultSchedule = {
+            matins: { name: "N/A" },
+            third: { name: "N/A" },
+            sixth: { name: "N/A" },
+            pauline: { name: "N/A" },
+            catholic: { name: "N/A" },
+            praxis: { name: "N/A" },
+            gospel: { name: "N/A" },
+            water: { name: "N/A" },
+            wine: { name: "N/A" },
+            altar: [],
+          };
+
+          const updatedSchedule = {
+            ...defaultSchedule,
+            ...closestSchedule,
+          };
+
+          if (!Array.isArray(updatedSchedule.altar)) {
+            updatedSchedule.altar = [];
+          }
+
+          const altarServers = [];
+          if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
+            altarServers.push(updatedSchedule.water);
+          }
+          if (updatedSchedule.wine && typeof updatedSchedule.wine === "object") {
+            altarServers.push(updatedSchedule.wine);
+          }
+
+          altarServers.push(
+            ...updatedSchedule.altar.filter(
+              (server) => server && typeof server === "object"
+            )
+          );
+          updatedSchedule.altar = altarServers;
+          setSchedule(updatedSchedule);
+          console.log("Real-time schedule updated:", updatedSchedule);
+        } else {
+          console.log("No upcoming schedule found.");
+        }
+      });
+
+      return () => unsubscribe();
+    } catch (error) {
+      console.error("Error setting up realtime schedule:", error);
+    }
+  };
+
+  fetchScheduleRealtime();
+}, []);
+
 
   return (
     <View style={styles.container}>

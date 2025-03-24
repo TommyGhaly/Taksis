@@ -74,7 +74,7 @@ const AlhanNavigator = () => {
         name="SundaySchoolGrades"
         component={SundaySchoolGrades}
         options={{ headerShown: false ,
-          animation: "slide_from_left",
+          animation: "slide_from_right",
         }}
       />
       <Stack.Screen
