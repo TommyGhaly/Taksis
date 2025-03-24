@@ -92,7 +92,8 @@ const SignUp = ({ navigation }) => {
           alhanSetUp: false,
           ssSetUp: false, 
           alhanGrades: null,
-          ssGrades: null
+          ssGrades: null,
+          nextWeekServe: "N/A"
         });
       }
     } catch (error) {
