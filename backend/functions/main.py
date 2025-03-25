@@ -8,6 +8,8 @@ import google.cloud.firestore
 from google.cloud import firestore
 import requests
 import datetime
+from flask import Request
+
 initialize_app()
 
 
@@ -397,7 +399,7 @@ async def get_deacons(church):
     firestore_client = firestore.Client()
     collection_ref = firestore_client.collection("churches")
     doc_ref = collection_ref.document(church)
-    
+
     # Wrap the synchronous get() call in asyncio.to_thread
     doc_snapshot = await asyncio.to_thread(doc_ref.get)
 
@@ -416,9 +418,11 @@ async def get_deacons(church):
 # uncomment on_request and comment on_schedule to test locally
 import asyncio
 
+
 @https_fn.on_request()
 def my_scheduled_function(req: https_fn.Request) -> https_fn.Response:
     return asyncio.run(my_async_scheduled_function(req))
+
 
 async def my_async_scheduled_function(req: https_fn.Request) -> https_fn.Response:
     firestore_client = firestore.Client()
@@ -437,15 +441,17 @@ async def my_async_scheduled_function(req: https_fn.Request) -> https_fn.Respons
         if not schedules:
             for i in range(5):
                 deacons = await get_deacons(doc.id)
-                print(f'Deacons for schedule: {deacons}')
-                schedule = await create_schedule(deacons, doc.reference, num_altar_servers)
+                print(f"Deacons for schedule: {deacons}")
+                schedule = await create_schedule(
+                    deacons, doc.reference, num_altar_servers
+                )
                 doc_date = start_date + datetime.timedelta(weeks=i)
                 doc_date_str = doc_date.strftime("%m-%d-%y")
                 schedule_doc = schedule_ref.document(doc_date_str)
                 schedule_doc.set(schedule)
         else:
             deacons = await get_deacons(doc.id)
-            print(f'Deacons for schedule: {deacons}')
+            print(f"Deacons for schedule: {deacons}")
             schedule = await create_schedule(deacons, doc.reference, num_altar_servers)
             # Delete the oldest schedule
             doc_delete_str = start_date.strftime("%m-%d-%y")
@@ -461,6 +467,7 @@ async def my_async_scheduled_function(req: https_fn.Request) -> https_fn.Respons
         set_next_week_serve(doc.id)
 
     return https_fn.Response("Successfully wrote documents to 'schedules' collection.")
+
 
 def generate_test_data(num_people):
     ranks = ["Chanter (Epsaltos)", "Reader", "Subdeacon", "Full Deacon"]
@@ -548,7 +555,6 @@ def remove_user_from_churches(user_id):
             church_ref.document(church_id).update(church_data)
 
 
-
 def filter_data(user_data):
     filtered_data = {
         "name": user_data.get("name"),
@@ -569,7 +575,6 @@ def add_user_to_churches(user_data):
     firestore_client = firestore.Client()
 
     user_id = user_data["uid"]
-
 
     # Handle children if present
     if "children" in user_data:
@@ -613,9 +618,7 @@ def add_user_to_churches(user_data):
             church_data["deacons"].append(new_deacon)
         add_user_to_extra_servers(church_id, user_data["name"], user_id)
     else:
-        pass
-        #come back to this
-        #remove_user_from_schedules(church_id, user_data["name"], user_id)
+        remove_user_from_schedules(church_id, user_id, "N/A", "N/A", False)
 
     # Delete existing servant record, if it exists (deletion is safe even if the document doesn’t exist)
     servant_ref = (
@@ -687,8 +690,97 @@ def add_user_to_extra_servers(church, name, uid):
             )  # Update the 'extra' field in Firestore
 
 
-def remove_user_from_schedules(church, uid, week, schedules, alhan, sunday_school):
-    pass
+def get_weeks(church):
+    firestore_client = firestore.Client()
+    weeks = []
+    schedule_docs = (
+        firestore_client.collection("churches")
+        .document(church)
+        .collection("schedule")
+        .stream()
+    )
+    for schedule in schedule_docs:
+        weeks.append(str(schedule.id))
+    return weeks
+
+
+def remove_user_from_schedules(church, uid, alhan_class, sunday_school_class, family):
+    firestore_client = firestore.Client()
+    church_ref = firestore_client.collection("churches").document(church)
+    user_ref = firestore_client.collection("users").document(uid)
+    user_data = user_ref.get().to_dict()
+
+
+    if family:
+        user_data["isServant"] = False
+        user_ref.update(user_data)
+
+    # Remove user from all schedules
+    for week in get_weeks(church):
+        mock_request = Request.from_values(
+            headers={"Authorization": ""},
+            json={"church": church, "week": week, "uid": uid, "family": family}
+        )
+        print(f"week: {week} church: {church} uid: {uid} family: {family}")
+        unavailable_for_week(mock_request)
+
+    # Remove user from Alhan Class
+    if not alhan_class == "N/A":
+        print(alhan_class)
+        alhan_class_doc = church_ref.collection("Hymns Class").document(alhan_class)
+        alhan_class_data = alhan_class_doc.get().to_dict()
+        servants = alhan_class_data.get("servants", [])
+        updated_servants = [
+            servant for servant in servants if servant.get("uid") != uid
+        ]
+        alhan_class_doc.update({"servants": updated_servants})
+        user_data["alhanSetUp"] = False
+        user_data["alhanGrades"] = None
+        user_ref.update(user_data)
+
+    # Remove user from Sunday School Class
+    if not sunday_school_class == "N/A":
+        print(sunday_school_class)
+        sunday_school_class_doc = church_ref.collection("Sunday School").document(
+            sunday_school_class
+        )
+        sunday_school_class_data = sunday_school_class_doc.get().to_dict()
+        servants = sunday_school_class_data.get("servants", [])
+        updated_servants = [
+            servant for servant in servants if servant.get("uid") != uid
+        ]
+        sunday_school_class_doc.update({"servants": updated_servants})
+        user_data["ssSetUp"] = False
+        user_data["ssGrades"] = None
+        user_ref.update(user_data)
+
+    # Simulate an internal request to call check_classes
+    mock_request = Request.from_values(headers={"Authorization": ""})
+
+
+    check_classes(mock_request)
+    return
+
+
+def update_names(user_id, name, church):
+    firestore_client = firestore.Client()
+    schedules_docs = (
+        firestore_client.collection("churches")
+        .document(church)
+        .collection("schedule")
+        .stream()
+    )
+    for schedule in schedules_docs:
+        schedule_data = schedule.to_dict()
+        for key, value in schedule_data.items():
+            if isinstance(value, list):
+                for deacon in value:
+                    if isinstance(deacon, dict) and deacon.get("uid") == user_id:
+                        deacon["name"] = name
+            elif isinstance(value, dict):
+                if value.get("uid") == user_id:
+                    value["name"] = name
+        schedule.reference.update(schedule_data)
 
 
 @https_fn.on_request()
@@ -727,6 +819,8 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
     except Exception as e:
         return https_fn.Response(f"Error retrieving user data: {str(e)}", status=500)
     add_user_to_churches(user_data)
+    update_names(user_id, user_data["name"], user_data["church"])
+
     return https_fn.Response("User update completed successfully", status=200)
 
 
@@ -740,7 +834,6 @@ def locate_for_liturgy(event: scheduler_fn.ScheduledEvent):
 
 def update_user_frequency(uid):
     pass
-
 
 
 def notify_new_servant(uid):
@@ -804,6 +897,7 @@ def delete_child(req: https_fn.Request) -> https_fn.Response:
 
     # Extract the user_id from the payload
     user_id = request_data.get("uid")
+    church_id = request_data.get("church")
     if not user_id:
         return https_fn.Response("Missing 'uid' parameter", status=400)
 
@@ -816,8 +910,7 @@ def delete_child(req: https_fn.Request) -> https_fn.Response:
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
     remove_user_from_churches(user_id)
-    #adjust this 
-    #remove_user_from_schedules()
+    remove_user_from_schedules(church_id, user_id, "N/A", "N/A", False)
     return https_fn.Response("child deleted", status=200)
 
 
@@ -847,37 +940,38 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
     firestore_client = firestore.Client()
     user_doc_ref = firestore_client.collection("users").document(user_id)
     user_doc = user_doc_ref.get()
-    
+
     if user_doc.exists:
         user_data = user_doc.to_dict()
 
-    if "children" in user_data:
-        for child in user_data["children"]:
-            remove_user_from_churches(child.get("uid"))
-            remove_user_from_schedules(child.get("uid"), True, False, False)
-    remove_user_from_churches(user_id)
-    remove_user_from_schedules(user_id, True, True, True)
+        if "children" in user_data:
+            for child in user_data["children"]:
+                remove_user_from_churches(child.get("uid"))
+        remove_user_from_churches(user_id)
+
+        remove_family_schedules({"uid": user_id, "church": user_data.get("church")})
     return https_fn.Response("user and children deleted", status=200)
 
+
 @https_fn.on_request()
-async def check_classes(req: https_fn.Request) -> https_fn.Response:
+def check_classes(req: https_fn.Request) -> https_fn.Response:
     # Verify Firebase Auth token if provided
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
-            decoded_token = await auth.verify_id_token(id_token.split("Bearer ")[-1])
+            decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
 
-    firestore_client = firestore.AsyncClient()  # Use AsyncClient for async operations
-    church_docs = [doc async for doc in firestore_client.collection("churches").stream()]
+    firestore_client = firestore.Client()
+    church_docs = firestore_client.collection("churches").stream()
 
     for church_doc in church_docs:
-        # Await deletion functions if they are asynchronous
-        await delete_empty_classes(church_doc.reference, "alhan")
-        await delete_empty_classes(church_doc.reference, "sunday school")
+        delete_empty_classes(church_doc.reference, "Hymns Class")
+        delete_empty_classes(church_doc.reference, "Sunday School")
 
     return https_fn.Response("Cleanup completed successfully", status=200)
+
 
 def delete_empty_classes(church_ref, collection_name):
     """Deletes documents from the specified collection if they have no servants."""
@@ -888,6 +982,7 @@ def delete_empty_classes(church_ref, collection_name):
         data = doc.to_dict()
         if not data.get("servants"):  # Checks if "servants" key is missing or empty
             doc.reference.delete()
+
 
 def find_server(schedule_data, target_uid):
 
@@ -1077,7 +1172,6 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
     altar_servers = schedule_data.get("altar", [])
     extra_servers = schedule_data.get("extra", [])
 
-
     # Ensure extra_servers is not empty before accessing index 0
     if extra_servers:
         altar_servers.append(extra_servers[0])  # Move first extra server to altar
@@ -1130,7 +1224,7 @@ def update_future_schedules(church):
         for extra in extra_list:
             servers.append(extra)
 
-        updated_altar_servers = servers[: num_altar_servers]
+        updated_altar_servers = servers[:num_altar_servers]
         updated_extra_servers = servers[num_altar_servers:]
 
         doc.reference.update(
@@ -1139,47 +1233,45 @@ def update_future_schedules(church):
 
     return
 
+
 def create_extra_deacons(church_id, extra_deacons):
     firestore_client = firestore.Client()
-    church_ref = (
-        firestore_client.collection("churches").document(church_id)
-    )
+    church_ref = firestore_client.collection("churches").document(church_id)
     church_doc = church_ref.get()
     church_data = church_doc.to_dict()
     deacons = []
     for deacon in church_data["deacons"]:
-            for extra_deacon in extra_deacons:
-                if deacon["uid"] == extra_deacon["uid"]:
-                    deacons.append(deacon)
+        for extra_deacon in extra_deacons:
+            if deacon["uid"] == extra_deacon["uid"]:
+                deacons.append(deacon)
     return deacons
 
+
 @https_fn.on_request()
-def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:  
-    try:    
+def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
+    try:
         request_data = req.get_json()
+        print(request_data)
         if not request_data:
             return https_fn.Response("Missing JSON body", status=400)
     except Exception as e:
         return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
 
-
     # Extract required parameters
     church_id = request_data.get("church")
     week_id = request_data.get("week")
     user_id = request_data.get("uid")
+    family = request_data.get("family")
 
-    if not all([church_id, week_id, user_id]):
-        return https_fn.Response("Missing required parameters", status=400) 
-    
+    if not all([church_id, week_id, user_id, family]):
+        return https_fn.Response("Missing required parameters", status=400)
+
     # Optional: Verify Firebase Auth token
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
             decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
         except Exception as e:
-
-
-
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
 
     # Firestore setup
@@ -1189,9 +1281,10 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
     all_uids = [user_id]
     if user_doc.exists:
         user_data = user_doc.to_dict()
-        if "children" in user_data:
+        if "children" in user_data and family:
             for child in user_data["children"]:
                 all_uids.append(child["uid"])
+        print(all_uids)
         update_attendance(user_ref)
     schedule_ref = (
         firestore_client.collection("churches")
@@ -1200,7 +1293,7 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
         .document(week_id)
     )
     schedule_doc = schedule_ref.get()
-    
+
     schedule_data = schedule_doc.to_dict()
     for user_id in all_uids:
         key, _ = find_server(schedule_data, user_id)
@@ -1209,15 +1302,17 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
         else:
             key = (str(key[0]), key[1])
 
-
         new_deacon = []
         extra_deacons = create_extra_deacons(church_id, schedule_data["extra"])
         if len(extra_deacons) == 0:
             if isinstance(key, tuple) and len(key) > 1:
-                schedule_data[key[0]][key[1]] = {"name": "N/A", "uid": str(uuid.uuid4())}
+                schedule_data[key[0]][key[1]] = {
+                    "name": "N/A",
+                    "uid": str(uuid.uuid4()),
+                }
             else:
                 schedule_data[key] = {"name": "N/A", "uid": str(uuid.uuid4())}
-                
+
             schedule_ref.update(schedule_data)
             continue
 
@@ -1269,7 +1364,7 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
                     "uid": new_deacon["uid"],
                 }
                 new_key, _ = find_server(schedule_data, new_deacon["uid"])
-                schedule_data["catholic"] = new_deacon 
+                schedule_data["catholic"] = new_deacon
                 del schedule_data["extra"][new_key[1]]
 
             elif key == "praxis":
@@ -1281,7 +1376,7 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
                 new_key, _ = find_server(schedule_data, new_deacon["uid"])
                 schedule_data["praxis"] = new_deacon
                 del schedule_data["extra"][new_key[1]]
-                
+
             elif key == "gospel":
                 new_deacon = gospel(extra_deacons)[0]
                 new_deacon = {
@@ -1319,7 +1414,7 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
                 new_key, _ = find_server(schedule_data, new_deacon["uid"])
                 schedule_data["altar"][key[1]] = new_deacon
                 del schedule_data["extra"][new_key[1]]
-            
+
             elif key[0] == "extra":
                 del schedule_data["extra"][key[1]]
 
@@ -1329,17 +1424,18 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response("Schedule not found", status=404)
     return https_fn.Response("User moved from extra to altar", status=200)
 
-def update_attendance (user_ref):
+
+def update_attendance(user_ref):
     user_doc = user_ref.get()
     user_data = user_doc.to_dict()
     if "frequency" in user_data:
-        frequency = user_data["frequency"] *0.8
-        if frequency > 0.1:
-            user_data["frequency"] = 0.1
-        user_data["frequency"] = int(user_data["frequency"]) *0.8
+        user_data["frequency"] *= 0.8
+        if user_data["frequency"] < 0.1:
+            user_data["frequency"] = 0.5
     user_ref.update(user_data)
     sync_child_params(user_data["uid"])
     return
+
 
 def reset_next_dates(church_id):
     firestore_client = firestore.Client()
@@ -1359,9 +1455,9 @@ def set_user_next_week(user_id, week):
     user_data = user_ref.get()
     if user_data.exists:
         user_info = user_data.to_dict()
-        print(f'User info: {user_info}')
+        print(f"User info: {user_info}")
         next_week_serve = user_info.get("nextWeekServe")  # May be None
-        print(f'Next week serve: {next_week_serve}')
+        print(f"Next week serve: {next_week_serve}")
         if next_week_serve == "N/A" or not next_week_serve:
             user_info["nextWeekServe"] = week
             user_ref.set(user_info)
@@ -1373,16 +1469,21 @@ def set_user_next_week(user_id, week):
 
         try:
             new_date = datetime.datetime.strptime(week, "%m-%d-%y")  # Correct format
-            existing_date = datetime.datetime.strptime(next_week_serve, "%m-%d-%y")  # Correct format
+            existing_date = datetime.datetime.strptime(
+                next_week_serve, "%m-%d-%y"
+            )  # Correct format
             # Update only if the new date is earlier
             if new_date < existing_date:
                 user_info["nextWeekServe"] = week
                 user_ref.set(user_info)
-                print(f'successfully updated user {user_id} next week serve to {week}')
+                print(f"successfully updated user {user_id} next week serve to {week}")
         except ValueError as e:
-            print(f"ERROR: Invalid date format for week '{week}' - {e}")  # More informative error
+            print(
+                f"ERROR: Invalid date format for week '{week}' - {e}"
+            )  # More informative error
     else:
         return
+
 
 def set_next_week_serve(church_id):
     # Run reset_next_dates in a separate thread
@@ -1395,7 +1496,7 @@ def set_next_week_serve(church_id):
         .collection("schedule")
     )
     # Convert stream generator to a list asynchronously
-    schedules =  list(schedules_ref.stream())
+    schedules = list(schedules_ref.stream())
 
     for schedule in schedules:
         schedule_id = schedule.id
@@ -1417,3 +1518,49 @@ def set_next_week_serve(church_id):
                         set_user_next_week(individual_value, str(schedule_id))
 
     return
+
+
+@https_fn.on_request()
+def remove_family_schedules(req: https_fn.Request) -> https_fn.Response:
+    try:
+        request_data = req.get_json()
+        if not request_data:
+            return https_fn.Response("Missing JSON body", status=400)
+    except Exception as e:
+        return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
+
+    # Extract required parameters
+    church_id = request_data.get("church")
+    user_id = request_data.get("uid")
+
+    if not all([church_id, user_id]):
+        return https_fn.Response("Missing required parameters", status=400)
+
+    # Optional: Verify Firebase Auth token
+    id_token = req.headers.get("Authorization")
+    if id_token:
+        try:
+            decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
+        except Exception as e:
+            return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+
+    firestore_client = firestore.Client()
+    user_ref = firestore_client.collection("users").document(user_id)
+    user_doc = user_ref.get()
+    frequency = 0
+    if user_doc.exists:
+        user_data = user_doc.to_dict()
+        alhan = "N/A"
+        sunday_school = "N/A"
+        frequency = user_data["frequency"]
+        if user_data["isAlhan"] and user_data["alhanSetUp"]:
+            alhan = user_data["alhanGrades"]
+        if user_data["isSSTeacher"] and user_data["ssSetUp"]:
+            sunday_school = user_data["ssGrades"]
+        if "children" in user_data:
+            for child in user_data["children"]:
+                remove_user_from_schedules(church_id, child["uid"], "N/A", "N/A", False)
+    remove_user_from_schedules(church_id, user_id, alhan, sunday_school, True)
+    user_ref.update({"nextWeekServe": "N/A", "frequency": frequency})
+
+    return https_fn.Response("Family schedules removed", status=200)

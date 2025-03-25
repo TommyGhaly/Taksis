@@ -21,7 +21,7 @@ export const callFunction = async (user, url) => {
   }
 };
 
-export const callDeleteUser = async (user, uid, url) => {
+export const callDeleteUser = async (user, church, uid, url) => {
   try {
     // Await the Firebase ID token
     const idToken = await user.getIdToken();
@@ -33,7 +33,7 @@ export const callDeleteUser = async (user, uid, url) => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${idToken}`, // Use the actual token here
       },
-      body: JSON.stringify({ uid: uid }), // Send the correct uid parameter
+      body: JSON.stringify({ uid: uid, church: church }), // Send the correct uid parameter
     }).catch((error) => {
       console.error("Error calling function in the background:", error);
     });
@@ -148,12 +148,7 @@ export const switchServers = async (
     console.error("Error preparing function call:", error);
   }
 };
-export const unavailableToServe = async (
-  user,
-  church,
-  week,
-  url
-) => {
+export const unavailableToServe = async (user, church, week, family, url) => {
   try {
     // Await the Firebase ID token
     const idToken = await user.getIdToken();
@@ -169,6 +164,7 @@ export const unavailableToServe = async (
         church: church,
         week: week,
         uid: user.uid,
+        family: family,
       }), // Send the correct uid parameter
     }).catch((error) => {
       console.error("Error calling function in the background:", error);
@@ -180,11 +176,7 @@ export const unavailableToServe = async (
   }
 };
 
-
-export const checkClasses = async (
-  user,
-  url
-) => {
+export const checkClasses = async (user, url) => {
   try {
     // Await the Firebase ID token
     const idToken = await user.getIdToken();
@@ -196,8 +188,30 @@ export const checkClasses = async (
         "Content-Type": "application/json",
         Authorization: `Bearer ${idToken}`, // Use the actual token here
       },
-      body: JSON.stringify({
-      }), // Send the correct uid parameter
+      body: JSON.stringify({}), // Send the correct uid parameter
+    }).catch((error) => {
+      console.error("Error calling function in the background:", error);
+    });
+
+    console.log("Function call fired, backend will process the request.");
+  } catch (error) {
+    console.error("Error preparing function call:", error);
+  }
+};
+
+export const removeFamilySchedule = async (user, church, url) => {
+  try {
+    // Await the Firebase ID token
+    const idToken = await user.getIdToken();
+
+    // Fire the request without awaiting the response (runs in the background)
+    fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`, // Use the actual token here
+      },
+      body: JSON.stringify({ uid: user.uid, church: church }), // Send the correct uid parameter
     }).catch((error) => {
       console.error("Error calling function in the background:", error);
     });

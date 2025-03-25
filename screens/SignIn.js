@@ -26,7 +26,7 @@ const SignIn = ({ navigation }) => {
       console.log("sign Up :", signUp)
     });
   GoogleSignin.configure({
-    webClientId: "YOUR_WEB_CLIENT_ID",
+    webClientId: "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
   });
 
   const handleSignIn = async () => {
