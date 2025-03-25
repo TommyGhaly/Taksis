@@ -4,7 +4,7 @@ import { StyleSheet, Text, Pressable, Image, View } from "react-native";
 const RequestAdmin = ({ navigation }) => {
   return (
     <View style={styles.container}>
-      <Text style={styles.headerText}>Request Sent</Text>
+      <Text style={styles.headerText}>Send us a message!</Text>
       <Image
         style={styles.verificationImage}
         resizeMode="contain"

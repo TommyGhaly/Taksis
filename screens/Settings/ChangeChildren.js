@@ -72,7 +72,7 @@ const ChangeChildren = () => {
 
                   if (childToRemove) {
                     console.log("child being removed: ", childToRemove)
-                    await callDeleteUser(user, childId, "https://delete-child-hy6oofbihq-uc.a.run.app")
+                    await callDeleteUser(user, userData.church, childId, "https://delete-child-hy6oofbihq-uc.a.run.app")
                     await firestore()
                       .collection("users")
                       .doc(user.uid)

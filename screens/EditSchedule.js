@@ -60,24 +60,26 @@ const EditSchedule = () => {
   const scrollViewRef = useRef(null);
   const user = auth().currentUser;
 
-  // Fetch the current user's churchId from Firestore
+  // Realtime listener for user doc to update churchId if it changes
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const userDoc = await firestore().collection("users").doc(user.uid).get();
-        if (userDoc.exists) {
-          const userData = userDoc.data();
-          setChurchId(userData?.church);
+    const unsubscribeUser = firestore()
+      .collection("users")
+      .doc(user.uid)
+      .onSnapshot((doc) => {
+        if (doc.exists) {
+          const userData = doc.data();
+          if (userData?.church && userData.church !== churchId) {
+            setChurchId(userData.church);
+            console.log("Church updated to:", userData.church);
+          }
         } else {
           console.log("User not found");
         }
-      } catch (error) {
-        console.error("Error fetching user data:", error);
-      }
-    };
-
-    fetchUserData();
-  }, [user.uid]);
+      }, (error) => {
+        console.error("Error listening to user document:", error);
+      });
+    return () => unsubscribeUser();
+  }, [user.uid, churchId]);
 
   // Query the schedule subcollection and determine the nearest upcoming week (schedule)
   useEffect(() => {

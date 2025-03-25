@@ -22,32 +22,33 @@ const AlhanAttendance = ({ navigation }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [newStudentName, setNewStudentName] = useState("");
 
+  // Listen for real-time updates to the user's document
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user) {
-        Alert.alert("Error", "No user found.");
-        return;
-      }
+    if (!user) {
+      Alert.alert("Error", "No user found.");
+      return;
+    }
 
-      try {
-        const userDoc = await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .get();
-        if (!userDoc.exists) {
-          Alert.alert("Error", "User not found.");
-          return;
+    const unsubscribe = firestore()
+      .collection("users")
+      .doc(user.uid)
+      .onSnapshot(
+        (doc) => {
+          if (!doc.exists) {
+            Alert.alert("Error", "User not found.");
+            return;
+          }
+          setUserData(doc.data());
+        },
+        (error) => {
+          Alert.alert("Error", error.message);
         }
+      );
 
-        setUserData(userDoc.data());
-      } catch (error) {
-        Alert.alert("Error", error.message);
-      }
-    };
-
-    fetchUserData();
+    return () => unsubscribe();
   }, [user]);
 
+  // Fetch students whenever userData updates (including changes to alhanGrades)
   useEffect(() => {
     if (!userData) return;
 
@@ -90,7 +91,7 @@ const AlhanAttendance = ({ navigation }) => {
         );
 
         setStudents(studentsWithAttendance);
-        setLoading(false); // Stop loading after the data is fetched
+        setLoading(false);
       });
 
       return () => unsubscribe();
@@ -188,8 +189,19 @@ const AlhanAttendance = ({ navigation }) => {
         .collection("Hymns Class")
         .doc(userData.alhanGrades);
 
+      const hymnsClassDoc = await hymnsClassRef.get();
+      if (!hymnsClassDoc.exists) {
+        throw new Error("Hymns class not found");
+      }
+
+      const newServants = hymnsClassDoc
+        .get("servants")
+        .filter((servant) => servant.uid !== user.uid);
+
+      console.log(newServants);
+      console.log(user.uid);
       await hymnsClassRef.update({
-        servants: firestore.FieldValue.arrayRemove(user.uid),
+        servants: newServants,
       });
 
       await firestore().collection("users").doc(user.uid).update({
@@ -199,6 +211,7 @@ const AlhanAttendance = ({ navigation }) => {
 
       navigation.navigate("AlhanGrades");
     } catch (error) {
+      console.error("Error changing hymns class:", error);
       Alert.alert("Error", "Failed to change hymns class. Please try again.");
     }
   };

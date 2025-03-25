@@ -32,7 +32,6 @@ const eventEmitter = YourNativeModule
   ? new NativeEventEmitter(YourNativeModule)
   : null;
 
-
 // Notification & FCM token logic for Android
 async function requestUserPermissionAndroid() {
   try {
@@ -239,6 +238,7 @@ const HomeScreen = () => {
   const [currentWeek, setCurrentWeek] = useState();
   const [nextWeek, setNextWeek] = useState();
   const [isDeacon, setIsDeacon] = useState(false);
+  const [churchId, setChurchId] = useState(null); // new state for church id
 
   const handleUnavailebleToServe = async () => {
     const user = auth().currentUser;
@@ -261,11 +261,12 @@ const HomeScreen = () => {
               return;
             }
             const userData = userDoc.data();
-            const churchId = userData.church;
+            const churchIdFromDoc = userData.church;
             await unavailableToServe(
               user,
-              churchId,
+              churchIdFromDoc,
               nextWeek,
+              true, 
               "https://unavailable-for-week-hy6oofbihq-uc.a.run.app"
             );
             Alert.alert(
@@ -285,7 +286,7 @@ const HomeScreen = () => {
     checkLocationPermission();
   }, []);
 
-  // Realtime listener on the user document to update the next week service date and isDeacon status
+  // Real-time listener on the user document to update nextWeek, isDeacon and churchId
   useEffect(() => {
     const user = auth().currentUser;
     if (!user) {
@@ -304,6 +305,10 @@ const HomeScreen = () => {
               setNextWeek(userData.nextWeekServe);
               console.log("Next week serve updated:", userData.nextWeekServe);
             }
+            if (userData.church && userData.church !== churchId) {
+              setChurchId(userData.church);
+              console.log("Church updated:", userData.church);
+            }
           }
         },
         (error) => {
@@ -311,110 +316,88 @@ const HomeScreen = () => {
         }
       );
     return () => unsubscribeUser();
-  }, []);
+  }, [churchId]);
 
- // Realtime listener for the church schedule
- useEffect(() => {
-  const fetchScheduleRealtime = async () => {
-    try {
-      const user = auth().currentUser;
-      if (!user) {
-        console.log("No authenticated user found.");
-        return;
-      }
+  // Realtime listener for the church schedule that depends on the churchId
+  useEffect(() => {
+    if (!churchId) {
+      console.log("No church selected. Waiting for churchId...");
+      return;
+    }
+    
+    const schedulesRef = firestore()
+      .collection("churches")
+      .doc(churchId)
+      .collection("schedule");
 
-      const userDoc = await firestore().collection("users").doc(user.uid).get();
-      if (!userDoc.exists) {
-        console.log("User not found.");
-        return;
-      }
+    const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
+      let closestSchedule = null;
+      let closestDate = null;
+      let chosenDocId = ""; 
+      const today = new Date().setHours(0, 0, 0, 0); // Normalize today's date
 
-      const userData = userDoc.data();
-      if (userData.nextWeekServe) {
-        setNextWeek(userData.nextWeekServe);
-      }
+      snapshot.docs.forEach((doc) => {
+        const scheduleData = doc.data();
+        const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
+        const [month, day, year] = scheduleDateStr.split("-").map(Number);
+        const scheduleDate = new Date(2000 + year, month - 1, day).setHours(0, 0, 0, 0); // Normalize schedule date
 
-      const churchId = userData.church;
-      const schedulesRef = firestore()
-        .collection("churches")
-        .doc(churchId)
-        .collection("schedule");
-
-      const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
-        let closestSchedule = null;
-        let closestDate = null;
-        let chosenDocId = ""; 
-        const today = new Date().setHours(0, 0, 0, 0); // Normalize today's date
-
-        snapshot.docs.forEach((doc) => {
-          const scheduleData = doc.data();
-          const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
-          const [month, day, year] = scheduleDateStr.split("-").map(Number);
-          const scheduleDate = new Date(2000 + year, month - 1, day).setHours(0, 0, 0, 0); // Normalize schedule date
-
-          if (scheduleDate >= today) { // Include today as valid
-            if (!closestDate || scheduleDate < closestDate) {
-              closestDate = scheduleDate;
-              closestSchedule = scheduleData;
-              chosenDocId = doc.id;
-            }
+        if (scheduleDate >= today) { // Include today as valid
+          if (!closestDate || scheduleDate < closestDate) {
+            closestDate = scheduleDate;
+            closestSchedule = scheduleData;
+            chosenDocId = doc.id;
           }
-        });
-
-        if (closestSchedule) {
-          setCurrentWeek(chosenDocId);
-          const defaultSchedule = {
-            matins: { name: "N/A" },
-            third: { name: "N/A" },
-            sixth: { name: "N/A" },
-            pauline: { name: "N/A" },
-            catholic: { name: "N/A" },
-            praxis: { name: "N/A" },
-            gospel: { name: "N/A" },
-            water: { name: "N/A" },
-            wine: { name: "N/A" },
-            altar: [],
-          };
-
-          const updatedSchedule = {
-            ...defaultSchedule,
-            ...closestSchedule,
-          };
-
-          if (!Array.isArray(updatedSchedule.altar)) {
-            updatedSchedule.altar = [];
-          }
-
-          const altarServers = [];
-          if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
-            altarServers.push(updatedSchedule.water);
-          }
-          if (updatedSchedule.wine && typeof updatedSchedule.wine === "object") {
-            altarServers.push(updatedSchedule.wine);
-          }
-
-          altarServers.push(
-            ...updatedSchedule.altar.filter(
-              (server) => server && typeof server === "object"
-            )
-          );
-          updatedSchedule.altar = altarServers;
-          setSchedule(updatedSchedule);
-          console.log("Real-time schedule updated:", updatedSchedule);
-        } else {
-          console.log("No upcoming schedule found.");
         }
       });
 
-      return () => unsubscribe();
-    } catch (error) {
-      console.error("Error setting up realtime schedule:", error);
-    }
-  };
+      if (closestSchedule) {
+        setCurrentWeek(chosenDocId);
+        const defaultSchedule = {
+          matins: { name: "N/A" },
+          third: { name: "N/A" },
+          sixth: { name: "N/A" },
+          pauline: { name: "N/A" },
+          catholic: { name: "N/A" },
+          praxis: { name: "N/A" },
+          gospel: { name: "N/A" },
+          water: { name: "N/A" },
+          wine: { name: "N/A" },
+          altar: [],
+        };
 
-  fetchScheduleRealtime();
-}, []);
+        const updatedSchedule = {
+          ...defaultSchedule,
+          ...closestSchedule,
+        };
 
+        if (!Array.isArray(updatedSchedule.altar)) {
+          updatedSchedule.altar = [];
+        }
+
+        const altarServers = [];
+        if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
+          altarServers.push(updatedSchedule.water);
+        }
+        if (updatedSchedule.wine && typeof updatedSchedule.wine === "object") {
+          altarServers.push(updatedSchedule.wine);
+        }
+
+        altarServers.push(
+          ...updatedSchedule.altar.filter(
+            (server) => server && typeof server === "object"
+          )
+        );
+        updatedSchedule.altar = altarServers;
+        setSchedule(updatedSchedule);
+        console.log("Real-time schedule updated:", updatedSchedule);
+      } else {
+        console.log("No upcoming schedule found.");
+      }
+    });
+
+    return () => unsubscribe();
+  }, [churchId]);
 
   return (
     <View style={styles.container}>
@@ -503,9 +486,7 @@ const HomeScreen = () => {
             </Text>
             <TouchableOpacity
               style={styles.unavailableButton}
-              onPress={() => {
-                handleUnavailebleToServe();
-              }}
+              onPress={handleUnavailebleToServe}
             >
               <Text style={styles.requestButtonText}>Unavailable</Text>
             </TouchableOpacity>

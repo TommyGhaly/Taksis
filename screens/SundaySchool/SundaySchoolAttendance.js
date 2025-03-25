@@ -22,32 +22,33 @@ const SundaySchoolAttendance = ({ navigation }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [newStudentName, setNewStudentName] = useState("");
 
+  // Real-time listener for user's document
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user) {
-        Alert.alert("Error", "No user found.");
-        return;
-      }
+    if (!user) {
+      Alert.alert("Error", "No user found.");
+      return;
+    }
 
-      try {
-        const userDoc = await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .get();
-        if (!userDoc.exists) {
-          Alert.alert("Error", "User not found.");
-          return;
+    const unsubscribe = firestore()
+      .collection("users")
+      .doc(user.uid)
+      .onSnapshot(
+        (doc) => {
+          if (!doc.exists) {
+            Alert.alert("Error", "User not found.");
+            return;
+          }
+          setUserData(doc.data());
+        },
+        (error) => {
+          Alert.alert("Error", error.message);
         }
+      );
 
-        setUserData(userDoc.data());
-      } catch (error) {
-        Alert.alert("Error", error.message);
-      }
-    };
-
-    fetchUserData();
+    return () => unsubscribe();
   }, [user]);
 
+  // Fetch students whenever userData updates (including changes to ssGrades)
   useEffect(() => {
     if (!userData) return;
 
@@ -187,25 +188,39 @@ const SundaySchoolAttendance = ({ navigation }) => {
 
   const handleClassChange = async () => {
     try {
-      const ssClassRef = firestore()
+      const sundaySchoolRef = firestore()
         .collection("churches")
         .doc(userData.church)
         .collection("Sunday School")
         .doc(userData.ssGrades);
 
-      await ssClassRef.update({
-        servants: firestore.FieldValue.arrayRemove(user.uid),
-      });
-      // Update Firestore to set ssGrades to null and alhan to false
-      await firestore().collection("users").doc(user.uid).update({
-        ssGrades: null,
-        ssSetUp: false,
+      const hymnsClassDoc = await sundaySchoolRef.get();
+      if (!hymnsClassDoc.exists) {
+        throw new Error("Sunday School not found");
+      }
+
+      const newServants = hymnsClassDoc
+        .get("servants")
+        .filter((servant) => servant.uid !== user.uid);
+
+      console.log(newServants);
+      console.log(user.uid);
+      await sundaySchoolRef.update({
+        servants: newServants,
       });
 
-      // After updating, navigate to the ssGrades screen
+      await firestore().collection("users").doc(user.uid).update({
+        alhanGrades: null,
+        alhanSetUp: false,
+      });
+
       navigation.navigate("SundaySchoolGrades");
     } catch (error) {
-      Alert.alert("Error", "Failed to change Sunday School. Please try again.");
+      console.error("Error changing Sunday School class:", error);
+      Alert.alert(
+        "Error",
+        "Failed to change Sunday School class. Please try again."
+      );
     }
   };
 
