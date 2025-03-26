@@ -52,7 +52,8 @@ const SignUp = ({ navigation }) => {
       if (user) {
         // Update display name
         await user.updateProfile({ displayName: name });
-
+        navigation.navigate("SelectChurch");
+  
         // Ensure to reload the user profile to get the updated display name
         await auth().currentUser.reload();
 
@@ -64,8 +65,7 @@ const SignUp = ({ navigation }) => {
           await writeUserToDb(updatedUser, updatedUser.displayName);
 
           // Navigate to SelectChurch after successful signup
-          navigation.navigate("SelectChurch");
-        } else {
+            } else {
           console.error("Failed to get updated user profile.");
           Alert.alert("Sign Up Error", "Failed to get updated user profile.");
         }
@@ -108,11 +108,11 @@ const SignUp = ({ navigation }) => {
       });
       const { idToken } = await GoogleSignin.signIn();
       const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+      navigation.navigate("SelectChurch");
       const userCredential = await auth().signInWithCredential(
         googleCredential
       );
       await writeUserToDb(userCredential.user, userCredential.user.displayName);
-      navigation.navigate("SelectChurch");
     } catch (error) {
       console.error(error);
       Alert.alert("Google Sign-In Error", error.message);
@@ -168,7 +168,6 @@ const SignUp = ({ navigation }) => {
 
       writeUserToDb(userCredential.user, formattedFullName);
 
-      navigation.navigate("SelectChurch");
     } catch (error) {
       console.error("Apple Sign-In Error:", error);
       Alert.alert("Apple Sign-In Error", error.message);

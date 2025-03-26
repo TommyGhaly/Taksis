@@ -335,59 +335,59 @@ async def create_schedule(deacons, church_ref, num_altar_servers):
         "gospel": (
             {"name": schedule[0]["name"], "uid": schedule[0]["uid"]}
             if schedule[0] != "N/A"
-            else {"name": "N/A", "uid": "1"}
+            else {"name": "N/A", "uid": str(uuid.uuid4())}
         ),
         "wine": (
             {"name": schedule[1]["name"], "uid": schedule[1]["uid"]}
             if schedule[1] != "N/A"
-            else {"name": "N/A", "uid": "2"}
+            else {"name": "N/A", "uid": str(uuid.uuid4())}
         ),
         "water": (
             {"name": schedule[2]["name"], "uid": schedule[2]["uid"]}
             if schedule[2] != "N/A"
-            else {"name": "N/A", "uid": "3"}
+            else {"name": "N/A", "uid": str(uuid.uuid4())}
         ),
         "praxis": (
             {"name": schedule[3]["name"], "uid": schedule[3]["uid"]}
             if schedule[3] != "N/A"
-            else {"name": "N/A", "uid": "4"}
+            else {"name": "N/A", "uid": str(uuid.uuid4())}
         ),
         "catholic": (
             {"name": schedule[4]["name"], "uid": schedule[4]["uid"]}
             if schedule[4] != "N/A"
-            else {"name": "N/A", "uid": "5"}
+            else {"name": "N/A", "uid": str(uuid.uuid4())}
         ),
         "pauline": (
             {"name": schedule[5]["name"], "uid": schedule[5]["uid"]}
             if schedule[5] != "N/A"
-            else {"name": "N/A", "uid": "6"}
+            else {"name": "N/A", "uid": str(uuid.uuid4())}
         ),
         "sixth": (
             {"name": schedule[6]["name"], "uid": schedule[6]["uid"]}
             if schedule[6] != "N/A"
-            else {"name": "N/A", "uid": "7"}
+            else {"name": "N/A", "uid": str(uuid.uuid4())}
         ),
         "third": (
             {"name": schedule[7]["name"], "uid": schedule[7]["uid"]}
             if schedule[7] != "N/A"
-            else {"name": "N/A", "uid": "8"}
+            else {"name": "N/A", "uid": str(uuid.uuid4())}
         ),
         "matins": (
             {"name": schedule[8]["name"], "uid": schedule[8]["uid"]}
             if schedule[8] != "N/A"
-            else {"name": "N/A", "uid": "9"}
+            else {"name": "N/A", "uid": str(uuid.uuid4())}
         ),
         "altar": (
             [
                 (
                     {"name": item["name"], "uid": item["uid"]}
                     if item != "N/A"
-                    else {"name": "N/A", "uid": str(random.randint(1, 100))}
+                    else {"name": "N/A", "uid": str(uuid.uuid4())}
                 )
                 for item in schedule[9 : 9 + num_altar_servers]
             ]
             if len(schedule) > 7
-            else [{"name": "N/A", "uid": str(_ + 20)} for _ in range(num_altar_servers)]
+            else [{"name": "N/A", "uid": str(uuid.uuid4())} for _ in range(num_altar_servers)]
         ),
     }
 
@@ -405,7 +405,7 @@ async def get_deacons(church):
 
     if doc_snapshot.exists:
         doc_data = doc_snapshot.to_dict()
-        return doc_data.get("deacons", "No deacon array")
+        return doc_data.get("deacons", [])
     else:
         return "Document does not exist"
 
@@ -708,12 +708,13 @@ def remove_user_from_schedules(church, uid, alhan_class, sunday_school_class, fa
     firestore_client = firestore.Client()
     church_ref = firestore_client.collection("churches").document(church)
     user_ref = firestore_client.collection("users").document(uid)
-    user_data = user_ref.get().to_dict()
+    if user_ref.get().exists:
+        user_data = user_ref.get().to_dict()
 
 
-    if family:
-        user_data["isServant"] = False
-        user_ref.update(user_data)
+        if family:
+            user_data["isServant"] = False
+            user_ref.update(user_data)
 
     # Remove user from all schedules
     for week in get_weeks(church):
@@ -898,8 +899,8 @@ def delete_child(req: https_fn.Request) -> https_fn.Response:
     # Extract the user_id from the payload
     user_id = request_data.get("uid")
     church_id = request_data.get("church")
-    if not user_id:
-        return https_fn.Response("Missing 'uid' parameter", status=400)
+    if not user_id or not church_id:
+        return https_fn.Response("Missing 'uid' or 'church' parameter", status=400)
 
     # Optional: Verify Firebase Auth token if provided
     id_token = req.headers.get("Authorization")
@@ -910,7 +911,13 @@ def delete_child(req: https_fn.Request) -> https_fn.Response:
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
     remove_user_from_churches(user_id)
-    remove_user_from_schedules(church_id, user_id, "N/A", "N/A", False)
+    for week in get_weeks(church_id):
+        mock_request = Request.from_values(
+            headers={"Authorization": ""},
+            json={"church": church_id, "week": week, "uid": user_id, "family": False}
+        )
+        unavailable_for_week(mock_request)
+
     return https_fn.Response("child deleted", status=200)
 
 
@@ -936,7 +943,7 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
             # You can now use decoded_token to get user details if needed
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
-
+    print(user_id)
     firestore_client = firestore.Client()
     user_doc_ref = firestore_client.collection("users").document(user_id)
     user_doc = user_doc_ref.get()
@@ -946,10 +953,9 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
 
         if "children" in user_data:
             for child in user_data["children"]:
+                print(f'child: {child}')
                 remove_user_from_churches(child.get("uid"))
         remove_user_from_churches(user_id)
-
-        remove_family_schedules({"uid": user_id, "church": user_data.get("church")})
     return https_fn.Response("user and children deleted", status=200)
 
 
@@ -1524,6 +1530,7 @@ def set_next_week_serve(church_id):
 def remove_family_schedules(req: https_fn.Request) -> https_fn.Response:
     try:
         request_data = req.get_json()
+        print(request_data)
         if not request_data:
             return https_fn.Response("Missing JSON body", status=400)
     except Exception as e:
@@ -1532,7 +1539,7 @@ def remove_family_schedules(req: https_fn.Request) -> https_fn.Response:
     # Extract required parameters
     church_id = request_data.get("church")
     user_id = request_data.get("uid")
-
+    print(f'user_id: {user_id} church_id: {church_id}')
     if not all([church_id, user_id]):
         return https_fn.Response("Missing required parameters", status=400)
 
@@ -1543,24 +1550,20 @@ def remove_family_schedules(req: https_fn.Request) -> https_fn.Response:
             decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
-
     firestore_client = firestore.Client()
     user_ref = firestore_client.collection("users").document(user_id)
-    user_doc = user_ref.get()
-    frequency = 0
-    if user_doc.exists:
-        user_data = user_doc.to_dict()
-        alhan = "N/A"
-        sunday_school = "N/A"
+    user_data = user_ref.get().to_dict()
+    print(f'user Data : {user_data}')
+    alhan = "N/A"
+    sunday_school = "N/A"
+    if user_data["frequency"]:
         frequency = user_data["frequency"]
-        if user_data["isAlhan"] and user_data["alhanSetUp"]:
-            alhan = user_data["alhanGrades"]
-        if user_data["isSSTeacher"] and user_data["ssSetUp"]:
-            sunday_school = user_data["ssGrades"]
-        if "children" in user_data:
-            for child in user_data["children"]:
-                remove_user_from_schedules(church_id, child["uid"], "N/A", "N/A", False)
+    if user_data["isAlhan"] and user_data["alhanSetUp"]:
+        alhan = user_data["alhanGrades"]
+    if user_data["isSSTeacher"] and user_data["ssSetUp"]:
+        sunday_school = user_data["ssGrades"]
     remove_user_from_schedules(church_id, user_id, alhan, sunday_school, True)
-    user_ref.update({"nextWeekServe": "N/A", "frequency": frequency})
+    if user_ref.get().exists:
+        user_ref.update({"nextWeekServe": "N/A", "frequency": frequency})
 
     return https_fn.Response("Family schedules removed", status=200)

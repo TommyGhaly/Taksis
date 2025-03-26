@@ -201,17 +201,25 @@ export const checkClasses = async (user, url) => {
 
 export const removeFamilySchedule = async (user, church, url) => {
   try {
-    // Await the Firebase ID token
-    const idToken = await user.getIdToken();
+    console.log("Before getIdToken");
+    const idToken = await user.getIdToken();  // Make sure user is still the full user object here.
+    console.log("ID Token acquired", idToken);
 
-    // Fire the request without awaiting the response (runs in the background)
+    const payload = {
+      uid: user.uid,
+      church: church,
+    };
+
+    console.log("About to send payload:", payload);
+    console.log("Stringified Payload:", JSON.stringify(payload));
+
     fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`, // Use the actual token here
+        Authorization: `Bearer ${idToken}`,
       },
-      body: JSON.stringify({ uid: user.uid, church: church }), // Send the correct uid parameter
+      body: JSON.stringify(payload),
     }).catch((error) => {
       console.error("Error calling function in the background:", error);
     });

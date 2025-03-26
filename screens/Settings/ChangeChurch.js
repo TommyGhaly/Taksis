@@ -75,6 +75,13 @@ const ChangeChurch = ({ navigation }) => {
           {
             text: "Yes",
             onPress: async () => {
+              const payload = {
+                uid: user.uid, // Make sure this is just a string
+                church: currentChurch.id || currentChurch, // Only simple values
+                children: userDoc.children,
+              };
+              console.log("Payload:", payload);
+              console.log("Stringified Payload:", JSON.stringify(payload));
               await removeFamilySchedule(
                 user,
                 currentChurch,

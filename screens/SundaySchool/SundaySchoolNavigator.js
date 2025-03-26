@@ -11,49 +11,43 @@ import IndividualAttendance from "../IndividualAttendance";
 
 const Stack = createStackNavigator();
 
-const AlhanNavigator = () => {
+const SundaySchoolNavigator = () => {
   const [initialRoute, setInitialRoute] = useState(null);
   const user = auth().currentUser;
-  const navigation = useNavigation();  // Get the navigation object
+  const navigation = useNavigation();
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user) {
-        setInitialRoute("SundaySchoolGrades"); // Default route when user is not found
-        return;
-      }
+    if (!user) {
+      setInitialRoute("SundaySchoolGrades");
+      return;
+    }
 
-      try {
-        const userDoc = await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .get();
-        if (userDoc.exists) {
-          const userData = userDoc.data();
-          setInitialRoute(
-            userData.ssSetUp ? "SundaySchoolAttendance" : "SundaySchoolGrades"
-          );
-        } else {
-          setInitialRoute("SundaySchoolGrades"); // Default route when no document found
+    const userRef = firestore().collection("users").doc(user.uid);
+
+    // Set up a Firestore real-time listener
+    const unsubscribe = userRef.onSnapshot((doc) => {
+      if (doc.exists) {
+        const userData = doc.data();
+        const newInitialRoute = userData.ssSetUp ? "SundaySchoolAttendance" : "SundaySchoolGrades";
+        setInitialRoute(newInitialRoute);
+
+        // Reset navigation when the initial route is "SundaySchoolGrades"
+        if (newInitialRoute === "SundaySchoolGrades") {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "SundaySchoolGrades" }],
+          });
         }
-      } catch (error) {
-        console.error("Error fetching user data:", error);
+      } else {
         setInitialRoute("SundaySchoolGrades");
       }
-    };
+    }, (error) => {
+      console.error("Error fetching user data:", error);
+      setInitialRoute("SundaySchoolGrades");
+    });
 
-    fetchUserData();
-  }, [user]);
-
-  useEffect(() => {
-    // Reset the navigation stack when the initial route changes to "SundaySchoolGrades"
-    if (initialRoute === "SundaySchoolGrades") {
-      navigation.reset({
-        index: 0,  // Reset to the first screen
-        routes: [{ name: "SundaySchoolGrades" }],
-      });
-    }
-  }, [initialRoute, navigation]);
+    return () => unsubscribe(); // Cleanup the listener when the component unmounts
+  }, [user, navigation]);
 
   if (!initialRoute) {
     return (
@@ -73,7 +67,8 @@ const AlhanNavigator = () => {
       <Stack.Screen
         name="SundaySchoolGrades"
         component={SundaySchoolGrades}
-        options={{ headerShown: false ,
+        options={{
+          headerShown: false,
           animation: "slide_from_right",
         }}
       />
@@ -86,4 +81,4 @@ const AlhanNavigator = () => {
   );
 };
 
-export default AlhanNavigator;
+export default SundaySchoolNavigator;

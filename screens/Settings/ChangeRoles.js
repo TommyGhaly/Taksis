@@ -10,7 +10,6 @@ const ChangeRoles = ({ navigation }) => {
   const [isDeacon, setIsDeacon] = useState(false);
   const [isAlhan, setIsAlhan] = useState(false);
   const [isSSTeach, setIsSSTeach] = useState(false);
-  const [isServant, setIsServant] = useState(false);
   const user = auth().currentUser;
 
   const handleDeacon = (checked) => setIsDeacon(checked);
