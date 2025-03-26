@@ -3,7 +3,7 @@ import { View, ActivityIndicator } from "react-native";
 import { createStackNavigator } from "@react-navigation/stack";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from "@react-navigation/native";
 
 import AlhanAttendance from "./AlhanAttendance";
 import AlhanGrades from "./AlhanGrades";
@@ -14,42 +14,41 @@ const Stack = createStackNavigator();
 const AlhanNavigator = () => {
   const [initialRoute, setInitialRoute] = useState(null);
   const user = auth().currentUser;
-  const navigation = useNavigation();  // Get the navigation object
+  const navigation = useNavigation();
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user) {
-        setInitialRoute("AlhanGrades"); // Default route when user is not found
-        return;
-      }
+    if (!user) {
+      setInitialRoute("AlhanGrades");
+      return;
+    }
 
-      try {
-        const userDoc = await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .get();
-        if (userDoc.exists) {
-          const userData = userDoc.data();
-          setInitialRoute(
-            userData.alhanSetUp ? "AlhanAttendance" : "AlhanGrades"
-          );
-        } else {
-          setInitialRoute("AlhanGrades"); // Default route when no document found
+    // Set up the real-time listener on the user document
+    const unsubscribe = firestore()
+      .collection("users")
+      .doc(user.uid)
+      .onSnapshot(
+        (doc) => {
+          if (doc.exists) {
+            const userData = doc.data();
+            setInitialRoute(userData.alhanSetUp ? "AlhanAttendance" : "AlhanGrades");
+          } else {
+            setInitialRoute("AlhanGrades");
+          }
+        },
+        (error) => {
+          console.error("Error fetching user data:", error);
+          setInitialRoute("AlhanGrades");
         }
-      } catch (error) {
-        console.error("Error fetching user data:", error);
-        setInitialRoute("AlhanGrades");
-      }
-    };
+      );
 
-    fetchUserData();
+    // Clean up the listener on unmount
+    return () => unsubscribe();
   }, [user]);
 
   useEffect(() => {
-    // Reset the navigation stack when the initial route changes to "AlhanGrades"
     if (initialRoute === "AlhanGrades") {
       navigation.reset({
-        index: 0,  // Reset to the first screen
+        index: 0,
         routes: [{ name: "AlhanGrades" }],
       });
     }
@@ -73,7 +72,7 @@ const AlhanNavigator = () => {
       <Stack.Screen
         name="AlhanGrades"
         component={AlhanGrades}
-        options={{ headerShown: false , animation: 'slide_from_right'}}
+        options={{ headerShown: false, animation: "slide_from_right" }}
       />
       <Stack.Screen
         name="IndividualAttendance"

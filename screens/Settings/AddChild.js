@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
   titleText: {
     fontSize: 34,
     fontFamily: "Roboto-Regular",
-    color: "#8e8e93",
+    color: "#fff",
     letterSpacing: -0.1,
   },
   textInput: {
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   disclaimerText: {
     fontSize: 14,
     fontFamily: "Roboto-Regular",
-    color: "#8e8e93", // Choose a color that stands out
+    color: "#888", // Choose a color that stands out
     textAlign: "center",
     marginBottom: 10,
     marginTop: 10,

@@ -5,7 +5,7 @@ import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import { UserProvider, useUser } from "../UserContext";
-import { callFunction } from "./functionCalls";
+import { callFunction, removeFamilySchedule} from "./functionCalls";
 
 
 
@@ -57,28 +57,6 @@ const SettingsContent = () => {
     return auth().revokeToken(authorizationCode);
   };
 
-  const handleDelete = async () => {
-    const user = auth().currentUser;
-    if (!user) {
-      console.log('No authenticated user found.');
-      return;
-    }
-
-    if (userRoles && userRoles.children) {
-      for (const child of userRoles.children) {
-        try {
-          await callDeleteUser(user, child.uid, "https://delete-user-hy6oofbihq-uc.a.run.app");
-          console.log(`Successfully deleted child user with UID: ${child.uid}`);
-        } catch (error) {
-          console.error(`Failed to delete child user with UID: ${child.uid}`, error);
-        }
-      }
-    } else {
-      console.log('No child users found.');
-    }
-    await callDeleteUser(user, user.uid, "https://delete-user-hy6oofbihq-uc.a.run.app");
-  };
-
   const handleSignOut = () => {
     setSignUp(false);
     console.log("sign Up :", signUp);
@@ -99,19 +77,28 @@ const SettingsContent = () => {
           onPress: async () => {
             try {
               const user = auth().currentUser;
+              const wait = (time) => new Promise((resolve) => setTimeout(resolve, time * 1000));
               if (user) {
+                await removeFamilySchedule(
+                  user,
+                  userRoles.church,
+                  "https://remove-family-schedules-hy6oofbihq-uc.a.run.app"
+                ); 
                 await callFunction(user, "https://delete-user-hy6oofbihq-uc.a.run.app");
                 await setSignUp(false);
-                await firestore().collection("users").doc(user.uid).delete();
-                await user.delete();
+                await wait(2)
                 await revokeSignInWithAppleToken;
                 Alert.alert("Success", "Your account has been deleted.");
                 // Navigate to a safe screen or log out
               }
+              await wait(2)
+              await firestore().collection("users").doc(user.uid).delete();
+              await wait(2)
+              await user.delete();
             } catch (error) {
               Alert.alert(
                 "Error",
-                "Failed to delete the account. Please try again."
+                "Failed to delete the account. Please try again." + error
               );
             }
           },

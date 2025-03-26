@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import { use } from "react";
 
 const AlhanAttendance = ({ navigation }) => {
   const user = auth().currentUser;
@@ -47,7 +48,12 @@ const AlhanAttendance = ({ navigation }) => {
 
     return () => unsubscribe();
   }, [user]);
-
+  useEffect(() => {
+    if (!userData) return;
+      if (!userData.alhanSetUp) {
+        navigation.navigate("AlhanGrades");
+      }
+  }, [userData]);
   // Fetch students whenever userData updates (including changes to alhanGrades)
   useEffect(() => {
     if (!userData) return;

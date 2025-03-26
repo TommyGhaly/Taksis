@@ -47,7 +47,12 @@ const SundaySchoolAttendance = ({ navigation }) => {
 
     return () => unsubscribe();
   }, [user]);
-
+  useEffect(() => {
+    if (!userData) return;
+      if (!userData.ssSetUp) {
+        navigation.navigate("SundaySchoolGrades");
+      }
+  }, [userData]);
   // Fetch students whenever userData updates (including changes to ssGrades)
   useEffect(() => {
     if (!userData) return;
