@@ -410,21 +410,15 @@ async def get_deacons(church):
         return "Document does not exist"
 
 
-# @scheduler_fn.on_schedule(
-#   schedule="0 16 * * 0",  # Every Sunday at 4:00 PM
-#   timezone=scheduler_fn.Timezone("America/New_York"),
-# )
-# def generate_schedule(event: scheduler_fn.ScheduledEvent):
-# uncomment on_request and comment on_schedule to test locally
-import asyncio
+@scheduler_fn.on_schedule(
+    schedule="0 16 * * 0",  # Every Sunday at 4:00 PM
+    timezone=scheduler_fn.Timezone("America/New_York"),
+)
+def generate_schedule(event: scheduler_fn.ScheduledEvent):
+    return asyncio.run(my_async_scheduled_function(event))
 
 
-@https_fn.on_request()
-def my_scheduled_function(req: https_fn.Request) -> https_fn.Response:
-    return asyncio.run(my_async_scheduled_function(req))
-
-
-async def my_async_scheduled_function(req: https_fn.Request) -> https_fn.Response:
+async def my_async_scheduled_function(event: scheduler_fn.ScheduledEvent):
     firestore_client = firestore.Client()
     collection_ref = firestore_client.collection("churches")
     docs = list(collection_ref.stream())  # using synchronous stream for now
@@ -490,22 +484,6 @@ def generate_test_data(num_people):
     return test_data
 
 
-# Uncomment everything below to test locally
-# def add_test_data_to_firestore(test_data):
-#     # create churches collection
-#     db.collection("churches").document("St. Philopater and St. Mina, Wayland, MA").set(
-#         {"deacons": []}
-#     )
-
-#     for deacon in test_data:
-#         # Add each deacon to the deacons array in the Firestore collection
-#         db.collection("churches").document(
-#             "St. Philopater and St. Mina, Wayland, MA"
-#         ).update({"deacons": firestore.ArrayUnion([deacon])})
-
-
-# test_data = generate_test_data(100)
-# add_test_data_to_firestore(test_data)
 def next_week_all_servants():
     firestore_client = firestore.Client()
     church_docs = firestore_client.collection("churches").stream()
@@ -1567,3 +1545,13 @@ def remove_family_schedules(req: https_fn.Request) -> https_fn.Response:
         user_ref.update({"nextWeekServe": "N/A", "frequency": frequency})
 
     return https_fn.Response("Family schedules removed", status=200)
+
+
+
+@https_fn.on_request()
+def create_test_data (req: https_fn.Request) -> https_fn.Response:
+    firestore_client = firestore.Client()
+    church_ref = firestore_client.collection("churches").document("Test Data")
+    test_data = generate_test_data(150)
+    church_ref.update({"deacons": test_data})
+    return https_fn.Response("Test data created", status=200)
