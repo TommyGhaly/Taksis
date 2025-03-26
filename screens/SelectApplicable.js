@@ -11,7 +11,6 @@ const SelectApplicable = ({ navigation }) => {
   const [isDeacon, setIsDeacon] = useState(false);
   const [isAlhan, setIsAlhan] = useState(false);
   const [isSSTeach, setIsSSTeach] = useState(false);
-  const [isServant, setIsServant] = useState(false);
 
   const handleDeacon = (checked) => {
     setIsDeacon(checked);
@@ -22,9 +21,7 @@ const SelectApplicable = ({ navigation }) => {
   const handleSSTeach = (checked) => {
     setIsSSTeach(checked);
   };
-  const handleServant = (checked) => {
-    setIsServant(checked);
-  };
+
 
   const handleContinue = async (user) => {
     try {
@@ -62,7 +59,6 @@ const SelectApplicable = ({ navigation }) => {
           onDeaconChange={handleDeacon}
           onAlhanChange={handleAlhan}
           onSSTeachChange={handleSSTeach}
-          onServantChange={handleServant}
         />
       </View>
       <Pressable

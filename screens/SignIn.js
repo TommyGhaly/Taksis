@@ -22,7 +22,7 @@ const SignIn = ({ navigation }) => {
   const [password, setPassword] = useState("");
   const { signUp, setSignUp } = useUser();
     useEffect(() => {
-      setSignUp(true);
+      setSignUp(false);
       console.log("sign Up :", signUp)
     });
   GoogleSignin.configure({

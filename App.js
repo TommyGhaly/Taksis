@@ -42,7 +42,7 @@ function AppNavigator() {
   return (
     <NavigationContainer style={styles.container}>
       <Stack.Navigator
-        initialRouteName={(!user ? "Welcome" : (!signUp? "SelectChurch" : "MainContainer"))}
+        initialRouteName={(!user ? "Welcome" : (!signUp? "MainContainer" : "SelectChurch"))}
         screenOptions={{ headerShown: false, animation: "none" }}
       >
         {!user ? (
@@ -87,7 +87,7 @@ function AppNavigator() {
               options={{ animation: "default" }}
             />
           </>
-        ) : signUp ? (
+        ) : !signUp ? (
           <Stack.Screen name="MainContainer" component={MainContainer} />
         ) : (
           <>

@@ -1,14 +1,12 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, Alert } from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { UserProvider, useUser } from "../UserContext";
-import { callFunction, removeFamilySchedule} from "./functionCalls";
-
-
-
+import { callFunction, removeFamilySchedule } from "./functionCalls";
 
 const SettingsContent = () => {
   const { signUp, setSignUp } = useUser(true);
@@ -16,10 +14,10 @@ const SettingsContent = () => {
   const [userRoles, setUserRoles] = useState({
     name: "",
   });
+  const [isLoading, setIsLoading] = useState(false); // New state variable for loading
 
   useEffect(() => {
     const user = auth().currentUser;
-
     if (user) {
       const unsubscribe = firestore()
         .collection("users")
@@ -34,34 +32,43 @@ const SettingsContent = () => {
             console.error("Error fetching user roles: ", error);
           }
         );
-
-      // Cleanup subscription on unmount
       return () => unsubscribe();
     }
   }, []);
 
   const revokeSignInWithAppleToken = async () => {
-    // Get an authorizationCode from Apple
-    const { authorizationCode } = await appleAuth.performRequest({
-      requestedOperation: appleAuth.Operation.REFRESH,
-    });
-
-    // Ensure Apple returned an authorizationCode
-    if (!authorizationCode) {
-      throw new Error(
-        "Apple Revocation failed - no authorizationCode returned"
+    try {
+      const user = auth().currentUser;
+  
+      // Ensure the user is logged in and is an Apple Sign-In account
+      const isAppleAccount = user?.providerData.some(
+        (provider) => provider.providerId === "apple.com"
       );
+  
+      if (!isAppleAccount) {
+        console.log("User is not signed in with Apple. Skipping revocation.");
+        return;
+      }
+  
+      // Clear Apple sign-in session (if supported)
+      if (await AppleAuthentication.isAvailableAsync()) {
+        await AppleAuthentication.signOutAsync();
+        console.log("Apple sign-in session revoked.");
+      }
+    } catch (error) {
+      console.error("Error revoking Apple token:", error);
+      throw new Error("Apple revocation failed.");
     }
-
-    // Revoke the token
-    return auth().revokeToken(authorizationCode);
   };
+
+  const wait = (time) => new Promise((resolve) => setTimeout(resolve, time * 1000));
 
   const handleSignOut = () => {
     setSignUp(false);
     console.log("sign Up :", signUp);
     auth().signOut();
   };
+
   const handleDeleteAccount = () => {
     Alert.alert(
       "Delete Account",
@@ -75,9 +82,9 @@ const SettingsContent = () => {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
+            setIsLoading(true); // Show loading indicator
             try {
               const user = auth().currentUser;
-              const wait = (time) => new Promise((resolve) => setTimeout(resolve, time * 1000));
               if (user) {
                 await removeFamilySchedule(
                   user,
@@ -85,21 +92,19 @@ const SettingsContent = () => {
                   "https://remove-family-schedules-hy6oofbihq-uc.a.run.app"
                 ); 
                 await callFunction(user, "https://delete-user-hy6oofbihq-uc.a.run.app");
-                await setSignUp(false);
-                await wait(2)
-                await revokeSignInWithAppleToken;
+                setSignUp(false);
+                await wait(2);
+                await revokeSignInWithAppleToken();
                 Alert.alert("Success", "Your account has been deleted.");
-                // Navigate to a safe screen or log out
               }
-              await wait(2)
+              await wait(2);
               await firestore().collection("users").doc(user.uid).delete();
-              await wait(2)
+              await wait(2);
               await user.delete();
             } catch (error) {
-              Alert.alert(
-                "Error",
-                "Failed to delete the account. Please try again." + error
-              );
+              Alert.alert("Error", "Failed to delete the account. Please try again." + error);
+            } finally {
+              setIsLoading(false); // Hide loading indicator
             }
           },
         },
@@ -109,13 +114,17 @@ const SettingsContent = () => {
 
   return (
     <View style={styles.container}>
+      {/* Display ActivityIndicator when loading */}
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#fff" />
+        </View>
+      )}
       <View style={styles.profileSection}>
         <Text style={styles.userName}>{userRoles.name}</Text>
       </View>
-
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
-
         <TouchableOpacity
           style={styles.option}
           onPress={() => navigation.navigate("AccountInfo")}
@@ -140,7 +149,6 @@ const SettingsContent = () => {
         >
           <Text style={styles.optionText}>Change password</Text>
         </TouchableOpacity>
-
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Role</Text>
           <TouchableOpacity
@@ -164,7 +172,6 @@ const SettingsContent = () => {
             <Text style={styles.optionText}>Apply to be a servants meeting tracker</Text>
           </TouchableOpacity>
         </View>
-
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Children</Text>
           <TouchableOpacity
@@ -180,7 +187,6 @@ const SettingsContent = () => {
             <Text style={styles.optionText}>Add child</Text>
           </TouchableOpacity>
         </View>
-
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Church Adjustments</Text>
           <TouchableOpacity
@@ -200,11 +206,7 @@ const SettingsContent = () => {
       <TouchableOpacity style={styles.signOut} onPress={handleSignOut}>
         <Text style={styles.signOutText}>Log out</Text>
       </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.deleteAccount}
-        onPress={handleDeleteAccount}
-      >
+      <TouchableOpacity style={styles.deleteAccount} onPress={handleDeleteAccount}>
         <Text style={styles.deleteAccountText}>Delete Account</Text>
       </TouchableOpacity>
     </View>
@@ -218,13 +220,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 20,
   },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1,
+  },
   profileSection: {
     marginBottom: 20,
     alignItems: "center",
   },
   userName: {
     fontSize: 36,
-    fontWeight: 600,
+    fontWeight: "600",
     color: "#fff",
     textAlign: "center",
   },
