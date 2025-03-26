@@ -18,6 +18,7 @@ import messaging from "@react-native-firebase/messaging";
 import auth from "@react-native-firebase/auth";
 import * as Location from "expo-location";
 import { unavailableToServe } from "../../components/functionCalls";
+ 
 
 // Initialize Firebase
 initializeApp({
@@ -31,6 +32,7 @@ const { YourNativeModule } = NativeModules;
 const eventEmitter = YourNativeModule
   ? new NativeEventEmitter(YourNativeModule)
   : null;
+
 
 // Notification & FCM token logic for Android
 async function requestUserPermissionAndroid() {
@@ -235,6 +237,7 @@ const HomeScreen = () => {
   const [isDeacon, setIsDeacon] = useState(false);
   const [churchId, setChurchId] = useState(null); // new state for church id
 
+
   const handleUnavailebleToServe = async () => {
     const user = auth().currentUser;
     if (!user) {
@@ -280,6 +283,7 @@ const HomeScreen = () => {
     checkNotificationPermission();
     checkLocationPermission();
   }, []);
+
 
   // Real-time listener on the user document to update nextWeek, isDeacon and churchId
   useEffect(() => {

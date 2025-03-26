@@ -37,7 +37,7 @@ const Frequency = ({ route, navigation }) => {
         age: selectedAge,
       });
       await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
-      setSignUp(true);
+      setSignUp(false);
       console.log("sign Up :", signUp);
       navigation.navigate("MainContainer");
     } catch (error) {

@@ -25,10 +25,7 @@ const Choices = ({
     setSSTeach(checked);
     onSSTeachChange(checked); // Pass the checkbox state up to the parent component
   };
-  const handleServant = (checked) => {
-    setServant(checked);
-    onServantChange(checked); // Pass the checkbox state up to the parent component
-  };
+
   return (
     <View style={styles.deaconParent}>
       <Text style={[styles.deacon, styles.teacherTypo]}>Deacon</Text>
@@ -79,7 +76,6 @@ const Choices = ({
           deacon ? handleDeacon(!deacon) : deacon;
           alhan ? handleAlhan(!alhan) : alhan;
           ssTeach ? handleSSTeach(!ssTeach) : ssTeach;
-          servant ? handleServant(!servant) : servant;
         }}
         containerStyle={styles.rectangleCheckbox3Layout}
         iconType="material-community"

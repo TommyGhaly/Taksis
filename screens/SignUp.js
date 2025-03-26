@@ -25,7 +25,7 @@ const SignUp = ({ navigation }) => {
   const { signUp, setSignUp } = useUser();
 
   useEffect(() => {
-    setSignUp(false);
+    setSignUp(true);
     console.log("sign Up :", signUp);
   });
 
