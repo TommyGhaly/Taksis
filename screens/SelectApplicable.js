@@ -29,7 +29,6 @@ const SelectApplicable = ({ navigation }) => {
         isDeacon: isDeacon,
         isAlhan: isAlhan,
         isSSTeacher: isSSTeach,
-        isServant: isServant,
       });
     } catch (error) {
       console.error("Error updating user church: ", error);

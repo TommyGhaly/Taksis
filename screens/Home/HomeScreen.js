@@ -17,8 +17,8 @@ import { initializeApp } from "firebase/app";
 import messaging from "@react-native-firebase/messaging";
 import auth from "@react-native-firebase/auth";
 import * as Location from "expo-location";
-import { unavailableToServe } from "../../components/functionCalls";
- 
+import { unavailableToServe, frequencyUpdate } from "../../components/functionCalls";
+import { registerBackgroundFetchAsync } from "../../components/backgroundTasks"; // adjust path
 
 // Initialize Firebase
 initializeApp({
@@ -32,7 +32,6 @@ const { YourNativeModule } = NativeModules;
 const eventEmitter = YourNativeModule
   ? new NativeEventEmitter(YourNativeModule)
   : null;
-
 
 // Notification & FCM token logic for Android
 async function requestUserPermissionAndroid() {
@@ -137,13 +136,7 @@ async function requestLocationPermission() {
       fgStatus = status;
       console.log(`Updated foreground status: ${fgStatus}`);
     }
-    if (fgStatus !== "granted") {
-      Alert.alert(
-        "Permission Required",
-        "Location permission is required for this feature."
-      );
-      return false;
-    }
+
     console.log("Foreground location permission granted.");
 
     // Next, check for background location permission
@@ -154,13 +147,6 @@ async function requestLocationPermission() {
       bgStatus = status;
       console.log(`Updated background status: ${bgStatus}`);
     }
-    if (bgStatus !== "granted") {
-      Alert.alert(
-        "Background Permission Needed",
-        "Background location permission is required for full functionality."
-      );
-      return false;
-    }
     console.log("Background location permission granted.");
     return true;
   } catch (error) {
@@ -170,7 +156,7 @@ async function requestLocationPermission() {
 }
 
 // Get the current location and save it to Firestore for the authenticated user
-async function getCurrentLocation() {
+export async function getCurrentLocation() {
   try {
     const { status } = await Location.getForegroundPermissionsAsync();
     if (status !== "granted") {
@@ -187,6 +173,10 @@ async function getCurrentLocation() {
         console.log("No authenticated user found.");
         return;
       }
+      const user = auth().currentUser
+      await frequencyUpdate(user , 
+        "https://update-user-frequency-hy6oofbihq-uc.a.run.app"
+      )
       await firestore()
         .collection("users")
         .doc(userId)
@@ -237,14 +227,13 @@ const HomeScreen = () => {
   const [isDeacon, setIsDeacon] = useState(false);
   const [churchId, setChurchId] = useState(null); // new state for church id
 
-
   const handleUnavailebleToServe = async () => {
     const user = auth().currentUser;
     if (!user) {
       console.log("No authenticated user found.");
       return;
     }
-  
+
     Alert.alert(
       "Confirm Unavailability",
       "Are you sure you are unavailable? This action cannot be undone, and your children will be marked as unavailable too.",
@@ -253,7 +242,10 @@ const HomeScreen = () => {
         {
           text: "Confirm",
           onPress: async () => {
-            const userDoc = await firestore().collection("users").doc(user.uid).get();
+            const userDoc = await firestore()
+              .collection("users")
+              .doc(user.uid)
+              .get();
             if (!userDoc.exists) {
               console.log("User not found.");
               return;
@@ -264,7 +256,7 @@ const HomeScreen = () => {
               user,
               churchIdFromDoc,
               nextWeek,
-              true, 
+              true,
               "https://unavailable-for-week-hy6oofbihq-uc.a.run.app"
             );
             Alert.alert(
@@ -276,14 +268,22 @@ const HomeScreen = () => {
       ]
     );
   };
-  
 
   // Check notification and location permissions on mount
   useEffect(() => {
     checkNotificationPermission();
     checkLocationPermission();
+    const now = new Date()
+    if (now.getDay() === 0 && now.getHours() === 9) {
+      getCurrentLocation()
+    }
+    // Register background task for Sunday at 9 AM
+    registerBackgroundFetchAsync()
+      .then(() => console.log("Background fetch task registered"))
+      .catch((err) =>
+        console.error("Failed to register background fetch task:", err)
+      );
   }, []);
-
 
   // Real-time listener on the user document to update nextWeek, isDeacon and churchId
   useEffect(() => {
@@ -323,7 +323,7 @@ const HomeScreen = () => {
       console.log("No church selected. Waiting for churchId...");
       return;
     }
-    
+
     const schedulesRef = firestore()
       .collection("churches")
       .doc(churchId)
@@ -332,16 +332,22 @@ const HomeScreen = () => {
     const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
       let closestSchedule = null;
       let closestDate = null;
-      let chosenDocId = ""; 
+      let chosenDocId = "";
       const today = new Date().setHours(0, 0, 0, 0); // Normalize today's date
 
       snapshot.docs.forEach((doc) => {
         const scheduleData = doc.data();
         const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
         const [month, day, year] = scheduleDateStr.split("-").map(Number);
-        const scheduleDate = new Date(2000 + year, month - 1, day).setHours(0, 0, 0, 0); // Normalize schedule date
+        const scheduleDate = new Date(2000 + year, month - 1, day).setHours(
+          0,
+          0,
+          0,
+          0
+        ); // Normalize schedule date
 
-        if (scheduleDate >= today) { // Include today as valid
+        if (scheduleDate >= today) {
+          // Include today as valid
           if (!closestDate || scheduleDate < closestDate) {
             closestDate = scheduleDate;
             closestSchedule = scheduleData;
@@ -375,7 +381,10 @@ const HomeScreen = () => {
         }
 
         const altarServers = [];
-        if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
+        if (
+          updatedSchedule.water &&
+          typeof updatedSchedule.water === "object"
+        ) {
           altarServers.push(updatedSchedule.water);
         }
         if (updatedSchedule.wine && typeof updatedSchedule.wine === "object") {
