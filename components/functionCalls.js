@@ -45,7 +45,7 @@ export const callDeleteUser = async (user, church, uid, url) => {
     return null; // Return null in case of failure
   }
 };
-export const testFunction = async (user, url) => {
+export const frequencyUpdate = async (user, url) => {
   try {
     // Ensure the user is logged in and get the Firebase ID token
     const idToken = await user.getIdToken(); // Use the user object to get the token
@@ -202,7 +202,7 @@ export const checkClasses = async (user, url) => {
 export const removeFamilySchedule = async (user, church, url) => {
   try {
     console.log("Before getIdToken");
-    const idToken = await user.getIdToken();  // Make sure user is still the full user object here.
+    const idToken = await user.getIdToken(); // Make sure user is still the full user object here.
     console.log("ID Token acquired", idToken);
 
     const payload = {

@@ -2,6 +2,7 @@ from typing import Any, List, Dict
 import random
 import uuid
 import asyncio
+import math
 from firebase_functions import https_fn, scheduler_fn, firestore_fn
 from firebase_admin import initialize_app, firestore, credentials, auth
 import google.cloud.firestore
@@ -387,7 +388,10 @@ async def create_schedule(deacons, church_ref, num_altar_servers):
                 for item in schedule[9 : 9 + num_altar_servers]
             ]
             if len(schedule) > 7
-            else [{"name": "N/A", "uid": str(uuid.uuid4())} for _ in range(num_altar_servers)]
+            else [
+                {"name": "N/A", "uid": str(uuid.uuid4())}
+                for _ in range(num_altar_servers)
+            ]
         ),
     }
 
@@ -689,7 +693,6 @@ def remove_user_from_schedules(church, uid, alhan_class, sunday_school_class, fa
     if user_ref.get().exists:
         user_data = user_ref.get().to_dict()
 
-
         if family:
             user_data["isServant"] = False
             user_ref.update(user_data)
@@ -698,7 +701,7 @@ def remove_user_from_schedules(church, uid, alhan_class, sunday_school_class, fa
     for week in get_weeks(church):
         mock_request = Request.from_values(
             headers={"Authorization": ""},
-            json={"church": church, "week": week, "uid": uid, "family": family}
+            json={"church": church, "week": week, "uid": uid, "family": family},
         )
         print(f"week: {week} church: {church} uid: {uid} family: {family}")
         unavailable_for_week(mock_request)
@@ -735,7 +738,6 @@ def remove_user_from_schedules(church, uid, alhan_class, sunday_school_class, fa
 
     # Simulate an internal request to call check_classes
     mock_request = Request.from_values(headers={"Authorization": ""})
-
 
     check_classes(mock_request)
     return
@@ -803,20 +805,74 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
     return https_fn.Response("User update completed successfully", status=200)
 
 
-@scheduler_fn.on_schedule(
-    schedule="0 9 * * 0",  # Every Sunday at 9:00 AM
-    timezone=scheduler_fn.Timezone("America/New_York"),
-)
-def locate_for_liturgy(event: scheduler_fn.ScheduledEvent):
-    pass
+@https_fn.on_request()
+def update_user_frequency(req: https_fn.Request) -> https_fn.Response:
+    id_token = req.headers.get("Authorization")
+    if id_token:
+        try:
+            decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
+            # You can now use decoded_token to get user details if needed
+        except Exception as e:
+            return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+    firestore_client = firestore.Client()
+    users_docs = firestore_client.collection("users").stream()
+    for user in users_docs:
+        user_data = user.reference.get().to_dict()
+        church_ref = firestore_client.collection("churches").document(
+            user_data["church"]
+        )
+        church_data = church_ref.get().to_dict()
+        frequency = user_data["frequency"]
+        church_location = church_data["location"]
+        user_location = user_data["location"]
+        if not user_location:
+            return https_fn.Response(f"No location found for user", status=500)
+        if at_church(user_location, church_location):
+            frequency *= 1.1
+            if frequency > 10:
+                frequency = 10
+        else:
+            frequency *= 0.9
+            if frequency < 0.1:
+                frequency = 0.5
+
+        user_data["frequency"] = frequency
+        user.reference.update(user_data)
+        mock_request = Request.from_values(
+            headers={"Authorization": ""},
+            json={"uid": user_data["uid"]},
+        )
+        sync_child_params(mock_request)
+        update_user(mock_request)
+    return https_fn.Response(
+         f"Successfully updated user' frequency and synced with chidlren", status=200
+    )
 
 
-def update_user_frequency(uid):
-    pass
+def at_church(user_location, church_location):
+    return (haversine_formula(user_location, church_location)) < 6000
 
 
-def notify_new_servant(uid):
-    pass
+def haversine_formula(user, church):
+    user_lat = math.radians(user["latitude"])
+    user_long = math.radians(user["longitude"])
+    church_lat = math.radians(church[0])
+    church_long = math.radians(church[1])
+    lat_dif = user_lat - church_lat
+    long_dif = user_long - church_long
+
+    # Haversine formula components
+    a = (
+        math.sin(lat_dif / 2) ** 2
+        + math.cos(church_lat) * math.cos(user_lat) * math.sin(long_dif / 2) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    # Earth radius in feet (approximately 20,902,260 feet)
+    R_feet = 20902260
+    distance_feet = R_feet * c
+    print(distance_feet)
+    return distance_feet
 
 
 # call this function with the parameter of the uid update the children then call update user on the original user
@@ -892,7 +948,7 @@ def delete_child(req: https_fn.Request) -> https_fn.Response:
     for week in get_weeks(church_id):
         mock_request = Request.from_values(
             headers={"Authorization": ""},
-            json={"church": church_id, "week": week, "uid": user_id, "family": False}
+            json={"church": church_id, "week": week, "uid": user_id, "family": False},
         )
         unavailable_for_week(mock_request)
 
@@ -931,7 +987,7 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
 
         if "children" in user_data:
             for child in user_data["children"]:
-                print(f'child: {child}')
+                print(f"child: {child}")
                 remove_user_from_churches(child.get("uid"))
         remove_user_from_churches(user_id)
     return https_fn.Response("user and children deleted", status=200)
@@ -1517,7 +1573,7 @@ def remove_family_schedules(req: https_fn.Request) -> https_fn.Response:
     # Extract required parameters
     church_id = request_data.get("church")
     user_id = request_data.get("uid")
-    print(f'user_id: {user_id} church_id: {church_id}')
+    print(f"user_id: {user_id} church_id: {church_id}")
     if not all([church_id, user_id]):
         return https_fn.Response("Missing required parameters", status=400)
 
@@ -1531,7 +1587,7 @@ def remove_family_schedules(req: https_fn.Request) -> https_fn.Response:
     firestore_client = firestore.Client()
     user_ref = firestore_client.collection("users").document(user_id)
     user_data = user_ref.get().to_dict()
-    print(f'user Data : {user_data}')
+    print(f"user Data : {user_data}")
     alhan = "N/A"
     sunday_school = "N/A"
     if user_data["frequency"]:
@@ -1547,9 +1603,8 @@ def remove_family_schedules(req: https_fn.Request) -> https_fn.Response:
     return https_fn.Response("Family schedules removed", status=200)
 
 
-
 @https_fn.on_request()
-def create_test_data (req: https_fn.Request) -> https_fn.Response:
+def create_test_data(req: https_fn.Request) -> https_fn.Response:
     firestore_client = firestore.Client()
     church_ref = firestore_client.collection("churches").document("Test Data")
     test_data = generate_test_data(150)
