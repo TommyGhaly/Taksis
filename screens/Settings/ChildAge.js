@@ -53,9 +53,11 @@ const ChildAge = ({ route, navigation }) => {
           // If the child doesn't exist, add the updated child data as a new entry
           userData.children.push(updatedChildData);
         }
+        console.log(userData.children)
         console.log(updatedChildData)
         // Update the user's document with the new children array
         await userDocRef.update({ children: userData.children });
+        console.log(userData)
         await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
         console.log("Children updated successfully");
   

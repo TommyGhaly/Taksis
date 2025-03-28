@@ -22,7 +22,7 @@ const Stack = createNativeStackNavigator();
 
 function AppNavigator() {
   const { user, setUser, signUp, setSignUp } = useUser();
-  const [initializing, setInitializing] = useState(true);
+  const [initializing, setInitializing] = useState();
 
   useEffect(() => {
     if (!user) {

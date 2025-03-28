@@ -102,6 +102,7 @@ const SignUp = ({ navigation }) => {
   };
 
   const onGoogleButtonPress = async () => {
+    setSignUp(true)
     try {
       await GoogleSignin.hasPlayServices({
         showPlayServicesUpdateDialog: true,
