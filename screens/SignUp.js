@@ -76,13 +76,13 @@ const SignUp = ({ navigation }) => {
     }
   };
 
-  const writeUserToDb = async (user, fullName) => {
+  const writeUserToDb = async (user, fullName, authCode) => {
     try {
       const userRef = firestore().collection("users").doc(user.uid);
       const userDoc = await userRef.get();
 
       if (!userDoc.exists) {
-        await userRef.set({
+        const userData = {
           uid: user.uid,
           name: fullName || "", // Store name if available
           email: user.email,
@@ -90,14 +90,24 @@ const SignUp = ({ navigation }) => {
           rank: "Chanter (Epsaltos)",
           experience: "1",
           alhanSetUp: false,
-          ssSetUp: false, 
+          ssSetUp: false,
           alhanGrades: null,
           ssGrades: null,
-          nextWeekServe: "N/A"
-        });
+          nextWeekServe: "N/A",
+          isServant: false,
+        };
+  
+        // Only add authCode if it's provided
+        if (authCode) {
+          userData.authCode = authCode;
+        }
+  
+        // Store the user data in Firestore
+        await userRef.set(userData);
       }
+  
     } catch (error) {
-      console.error("Error handling Firestore operations: ", error);
+      console.error("Error writing user to database:", error);
     }
   };
 
@@ -146,6 +156,9 @@ const SignUp = ({ navigation }) => {
         ],
         nonce: hashedNonce,
       });
+      
+      const authorizationCode = appleAuthResponse.authorizationCode;
+
 
       if (!appleAuthRequestResponse.identityToken) {
         throw new Error("Apple Sign-In failed - No identity token received.");
@@ -167,7 +180,7 @@ const SignUp = ({ navigation }) => {
       // Format the full name as "First Name Last Name"
       const formattedFullName = `${fullName.givenName} ${fullName.familyName}`;
 
-      writeUserToDb(userCredential.user, formattedFullName);
+      writeUserToDb(userCredential.user, formattedFullName, authorizationCode);
 
     } catch (error) {
       console.error("Apple Sign-In Error:", error);

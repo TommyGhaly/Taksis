@@ -4,9 +4,10 @@ import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator } fr
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import * as AppleAuthentication from 'expo-apple-authentication';
 import { UserProvider, useUser } from "../UserContext";
 import { callFunction, removeFamilySchedule } from "./functionCalls";
+import axios from "axios";
+import jwt from "react-native-jtw";
 
 const SettingsContent = () => {
   const { signUp, setSignUp } = useUser(true);
@@ -14,8 +15,69 @@ const SettingsContent = () => {
   const [userRoles, setUserRoles] = useState({
     name: "",
   });
+  const [authorizationCode, setAuthCode] = useState()
   const [isLoading, setIsLoading] = useState(false); // New state variable for loading
 
+  const exchangeAuthorizationCodeForTokens = async (authorizationCode) => {
+    const response = await axios.post("https://appleid.apple.com/auth/token", new URLSearchParams({
+      client_id: "com.tghaly.taksis", 
+      client_secret: generateAppleClientSecret(), 
+      code: authorizationCode, 
+      grant_type: "authorization_code",
+    }));
+  
+    return response.data.refresh_token;  // Store this refresh token for later revocation
+  };
+
+  // Step 1: Generate Apple Client Secret
+  const generateAppleClientSecret = () => {
+    const teamId = "5ZRM8X66TN";
+    const keyId = "QX99A479H4";
+    const clientId = "com.tghaly.taksis";
+    const privateKey = process.env.APPLE_PRIVATE_KEY; // Keep this secret
+
+    return jwt.sign({}, privateKey, {
+      algorithm: "ES256",
+      expiresIn: "180d",
+      audience: "https://appleid.apple.com",
+      issuer: teamId,
+      subject: clientId,
+      header: {
+        alg: "ES256",
+        kid: keyId,
+      },
+    });
+  };
+
+  // Step 2: Revoke Apple Refresh Token
+  const revokeAppleToken = async (refreshToken) => {
+    if (!refreshToken) {
+      throw new Error("Refresh token is required.");
+    }
+
+    try {
+      const clientSecret = generateAppleClientSecret();
+
+      const response = await axios.post(
+        "https://appleid.apple.com/auth/revoke",
+        new URLSearchParams({
+          client_id: "com.tghaly.taksis",
+          client_secret: clientSecret,
+          token: refreshToken,
+          token_type_hint: "refresh_token",
+        }),
+        {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+        }
+      );
+
+      console.log("Apple token revoked successfully:", response.data);
+    } catch (error) {
+      console.error("Error revoking Apple token:", error);
+    }
+  };
   useEffect(() => {
     const user = auth().currentUser;
     if (user) {
@@ -26,7 +88,10 @@ const SettingsContent = () => {
           (doc) => {
             if (doc.exists) {
               setUserRoles(doc.data());
-            }
+              if (userRoles.authCode) {
+                setAuthCode(userRoles.authCode)
+              };
+            };
           },
           (error) => {
             console.error("Error fetching user roles: ", error);
@@ -36,30 +101,7 @@ const SettingsContent = () => {
     }
   }, []);
 
-  const revokeSignInWithAppleToken = async () => {
-    try {
-      const user = auth().currentUser;
-  
-      // Ensure the user is logged in and is an Apple Sign-In account
-      const isAppleAccount = user?.providerData.some(
-        (provider) => provider.providerId === "apple.com"
-      );
-  
-      if (!isAppleAccount) {
-        console.log("User is not signed in with Apple. Skipping revocation.");
-        return;
-      }
-  
-      // Clear Apple sign-in session (if supported)
-      if (await AppleAuthentication.isAvailableAsync()) {
-        await AppleAuthentication.signOutAsync();
-        console.log("Apple sign-in session revoked.");
-      }
-    } catch (error) {
-      console.error("Error revoking Apple token:", error);
-      throw new Error("Apple revocation failed.");
-    }
-  };
+
 
   const wait = (time) => new Promise((resolve) => setTimeout(resolve, time * 1000));
 
@@ -94,12 +136,15 @@ const SettingsContent = () => {
                 await callFunction(user, "https://delete-user-hy6oofbihq-uc.a.run.app");
                 setSignUp(false);
                 await wait(2);
-                await revokeSignInWithAppleToken();
                 Alert.alert("Success", "Your account has been deleted.");
               }
               await wait(2);
               await firestore().collection("users").doc(user.uid).delete();
               await wait(2);
+              if(authorizationCode){
+                const refreshToken = await exchangeAuthorizationCodeForTokens(authorizationCode);  // Get refresh token
+                await revokeAppleToken(refreshToken);
+              };
               await user.delete();
             } catch (error) {
               Alert.alert("Error", "Failed to delete the account. Please try again." + error);
