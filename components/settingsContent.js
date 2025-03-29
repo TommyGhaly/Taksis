@@ -1,40 +1,41 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import { UserProvider, useUser } from "../UserContext";
+import { useUser } from "../UserContext";
 import { callFunction, removeFamilySchedule } from "./functionCalls";
 import axios from "axios";
-import jwt from "react-native-jtw";
+import Config from "react-native-config"; // Using react-native-config
 
 const SettingsContent = () => {
   const { signUp, setSignUp } = useUser(true);
   const navigation = useNavigation();
-  const [userRoles, setUserRoles] = useState({
-    name: "",
-  });
-  const [authorizationCode, setAuthCode] = useState()
-  const [isLoading, setIsLoading] = useState(false); // New state variable for loading
+  const [userRoles, setUserRoles] = useState({ name: "" });
+  const [authorizationCode, setAuthCode] = useState();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const exchangeAuthorizationCodeForTokens = async (authorizationCode) => {
-    const response = await axios.post("https://appleid.apple.com/auth/token", new URLSearchParams({
-      client_id: "com.tghaly.taksis", 
-      client_secret: generateAppleClientSecret(), 
-      code: authorizationCode, 
-      grant_type: "authorization_code",
-    }));
-  
-    return response.data.refresh_token;  // Store this refresh token for later revocation
-  };
-
-  // Step 1: Generate Apple Client Secret
-  const generateAppleClientSecret = () => {
+  // Generate Apple Client Secret only if a private key exists
+  const generateAppleClientSecret = async () => {
+    if (!Config.APPLE_PRIVATE_KEY) {
+      // Skip Apple logic if private key is not provided
+      return null;
+    }
+    // Dynamically import react-native-jwt only when needed
+    const jwt = (await import("react-native-jwt")).default;
+    
     const teamId = "5ZRM8X66TN";
     const keyId = "QX99A479H4";
     const clientId = "com.tghaly.taksis";
-    const privateKey = process.env.APPLE_PRIVATE_KEY; // Keep this secret
+    const privateKey = Config.APPLE_PRIVATE_KEY;
 
     return jwt.sign({}, privateKey, {
       algorithm: "ES256",
@@ -49,15 +50,37 @@ const SettingsContent = () => {
     });
   };
 
-  // Step 2: Revoke Apple Refresh Token
+  // Exchange the authorization code for tokens only if a private key exists
+  const exchangeAuthorizationCodeForTokens = async (authorizationCode) => {
+    const clientSecret = await generateAppleClientSecret();
+    if (!clientSecret) {
+      // Skip Apple token exchange if no private key
+      return null;
+    }
+    const response = await axios.post(
+      "https://appleid.apple.com/auth/token",
+      new URLSearchParams({
+        client_id: "com.tghaly.taksis",
+        client_secret: clientSecret,
+        code: authorizationCode,
+        grant_type: "authorization_code",
+      })
+    );
+
+    return response.data.refresh_token; // Return the refresh token for later use
+  };
+
+  // Revoke the Apple refresh token only if a private key exists
   const revokeAppleToken = async (refreshToken) => {
     if (!refreshToken) {
-      throw new Error("Refresh token is required.");
+      return;
     }
-
+    const clientSecret = await generateAppleClientSecret();
+    if (!clientSecret) {
+      // Skip revocation if no private key
+      return;
+    }
     try {
-      const clientSecret = generateAppleClientSecret();
-
       const response = await axios.post(
         "https://appleid.apple.com/auth/revoke",
         new URLSearchParams({
@@ -72,12 +95,12 @@ const SettingsContent = () => {
           },
         }
       );
-
       console.log("Apple token revoked successfully:", response.data);
     } catch (error) {
       console.error("Error revoking Apple token:", error);
     }
   };
+
   useEffect(() => {
     const user = auth().currentUser;
     if (user) {
@@ -87,11 +110,12 @@ const SettingsContent = () => {
         .onSnapshot(
           (doc) => {
             if (doc.exists) {
-              setUserRoles(doc.data());
-              if (userRoles.authCode) {
-                setAuthCode(userRoles.authCode)
-              };
-            };
+              const data = doc.data();
+              setUserRoles(data);
+              if (data.authCode) {
+                setAuthCode(data.authCode);
+              }
+            }
           },
           (error) => {
             console.error("Error fetching user roles: ", error);
@@ -101,9 +125,8 @@ const SettingsContent = () => {
     }
   }, []);
 
-
-
-  const wait = (time) => new Promise((resolve) => setTimeout(resolve, time * 1000));
+  const wait = (time) =>
+    new Promise((resolve) => setTimeout(resolve, time * 1000));
 
   const handleSignOut = () => {
     setSignUp(false);
@@ -124,7 +147,7 @@ const SettingsContent = () => {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            setIsLoading(true); // Show loading indicator
+            setIsLoading(true);
             try {
               const user = auth().currentUser;
               if (user) {
@@ -132,8 +155,11 @@ const SettingsContent = () => {
                   user,
                   userRoles.church,
                   "https://remove-family-schedules-hy6oofbihq-uc.a.run.app"
-                ); 
-                await callFunction(user, "https://delete-user-hy6oofbihq-uc.a.run.app");
+                );
+                await callFunction(
+                  user,
+                  "https://delete-user-hy6oofbihq-uc.a.run.app"
+                );
                 setSignUp(false);
                 await wait(2);
                 Alert.alert("Success", "Your account has been deleted.");
@@ -141,15 +167,23 @@ const SettingsContent = () => {
               await wait(2);
               await firestore().collection("users").doc(user.uid).delete();
               await wait(2);
-              if(authorizationCode){
-                const refreshToken = await exchangeAuthorizationCodeForTokens(authorizationCode);  // Get refresh token
-                await revokeAppleToken(refreshToken);
-              };
+              // Run Apple logic only if both authorizationCode and private key exist
+              if (authorizationCode && Config.APPLE_PRIVATE_KEY) {
+                const refreshToken = await exchangeAuthorizationCodeForTokens(
+                  authorizationCode
+                );
+                if (refreshToken) {
+                  await revokeAppleToken(refreshToken);
+                }
+              }
               await user.delete();
             } catch (error) {
-              Alert.alert("Error", "Failed to delete the account. Please try again." + error);
+              Alert.alert(
+                "Error",
+                "Failed to delete the account. Please try again. " + error
+              );
             } finally {
-              setIsLoading(false); // Hide loading indicator
+              setIsLoading(false);
             }
           },
         },
@@ -159,7 +193,6 @@ const SettingsContent = () => {
 
   return (
     <View style={styles.container}>
-      {/* Display ActivityIndicator when loading */}
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#fff" />
@@ -214,7 +247,9 @@ const SettingsContent = () => {
             style={styles.option}
             onPress={() => navigation.navigate("RequestServants")}
           >
-            <Text style={styles.optionText}>Apply to be a servants meeting tracker</Text>
+            <Text style={styles.optionText}>
+              Apply to be a servants meeting tracker
+            </Text>
           </TouchableOpacity>
         </View>
         <View style={styles.section}>
@@ -251,7 +286,10 @@ const SettingsContent = () => {
       <TouchableOpacity style={styles.signOut} onPress={handleSignOut}>
         <Text style={styles.signOutText}>Log out</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.deleteAccount} onPress={handleDeleteAccount}>
+      <TouchableOpacity
+        style={styles.deleteAccount}
+        onPress={handleDeleteAccount}
+      >
         <Text style={styles.deleteAccountText}>Delete Account</Text>
       </TouchableOpacity>
     </View>
