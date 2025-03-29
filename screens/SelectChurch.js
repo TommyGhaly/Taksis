@@ -8,165 +8,129 @@ import ProgressBar from "../components/progressBar";
 const SelectChurch = ({ navigation }) => {
   const [selectedChurch, setSelectedChurch] = useState(null);
   const user = auth().currentUser;
+
   const handleChurchSelection = (church) => {
     setSelectedChurch(church);
   };
-  
-  const handleContinue = async (user) => {
-    // Check if selectedChurch is null
+
+  const handleContinue = async () => {
     if (!selectedChurch) {
       Alert.alert("Selection Required", "Please select a church before proceeding.");
-      return; // Exit the function if no church is selected
+      return;
     }
-  
+
     try {
-      // Proceed with updating the user's church information
       await firestore().collection("users").doc(user.uid).update({
         church: selectedChurch,
       });
-  
-      // Navigate to the next screen
       navigation.navigate("SelectApplicable");
     } catch (error) {
       console.error("Error updating user church: ", error);
-      Alert.alert(
-        "Error",
-        "Could not update church information. Please try again.",
-        [{ text: "OK" }],
-        { cancelable: false }
-      );
+      Alert.alert("Error", "Could not update church information. Please try again.");
     }
   };
-  
 
   return (
-    <View style={styles.loadout}>
-      <View style={styles.title}>
-        <Text style={styles.titleText}>
-          Select the church you regularly attend
-        </Text>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.progressBar}>
+          <ProgressBar startPercentage={1} endPercentage={20} />
+        </View>
+        <Text style={styles.titleText}>Select Your Church</Text>
       </View>
-      <View style={styles.position}>
+
+      <View style={styles.content}>
         <Churches onSelectChurch={handleChurchSelection} />
       </View>
-      <Pressable
-        onPress={() => handleContinue(user)}
-        style={styles.continueLayout}
-      >
-        <Text style={styles.continuetext}>Continue</Text>
-      </Pressable>
-      <View
-        style={[styles.dontSeeYourChurchRegiste, styles.dontSeeYourContainer]}
-      >
+
+      <View style={styles.footer}>
+        <Pressable style={styles.continueButton} onPress={handleContinue}>
+          <Text style={styles.continueText}>Continue</Text>
+        </Pressable>
         <Pressable
-          onPress={() => {
-            navigation.navigate("ChurchRegistration");
-          }}
+          style={styles.churchRegisterLink}
+          onPress={() => navigation.navigate("ChurchRegistration")}
         >
-          <Text style={styles.text}>
-            <Text style={styles.dontSeeYour}>{`Don’t see your church? `}</Text>
-            <Text style={styles.registerIt}>Register it</Text>
+          <Text style={styles.linkText}>
+            <Text style={styles.linkPrefix}>Church not listed? </Text>
+            <Text style={styles.linkAction}>Register it</Text>
           </Text>
         </Pressable>
-      </View>
-      <View style={styles.progressBar}>
-        <ProgressBar startPercentage={1} endPercentage={20} />
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-
-  position: {
-    top: "27.230%",
-    height: 450,
-    left: "2.223%",
-    right: "2.223%",
-    position: "absolute",
-  },
-  loadout: {
-    width: "100%",
-    height: "100%",
+  container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#121212", // Deep charcoal gray
+    paddingHorizontal: 16,
+    paddingTop: 120,
+    paddingBottom: 40
   },
-  dontSeeYour: {
-    color: "#8e8e93",
-  },
-  registerIt: {
-    color: "#6e85e3",
-  },
-  text: {
-    fontSize: 15,
-    letterSpacing: -0.1,
-    fontFamily: "Roboto-Regular",
-    textAlign: "center",
-  },
-  dontSeeYourContainer: {
-    position: "absolute",
-    left: 0,
-    marginTop: 805,
-  },
-  dontSeeYourChurchRegiste: {
-    width: "100%",
-    height: "2.112%",
-  },
-  title: {
-    top: 100,
-    left: 16,
-    height: "6.103%",
-    width: "88.295%",
-    flex: 1,
-  },
-  titleText: {
-    fontSize: 34,
-    letterSpacing: -0.1,
-    fontFamily: "Roboto-Regular",
-    textAlign: "left",
-    color: "#8e8e93",
+  header: {
+    marginBottom: 32,
   },
   progressBar: {
-    top: 84,
-    right: "12.2137%",
-    bottom: "88.26%",
-    left: "12.2137%",
-    position: "absolute",
+    height: 6,
+    marginBottom: 12, // Lowered from 24 to bring it closer to the title
+    backgroundColor: "#2A2A2A", // Darker track for contrast
+    borderRadius: 3,
   },
-  filled: {
-    position: "absolute",
-    marginTop: -2,
-    width: "22.43%",
-    top: "50%",
-    right: "77.57%",
-    left: "0%",
-    borderRadius: 100,
-    backgroundColor: "#147efb",
-    height: 4,
+  titleText: {
+    fontSize: 36,
+    letterSpacing: -0.5,
+    fontFamily: "Roboto-Regular",
+    fontWeight: "600",
+    color: "#E0E0E0", // Light gray for readability
+    lineHeight: 42,
+    maxWidth: "90%",
+    marginTop: 30
   },
-  track: {
-    backgroundColor: "rgba(120, 120, 128, 0.32)",
-    width: "100%",
-    height: 4,
+  content: {
+    flex: 1,
+    marginBottom: 24,
   },
-  continueLayout: {
-    position: "absolute",
-    bottom: 80,
-    alignSelf: "center",
-    height: 50,
-    width: 358,
-    backgroundColor: "#333",
-    borderRadius: 10,
-    justifyContent: "center",
+  footer: {
+    paddingBottom: 32,
     alignItems: "center",
   },
-  continuetext: {
-    fontSize: 17,
+  continueButton: {
+    height: 52,
+    width: "100%",
+    backgroundColor: "#147EFB", // Vibrant, slightly deeper blue
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  continueText: {
+    fontSize: 18,
     letterSpacing: -0.2,
-    fontWeight: "500",
+    fontWeight: "600",
     fontFamily: "Roboto-Medium",
-    color: "#fff",
-    textAlign: "center",
+    color: "#FFF",
+  },
+  churchRegisterLink: {
+    alignSelf: "center",
+  },
+  linkText: {
+    fontSize: 16,
+    letterSpacing: -0.1,
+    fontFamily: "Roboto-Regular",
+  },
+  linkPrefix: {
+    color: "#B0BEC5", // Muted gray-blue for contrast
+  },
+  linkAction: {
+    color: "#147EFB", // Matches blue accent
+    fontWeight: "500",
   },
 });
 

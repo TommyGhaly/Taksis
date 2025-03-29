@@ -1,141 +1,119 @@
-import * as React from "react";
-import { useState } from "react";
-import {
-  StyleSheet,
-  View,
-  Pressable,
-  Text,
-  TouchableOpacity,
-} from "react-native";
-import Rank from "../components/rank";
-import BackArrow from "../components/backArrow";
+import React, { useState } from "react";
+import { StyleSheet, View, Pressable, Text, Alert } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import Rank from "../components/rank";
+import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
 
 const DeaconRank = ({ navigation }) => {
   const [rank, setRank] = useState(null);
   const user = auth().currentUser;
+
   const handleRank = (selectedRank) => {
     setRank(selectedRank);
   };
-  const handleContinue = async (user) => {
+
+  const handleContinue = async () => {
+    if (!rank) {
+      Alert.alert("Selection Required", "Please select a rank before proceeding.");
+      return;
+    }
+
     try {
       await firestore().collection("users").doc(user.uid).update({
         rank: rank,
       });
-
-      // Navigate to the next screen or show a success message
       navigation.navigate("Experience");
     } catch (error) {
       console.error("Error updating user deacon: ", error);
-      Alert.alert(
-        "Error",
-        "Could not update deacon information. Please try again."
-      );
+      Alert.alert("Error", "Could not update deacon information. Please try again.");
     }
   };
+
   return (
-    <View style={styles.deaconrank}>
-      <View style={styles.backarrow}>
-        <BackArrow />
-      </View>
-      <View style={styles.rank}>
-        <Rank style={styles.rank} onSelectRank={handleRank} />
-      </View>
-      <View style={styles.title}>
-        <Text style={styles.titleText}>What rank of deacon are you?</Text>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.backArrow}>
+          <BackArrow />
+        </View>
+        <View style={styles.progressBar}>
+          <ProgressBar startPercentage={40} endPercentage={60} />
+        </View>
+        <Text style={styles.titleText}>What Rank of Deacon Are You?</Text>
       </View>
 
-      <Pressable
-        onPress={() => handleContinue(user)}
-        style={styles.continueLayout}
-      >
-        <Text style={styles.continuetext}>Continue</Text>
-      </Pressable>
-      <View style={styles.progressBar}>
-        <ProgressBar startPercentage={40} endPercentage={60} />
+      <View style={styles.content}>
+        <Rank onSelectRank={handleRank} />
+      </View>
+
+      <View style={styles.footer}>
+        <Pressable style={styles.continueButton} onPress={handleContinue}>
+          <Text style={styles.continueText}>Continue</Text>
+        </Pressable>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  backarrow: {
-    top: 74,
-    left: 16,
+  container: {
+    flex: 1,
+    backgroundColor: "#121212",
+    paddingHorizontal: 16,
+    paddingTop: 80, // Matches SelectChurch
+    paddingBottom: 40, // Matches SelectChurch
   },
-  continueLayout: {
-    position: "absolute",
-    bottom: 80,
-    alignSelf: "center",
-    height: 50,
-    width: 358,
-    backgroundColor: "#333",
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
+  header: {
+    marginBottom: 32, // Matches SelectChurch
   },
-  continuetext: {
-    fontSize: 17,
-    letterSpacing: -0.2,
-    fontWeight: "500",
-    fontFamily: "Roboto-Medium",
-    color: "#fff",
-    textAlign: "center",
+  backArrow: {
+    marginBottom: 16, // Matches SelectApplicable
   },
   progressBar: {
-    top: 84,
-    right: "12.2137%",
-    bottom: "88.26%",
-    left: "12.2137%",
-    position: "absolute",
-    backgroundColor: "#000",
-  },
-  filled: {
-    position: "absolute",
-    marginTop: -2,
-    width: "59.3%",
-    top: "50%",
-    right: "40.7%",
-    left: "0%",
-    borderRadius: 100,
-    backgroundColor: "#147efb",
-    height: 4,
-  },
-  track: {
-    backgroundColor: "rgba(120, 120, 128, 0.32)",
+    height: 6,
     width: "100%",
-    height: 4,
-  },
-  rank: {
-    top: "28.5164%",
-    left: "9.9236%",
-    height: "45.529%",
-    width: "79.898%",
-  },
-  title: {
-    top: "-30%",
-    left: "4.071%",
-    right: "4.071%",
-    width: "88.295%",
+    backgroundColor: "#2A2A2A",
+    borderRadius: 3,
+    marginBottom: 12, // Matches SelectChurch
   },
   titleText: {
-    fontSize: 34,
-    letterSpacing: -0.1,
+    fontSize: 36,
+    letterSpacing: -0.5,
     fontFamily: "Roboto-Regular",
-    color: "#8e8e93",
+    fontWeight: "600",
+    color: "#E0E0E0",
+    lineHeight: 42,
+    marginTop: 30, // Matches SelectChurch
   },
-  continue: {
-    top: "27%",
-    left: "4.071%",
-  },
-  deaconrank: {
+  content: {
     flex: 1,
-    height: "100%",
-    overflow: "hidden",
+    marginBottom: 24, // Matches SelectChurch
+  },
+  footer: {
+    paddingBottom: 32, // Matches SelectChurch
+    alignItems: "center",
+  },
+  continueButton: {
+    height: 52,
     width: "100%",
-    backgroundColor: "#000",
+    backgroundColor: "#147EFB",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 35, // Matches SelectChurch
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  continueText: {
+    fontSize: 18,
+    letterSpacing: -0.2,
+    fontWeight: "600",
+    fontFamily: "Roboto-Medium",
+    color: "#FFF",
   },
 });
 

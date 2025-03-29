@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Text, Pressable } from "react-native";
+import { StyleSheet, View, Text, Pressable, Alert } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import Choices from "../components/choices";
@@ -22,130 +22,113 @@ const SelectApplicable = ({ navigation }) => {
     setIsSSTeach(checked);
   };
 
-
-  const handleContinue = async (user) => {
+  const handleContinue = async () => {
     try {
       await firestore().collection("users").doc(user.uid).update({
         isDeacon: isDeacon,
         isAlhan: isAlhan,
         isSSTeacher: isSSTeach,
+        isServant: false,
       });
-    } catch (error) {
-      console.error("Error updating user church: ", error);
-      Alert.alert(
-        "Error",
-        "Could not update church information. Please try again."
-      );
-    }
 
-    if (isDeacon) {
-      navigation.navigate("DeaconRank"); // Navigate to rank.js
-    } else {
-      navigation.navigate("Frequency", { from: "SelectApplicable" });
+      if (isDeacon) {
+        navigation.navigate("DeaconRank");
+      } else {
+        navigation.navigate("Frequency", { from: "SelectApplicable" });
+      }
+    } catch (error) {
+      console.error("Error updating user data: ", error);
+      Alert.alert("Error", "Could not update information. Please try again.");
     }
   };
 
   return (
-    <View style={styles.selectapplicable}>
-      <View style={styles.backarrow}>
-        <BackArrow />
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.backArrow}>
+          <BackArrow />
+        </View>
+        <View style={styles.progressBar}>
+          <ProgressBar startPercentage={20} endPercentage={40} />
+        </View>
+        <Text style={styles.titleText}>Select All That Apply</Text>
       </View>
-      <View style={styles.title}>
-        <Text style={styles.titleText}>Select all that apply</Text>
-      </View>
-      <View style={styles.choices}>
+
+      <View style={styles.content}>
         <Choices
           onDeaconChange={handleDeacon}
           onAlhanChange={handleAlhan}
           onSSTeachChange={handleSSTeach}
         />
       </View>
-      <Pressable
-              onPress={() => handleContinue(user)}
-              style={styles.continueLayout}
-            >
-              <Text style={styles.continuetext}>Continue</Text>
-      </Pressable>
-      <View style={styles.progressBar}>
-        <ProgressBar startPercentage={20} endPercentage={40} />
+
+      <View style={styles.footer}>
+        <Pressable style={styles.continueButton} onPress={handleContinue}>
+          <Text style={styles.continueText}>Continue</Text>
+        </Pressable>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  choices: {
-    top: 158,
-    left: 47,
+  container: {
+    flex: 1,
+    backgroundColor: "#121212",
+    paddingHorizontal: 16,
+    paddingTop: 80,
+    paddingBottom: 40, // Matches SelectChurch
   },
-  backarrow: {
-    top: 74,
-    left: 16,
+  header: {
+    marginBottom: 32,
+  },
+  backArrow: {
+    marginBottom: 16,
   },
   progressBar: {
-    top: 84,
-    right: "12.2137%",
-    bottom: "88.26%",
-    left: "12.2137%",
-    position: "absolute",
-  },
-  filled: {
-    position: "absolute",
-    marginTop: -2,
-    width: "41.01%",
-    top: "50%",
-    right: "58.99%",
-    left: "0%",
-    borderRadius: 100,
-    backgroundColor: "#147efb",
-    height: 4,
-  },
-  track: {
-    backgroundColor: "rgba(120, 120, 128, 0.32)",
+    height: 6,
     width: "100%",
-    height: 4,
-  },
-  continueButton: {
-    top: "83.568%",
-    left: "4.071%",
-  },
-  title: {
-    top: "13%",
-    left: "4.071%",
-    right: "4.071%",
-    width: "88.295%",
+    backgroundColor: "#2A2A2A",
+    borderRadius: 3,
+    marginBottom: 12,
   },
   titleText: {
-    fontSize: 34,
-    letterSpacing: -0.1,
+    fontSize: 36,
+    letterSpacing: -0.5,
     fontFamily: "Roboto-Regular",
-    color: "#8e8e93",
+    fontWeight: "600",
+    color: "#E0E0E0",
+    lineHeight: 42,
+    marginTop: 30,
   },
-  selectapplicable: {
-    flex: 1,
-    width: "100%",
-    height: "100%",
-    overflow: "hidden",
-    backgroundColor: "#000",
+  content: {
+    flex: 1, // Allow content to take available space, pushing footer down
+    marginBottom: 24,
   },
-  continueLayout: {
-    position: "absolute",
-    bottom: 80,
-    alignSelf: "center",
-    height: 50,
-    width: 358,
-    backgroundColor: "#333",
-    borderRadius: 10,
-    justifyContent: "center",
+  footer: {
+    paddingBottom: 32, // Matches SelectChurch
     alignItems: "center",
   },
-  continuetext: {
-    fontSize: 17,
+  continueButton: {
+    height: 52,
+    width: "100%",
+    backgroundColor: "#147EFB",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 35, // Matches SelectChurch
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  continueText: {
+    fontSize: 18,
     letterSpacing: -0.2,
-    fontWeight: "500",
+    fontWeight: "600",
     fontFamily: "Roboto-Medium",
-    color: "#fff",
-    textAlign: "center",
+    color: "#FFF",
   },
 });
 

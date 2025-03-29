@@ -8,9 +8,6 @@ const ChurchRegistrationV = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.backarrow}>
-        <BackArrow />
-      </View>
       <Text style={styles.title}>Register your church</Text>
       <Text style={styles.description}>
         If you would like to register your church, please send an email to 
@@ -35,11 +32,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  backarrow: {
-    position: "absolute",
-    top: 40,
-    left: 16,
-  },
+
   title: {
     fontSize: 34,
     color: "#8e8e93",
