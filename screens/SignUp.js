@@ -83,6 +83,14 @@ const SignUp = ({ navigation }) => {
       const { idToken } = await GoogleSignin.signIn();
       const googleCredential = auth.GoogleAuthProvider.credential(idToken);
       const userCredential = await auth().signInWithCredential(googleCredential);
+      const user = auth().currentUser
+      const user_ref = firestore().collection('users').doc(user.uid)
+      const user_doc = await user_ref.get()
+      if (user_doc.exists) {
+        setSignUp(false)
+        navigation.navigate("MainContainer");
+        return;
+      };
       await writeUserToDb(userCredential.user, userCredential.user.displayName);
       navigation.navigate("SelectChurch");
     } catch (error) {
@@ -123,6 +131,14 @@ const SignUp = ({ navigation }) => {
       }
       const appleCredential = auth.AppleAuthProvider.credential(identityToken, rawNonce);
       const userCredential = await auth().signInWithCredential(appleCredential);
+      const user = auth().currentUser
+      const user_ref = firestore().collection('users').doc(user.uid)
+      const user_doc = await user_ref.get()
+      if (user_doc.exists) {
+        setSignUp(false)
+        navigation.navigate("MainContainer");
+        return;
+      };
       const formattedFullName = `${fullName.givenName} ${fullName.familyName}`;
       await writeUserToDb(userCredential.user, formattedFullName);
       navigation.navigate("SelectChurch");
