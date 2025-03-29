@@ -13,7 +13,7 @@ import firestore from "@react-native-firebase/firestore";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
-import * as AppleAuthentication from "expo-apple-authentication";
+import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from "expo-crypto";
 import { UserProvider, useUser } from "../UserContext";
 
@@ -140,54 +140,59 @@ const SignUp = ({ navigation }) => {
     }
     return text;
   };
-
   const onAppleButtonPress = async () => {
     try {
-      const rawNonce = generateNonce();
+      const rawNonce = generateNonce(); // Your function to generate a random nonce
       const hashedNonce = await Crypto.digestStringAsync(
         Crypto.CryptoDigestAlgorithm.SHA256,
         rawNonce
       );
-
-      const appleAuthRequestResponse = await AppleAuthentication.signInAsync({
+  
+      // Sign in with Apple
+      const appleAuthResponse = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
         nonce: hashedNonce,
       });
+  
+      // Destructure the authorization code from the response
+      const { authorizationCode } = appleAuthResponse;
       
-      const authorizationCode = appleAuthResponse.authorizationCode;
-
-
-      if (!appleAuthRequestResponse.identityToken) {
+      if (!appleAuthResponse.identityToken) {
         throw new Error("Apple Sign-In failed - No identity token received.");
       }
-
-      const { identityToken, fullName, email } = appleAuthRequestResponse;
+  
+      const { identityToken, fullName, email } = appleAuthResponse;
       if (!email) {
         throw new Error("Apple Sign-In Error: email already in use.");
       }
-
-      const appleCredential = auth.AppleAuthProvider.credential(
-        identityToken,
-        rawNonce
-      );
-
-      // Sign in with Apple credential
-      const userCredential = await auth().signInWithCredential(appleCredential);
-
-      // Format the full name as "First Name Last Name"
-      const formattedFullName = `${fullName.givenName} ${fullName.familyName}`;
-
+  
+      // Create an Apple credential using Firebase's OAuthProvider
+      const provider = new firebase.auth.OAuthProvider('apple.com');
+      const appleCredential = provider.credential({
+        idToken: identityToken,
+        rawNonce: rawNonce,
+      });
+  
+      // Sign in with the Apple credential
+      const userCredential = await firebase.auth().signInWithCredential(appleCredential);
+  
+      // Format the full name if available
+      const formattedFullName = fullName
+        ? `${fullName.givenName} ${fullName.familyName}`
+        : '';
+  
+      // Call your function to write the user to your database
       writeUserToDb(userCredential.user, formattedFullName, authorizationCode);
-
+  
     } catch (error) {
       console.error("Apple Sign-In Error:", error);
       Alert.alert("Apple Sign-In Error", error.message);
     }
   };
-
+  
   return (
     <View style={styles.container}>
       <View style={styles.backarrow}>
