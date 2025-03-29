@@ -1,21 +1,13 @@
 import React, { useEffect, useState } from "react";
-import {
-  Pressable,
-  Image,
-  StyleSheet,
-  TextInput,
-  View,
-  Text,
-  Alert,
-} from "react-native";
+import { StyleSheet, View, Text, TextInput, Pressable, Alert, Image } from "react-native";
 import auth from "@react-native-firebase/auth";
 import firestore from "@react-native-firebase/firestore";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
-import * as AppleAuthentication from 'expo-apple-authentication';
+import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
-import { UserProvider, useUser } from "../UserContext";
+import { useUser } from "../UserContext";
 
 const SignUp = ({ navigation }) => {
   const [name, setName] = useState("");
@@ -27,7 +19,7 @@ const SignUp = ({ navigation }) => {
   useEffect(() => {
     setSignUp(true);
     console.log("sign Up :", signUp);
-  });
+  }, [setSignUp]);
 
   GoogleSignin.configure({
     webClientId:
@@ -39,33 +31,17 @@ const SignUp = ({ navigation }) => {
       Alert.alert("Error", "Passwords do not match!");
       return;
     }
-
     try {
-      // Create user with email and password
-      const userCredential = await auth().createUserWithEmailAndPassword(
-        email,
-        password
-      );
+      const userCredential = await auth().createUserWithEmailAndPassword(email, password);
       const user = userCredential.user;
-
-      // Check if user object is created successfully
       if (user) {
-        // Update display name
         await user.updateProfile({ displayName: name });
-        navigation.navigate("SelectChurch");
-  
-        // Ensure to reload the user profile to get the updated display name
         await auth().currentUser.reload();
-
-        // Get the updated user after reload
         const updatedUser = auth().currentUser;
-
         if (updatedUser && updatedUser.displayName) {
-          // Write updated user to Firestore
           await writeUserToDb(updatedUser, updatedUser.displayName);
-
-          // Navigate to SelectChurch after successful signup
-            } else {
+          navigation.navigate("SelectChurch");
+        } else {
           console.error("Failed to get updated user profile.");
           Alert.alert("Sign Up Error", "Failed to get updated user profile.");
         }
@@ -76,15 +52,14 @@ const SignUp = ({ navigation }) => {
     }
   };
 
-  const writeUserToDb = async (user, fullName, authCode) => {
+  const writeUserToDb = async (user, fullName) => {
     try {
       const userRef = firestore().collection("users").doc(user.uid);
       const userDoc = await userRef.get();
-
       if (!userDoc.exists) {
-        const userData = {
+        await userRef.set({
           uid: user.uid,
-          name: fullName || "", // Store name if available
+          name: fullName || "",
           email: user.email,
           admin: false,
           rank: "Chanter (Epsaltos)",
@@ -94,182 +69,140 @@ const SignUp = ({ navigation }) => {
           alhanGrades: null,
           ssGrades: null,
           nextWeekServe: "N/A",
-          isServant: false,
-        };
-  
-        // Only add authCode if it's provided
-        if (authCode) {
-          userData.authCode = authCode;
-        }
-  
-        // Store the user data in Firestore
-        await userRef.set(userData);
+        });
       }
-  
     } catch (error) {
-      console.error("Error writing user to database:", error);
+      console.error("Error handling Firestore operations: ", error);
     }
   };
 
   const onGoogleButtonPress = async () => {
-    setSignUp(true)
+    setSignUp(true);
     try {
-      await GoogleSignin.hasPlayServices({
-        showPlayServicesUpdateDialog: true,
-      });
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       const { idToken } = await GoogleSignin.signIn();
       const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-      navigation.navigate("SelectChurch");
-      const userCredential = await auth().signInWithCredential(
-        googleCredential
-      );
+      const userCredential = await auth().signInWithCredential(googleCredential);
       await writeUserToDb(userCredential.user, userCredential.user.displayName);
+      navigation.navigate("SelectChurch");
     } catch (error) {
       console.error(error);
       Alert.alert("Google Sign-In Error", error.message);
     }
   };
 
-  // Helper: Generate a random nonce string
   const generateNonce = (length = 32) => {
     let text = "";
-    const possible =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     for (let i = 0; i < length; i++) {
       text += possible.charAt(Math.floor(Math.random() * possible.length));
     }
     return text;
   };
+
   const onAppleButtonPress = async () => {
     try {
-      const rawNonce = generateNonce(); // Your function to generate a random nonce
+      const rawNonce = generateNonce();
       const hashedNonce = await Crypto.digestStringAsync(
         Crypto.CryptoDigestAlgorithm.SHA256,
         rawNonce
       );
-  
-      // Sign in with Apple
-      const appleAuthResponse = await AppleAuthentication.signInAsync({
+      const appleAuthRequestResponse = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
         nonce: hashedNonce,
       });
-  
-      // Destructure the authorization code from the response
-      const { authorizationCode } = appleAuthResponse;
-      
-      if (!appleAuthResponse.identityToken) {
+      if (!appleAuthRequestResponse.identityToken) {
         throw new Error("Apple Sign-In failed - No identity token received.");
       }
-  
-      const { identityToken, fullName, email } = appleAuthResponse;
+      const { identityToken, fullName, email } = appleAuthRequestResponse;
       if (!email) {
         throw new Error("Apple Sign-In Error: email already in use.");
       }
-  
-      // Create an Apple credential using Firebase's OAuthProvider
-      const provider = new firebase.auth.OAuthProvider('apple.com');
-      const appleCredential = provider.credential({
-        idToken: identityToken,
-        rawNonce: rawNonce,
-      });
-  
-      // Sign in with the Apple credential
-      const userCredential = await firebase.auth().signInWithCredential(appleCredential);
-  
-      // Format the full name if available
-      const formattedFullName = fullName
-        ? `${fullName.givenName} ${fullName.familyName}`
-        : '';
-  
-      // Call your function to write the user to your database
-      writeUserToDb(userCredential.user, formattedFullName, authorizationCode);
-  
+      const appleCredential = auth.AppleAuthProvider.credential(identityToken, rawNonce);
+      const userCredential = await auth().signInWithCredential(appleCredential);
+      const formattedFullName = `${fullName.givenName} ${fullName.familyName}`;
+      await writeUserToDb(userCredential.user, formattedFullName);
+      navigation.navigate("SelectChurch");
     } catch (error) {
       console.error("Apple Sign-In Error:", error);
       Alert.alert("Apple Sign-In Error", error.message);
     }
   };
-  
+
   return (
     <View style={styles.container}>
-      <View style={styles.backarrow}>
-        <BackArrow />
-      </View>
-      <View style={styles.progressBar}>
-        <ProgressBar startPercentage={0} endPercentage={1} />
-      </View>
-      <View style={styles.title}>
+      <View style={styles.header}>
+        <View style={styles.backArrow}>
+          <BackArrow />
+        </View>
+        <View style={styles.progressBar}>
+          <ProgressBar startPercentage={0} endPercentage={1} />
+        </View>
         <Text style={styles.titleText}>Sign Up</Text>
       </View>
-      <TextInput
-        value={name}
-        autoCapitalize="words"
-        style={[styles.input]}
-        placeholder="Enter your name"
-        placeholderTextColor="#8e8e93"
-        color="#8e8e93"
-        onChangeText={(text) => setName(text)}
-      />
-      <TextInput
-        value={email}
-        autoCapitalize="none"
-        style={[styles.input]}
-        placeholder="Enter your email"
-        placeholderTextColor="#8e8e93"
-        color="#8e8e93"
-        onChangeText={(text) => setEmail(text)}
-      />
-      <TextInput
-        value={password}
-        autoCapitalize="none"
-        secureTextEntry={true}
-        style={[styles.input]}
-        placeholder="Enter your password"
-        placeholderTextColor="#8e8e93"
-        color="#8e8e93"
-        onChangeText={(text) => setPassword(text)}
-      />
-      <TextInput
-        value={confirmPassword}
-        autoCapitalize="none"
-        secureTextEntry={true}
-        style={[styles.input]}
-        placeholder="Confirm your password"
-        placeholderTextColor="#8e8e93"
-        color="#8e8e93"
-        onChangeText={(text) => setConfirmPassword(text)}
-      />
 
-      <Pressable onPress={handleSignUp} style={styles.continueLayout}>
-        <Text style={styles.continuetext}>Continue</Text>
-      </Pressable>
-      <View style={styles.dividerWrapper}>
-        <View style={styles.divider} />
-        <Text style={styles.or}>or</Text>
-        <View style={styles.divider} />
+      <View style={styles.content}>
+        <TextInput
+          value={name}
+          autoCapitalize="words"
+          style={styles.input}
+          placeholder="Enter your name"
+          placeholderTextColor="#B0BEC5"
+          onChangeText={(text) => setName(text)}
+        />
+        <TextInput
+          value={email}
+          autoCapitalize="none"
+          style={styles.input}
+          placeholder="Enter your email"
+          placeholderTextColor="#B0BEC5"
+          onChangeText={(text) => setEmail(text)}
+        />
+        <TextInput
+          value={password}
+          autoCapitalize="none"
+          secureTextEntry={true}
+          style={styles.input}
+          placeholder="Enter your password"
+          placeholderTextColor="#B0BEC5"
+          onChangeText={(text) => setPassword(text)}
+        />
+        <TextInput
+          value={confirmPassword}
+          autoCapitalize="none"
+          secureTextEntry={true}
+          style={styles.input}
+          placeholder="Confirm your password"
+          placeholderTextColor="#B0BEC5"
+          onChangeText={(text) => setConfirmPassword(text)}
+        />
       </View>
-      <Pressable
-        style={styles.socialButtonGoogle}
-        onPress={onGoogleButtonPress}
-      >
-        <View style={styles.socialButtonContent}>
+
+      <View style={styles.footer}>
+        <Pressable style={styles.continueButton} onPress={handleSignUp}>
+          <Text style={styles.continueText}>Continue</Text>
+        </Pressable>
+        <View style={styles.dividerContainer}>
+          <View style={styles.divider} />
+          <Text style={styles.orText}>or</Text>
+          <View style={styles.divider} />
+        </View>
+        <Pressable style={styles.googleButton} onPress={onGoogleButtonPress}>
           <Image
-            style={styles.socialIcon}
-            resizeMode="cover"
+            style={styles.googleIcon}
+            resizeMode="contain"
             source={require("../assets/googleLogo.png")}
           />
           <Text style={styles.socialText}>Sign up with Google</Text>
-        </View>
-      </Pressable>
-      <View style={styles.componentContainer}>
+        </Pressable>
         <AppleAuthentication.AppleAuthenticationButton
           buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP}
           buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-          cornerRadius={10}
-          style={styles.socialButtonApple}
+          cornerRadius={12}
+          style={styles.appleButton}
           onPress={onAppleButtonPress}
         />
       </View>
@@ -280,109 +213,122 @@ const SignUp = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000", // Black background
-    padding: 20,
+    backgroundColor: "#000", // Matches other screens
+    paddingHorizontal: 16, // Matches SelectChurch
+    paddingTop: 80, // Matches SelectChurch
+    paddingBottom: 40, // Matches SelectChurch
   },
-  backarrow: {
-    marginTop: 24,
-    position: "absolute", // Position the back arrow absolutely
-    top: 50,
-    left: 16,
+  header: {
+    marginBottom: 32, // Matches SelectChurch
+  },
+  backArrow: {
+    marginBottom: 16, // Matches SelectApplicable
   },
   progressBar: {
-    top: 84,
-    right: "12.2137%",
-    bottom: "88.26%",
-    left: "12.2137%",
-    position: "absolute",
-  },
-  title: {
-    alignItems: "center",
-    marginBottom: 20,
-    marginTop: 120, // Add space after moving the progress bar up
+    height: 6,
+    width: "100%",
+    backgroundColor: "#2A2A2A", // Matches SelectChurch
+    borderRadius: 3,
+    marginBottom: 45, // Matches SelectChurch
   },
   titleText: {
     fontSize: 36,
-    fontWeight: "bold",
-    color: "#8e8e93",
-    textShadowColor: "#000",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    fontFamily: "Roboto-Regular",
+    fontWeight: "600",
+    color: "#E0E0E0", // Matches other screens
+    lineHeight: 42,
+    textAlign: "left", // Matches SelectChurch
+  },
+  content: {
+    marginBottom: 24, // Matches SelectChurch
   },
   input: {
-    height: 50,
+    height: 52, // Matches button height for consistency
     borderColor: "#8e8e93",
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 12, // Matches SelectChurch
     paddingHorizontal: 15,
-    fontSize: 16,
-    marginBottom: 15,
-    backgroundColor: "#000000", // Black input background
-    color: "#FFFFFF", // White text color
+    fontSize: 18, // Matches other text sizes
+    fontFamily: "Roboto-Regular",
+    color: "#8e8e93", // Matches primary text
+    backgroundColor: "#000", // Matches unselected items
+    marginBottom: 16, // Consistent spacing
   },
-  dividerWrapper: {
+  footer: {
+    paddingTop: 40,
+    paddingBottom: 32, // Matches SelectChurch
+    alignItems: "center",
+  },
+  continueButton: {
+    height: 52, // Matches SelectChurch
+    width: "100%", // Matches SelectChurch
+    backgroundColor: "#147EFB", // Matches SelectChurch
+    borderRadius: 12, // Matches SelectChurch
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16, // Matches SelectChurch
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  continueText: {
+    fontSize: 18, // Matches SelectChurch
+    fontFamily: "Roboto-Medium",
+    fontWeight: "600",
+    color: "#FFF",
+    letterSpacing: -0.2,
+  },
+  dividerContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 30,
+    marginVertical: 16, // Reduced from 30 for tighter spacing
   },
   divider: {
     flex: 1,
     height: 1,
-    backgroundColor: "#8e8e93",
+    backgroundColor: "#B0BEC5",
+    opacity: 0.3, // Matches Choices divider
   },
-  or: {
+  orText: {
     marginHorizontal: 10,
-    fontSize: 14,
-    color: "#8e8e93",
-  },
-  continueLayout: {
-    backgroundColor: "#8e8e93",
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    height: 50,
-    marginVertical: 15,
-  },
-  continuetext: {
-    color: "#000", // Dark text for button
-    fontWeight: "bold",
     fontSize: 16,
+    fontFamily: "Roboto-Regular",
+    color: "#B0BEC5", // Matches secondary text
   },
-  componentContainer: {
-    marginTop: 0,
-    alignItems: "center",
-  },
-  socialButtonApple: {
-    backgroundColor: "#2C2C2E", // Dark gray for Apple button
-    borderRadius: 10,
-    height: 50,
-    width: "100%",
-    justifyContent: "center",
-    marginVertical: 10,
-    alignItems: "center",
-  },
-  socialButtonGoogle: {
-    backgroundColor: "#2C2C2E", // Black for Google button
-    borderRadius: 10,
-    height: 50,
-    width: "100%",
-    justifyContent: "center",
-    marginVertical: 10,
-    alignItems: "center",
-  },
-  socialButtonContent: {
+  googleButton: {
+    height: 52, // Matches SelectChurch
+    width: "100%", // Matches SelectChurch
+    backgroundColor: "#2A2A2A", // Matches unselected items
+    borderRadius: 12, // Matches SelectChurch
     flexDirection: "row",
+    justifyContent: "center",
     alignItems: "center",
+    marginBottom: 16, // Matches SelectChurch
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
-  socialIcon: {
-    width: 15,
-    height: 15,
-    marginRight: 10,
+  googleIcon: {
+    width: 24, // Slightly larger for visibility
+    height: 24,
+    marginRight: 12,
   },
   socialText: {
-    color: "#FFFFFF", // White text for social buttons
-    fontSize: 19,
-    fontWeight: "500",
+    fontSize: 18, // Matches other button text
+    fontFamily: "Roboto-Medium",
+    fontWeight: "600",
+    color: "#E0E0E0", // Matches primary text
+    letterSpacing: -0.2,
+  },
+  appleButton: {
+    height: 52, // Matches SelectChurch
+    width: "100%", // Matches SelectChurch
+    borderRadius: 12, // Matches SelectChurch
+    marginBottom: 16, // Matches SelectChurch
   },
 });
 

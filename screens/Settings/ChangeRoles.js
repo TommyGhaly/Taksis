@@ -25,8 +25,6 @@ const ChangeRoles = ({ navigation }) => {
       });
       await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
       Alert.alert("Success", "Roles updated successfully.");
-
-      // Navigate to the next screen based on the selected roles
       navigation.goBack();
     } catch (error) {
       console.error("Error updating user roles: ", error);
@@ -36,20 +34,26 @@ const ChangeRoles = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <BackArrow style={styles.backArrow} />
-      <View style={styles.title}>
-        <Text style={styles.titleText}>Select all that apply to you</Text>
+      <View style={styles.header}>
+        <View style={styles.backArrow}>
+          <BackArrow />
+        </View>
+        <Text style={styles.titleText}>Select All That Apply to You</Text>
       </View>
-      <View style={styles.choices}>
+
+      <View style={styles.content}>
         <Choices
           onDeaconChange={handleDeacon}
           onAlhanChange={handleAlhan}
           onSSTeachChange={handleSSTeach}
         />
       </View>
-      <Pressable style={styles.continueLayout} onPress={handleContinue}>
-        <Text style={styles.continueText}>Continue</Text>
-      </Pressable>
+
+      <View style={styles.footer}>
+        <Pressable style={styles.continueButton} onPress={handleContinue}>
+          <Text style={styles.continueText}>Continue</Text>
+        </Pressable>
+      </View>
     </View>
   );
 };
@@ -58,49 +62,53 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#121212",
-    padding: 16,
-    justifyContent: "space-between", // Distribute space evenly
+    paddingHorizontal: 16, // Matches SelectChurch
+    paddingTop: 20, // Matches SelectChurch
+    paddingBottom: 40, // Matches SelectChurch
+  },
+  header: {
+    marginBottom: 32, // Matches SelectChurch
   },
   backArrow: {
-    marginTop: 30, // Adjusted margin for better positioning
-  },
-  title: {
-    marginVertical: 20,
-    width: "100%",
+    marginBottom: 16, // Matches SelectApplicable
   },
   titleText: {
-    fontSize: 34,
-    letterSpacing: -0.1,
+    fontSize: 36,
+    letterSpacing: -0.5,
     fontFamily: "Roboto-Regular",
-    color: "#8e8e93",
-    textAlign: "center",
+    fontWeight: "600",
+    color: "#E0E0E0", // Matches other screens
+    lineHeight: 42,
+    textAlign: "left", // Matches SelectChurch
   },
-  choices: {
-    left: 25,
-    top: 20,
-    flex: 1,
-    justifyContent: "center", // Center choices vertically
+  content: {
+    flex: 1, // Pushes footer to bottom
+    marginBottom: 24, // Matches SelectChurch
   },
-  continueLayout: {
-    height: 50,
-    backgroundColor: "#333",
-    borderRadius: 10,
+  footer: {
+    paddingBottom: 32, // Matches SelectChurch
+    alignItems: "center",
+  },
+  continueButton: {
+    height: 52, // Matches SelectChurch
+    width: "100%", // Matches SelectChurch
+    backgroundColor: "#333", // Matches SelectChurch
+    borderRadius: 12, // Matches SelectChurch
     justifyContent: "center",
-    marginBottom: 30, // Adjusted margin to ensure button is visible
+    alignItems: "center",
+    marginBottom: 16, // Matches SelectChurch
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   continueText: {
-    fontSize: 17,
+    fontSize: 18, // Matches SelectChurch
     letterSpacing: -0.2,
-    fontWeight: "500",
+    fontWeight: "600",
     fontFamily: "Roboto-Medium",
-    color: "#fff",
-    textAlign: "center",
-  },
-  progressBar: {
-    position: "absolute",
-    bottom: 16,
-    left: 16,
-    right: 16,
+    color: "#FFF",
   },
 });
 

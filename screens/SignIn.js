@@ -218,14 +218,14 @@ const styles = StyleSheet.create({
   },
   button: {
     height: 50,
-    backgroundColor: "#8e8e93", // Gray-ish color for the button
+    backgroundColor: "#147EFB", // Gray-ish color for the button
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 15,
   },
   buttonText: {
-    color: "#000", // Dark text for button
+    color: "#fff", // Dark text for button
     fontWeight: "bold",
     fontSize: 16,
   },

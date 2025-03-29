@@ -1,12 +1,9 @@
-import { useState } from "react";
-import * as React from "react";
+import React, { useState } from "react";
 import {
-  Pressable,
-  Text,
   StyleSheet,
   View,
   TouchableOpacity,
-  SafeAreaView,
+  Text,
   FlatList,
   Image,
 } from "react-native";
@@ -28,37 +25,39 @@ const DATA = [
     imageName: require("../assets/stMarkLogo.png"),
   },
 ];
-const Item = ({ item, onPress, backgroundColor, textColor }) => (
+
+const ChurchItem = ({ item, onPress, isSelected }) => (
   <TouchableOpacity
     onPress={onPress}
-    style={[styles.item, { backgroundColor }]}
+    style={[styles.item, isSelected && styles.selectedItem]}
   >
     <Image style={styles.image} resizeMode="cover" source={item.imageName} />
-    <Text style={[styles.title, { color: textColor }]}>{item.title}</Text>
+    <Text style={[styles.title, isSelected && styles.selectedText]}>
+      {item.title}
+    </Text>
   </TouchableOpacity>
 );
 
 const Churches = ({ onSelectChurch }) => {
-  const [selectedId, setSelectedId] = useState();
+  const [selectedId, setSelectedId] = useState(null);
 
   const renderItem = ({ item }) => {
-    const backgroundColor = item.id === selectedId ? "#147EFB" : "#838393";
-    const color = item.id === selectedId ? "white" : "black";
+    const isSelected = item.id === selectedId;
 
     return (
-      <Item
+      <ChurchItem
         item={item}
         onPress={() => {
           setSelectedId(item.id);
-          onSelectChurch(item.title); // Pass the selected church title to the parent
+          onSelectChurch(item.title);
         }}
-        backgroundColor={backgroundColor}
-        textColor={color}
+        isSelected={isSelected}
       />
     );
   };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <FlatList
         data={DATA}
         renderItem={renderItem}
@@ -66,26 +65,49 @@ const Churches = ({ onSelectChurch }) => {
         extraData={selectedId}
         showsVerticalScrollIndicator={false}
       />
-    </SafeAreaView>
+    </View>
   );
 };
+
 const styles = StyleSheet.create({
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    fontFamily: "Roboto-Bold",
-    letterSpacing: -0.2,
-    textAlign: "center",
+  container: {
+    flex: 1,
   },
   item: {
-    padding: 20,
-    marginVertical: 16,
-    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    marginVertical: 8,
+    backgroundColor: "#2A2A2A", // Dark gray for depth
+    borderRadius: 12,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+  },
+  selectedItem: {
+    backgroundColor: "#147EFB", // Matches blue accent
+    elevation: 5,
+    shadowOpacity: 0.25,
   },
   image: {
-    left: "38%",
-    backgroundColor: "#fff",
-    borderRadius: 10,
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    marginRight: 12,
+    backgroundColor: "#FFF",
+  },
+  title: {
+    fontSize: 18,
+    fontFamily: "Roboto-Regular",
+    fontWeight: "500",
+    color: "#E0E0E0", // Light gray for contrast
+    flexShrink: 1,
+  },
+  selectedText: {
+    color: "#FFF",
+    fontWeight: "600",
   },
 });
 

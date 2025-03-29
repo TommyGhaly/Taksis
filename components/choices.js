@@ -2,12 +2,7 @@ import React, { useState } from "react";
 import { Text, StyleSheet, View } from "react-native";
 import { CheckBox } from "@rneui/themed";
 
-const Choices = ({
-  onDeaconChange,
-  onAlhanChange,
-  onSSTeachChange,
-  onServantChange,
-}) => {
+const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
   const [deacon, setDeacon] = useState(false);
   const [alhan, setAlhan] = useState(false);
   const [ssTeach, setSSTeach] = useState(false);
@@ -15,189 +10,132 @@ const Choices = ({
 
   const handleDeacon = (checked) => {
     setDeacon(checked);
-    onDeaconChange(checked); // Pass the checkbox state up to the parent component
+    if (checked && none) setNone(false);
+    onDeaconChange(checked);
   };
   const handleAlhan = (checked) => {
     setAlhan(checked);
-    onAlhanChange(checked); // Pass the checkbox state up to the parent component
+    if (checked && none) setNone(false);
+    onAlhanChange(checked);
   };
   const handleSSTeach = (checked) => {
     setSSTeach(checked);
-    onSSTeachChange(checked); // Pass the checkbox state up to the parent component
+    if (checked && none) setNone(false);
+    onSSTeachChange(checked);
+  };
+  const handleNone = (checked) => {
+    setNone(checked);
+    if (checked) {
+      setDeacon(false);
+      setAlhan(false);
+      setSSTeach(false);
+      onDeaconChange(false);
+      onAlhanChange(false);
+      onSSTeachChange(false);
+    }
   };
 
   return (
-    <View style={styles.deaconParent}>
-      <Text style={[styles.deacon, styles.teacherTypo]}>Deacon</Text>
-      <Text style={[styles.alhanTeacher, styles.teacherTypo]}>
-        Alhan teacher
-      </Text>
-      <Text style={[styles.sundaySchoolTeacher, styles.teacherTypo]}>
-        Sunday School Teacher
-      </Text>
-      <Text style={[styles.noneApplicable, styles.noneApplicableTypo]}>
-        None applicable
-      </Text>
-      <View style={[styles.groupChild, styles.groupChildLayout]} />
-      <View style={[styles.groupItem, styles.groupChildLayout]} />
-      <View style={[styles.groupInner, styles.groupChildLayout]} />
-      <View style={[styles.lineView, styles.groupChildLayout]} />
-      <CheckBox
-        style={styles.rectangleCheckbox}
-        checked={deacon}
-        onPress={() => {
-          handleDeacon(!deacon);
-          none ? setNone(!none) : none;
-        }}
-        containerStyle={styles.rectangleCheckboxLayout}
-        iconType="material-community"
-        checkedIcon="checkbox-outline"
-        uncheckedIcon={"checkbox-blank-outline"}
-        size={40}
-      />
-      <CheckBox
-        style={styles.rectangleCheckbox}
-        checked={ssTeach}
-        onPress={() => {
-          handleSSTeach(!ssTeach);
-          none ? setNone(!none) : none;
-        }}
-        containerStyle={styles.rectangleCheckbox1Layout}
-        iconType="material-community"
-        checkedIcon="checkbox-outline"
-        uncheckedIcon={"checkbox-blank-outline"}
-        size={40}
-      />
-      <CheckBox
-        style={styles.rectangleCheckbox}
-        checked={none}
-        onPress={() => {
-          setNone(!none);
-          deacon ? handleDeacon(!deacon) : deacon;
-          alhan ? handleAlhan(!alhan) : alhan;
-          ssTeach ? handleSSTeach(!ssTeach) : ssTeach;
-        }}
-        containerStyle={styles.rectangleCheckbox3Layout}
-        iconType="material-community"
-        checkedIcon="checkbox-outline"
-        uncheckedIcon={"checkbox-blank-outline"}
-        size={40}
-      />
-      <CheckBox
-        style={styles.rectangleCheckbox}
-        checked={alhan}
-        onPress={() => {
-          handleAlhan(!alhan);
-          none ? setNone(!none) : none;
-        }}
-        containerStyle={styles.rectangleCheckbox4Layout}
-        iconType="material-community"
-        checkedIcon="checkbox-outline"
-        uncheckedIcon={"checkbox-blank-outline"}
-        size={40}
-      />
+    <View style={styles.container}>
+      <View style={styles.option}>
+        <CheckBox
+          checked={deacon}
+          onPress={() => handleDeacon(!deacon)}
+          containerStyle={styles.checkbox}
+          iconType="material-community"
+          checkedIcon="checkbox-outline"
+          uncheckedIcon="checkbox-blank-outline"
+          size={35}
+          checkedColor="#147EFB"
+          uncheckedColor="#B0BEC5"
+        />
+        <Text style={styles.optionText}>Deacon</Text>
+      </View>
+      <View style={styles.divider} />
+
+      <View style={styles.option}>
+        <CheckBox
+          checked={alhan}
+          onPress={() => handleAlhan(!alhan)}
+          containerStyle={styles.checkbox}
+          iconType="material-community"
+          checkedIcon="checkbox-outline"
+          uncheckedIcon="checkbox-blank-outline"
+          size={35}
+          checkedColor="#147EFB"
+          uncheckedColor="#B0BEC5"
+        />
+        <Text style={styles.optionText}>Alhan Teacher</Text>
+      </View>
+      <View style={styles.divider} />
+
+      <View style={styles.option}>
+        <CheckBox
+          checked={ssTeach}
+          onPress={() => handleSSTeach(!ssTeach)}
+          containerStyle={styles.checkbox}
+          iconType="material-community"
+          checkedIcon="checkbox-outline"
+          uncheckedIcon="checkbox-blank-outline"
+          size={35}
+          checkedColor="#147EFB"
+          uncheckedColor="#B0BEC5"
+        />
+        <Text style={styles.optionText}>Sunday School Teacher</Text>
+      </View>
+      <View style={styles.divider} />
+
+      <View style={styles.option}>
+        <CheckBox
+          checked={none}
+          onPress={() => handleNone(!none)}
+          containerStyle={styles.checkbox}
+          iconType="material-community"
+          checkedIcon="checkbox-outline"
+          uncheckedIcon="checkbox-blank-outline"
+          size={35}
+          checkedColor="#147EFB"
+          uncheckedColor="#B0BEC5"
+        />
+        <Text style={styles.optionText}>None Applicable</Text>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  rectangleCheckboxLayout: {
-    backgroundColor: "transparent",
-    padding: 0,
-    left: -10,
-    top: -10,
-    position: "absolute",
+  container: {
+    backgroundColor: "#121212", // Match screen background
+    borderRadius: 12,
+    padding: 25,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
   },
-  rectangleCheckbox1Layout: {
-    backgroundColor: "transparent",
-    padding: 0,
-    left: -10,
-    top: 104,
-    position: "absolute",
-  },
-  rectangleCheckbox3Layout: {
-    backgroundColor: "transparent",
-    padding: 0,
-    left: -10,
-    top: 161,
-    position: "absolute",
-  },
-
-  rectangleCheckbox4Layout: {
-    backgroundColor: "transparent",
-    padding: 0,
-    left: -10,
-    top: 47,
-    position: "absolute",
-  },
-  teacherTypo: {
-    textAlign: "left",
-    color: "#8e8e93",
-    fontFamily: "Roboto-Regular",
-    letterSpacing: -0.2,
-    fontSize: 20,
-    left: 66,
-    position: "absolute",
-  },
-  noneApplicableTypo: {
-    width: 264,
+  option: {
+    flexDirection: "row",
     alignItems: "center",
-    display: "flex",
-    textAlign: "left",
-    color: "#8e8e93",
-    fontFamily: "Roboto-Regular",
-    letterSpacing: -0.2,
+    paddingVertical: 12,
+  },
+  checkbox: {
+    backgroundColor: "transparent",
+    padding: 0,
+    marginRight: 12,
+  },
+  optionText: {
     fontSize: 20,
-    left: 66,
-    position: "absolute",
+    fontFamily: "Roboto-Regular",
+    fontWeight: "400", // Lighter weight to look less clickable
+    color: "#B0BEC5", // Muted color to indicate non-interactivity
+    flexShrink: 1,
   },
-  groupChildLayout: {
+  divider: {
     height: 1,
-    width: 251,
-    borderTopWidth: 1,
-    left: 52,
-    borderColor: "#8e8e93",
-    borderStyle: "solid",
-    position: "absolute",
-  },
-  deacon: {
-    top: 0,
-  },
-  alhanTeacher: {
-    top: 57,
-  },
-  sundaySchoolTeacher: {
-    top: 114,
-  },
-  noneApplicable: {
-    top: 171,
-  },
-  groupChild: {
-    top: 31,
-  },
-  groupItem: {
-    top: 89,
-  },
-  groupInner: {
-    top: 148,
-  },
-  lineView: {
-    top: 206,
-  },
-  groupChild1: {
-    top: 268,
-  },
-  rectangleCheckbox: {
-    borderRadius: 10,
-    backgroundColor: "#000",
-    borderWidth: 1,
-    borderColor: "#8e8e93",
-    borderStyle: "solid",
-  },
-  deaconParent: {
-    flex: 1,
-    width: "100%",
-    height: 268,
+    backgroundColor: "#B0BEC5",
+    opacity: 0.3,
+    marginHorizontal: 16,
   },
 });
 

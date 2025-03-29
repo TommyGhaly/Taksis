@@ -1,22 +1,15 @@
-import * as React from "react";
-import { useState } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  Pressable,
-  Alert,
-} from "react-native";
+import React, { useState } from "react";
+import { StyleSheet, View, Text, Pressable, Alert, SafeAreaView } from "react-native";
 import Slider from "@react-native-community/slider";
-import { useNavigation } from "@react-navigation/native";
 import BackArrow from "../components/backArrow";
+import ProgressBar from "../components/progressBar";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import ProgressBar from "../components/progressBar";
 
 const Experience = ({ navigation }) => {
   const [slider, setSlider] = useState(5);
   const user = auth().currentUser;
+
   const handleContinue = async (user) => {
     try {
       await firestore().collection("users").doc(user.uid).update({
@@ -31,117 +24,148 @@ const Experience = ({ navigation }) => {
       );
     }
   };
+
   return (
-    <View style={styles.frequency}>
-      <View style={styles.backarrow}>
-        <BackArrow />
-      </View>
-      <View style={styles.content}>
-        <Text style={styles.titleText}>
-          How much experience being a deacon do you have on a scale from 1-10?
-        </Text>
-        <Text style={styles.sliderValue}>{slider.toFixed(1)}</Text>
-        <Slider
-          style={styles.slider}
-          value={slider}
-          onValueChange={(value) => setSlider(value)}
-          minimumValue={0}
-          maximumValue={10}
-          minimumTrackTintColor="#147efb"
-          maximumTrackTintColor="#444"
-          thumbTintColor="#147efb"
-        />
-        <View style={styles.sliderLabels}>
-          <Text style={styles.label}>Not experienced</Text>
-          <Text style={styles.label}>Very experienced</Text>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.innerContainer}>
+        <View style={styles.header}>
+          <View style={styles.backArrow}>
+            <BackArrow />
+          </View>
+          <View style={styles.progressBarContainer}>
+            <ProgressBar startPercentage={60} endPercentage={80} />
+          </View>
+        </View>
+
+        <View style={styles.content}>
+          <View style={styles.card}>
+            <Text style={styles.questionText}>
+              How much experience being a deacon do you have?
+            </Text>
+            <Text style={styles.sliderValue}>{slider.toFixed(0)}</Text>
+            <Slider
+              style={styles.slider}
+              value={slider}
+              onValueChange={(value) => setSlider(value)}
+              minimumValue={0}
+              maximumValue={10}
+              step={1}
+              minimumTrackTintColor="#147EFB"
+              maximumTrackTintColor="#444"
+              thumbTintColor="#147EFB"
+            />
+            <View style={styles.sliderLabels}>
+              <Text style={styles.label}>Not experienced</Text>
+              <Text style={styles.label}>Very experienced</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.footer}>
+          <Pressable
+            style={({ pressed }) => [styles.continueButton, pressed && styles.buttonPressed]}
+            onPress={() => handleContinue(user)}
+          >
+            <Text style={styles.buttonText}>Continue</Text>
+          </Pressable>
         </View>
       </View>
-      <View style={styles.progressBar}>
-        <ProgressBar startPercentage={60} endPercentage={80} />
-      </View>
-      <Pressable
-        onPress={() => handleContinue(user)}
-        style={styles.continueLayout}
-      >
-        <Text style={styles.continuetext}>Continue</Text>
-      </Pressable>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  frequency: {
+  container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#121212",
   },
-  backarrow: {
-    position: "absolute",
-    top: 74,
-    left: 16,
+  innerContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 40,
+  },
+  header: {
+    marginBottom: 32,
+  },
+  backArrow: {
+    marginBottom: 16,
+  },
+  progressBarContainer: {
+    marginBottom: 12,
   },
   content: {
     flex: 1,
-    marginTop: 200,
     alignItems: "center",
-    paddingHorizontal: 20,
-
   },
-  titleText: {
-    fontSize: 28,
-    color: "#8e8e93",
+  card: {
+    backgroundColor: "#1A1A1A",
+    borderRadius: 20,
+    padding: 25,
+    width: "100%",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+  },
+  questionText: {
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#E0E0E0",
     textAlign: "center",
     marginBottom: 20,
     fontFamily: "Roboto-Regular",
   },
   sliderValue: {
-    fontSize: 64,
-    color: "#8e8e93",
+    fontSize: 56,
     fontWeight: "bold",
-    marginVertical: 20,
+    color: "#E0E0E0",
     textAlign: "center",
+    marginBottom: 20,
   },
   slider: {
     width: "100%",
     height: 40,
+    marginBottom: 15,
   },
   sliderLabels: {
     flexDirection: "row",
     justifyContent: "space-between",
-    width: "100%",
-    paddingHorizontal: 5,
   },
   label: {
+    color: "#8E8E93",
     fontSize: 14,
-    color: "#8e8e93",
     fontFamily: "Roboto-Regular",
   },
-  // Leave these unchanged:
-  progressBar: {
-    position: "absolute",
-    top: 84,
-    left: "12.2137%",
-    right: "12.2137%",
-    bottom: "88.26%",
-    backgroundColor: "#000",
+  footer: {
+    alignItems: "center",
+    width: "100%",
   },
-  continueLayout: {
-    position: "absolute",
-    bottom: 80,
-    alignSelf: "center",
-    height: 50,
-    width: 358,
-    backgroundColor: "#333",
-    borderRadius: 10,
+  continueButton: {
+    height: 52,
+    width: "100%",
+    backgroundColor: "#147EFB",
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    marginBottom: 33
   },
-  continuetext: {
-    fontSize: 17,
-    letterSpacing: -0.2,
-    fontWeight: "500",
+  buttonPressed: {
+    backgroundColor: "#115EBB",
+    elevation: 2,
+  },
+  buttonText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#FFF",
     fontFamily: "Roboto-Medium",
-    color: "#fff",
-    textAlign: "center",
+    letterSpacing: -0.2,
   },
 });
 
