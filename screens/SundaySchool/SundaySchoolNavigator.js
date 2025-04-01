@@ -62,7 +62,7 @@ const SundaySchoolNavigator = () => {
       <Stack.Screen
         name="SundaySchoolAttendance"
         component={SundaySchoolAttendance}
-        options={{ headerShown: false }}
+        options={{ headerShown: false, gestureEnabled: false }}
       />
       <Stack.Screen
         name="SundaySchoolGrades"
@@ -70,12 +70,13 @@ const SundaySchoolNavigator = () => {
         options={{
           headerShown: false,
           animation: "slide_from_right",
+          gestureEnabled: false,
         }}
       />
       <Stack.Screen
         name="IndividualAttendance"
         component={IndividualAttendance}
-        options={{ headerShown: false }}
+        options={{ headerShown: false, gestureEnabled: false }}
       />
     </Stack.Navigator>
   );

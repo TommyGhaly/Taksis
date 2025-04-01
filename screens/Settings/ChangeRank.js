@@ -86,6 +86,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: "center",
     marginBottom: 30, // Adjusted margin to ensure button is visible
+    
   },
   continueText: {
     fontSize: 17,

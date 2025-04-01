@@ -80,18 +80,17 @@ const styles = StyleSheet.create({
   },
   rankContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 40, // Added margin for spacing between Rank and button
+    paddingHorizontal: 30,
+    marginBottom: 0, // Added margin for spacing between Rank and button
   },
   continueLayout: {
-    position: "absolute",
     bottom: 20,
-    width: "91%",
-    left: 16,
+    height: 50,
+    width: "91%", // Kept for consistency, but centered
     justifyContent: "center",
     alignItems: "center",
-    height: 50,
+    alignSelf: "center", // Centers the entire layout horizontally
+    position: "absolute",
   },
   continueButton: {
     width: "100%",

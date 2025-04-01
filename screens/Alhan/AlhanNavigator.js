@@ -67,17 +67,17 @@ const AlhanNavigator = () => {
       <Stack.Screen
         name="AlhanAttendance"
         component={AlhanAttendance}
-        options={{ headerShown: false }}
+        options={{ headerShown: false, gestureEnabled: false }}
       />
       <Stack.Screen
         name="AlhanGrades"
         component={AlhanGrades}
-        options={{ headerShown: false, animation: "slide_from_right" }}
+        options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }}
       />
       <Stack.Screen
         name="IndividualAttendance"
         component={IndividualAttendance}
-        options={{ headerShown: false }}
+        options={{ headerShown: false, gestureEnabled: false }}
       />
     </Stack.Navigator>
   );

@@ -1,12 +1,11 @@
 import React, { useState } from "react";
-import { TouchableOpacity, StyleSheet, View, Text, Alert } from "react-native";
+import { TouchableOpacity, StyleSheet, View, Text, Alert, SafeAreaView } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import { Picker } from "@react-native-picker/picker";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
 import auth from "@react-native-firebase/auth";
 import { callFunction } from "../../components/functionCalls";
-
 
 const ChildAge = ({ route, navigation }) => {
   const user = auth().currentUser; // Directly access currentUser
@@ -19,49 +18,40 @@ const ChildAge = ({ route, navigation }) => {
       Alert.alert("Error", "User not authenticated");
       return;
     }
-  
-    // Add the age to the updatedChildData
+
     const updatedChildData = { ...childData, age: selectedAge };
-  
+
     try {
-      // Log userId and updatedChildData to verify values
       console.log("User ID:", userId);
       console.log("Updated Child Data:", updatedChildData);
-  
-      // Get the current user's document
+
       const userDocRef = firestore().collection("users").doc(userId);
       const userDoc = await userDocRef.get();
-  
+
       if (userDoc.exists) {
         const userData = userDoc.data();
-        console.log("User Data:", userData); // Log user data
-  
-        // Check if the children array exists, if not, initialize it
+        console.log("User Data:", userData);
+
         if (!userData.children) {
           userData.children = [];
         }
-  
-        // Find the child in the array by matching the unique child identifier (e.g., UID)
+
         const existingChildIndex = userData.children.findIndex(
           (child) => child.uid === updatedChildData.uid
         );
-  
+
         if (existingChildIndex !== -1) {
-          // If the child exists, update the existing entry with the updated child data
           userData.children[existingChildIndex] = updatedChildData;
         } else {
-          // If the child doesn't exist, add the updated child data as a new entry
           userData.children.push(updatedChildData);
         }
-        console.log(userData.children)
-        console.log(updatedChildData)
-        // Update the user's document with the new children array
+        console.log(userData.children);
+        console.log(updatedChildData);
         await userDocRef.update({ children: userData.children });
-        console.log(userData)
-        await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
+        console.log(userData);
+        await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
         console.log("Children updated successfully");
-  
-        // Show alert once the data is successfully updated
+
         Alert.alert("Success", "Child data has been updated");
         navigation.navigate("Settings");
       } else {
@@ -73,43 +63,51 @@ const ChildAge = ({ route, navigation }) => {
       Alert.alert("Error", "Failed to update child data");
     }
   };
-  
-  
 
   return (
-    <View style={styles.container}>
-      <View style={styles.backarrow}>
-        <BackArrow onPress={() => navigation.goBack()} />
+    <SafeAreaView style={styles.container}>
+      <View style={styles.innerContainer}>
+        <View style={styles.backarrow}>
+          <BackArrow onPress={() => navigation.goBack()} />
+        </View>
+        <View style={styles.progressBar}>
+          <ProgressBar startPercentage={67} endPercentage={100} />
+        </View>
+
+        <View style={styles.content}>
+          <View style={styles.card}>
+            <Text style={styles.questionText}>
+              What is your child's age?
+            </Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={selectedAge}
+                onValueChange={(itemValue) => setSelectedAge(itemValue)}
+                style={styles.picker}
+                itemStyle={styles.pickerItem}
+              >
+                {Array.from({ length: 18 }, (_, i) => (
+                  <Picker.Item
+                    key={i}
+                    label={`${i + 1}`}
+                    value={`${i + 1}`}
+                  />
+                ))}
+              </Picker>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.continueLayout}>
+          <TouchableOpacity
+            onPress={handleContinue}
+            style={styles.continueButton}
+          >
+            <Text style={styles.buttonText}>Continue</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-      <View style={styles.progressBar}>
-        <ProgressBar startPercentage={67} endPercentage={100} />
-      </View>
-      <Text style={styles.title}>What is your child's age?</Text>
-      <View style={styles.pickerContainer}>
-        <Picker
-          selectedValue={selectedAge}
-          onValueChange={(itemValue) => setSelectedAge(itemValue)}
-          style={styles.picker}
-        >
-          {Array.from({ length: 18 }, (_, i) => (
-            <Picker.Item
-              key={i}
-              label={`${i + 1}`}
-              value={i + 1}
-              color="#fff"
-            />
-          ))}
-        </Picker>
-      </View>
-      <View style={styles.continueLayout}>
-        <TouchableOpacity
-          onPress={handleContinue}
-          style={styles.continueButton}
-        >
-          <Text style={styles.continuetext}>Continue</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -117,6 +115,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#121212",
+  },
+  innerContainer: {
+    flex: 1,
+    paddingTop: 18,
+    paddingBottom: 40,
   },
   backarrow: {
     top: 10,
@@ -130,36 +133,58 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     position: "absolute",
   },
-  title: {
-    top: 130,
-    left: 24,
-    width: "88%",
+  content: {
+    flex: 1,
+    alignItems: "center",
+    marginTop: 110, // Slightly adjusted for better spacing
+  },
+  card: {
+    backgroundColor: "#1A1A1A",
+    borderRadius: 20,
+    padding: 30, // Increased padding for a more spacious feel
+    width: "100%",
+    elevation: 6, // Slightly higher elevation for depth
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4, // Stronger shadow for contrast
+    shadowRadius: 6,
+    borderWidth: 1, // Subtle border for definition
+    borderColor: "#2A2A2A",
+  },
+  questionText: {
+    fontSize: 28, // Larger font for emphasis
+    fontWeight: "700", // Bolder for a modern look
+    color: "#F0F0F0", // Slightly brighter white for contrast
     textAlign: "center",
-    fontSize: 34,
-    letterSpacing: -0.1,
+    marginBottom: 25, // More space below the title
     fontFamily: "Roboto-Regular",
-    color: "#8e8e93",
   },
   pickerContainer: {
-    top: 100,
-    marginTop: 10,
-    width: "91%",
-    alignSelf: "center",
-    backgroundColor: "#333",
-    borderRadius: 10,
+    backgroundColor: "#2C2C2C", // Slightly lighter than card for contrast
+    borderRadius: 12,
     paddingHorizontal: 10,
+    paddingVertical: 5, // Added vertical padding for balance
+    width: "100%",
+    alignSelf: "center",
+    borderWidth: 1, // Subtle border
+    borderColor: "#404040",
   },
   picker: {
-    height: 0,
-    color: "#fff",
+    height: 180, // Larger height for better usability
+    color: "#F0F0F0", // Bright text to match the theme
+  },
+  pickerItem: {
+    fontSize: 20, // Larger text in picker items
+    fontFamily: "Roboto-Regular",
+    color: "#F0F0F0", // Ensure item text matches
   },
   continueLayout: {
     bottom: 20,
-    left: 16,
     height: 50,
-    width: "91%",
+    width: "91%", // Kept for consistency, but centered
     justifyContent: "center",
     alignItems: "center",
+    alignSelf: "center", // Centers the entire layout horizontally
     position: "absolute",
   },
   continueButton: {
@@ -170,7 +195,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     height: "100%",
   },
-  continuetext: {
+  buttonText: {
     fontSize: 17,
     letterSpacing: -0.2,
     fontWeight: "500",

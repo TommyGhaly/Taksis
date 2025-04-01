@@ -21,10 +21,12 @@ const SignIn = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { signUp, setSignUp } = useUser();
-    useEffect(() => {
-      setSignUp(false);
-      console.log("sign Up :", signUp)
-    });
+
+  useEffect(() => {
+    setSignUp(false);
+    console.log("sign Up :", signUp);
+  }, []);
+
   GoogleSignin.configure({
     webClientId: "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
   });
@@ -45,80 +47,84 @@ const SignIn = ({ navigation }) => {
         <BackArrow />
       </View>
 
-      <Image
-        style={styles.icon}
-        resizeMode="contain"
-        source={require("../assets/lastSupperIcon.png")}
-      />
-      <Text style={styles.titleText}>Sign In</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your email"
-        placeholderTextColor="#B0B0B0"
-        onChangeText={setEmail}
-        value={email}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your password"
-        placeholderTextColor="#B0B0B0"
-        onChangeText={setPassword}
-        value={password}
-        secureTextEntry
-      />
-      <TouchableOpacity style={styles.button} onPress={handleSignIn}>
-        <Text style={styles.buttonText}>Continue</Text>
-      </TouchableOpacity>
-
-      {/* Wrap the links in a row */}
-      <View style={styles.linkRow}>
-        <Pressable
-          style={styles.link}
-          onPress={() => navigation.navigate("PasswordReset")}
-        >
-          <Text style={styles.linkText1}>Forgot password?</Text>
-          <Text style={styles.linkText2}> Set new password</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.dividerWrapper}>
-        <View style={styles.divider} />
-        <Text style={styles.or}>or</Text>
-        <View style={styles.divider} />
-      </View>
-      <Pressable
-        style={styles.socialButtonGoogle}
-        onPress={onGoogleButtonPress}
-      >
-        <View style={styles.socialButtonContent}>
-          <Image
-            style={styles.socialIcon}
-            resizeMode="cover"
-            source={require("../assets/googleLogo.png")}
-          />
-          <Text style={styles.socialText}>Sign in with Google</Text>
-        </View>
-      </Pressable>
-      <Pressable style={styles.socialButtonApple}>
-        <AppleAuthentication.AppleAuthenticationButton
-          buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN} // Change to SIGN_IN if needed
-          buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-          cornerRadius={10}
-          style={styles.socialButtonApple}
-          onPress={onAppleButtonPress}
+      <View style={styles.contentWrapper}>
+        <Image
+          style={styles.icon}
+          resizeMode="contain"
+          source={require("../assets/lastSupperIcon.png")}
         />
-      </Pressable>
-      {/* New row for the sign-up link */}
-      <View style={styles.linkRow}>
-        <TouchableOpacity
-          style={styles.link}
-          onPress={() => navigation.navigate("SignUp")}
-        >
-          <Text style={styles.linkText1}>Don’t have an account?</Text>
-          <Text style={styles.linkText2}> Sign Up</Text>
+        <Text style={styles.titleText}>Sign In</Text>
+
+        <TextInput
+          style={styles.input}
+          placeholder="Enter your email"
+          placeholderTextColor="#B0B0B0"
+          onChangeText={setEmail}
+          value={email}
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Enter your password"
+          placeholderTextColor="#B0B0B0"
+          onChangeText={setPassword}
+          value={password}
+          secureTextEntry
+        />
+        <TouchableOpacity style={styles.button} onPress={handleSignIn}>
+          <Text style={styles.buttonText}>Continue</Text>
         </TouchableOpacity>
+
+        <View style={styles.linkRow}>
+          <Pressable
+            style={styles.link}
+            onPress={() => navigation.navigate("PasswordReset")}
+          >
+            <Text style={styles.linkText1}>Forgot password?</Text>
+            <Text style={styles.linkText2}> Set new password</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.dividerWrapper}>
+          <View style={styles.divider} />
+          <Text style={styles.or}>or</Text>
+          <View style={styles.divider} />
+        </View>
+
+        <Pressable
+          style={styles.socialButtonGoogle}
+          onPress={() => onGoogleButtonPress(navigation)}
+        >
+          <View style={styles.socialButtonContent}>
+            <Image
+              style={styles.socialIcon}
+              resizeMode="cover"
+              source={require("../assets/googleLogo.png")}
+            />
+            <Text style={styles.socialText}>Sign in with Google</Text>
+          </View>
+        </Pressable>
+
+        <Pressable style={styles.socialButtonApple}>
+          <AppleAuthentication.AppleAuthenticationButton
+            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+            cornerRadius={10}
+            style={styles.socialButtonApple}
+            onPress={() => onAppleButtonPress(navigation)}
+          />
+        </Pressable>
+
+        <View style={styles.linkRow}>
+          <TouchableOpacity
+            style={styles.link}
+            onPress={() => navigation.navigate("SignUp")}
+          >
+            <Text style={styles.linkText1}>Don’t have an account?</Text>
+            <Text style={styles.linkText2}> Sign Up</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -130,13 +136,13 @@ async function onGoogleButtonPress(navigation) {
     const { idToken } = await GoogleSignin.signIn();
     const googleCredential = auth.GoogleAuthProvider.credential(idToken);
     await auth().signInWithCredential(googleCredential);
+    navigation.navigate("MainContainer");
   } catch (error) {
     console.error(error);
     Alert.alert("Google Sign-In Error", error.message);
   }
 }
 
-// Helper: Generate a random nonce string
 const generateNonce = (length = 32) => {
   let text = "";
   const possible =
@@ -167,13 +173,14 @@ async function onAppleButtonPress(navigation) {
       throw new Error("Apple Sign-In failed - No identity token received.");
     }
 
-    const { identityToken, fullName, email } = appleAuthRequestResponse;
+    const { identityToken } = appleAuthRequestResponse;
     const appleCredential = auth.AppleAuthProvider.credential(
       identityToken,
       rawNonce
     );
 
     await auth().signInWithCredential(appleCredential);
+    navigation.navigate("MainContainer");
   } catch (error) {
     console.error(error);
     Alert.alert("Apple Sign-In Error", error.message);
@@ -183,27 +190,32 @@ async function onAppleButtonPress(navigation) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000", // Black background
-    padding: 20,
+    backgroundColor: "#000",
+    paddingHorizontal: 20,
   },
   backarrow: {
-    marginTop: 50,
-    marginBottom: 20,
+    paddingTop: 90, // Keeps the back arrow high
+    marginBottom: 0,
+  },
+  contentWrapper: {
+    paddingTop: 30, // Moves all content down slightly
   },
   titleText: {
-    fontSize: 36, // Increased font size for the title
+    fontSize: 36,
     fontWeight: "bold",
-    color: "#8e8e93", // Color for the title
+    color: "#8e8e93",
     textAlign: "center",
-    marginBottom: 30,
-    textShadowColor: "#000", // Shadow color for title
-    textShadowOffset: { width: 0, height: 1 }, // Shadow offset for title
-    textShadowRadius: 2, // Shadow radius for title
+    marginBottom: 20,
+    textShadowColor: "#000",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   icon: {
     alignSelf: "center",
-    height: 200, // Increased height for the icon
-    marginBottom: 30,
+    width: "100%", // Increased to full width for a bigger image
+    height: undefined, // Height adjusts based on aspect ratio
+    aspectRatio: 1089 / 499, // Maintains original aspect ratio (1089x499)
+    marginBottom: 20,
   },
   input: {
     height: 50,
@@ -212,45 +224,45 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 15,
     fontSize: 16,
-    marginBottom: 15,
-    backgroundColor: "#000", // Black input background
-    color: "#FFFFFF", // White text color
+    marginBottom: 10,
+    backgroundColor: "#000",
+    color: "#FFFFFF",
   },
   button: {
     height: 50,
-    backgroundColor: "#147EFB", // Gray-ish color for the button
+    backgroundColor: "#147EFB",
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 15,
   },
   buttonText: {
-    color: "#fff", // Dark text for button
+    color: "#fff",
     fontWeight: "bold",
     fontSize: 16,
   },
   linkRow: {
-    flexDirection: "row", // Set to row for horizontal alignment
-    justifyContent: "center", // Space between links
-    marginVertical: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    marginVertical: 10,
     alignItems: "center",
   },
   link: {
     alignItems: "center",
-    flexDirection: "row", // Ensure the text elements are in a row
+    flexDirection: "row",
   },
   linkText1: {
-    color: "#8e8e93", // Color for the first part of the link
+    color: "#8e8e93",
     fontSize: 14,
   },
   linkText2: {
-    color: "#6e85e3", // Blue color for the second part of the link
+    color: "#6e85e3",
     fontSize: 14,
   },
   dividerWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 20,
+    marginVertical: 10,
   },
   divider: {
     flex: 1,
@@ -262,26 +274,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#B0B0B0",
   },
-  componentContainer: {
-    marginTop: 0,
+  socialButtonGoogle: {
+    backgroundColor: "#2C2C2E",
+    borderRadius: 10,
+    height: 50,
+    width: "100%",
+    justifyContent: "center",
+    marginVertical: 5,
     alignItems: "center",
   },
   socialButtonApple: {
-    backgroundColor: "#2C2C2E", // Dark gray for Apple button
+    backgroundColor: "#2C2C2E",
     borderRadius: 10,
     height: 50,
     width: "100%",
     justifyContent: "center",
-    marginVertical: 10,
-    alignItems: "center",
-  },
-  socialButtonGoogle: {
-    backgroundColor: "#2C2C2E", // Black for Google button
-    borderRadius: 10,
-    height: 50,
-    width: "100%",
-    justifyContent: "center",
-    marginVertical: 10,
+    marginVertical: 5,
     alignItems: "center",
   },
   socialButtonContent: {
@@ -294,7 +302,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   socialText: {
-    color: "#FFFFFF", // White text for social buttons
+    color: "#FFFFFF",
     fontSize: 19,
     fontWeight: "500",
   },
