@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { StyleSheet, View, Text, Pressable, Alert, SafeAreaView } from "react-native";
+import React, { useState, useEffect } from "react";
+import { StyleSheet, View, Text, Pressable, Alert, SafeAreaView, InteractionManager, Vibration } from "react-native";
 import Slider from "@react-native-community/slider";
 import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
@@ -8,7 +8,14 @@ import auth from "@react-native-firebase/auth";
 
 const Experience = ({ navigation }) => {
   const [slider, setSlider] = useState(5);
+  const [isReady, setIsReady] = useState(false);
   const user = auth().currentUser;
+
+  useEffect(() => {
+    InteractionManager.runAfterInteractions(() => {
+      setIsReady(true);
+    });
+  }, []);
 
   const handleContinue = async (user) => {
     try {
@@ -24,6 +31,10 @@ const Experience = ({ navigation }) => {
       );
     }
   };
+
+  if (!isReady) {
+    return null;
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -46,7 +57,10 @@ const Experience = ({ navigation }) => {
             <Slider
               style={styles.slider}
               value={slider}
-              onValueChange={(value) => setSlider(value)}
+              onValueChange={(value) => {
+                setSlider(value);
+                Vibration.vibrate(50); // Vibrate for 50ms on each new integer
+              }}
               minimumValue={0}
               maximumValue={10}
               step={1}

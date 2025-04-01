@@ -1,63 +1,71 @@
 import * as React from "react";
-import { useState } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, Alert } from "react-native";
+import { useState, useRef } from "react";
+import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, Vibration } from "react-native";
 import Slider from "@react-native-community/slider";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
 
 const ChildExperience = ({ navigation, route }) => {
   const [slider, setSlider] = useState(5);
+  const previousValueRef = useRef(slider); // Store the previous slider value
   const { childData } = route.params; // Get child data from the previous screen
 
-  const handleContinue = async () => {
+  const handleValueChange = (value) => {
+    setSlider(value);
+    const currentInteger = Math.round(value); // Ensure integer comparison
+    const previousInteger = Math.round(previousValueRef.current);
+    if (currentInteger !== previousInteger) {
+      Vibration.vibrate(); // Trigger vibration on new integer
+      previousValueRef.current = value; // Update previous value
+    }
+  };
+
+  const handleContinue = () => {
     const updatedChildData = { ...childData, experience: slider };
     navigation.navigate("ChildAge", { childData: updatedChildData });
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.backarrow}>
-        <BackArrow onPress={() => navigation.goBack()} />
-      </View>
-      <View style={styles.progressBar}>
-        <ProgressBar startPercentage={33} endPercentage={67} />
-      </View>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.innerContainer}>
+        <View style={styles.backarrow}>
+          <BackArrow onPress={() => navigation.goBack()} />
+        </View>
+        <View style={styles.progressBar}>
+          <ProgressBar startPercentage={33} endPercentage={67} />
+        </View>
 
-      {/* Title Section */}
-      <View>
-        <Text style={styles.title}>
-          How much experience does your child have being a deacon?
-        </Text>
-      </View>
+        <View style={styles.content}>
+          <View style={styles.card}>
+            <Text style={styles.questionText}>
+              How much experience does your child have being a deacon?
+            </Text>
+            <Text style={styles.sliderValue}>{slider.toFixed(0)}</Text>
+            <Slider
+              style={styles.slider}
+              value={slider}
+              onValueChange={handleValueChange}
+              minimumValue={0}
+              maximumValue={10}
+              step={1}
+              minimumTrackTintColor="#147EFB"
+              maximumTrackTintColor="#444"
+              thumbTintColor="#147EFB"
+            />
+            <View style={styles.sliderLabels}>
+              <Text style={styles.label}>Not experienced</Text>
+              <Text style={styles.label}>Very experienced</Text>
+            </View>
+          </View>
+        </View>
 
-      <View style={styles.sliderposition}>
-        <Text style={styles.sliderText}>{slider.toString().slice(0, 3)}</Text>
-      </View>
-
-      {/* Slider Section */}
-      <View style={styles.sliderContainer}>
-        <Slider
-          style={styles.slider}
-          value={slider}
-          onValueChange={(value) => setSlider(value)}
-          minimumValue={0}
-          maximumValue={10}
-          minimumTrackTintColor="#147efb"
-          maximumTrackTintColor="#444"
-          thumbTintColor="#147efb"
-        />
-        <View style={styles.sliderLabels}>
-          <Text style={styles.notOften}>Not experienced</Text>
-          <Text style={styles.veryVeryOften}>Very experienced</Text>
+        <View style={styles.continueLayout}>
+          <TouchableOpacity onPress={handleContinue} style={styles.continueButton}>
+            <Text style={styles.buttonText}>Continue</Text>
+          </TouchableOpacity>
         </View>
       </View>
-      {/* Continue Button */}
-      <View style={styles.continueLayout}>
-        <TouchableOpacity onPress={handleContinue} style={styles.continueButton}>
-          <Text style={styles.continuetext}>Continue</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -65,6 +73,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#121212",
+  },
+  innerContainer: {
+    flex: 1,
+    paddingTop: 18,
+    paddingBottom: 40,
   },
   backarrow: {
     top: 10,
@@ -79,66 +92,59 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     position: "absolute",
   },
-  title: {
-    left: 24,
-    width: "88%",
-    textAlign: "center",
-    fontSize: 34, // Slightly larger title font
-    letterSpacing: -0.5,
-    fontFamily: "Roboto-Regular",
-    color: "#8e8e93",
-    marginTop: 100,
-    marginBottom: 40, // More space between title and slider
+  content: {
+    flex: 1,
+    alignItems: "center",
   },
-  sliderContainer: {
-    width: "91%",
-    right: "4.07%",
-    bottom: "42.61%",
-    height: "6.1%",
-    position: "absolute",
-    alignItems: "center", // Center content horizontally
-  },
-  sliderText: {
-    textAlign: "center",
-    color: "#8e8e93",
-    fontSize: 70,
-    fontWeight: "900",
-    fontFamily: "Roboto-Bold",
-    marginBottom: 10, // Add some margin to avoid overlap
-  },
-  sliderposition: {
-    marginBottom: 60,
-  },
-  sliderLabels: {
+  card: {
+    backgroundColor: "#1A1A1A",
+    borderRadius: 20,
+    padding: 25,
     width: "100%",
-    flexDirection: "row",
-    justifyContent: "space-between", // Spacing out the labels
-    paddingTop: 5,
-    paddingHorizontal: 10,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    marginTop: 100, // Adjusted to align with original title positioning
   },
-  notOften: {
-    color: "#ccc",
-    fontSize: 14,
+  questionText: {
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#E0E0E0",
+    textAlign: "center",
+    marginBottom: 20,
     fontFamily: "Roboto-Regular",
   },
-  veryVeryOften: {
-    color: "#ccc",
-    fontSize: 14,
-    fontFamily: "Roboto-Regular",
+  sliderValue: {
+    fontSize: 56,
+    fontWeight: "bold",
+    color: "#E0E0E0",
+    textAlign: "center",
+    marginBottom: 20,
   },
   slider: {
-    height: 40,
     width: "100%",
-    marginTop: 10,
+    height: 40,
+    marginBottom: 15,
+  },
+  sliderLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  label: {
+    color: "#8E8E93",
+    fontSize: 14,
+    fontFamily: "Roboto-Regular",
   },
   continueLayout: {
-    position: "absolute",
     bottom: 20,
-    width: "91%",
-    left: 16,
+    height: 50,
+    width: "91%", // Kept for consistency, but centered
     justifyContent: "center",
     alignItems: "center",
-    height: 50,
+    alignSelf: "center", // Centers the entire layout horizontally
+    position: "absolute",
   },
   continueButton: {
     width: "100%",
@@ -148,7 +154,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     height: "100%",
   },
-  continuetext: {
+  buttonText: {
     fontSize: 17,
     letterSpacing: -0.2,
     fontWeight: "500",

@@ -6,6 +6,7 @@ import {
   Pressable,
   ScrollView,
   SafeAreaView,
+  Vibration, // Added for vibration feedback
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import { Picker } from "@react-native-picker/picker";
@@ -14,7 +15,7 @@ import auth from "@react-native-firebase/auth";
 import { useUser } from "../UserContext";
 import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
-import { callFunction } from "../components/functionCalls"
+import { callFunction } from "../components/functionCalls";
 
 const Frequency = ({ route, navigation }) => {
   const { from } = route.params;
@@ -51,70 +52,81 @@ const Frequency = ({ route, navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.backArrow}>
-          <BackArrow />
-        </View>
-        <View style={styles.progressBarContainer}>
-          <ProgressBar startPercentage={80} endPercentage={100} />
-        </View>
-      </View>
-
-      <View contentContainerStyle={styles.scrollContent}>
-        <View style={styles.card}>
-          <Text style={styles.questionText}>What's your age?</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={selectedAge}
-              onValueChange={handleAge}
-              style={styles.picker}
-            >
-              {Array.from({ length: 100 }, (_, i) => (
-                <Picker.Item
-                  key={i}
-                  label={`${i + 1}`}
-                  value={i + 1}
-                  color="#E0E0E0"
-                />
-              ))}
-            </Picker>
-            <Text style={styles.unitText}>years</Text>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.innerContainer}>
+        <View style={styles.header}>
+          <View style={styles.backArrow}>
+            <BackArrow />
+          </View>
+          <View style={styles.progressBarContainer}>
+            <ProgressBar
+              startPercentage={fromApplicable ? 40 : 80}
+              endPercentage={100}
+            />
           </View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.questionText}>
-            How often do you attend church?
-          </Text>
-          <Text style={styles.sliderValue}>{frequency.toFixed(0)}</Text>
-          <Slider
-            style={styles.slider}
-            value={frequency}
-            onValueChange={handleFrequency}
-            minimumValue={0}
-            maximumValue={10}
-            step={1}
-            minimumTrackTintColor="#147EFB"
-            maximumTrackTintColor="#444"
-            thumbTintColor="#147EFB"
-          />
-          <View style={styles.sliderLabels}>
-            <Text style={styles.label}>Rarely</Text>
-            <Text style={styles.label}>Weekly</Text>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.card}>
+            <Text style={styles.questionText}>What's your age?</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={selectedAge}
+                onValueChange={handleAge}
+                style={styles.picker}
+              >
+                {Array.from({ length: 100 }, (_, i) => (
+                  <Picker.Item
+                    key={i}
+                    label={`${i + 1}`}
+                    value={i + 1}
+                    color="#E0E0E0"
+                  />
+                ))}
+              </Picker>
+              <Text style={styles.unitText}>years</Text>
+            </View>
           </View>
-        </View>
+
+          <View style={styles.card}>
+            <Text style={styles.questionText}>
+              How often do you attend church?
+            </Text>
+            <Text style={styles.sliderValue}>{frequency.toFixed(0)}</Text>
+            <Slider
+              style={styles.slider}
+              value={frequency}
+              onValueChange={(value) => {
+                handleFrequency(value);
+                Vibration.vibrate(50); // Added vibration feedback
+              }}
+              minimumValue={0}
+              maximumValue={10}
+              step={1}
+              minimumTrackTintColor="#147EFB"
+              maximumTrackTintColor="#444"
+              thumbTintColor="#147EFB"
+            />
+            <View style={styles.sliderLabels}>
+              <Text style={styles.label}>Rarely</Text>
+              <Text style={styles.label}>Weekly</Text>
+            </View>
+          </View>
+        </ScrollView>
 
         <View style={styles.footer}>
           <Pressable
-            style={({ pressed }) => [styles.continueButton, pressed && styles.buttonPressed]}
+            style={({ pressed }) => [
+              styles.continueButton,
+              pressed && styles.buttonPressed,
+            ]}
             onPress={() => handleContinue(user)}
           >
             <Text style={styles.buttonText}>Continue</Text>
           </Pressable>
         </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -122,9 +134,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#121212",
+  },
+  innerContainer: {
+    flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 80,
+    paddingTop: 18,
     paddingBottom: 40,
+    justifyContent: "space-between", // Keeps footer at the bottom
   },
   header: {
     marginBottom: 32,
@@ -141,8 +157,8 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: "#1A1A1A",
     borderRadius: 20,
-    padding: 25,
-    marginBottom: 30,
+    padding: 20, // Reduced from 25
+    marginBottom: 20, // Reduced from 30
     elevation: 5,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -150,11 +166,11 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   questionText: {
-    fontSize: 24,
+    fontSize: 22, // Reduced from 24
     fontWeight: "600",
     color: "#E0E0E0",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 15, // Reduced from 20
     fontFamily: "Roboto-Regular",
   },
   pickerContainer: {
@@ -196,7 +212,7 @@ const styles = StyleSheet.create({
     fontFamily: "Roboto-Regular",
   },
   footer: {
-    paddingBottom: 32,
+    paddingBottom: 33, // Reduced from 32
     alignItems: "center",
   },
   continueButton: {
@@ -211,8 +227,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
-    marginBottom: 35
-
   },
   buttonPressed: {
     backgroundColor: "#115EBB",

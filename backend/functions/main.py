@@ -437,7 +437,7 @@ async def my_async_scheduled_function(event: scheduler_fn.ScheduledEvent):
         start_date = datetime.datetime.now()
 
         if not schedules:
-            for i in range(5):
+            for i in range(1,6):
                 deacons = await get_deacons(doc.id)
                 print(f"Deacons for schedule: {deacons}")
                 schedule = await create_schedule(

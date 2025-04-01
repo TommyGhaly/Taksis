@@ -367,18 +367,18 @@ const HomeScreen = () => {
       console.log("No church selected. Waiting for churchId...");
       return;
     }
-
+  
     const schedulesRef = firestore()
       .collection("churches")
       .doc(churchId)
       .collection("schedule");
-
+  
     const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
       let closestSchedule = null;
       let closestDate = null;
       let chosenDocId = "";
       const today = new Date().setHours(0, 0, 0, 0); // Normalize today's date
-
+  
       snapshot.docs.forEach((doc) => {
         const scheduleData = doc.data();
         const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
@@ -389,17 +389,18 @@ const HomeScreen = () => {
           0,
           0
         ); // Normalize schedule date
-
-        if (scheduleDate >= today) {
-          // Include today as valid
-          if (!closestDate || scheduleDate < closestDate) {
-            closestDate = scheduleDate;
-            closestSchedule = scheduleData;
-            chosenDocId = doc.id;
-          }
+  
+        // Find the schedule closest to today, regardless of past or future
+        if (
+          !closestDate ||
+          Math.abs(scheduleDate - today) < Math.abs(closestDate - today)
+        ) {
+          closestDate = scheduleDate;
+          closestSchedule = scheduleData;
+          chosenDocId = doc.id;
         }
       });
-
+  
       if (closestSchedule) {
         setCurrentWeek(chosenDocId);
         const defaultSchedule = {
@@ -414,27 +415,24 @@ const HomeScreen = () => {
           wine: { name: "N/A" },
           altar: [],
         };
-
+  
         const updatedSchedule = {
           ...defaultSchedule,
           ...closestSchedule,
         };
-
+  
         if (!Array.isArray(updatedSchedule.altar)) {
           updatedSchedule.altar = [];
         }
-
+  
         const altarServers = [];
-        if (
-          updatedSchedule.water &&
-          typeof updatedSchedule.water === "object"
-        ) {
+        if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
           altarServers.push(updatedSchedule.water);
         }
         if (updatedSchedule.wine && typeof updatedSchedule.wine === "object") {
           altarServers.push(updatedSchedule.wine);
         }
-
+  
         altarServers.push(
           ...updatedSchedule.altar.filter(
             (server) => server && typeof server === "object"
@@ -442,14 +440,15 @@ const HomeScreen = () => {
         );
         updatedSchedule.altar = altarServers;
         setSchedule(updatedSchedule);
-        console.log("Real-time schedule updated:", updatedSchedule);
+        console.log("Closest schedule updated:", updatedSchedule);
       } else {
-        console.log("No upcoming schedule found.");
+        console.log("No schedules found.");
       }
     });
-
+  
     return () => unsubscribe();
   }, [churchId]);
+  
 
   return (
     <View style={styles.container}>

@@ -88,28 +88,39 @@ const EditSchedule = () => {
         .collection("churches")
         .doc(churchId)
         .collection("schedule");
-
+  
       const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
         let closestScheduleDoc = null;
         let closestDate = null;
+        const today = new Date().setHours(0, 0, 0, 0); // Normalize today's date
+  
         snapshot.docs.forEach((doc) => {
           // Assume doc.id is in the format "MM-DD-YY"
           const scheduleDateStr = doc.id;
           const [month, day, year] = scheduleDateStr.split("-").map(Number);
           // Assuming years are stored as two digits (e.g., "25" means 2025)
-          const scheduleDate = new Date(2000 + year, month - 1, day);
-          if (scheduleDate > new Date()) {
-            if (!closestDate || scheduleDate < closestDate) {
-              closestDate = scheduleDate;
-              closestScheduleDoc = doc;
-            }
+          const scheduleDate = new Date(2000 + year, month - 1, day).setHours(
+            0,
+            0,
+            0,
+            0
+          ); // Normalize schedule date
+  
+          // Find the schedule closest to today (past or future)
+          if (
+            !closestDate ||
+            Math.abs(scheduleDate - today) < Math.abs(closestDate - today)
+          ) {
+            closestDate = scheduleDate;
+            closestScheduleDoc = doc;
           }
         });
+  
         if (closestScheduleDoc) {
           setWeek(closestScheduleDoc.id);
           const scheduleForTheWeek = closestScheduleDoc.data();
           console.log("Nearest schedule for the week:", scheduleForTheWeek);
-
+  
           // Build objects for readers and display names
           const readersObj = {};
           const readersDisplay = {};
@@ -120,7 +131,7 @@ const EditSchedule = () => {
           });
           setCurrentReaders(readersObj);
           setAssignedReaders(readersDisplay);
-
+  
           // Process altar servers (full objects)
           const fetchedAltarServers = scheduleForTheWeek.altar || [];
           setAltarServers(fetchedAltarServers);
@@ -131,7 +142,7 @@ const EditSchedule = () => {
           setAssignedServers(initialServerAssignments);
           // Update servers array (for rendering list headers, etc.)
           setServers(fetchedAltarServers.map((_, index) => `Altar Server ${index + 1}`));
-
+  
           // Also update available extra servers as full objects (filtering out placeholders)
           const extraServers = scheduleForTheWeek.extra || [];
           const filteredExtraServers = extraServers.filter(
@@ -139,10 +150,10 @@ const EditSchedule = () => {
           );
           setAvailableServers(filteredExtraServers);
         } else {
-          console.log("No upcoming schedule found.");
+          console.log("No schedules found.");
         }
       });
-
+  
       return () => unsubscribe();
     }
   }, [churchId]);
