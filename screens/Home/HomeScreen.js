@@ -20,6 +20,8 @@ import * as Location from "expo-location";
 import { unavailableToServe, frequencyUpdate } from "../../components/functionCalls";
 import * as TaskManager from "expo-task-manager";
 import * as BackgroundFetch from "expo-background-fetch";
+import * as AppleAuthentication from "expo-apple-authentication";
+import { deleteUser } from "@react-native-firebase/auth";
 
 // Initialize Firebase
 initializeApp({
@@ -329,13 +331,43 @@ const HomeScreen = () => {
       );
   }, []);
 
+useEffect(() => {
+  const user = auth().currentUser;
+  if (!user) {
+    console.log("No authenticated user found.");
+    return;
+  }
+
+  const userRef = firestore().collection("users").doc(user.uid);
+
+  const unsubscribe = userRef.onSnapshot(
+    (doc) => {
+      if (doc.exists) {
+        console.log("User document found:", doc.data());
+      } else {
+        console.log("User doc not found");
+        Alert.alert(
+          "Sign up to continue",
+          "Please sign up using this account to continue."
+        );
+        deleteUser(user)
+      }
+    },
+    (error) => {
+      console.error("Error fetching user document:", error);
+    }
+  );
+
+  return () => unsubscribe(); // Cleanup on unmount
+}, []);
+
   // Real-time listener on the user document to update nextWeek, isDeacon and churchId
   useEffect(() => {
     const user = auth().currentUser;
     if (!user) {
       console.log("No authenticated user found for realtime user updates.");
       return;
-    }
+    };
     const unsubscribeUser = firestore()
       .collection("users")
       .doc(user.uid)

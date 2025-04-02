@@ -8,14 +8,8 @@ import auth from "@react-native-firebase/auth";
 
 const Experience = ({ navigation }) => {
   const [slider, setSlider] = useState(5);
-  const [isReady, setIsReady] = useState(false);
   const user = auth().currentUser;
 
-  useEffect(() => {
-    InteractionManager.runAfterInteractions(() => {
-      setIsReady(true);
-    });
-  }, []);
 
   const handleContinue = async (user) => {
     try {
@@ -31,10 +25,6 @@ const Experience = ({ navigation }) => {
       );
     }
   };
-
-  if (!isReady) {
-    return null;
-  }
 
   return (
     <SafeAreaView style={styles.container}>

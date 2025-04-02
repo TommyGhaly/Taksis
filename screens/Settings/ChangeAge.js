@@ -5,7 +5,7 @@ import {
   View,
   Pressable,
   Alert,
-  ScrollView,
+  SafeAreaView,
 } from "react-native";
 import BackArrow from "../../components/backArrow";
 import firestore from "@react-native-firebase/firestore";
@@ -48,72 +48,127 @@ const ChangeAge = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <BackArrow style={styles.backarrow} />
-      <View style={styles.headerContainer}>
-        <Text style={styles.headerText}>Change Age</Text>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.innerContainer}>
+        <View style={styles.backarrow}>
+          <BackArrow onPress={() => navigation.goBack()} />
+        </View>
+
+        <View style={styles.content}>
+          <View style={styles.card}>
+            <Text style={styles.questionText}>Change Age</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={age}
+                onValueChange={(itemValue) => setAge(itemValue)}
+                style={styles.picker}
+                itemStyle={styles.pickerItem}
+              >
+                {Array.from({ length: 100 }, (_, i) => (
+                  <Picker.Item
+                    key={i}
+                    label={`${i + 1}`}
+                    value={`${i + 1}`}
+                  />
+                ))}
+              </Picker>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.confirmLayout}>
+          <Pressable style={styles.confirmButton} onPress={handleConfirm}>
+            <Text style={styles.confirmText}>Confirm</Text>
+          </Pressable>
+        </View>
       </View>
-      <View style={styles.pickerContainer}>
-        <Picker
-          selectedValue={age}
-          onValueChange={(itemValue) => setAge(itemValue)}
-          style={styles.picker}
-        >
-          {Array.from({ length: 100 }, (_, i) => (
-            <Picker.Item key={i} label={`${i + 1}`} value={`${i + 1}`} color="#fff" />
-          ))}
-        </Picker>
-      </View>
-      <Pressable style={styles.confirmButton} onPress={handleConfirm}>
-        <Text style={styles.confirmText}>Confirm</Text>
-      </Pressable>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#121212",
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 50,
+    backgroundColor: "#121212",
+  },
+  innerContainer: {
+    flex: 1,
+    paddingTop: 18,
+    paddingBottom: 40,
   },
   backarrow: {
+    top: 10,
+    left: 16,
     position: "absolute",
-    top: 20,
-    left: 20,
   },
-  headerContainer: {
-    marginBottom: 10,
+  content: {
+    flex: 1,
     alignItems: "center",
+    marginTop: 110,
   },
-  headerText: {
+  card: {
+    backgroundColor: "#1A1A1A",
+    borderRadius: 20,
+    padding: 30,
+    width: "100%",
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    borderWidth: 1,
+    borderColor: "#2A2A2A",
+  },
+  questionText: {
     fontSize: 28,
-    fontWeight: "500",
-    color: "#ffffff",
+    fontWeight: "700",
+    color: "#F0F0F0",
+    textAlign: "center",
+    marginBottom: 25,
+    fontFamily: "Roboto-Regular",
   },
   pickerContainer: {
-    width: "91%",
-    alignSelf: "center",
-    backgroundColor: "#333",
-    borderRadius: 10,
+    backgroundColor: "#252525", // Darker shade than #2C2C2C
+    borderRadius: 12,
     paddingHorizontal: 10,
+    paddingVertical: 5,
+    width: "100%",
+    alignSelf: "center",
+    borderWidth: 1,
+    borderColor: "#404040",
   },
   picker: {
-    height: 0, // Match the previous picker style
-    color: "#fff",
+    height: 180,
+    color: "#F0F0F0",
+  },
+  pickerItem: {
+    fontSize: 20,
+    fontFamily: "Roboto-Regular",
+    color: "#F0F0F0",
+  },
+  confirmLayout: {
+    bottom: 20,
+    height: 50,
+    width: "91%",
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "center",
+    position: "absolute",
   },
   confirmButton: {
+    width: "100%",
     backgroundColor: "#333",
     borderRadius: 10,
-    paddingVertical: 15,
+    justifyContent: "center",
     alignItems: "center",
-    marginTop: 300,
+    height: "100%",
   },
   confirmText: {
     fontSize: 17,
     color: "#fff",
     fontWeight: "500",
+    fontFamily: "Roboto-Medium",
+    letterSpacing: -0.2,
   },
 });
 
