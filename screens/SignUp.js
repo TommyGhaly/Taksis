@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
     marginBottom: 16, // Consistent spacing
   },
   footer: {
-    paddingTop: 40,
+    paddingTop: 0,
     paddingBottom: 32, // Matches SelectChurch
     alignItems: "center",
   },

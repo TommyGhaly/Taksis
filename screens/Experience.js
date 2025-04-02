@@ -49,7 +49,7 @@ const Experience = ({ navigation }) => {
               value={slider}
               onValueChange={(value) => {
                 setSlider(value);
-                Vibration.vibrate(50); // Vibrate for 50ms on each new integer
+                Vibration.vibrate(20); // Vibrate for 50ms on each new integer
               }}
               minimumValue={0}
               maximumValue={10}

@@ -15,7 +15,7 @@ const ChildExperience = ({ navigation, route }) => {
     const currentInteger = Math.round(value); // Ensure integer comparison
     const previousInteger = Math.round(previousValueRef.current);
     if (currentInteger !== previousInteger) {
-      Vibration.vibrate(); // Trigger vibration on new integer
+      Vibration.vibrate(20); // Trigger vibration on new integer
       previousValueRef.current = value; // Update previous value
     }
   };
