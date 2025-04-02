@@ -66,7 +66,8 @@ const Frequency = ({ route, navigation }) => {
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}>
           <View style={styles.card}>
             <Text style={styles.questionText}>What's your age?</Text>
             <View style={styles.pickerContainer}>
@@ -98,7 +99,7 @@ const Frequency = ({ route, navigation }) => {
               value={frequency}
               onValueChange={(value) => {
                 handleFrequency(value);
-                Vibration.vibrate(50); // Added vibration feedback
+                Vibration.vibrate(20); // Added vibration feedback
               }}
               minimumValue={0}
               maximumValue={10}
