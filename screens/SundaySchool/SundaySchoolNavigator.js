@@ -76,7 +76,7 @@ const SundaySchoolNavigator = () => {
       <Stack.Screen
         name="IndividualAttendance"
         component={IndividualAttendance}
-        options={{ headerShown: false, gestureEnabled: false }}
+        options={{ headerShown: false, gestureEnabled: true }}
       />
     </Stack.Navigator>
   );
