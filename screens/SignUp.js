@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, View, Text, TextInput, Pressable, Alert, Image } from "react-native";
+import {
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  Alert,
+  Image,
+} from "react-native";
 import auth from "@react-native-firebase/auth";
 import firestore from "@react-native-firebase/firestore";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
@@ -32,7 +40,10 @@ const SignUp = ({ navigation }) => {
       return;
     }
     try {
-      const userCredential = await auth().createUserWithEmailAndPassword(email, password);
+      const userCredential = await auth().createUserWithEmailAndPassword(
+        email,
+        password
+      );
       const user = userCredential.user;
       if (user) {
         await user.updateProfile({ displayName: name });
@@ -79,18 +90,26 @@ const SignUp = ({ navigation }) => {
   const onGoogleButtonPress = async () => {
     setSignUp(true);
     try {
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      await GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
       const { idToken } = await GoogleSignin.signIn();
       const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-      const userCredential = await auth().signInWithCredential(googleCredential);
-      const user = auth().currentUser
-      const user_ref = firestore().collection('users').doc(user.uid)
-      const user_doc = await user_ref.get()
+      const userCredential = await auth().signInWithCredential(
+        googleCredential
+      );
+      const user = auth().currentUser;
+      const user_ref = firestore().collection("users").doc(user.uid);
+      const user_doc = await user_ref.get();
       if (user_doc.exists) {
-        setSignUp(false)
+        setSignUp(false);
         navigation.navigate("MainContainer");
+        Alert.alert(
+          "Already signed up.",
+          "This email is already signed up for this app."
+        );
         return;
-      };
+      }
       await writeUserToDb(userCredential.user, userCredential.user.displayName);
       navigation.navigate("SelectChurch");
     } catch (error) {
@@ -101,7 +120,8 @@ const SignUp = ({ navigation }) => {
 
   const generateNonce = (length = 32) => {
     let text = "";
-    const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const possible =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     for (let i = 0; i < length; i++) {
       text += possible.charAt(Math.floor(Math.random() * possible.length));
     }
@@ -126,16 +146,23 @@ const SignUp = ({ navigation }) => {
         throw new Error("Apple Sign-In failed - No identity token received.");
       }
       const { identityToken, fullName, email } = appleAuthRequestResponse;
-      const appleCredential = auth.AppleAuthProvider.credential(identityToken, rawNonce);
+      const appleCredential = auth.AppleAuthProvider.credential(
+        identityToken,
+        rawNonce
+      );
       const userCredential = await auth().signInWithCredential(appleCredential);
-      const user = auth().currentUser
-      const user_ref = firestore().collection('users').doc(user.uid)
-      const user_doc = await user_ref.get()
+      const user = auth().currentUser;
+      const user_ref = firestore().collection("users").doc(user.uid);
+      const user_doc = await user_ref.get();
       if (user_doc.exists) {
-        setSignUp(false)
+        setSignUp(false);
         navigation.navigate("MainContainer");
+        Alert.alert(
+          "Already signed up.",
+          "This email is already signed up for this app."
+        );
         return;
-      };
+      }
       const formattedFullName = `${fullName.givenName} ${fullName.familyName}`;
       await writeUserToDb(userCredential.user, formattedFullName);
       navigation.navigate("SelectChurch");
