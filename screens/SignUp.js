@@ -126,9 +126,6 @@ const SignUp = ({ navigation }) => {
         throw new Error("Apple Sign-In failed - No identity token received.");
       }
       const { identityToken, fullName, email } = appleAuthRequestResponse;
-      if (!email) {
-        throw new Error("Apple Sign-In Error: email already in use.");
-      }
       const appleCredential = auth.AppleAuthProvider.credential(identityToken, rawNonce);
       const userCredential = await auth().signInWithCredential(appleCredential);
       const user = auth().currentUser

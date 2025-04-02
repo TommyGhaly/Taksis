@@ -7,14 +7,13 @@ import auth from "@react-native-firebase/auth";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useUser } from "../UserContext";
 import { callFunction, removeFamilySchedule } from "./functionCalls";
+import { deleteUser } from "@react-native-firebase/auth";
 
 const SettingsContent = () => {
   const { signUp, setSignUp } = useUser(true);
   const navigation = useNavigation();
-  const [userRoles, setUserRoles] = useState({
-    name: "",
-  });
-  const [isLoading, setIsLoading] = useState(false); // New state variable for loading
+  const [userRoles, setUserRoles] = useState({ name: "" });
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const user = auth().currentUser;
@@ -36,8 +35,6 @@ const SettingsContent = () => {
     }
   }, []);
 
-
-  
   const wait = (time) =>
     new Promise((resolve) => setTimeout(resolve, time * 1000));
 
@@ -52,15 +49,13 @@ const SettingsContent = () => {
       "Delete Account",
       "Are you sure you want to delete your account? This action cannot be undone.",
       [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
+        { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            setIsLoading(true); // Show loading indicator
+            setIsLoading(true);
+            let revokeSubscription;
             try {
               const user = auth().currentUser;
               if (user) {
@@ -80,11 +75,11 @@ const SettingsContent = () => {
               await wait(2);
               await firestore().collection("users").doc(user.uid).delete();
               await wait(2);
-              await user.delete();
+              await deleteUser(user);
             } catch (error) {
-                await handleSignOut();
+              await handleSignOut();
             } finally {
-              setIsLoading(false); // Hide loading indicator
+              setIsLoading(false);
             }
           },
         },
@@ -94,7 +89,6 @@ const SettingsContent = () => {
 
   return (
     <View style={styles.container}>
-      {/* Display ActivityIndicator when loading */}
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#fff" />
@@ -105,82 +99,45 @@ const SettingsContent = () => {
       </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
-        <TouchableOpacity
-          style={styles.option}
-          onPress={() => navigation.navigate("AccountInfo")}
-        >
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("AccountInfo")}>
           <Text style={styles.optionText}>Account info</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.option}
-          onPress={() => navigation.navigate("ChangeName")}
-        >
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeName")}>
           <Text style={styles.optionText}>Change name</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.option}
-          onPress={() => navigation.navigate("ChangeAge")}
-        >
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeAge")}>
           <Text style={styles.optionText}>Change age</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.option}
-          onPress={() => navigation.navigate("ChangePassword")}
-        >
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangePassword")}>
           <Text style={styles.optionText}>Change password</Text>
         </TouchableOpacity>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Role</Text>
-          <TouchableOpacity
-            style={styles.option}
-            onPress={() => navigation.navigate("ChangeRank")}
-          >
+          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeRank")}>
             <Text style={styles.optionText}>Change deacon rank</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.option}
-            onPress={() => navigation.navigate("ChangeRoles")}
-          >
-            <Text style={styles.optionText}>
-              Change church services that apply to you
-            </Text>
+          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeRoles")}>
+            <Text style={styles.optionText}>Change church services that apply to you</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.option}
-            onPress={() => navigation.navigate("RequestServants")}
-          >
-            <Text style={styles.optionText}>
-              Apply to be a servants meeting tracker
-            </Text>
+          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("RequestServants")}>
+            <Text style={styles.optionText}>Apply to be a servants meeting tracker</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Children</Text>
-          <TouchableOpacity
-            style={styles.option}
-            onPress={() => navigation.navigate("ChangeChildren")}
-          >
+          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeChildren")}>
             <Text style={styles.optionText}>Change your children</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.option}
-            onPress={() => navigation.navigate("AddChild")}
-          >
+          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("AddChild")}>
             <Text style={styles.optionText}>Add child</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Church Adjustments</Text>
-          <TouchableOpacity
-            style={styles.option}
-            onPress={() => navigation.navigate("ChangeChurch")}
-          >
+          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeChurch")}>
             <Text style={styles.optionText}>Change church</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.option}
-            onPress={() => navigation.navigate("RequestAdmin")}
-          >
+          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("RequestAdmin")}>
             <Text style={styles.optionText}>Apply for admin</Text>
           </TouchableOpacity>
         </View>
@@ -188,10 +145,7 @@ const SettingsContent = () => {
       <TouchableOpacity style={styles.signOut} onPress={handleSignOut}>
         <Text style={styles.signOutText}>Log out</Text>
       </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.deleteAccount}
-        onPress={handleDeleteAccount}
-      >
+      <TouchableOpacity style={styles.deleteAccount} onPress={handleDeleteAccount}>
         <Text style={styles.deleteAccountText}>Delete Account</Text>
       </TouchableOpacity>
     </View>
