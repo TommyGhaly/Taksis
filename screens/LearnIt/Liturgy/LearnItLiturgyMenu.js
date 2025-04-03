@@ -1,6 +1,5 @@
 import * as React from "react";
 import { Pressable, StyleSheet, View, Text, Animated } from "react-native";
-import { SharedElement } from "react-navigation-shared-element";
 import BackArrow from "../../../components/backArrow";
 
 const LearnItLiturgyMenu = ({ navigation }) => {

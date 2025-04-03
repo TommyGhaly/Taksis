@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#000",
-    paddingBottom: height * 0.05, // Consistent top/bottom padding
+    paddingBottom: height * 0.1, // Consistent top/bottom padding
     justifyContent: "space-between", // Distributes space between sections
   },
   spacer: {

@@ -4,9 +4,7 @@ import {
   View,
   Text,
   Pressable,
-  ScrollView,
-  SafeAreaView,
-  Vibration, // Added for vibration feedback
+  Alert,
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import { Picker } from "@react-native-picker/picker";
@@ -16,6 +14,7 @@ import { useUser } from "../UserContext";
 import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
 import { callFunction } from "../components/functionCalls";
+import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 
 const Frequency = ({ route, navigation }) => {
   const { from } = route.params;
@@ -25,15 +24,21 @@ const Frequency = ({ route, navigation }) => {
   const fromApplicable = from === "SelectApplicable";
   const { signUp, setSignUp } = useUser();
 
-  const handleAge = (checked) => {
-    setSelectedAge(checked);
+  const hapticOptions = {
+    enableVibrateFallback: true,
+    ignoreAndroidSystemSettings: false,
   };
 
-  const handleFrequency = (checked) => {
-    setFrequency(checked);
+  const handleAge = (value) => {
+    setSelectedAge(value);
   };
 
-  const handleContinue = async (user) => {
+  const handleFrequency = (value) => {
+    setFrequency(value);
+    ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
+  };
+
+  const handleContinue = async () => {
     try {
       await firestore().collection("users").doc(user.uid).update({
         frequency: frequency,
@@ -52,13 +57,13 @@ const Frequency = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.innerContainer}>
         <View style={styles.header}>
           <View style={styles.backArrow}>
             <BackArrow />
           </View>
-          <View style={styles.progressBarContainer}>
+          <View style={styles.progressBar}>
             <ProgressBar
               startPercentage={fromApplicable ? 40 : 80}
               endPercentage={100}
@@ -66,8 +71,7 @@ const Frequency = ({ route, navigation }) => {
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
+        <View>
           <View style={styles.card}>
             <Text style={styles.questionText}>What's your age?</Text>
             <View style={styles.pickerContainer}>
@@ -97,10 +101,7 @@ const Frequency = ({ route, navigation }) => {
             <Slider
               style={styles.slider}
               value={frequency}
-              onValueChange={(value) => {
-                handleFrequency(value);
-                Vibration.vibrate(20); // Added vibration feedback
-              }}
+              onValueChange={handleFrequency}
               minimumValue={0}
               maximumValue={10}
               step={1}
@@ -113,7 +114,7 @@ const Frequency = ({ route, navigation }) => {
               <Text style={styles.label}>Weekly</Text>
             </View>
           </View>
-        </ScrollView>
+        </View>
 
         <View style={styles.footer}>
           <Pressable
@@ -121,13 +122,13 @@ const Frequency = ({ route, navigation }) => {
               styles.continueButton,
               pressed && styles.buttonPressed,
             ]}
-            onPress={() => handleContinue(user)}
+            onPress={handleContinue}
           >
             <Text style={styles.buttonText}>Continue</Text>
           </Pressable>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -135,31 +136,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#121212",
+    paddingHorizontal: 16,
+    paddingTop: 80,
+    paddingBottom: 40,
   },
   innerContainer: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 40,
-    justifyContent: "space-between", // Keeps footer at the bottom
+    justifyContent: "space-between",
   },
   header: {
-    marginBottom: 32,
+    marginBottom: 2,
   },
   backArrow: {
     marginBottom: 16,
   },
-  progressBarContainer: {
-    marginBottom: 12,
-  },
-  scrollContent: {
-    paddingBottom: 24,
+  progressBar: {
+    height: 6,
+    width: "100%",
+    backgroundColor: "#2A2A2A",
+    borderRadius: 3,
+    marginBottom: 0,
   },
   card: {
     backgroundColor: "#1A1A1A",
     borderRadius: 20,
-    padding: 20, // Reduced from 25
-    marginBottom: 20, // Reduced from 30
+    paddingHorizontal: 20,  // Updated
+    paddingVertical: 10,    // Updated
+    marginBottom: 10,       // Updated
     elevation: 5,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -167,11 +170,11 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   questionText: {
-    fontSize: 22, // Reduced from 24
+    fontSize: 22,
     fontWeight: "600",
     color: "#E0E0E0",
     textAlign: "center",
-    marginBottom: 15, // Reduced from 20
+    marginBottom: 10,       // Updated
     fontFamily: "Roboto-Regular",
   },
   pickerContainer: {
@@ -196,7 +199,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#E0E0E0",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 10,       // Updated
   },
   slider: {
     width: "100%",
@@ -213,8 +216,8 @@ const styles = StyleSheet.create({
     fontFamily: "Roboto-Regular",
   },
   footer: {
-    paddingBottom: 33, // Reduced from 32
     alignItems: "center",
+    paddingBottom: 67,
   },
   continueButton: {
     height: 52,

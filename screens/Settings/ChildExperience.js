@@ -4,11 +4,16 @@ import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, Vibration } fro
 import Slider from "@react-native-community/slider";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
+import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 
 const ChildExperience = ({ navigation, route }) => {
   const [slider, setSlider] = useState(5);
   const previousValueRef = useRef(slider); // Store the previous slider value
   const { childData } = route.params; // Get child data from the previous screen
+  const hapticOptions = {
+    enableVibrateFallback: true,
+    ignoreAndroidSystemSettings: false,
+  };
 
   const handleValueChange = (value) => {
     setSlider(value);
@@ -44,7 +49,10 @@ const ChildExperience = ({ navigation, route }) => {
             <Slider
               style={styles.slider}
               value={slider}
-              onValueChange={handleValueChange}
+              onValueChange={(value) => {
+                setSlider(value);
+                ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
+              }}
               minimumValue={0}
               maximumValue={10}
               step={1}
@@ -95,6 +103,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     alignItems: "center",
+    paddingHorizontal: 20
   },
   card: {
     backgroundColor: "#1A1A1A",

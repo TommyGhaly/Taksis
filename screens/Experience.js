@@ -1,17 +1,22 @@
-import React, { useState, useEffect } from "react";
-import { StyleSheet, View, Text, Pressable, Alert, SafeAreaView, InteractionManager, Vibration } from "react-native";
+import React, { useState } from "react";
+import { StyleSheet, View, Text, Pressable, Alert } from "react-native";
 import Slider from "@react-native-community/slider";
 import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 
 const Experience = ({ navigation }) => {
   const [slider, setSlider] = useState(5);
   const user = auth().currentUser;
 
+  const hapticOptions = {
+    enableVibrateFallback: true,
+    ignoreAndroidSystemSettings: false,
+  };
 
-  const handleContinue = async (user) => {
+  const handleContinue = async () => {
     try {
       await firestore().collection("users").doc(user.uid).update({
         experience: slider,
@@ -27,54 +32,53 @@ const Experience = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.innerContainer}>
-        <View style={styles.header}>
-          <View style={styles.backArrow}>
-            <BackArrow />
-          </View>
-          <View style={styles.progressBarContainer}>
-            <ProgressBar startPercentage={60} endPercentage={80} />
-          </View>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.backArrow}>
+          <BackArrow />
         </View>
-
-        <View style={styles.content}>
-          <View style={styles.card}>
-            <Text style={styles.questionText}>
-              How much experience being a deacon do you have?
-            </Text>
-            <Text style={styles.sliderValue}>{slider.toFixed(0)}</Text>
-            <Slider
-              style={styles.slider}
-              value={slider}
-              onValueChange={(value) => {
-                setSlider(value);
-                Vibration.vibrate(20); // Vibrate for 50ms on each new integer
-              }}
-              minimumValue={0}
-              maximumValue={10}
-              step={1}
-              minimumTrackTintColor="#147EFB"
-              maximumTrackTintColor="#444"
-              thumbTintColor="#147EFB"
-            />
-            <View style={styles.sliderLabels}>
-              <Text style={styles.label}>Not experienced</Text>
-              <Text style={styles.label}>Very experienced</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.footer}>
-          <Pressable
-            style={({ pressed }) => [styles.continueButton, pressed && styles.buttonPressed]}
-            onPress={() => handleContinue(user)}
-          >
-            <Text style={styles.buttonText}>Continue</Text>
-          </Pressable>
+        <View style={styles.progressBar}>
+          <ProgressBar startPercentage={60} endPercentage={80} />
         </View>
       </View>
-    </SafeAreaView>
+      <View style={styles.content}>
+        <View style={styles.card}>
+          <Text style={styles.questionText}>
+            How much experience being a deacon do you have?
+          </Text>
+          <Text style={styles.sliderValue}>{slider.toFixed(0)}</Text>
+          <Slider
+            style={styles.slider}
+            value={slider}
+            onValueChange={(value) => {
+              setSlider(value);
+              ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
+            }}
+            minimumValue={0}
+            maximumValue={10}
+            step={1}
+            minimumTrackTintColor="#147EFB"
+            maximumTrackTintColor="#444"
+            thumbTintColor="#147EFB"
+          />
+          <View style={styles.sliderLabels}>
+            <Text style={styles.label}>Not experienced</Text>
+            <Text style={styles.label}>Very experienced</Text>
+          </View>
+        </View>
+      </View>
+      <View style={styles.footer}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.continueButton,
+            pressed && styles.buttonPressed,
+          ]}
+          onPress={handleContinue}
+        >
+          <Text style={styles.buttonText}>Continue</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 };
 
@@ -82,11 +86,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#121212",
-  },
-  innerContainer: {
-    flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 18,
+    paddingTop: 80,
     paddingBottom: 40,
   },
   header: {
@@ -95,12 +96,15 @@ const styles = StyleSheet.create({
   backArrow: {
     marginBottom: 16,
   },
-  progressBarContainer: {
+  progressBar: {
+    height: 6,
+    width: "100%",
+    backgroundColor: "#2A2A2A",
+    borderRadius: 3,
     marginBottom: 12,
   },
   content: {
     flex: 1,
-    alignItems: "center",
   },
   card: {
     backgroundColor: "#1A1A1A",
@@ -144,7 +148,6 @@ const styles = StyleSheet.create({
   },
   footer: {
     alignItems: "center",
-    width: "100%",
   },
   continueButton: {
     height: 52,
@@ -153,12 +156,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: 67,
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
-    marginBottom: 33
   },
   buttonPressed: {
     backgroundColor: "#115EBB",

@@ -107,7 +107,7 @@ const ChangeChurch = ({ navigation }) => {
     <View style={styles.container}>
       <BackArrow style={styles.backArrow} />
       <Text style={styles.titleText}>
-        Select the church(s) you regularly attend
+        Select the church you regularly attend
       </Text>
       <View style={styles.churchesContainer}>
         <Churches onSelectChurch={handleChurchSelection} />
