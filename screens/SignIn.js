@@ -28,7 +28,8 @@ const SignIn = ({ navigation }) => {
   }, []);
 
   GoogleSignin.configure({
-    webClientId: "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
+    webClientId:
+      "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
   });
 
   const handleSignIn = async () => {
@@ -106,15 +107,19 @@ const SignIn = ({ navigation }) => {
           </View>
         </Pressable>
 
-        <Pressable style={styles.socialButtonApple}>
+        <View style={styles.appleButtonContainer}>
           <AppleAuthentication.AppleAuthenticationButton
-            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-            cornerRadius={10}
-            style={styles.socialButtonApple}
-            onPress={() => onAppleButtonPress(navigation)}
+            buttonType={
+              AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP
+            }
+            buttonStyle={
+              AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+            }
+            cornerRadius={12}
+            style={styles.appleButton}
+            onPress={onAppleButtonPress}
           />
-        </Pressable>
+        </View>
 
         <View style={styles.linkRow}>
           <TouchableOpacity
@@ -194,7 +199,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   backarrow: {
-    paddingTop: 90, // Keeps the back arrow high
+    paddingTop: 70, // Keeps the back arrow high
     marginBottom: 0,
   },
   contentWrapper: {
@@ -282,15 +287,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginVertical: 5,
     alignItems: "center",
+    marginBottom: 15
   },
-  socialButtonApple: {
-    backgroundColor: "#2C2C2E",
-    borderRadius: 10,
-    height: 50,
+  appleButtonContainer: {
+    borderWidth: 1, // Adds the border
+    borderColor: "#8e8e93", // Adjust the color as needed
+    borderRadius: 12, // Matches the button's corner radius
+    overflow: "hidden", // Ensures the button doesn't exceed the container's border
     width: "100%",
-    justifyContent: "center",
-    marginVertical: 5,
-    alignItems: "center",
+  },
+  appleButton: {
+    height: 52, // Matches SelectChurch
+    width: "100%", // Matches SelectChurch
   },
   socialButtonContent: {
     flexDirection: "row",

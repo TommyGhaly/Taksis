@@ -238,13 +238,19 @@ const SignUp = ({ navigation }) => {
           />
           <Text style={styles.socialText}>Sign up with Google</Text>
         </Pressable>
-        <AppleAuthentication.AppleAuthenticationButton
-          buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP}
-          buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-          cornerRadius={12}
-          style={styles.appleButton}
-          onPress={onAppleButtonPress}
-        />
+        <View style={styles.appleButtonContainer}>
+          <AppleAuthentication.AppleAuthenticationButton
+            buttonType={
+              AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP
+            }
+            buttonStyle={
+              AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+            }
+            cornerRadius={12}
+            style={styles.appleButton}
+            onPress={onAppleButtonPress}
+          />
+        </View>
       </View>
     </View>
   );
@@ -269,7 +275,7 @@ const styles = StyleSheet.create({
     width: "100%",
     backgroundColor: "#2A2A2A", // Matches SelectChurch
     borderRadius: 3,
-    marginBottom: 45, // Matches SelectChurch
+    marginBottom: 20, // Matches SelectChurch
   },
   titleText: {
     fontSize: 36,
@@ -364,11 +370,16 @@ const styles = StyleSheet.create({
     color: "#E0E0E0", // Matches primary text
     letterSpacing: -0.2,
   },
+  appleButtonContainer: {
+    borderWidth: 1, // Adds the border
+    borderColor: "#8e8e93", // Adjust the color as needed
+    borderRadius: 12, // Matches the button's corner radius
+    overflow: "hidden", // Ensures the button doesn't exceed the container's border
+    width: "100%"
+  },
   appleButton: {
     height: 52, // Matches SelectChurch
     width: "100%", // Matches SelectChurch
-    borderRadius: 12, // Matches SelectChurch
-    marginBottom: 16, // Matches SelectChurch
   },
 });
 
