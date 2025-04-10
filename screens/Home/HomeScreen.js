@@ -318,7 +318,7 @@ const HomeScreen = () => {
   // Check notification and location permissions on mount
   useEffect(() => {
     checkNotificationPermission();
-    checkLocationPermission();
+    /*checkLocationPermission();
     const now = new Date()
     if (now.getDay() === 0 && now.getHours() === 9) {
       getCurrentLocation();
@@ -328,7 +328,7 @@ const HomeScreen = () => {
       .then(() => console.log("Background fetch task registered"))
       .catch((err) =>
         console.error("Failed to register background fetch task:", err)
-      );
+      );*/
   }, []);
 
 useEffect(() => {
