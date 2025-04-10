@@ -110,7 +110,7 @@ const SignIn = ({ navigation }) => {
         <View style={styles.appleButtonContainer}>
           <AppleAuthentication.AppleAuthenticationButton
             buttonType={
-              AppleAuthentication.AppleAuthenticationButtonType.SIGN_ⲒⲚ
+              AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
             }
             buttonStyle={
               AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
