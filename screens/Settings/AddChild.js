@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import {
-  Pressable,
   TextInput,
   StyleSheet,
   View,
   Text,
   Alert,
   TouchableOpacity,
+  SafeAreaView,
 } from "react-native";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
@@ -19,7 +19,7 @@ const generateUID = () => firestore().collection("dummy").doc().id;
 const AddChild = ({ navigation }) => {
   const [name, setName] = useState("");
   const [childData, setChildData] = useState({
-    uid: generateUID(), // Use custom function to generate UID
+    uid: generateUID(),
     name: "",
     age: "",
     rank: "",
@@ -27,17 +27,14 @@ const AddChild = ({ navigation }) => {
     church: "",
     frequency: "",
     isDeacon: true,
-    isSSTeacher: false
-    // other child data fields
+    isSSTeacher: false,
   });
 
   useEffect(() => {
     const getUserData = async () => {
       try {
-        // Get the current user's UID
         const user = auth().currentUser;
         if (user) {
-          // Fetch the user's data from Firestore
           const userDoc = await firestore().collection("users").doc(user.uid).get();
           if (userDoc.exists) {
             const userData = userDoc.data();
@@ -66,16 +63,18 @@ const AddChild = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      {/* Back Arrow */}
       <View style={styles.backarrow}>
-        <BackArrow />
+        <BackArrow onPress={() => navigation.goBack()} />
       </View>
+      {/* Progress Bar */}
       <View style={styles.progressBar}>
         <ProgressBar startPercentage={0} endPercentage={1} />
       </View>
-      <View style={styles.titleContainer}>
-        <Text style={styles.titleText}>Add Child</Text>
-      </View>
+      {/* Title */}
+      <Text style={styles.title}>Add Child</Text>
+      {/* Text Input */}
       <TextInput
         value={name}
         autoCapitalize="words"
@@ -85,16 +84,17 @@ const AddChild = ({ navigation }) => {
         onChangeText={(text) => setName(text)}
         color="#8e8e93"
       />
-      <TouchableOpacity onPress={handleContinue} activeOpacity={0.8}>
-        <View style={styles.continueButton}>
-          <Text style={styles.continueText}>Continue</Text>
-        </View>
-      </TouchableOpacity>
       {/* Disclaimer Text */}
       <Text style={styles.disclaimerText}>
         Please only add a child if they are a deacon and not already registered.
       </Text>
-    </View>
+      {/* Continue Button */}
+      <View style={styles.continueLayout}>
+        <TouchableOpacity onPress={handleContinue} style={styles.continueButton}>
+          <Text style={styles.continueText}>Continue</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 };
 
@@ -102,8 +102,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#121212",
-    paddingHorizontal: 16,
-    paddingTop: 80,
   },
   backarrow: {
     position: "absolute",
@@ -111,23 +109,22 @@ const styles = StyleSheet.create({
     left: 16,
   },
   progressBar: {
-    height: 12,
-    width: "90%", // Match the width of the progress bar in ChildDeaconRank
-    alignSelf: "center",
     position: "absolute",
-    top: 60, // Match the top position of the progress bar in ChildDeaconRank
+    top: 60,
+    width: "84%",
+    height: 12,
+    alignSelf: "center",
   },
-  titleContainer: {
-    alignItems: "center",
-    marginVertical: 40,
-  },
-  titleText: {
-    fontSize: 34,
+  title: {
+    marginTop: 100,
+    textAlign: "center",
+    fontSize: 32,
     fontFamily: "Roboto-Regular",
-    color: "#fff",
-    letterSpacing: -0.1,
+    color: "#8e8e93",
+    letterSpacing: -0.5,
   },
   textInput: {
+    marginTop: 30,
     fontSize: 17,
     fontFamily: "Roboto-Regular",
     borderColor: "#8e8e93",
@@ -136,17 +133,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderWidth: 1,
     borderRadius: 10,
-    marginBottom: 20,
     backgroundColor: "#121212",
     color: "#8e8e93",
+    alignSelf: "center",
+    width: "84%",
+  },
+  disclaimerText: {
+    fontSize: 14,
+    fontFamily: "Roboto-Regular",
+    color: "#888",
+    textAlign: "center",
+    marginTop: 20,
+    paddingHorizontal: 16,
+  },
+  continueLayout: {
+    position: "absolute",
+    bottom: 20,
+    height: 50,
+    width: "91%",
+    alignSelf: "center",
   },
   continueButton: {
+    width: "100%",
     backgroundColor: "#333",
     borderRadius: 10,
-    height: 50,
     justifyContent: "center",
     alignItems: "center",
-    marginVertical: 20,
+    height: "100%",
   },
   continueText: {
     fontSize: 17,
@@ -154,14 +167,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     letterSpacing: -0.2,
     fontWeight: "500",
-  },
-  disclaimerText: {
-    fontSize: 14,
-    fontFamily: "Roboto-Regular",
-    color: "#888", // Choose a color that stands out
-    textAlign: "center",
-    marginBottom: 10,
-    marginTop: 10,
   },
 });
 

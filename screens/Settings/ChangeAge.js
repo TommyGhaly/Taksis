@@ -95,6 +95,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 18,
     paddingBottom: 40,
+    paddingHorizontal: 20,
   },
   backarrow: {
     top: 10,

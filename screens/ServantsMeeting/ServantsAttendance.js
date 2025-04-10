@@ -151,6 +151,7 @@ const ServantsAttendance = ({ navigation }) => {
               <View style={styles.studentHeader}>
                 <Text style={styles.studentName}>{servant.name}</Text>
                 <TouchableOpacity
+                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }} // Added for larger touch area
                   onPress={() =>
                     navigation.navigate("IndividualServant", {
                       church: userData.church,
@@ -195,11 +196,11 @@ const ServantsAttendance = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: "#121212" },
   headerText: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: "bold",
     color: "#fff",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 30,
   },
   studentContainer: {
     backgroundColor: "#1E1E1E",
@@ -212,12 +213,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  studentName: { fontSize: 18, color: "#FFFFFF" },
+  studentName: { fontSize: 20, color: "#FFFFFF" },
   icon: { width: 8, height: 15 }, // Adjust size as needed
   attendanceButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 10,
+    marginTop: 20, // Increased from 10 to 20
   },
   attendanceButton: {
     flex: 1,
