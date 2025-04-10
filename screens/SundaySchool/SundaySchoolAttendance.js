@@ -15,6 +15,7 @@ import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 
 const SundaySchoolAttendance = ({ navigation }) => {
+  // State variables
   const user = auth().currentUser;
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,7 +23,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [newStudentName, setNewStudentName] = useState("");
 
-  // Real-time listener for user's document
+  // Fetch user data from Firestore
   useEffect(() => {
     if (!user) {
       Alert.alert("Error", "No user found.");
@@ -47,13 +48,16 @@ const SundaySchoolAttendance = ({ navigation }) => {
 
     return () => unsubscribe();
   }, [user]);
+
+  // Check if Sunday School is set up, redirect if not
   useEffect(() => {
     if (!userData) return;
-      if (!userData.ssSetUp) {
-        navigation.navigate("SundaySchoolGrades");
-      }
+    if (!userData.ssSetUp) {
+      navigation.navigate("SundaySchoolGrades");
+    }
   }, [userData]);
-  // Fetch students whenever userData updates (including changes to ssGrades)
+
+  // Fetch students and their attendance
   useEffect(() => {
     if (!userData) return;
 
@@ -65,7 +69,6 @@ const SundaySchoolAttendance = ({ navigation }) => {
         .doc(userData.ssGrades)
         .collection("students");
 
-      // Listen for real-time updates to the students' collection
       const unsubscribe = sundaySchoolRef.onSnapshot(async (snapshot) => {
         let studentsData = snapshot.docs.map((doc) => ({
           uid: doc.id,
@@ -97,32 +100,30 @@ const SundaySchoolAttendance = ({ navigation }) => {
         );
 
         setStudents(studentsWithAttendance);
-        setLoading(false); // Stop loading after the data is fetched
+        setLoading(false);
       });
 
-      // Clean up the listener when the component unmounts
       return () => unsubscribe();
     };
 
     fetchStudents();
   }, [userData]);
 
+  // Helper function to get the next Sunday's date
   const getNextSunday = () => {
     const today = new Date();
-    const currentDay = today.getDay(); // Get the current day of the week (0 is Sunday)
+    const currentDay = today.getDay();
 
-    // If today is Sunday, return the current date
     if (currentDay === 0) {
       return formatDate(today);
     }
 
-    // If not Sunday, find the next Sunday
     const nextSunday = new Date(today);
     nextSunday.setDate(today.getDate() + (7 - currentDay));
     return formatDate(nextSunday);
   };
 
-  // Helper function to format the date as MM-DD-YYYY
+  // Helper function to format date as MM-DD-YYYY
   const formatDate = (date) => {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
@@ -130,6 +131,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
     return `${month}-${day}-${year}`;
   };
 
+  // Update student attendance in Firestore and local state
   const handleAttendance = (studentId, status) => {
     const dateKey = getNextSunday();
     firestore()
@@ -153,6 +155,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
       });
   };
 
+  // Add a new student to Firestore
   const addStudent = async () => {
     if (!newStudentName.trim()) {
       Alert.alert("Error", "Please enter a student name");
@@ -180,6 +183,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
     }
   };
 
+  // Confirm class change with the user
   const confirmClassChange = () => {
     Alert.alert(
       "Are you sure you want to change Sunday School?",
@@ -191,6 +195,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
     );
   };
 
+  // Handle changing the Sunday School class
   const handleClassChange = async () => {
     try {
       const sundaySchoolRef = firestore()
@@ -199,24 +204,22 @@ const SundaySchoolAttendance = ({ navigation }) => {
         .collection("Sunday School")
         .doc(userData.ssGrades);
 
-      const hymnsClassDoc = await sundaySchoolRef.get();
-      if (!hymnsClassDoc.exists) {
+      const sundaySchoolDoc = await sundaySchoolRef.get();
+      if (!sundaySchoolDoc.exists) {
         throw new Error("Sunday School not found");
       }
 
-      const newServants = hymnsClassDoc
-        .get("servants")
-        .filter((servant) => servant.uid !== user.uid);
+      const newServants = sundaySchoolDoc
+        .data()
+        .servants.filter((servant) => servant.uid !== user.uid);
 
-      console.log(newServants);
-      console.log(user.uid);
       await sundaySchoolRef.update({
         servants: newServants,
       });
 
       await firestore().collection("users").doc(user.uid).update({
-        alhanGrades: null,
-        alhanSetUp: false,
+        ssGrades: null,
+        ssSetUp: false,
       });
 
       navigation.navigate("SundaySchoolGrades");
@@ -229,6 +232,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
     }
   };
 
+  // Render loading state
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -238,6 +242,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
     );
   }
 
+  // Main render
   return (
     <View style={styles.container}>
       <Text style={styles.headerText}>
@@ -256,6 +261,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
               <View style={styles.studentHeader}>
                 <Text style={styles.studentName}>{student.name}</Text>
                 <TouchableOpacity
+                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                   onPress={() =>
                     navigation.navigate("IndividualAttendance", {
                       church: userData.church,
@@ -295,14 +301,13 @@ const SundaySchoolAttendance = ({ navigation }) => {
           ))
         )}
         <TouchableOpacity
-          onPress={() => confirmClassChange()}
+          onPress={confirmClassChange}
           style={styles.changeClassContainer}
         >
           <Text style={styles.changeClassText}>Change Sunday School Class</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Change Class Button */}
       <TouchableOpacity
         style={styles.addButton}
         onPress={() => setModalVisible(true)}
@@ -310,7 +315,6 @@ const SundaySchoolAttendance = ({ navigation }) => {
         <Text style={styles.addButtonText}>Add Student</Text>
       </TouchableOpacity>
 
-      {/* Add Student Modal */}
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
@@ -336,14 +340,15 @@ const SundaySchoolAttendance = ({ navigation }) => {
   );
 };
 
+// Styles
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: "#121212" },
   headerText: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: "bold",
     color: "#fff",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 30,
   },
   studentContainer: {
     backgroundColor: "#1E1E1E",
@@ -356,12 +361,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  studentName: { fontSize: 18, color: "#FFFFFF" },
+  studentName: { fontSize: 20, color: "#FFFFFF" },
   icon: { width: 8, height: 15 },
   attendanceButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 10,
+    marginTop: 25,
   },
   attendanceButton: {
     flex: 1,

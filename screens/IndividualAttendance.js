@@ -124,6 +124,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   title: {
+    paddingTop: 16,
     fontSize: 26,
     fontWeight: "bold",
     color: "#ffffff", // White text for contrast

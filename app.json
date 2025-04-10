@@ -42,10 +42,7 @@
       "bundleIdentifier": "com.tghaly.taksis",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["remote-notification"],
-        "NSLocationWhenInUseUsageDescription": "We need access to your location for attendance tracking.",
-        "NSLocationAlwaysUsageDescription": "We need access to your location for attendance tracking.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "We need access to your location for attendance tracking."
+        "UIBackgroundModes": ["remote-notification"]
       },
       "entitlements": {
         "aps-environment": "production"
@@ -64,7 +61,7 @@
     "components/**/*"
   ],
   "ios": {
-    "supportsTablet": true,
+    "supportsTablet": false,
     "bundleIdentifier": "com.tghaly.taksis",
     "usesAppleSignIn": true
   },

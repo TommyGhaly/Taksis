@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import { use } from "react";
 
 const AlhanAttendance = ({ navigation }) => {
   const user = auth().currentUser;
@@ -48,12 +47,14 @@ const AlhanAttendance = ({ navigation }) => {
 
     return () => unsubscribe();
   }, [user]);
+
   useEffect(() => {
     if (!userData) return;
-      if (!userData.alhanSetUp) {
-        navigation.navigate("AlhanGrades");
-      }
+    if (!userData.alhanSetUp) {
+      navigation.navigate("AlhanGrades");
+    }
   }, [userData]);
+
   // Fetch students whenever userData updates (including changes to alhanGrades)
   useEffect(() => {
     if (!userData) return;
@@ -204,8 +205,6 @@ const AlhanAttendance = ({ navigation }) => {
         .get("servants")
         .filter((servant) => servant.uid !== user.uid);
 
-      console.log(newServants);
-      console.log(user.uid);
       await hymnsClassRef.update({
         servants: newServants,
       });
@@ -249,6 +248,7 @@ const AlhanAttendance = ({ navigation }) => {
               <View style={styles.studentHeader}>
                 <Text style={styles.studentName}>{student.name}</Text>
                 <TouchableOpacity
+                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }} // Added hitSlop
                   onPress={() =>
                     navigation.navigate("IndividualAttendance", {
                       church: userData.church,
@@ -332,11 +332,11 @@ const AlhanAttendance = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: "#121212" },
   headerText: {
-    fontSize: 20,
+    fontSize: 25,
     fontWeight: "bold",
     color: "#fff",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 30,
   },
   studentContainer: {
     backgroundColor: "#1E1E1E",
@@ -349,12 +349,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  studentName: { fontSize: 18, color: "#FFFFFF" },
+  studentName: { fontSize: 20, color: "#FFFFFF" },
   icon: { width: 8, height: 15 },
   attendanceButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 10,
+    marginTop: 25, // Updated from 10 to 20
   },
   attendanceButton: {
     flex: 1,
