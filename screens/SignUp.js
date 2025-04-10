@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   socialText: {
-    fontSize: 18, // Matches other button text
+    fontSize: 20, // Matches other button text
     fontFamily: "Roboto-Medium",
     fontWeight: "600",
     color: "#E0E0E0", // Matches primary text

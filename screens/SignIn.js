@@ -110,7 +110,7 @@ const SignIn = ({ navigation }) => {
         <View style={styles.appleButtonContainer}>
           <AppleAuthentication.AppleAuthenticationButton
             buttonType={
-              AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP
+              AppleAuthentication.AppleAuthenticationButtonType.SIGN_ⲒⲚ
             }
             buttonStyle={
               AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
   },
   socialText: {
     color: "#FFFFFF",
-    fontSize: 19,
+    fontSize: 20,
     fontWeight: "500",
   },
 });
