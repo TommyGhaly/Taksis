@@ -104,14 +104,14 @@ const Frequency = ({ route, navigation }) => {
               onValueChange={handleFrequency}
               minimumValue={0}
               maximumValue={10}
-              step={1}
+              step={0.25}
               minimumTrackTintColor="#147EFB"
               maximumTrackTintColor="#444"
               thumbTintColor="#147EFB"
             />
             <View style={styles.sliderLabels}>
               <Text style={styles.label}>Rarely</Text>
-              <Text style={styles.label}>Weekly</Text>
+              <Text style={styles.label}>Often</Text>
             </View>
           </View>
         </View>
