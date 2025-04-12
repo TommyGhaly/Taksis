@@ -8,9 +8,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:642693016544:android:4425026c6baee2cff61985",
+        "mobilesdk_app_id": "1:642693016544:android:dae8bb1014d42b6cf61985",
         "android_client_info": {
-          "package_name": "com.dgobran.Taxis"
+          "package_name": "com.tghaly.taksis"
         }
       },
       "oauth_client": [
