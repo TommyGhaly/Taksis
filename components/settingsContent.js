@@ -106,7 +106,7 @@ const SettingsContent = () => {
           <Text style={styles.optionText}>Change name</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeAge")}>
-          <Text style={styles.optionText}>Change age</Text>
+          <Text style={styles.optionText}>Change date of birth</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangePassword")}>
           <Text style={styles.optionText}>Change password</Text>

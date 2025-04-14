@@ -6,44 +6,55 @@ import {
   Pressable,
   Alert,
   SafeAreaView,
+  Platform,
 } from "react-native";
 import BackArrow from "../../components/backArrow";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
-import { Picker } from "@react-native-picker/picker";
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { callFunction } from "../../components/functionCalls";
 
 const ChangeAge = () => {
-  const [age, setAge] = useState("18");
+  const [date, setDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const navigation = useNavigation();
   const user = auth().currentUser;
 
-  const updateAgeInDB = async (age) => {
+  const formatDate = (date) => {
+    return `${date.getFullYear()}-${(date.getMonth() + 1)
+      .toString()
+      .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+  };
+
+  const handleDateChange = (event, selectedDate) => {
+    const currentDate = selectedDate || date;
+    setShowDatePicker(Platform.OS === 'ios');
+    setDate(currentDate);
+  };
+
+  const updateDOBInDB = async (dob) => {
     try {
       await firestore().collection("users").doc(user.uid).update({
-        age: age,
+        DOB: dob,
       });
     } catch (error) {
       Alert.alert(
         "Error",
-        "Could not update age information. Please try again."
+        "Could not update date of birth. Please try again."
       );
     }
   };
 
   const handleConfirm = async () => {
-    if (age.trim() === "") {
-      Alert.alert("Error", "Age cannot be empty.");
-      return;
-    }
     try {
-      await updateAgeInDB(age);
+      const dob = formatDate(date);
+      await updateDOBInDB(dob);
       await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
-      Alert.alert("Success", "Age updated successfully.");
+      Alert.alert("Success", "Date of birth updated successfully.");
       navigation.goBack();
     } catch (error) {
-      Alert.alert("Error", "Failed to update the age.");
+      Alert.alert("Error", "Failed to update date of birth.");
     }
   };
 
@@ -56,22 +67,24 @@ const ChangeAge = () => {
 
         <View style={styles.content}>
           <View style={styles.card}>
-            <Text style={styles.questionText}>Change Age</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={age}
-                onValueChange={(itemValue) => setAge(itemValue)}
-                style={styles.picker}
-                itemStyle={styles.pickerItem}
+            <Text style={styles.questionText}>Change Date of Birth</Text>
+            <View style={styles.datePickerContainer}>
+              <Pressable
+                style={styles.dateButton}
+                onPress={() => setShowDatePicker(true)}
               >
-                {Array.from({ length: 100 }, (_, i) => (
-                  <Picker.Item
-                    key={i}
-                    label={`${i + 1}`}
-                    value={`${i + 1}`}
-                  />
-                ))}
-              </Picker>
+                <Text style={styles.dateText}>{formatDate(date)}</Text>
+              </Pressable>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={date}
+                  mode="date"
+                  display="default"
+                  onChange={handleDateChange}
+                  maximumDate={new Date()}
+                  style={styles.datePicker}
+                />
+              )}
             </View>
           </View>
         </View>
@@ -128,24 +141,27 @@ const styles = StyleSheet.create({
     marginBottom: 25,
     fontFamily: "Roboto-Regular",
   },
-  pickerContainer: {
-    backgroundColor: "#252525", // Darker shade than #2C2C2C
+  datePickerContainer: {
+    backgroundColor: "#252525",
     borderRadius: 12,
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 15,
     width: "100%",
     alignSelf: "center",
     borderWidth: 1,
     borderColor: "#404040",
   },
-  picker: {
-    height: 180,
-    color: "#F0F0F0",
+  dateButton: {
+    padding: 10,
   },
-  pickerItem: {
+  dateText: {
     fontSize: 20,
-    fontFamily: "Roboto-Regular",
     color: "#F0F0F0",
+    textAlign: "center",
+    fontFamily: "Roboto-Regular",
+  },
+  datePicker: {
+    backgroundColor: "#252525",
   },
   confirmLayout: {
     bottom: 20,

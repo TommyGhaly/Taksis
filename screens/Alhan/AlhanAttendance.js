@@ -10,19 +10,23 @@ import {
   Image,
   Modal,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
+import { Picker } from "@react-native-picker/picker";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 
 const AlhanAttendance = ({ navigation }) => {
   const user = auth().currentUser;
-  const [students, setStudents] = useState([]);
+  const [studentsByGrade, setStudentsByGrade] = useState({});
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [newStudentName, setNewStudentName] = useState("");
+  const [newStudentGrade, setNewStudentGrade] = useState("");
 
-  // Listen for real-time updates to the user's document
+  // Fetch user data
   useEffect(() => {
     if (!user) {
       Alert.alert("Error", "No user found.");
@@ -48,6 +52,7 @@ const AlhanAttendance = ({ navigation }) => {
     return () => unsubscribe();
   }, [user]);
 
+  // Redirect if Hymns Class not set up
   useEffect(() => {
     if (!userData) return;
     if (!userData.alhanSetUp) {
@@ -55,70 +60,49 @@ const AlhanAttendance = ({ navigation }) => {
     }
   }, [userData]);
 
-  // Fetch students whenever userData updates (including changes to alhanGrades)
+  // Fetch students from all selected grades
   useEffect(() => {
-    if (!userData) return;
+    if (!userData || !userData.alhanGrades || userData.alhanGrades.length === 0) return;
 
-    const fetchStudents = () => {
-      const hymnsClassRef = firestore()
+    const unsubscribeFunctions = [];
+
+    userData.alhanGrades.forEach((grade) => {
+      const studentsRef = firestore()
         .collection("churches")
         .doc(userData.church)
         .collection("Hymns Class")
-        .doc(userData.alhanGrades)
+        .doc(grade)
         .collection("students");
 
-      const unsubscribe = hymnsClassRef.onSnapshot(async (snapshot) => {
-        let studentsData = snapshot.docs.map((doc) => ({
+      const unsubscribe = studentsRef.onSnapshot((snapshot) => {
+        const gradeStudents = snapshot.docs.map((doc) => ({
           uid: doc.id,
+          grade: grade,
           ...doc.data(),
         }));
-        studentsData.sort((a, b) => a.name.localeCompare(b.name));
-
-        const dateKey = getNextSaturday();
-        const studentsWithAttendance = await Promise.all(
-          studentsData.map(async (student) => {
-            const attendanceDoc = await firestore()
-              .collection("churches")
-              .doc(userData.church)
-              .collection("Hymns Class")
-              .doc(userData.alhanGrades)
-              .collection("students")
-              .doc(student.uid)
-              .get();
-
-            const attendanceStatus = attendanceDoc.exists
-              ? attendanceDoc.data()[dateKey]
-              : null;
-
-            return {
-              ...student,
-              attendance: attendanceStatus,
-            };
-          })
-        );
-
-        setStudents(studentsWithAttendance);
+        gradeStudents.sort((a, b) => a.name.localeCompare(b.name));
+        setStudentsByGrade((prev) => ({
+          ...prev,
+          [grade]: gradeStudents,
+        }));
         setLoading(false);
       });
+      unsubscribeFunctions.push(unsubscribe);
+    });
 
-      return () => unsubscribe();
-    };
-
-    fetchStudents();
+    setNewStudentGrade(userData.alhanGrades[0] || "");
+    return () => unsubscribeFunctions.forEach((unsubscribe) => unsubscribe());
   }, [userData]);
 
   const getNextSaturday = () => {
     const today = new Date();
     const currentDay = today.getDay();
-
-    if (currentDay === 6) {
-      return formatDate(today);
-    }
-
+    if (currentDay === 6) return formatDate(today); // If today is Saturday, return today
     const nextSaturday = new Date(today);
     nextSaturday.setDate(today.getDate() + (6 - currentDay));
     return formatDate(nextSaturday);
   };
+  
 
   const formatDate = (date) => {
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -127,26 +111,23 @@ const AlhanAttendance = ({ navigation }) => {
     return `${month}-${day}-${year}`;
   };
 
-  const handleAttendance = (studentId, status) => {
+  const formatGrade = (grade) => {
+    const num = parseInt(grade);
+    const suffix = num === 1 ? "st" : num === 2 ? "nd" : num === 3 ? "rd" : "th";
+    return `${num}${suffix} Grade`;
+  };
+
+  const handleAttendance = (student, status) => {
     const dateKey = getNextSaturday();
     firestore()
       .collection("churches")
       .doc(userData.church)
       .collection("Hymns Class")
-      .doc(userData.alhanGrades)
+      .doc(student.grade)
       .collection("students")
-      .doc(studentId)
+      .doc(student.uid)
       .update({
         [dateKey]: status,
-      })
-      .then(() => {
-        setStudents((prevStudents) =>
-          prevStudents.map((student) =>
-            student.uid === studentId
-              ? { ...student, attendance: status }
-              : student
-          )
-        );
       });
   };
 
@@ -155,12 +136,16 @@ const AlhanAttendance = ({ navigation }) => {
       Alert.alert("Error", "Please enter a student name");
       return;
     }
+    if (!newStudentGrade) {
+      Alert.alert("Error", "Please select a grade");
+      return;
+    }
 
     const newStudentRef = firestore()
       .collection("churches")
       .doc(userData.church)
       .collection("Hymns Class")
-      .doc(userData.alhanGrades)
+      .doc(newStudentGrade)
       .collection("students")
       .doc();
 
@@ -168,56 +153,52 @@ const AlhanAttendance = ({ navigation }) => {
       await newStudentRef.set({
         name: newStudentName,
         uid: newStudentRef.id,
+        phone: "",
+        address: "",
+        description: "",
+        birthday: "",
       });
-
       setModalVisible(false);
       setNewStudentName("");
+      setNewStudentGrade(userData.alhanGrades[0] || "");
     } catch (error) {
+      console.error("Error adding student:", error);
       Alert.alert("Error", "Failed to add student");
     }
   };
 
   const confirmClassChange = () => {
     Alert.alert(
-      "Are you sure you want to change hymns class?",
-      `You are currently teaching grade(s): ${userData.alhanGrades}. Changing classes will revoke access to any students in your current class.`,
+      "Are you sure you want to change Hymns Class?",
+      `You are currently teaching grade(s): ${userData.alhanGrades.map(formatGrade).join(", ")}. Changing classes will revoke access to any students in your current class(es).`,
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Confirm", onPress: () => handleClassChange() },
+        { text: "Confirm", onPress: handleClassChange },
       ]
     );
   };
 
   const handleClassChange = async () => {
     try {
-      const hymnsClassRef = firestore()
-        .collection("churches")
-        .doc(userData.church)
-        .collection("Hymns Class")
-        .doc(userData.alhanGrades);
+      const churchRef = firestore().collection("churches").doc(userData.church);
+      const hymnsClassRef = churchRef.collection("Hymns Class");
 
-      const hymnsClassDoc = await hymnsClassRef.get();
-      if (!hymnsClassDoc.exists) {
-        throw new Error("Hymns class not found");
+      for (const grade of userData.alhanGrades) {
+        const gradeRef = hymnsClassRef.doc(grade);
+        await gradeRef.update({
+          servants: firestore.FieldValue.arrayRemove({ uid: user.uid }),
+        });
       }
 
-      const newServants = hymnsClassDoc
-        .get("servants")
-        .filter((servant) => servant.uid !== user.uid);
-
-      await hymnsClassRef.update({
-        servants: newServants,
-      });
-
       await firestore().collection("users").doc(user.uid).update({
-        alhanGrades: null,
+        alhanGrades: [],
         alhanSetUp: false,
       });
 
       navigation.navigate("AlhanGrades");
     } catch (error) {
-      console.error("Error changing hymns class:", error);
-      Alert.alert("Error", "Failed to change hymns class. Please try again.");
+      console.error("Error changing Hymns Class:", error);
+      Alert.alert("Error", "Failed to change Hymns Class.");
     }
   };
 
@@ -230,100 +211,126 @@ const AlhanAttendance = ({ navigation }) => {
     );
   }
 
+  const dateKey = getNextSaturday();
+
   return (
     <View style={styles.container}>
-      <Text style={styles.headerText}>
-        Attendance for the week of {getNextSaturday()}
-      </Text>
-
-      <ScrollView
-        contentContainerStyle={styles.studentsContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        {students.length === 0 ? (
-          <Text style={styles.noStudentsText}>Class has no students</Text>
-        ) : (
-          students.map((student) => (
-            <View key={student.uid} style={styles.studentContainer}>
-              <View style={styles.studentHeader}>
-                <Text style={styles.studentName}>{student.name}</Text>
-                <TouchableOpacity
-                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }} // Added hitSlop
-                  onPress={() =>
-                    navigation.navigate("IndividualAttendance", {
-                      church: userData.church,
-                      category: "Hymns Class",
-                      grade: userData.alhanGrades,
-                      studentId: student.uid,
-                    })
-                  }
-                >
-                  <Image
-                    source={require("../../assets/vector.png")}
-                    style={styles.icon}
-                  />
-                </TouchableOpacity>
-              </View>
-              <View style={styles.attendanceButtons}>
-                <TouchableOpacity
-                  style={[
-                    styles.attendanceButton,
-                    student.attendance === false && styles.absentSelected,
-                  ]}
-                  onPress={() => handleAttendance(student.uid, false)}
-                >
-                  <Text style={styles.attendanceButtonText}>Absent</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.attendanceButton,
-                    student.attendance === true && styles.presentSelected,
-                  ]}
-                  onPress={() => handleAttendance(student.uid, true)}
-                >
-                  <Text style={styles.attendanceButtonText}>Present</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))
-        )}
-        <TouchableOpacity
-          onPress={() => confirmClassChange()}
-          style={styles.changeClassContainer}
-        >
+      <Text style={styles.title}>Week of {dateKey}</Text>
+      <Text style={styles.subtitle}>Grades: {userData.alhanGrades.map(formatGrade).join(", ")}</Text>
+      <ScrollView contentContainerStyle={styles.studentsContainer} showsVerticalScrollIndicator={false}>
+        {userData.alhanGrades.map((grade) => (
+          <View key={grade}>
+            <Text style={styles.gradeHeader}>{formatGrade(grade)}</Text>
+            {studentsByGrade[grade] && studentsByGrade[grade].length > 0 ? (
+              studentsByGrade[grade].map((student) => (
+                <View key={student.uid} style={styles.studentContainer}>
+                  <View style={styles.studentHeader}>
+                    <Text style={styles.studentName}>
+                      {student.name} - {formatGrade(student.grade)}
+                    </Text>
+                    <TouchableOpacity
+                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                      onPress={() =>
+                        navigation.navigate("IndividualAttendance", {
+                          church: userData.church,
+                          category: "Hymns Class",
+                          grade: student.grade,
+                          studentId: student.uid,
+                        })
+                      }
+                    >
+                      <Image source={require("../../assets/vector.png")} style={styles.icon} />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.attendanceButtons}>
+                    <TouchableOpacity
+                      style={[
+                        styles.attendanceButton,
+                        { backgroundColor: student[dateKey] === false ? "#D32F2F" : "#444" },
+                      ]}
+                      onPress={() => handleAttendance(student, false)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.attendanceButtonText}>Absent</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.attendanceButton,
+                        { backgroundColor: student[dateKey] === true ? "#147EFB" : "#444" },
+                      ]}
+                      onPress={() => handleAttendance(student, true)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.attendanceButtonText}>Present</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.noStudentsText}>No students in this grade</Text>
+            )}
+          </View>
+        ))}
+        <TouchableOpacity onPress={confirmClassChange} style={styles.changeClassContainer}>
           <Text style={styles.changeClassText}>Change Hymns Class</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Add Student Button */}
       <TouchableOpacity
         style={styles.addButton}
         onPress={() => setModalVisible(true)}
+        activeOpacity={0.7}
       >
         <Text style={styles.addButtonText}>Add Student</Text>
       </TouchableOpacity>
 
-      {/* Add Student Modal */}
-      <Modal visible={modalVisible} transparent animationType="none">
-        <View style={styles.modalContainer}>
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalContainer}
+        >
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add New Student</Text>
-            <TextInput
-              style={styles.input}
-              autoCapitalize="words"
-              placeholder="Enter student name"
-              placeholderTextColor="#888"
-              value={newStudentName}
-              onChangeText={setNewStudentName}
-            />
-            <TouchableOpacity style={styles.addButton} onPress={addStudent}>
-              <Text style={styles.addButtonText}>Add</Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                autoCapitalize="words"
+                placeholder="Enter student name"
+                placeholderTextColor="#888"
+                value={newStudentName}
+                onChangeText={setNewStudentName}
+                accessible={true}
+                accessibilityLabel="Enter student name"
+              />
+              <Picker
+                selectedValue={newStudentGrade}
+                onValueChange={(itemValue) => setNewStudentGrade(itemValue)}
+                style={styles.picker}
+                itemStyle={styles.pickerItem}
+              >
+                {userData.alhanGrades.map((grade) => (
+                  <Picker.Item key={grade} label={formatGrade(grade)} value={grade} />
+                ))}
+              </Picker>
+            </View>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={addStudent}
+              activeOpacity={0.7}
+              accessible={true}
+              accessibilityLabel="Add student"
+            >
+              <Text style={styles.modalButtonText}>Add Student</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
+            <TouchableOpacity
+              onPress={() => setModalVisible(false)}
+              accessible={true}
+              accessibilityLabel="Cancel adding student"
+            >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -331,41 +338,62 @@ const AlhanAttendance = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: "#121212" },
-  headerText: {
-    fontSize: 25,
+  title: {
+    fontSize: 28,
     fontWeight: "bold",
     color: "#fff",
     textAlign: "center",
-    marginBottom: 30,
+    marginBottom: 10,
+  },
+  subtitle: {
+    fontSize: 18,
+    color: "#b0b0b0",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  gradeHeader: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#ccc",
+    marginTop: 20,
+    marginBottom: 10,
   },
   studentContainer: {
     backgroundColor: "#1E1E1E",
     padding: 15,
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: 15,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   studentHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  studentName: { fontSize: 20, color: "#FFFFFF" },
+  studentName: { fontSize: 20, color: "#FFFFFF", fontWeight: "600" },
   icon: { width: 8, height: 15 },
   attendanceButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 25, // Updated from 10 to 20
+    marginTop: 25,
   },
   attendanceButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 6,
-    alignItems: "center",
+    borderRadius: 10,
     marginHorizontal: 5,
-    backgroundColor: "#444",
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
-  presentSelected: { backgroundColor: "#147efb" },
-  absentSelected: { backgroundColor: "#D32F2F" },
   attendanceButtonText: { fontSize: 16, fontWeight: "bold", color: "#FFFFFF" },
   loadingContainer: {
     flex: 1,
@@ -374,18 +402,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#121212",
   },
   addButton: {
-    backgroundColor: "#147efb",
-    paddingVertical: 15,
-    borderRadius: 8,
+    backgroundColor: "#147EFB",
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    paddingVertical: 14,
     marginTop: 20,
     width: "90%",
     alignSelf: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowRadius: 6,
     elevation: 5,
   },
   addButtonText: { fontSize: 18, fontWeight: "bold", color: "#FFFFFF" },
@@ -393,43 +421,100 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.8)",
   },
   modalContent: {
-    width: 320,
-    padding: 20,
+    width: 340,
+    padding: 25,
     backgroundColor: "#1E1E1E",
-    borderRadius: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#333",
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 15,
   },
-  modalTitle: { fontSize: 18, color: "#FFF", marginBottom: 15 },
+  modalTitle: {
+    fontSize: 24,
+    color: "#FFF",
+    fontWeight: "bold",
+    marginBottom: 20,
+    letterSpacing: 0.5,
+  },
+  inputContainer: {
+    width: "100%",
+    marginBottom: 20,
+  },
+  picker: {
+    width: "100%",
+    backgroundColor: "#2a2a2a",
+    borderRadius: 10,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#444",
+  },
+  pickerItem: {
+    color: "#e0e0e0",
+    fontSize: 18,
+    fontWeight: "700",
+  },
   input: {
     width: "100%",
     padding: 12,
-    backgroundColor: "#333",
+    backgroundColor: "#2a2a2a",
     color: "#FFF",
-    borderRadius: 5,
-    marginBottom: 10,
+    borderRadius: 10,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#444",
+    fontSize: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  modalButton: {
+    width: "100%",
+    backgroundColor: "#147EFB",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  modalButtonText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#ffffff",
+    letterSpacing: 0.5,
   },
   cancelButtonText: {
     fontSize: 16,
-    color: "#AAA",
-    marginTop: 10,
+    color: "#F44336",
+    marginTop: 15,
+    fontWeight: "600",
   },
   changeClassContainer: {
     alignItems: "center",
-    justifyContent: "center",
     paddingTop: 30,
   },
   changeClassText: {
-    color: "red",
+    color: "#F44336",
     fontSize: 16,
+    fontWeight: "600",
   },
   noStudentsText: {
     fontSize: 18,
-    color: "#fff",
+    color: "#b0b0b0",
     textAlign: "center",
-    marginTop: 20,
+    marginVertical: 10,
   },
 });
 

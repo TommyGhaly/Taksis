@@ -1,19 +1,47 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Button, Alert } from "react-native";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  TouchableOpacity,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Dimensions,
+} from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
-import BackArrow from "../components/backArrow"; // Importing the custom back arrow component
+import { LinearGradient } from "expo-linear-gradient";
+import BackArrow from "../components/backArrow";
 
 const IndividualAttendance = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { church, category, grade, studentId } = route.params;
   const [attendanceData, setAttendanceData] = useState([]);
-  const [studentName, setStudentName] = useState("");
+  const [studentData, setStudentData] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editData, setEditData] = useState({
+    name: "",
+    phone: "",
+    address: "",
+    description: "",
+    birthday: "",
+  });
+  const isMounted = useRef(true);
 
+  // Fetch student data and attendance with real-time updates
   useEffect(() => {
+    isMounted.current = true;
     const fetchAttendance = async () => {
       try {
+        setLoading(true);
         const studentRef = firestore()
           .collection("churches")
           .doc(church)
@@ -22,64 +50,154 @@ const IndividualAttendance = () => {
           .collection("students")
           .doc(studentId);
 
-        const studentDoc = await studentRef.get();
-        if (studentDoc.exists) {
-          setStudentName(studentDoc.data().name);
+        const unsubscribe = studentRef.onSnapshot(
+          (doc) => {
+            if (!isMounted.current) return;
+            if (doc.exists) {
+              const data = doc.data();
+              setStudentData(data);
+              setEditData({
+                name: data.name || "",
+                phone: data.phone || "",
+                address: data.address || "",
+                description: data.description || "",
+                birthday: data.birthday || "",
+              });
 
-          const studentData = studentDoc.data();
-          const attendance = [];
-
-          for (const [key, value] of Object.entries(studentData)) {
-            if (key !== "name" && key !== "uid") {
-              attendance.push({ date: key, status: value });
+              const attendance = [];
+              for (const [key, value] of Object.entries(data)) {
+                if (
+                  key !== "name" &&
+                  key !== "uid" &&
+                  key !== "phone" &&
+                  key !== "address" &&
+                  key !== "description" &&
+                  key !== "birthday"
+                ) {
+                  attendance.push({ date: key, status: value });
+                }
+              }
+              attendance.sort((a, b) => {
+                const [aMonth, aDay, aYear] = a.date.split("-").map(Number);
+                const [bMonth, bDay, bYear] = b.date.split("-").map(Number);
+                return (
+                  new Date(bYear, bMonth - 1, bDay) -
+                  new Date(aYear, aMonth - 1, aDay)
+                );
+              });
+              setAttendanceData(attendance);
+            } else {
+              navigation.goBack();
             }
+            setLoading(false);
+          },
+          (error) => {
+            console.error("Firestore snapshot error:", error);
+            Alert.alert("Error", "Failed to load student data.");
+            setLoading(false);
           }
+        );
 
-          attendance.sort((a, b) => new Date(b.date) - new Date(a.date));
-          console.log(attendance)
-          setAttendanceData(attendance);
-        }
+        return () => {
+          unsubscribe();
+          isMounted.current = false;
+        };
       } catch (error) {
-        console.error("Error fetching attendance data:", error);
+        console.error("Error setting up Firestore listener:", error);
+        Alert.alert("Error", "An unexpected error occurred.");
+        setLoading(false);
       }
     };
 
     fetchAttendance();
-  }, [church, studentId]);
 
-  const getStatusStyle = (status) => {
-    // Adjusted to handle true/false for Present/Absent
+    return () => {
+      isMounted.current = false;
+    };
+  }, [church, category, grade, studentId, navigation]);
+
+  // Format grade
+  const formatGrade = useCallback((grade) => {
+    const num = parseInt(grade);
+    if (isNaN(num)) return grade;
+    const suffix = num === 1 ? "st" : num === 2 ? "nd" : num === 3 ? "rd" : "th";
+    return `${num}${suffix} Grade`;
+  }, []);
+
+  // Get status style
+  const getStatusStyle = useCallback((status) => {
     return status === false ? styles.absent : styles.present;
+  }, []);
+
+  // Save edited student data
+  const saveEdits = async () => {
+    if (!editData.name.trim()) {
+      Alert.alert("Error", "Student name is required.");
+      return;
+    }
+    try {
+      setLoading(true);
+      await firestore()
+        .collection("churches")
+        .doc(church)
+        .collection(category)
+        .doc(grade)
+        .collection("students")
+        .doc(studentId)
+        .update({
+          name: editData.name.trim(),
+          phone: editData.phone.trim(),
+          address: editData.address.trim(),
+          description: editData.description.trim(),
+          birthday: editData.birthday.trim(),
+        });
+      setEditMode(false);
+      setModalVisible(false);
+      Alert.alert("Success", "Student information updated successfully.");
+    } catch (error) {
+      console.error("Error updating student data:", error);
+      Alert.alert("Error", "Failed to update student information.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Delete student function
+  // Delete student
   const deleteStudent = async () => {
     Alert.alert(
       "Delete Student",
-      `Are you sure you want to delete ${studentName}'s record? This action cannot be undone.`,
+      `Are you sure you want to delete ${studentData.name || "this student's"} record? This action cannot be undone.`,
       [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
+        { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
+          style: "destructive",
           onPress: async () => {
             try {
-              await firestore()
-                .collection("churches")
-                .doc(church)
-                .collection(category)
-                .doc(grade)
-                .collection("students")
-                .doc(studentId)
-                .delete();
-              
-              Alert.alert("Success", `${studentName}'s record has been deleted.`);
-              navigation.goBack(); // Go back to the previous screen after deletion
+              // Show success alert and navigate back immediately
+              Alert.alert(
+                "Success",
+                `${studentData.name || "Student"}'s record has been deleted.`,
+                [
+                  {
+                    text: "OK",
+                    onPress: async () => {
+                      // Perform deletion after navigation
+                      await firestore()
+                        .collection("churches")
+                        .doc(church)
+                        .collection(category)
+                        .doc(grade)
+                        .collection("students")
+                        .doc(studentId)
+                        .delete();
+                    },
+                  },
+                ]
+              );
             } catch (error) {
               console.error("Error deleting student:", error);
-              Alert.alert("Error", "An error occurred while deleting the student's record.");
+              Alert.alert("Error", "Failed to delete student record.");
             }
           },
         },
@@ -87,32 +205,264 @@ const IndividualAttendance = () => {
     );
   };
 
+  // Handle modal close
+  const handleModalClose = () => {
+    if (editMode) {
+      Alert.alert(
+        "Discard Changes?",
+        "You have unsaved changes. Are you sure you want to cancel?",
+        [
+          { text: "Continue Editing", style: "cancel" },
+          {
+            text: "Discard",
+            onPress: () => {
+              setEditMode(false);
+              setModalVisible(false);
+              setEditData({
+                name: studentData.name || "",
+                phone: studentData.phone || "",
+                address: studentData.address || "",
+                description: studentData.description || "",
+                birthday: studentData.birthday || "",
+              });
+            },
+          },
+        ]
+      );
+    } else {
+      setModalVisible(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#fff" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
+  const screenWidth = Dimensions.get("window").width;
+  const isTablet = screenWidth >= 768;
+  const containerWidth = isTablet
+    ? { maxWidth: 600, alignSelf: "center", width: "100%" }
+    : { width: "100%" };
+
   return (
     <View style={styles.container}>
-      <BackArrow style={styles.backArrow} onPress={() => navigation.goBack()} />
-      <Text style={styles.title}>{`Attendance for ${studentName}`}</Text>
-      <Text
-        style={styles.subtitle}
-      >{`Grade: ${grade} - Category: ${category}`}</Text>
-      <ScrollView contentContainerStyle={styles.attendanceContainer}>
-        {attendanceData.map((attendance, index) => (
-          <View key={index} style={styles.attendanceItem}>
-            <Text style={styles.dateText}>{attendance.date}</Text>
-            <View
-              style={[
-                styles.statusContainer,
-                getStatusStyle(attendance.status),
-              ]}
-            >
-              <Text style={styles.statusText}>
-                {/* Display "Present" or "Absent" based on the status */}
-                {attendance.status === false ? "Absent" : attendance.status === true ? "Present" : "No Status"}
+      <View style={[styles.contentContainer, containerWidth]}>
+        <View style={styles.buttonRow}>
+          <BackArrow />
+          <TouchableOpacity
+            onPress={() => setModalVisible(true)}
+            style={styles.infoButton}
+            accessible={true}
+            accessibilityLabel="View student information"
+          >
+            <Text style={styles.infoButtonText}>i</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.title}>{`Attendance for ${studentData.name || "Student"}`}</Text>
+        <Text style={styles.subtitle}>{`Grade: ${formatGrade(grade)} - Category: ${category}`}</Text>
+        <ScrollView contentContainerStyle={styles.attendanceContainer}>
+          {attendanceData.length > 0 ? (
+            attendanceData.map((attendance, index) => (
+              <View key={index} style={styles.attendanceItem}>
+                <Text style={styles.dateText}>{attendance.date}</Text>
+                <View style={[styles.statusContainer, getStatusStyle(attendance.status)]}>
+                  <Text style={styles.statusText}>
+                    {attendance.status === false
+                      ? "Absent"
+                      : attendance.status === true
+                      ? "Present"
+                      : "No Status"}
+                  </Text>
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={styles.noAttendanceContainer}>
+              <Text style={styles.noAttendanceText}>
+                No attendance records available.
+              </Text>
+              <Text style={styles.noAttendanceSubtext}>
+                Attendance will appear here once recorded.
               </Text>
             </View>
-          </View>
-        ))}
-      </ScrollView>
-      <Button title="Delete Student" color="#F44336" onPress={deleteStudent} />
+          )}
+        </ScrollView>
+        <TouchableOpacity
+          onPress={deleteStudent}
+          style={styles.deleteTextContainer}
+          accessible={true}
+          accessibilityLabel="Delete student record"
+        >
+          <Text style={styles.deleteText}>Delete Student</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalContainer}
+        >
+          <LinearGradient
+            colors={["#1E1E1E", "#151515"]}
+            style={[styles.modalContent, containerWidth]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Text style={styles.modalTitle}>Student Information</Text>
+            <View style={styles.infoContainer}>
+              {editMode ? (
+                <>
+                  <TextInput
+                    style={styles.input}
+                    value={editData.name}
+                    onChangeText={(text) => setEditData({ ...editData, name: text })}
+                    placeholder="Name"
+                    placeholderTextColor="#888"
+                    autoCapitalize="words"
+                    accessible={true}
+                    accessibilityLabel="Edit student name"
+                  />
+                  <TextInput
+                    style={styles.input}
+                    value={editData.birthday}
+                    onChangeText={(text) =>
+                      setEditData({ ...editData, birthday: text })
+                    }
+                    placeholder="Birthday (e.g., MM-DD-YYYY)"
+                    placeholderTextColor="#888"
+                    accessible={true}
+                    accessibilityLabel="Edit student birthday"
+                  />
+                  <TextInput
+                    style={styles.input}
+                    value={editData.phone}
+                    onChangeText={(text) =>
+                      setEditData({ ...editData, phone: text })
+                    }
+                    placeholder="Phone (optional)"
+                    placeholderTextColor="#888"
+                    keyboardType="phone-pad"
+                    accessible={true}
+                    accessibilityLabel="Edit student phone number"
+                  />
+                  <TextInput
+                    style={styles.input}
+                    value={editData.address}
+                    onChangeText={(text) =>
+                      setEditData({ ...editData, address: text })
+                    }
+                    placeholder="Address (optional)"
+                    placeholderTextColor="#888"
+                    accessible={true}
+                    accessibilityLabel="Edit student address"
+                  />
+                  <TextInput
+                    style={[styles.input, styles.descriptionInput]}
+                    value={editData.description}
+                    onChangeText={(text) =>
+                      setEditData({ ...editData, description: text })
+                    }
+                    placeholder="Description (optional)"
+                    placeholderTextColor="#888"
+                    multiline
+                    numberOfLines={4}
+                    accessible={true}
+                    accessibilityLabel="Edit student description"
+                  />
+                  <LinearGradient
+                    colors={["#147efb", "#0f64d2"]}
+                    style={styles.modalButton}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    <TouchableOpacity
+                      onPress={saveEdits}
+                      style={styles.buttonInner}
+                      accessible={true}
+                      accessibilityLabel="Save student information"
+                    >
+                      <Text style={styles.modalButtonText}>Save</Text>
+                    </TouchableOpacity>
+                  </LinearGradient>
+                  <TouchableOpacity
+                    onPress={handleModalClose}
+                    accessible={true}
+                    accessibilityLabel="Cancel editing"
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <View style={styles.infoCard}>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Name</Text>
+                      <Text style={styles.infoValue}>
+                        {studentData.name || "N/A"}
+                      </Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Grade</Text>
+                      <Text style={styles.infoValue}>{formatGrade(grade)}</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Birthday</Text>
+                      <Text style={styles.infoValue}>
+                        {studentData.birthday || "N/A"}
+                      </Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Phone</Text>
+                      <Text style={styles.infoValue}>
+                        {studentData.phone || "N/A"}
+                      </Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Address</Text>
+                      <Text style={styles.infoValue}>
+                        {studentData.address || "N/A"}
+                      </Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Description</Text>
+                      <Text style={styles.infoValue}>
+                        {studentData.description || "N/A"}
+                      </Text>
+                    </View>
+                  </View>
+                  <LinearGradient
+                    colors={["#147efb", "#0f64d2"]}
+                    style={styles.modalButton}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    <TouchableOpacity
+                      onPress={() => setEditMode(true)}
+                      style={styles.buttonInner}
+                      accessible={true}
+                      accessibilityLabel="Edit student information"
+                    >
+                      <Text style={styles.modalButtonText}>Edit</Text>
+                    </TouchableOpacity>
+                  </LinearGradient>
+                  <TouchableOpacity
+                    onPress={handleModalClose}
+                    accessible={true}
+                    accessibilityLabel="Close student information"
+                  >
+                    <Text style={styles.cancelButtonText}>Close</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </LinearGradient>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 };
@@ -120,20 +470,46 @@ const IndividualAttendance = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#121212", // Dark background color
+    backgroundColor: "#121212",
     padding: 20,
   },
+  contentContainer: {
+    flex: 1,
+  },
+  buttonRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 15,
+  },
   title: {
-    paddingTop: 16,
     fontSize: 26,
     fontWeight: "bold",
-    color: "#ffffff", // White text for contrast
-    marginBottom: 10,
+    color: "#ffffff",
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 18,
-    color: "#b0b0b0", // Lighter text color for subtitle
-    marginBottom: 25,
+    color: "#b0b0b0",
+    marginBottom: 20,
+  },
+  infoButton: {
+    backgroundColor: "#333",
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  infoButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   attendanceContainer: {
     flexGrow: 1,
@@ -144,13 +520,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 15,
-    marginBottom: 15, // Increased margin for spacing
+    marginBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: "#444",
   },
   dateText: {
     fontSize: 18,
-    color: "#ffffff", // White text for date
+    color: "#ffffff",
+    fontWeight: "600",
   },
   statusContainer: {
     flexDirection: "row",
@@ -160,28 +537,165 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: "center",
     minWidth: 120,
-    marginLeft: 20,
-    height: 40, // Make the status box taller
+    height: 40,
   },
   statusText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#ffffff", // White text for status
+    color: "#ffffff",
   },
   present: {
-    backgroundColor: "#147efb", // Blue for Present
-    borderColor: "#0f64d2", // Darker blue for the border
+    backgroundColor: "#147efb",
+    borderColor: "#0f64d2",
     borderWidth: 1,
   },
   absent: {
-    backgroundColor: "#F44336", // Red for Absent
-    borderColor: "#D32F2F", // Darker red for the border
+    backgroundColor: "#F44336",
+    borderColor: "#D32F2F",
     borderWidth: 1,
   },
-  backArrow: {
-    position: "absolute",
-    top: 50,
-    left: 16,
+  deleteTextContainer: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  deleteText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#F44336",
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.8)",
+  },
+  modalContent: {
+    padding: 25,
+    paddingHorizontal: 35,
+    borderRadius: 20,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 15,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#ffffff",
+    marginBottom: 20,
+    letterSpacing: 0.5,
+  },
+  infoContainer: {
+    width: "100%",
+    marginBottom: 20,
+  },
+  infoCard: {
+    backgroundColor: "#2a2a2a",
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 15,
+    paddingVertical: 5,
+  },
+  infoLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#ffffff",
+    width: 100,
+  },
+  infoValue: {
+    fontSize: 16,
+    color: "#ffffff",
+    flex: 1,
+    flexWrap: "wrap",
+  },
+  input: {
+    width: "100%",
+    padding: 12,
+    backgroundColor: "#2a2a2a",
+    color: "#fff",
+    borderRadius: 10,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#444",
+    fontSize: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  descriptionInput: {
+    height: 100,
+    textAlignVertical: "top",
+    paddingTop: 12,
+  },
+  modalButton: {
+    width: "100%",
+    borderRadius: 10,
+    overflow: "hidden",
+    marginBottom: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  buttonInner: {
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalButtonText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#ffffff",
+    letterSpacing: 0.5,
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#F44336",
+    marginTop: 10,
+    textAlign: "center",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#121212",
+  },
+  loadingText: {
+    color: "#fff",
+    fontSize: 18,
+    marginTop: 10,
+  },
+  noAttendanceContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  noAttendanceText: {
+    fontSize: 18,
+    color: "#b0b0b0",
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  noAttendanceSubtext: {
+    fontSize: 16,
+    color: "#888",
+    textAlign: "center",
   },
 });
 

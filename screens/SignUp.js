@@ -189,7 +189,7 @@ const SignUp = ({ navigation }) => {
           value={name}
           autoCapitalize="words"
           style={styles.input}
-          placeholder="Enter your name"
+          placeholder="Enter your full name"
           placeholderTextColor="#B0BEC5"
           onChangeText={(text) => setName(text)}
         />
