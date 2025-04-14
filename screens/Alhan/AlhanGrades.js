@@ -3,13 +3,15 @@ import { View, Text, TouchableOpacity, FlatList, StyleSheet, Alert } from "react
 import { Ionicons } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import { checkClasses } from "../../components/functionCalls";
+
+// Updated grades list to match SundaySchoolGrades
 const grades = [
-  "Pre-School", "Kindergarten", "1st", "2nd", "3rd", "4th", "5th", "6th", 
-  "7th", "8th", "9th", "10th", "11th", "12th", "College"
+  "Pre-School - Age 3", "Pre-School - Age 4", "Kindergarten", "1st Grade", "2nd Grade", 
+  "3rd Grade", "4th Grade", "5th Grade", "6th Grade", "7th Grade", "8th Grade", 
+  "9th Grade", "10th Grade", "11th Grade", "12th Grade", "College"
 ];
 
-const AlhanGrades = ({navigation}) => {
+const AlhanGrades = ({ navigation }) => {
   const [selectedGrades, setSelectedGrades] = useState([]);
   const user = auth().currentUser;
 
@@ -18,35 +20,31 @@ const AlhanGrades = ({navigation}) => {
       prev.includes(grade) ? prev.filter((g) => g !== grade) : [...prev, grade]
     );
   };
-  const setGrades = async (selectedGrades) => {
-    orderedGrades = []
-    for(let i = 0; i < grades.length; i++) {
-      for (let j = 0; j < selectedGrades.length; j++) {
-        if (grades[i] === selectedGrades[j]){
-          orderedGrades.push(selectedGrades[j])
-        }
-      }
-    }
-    return orderedGrades
-  };
 
   const handleSubmit = async () => {
     if (!user) {
       Alert.alert("Error", "User not found.");
       return;
     }
-    const orderedGrades = await setGrades(selectedGrades)
+    if (selectedGrades.length === 0) {
+      Alert.alert("Error", "Please select at least one grade.");
+      return;
+    }
+
+    // Order grades based on the predefined list
+    const orderedGrades = grades.filter((grade) => selectedGrades.includes(grade));
+
     try {
       const userRef = firestore().collection("users").doc(user.uid);
       await userRef.update({
         alhanSetUp: true,
-        alhanGrades: orderedGrades.join(", ")
+        alhanGrades: orderedGrades, // Store as an array to match SundaySchoolGrades
       });
 
       const userDoc = await userRef.get();
       const userData = userDoc.data();
       const userChurch = userData?.church;
-      
+
       if (!userChurch) {
         Alert.alert("Error", "User's church not found.");
         return;
@@ -54,22 +52,25 @@ const AlhanGrades = ({navigation}) => {
 
       const churchRef = firestore().collection("churches").doc(userChurch);
       const hymnsClassRef = churchRef.collection("Hymns Class");
-      
-      const gradeRef = hymnsClassRef.doc(orderedGrades.join(", "));
-      const gradeDoc = await gradeRef.get();
-        
-      if (!gradeDoc.exists) {
-        await gradeRef.set({
-          servants: [{ uid: user.uid }]
-        });
-      } else {
-        await gradeRef.update({
-          servants: firestore.FieldValue.arrayUnion({ uid: user.uid })
-        });
+
+      // Update each selected grade's document
+      for (const grade of orderedGrades) {
+        const gradeRef = hymnsClassRef.doc(grade);
+        const gradeDoc = await gradeRef.get();
+
+        if (!gradeDoc.exists) {
+          await gradeRef.set({
+            servants: [{ uid: user.uid }],
+          });
+        } else {
+          await gradeRef.update({
+            servants: firestore.FieldValue.arrayUnion({ uid: user.uid }),
+          });
+        }
       }
-      navigation.navigate("AlhanAttendance")
+
+      navigation.navigate("AlhanAttendance");
       Alert.alert("Success", "Your selections have been saved.");
-      await checkClasses(user, "https://check-classes-hy6oofbihq-uc.a.run.app");
     } catch (error) {
       console.error("Error updating Firestore:", error);
       Alert.alert("Error", "Failed to update data.");
@@ -150,7 +151,7 @@ const styles = StyleSheet.create({
   },
   icon: {
     marginRight: 5,
-  }
+  },
 });
 
 export default AlhanGrades;
