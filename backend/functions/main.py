@@ -534,7 +534,7 @@ def remove_user_from_churches(user_id):
             alhan.reference.delete()
             updated_data = True
 
-            
+
         church_data["deacons"] = filtered_deacons
 
         # Update Firestore only if changes were made
@@ -1611,3 +1611,6 @@ def create_test_data(req: https_fn.Request) -> https_fn.Response:
     test_data = generate_test_data(150)
     church_ref.update({"deacons": test_data})
     return https_fn.Response("Test data created", status=200)
+
+def new_years():
+    pass
