@@ -19,7 +19,6 @@ android
 ios
 
 # Functions
-taksis*
 backend/functions/venv/
 backend/functions/__pycache__/
 
