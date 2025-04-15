@@ -25,12 +25,12 @@ const Welcome = ({ navigation }) => {
         <Image
           style={styles.icon}
           resizeMode="contain"
-          source={require("../assets/Taksis.png")}
+          source={require("../assets/taksis.png")}
         />
         <Image
           style={styles.crucifixionicon}
           resizeMode="contain"
-          source={require("../assets/crucifixionIcon.png")}
+          source={require("../assets/CrucifixionIcon.png")}
         />
       </View>
       <View style={styles.buttonsContainer}>

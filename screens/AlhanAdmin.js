@@ -39,12 +39,13 @@ const AlhanAdmin = () => {
     }
   }, []);
 
-  // Fetch teachers from the Alhan Teachers collection in the same church with realtime updates
+  // Fetch teachers from the users collection in the same church with realtime updates
   useEffect(() => {
     if (church) {
       const unsubscribe = firestore()
-        .collection('Alhan Teachers')
+        .collection('users')
         .where('church', '==', church)
+        .where('isAlhan', '==', true)
         .onSnapshot(
           (querySnapshot) => {
             const teacherList = querySnapshot.docs
@@ -74,7 +75,7 @@ const AlhanAdmin = () => {
 
     try {
       await firestore()
-        .collection('Alhan Teachers')
+        .collection('users')
         .doc(selectedTeacher.id)
         .update({
           alhanGrades: selectedGrades,
@@ -88,10 +89,10 @@ const AlhanAdmin = () => {
   const removeTeacher = async (teacherId) => {
     try {
       await firestore()
-        .collection('Alhan Teachers')
+        .collection('users')
         .doc(teacherId)
         .update({
-          isAlhanTeacher: false,
+          isAlhan: false,
           alhanGrades: [],
         });
     } catch (error) {
@@ -169,12 +170,10 @@ const AlhanAdmin = () => {
                   ]}
                   onPress={() => {
                     setSelectedGrades((prev) => {
-                      // Toggle the grade in the selection
                       const toggled = prev.includes(grade)
                         ? prev.filter((g) => g !== grade)
                         : [...prev, grade];
-                      // Return the toggled selections sorted according to the original gradesList order
-                      return gradesList.filter(g => toggled.includes(g));
+                      return gradesList.filter((g) => toggled.includes(g));
                     });
                   }}
                 >
@@ -189,16 +188,16 @@ const AlhanAdmin = () => {
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
-                onPress={saveClasses}
-              >
-                <Text style={styles.modalButtonText}>Save Changes</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setModalVisible(false)}
               >
                 <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={saveClasses}
+              >
+                <Text style={styles.modalButtonText}>Confirm</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -340,6 +339,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: '#333',
+    justifyContent: 'space-between',
     gap: 12,
   },
   modalButton: {
@@ -349,10 +349,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   saveButton: {
-    backgroundColor: '#147efb',
+    backgroundColor: '#147efb', // Blue
   },
   cancelButton: {
-    backgroundColor: '#555',
+    backgroundColor: '#ff4444', // Red
   },
   modalButtonText: {
     color: '#fff',

@@ -1,13 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Modal } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Modal,
+  Switch,
+} from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
-import { Ionicons } from '@expo/vector-icons'; // For icons (install expo vector-icons if needed)
+import { Ionicons } from '@expo/vector-icons';
 
 const gradesList = [
-  'Pre-School - Age 3', 'Pre-School - Age 4', 'Kindergarten', '1st Grade', '2nd Grade',
-  '3rd Grade', '4th Grade', '5th Grade', '6th Grade', '7th Grade', '8th Grade',
-  '9th Grade', '10th Grade', '11th Grade', '12th Grade', 'College'
+  'Pre-School - Age 3',
+  'Pre-School - Age 4',
+  'Kindergarten',
+  '1st Grade',
+  '2nd Grade',
+  '3rd Grade',
+  '4th Grade',
+  '5th Grade',
+  '6th Grade',
+  '7th Grade',
+  '8th Grade',
+  '9th Grade',
+  '10th Grade',
+  '11th Grade',
+  '12th Grade',
+  'College',
 ];
 
 const ServantsAdmin = () => {
@@ -16,6 +38,7 @@ const ServantsAdmin = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedServant, setSelectedServant] = useState(null);
   const [selectedGrades, setSelectedGrades] = useState([]);
+  const [isServantMeeting, setIsServantMeeting] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Fetch current user's church
@@ -53,7 +76,7 @@ const ServantsAdmin = () => {
                 id: doc.id,
                 ...doc.data(),
               }))
-              .sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically by name
+              .sort((a, b) => a.name.localeCompare(b.name));
             setServants(servantList);
           },
           (error) => {
@@ -67,6 +90,7 @@ const ServantsAdmin = () => {
   const openEditModal = (servant) => {
     setSelectedServant(servant);
     setSelectedGrades(Array.isArray(servant.ssGrades) ? servant.ssGrades : []);
+    setIsServantMeeting(servant.isServant || false);
     setModalVisible(true);
   };
 
@@ -74,15 +98,17 @@ const ServantsAdmin = () => {
     if (!selectedServant) return;
 
     try {
+      // Update both ssGrades and isServant in a single Firestore call
       await firestore()
         .collection('users')
         .doc(selectedServant.id)
         .update({
           ssGrades: selectedGrades,
+          isServant: isServantMeeting,
         });
       setModalVisible(false);
     } catch (error) {
-      console.error('Error saving classes:', error);
+      console.error('Error saving changes:', error);
     }
   };
 
@@ -94,6 +120,7 @@ const ServantsAdmin = () => {
         .update({
           isSSTeacher: false,
           ssGrades: [],
+          isServant: false,
         });
     } catch (error) {
       console.error('Error removing servant:', error);
@@ -160,46 +187,56 @@ const ServantsAdmin = () => {
                 <Ionicons name="close" size={24} color="#fff" />
               </TouchableOpacity>
             </View>
-            <FlatList
-              data={gradesList}
-              renderItem={({ item: grade }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.gradeItem,
-                    selectedGrades.includes(grade) && styles.gradeItemSelected,
-                  ]}
-                  onPress={() => {
-                    setSelectedGrades((prev) => {
-                      // Toggle the grade in the selection
-                      const toggled = prev.includes(grade)
-                        ? prev.filter((g) => g !== grade)
-                        : [...prev, grade];
-                      // Return the toggled selections sorted according to the original gradesList order
-                      return gradesList.filter(g => toggled.includes(g));
-                    });
-                  }}
-                >
-                  <Text style={styles.gradeText}>{grade}</Text>
-                  {selectedGrades.includes(grade) && (
-                    <Ionicons name="checkmark-circle" size={20} color="#147efb" />
-                  )}
-                </TouchableOpacity>
-              )}
-              keyExtractor={(item) => item}
-              contentContainerStyle={styles.gradesList}
-            />
+            <View style={styles.modalContent}>
+              <View style={styles.servantTrackerContainer}>
+                <Text style={styles.servantTrackerText}>Servant Meeting Tracker</Text>
+                <Switch
+                  value={isServantMeeting}
+                  onValueChange={(value) => setIsServantMeeting(value)}
+                  trackColor={{ false: '#555', true: '#147efb' }}
+                  thumbColor={isServantMeeting ? '#fff' : '#aaa'}
+                />
+              </View>
+              <FlatList
+                data={gradesList}
+                renderItem={({ item: grade }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.gradeItem,
+                      selectedGrades.includes(grade) && styles.gradeItemSelected,
+                    ]}
+                    onPress={() => {
+                      setSelectedGrades((prev) => {
+                        const toggled = prev.includes(grade)
+                          ? prev.filter((g) => g !== grade)
+                          : [...prev, grade];
+                        return gradesList.filter((g) => toggled.includes(g));
+                      });
+                    }}
+                  >
+                    <Text style={styles.gradeText}>{grade}</Text>
+                    {selectedGrades.includes(grade) && (
+                      <Ionicons name="checkmark-circle" size={20} color="#147efb" />
+                    )}
+                  </TouchableOpacity>
+                )}
+                keyExtractor={(item) => item}
+                contentContainerStyle={styles.gradesList}
+                nestedScrollEnabled={true} // Enable scrolling within modal
+              />
+            </View>
             <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
-                onPress={saveClasses}
-              >
-                <Text style={styles.modalButtonText}>Save Changes</Text>
-              </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setModalVisible(false)}
               >
                 <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={saveClasses}
+              >
+                <Text style={styles.modalButtonText}>Confirm</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -301,8 +338,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e1e1e',
     borderRadius: 16,
     width: '90%',
-    maxHeight: '80%',
-    overflow: 'hidden',
+    maxHeight: '80%', // Keep modal height constrained
+    flex: 1, // Allow internal flexibility
   },
   modalHeader: {
     flexDirection: 'row',
@@ -310,14 +347,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     backgroundColor: '#147efb',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#fff',
   },
-  gradesList: {
+  modalContent: {
     padding: 16,
+    flex: 1, // Allow content to take available space
+  },
+  servantTrackerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    marginBottom: 12,
+    backgroundColor: '#2a2a2a',
+  },
+  servantTrackerText: {
+    fontSize: 16,
+    color: '#fff',
+  },
+  gradesList: {
+    paddingBottom: 16,
   },
   gradeItem: {
     flexDirection: 'row',
@@ -350,10 +407,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   saveButton: {
-    backgroundColor: '#147efb',
+    backgroundColor: '#147efb', // Blue for confirm
   },
   cancelButton: {
-    backgroundColor: '#555',
+    backgroundColor: '#ff4444', // Red for cancel
   },
   modalButtonText: {
     color: '#fff',
