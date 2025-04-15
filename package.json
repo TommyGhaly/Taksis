@@ -93,7 +93,6 @@
     "react-native-screens": "~4.4.0",
     "react-native-svg-transformer": "^1.5.0",
     "react-native-tcp-socket": "^6.2.0",
-    "react-native-udp": "^2.7.0",
     "react-native-web": "~0.19.13",
     "react-native-webview": "13.12.5",
     "react-navigation": "^5.0.0",
