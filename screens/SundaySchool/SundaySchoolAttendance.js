@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 14,
     marginTop: 20,
-    width: "90%",
+    width: "100%",
     alignSelf: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 3 },
