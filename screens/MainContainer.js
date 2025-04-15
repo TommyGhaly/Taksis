@@ -8,10 +8,12 @@ import 'react-native-gesture-handler';
 
 import HomeScreenNavigation from "./Home/HomeScreenNavigator";
 import AlhanNavigator from "./Alhan/AlhanNavigator";
-import SundaySchoolNavigator from "./SundaySchool/SundaySchoolNavigator"
+import SundaySchoolNavigator from "./SundaySchool/SundaySchoolNavigator";
 import LearnItNavigation from "./LearnIt/LearnItNavigation";
 import SettingsNavigation from "./Settings/SettingsNavigation";
 import ServantsMeetingNavigator from "./ServantsMeeting/ServantsMeetingNavigator";
+import ServantsAdmin from "./ServantsAdmin"; // New screen import
+import AlhanAdmin from "./AlhanAdmin";
 import EditSchedule from "./EditSchedule";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
@@ -29,10 +31,6 @@ const myTheme = {
   },
 };
 
-const headerStyle = {
-  backgroundColor: "black",
-};
-
 const consistentHeaderStyle = {
   backgroundColor: "#252525", // Unified header color
 };
@@ -42,7 +40,7 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
     <Tab.Navigator
       screenOptions={({ route, navigation }) => ({
         headerShown: true,
-        headerStyle: consistentHeaderStyle, // Use the unified header style
+        headerStyle: consistentHeaderStyle,
         headerTintColor: "#fff",
         tabBarStyle: {
           height: 90,
@@ -103,7 +101,7 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
         headerLeft: () => <CustomHeader navigation={navigation} />,
         drawerActiveTintColor: "#147efb",
         drawerInactiveTintColor: "#8e8e93",
-        headerStyle: consistentHeaderStyle, // Apply the same header style
+        headerStyle: consistentHeaderStyle,
         headerTintColor: "#fff",
       })}
     >
@@ -125,6 +123,12 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
       {userRoles.isServant && (
         <Drawer.Screen name="Servants Meeting Attendance" component={ServantsMeetingNavigator} />
       )}
+      {userRoles.ssAdmin && (
+        <Drawer.Screen name="Servants Management" component={ServantsAdmin} />
+      )}
+      {userRoles.alhanAdmin && (
+        <Drawer.Screen name="Alhan Management" component={AlhanAdmin} />
+      )}
     </Drawer.Navigator>
   );
 }
@@ -135,6 +139,7 @@ export default function MainContainer() {
     isSSTeacher: false,
     isServant: false,
     admin: false,
+    ssAdmin: false, // Added ssAdmin role
   });
   const [homeTitle, setHomeTitle] = useState("This Week's Services");
 
@@ -160,7 +165,7 @@ export default function MainContainer() {
   }, []);
 
   const shouldShowDrawer =
-    userRoles.isAlhan || userRoles.isSSTeacher || userRoles.isServant;
+    userRoles.isAlhan || userRoles.isSSTeacher || userRoles.isServant || userRoles.ssAdmin;
 
   return (
     <NavigationContainer independent={true} theme={myTheme}>

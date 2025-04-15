@@ -12,6 +12,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  FlatList,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import firestore from "@react-native-firebase/firestore";
@@ -43,22 +44,16 @@ const AlhanAttendance = ({ navigation }) => {
             return;
           }
           setUserData(doc.data());
+          setLoading(false);
         },
         (error) => {
           Alert.alert("Error", error.message);
+          setLoading(false);
         }
       );
 
     return () => unsubscribe();
   }, [user]);
-
-  // Redirect if Hymns Class not set up
-  useEffect(() => {
-    if (!userData) return;
-    if (!userData.alhanSetUp) {
-      navigation.navigate("AlhanGrades");
-    }
-  }, [userData]);
 
   // Fetch students from all selected grades
   useEffect(() => {
@@ -85,7 +80,6 @@ const AlhanAttendance = ({ navigation }) => {
           ...prev,
           [grade]: gradeStudents,
         }));
-        setLoading(false);
       });
       unsubscribeFunctions.push(unsubscribe);
     });
@@ -97,12 +91,11 @@ const AlhanAttendance = ({ navigation }) => {
   const getNextSaturday = () => {
     const today = new Date();
     const currentDay = today.getDay();
-    if (currentDay === 6) return formatDate(today); // If today is Saturday, return today
+    if (currentDay === 6) return formatDate(today);
     const nextSaturday = new Date(today);
     nextSaturday.setDate(today.getDate() + (6 - currentDay));
     return formatDate(nextSaturday);
   };
-  
 
   const formatDate = (date) => {
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -112,6 +105,9 @@ const AlhanAttendance = ({ navigation }) => {
   };
 
   const formatGrade = (grade) => {
+    if (isNaN(parseInt(grade))) {
+      return grade;
+    }
     const num = parseInt(grade);
     const suffix = num === 1 ? "st" : num === 2 ? "nd" : num === 3 ? "rd" : "th";
     return `${num}${suffix} Grade`;
@@ -167,56 +163,46 @@ const AlhanAttendance = ({ navigation }) => {
     }
   };
 
-  const confirmClassChange = () => {
-    Alert.alert(
-      "Are you sure you want to change Hymns Class?",
-      `You are currently teaching grade(s): ${userData.alhanGrades.map(formatGrade).join(", ")}. Changing classes will revoke access to any students in your current class(es).`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Confirm", onPress: handleClassChange },
-      ]
-    );
-  };
-
-  const handleClassChange = async () => {
-    try {
-      const churchRef = firestore().collection("churches").doc(userData.church);
-      const hymnsClassRef = churchRef.collection("Hymns Class");
-
-      for (const grade of userData.alhanGrades) {
-        const gradeRef = hymnsClassRef.doc(grade);
-        await gradeRef.update({
-          servants: firestore.FieldValue.arrayRemove({ uid: user.uid }),
-        });
-      }
-
-      await firestore().collection("users").doc(user.uid).update({
-        alhanGrades: [],
-        alhanSetUp: false,
-      });
-
-      navigation.navigate("AlhanGrades");
-    } catch (error) {
-      console.error("Error changing Hymns Class:", error);
-      Alert.alert("Error", "Failed to change Hymns Class.");
-    }
-  };
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#fff" />
+        <ActivityIndicator size="large" color="#147efb" />
         <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
+  if (!userData || !userData.alhanGrades || userData.alhanGrades.length === 0) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.message}>
+          Contact your church's servants admin to get assigned a Hymns class.
+        </Text>
       </View>
     );
   }
 
   const dateKey = getNextSaturday();
 
+  const renderGrade = ({ item }) => (
+    <View style={styles.gradeTag}>
+      <Text style={styles.gradeTagText}>{formatGrade(item)}</Text>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Week of {dateKey}</Text>
-      <Text style={styles.subtitle}>Grades: {userData.alhanGrades.map(formatGrade).join(", ")}</Text>
+      <View style={styles.gradesContainer}>
+        <FlatList
+          data={userData.alhanGrades}
+          renderItem={renderGrade}
+          keyExtractor={(item) => item}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.gradesList}
+        />
+      </View>
       <ScrollView contentContainerStyle={styles.studentsContainer} showsVerticalScrollIndicator={false}>
         {userData.alhanGrades.map((grade) => (
           <View key={grade}>
@@ -256,7 +242,7 @@ const AlhanAttendance = ({ navigation }) => {
                     <TouchableOpacity
                       style={[
                         styles.attendanceButton,
-                        { backgroundColor: student[dateKey] === true ? "#147EFB" : "#444" },
+                        { backgroundColor: student[dateKey] === true ? "#147efb" : "#444" },
                       ]}
                       onPress={() => handleAttendance(student, true)}
                       activeOpacity={0.7}
@@ -271,9 +257,6 @@ const AlhanAttendance = ({ navigation }) => {
             )}
           </View>
         ))}
-        <TouchableOpacity onPress={confirmClassChange} style={styles.changeClassContainer}>
-          <Text style={styles.changeClassText}>Change Hymns Class</Text>
-        </TouchableOpacity>
       </ScrollView>
 
       <TouchableOpacity
@@ -345,11 +328,25 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 10,
   },
-  subtitle: {
-    fontSize: 18,
-    color: "#b0b0b0",
-    textAlign: "center",
+  gradesContainer: {
+    height: 48,
     marginBottom: 20,
+    justifyContent: "center",
+  },
+  gradesList: {
+    alignItems: "center",
+  },
+  gradeTag: {
+    backgroundColor: "#2a2a2a",
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginRight: 10,
+  },
+  gradeTagText: {
+    fontSize: 16,
+    color: "#ccc",
+    fontWeight: "600",
   },
   gradeHeader: {
     fontSize: 22,
@@ -359,7 +356,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   studentContainer: {
-    backgroundColor: "#1E1E1E",
+    backgroundColor: "#1e1e1e",
     padding: 15,
     borderRadius: 12,
     marginBottom: 15,
@@ -374,7 +371,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  studentName: { fontSize: 20, color: "#FFFFFF", fontWeight: "600" },
+  studentName: { fontSize: 20, color: "#ffffff", fontWeight: "600" },
   icon: { width: 8, height: 15 },
   attendanceButtons: {
     flexDirection: "row",
@@ -394,15 +391,20 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
   },
-  attendanceButtonText: { fontSize: 16, fontWeight: "bold", color: "#FFFFFF" },
+  attendanceButtonText: { fontSize: 16, fontWeight: "bold", color: "#ffffff" },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#121212",
   },
+  loadingText: {
+    fontSize: 18,
+    color: "#fff",
+    marginTop: 10,
+  },
   addButton: {
-    backgroundColor: "#147EFB",
+    backgroundColor: "#147efb",
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
@@ -416,7 +418,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 5,
   },
-  addButtonText: { fontSize: 18, fontWeight: "bold", color: "#FFFFFF" },
+  addButtonText: { fontSize: 18, fontWeight: "bold", color: "#ffffff" },
   modalContainer: {
     flex: 1,
     justifyContent: "center",
@@ -426,7 +428,7 @@ const styles = StyleSheet.create({
   modalContent: {
     width: 340,
     padding: 25,
-    backgroundColor: "#1E1E1E",
+    backgroundColor: "#1e1e1e",
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "#333",
@@ -439,7 +441,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 24,
-    color: "#FFF",
+    color: "#fff",
     fontWeight: "bold",
     marginBottom: 20,
     letterSpacing: 0.5,
@@ -465,7 +467,7 @@ const styles = StyleSheet.create({
     width: "100%",
     padding: 12,
     backgroundColor: "#2a2a2a",
-    color: "#FFF",
+    color: "#fff",
     borderRadius: 10,
     marginBottom: 15,
     borderWidth: 1,
@@ -478,7 +480,7 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     width: "100%",
-    backgroundColor: "#147EFB",
+    backgroundColor: "#147efb",
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
@@ -497,25 +499,22 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     fontSize: 16,
-    color: "#F44336",
+    color: "#f44336",
     marginTop: 15,
     fontWeight: "600",
   },
-  changeClassContainer: {
-    alignItems: "center",
-    paddingTop: 30,
-  },
-  changeClassText: {
-    color: "#F44336",
-    fontSize: 16,
-    fontWeight: "600",
+  message: {
+    fontSize: 18,
+    color: "#b0b0b0",
+    textAlign: "center",
+    marginVertical: 10,
   },
   noStudentsText: {
     fontSize: 18,
     color: "#b0b0b0",
     textAlign: "center",
     marginVertical: 10,
-  },
+  }
 });
 
 export default AlhanAttendance;
