@@ -7,8 +7,7 @@ import {
   Dimensions,
   TouchableOpacity,
 } from "react-native";
-import TaksisImage from require("../assets/Taksis.png");
-import CrucifixionIcon from require("../assets/crucifixionIcon.png");
+
 const { width, height } = Dimensions.get("window");
 
 // Define image dimensions as constants
@@ -26,12 +25,12 @@ const Welcome = ({ navigation }) => {
         <Image
           style={styles.icon}
           resizeMode="contain"
-          source={TaksisImage}
+          source={require("../assets/Taksis.png")}
         />
         <Image
           style={styles.crucifixionicon}
           resizeMode="contain"
-          source={CrucifixionIcon}
+          source={require("../assets/crucifixionIcon.png")}
         />
       </View>
       <View style={styles.buttonsContainer}>
