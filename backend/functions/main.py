@@ -527,6 +527,14 @@ def remove_user_from_churches(user_id):
             servant.reference.delete()
             updated_data = True
 
+        # Query only servants with the matching uid
+        alhan_ref = doc.reference.collection("Alhan Teachers")
+        alhan_docs = alhan_ref.where("uid", "==", user_id).stream()
+        for alhan in alhan_docs:
+            alhan.reference.delete()
+            updated_data = True
+
+            
         church_data["deacons"] = filtered_deacons
 
         # Update Firestore only if changes were made
@@ -615,6 +623,18 @@ def add_user_to_churches(user_data):
             "name": user_data["name"],
         }
         servant_doc_ref = church_doc_ref.collection("Servants Meeting").document(
+            new_servant["uid"]
+        )
+        servant_doc_ref.set(new_servant, merge=True)
+        # Write the updated data back to Firestore
+
+    # Conditionally add the user back if they are an Alhan
+    if user_data.get("isAlhan"):
+        new_servant = {
+            "uid": user_data["uid"],
+            "name": user_data["name"],
+        }
+        servant_doc_ref = church_doc_ref.collection("Alhan Teachers").document(
             new_servant["uid"]
         )
         servant_doc_ref.set(new_servant, merge=True)
