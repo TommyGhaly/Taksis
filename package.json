@@ -84,7 +84,6 @@
     "react-native-haptic-feedback": "^2.3.3",
     "react-native-jwt": "^1.0.0",
     "react-native-level-fs": "^3.0.1",
-    "react-native-os": "^1.2.6",
     "react-native-paper": "^5.12.5",
     "react-native-permissions": "^5.2.5",
     "react-native-randombytes": "^3.6.1",
