@@ -527,13 +527,6 @@ def remove_user_from_churches(user_id):
             servant.reference.delete()
             updated_data = True
 
-        # Query only servants with the matching uid
-        alhan_ref = doc.reference.collection("Alhan Teachers")
-        alhan_docs = alhan_ref.where("uid", "==", user_id).stream()
-        for alhan in alhan_docs:
-            alhan.reference.delete()
-            updated_data = True
-
 
         church_data["deacons"] = filtered_deacons
 
@@ -628,17 +621,6 @@ def add_user_to_churches(user_data):
         servant_doc_ref.set(new_servant, merge=True)
         # Write the updated data back to Firestore
 
-    # Conditionally add the user back if they are an Alhan
-    if user_data.get("isAlhan"):
-        new_servant = {
-            "uid": user_data["uid"],
-            "name": user_data["name"],
-        }
-        servant_doc_ref = church_doc_ref.collection("Alhan Teachers").document(
-            new_servant["uid"]
-        )
-        servant_doc_ref.set(new_servant, merge=True)
-        # Write the updated data back to Firestore
     try:
         church_doc_ref.set(church_data, merge=True)
     except Exception as e:
@@ -1613,4 +1595,17 @@ def create_test_data(req: https_fn.Request) -> https_fn.Response:
     return https_fn.Response("Test data created", status=200)
 
 def new_years():
+    pass
+
+
+@https_fn.on_request()
+def change_DOB(req: https_fn.Request) -> https_fn.Response:
+    try:
+        request_data = req.get_json()
+        if not request_data:
+            return https_fn.Response("Missing JSON body", status=400)
+    except Exception as e:
+        return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
+    # Extract required parameters
+    user_id = request_data.get("uid")
     pass

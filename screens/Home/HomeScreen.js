@@ -10,6 +10,8 @@ import {
   AsyncStorage,
   NativeEventEmitter,
   NativeModules,
+  Modal,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
@@ -22,29 +24,28 @@ import * as TaskManager from "expo-task-manager";
 import * as BackgroundFetch from "expo-background-fetch";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { deleteUser } from "@react-native-firebase/auth";
-
+import { callFunction } from "../../components/functionCalls";
 // Initialize Firebase
 initializeApp({
   projectId: "taksis-a8ba7",
   apiKey: "AIzaSyBWxEgHXcJx19Rklr7P6HhhweT9_I70WkA",
   authDomain: "taksis-a8ba7.firebaseapp.com",
 });
+
 const LOCATION_TASK = "background-location-task";
 
 // Define the background task
 TaskManager.defineTask(LOCATION_TASK, async () => {
   try {
-
     if (!firebase.apps.length) {
-        initializeApp({
-          projectId: "taksis-a8ba7",
-          apiKey: "AIzaSyBWxEgHXcJx19Rklr7P6HhhweT9_I70WkA",
-          authDomain: "taksis-a8ba7.firebaseapp.com",
-        });
-      }
+      initializeApp({
+        projectId: "taksis-a8ba7",
+        apiKey: "AIzaSyBWxEgHXcJx19Rklr7P6HhhweT9_I70WkA",
+        authDomain: "taksis-a8ba7.firebaseapp.com",
+      });
+    }
     const now = new Date();
     const user = auth().currentUser;
-    // Check if today is Sunday (0 = Sunday) and the hour is 9 (you may add minute verification if needed)
     if (now.getDay() === 0 && now.getHours() === 9) {
       console.log("It is Sunday at 9AM – getting current location");
       await getCurrentLocation();
@@ -57,6 +58,7 @@ TaskManager.defineTask(LOCATION_TASK, async () => {
     return BackgroundFetch.BackgroundFetchResult.Failed;
   }
 });
+
 // Setup native module event emitter (if needed)
 const { YourNativeModule } = NativeModules;
 const eventEmitter = YourNativeModule
@@ -155,10 +157,9 @@ async function checkNotificationPermission() {
   }
 }
 
-// Revised function to request location permission (foreground and background)
+// Revised function to request location permission
 async function requestLocationPermission() {
   try {
-    // First, ensure foreground location permission is granted
     let { status: fgStatus } = await Location.getForegroundPermissionsAsync();
     console.log(`Current foreground status: ${fgStatus}`);
     if (fgStatus !== "granted") {
@@ -169,7 +170,6 @@ async function requestLocationPermission() {
 
     console.log("Foreground location permission granted.");
 
-    // Next, check for background location permission
     let { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
     console.log(`Current background status: ${bgStatus}`);
     if (bgStatus !== "granted") {
@@ -185,23 +185,7 @@ async function requestLocationPermission() {
   }
 }
 
-// Get the current location and save it to Firestore for the authenticated user
-async function registerBackgroundFetchAsync() {
-
-  try {
-    await BackgroundFetch.registerTaskAsync(LOCATION_TASK, {
-      minimumInterval: 3600,
-      stopOnTerminate: false,
-      startOnBoot: true,
-    });
-    console.log("Background task registered successfully");
-    return true;
-  } catch (error) {
-    console.error("Error registering background task:", error);
-    return false;
-  }
-}
-
+// Get the current location and save it to Firestore
 async function getCurrentLocation() {
   try {
     const { status } = await Location.getForegroundPermissionsAsync();
@@ -219,10 +203,11 @@ async function getCurrentLocation() {
         console.log("No authenticated user found.");
         return;
       }
-      const user = auth().currentUser
-      await frequencyUpdate(user , 
+      const user = auth().currentUser;
+      await frequencyUpdate(
+        user,
         "https://update-user-frequency-hy6oofbihq-uc.a.run.app"
-      )
+      );
       await firestore()
         .collection("users")
         .doc(userId)
@@ -240,6 +225,22 @@ async function getCurrentLocation() {
   } catch (error) {
     console.error("Error getting location:", error);
     Alert.alert("Location Error", "Unable to retrieve location.");
+  }
+}
+
+// Register background fetch task
+async function registerBackgroundFetchAsync() {
+  try {
+    await BackgroundFetch.registerTaskAsync(LOCATION_TASK, {
+      minimumInterval: 3600,
+      stopOnTerminate: false,
+      startOnBoot: true,
+    });
+    console.log("Background task registered successfully");
+    return true;
+  } catch (error) {
+    console.error("Error registering background task:", error);
+    return false;
   }
 }
 
@@ -271,7 +272,215 @@ const HomeScreen = () => {
   const [currentWeek, setCurrentWeek] = useState();
   const [nextWeek, setNextWeek] = useState();
   const [isDeacon, setIsDeacon] = useState(false);
-  const [churchId, setChurchId] = useState(null); // new state for church id
+  const [churchId, setChurchId] = useState(null);
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [userName, setUserName] = useState(null);
+
+  // Handle name submission
+  const handleNameSubmit = async () => {
+    if (!firstName.trim() || !lastName.trim()) {
+      Alert.alert("Error", "Please enter both first and last names.");
+      return;
+    }
+
+    const fullName = `${firstName.trim()} ${lastName.trim()}`;
+    const user = auth().currentUser;
+    if (user) {
+      try {
+        await firestore()
+          .collection("users")
+          .doc(user.uid)
+          .update({
+            name: fullName,
+          });
+        await callFunction(
+          user,
+          "https://update-user-hy6oofbihq-uc.a.run.app"
+        );
+        setUserName(fullName);
+        setShowNameModal(false);
+        setFirstName("");
+        setLastName("");
+        console.log("User name updated:", fullName);
+      } catch (error) {
+        console.error("Error updating user name:", error);
+        Alert.alert("Error", "Failed to update name. Please try again.");
+      }
+    }
+  };
+
+  // Check notification and location permissions on mount
+  useEffect(() => {
+    checkNotificationPermission();
+    /*checkLocationPermission();
+    const now = new Date();
+    if (now.getDay() === 0 && now.getHours() === 9) {
+      getCurrentLocation();
+    }
+    registerBackgroundFetchAsync()
+      .then(() => console.log("Background fetch task registered"))
+      .catch((err) =>
+        console.error("Failed to register background fetch task:", err)
+      );*/
+  }, []);
+
+  // Check user name and document existence
+  useEffect(() => {
+    const user = auth().currentUser;
+    if (!user) {
+      console.log("No authenticated user found.");
+      return;
+    }
+
+    const userRef = firestore().collection("users").doc(user.uid);
+
+    const unsubscribe = userRef.onSnapshot(
+      (doc) => {
+        if (doc.exists) {
+          const userData = doc.data();
+          console.log("User document found:", userData);
+          const name = userData.name;
+          setUserName(name);
+          if (!name || name === "null null" || name.trim() === "") {
+            setShowNameModal(true);
+          }
+        } else {
+          console.log("User doc not found");
+          Alert.alert(
+            "Sign up to continue",
+            "Please sign up using this account to continue."
+          );
+          deleteUser(user);
+        }
+      },
+      (error) => {
+        console.error("Error fetching user document:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time listener for user document updates
+  useEffect(() => {
+    const user = auth().currentUser;
+    if (!user) {
+      console.log("No authenticated user found for realtime user updates.");
+      return;
+    }
+    const unsubscribeUser = firestore()
+      .collection("users")
+      .doc(user.uid)
+      .onSnapshot(
+        (doc) => {
+          const userData = doc.data();
+          if (userData) {
+            setIsDeacon(userData.isDeacon);
+            if (userData.nextWeekServe) {
+              setNextWeek(userData.nextWeekServe);
+              console.log("Next week serve updated:", userData.nextWeekServe);
+            }
+            if (userData.church && userData.church !== churchId) {
+              setChurchId(userData.church);
+              console.log("Church updated:", userData.church);
+            }
+          }
+        },
+        (error) => {
+          console.error("Error listening to user document:", error);
+        }
+      );
+    return () => unsubscribeUser();
+  }, [churchId]);
+
+  // Real-time listener for church schedule
+  useEffect(() => {
+    if (!churchId) {
+      console.log("No church selected. Waiting for churchId...");
+      return;
+    }
+
+    const schedulesRef = firestore()
+      .collection("churches")
+      .doc(churchId)
+      .collection("schedule");
+
+    const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
+      let closestSchedule = null;
+      let closestDate = null;
+      let chosenDocId = "";
+      const today = new Date().setHours(0, 0, 0, 0);
+
+      snapshot.docs.forEach((doc) => {
+        const scheduleData = doc.data();
+        const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
+        const [month, day, year] = scheduleDateStr.split("-").map(Number);
+        const scheduleDate = new Date(2000 + year, month - 1, day).setHours(
+          0,
+          0,
+          0,
+          0
+        );
+
+        if (
+          !closestDate ||
+          Math.abs(scheduleDate - today) < Math.abs(closestDate - today)
+        ) {
+          closestDate = scheduleDate;
+          closestSchedule = scheduleData;
+          chosenDocId = doc.id;
+        }
+      });
+
+      if (closestSchedule) {
+        setCurrentWeek(chosenDocId);
+        const defaultSchedule = {
+          matins: { name: "N/A" },
+          third: { name: "N/A" },
+          sixth: { name: "N/A" },
+          pauline: { name: "N/A" },
+          catholic: { name: "N/A" },
+          praxis: { name: "N/A" },
+          gospel: { name: "N/A" },
+          water: { name: "N/A" },
+          wine: { name: "N/A" },
+          altar: [],
+        };
+
+        const updatedSchedule = {
+          ...defaultSchedule,
+          ...closestSchedule,
+        };
+
+        if (!Array.isArray(updatedSchedule.altar)) {
+          updatedSchedule.altar = [];
+        }
+
+        const altarServers = [];
+        if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
+          altarServers.push(updatedSchedule.water);
+        }
+        if (updatedSchedule.wine && typeof updatedSchedule.wine === "object") {
+          altarServers.push(updatedSchedule.wine);
+        }
+
+        altarServers.push(
+          ...updatedSchedule.altar.filter(
+            (server) => server && typeof server === "object"
+          )
+        );
+        updatedSchedule.altar = altarServers;
+        setSchedule(updatedSchedule);
+        console.log("Closest schedule updated:", updatedSchedule);
+      } else {
+        console.log("No schedules found.");
+      }
+    });
+
+    return () => unsubscribe();
+  }, [churchId]);
 
   const handleUnavailebleToServe = async () => {
     const user = auth().currentUser;
@@ -315,175 +524,49 @@ const HomeScreen = () => {
     );
   };
 
-  // Check notification and location permissions on mount
-  useEffect(() => {
-    checkNotificationPermission();
-    /*checkLocationPermission();
-    const now = new Date()
-    if (now.getDay() === 0 && now.getHours() === 9) {
-      getCurrentLocation();
-    }
-    // Register background task for Sunday at 9 AM
-    registerBackgroundFetchAsync()
-      .then(() => console.log("Background fetch task registered"))
-      .catch((err) =>
-        console.error("Failed to register background fetch task:", err)
-      );*/
-  }, []);
-
-useEffect(() => {
-  const user = auth().currentUser;
-  if (!user) {
-    console.log("No authenticated user found.");
-    return;
-  }
-
-  const userRef = firestore().collection("users").doc(user.uid);
-
-  const unsubscribe = userRef.onSnapshot(
-    (doc) => {
-      if (doc.exists) {
-        console.log("User document found:", doc.data());
-      } else {
-        console.log("User doc not found");
-        Alert.alert(
-          "Sign up to continue",
-          "Please sign up using this account to continue."
-        );
-        deleteUser(user)
-      }
-    },
-    (error) => {
-      console.error("Error fetching user document:", error);
-    }
-  );
-
-  return () => unsubscribe(); // Cleanup on unmount
-}, []);
-
-  // Real-time listener on the user document to update nextWeek, isDeacon and churchId
-  useEffect(() => {
-    const user = auth().currentUser;
-    if (!user) {
-      console.log("No authenticated user found for realtime user updates.");
-      return;
-    };
-    const unsubscribeUser = firestore()
-      .collection("users")
-      .doc(user.uid)
-      .onSnapshot(
-        (doc) => {
-          const userData = doc.data();
-          if (userData) {
-            setIsDeacon(userData.isDeacon);
-            if (userData.nextWeekServe) {
-              setNextWeek(userData.nextWeekServe);
-              console.log("Next week serve updated:", userData.nextWeekServe);
-            }
-            if (userData.church && userData.church !== churchId) {
-              setChurchId(userData.church);
-              console.log("Church updated:", userData.church);
-            }
-          }
-        },
-        (error) => {
-          console.error("Error listening to user document:", error);
-        }
-      );
-    return () => unsubscribeUser();
-  }, [churchId]);
-
-  // Realtime listener for the church schedule that depends on the churchId
-  useEffect(() => {
-    if (!churchId) {
-      console.log("No church selected. Waiting for churchId...");
-      return;
-    }
-  
-    const schedulesRef = firestore()
-      .collection("churches")
-      .doc(churchId)
-      .collection("schedule");
-  
-    const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
-      let closestSchedule = null;
-      let closestDate = null;
-      let chosenDocId = "";
-      const today = new Date().setHours(0, 0, 0, 0); // Normalize today's date
-  
-      snapshot.docs.forEach((doc) => {
-        const scheduleData = doc.data();
-        const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
-        const [month, day, year] = scheduleDateStr.split("-").map(Number);
-        const scheduleDate = new Date(2000 + year, month - 1, day).setHours(
-          0,
-          0,
-          0,
-          0
-        ); // Normalize schedule date
-  
-        // Find the schedule closest to today, regardless of past or future
-        if (
-          !closestDate ||
-          Math.abs(scheduleDate - today) < Math.abs(closestDate - today)
-        ) {
-          closestDate = scheduleDate;
-          closestSchedule = scheduleData;
-          chosenDocId = doc.id;
-        }
-      });
-  
-      if (closestSchedule) {
-        setCurrentWeek(chosenDocId);
-        const defaultSchedule = {
-          matins: { name: "N/A" },
-          third: { name: "N/A" },
-          sixth: { name: "N/A" },
-          pauline: { name: "N/A" },
-          catholic: { name: "N/A" },
-          praxis: { name: "N/A" },
-          gospel: { name: "N/A" },
-          water: { name: "N/A" },
-          wine: { name: "N/A" },
-          altar: [],
-        };
-  
-        const updatedSchedule = {
-          ...defaultSchedule,
-          ...closestSchedule,
-        };
-  
-        if (!Array.isArray(updatedSchedule.altar)) {
-          updatedSchedule.altar = [];
-        }
-  
-        const altarServers = [];
-        if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
-          altarServers.push(updatedSchedule.water);
-        }
-        if (updatedSchedule.wine && typeof updatedSchedule.wine === "object") {
-          altarServers.push(updatedSchedule.wine);
-        }
-  
-        altarServers.push(
-          ...updatedSchedule.altar.filter(
-            (server) => server && typeof server === "object"
-          )
-        );
-        updatedSchedule.altar = altarServers;
-        setSchedule(updatedSchedule);
-        console.log("Closest schedule updated:", updatedSchedule);
-      } else {
-        console.log("No schedules found.");
-      }
-    });
-  
-    return () => unsubscribe();
-  }, [churchId]);
-  
-
   return (
     <View style={styles.container}>
+      {/* Name Input Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showNameModal}
+        onRequestClose={() => {
+          // Prevent closing the modal by clicking outside
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>We Need Your Name</Text>
+            <Text style={styles.modalSubtitle}>
+              Please provide your first and last name to continue.
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="First Name"
+              placeholderTextColor="#888"
+              value={firstName}
+              onChangeText={setFirstName}
+              autoCapitalize="words"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Last Name"
+              placeholderTextColor="#888"
+              value={lastName}
+              onChangeText={setLastName}
+              autoCapitalize="words"
+            />
+            <TouchableOpacity
+              style={styles.confirmButton}
+              onPress={handleNameSubmit}
+            >
+              <Text style={styles.confirmButtonText}>Confirm</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <ScrollView
         style={styles.homescreen}
         contentContainerStyle={styles.scrollContainer}
@@ -659,6 +742,52 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   blackspace: { height: 0, backgroundColor: "#1a1a1a" },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContainer: {
+    backgroundColor: "#1e1e1e",
+    padding: 20,
+    borderRadius: 10,
+    width: "80%",
+    alignItems: "center",
+  },
+  modalTitle: {
+    fontSize: 24,
+    color: "#e0e0e0",
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    color: "#e0e0e0",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  input: {
+    width: "100%",
+    backgroundColor: "#3c3c3c",
+    color: "#e0e0e0",
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 15,
+    fontSize: 16,
+  },
+  confirmButton: {
+    backgroundColor: "#147efb",
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 10,
+  },
+  confirmButtonText: {
+    fontSize: 18,
+    color: "#ffffff",
+    fontWeight: "bold",
+  },
 });
 
 export default HomeScreen;
