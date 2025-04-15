@@ -176,7 +176,7 @@ const AlhanAttendance = ({ navigation }) => {
     return (
       <View style={styles.container}>
         <Text style={styles.message}>
-          Contact your church's servants admin to get assigned a Hymns class.
+          Contact your church's alhan admin to get assigned a Hymns class.
         </Text>
       </View>
     );
