@@ -12,6 +12,9 @@ import {
   NativeModules,
   Modal,
   TextInput,
+  SafeAreaView,
+  Animated,
+  Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
@@ -24,7 +27,9 @@ import * as TaskManager from "expo-task-manager";
 import * as BackgroundFetch from "expo-background-fetch";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { deleteUser } from "@react-native-firebase/auth";
-import { callFunction } from "../../components/functionCalls";
+import { callFunction, callDeleteUser } from "../../components/functionCalls";
+import DateTimePicker from "@react-native-community/datetimepicker";
+
 // Initialize Firebase
 initializeApp({
   projectId: "taksis-a8ba7",
@@ -145,9 +150,7 @@ async function getFCMToken() {
 
 // Check and request notification permissions
 async function checkNotificationPermission() {
-  const storedPermission = await AsyncStorage.getItem(
-    "notification_permission"
-  );
+  const storedPermission = await AsyncStorage.getItem("notification_permission");
   if (!storedPermission) {
     if (Platform.OS === "ios") {
       await requestUserPermissionIOS();
@@ -274,9 +277,94 @@ const HomeScreen = () => {
   const [isDeacon, setIsDeacon] = useState(false);
   const [churchId, setChurchId] = useState(null);
   const [showNameModal, setShowNameModal] = useState(false);
+  const [showDOBModal, setShowDOBModal] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [userName, setUserName] = useState(null);
+  const [date, setDate] = useState(new Date());
+  const [tempDate, setTempDate] = useState(date);
+  // New state for Android DateTimePicker modal
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const scaleValue = React.useRef(new Animated.Value(0.9)).current;
+
+  const formatDate = (date) => {
+    return `${(date.getMonth() + 1)
+      .toString()
+      .padStart(2, "0")}-${date.getDate().toString().padStart(2, "0")}-${date.getFullYear()}`;
+  };
+
+  // Modified handleDateChange remains for iOS inline usage
+  const handleDateChange = (event, selectedDate) => {
+    // For iOS, do not close modal on dismiss; let the user confirm via the "Submit" button.
+    if (event.type === "dismissed") {
+      return;
+    }
+    const currentDate = selectedDate || tempDate;
+    setTempDate(currentDate);
+    if (Platform.OS === "android" && event.type === "set") {
+      setDate(currentDate);
+    }
+  };
+
+  // For iOS, only a Confirm button is provided.
+  const handlePickerConfirm = () => {
+    setDate(tempDate);
+    // Note: Do not hide the modal on confirm so that user must submit via DOB submission.
+  };
+
+  // Remove the cancel function so there is no option to quit updating DOB.
+  // const handlePickerCancel = () => {
+  //   setTempDate(date);
+  //   setShowDOBModal(false);
+  // };
+
+  // Handle DOB submission (age update)
+  const handleDOBSubmit = async () => {
+    const user = auth().currentUser;
+    if (!user) {
+      Alert.alert("Error", "User not authenticated.");
+      return;
+    }
+
+    try {
+      const formattedDOB = formatDate(date);
+      const userRef = firestore().collection("users").doc(user.uid);
+      await userRef.update({
+        DOB: formattedDOB,
+        ssGrades: [],
+        alhanGrades: [],
+      });
+      // Call the update user function immediately after updating DOB.
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
+
+      // Check for children and handle deletion
+      const userDoc = await userRef.get();
+      const userData = userDoc.data();
+      if (userData.children && userData.children.length > 0) {
+        const church = userData.church || null;
+        for (const child of userData.children) {
+          if (child.uid) {
+            await callDeleteUser(
+              user,
+              church,
+              child.uid,
+              "https://delete-child-hy6oofbihq-uc.a.run.app"
+            );
+          }
+        }
+        Alert.alert(
+          "Children Removed",
+          "We have removed your children from the schedules. Please reregister them with their birthdays."
+        );
+      }
+
+      setShowDOBModal(false);
+      console.log("User DOB updated:", formattedDOB);
+    } catch (error) {
+      console.error("Error updating DOB:", error);
+      Alert.alert("Error", "Failed to update date of birth. Please try again.");
+    }
+  };
 
   // Handle name submission
   const handleNameSubmit = async () => {
@@ -326,7 +414,7 @@ const HomeScreen = () => {
       );*/
   }, []);
 
-  // Check user name and document existence
+  // Check user name, DOB, and document existence
   useEffect(() => {
     const user = auth().currentUser;
     if (!user) {
@@ -345,6 +433,8 @@ const HomeScreen = () => {
           setUserName(name);
           if (!name || name === "null null" || name.trim() === "") {
             setShowNameModal(true);
+          } else if (!userData.DOB || userData.DOB.trim() === "") {
+            setShowDOBModal(true);
           }
         } else {
           console.log("User doc not found");
@@ -385,6 +475,24 @@ const HomeScreen = () => {
             if (userData.church && userData.church !== churchId) {
               setChurchId(userData.church);
               console.log("Church updated:", userData.church);
+            }
+            // Clause for alhanGrades and ssGrades: if they are not an array,
+            // an empty string, or null then set them to null.
+            if (
+              userData.alhanGrades &&
+              !(Array.isArray(userData.alhanGrades) ||
+                userData.alhanGrades === "" ||
+                userData.alhanGrades === null)
+            ) {
+              userData.alhanGrades = null;
+            }
+            if (
+              userData.ssGrades &&
+              !(Array.isArray(userData.ssGrades) ||
+                userData.ssGrades === "" ||
+                userData.ssGrades === null)
+            ) {
+              userData.ssGrades = null;
             }
           }
         },
@@ -524,8 +632,21 @@ const HomeScreen = () => {
     );
   };
 
+  useEffect(() => {
+    if (showDOBModal) {
+      Animated.spring(scaleValue, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      scaleValue.setValue(0.9);
+    }
+  }, [showDOBModal]);
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Name Input Modal */}
       <Modal
         animationType="slide"
@@ -566,6 +687,127 @@ const HomeScreen = () => {
           </View>
         </View>
       </Modal>
+
+      {/* DOB Input Modal */}
+      <Modal
+        visible={showDOBModal}
+        transparent={true}
+        animationType="none"
+        onRequestClose={() => {
+          /* Disable modal closing */
+        }}
+      >
+        <View style={[styles.modalOverlay, Platform.OS === "ios" && styles.modalOverlayIOS]}>
+          <Animated.View
+            style={[
+              styles.modalDOBContainer,
+              { transform: [{ scale: scaleValue }] },
+            ]}
+          >
+            <Text style={styles.modalTitle}>We Need Your Date of Birth</Text>
+            <Text style={styles.modalSubtitle}>
+              Please provide your date of birth to continue.
+            </Text>
+            <View style={styles.datePickerContainer}>
+              {Platform.OS === "ios" ? (
+                <>
+                  <Text style={styles.dateText}>{formatDate(date)}</Text>
+                  <DateTimePicker
+                    value={tempDate}
+                    mode="date"
+                    display="spinner"
+                    onChange={handleDateChange}
+                    maximumDate={new Date()}
+                    textColor="#F0F0F0"
+                    accentColor="#147efb"
+                    style={styles.datePicker}
+                  />
+                </>
+              ) : (
+                <Pressable onPress={() => setShowDatePicker(true)}>
+                  <Text style={styles.dateText}>{formatDate(date)}</Text>
+                </Pressable>
+              )}
+            </View>
+            {/* For iOS, only a confirm button is provided */}
+            {Platform.OS === "ios" && (
+              <View style={styles.modalButtonContainer}>
+                <Pressable
+                  style={[styles.modalButton, styles.confirmModalButton]}
+                  onPress={handlePickerConfirm}
+                >
+                  <Text style={styles.modalButtonText}>Confirm</Text>
+                </Pressable>
+              </View>
+            )}
+            <Pressable style={styles.confirmButton} onPress={handleDOBSubmit}>
+              <Text style={styles.confirmButtonText}>Submit</Text>
+            </Pressable>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* Android Date Picker Modal */}
+      {Platform.OS === "android" && showDatePicker && (
+        <Modal
+          visible={showDatePicker}
+          transparent={true}
+          animationType="none"
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <View style={[styles.modalOverlay, Platform.OS === "ios" && styles.modalOverlayIOS]}>
+            <Animated.View
+              style={[
+                styles.modalDOBContainer,
+                { transform: [{ scale: scaleValue }] },
+              ]}
+            >
+              <DateTimePicker
+                value={tempDate}
+                mode="date"
+                display="spinner"
+                onChange={(event, selectedDate) => {
+                  if (event.type === "dismissed") {
+                    setTempDate(date);
+                    setShowDatePicker(false);
+                    return;
+                  }
+                  const currentDate = selectedDate || tempDate;
+                  setTempDate(currentDate);
+                  if (event.type === "set") {
+                    setDate(currentDate);
+                    setShowDatePicker(false);
+                  }
+                }}
+                maximumDate={new Date()}
+                textColor="#F0F0F0"
+                accentColor="#147efb"
+                style={styles.datePicker}
+              />
+              <View style={styles.modalButtonContainer}>
+                <Pressable
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => {
+                    setTempDate(date);
+                    setShowDatePicker(false);
+                  }}
+                >
+                  <Text style={styles.modalButtonText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.modalButton, styles.confirmModalButton]}
+                  onPress={() => {
+                    setDate(tempDate);
+                    setShowDatePicker(false);
+                  }}
+                >
+                  <Text style={styles.modalButtonText}>Confirm</Text>
+                </Pressable>
+              </View>
+            </Animated.View>
+          </View>
+        </Modal>
+      )}
 
       <ScrollView
         style={styles.homescreen}
@@ -660,7 +902,7 @@ const HomeScreen = () => {
         )}
       </ScrollView>
       <View style={styles.blackspace} />
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -742,12 +984,15 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   blackspace: { height: 0, backgroundColor: "#1a1a1a" },
-  // Modal styles
+  // Modal styles (Name)
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  modalOverlayIOS: {
+    justifyContent: "center",
   },
   modalContainer: {
     backgroundColor: "#1e1e1e",
@@ -756,17 +1001,33 @@ const styles = StyleSheet.create({
     width: "80%",
     alignItems: "center",
   },
+  modalDOBContainer: {
+    backgroundColor: "#252525",
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    marginHorizontal: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: "#333",
+  },
   modalTitle: {
     fontSize: 24,
     color: "#e0e0e0",
     fontWeight: "bold",
     marginBottom: 10,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   modalSubtitle: {
     fontSize: 16,
     color: "#e0e0e0",
     textAlign: "center",
     marginBottom: 20,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   input: {
     width: "100%",
@@ -777,16 +1038,68 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     fontSize: 16,
   },
+  datePickerContainer: {
+    backgroundColor: "#2A2A2A",
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  dateText: {
+    fontSize: 18,
+    color: "#F0F0F0",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  datePicker: {
+    width: "100%",
+  },
   confirmButton: {
     backgroundColor: "#147efb",
     paddingVertical: 12,
     paddingHorizontal: 30,
     borderRadius: 10,
+    marginTop: 10,
   },
   confirmButtonText: {
     fontSize: 18,
     color: "#ffffff",
     fontWeight: "bold",
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  modalButtonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    marginBottom: 16,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    marginHorizontal: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  confirmModalButton: {
+    backgroundColor: "#147efb",
+  },
+  cancelButton: {
+    backgroundColor: "#555",
+  },
+  modalButtonText: {
+    fontSize: 16,
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
 });
 

@@ -57,7 +57,7 @@ const ChildAccountInfo = ({ route, navigation }) => {
           <Text style={styles.infoText}>{childData.name || "First Last"}</Text>
         </View>
         <View style={styles.infoBlock}>
-          <Text style={styles.infoText}>{childData.age || "Age"}</Text>
+          <Text style={styles.infoText}>{childData.DOB || "Date of Birth"}</Text>
         </View>
         <View style={styles.infoBlock}>
           <Text style={styles.infoText}>{childData.rank || "Rank"}</Text>

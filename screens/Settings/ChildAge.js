@@ -1,17 +1,75 @@
-import React, { useState } from "react";
-import { TouchableOpacity, StyleSheet, View, Text, Alert, SafeAreaView } from "react-native";
+import React, { useState, useEffect } from "react";
+import {
+  Text,
+  StyleSheet,
+  View,
+  Pressable,
+  Alert,
+  SafeAreaView,
+  Platform,
+  Modal,
+  Animated,
+} from "react-native";
 import firestore from "@react-native-firebase/firestore";
-import { Picker } from "@react-native-picker/picker";
+import auth from "@react-native-firebase/auth";
+import { useNavigation } from "@react-navigation/native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
-import auth from "@react-native-firebase/auth";
 import { callFunction } from "../../components/functionCalls";
 
-const ChildAge = ({ route, navigation }) => {
-  const user = auth().currentUser; // Directly access currentUser
-  const userId = user ? user.uid : null; // Access uid directly
-  const { childData } = route.params; // Get child data from the previous screen
-  const [selectedAge, setSelectedAge] = useState(childData.age || "1");
+const ChildAge = ({ route }) => {
+  const { childData } = route.params;
+  const user = auth().currentUser;
+  const userId = user ? user.uid : null;
+  const [date, setDate] = useState(childData.DOB ? new Date(childData.DOB) : new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [tempDate, setTempDate] = useState(date);
+  const navigation = useNavigation();
+  const scaleValue = React.useRef(new Animated.Value(0.9)).current;
+
+  const formatDate = (date) => {
+    return `${(date.getMonth() + 1)
+      .toString()
+      .padStart(2, "0")}-${date.getDate().toString().padStart(2, "0")}-${date.getFullYear()}`;
+  };
+
+  const calculateAge = (dob) => {
+    const today = new Date();
+    const birthDate = new Date(dob);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age.toString();
+  };
+
+  const handleDateChange = (event, selectedDate) => {
+    if (event.type === "dismissed") {
+      setTempDate(date);
+      setShowDatePicker(false);
+      return;
+    }
+
+    const currentDate = selectedDate || tempDate;
+    setTempDate(currentDate);
+
+    if (Platform.OS === "android" && event.type === "set") {
+      setDate(currentDate);
+      setShowDatePicker(false);
+    }
+  };
+
+  const handlePickerConfirm = () => {
+    setDate(tempDate);
+    setShowDatePicker(false);
+  };
+
+  const handlePickerCancel = () => {
+    setTempDate(date);
+    setShowDatePicker(false);
+  };
 
   const handleContinue = async () => {
     if (!userId) {
@@ -19,19 +77,16 @@ const ChildAge = ({ route, navigation }) => {
       return;
     }
 
-    const updatedChildData = { ...childData, age: selectedAge };
+    const dob = formatDate(date);
+    const age = calculateAge(date);
+    const updatedChildData = { ...childData, age, DOB: dob };
 
     try {
-      console.log("User ID:", userId);
-      console.log("Updated Child Data:", updatedChildData);
-
       const userDocRef = firestore().collection("users").doc(userId);
       const userDoc = await userDocRef.get();
 
       if (userDoc.exists) {
         const userData = userDoc.data();
-        console.log("User Data:", userData);
-
         if (!userData.children) {
           userData.children = [];
         }
@@ -45,17 +100,12 @@ const ChildAge = ({ route, navigation }) => {
         } else {
           userData.children.push(updatedChildData);
         }
-        console.log(userData.children);
-        console.log(updatedChildData);
-        await userDocRef.update({ children: userData.children });
-        console.log(userData);
-        await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
-        console.log("Children updated successfully");
 
+        await userDocRef.update({ children: userData.children });
+        await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
         Alert.alert("Success", "Child data has been updated");
         navigation.navigate("Settings");
       } else {
-        console.log("User document does not exist");
         Alert.alert("Error", "User document does not exist");
       }
     } catch (error) {
@@ -64,12 +114,25 @@ const ChildAge = ({ route, navigation }) => {
     }
   };
 
+  useEffect(() => {
+    if (showDatePicker) {
+      Animated.spring(scaleValue, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      scaleValue.setValue(0.9);
+    }
+  }, [showDatePicker]);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.innerContainer}>
-        <View style={styles.backarrow}>
-          <BackArrow onPress={() => navigation.goBack()} />
-        </View>
+        <Pressable style={styles.backarrow} onPress={() => navigation.goBack()}>
+          <BackArrow />
+        </Pressable>
         <View style={styles.progressBar}>
           <ProgressBar startPercentage={67} endPercentage={100} />
         </View>
@@ -77,35 +140,66 @@ const ChildAge = ({ route, navigation }) => {
         <View style={styles.content}>
           <View style={styles.card}>
             <Text style={styles.questionText}>
-              What is your child's age?
+              What is your child's date of birth?
             </Text>
             <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={selectedAge}
-                onValueChange={(itemValue) => setSelectedAge(itemValue)}
-                style={styles.picker}
-                itemStyle={styles.pickerItem}
+              <Pressable
+                style={styles.dateButton}
+                onPress={() => setShowDatePicker(true)}
               >
-                {Array.from({ length: 18 }, (_, i) => (
-                  <Picker.Item
-                    key={i}
-                    label={`${i + 1}`}
-                    value={`${i + 1}`}
-                  />
-                ))}
-              </Picker>
+                <Text style={styles.dateText}>{formatDate(date)}</Text>
+              </Pressable>
             </View>
           </View>
         </View>
 
-        <View style={styles.continueLayout}>
-          <TouchableOpacity
-            onPress={handleContinue}
-            style={styles.continueButton}
-          >
-            <Text style={styles.buttonText}>Continue</Text>
-          </TouchableOpacity>
-        </View>
+        <Pressable style={styles.continueButton} onPress={handleContinue}>
+          <Text style={styles.buttonText}>Continue</Text>
+        </Pressable>
+
+        {/* Date Picker Modal */}
+        <Modal
+          visible={showDatePicker}
+          transparent={true}
+          animationType="none"
+          onRequestClose={handlePickerCancel}
+        >
+          <View style={[styles.modalOverlay, Platform.OS === "ios" && styles.modalOverlayIOS]}>
+            <Animated.View
+              style={[
+                styles.modalContainer,
+                { transform: [{ scale: scaleValue }] },
+              ]}
+            >
+              <DateTimePicker
+                value={tempDate}
+                mode="date"
+                display="spinner"
+                onChange={handleDateChange}
+                maximumDate={new Date()}
+                textColor="#F0F0F0"
+                accentColor="#147efb"
+                style={styles.datePicker}
+              />
+              {Platform.OS === "ios" && (
+                <View style={styles.modalButtonContainer}>
+                  <Pressable
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={handlePickerCancel}
+                  >
+                    <Text style={styles.modalButtonText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.modalButton, styles.confirmModalButton]}
+                    onPress={handlePickerConfirm}
+                  >
+                    <Text style={styles.modalButtonText}>Confirm</Text>
+                  </Pressable>
+                </View>
+              )}
+            </Animated.View>
+          </View>
+        </Modal>
       </View>
     </SafeAreaView>
   );
@@ -114,17 +208,18 @@ const ChildAge = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: "#0A0A0A",
   },
   innerContainer: {
     flex: 1,
-    paddingTop: 18,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
   },
   backarrow: {
-    top: 10,
-    left: 16,
     position: "absolute",
+    top: 40,
+    left: 16,
+    zIndex: 10,
   },
   progressBar: {
     height: 12,
@@ -135,73 +230,120 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    justifyContent: "center",
     alignItems: "center",
-    marginTop: 110, // Slightly adjusted for better spacing
   },
   card: {
-    backgroundColor: "#1A1A1A",
-    borderRadius: 20,
-    padding: 30, // Increased padding for a more spacious feel
+    backgroundColor: "#1E1E1E",
+    borderRadius: 24,
+    padding: 24,
     width: "100%",
-    elevation: 6, // Slightly higher elevation for depth
+    maxWidth: 400,
+    alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, // Stronger shadow for contrast
-    shadowRadius: 6,
-    borderWidth: 1, // Subtle border for definition
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
     borderColor: "#2A2A2A",
   },
   questionText: {
-    fontSize: 28, // Larger font for emphasis
-    fontWeight: "700", // Bolder for a modern look
-    color: "#F0F0F0", // Slightly brighter white for contrast
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#FFFFFF",
     textAlign: "center",
-    marginBottom: 25, // More space below the title
-    fontFamily: "Roboto-Regular",
+    marginBottom: 20,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   pickerContainer: {
-    backgroundColor: "#2C2C2C", // Slightly lighter than card for contrast
+    backgroundColor: "#2A2A2A",
     borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 5, // Added vertical padding for balance
+    paddingHorizontal: 15,
+    paddingVertical: 10,
     width: "100%",
-    alignSelf: "center",
-    borderWidth: 1, // Subtle border
-    borderColor: "#404040",
-  },
-  picker: {
-    height: 180, // Larger height for better usability
-    color: "#F0F0F0", // Bright text to match the theme
-  },
-  pickerItem: {
-    fontSize: 20, // Larger text in picker items
-    fontFamily: "Roboto-Regular",
-    color: "#F0F0F0", // Ensure item text matches
-  },
-  continueLayout: {
-    bottom: 20,
-    height: 50,
-    width: "91%", // Kept for consistency, but centered
-    justifyContent: "center",
     alignItems: "center",
-    alignSelf: "center", // Centers the entire layout horizontally
-    position: "absolute",
+  },
+  dateButton: {
+    padding: 10,
+  },
+  dateText: {
+    fontSize: 18,
+    color: "#F0F0F0",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+    textAlign: "center",
+  },
+  datePicker: {
+    width: "100%",
   },
   continueButton: {
-    width: "100%",
     backgroundColor: "#333",
-    borderRadius: 10,
-    justifyContent: "center",
+    borderRadius: 12,
+    paddingVertical: 14,
     alignItems: "center",
-    height: "100%",
+    marginTop: 20,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   buttonText: {
-    fontSize: 17,
-    letterSpacing: -0.2,
-    fontWeight: "500",
-    fontFamily: "Roboto-Medium",
-    color: "#fff",
-    textAlign: "center",
+    fontSize: 18,
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "flex-end",
+  },
+  modalOverlayIOS: {
+    justifyContent: "center",
+  },
+  modalContainer: {
+    backgroundColor: "#252525",
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    marginHorizontal: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: "#333",
+  },
+  modalButtonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    marginTop: 16,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    marginHorizontal: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  cancelButton: {
+    backgroundColor: "#555",
+  },
+  confirmModalButton: {
+    backgroundColor: "#147efb",
+  },
+  modalButtonText: {
+    fontSize: 16,
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
 });
 
