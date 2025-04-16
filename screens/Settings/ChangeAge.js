@@ -12,8 +12,7 @@ import BackArrow from "../../components/backArrow";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { callFunction } from "../../components/functionCalls";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 const ChangeAge = () => {
   const [date, setDate] = useState(new Date());
@@ -24,25 +23,26 @@ const ChangeAge = () => {
   const formatDate = (date) => {
     return `${date.getFullYear()}-${(date.getMonth() + 1)
       .toString()
-      .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+      .padStart(2, "0")}-${date.getDate().toString().padStart(2, "0")}`;
   };
 
   const handleDateChange = (event, selectedDate) => {
     const currentDate = selectedDate || date;
-    setShowDatePicker(Platform.OS === 'ios');
+    setShowDatePicker(Platform.OS === "ios");
     setDate(currentDate);
   };
 
   const updateDOBInDB = async (dob) => {
+    if (!user?.uid) {
+      throw new Error("User not authenticated");
+    }
     try {
       await firestore().collection("users").doc(user.uid).update({
         DOB: dob,
+        updatedAt: firestore.FieldValue.serverTimestamp(),
       });
     } catch (error) {
-      Alert.alert(
-        "Error",
-        "Could not update date of birth. Please try again."
-      );
+      throw new Error("Could not update date of birth. Please try again.");
     }
   };
 
@@ -50,50 +50,47 @@ const ChangeAge = () => {
     try {
       const dob = formatDate(date);
       await updateDOBInDB(dob);
-      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
       Alert.alert("Success", "Date of birth updated successfully.");
       navigation.goBack();
     } catch (error) {
-      Alert.alert("Error", "Failed to update date of birth.");
+      Alert.alert("Error", error.message || "Failed to update date of birth.");
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.innerContainer}>
-        <View style={styles.backarrow}>
-          <BackArrow onPress={() => navigation.goBack()} />
-        </View>
+        <Pressable style={styles.backArrow} onPress={() => navigation.goBack()}>
+          <BackArrow />
+        </Pressable>
 
         <View style={styles.content}>
           <View style={styles.card}>
-            <Text style={styles.questionText}>Change Date of Birth</Text>
-            <View style={styles.datePickerContainer}>
-              <Pressable
-                style={styles.dateButton}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Text style={styles.dateText}>{formatDate(date)}</Text>
-              </Pressable>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={date}
-                  mode="date"
-                  display="default"
-                  onChange={handleDateChange}
-                  maximumDate={new Date()}
-                  style={styles.datePicker}
-                />
-              )}
-            </View>
+            <Text style={styles.title}>Update Your Date of Birth</Text>
+            <Pressable
+              style={styles.dateButton}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={styles.dateText}>{formatDate(date)}</Text>
+            </Pressable>
+            {showDatePicker && (
+              <DateTimePicker
+                value={date}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "spinner"}
+                onChange={handleDateChange}
+                maximumDate={new Date()}
+                textColor="#F0F0F0"
+                accentColor="#147efb"
+                style={styles.datePicker}
+              />
+            )}
           </View>
         </View>
 
-        <View style={styles.confirmLayout}>
-          <Pressable style={styles.confirmButton} onPress={handleConfirm}>
-            <Text style={styles.confirmText}>Confirm</Text>
-          </Pressable>
-        </View>
+        <Pressable style={styles.confirmButton} onPress={handleConfirm}>
+          <Text style={styles.confirmText}>Confirm</Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
@@ -102,90 +99,82 @@ const ChangeAge = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: "#0A0A0A",
   },
   innerContainer: {
     flex: 1,
-    paddingTop: 18,
-    paddingBottom: 40,
     paddingHorizontal: 20,
+    paddingVertical: 20,
   },
-  backarrow: {
-    top: 10,
-    left: 16,
+  backArrow: {
     position: "absolute",
+    top: 40,
+    left: 16,
+    zIndex: 10,
   },
   content: {
     flex: 1,
+    justifyContent: "center",
     alignItems: "center",
-    marginTop: 110,
   },
   card: {
-    backgroundColor: "#1A1A1A",
-    borderRadius: 20,
-    padding: 30,
+    backgroundColor: "#1E1E1E",
+    borderRadius: 24,
+    padding: 24,
     width: "100%",
-    elevation: 6,
+    maxWidth: 400,
+    alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
     borderWidth: 1,
     borderColor: "#2A2A2A",
   },
-  questionText: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#F0F0F0",
+  title: {
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#FFFFFF",
     textAlign: "center",
-    marginBottom: 25,
-    fontFamily: "Roboto-Regular",
+    marginBottom: 20,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
-  datePickerContainer: {
-    backgroundColor: "#252525",
+  dateButton: {
+    backgroundColor: "#2A2A2A",
     borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 15,
+    padding: 14,
     width: "100%",
-    alignSelf: "center",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "#404040",
   },
-  dateButton: {
-    padding: 10,
-  },
   dateText: {
-    fontSize: 20,
+    fontSize: 18,
     color: "#F0F0F0",
-    textAlign: "center",
-    fontFamily: "Roboto-Regular",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   datePicker: {
-    backgroundColor: "#252525",
-  },
-  confirmLayout: {
-    bottom: 20,
-    height: 50,
-    width: "91%",
-    justifyContent: "center",
-    alignItems: "center",
-    alignSelf: "center",
-    position: "absolute",
+    width: "100%",
+    marginTop: 10,
   },
   confirmButton: {
-    width: "100%",
-    backgroundColor: "#333",
-    borderRadius: 10,
-    justifyContent: "center",
+    backgroundColor: "#147efb",
+    borderRadius: 12,
+    paddingVertical: 14,
     alignItems: "center",
-    height: "100%",
+    marginTop: 20,
+    shadowColor: "#147efb",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   confirmText: {
-    fontSize: 17,
-    color: "#fff",
-    fontWeight: "500",
-    fontFamily: "Roboto-Medium",
-    letterSpacing: -0.2,
+    fontSize: 18,
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
 });
 

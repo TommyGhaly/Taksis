@@ -32,6 +32,9 @@
         }
       ]
     ],
+    "experimental": {
+      "bridgeless": false
+    },
     "extra": {
       "eas": {
         "projectId": "3b1e338f-eb92-4c7d-a84b-62060e5a6c9f"
@@ -59,7 +62,6 @@
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
     },
     "owner": "dgobran",
     "assetBundlePatterns": [
