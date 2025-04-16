@@ -15,6 +15,17 @@ const ChildExperience = ({ navigation, route }) => {
     ignoreAndroidSystemSettings: false,
   };
 
+  const formatSliderValue = (value) => {
+    const rounded = Number(value.toFixed(2)); // Round to 2 decimal places to handle floating-point precision
+    if (rounded % 1 === 0) {
+      return rounded.toFixed(0); // No decimal for whole numbers (e.g., 1.00 -> 1)
+    } else if (rounded % 0.5 === 0) {
+      return rounded.toFixed(1); // One decimal for .5 values (e.g., 1.50 -> 1.5)
+    } else {
+      return rounded.toFixed(2); // Two decimals for .25 and .75 values (e.g., 1.25, 1.75)
+    }
+  };
+
   const handleValueChange = (value) => {
     setSlider(value);
     const currentInteger = Math.round(value); // Ensure integer comparison
@@ -45,7 +56,7 @@ const ChildExperience = ({ navigation, route }) => {
             <Text style={styles.questionText}>
               How much experience does your child have being a deacon?
             </Text>
-            <Text style={styles.sliderValue}>{slider.toFixed(0)}</Text>
+            <Text style={styles.sliderValue}>{formatSliderValue(slider)}</Text>
             <Slider
               style={styles.slider}
               value={slider}

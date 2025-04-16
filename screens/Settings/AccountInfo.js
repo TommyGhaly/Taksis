@@ -71,7 +71,7 @@ const AccountInfo = ({ navigation }) => {
           <Text style={styles.infoText}>{userData.church || "Church 1"}</Text>
         </View>
         <View style={styles.infoBlock}>
-          <Text style={styles.infoText}>{userData.age || "Age"}</Text>
+          <Text style={styles.infoText}>{userData.DOB || "Date of Birth"}</Text>
         </View>
 
         {/* Conditionally render the Children heading and list if children exist */}

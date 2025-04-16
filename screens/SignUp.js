@@ -75,8 +75,8 @@ const SignUp = ({ navigation }) => {
           admin: false,
           rank: "Chanter (Epsaltos)",
           experience: "1",
-          alhanGrades: null,
-          ssGrades: null,
+          alhanGrades: [],
+          ssGrades: [],
           nextWeekServe: "N/A",
         });
       }

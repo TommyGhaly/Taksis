@@ -120,7 +120,8 @@ const IndividualAttendance = () => {
   const formatGrade = useCallback((grade) => {
     const num = parseInt(grade);
     if (isNaN(num)) return grade;
-    const suffix = num === 1 ? "st" : num === 2 ? "nd" : num === 3 ? "rd" : "th";
+    const suffix =
+      num === 1 ? "st" : num === 2 ? "nd" : num === 3 ? "rd" : "th";
     return `${num}${suffix} Grade`;
   }, []);
 
@@ -166,7 +167,9 @@ const IndividualAttendance = () => {
   const deleteStudent = async () => {
     Alert.alert(
       "Delete Student",
-      `Are you sure you want to delete ${studentData.name || "this student's"} record? This action cannot be undone.`,
+      `Are you sure you want to delete ${
+        studentData.name || "this student's"
+      } record? This action cannot be undone.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -263,14 +266,23 @@ const IndividualAttendance = () => {
             <Text style={styles.infoButtonText}>i</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.title}>{`Attendance for ${studentData.name || "Student"}`}</Text>
-        <Text style={styles.subtitle}>{`Grade: ${formatGrade(grade)} - Category: ${category}`}</Text>
+        <Text style={styles.title}>{`Attendance for ${
+          studentData.name || "Student"
+        }`}</Text>
+        <Text style={styles.subtitle}>{`Grade: ${formatGrade(
+          grade
+        )} - Category: ${category}`}</Text>
         <ScrollView contentContainerStyle={styles.attendanceContainer}>
           {attendanceData.length > 0 ? (
             attendanceData.map((attendance, index) => (
               <View key={index} style={styles.attendanceItem}>
                 <Text style={styles.dateText}>{attendance.date}</Text>
-                <View style={[styles.statusContainer, getStatusStyle(attendance.status)]}>
+                <View
+                  style={[
+                    styles.statusContainer,
+                    getStatusStyle(attendance.status),
+                  ]}
+                >
                   <Text style={styles.statusText}>
                     {attendance.status === false
                       ? "Absent"
@@ -320,7 +332,9 @@ const IndividualAttendance = () => {
                   <TextInput
                     style={styles.input}
                     value={editData.name}
-                    onChangeText={(text) => setEditData({ ...editData, name: text })}
+                    onChangeText={(text) =>
+                      setEditData({ ...editData, name: text })
+                    }
                     placeholder="Name"
                     placeholderTextColor="#888"
                     autoCapitalize="words"
@@ -532,17 +546,19 @@ const styles = StyleSheet.create({
   statusContainer: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
+    paddingVertical: 12, // Increased padding for more vertical space
     paddingHorizontal: 20,
     borderRadius: 8,
     justifyContent: "center",
     minWidth: 120,
-    height: 40,
+    minHeight: 44, // Replaced height with minHeight for flexibility
   },
   statusText: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#ffffff",
+    lineHeight: 24, // Added lineHeight to ensure consistent text rendering
+    textAlign: "center",
   },
   present: {
     backgroundColor: "#147efb",

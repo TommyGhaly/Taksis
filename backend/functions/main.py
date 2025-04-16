@@ -10,6 +10,8 @@ from google.cloud import firestore
 import requests
 import datetime
 from flask import Request
+import re
+
 
 initialize_app()
 
@@ -95,6 +97,9 @@ def pauline(deacons):
 
             value += 2.4
 
+        if int(deacon["age"]) < 12:
+            value = -40
+
         deacon["value"] = value
     return sort_values(deacons)
 
@@ -119,6 +124,9 @@ def catholic(deacons):
         else:
 
             value += 2.4
+        
+        if int(deacon["age"]) < 12:
+            value = -40
 
         deacon["value"] = value
     return sort_values(deacons)
@@ -143,6 +151,9 @@ def praxis(deacons):
         else:
 
             value += 2.4
+        
+        if int(deacon["age"]) < 12:
+            value = -40
 
         deacon["value"] = value
     return sort_values(deacons)
@@ -170,6 +181,9 @@ def gospel(deacons):
         else:
 
             value += 5
+        
+        if int(deacon["age"]) < 16:
+            value = -40
 
         deacon["value"] = value
     return sort_values(deacons)
@@ -190,6 +204,9 @@ def water(deacons):
 
         value += (deacon["experience"] - 7) * 0.23
 
+        if int(deacon["age"]) < 10:
+            value = -40
+
         deacon["value"] = value
     return sort_values(deacons)
 
@@ -208,6 +225,9 @@ def wine(deacons):
         value += (deacon["frequency"] - 7) * 0.4
 
         value += (deacon["experience"] - 8.4) * 0.23
+
+        if int(deacon["age"]) < 18:
+            value = -40
 
         deacon["value"] = value
     return sort_values(deacons)
@@ -793,6 +813,13 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
         if not doc.exists:
             return https_fn.Response("User document not found", status=404)
         user_data = doc.to_dict()
+        if user_data["DOB"].exists():
+            user_data["age"] = calc_age(user_data["DOB"])
+            doc_ref.update({"age": user_data["age"]})
+        if user_data["children"].exists():
+            for child in user_data["children"]:
+                child["age"] = calc_age(child["DOB"])
+            doc_ref.update({"children": user_data["children"]})
     except Exception as e:
         return https_fn.Response(f"Error retrieving user data: {str(e)}", status=500)
     add_user_to_churches(user_data)
@@ -1594,18 +1621,87 @@ def create_test_data(req: https_fn.Request) -> https_fn.Response:
     church_ref.update({"deacons": test_data})
     return https_fn.Response("Test data created", status=200)
 
-def new_years():
-    pass
 
+grades_list = [
+    'Pre-School - Age 3', 'Pre-School - Age 4', 'Kindergarten', '1st Grade', '2nd Grade',
+    '3rd Grade', '4th Grade', '5th Grade', '6th Grade', '7th Grade', '8th Grade',
+    '9th Grade', '10th Grade', '11th Grade', '12th Grade', 'College'
+]
+
+def clean_student_data(student_data):
+    current_year = datetime.datetime.now().year
+    cleaned = {}
+    for key, val in student_data.items():
+        if key.lower() == 'birthday':
+            cleaned[key] = val
+        elif re.fullmatch(r'\d{2}-\d{2}-\d{4}', key):
+            year = int(key.split('-')[2])
+            if year == current_year:
+                cleaned[key] = val
+        else:
+            cleaned[key] = val
+
+    grade = cleaned.get('grade')
+    if grade in grades_list and grade != 'College':
+        cleaned['grade'] = grades_list[grades_list.index(grade) + 1]
+    return cleaned
+
+def move_and_clean_students(church_ref, class_name):
+    cls = church_ref.collection(class_name)
+    # Walk backwards through grades, skipping 'College'
+    for i in reversed(range(1, len(grades_list))):
+        current, prev = grades_list[i], grades_list[i - 1]
+        if current != 'College':
+            # 1) wipe out existing
+            for s in cls.document(current).collection("students").stream():
+                s.reference.delete()
+            # 2) copy + clean from prev
+            for s in cls.document(prev).collection("students").stream():
+                cls.document(current)\
+                   .collection("students")\
+                   .document(s.id)\
+                   .set(clean_student_data(s.to_dict()))
+
+    # finally, clear Pre-School - Age 3
+    for s in cls.document(grades_list[0]).collection("students").stream():
+        s.reference.delete()
 
 @https_fn.on_request()
-def change_DOB(req: https_fn.Request) -> https_fn.Response:
-    try:
-        request_data = req.get_json()
-        if not request_data:
-            return https_fn.Response("Missing JSON body", status=400)
-    except Exception as e:
-        return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
-    # Extract required parameters
-    user_id = request_data.get("uid")
-    pass
+def new_years_cleanup(req: https_fn.Request) -> https_fn.Response:
+    db = firestore.Client()
+    church_count = 0
+
+    for church_doc in db.collection("churches").stream():
+        move_and_clean_students(church_doc.reference, "Hymns Class")
+        move_and_clean_students(church_doc.reference, "Sunday School")
+        church_count += 1
+
+    return https_fn.Response(
+        f"✅ New Year's cleanup done for {church_count} churches.",
+        status=200
+    )
+
+
+def calc_age(dob):
+    if dob:
+        today = datetime.datetime.now()
+        age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        return age
+    return None
+
+
+@scheduler_fn.on_schedule(
+    schedule="0 0 * * 0",  # Every Sunday at 12:00 AM
+    timezone=scheduler_fn.Timezone("America/New_York"),
+)
+def update_ages():
+    firestore_client = firestore.Client()
+    users_ref = firestore_client.collection("users")
+    users_docs = users_ref.stream()
+    for user in users_docs:
+        mock_request = Request.from_values(
+            headers={"Authorization": ""},
+            json={"uid": user.id},
+        )
+        update_user(mock_request)
+    return https_fn.Response("Ages updated successfully", status=200)
