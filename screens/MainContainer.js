@@ -15,6 +15,7 @@ import ServantsAdmin from "./ServantsAdmin"; // New screen import
 import AlhanAdmin from "./AlhanAdmin";
 import AdminManager from "./AdminManager";
 import EditSchedule from "./EditSchedule";
+import DeaconEdits from "./DeaconEdits";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import CustomHeader from "../components/customHeader";
@@ -122,6 +123,9 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
       )}
       {userRoles.isServant && (
         <Drawer.Screen name="Servants Meeting Attendance" component={ServantsMeetingNavigator} />
+      )}
+      {userRoles.admin && (
+        <Drawer.Screen name="Edit Deacons" component={DeaconEdits} />
       )}
       {userRoles.ssAdmin && (
         <Drawer.Screen name="Servants Management" component={ServantsAdmin} />
