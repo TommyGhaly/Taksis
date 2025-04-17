@@ -582,10 +582,21 @@ def add_user_to_churches(user_data):
     # Ensure user_data is properly filtered
     user_data = filter_data(user_data)
 
+
+    # Check if age is present; if not, calculate it from DOB if available
+    if 'age' not in user_data and 'DOB' not in user_data:
+        return https_fn.Response("User does not have age or DOB")
+    elif not(isinstance(user_data.get("DOB")), None) and isinstance(user_data.get("age"), None):
+        user_data["age"] = calc_age(user_data["DOB"])
+    elif not isinstance(user_data.get("age"), None):
+        pass
+    else:
+        print(f'user: {user_data["name"]} has age: {user_data["age"]}')
+        return f'user: {user_data['name']} does not have age or DOB'
     # Retrieve the specific church document based on the user's church ID
     church_id = user_data.get("church")
     if not church_id:
-        return https_fn.Response("User has no associated church ID", status=400)
+        return https_fn.Response("User has no associated church ID")
 
     church_doc_ref = firestore_client.collection("churches").document(church_id)
     church_doc = church_doc_ref.get()
@@ -788,7 +799,7 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
             return https_fn.Response("Missing JSON body", status=400)
     except Exception as e:
         return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
-
+    print(f"request_data")
     # Extract the user_id from the payload
     user_id = request_data.get("uid")
     if not user_id:
@@ -802,28 +813,40 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
             # You can now use decoded_token to get user details if needed
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
-
+    print(f"authorization successful")
     remove_user_from_churches(user_id)
+    print(f'removed from churches')
     firestore_client = firestore.Client()
 
     # Retrieve the user document from Firestore
     try:
         doc_ref = firestore_client.collection("users").document(user_id)
         doc = doc_ref.get()
+        print(f"doc_ref: {doc_ref}")
         if not doc.exists:
             return https_fn.Response("User document not found", status=404)
         user_data = doc.to_dict()
-        if user_data["DOB"].exists():
+        if "DOB" in user_data:
+            print(f'DOB exists')
             user_data["age"] = calc_age(user_data["DOB"])
+            print(f'updated age {user_data["age"]}')
             doc_ref.update({"age": user_data["age"]})
-        if user_data["children"].exists():
+            print(f'updated age {user_data["age"]}')
+        if "children" in user_data:
+            print(f'has children')
             for child in user_data["children"]:
-                child["age"] = calc_age(child["DOB"])
+                print(f'child: {child}')
+                if "DOB" in child:
+                    child["age"] = calc_age(child["DOB"])
+                    print(f'child age: {child["age"]}')
             doc_ref.update({"children": user_data["children"]})
+            print(f'updated children ages {user_data["children"]}')
     except Exception as e:
         return https_fn.Response(f"Error retrieving user data: {str(e)}", status=500)
     add_user_to_churches(user_data)
+    print(f'added to churches')
     update_names(user_id, user_data["name"], user_data["church"])
+    print(f'updated names')
 
     return https_fn.Response("User update completed successfully", status=200)
 
@@ -1354,6 +1377,8 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
     schedule_data = schedule_doc.to_dict()
     for user_id in all_uids:
         key, _ = find_server(schedule_data, user_id)
+        if key is None:
+            continue
         if len(key) == 1:
             key = str(key[0])
         else:
@@ -1682,11 +1707,19 @@ def new_years_cleanup(event: scheduler_fn.ScheduledEvent) -> None:
     print(f"✅ New Year's cleanup done for {church_count} churches.")
 
 
-def calc_age(dob):
-    if dob:
-        today = datetime.datetime.now()
-        age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-        return age
+
+def calc_age(dob_str):
+    if dob_str:
+        try:
+            dob = datetime.datetime.strptime(dob_str, "%m-%d-%Y")
+            today = datetime.datetime.now()
+            print(f'today: {today}')
+            age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+            print(f'age: {age}')
+            return age
+        except Exception as e:
+            print(f'Error parsing DOB: {e}')
+            return None
     return None
 
 
@@ -1705,3 +1738,17 @@ def update_ages():
         )
         update_user(mock_request)
     return https_fn.Response("Ages updated successfully", status=200)
+
+
+@https_fn.on_request()
+def update_all_users(req: https_fn.Request) -> https_fn.Response:
+    firestore_client = firestore.Client()
+    users_ref = firestore_client.collection("users")
+    users_docs = users_ref.stream()
+    for user in users_docs:
+        mock_request = Request.from_values(
+            headers={"Authorization": ""},
+            json={"uid": user.id},
+        )
+        update_user(mock_request)
+    return https_fn.Response("users updated successfully", status=200)
