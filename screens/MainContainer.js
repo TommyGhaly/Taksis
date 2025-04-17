@@ -5,7 +5,6 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import Icon from 'react-native-vector-icons/FontAwesome';  
 import 'react-native-gesture-handler';
-
 import HomeScreenNavigation from "./Home/HomeScreenNavigator";
 import AlhanNavigator from "./Alhan/AlhanNavigator";
 import SundaySchoolNavigator from "./SundaySchool/SundaySchoolNavigator";
@@ -14,6 +13,7 @@ import SettingsNavigation from "./Settings/SettingsNavigation";
 import ServantsMeetingNavigator from "./ServantsMeeting/ServantsMeetingNavigator";
 import ServantsAdmin from "./ServantsAdmin"; // New screen import
 import AlhanAdmin from "./AlhanAdmin";
+import AdminManager from "./AdminManager";
 import EditSchedule from "./EditSchedule";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
@@ -128,6 +128,9 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
       )}
       {userRoles.alhanAdmin && (
         <Drawer.Screen name="Alhan Management" component={AlhanAdmin} />
+      )}
+      {userRoles.superAdmin && (
+        <Drawer.Screen name="Admin Manager" component={AdminManager} />
       )}
     </Drawer.Navigator>
   );
