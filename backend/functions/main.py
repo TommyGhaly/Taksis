@@ -1,6 +1,7 @@
 from typing import Any, List, Dict
 import random
 import uuid
+import aiohttp
 import asyncio
 import math
 from firebase_functions import https_fn, scheduler_fn, firestore_fn
@@ -586,12 +587,11 @@ def add_user_to_churches(user_data):
     # Check if age is present; if not, calculate it from DOB if available
     if 'age' not in user_data and 'DOB' not in user_data:
         return https_fn.Response("User does not have age or DOB")
-    elif not(isinstance(user_data.get("DOB")), None) and isinstance(user_data.get("age"), None):
+    elif not(isinstance(user_data.get("DOB"), type(None))) and isinstance(user_data.get("age"), type(None)):
         user_data["age"] = calc_age(user_data["DOB"])
-    elif not isinstance(user_data.get("age"), None):
+    elif not isinstance(user_data.get("age"), type(None)):
         pass
     else:
-        print(f'user: {user_data["name"]} has age: {user_data["age"]}')
         return f'user: {user_data['name']} does not have age or DOB'
     # Retrieve the specific church document based on the user's church ID
     church_id = user_data.get("church")
@@ -799,7 +799,6 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
             return https_fn.Response("Missing JSON body", status=400)
     except Exception as e:
         return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
-    print(f"request_data")
     # Extract the user_id from the payload
     user_id = request_data.get("uid")
     if not user_id:
@@ -813,40 +812,28 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
             # You can now use decoded_token to get user details if needed
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
-    print(f"authorization successful")
     remove_user_from_churches(user_id)
-    print(f'removed from churches')
     firestore_client = firestore.Client()
 
     # Retrieve the user document from Firestore
     try:
         doc_ref = firestore_client.collection("users").document(user_id)
         doc = doc_ref.get()
-        print(f"doc_ref: {doc_ref}")
         if not doc.exists:
             return https_fn.Response("User document not found", status=404)
         user_data = doc.to_dict()
         if "DOB" in user_data:
-            print(f'DOB exists')
             user_data["age"] = calc_age(user_data["DOB"])
-            print(f'updated age {user_data["age"]}')
             doc_ref.update({"age": user_data["age"]})
-            print(f'updated age {user_data["age"]}')
         if "children" in user_data:
-            print(f'has children')
             for child in user_data["children"]:
-                print(f'child: {child}')
                 if "DOB" in child:
                     child["age"] = calc_age(child["DOB"])
-                    print(f'child age: {child["age"]}')
             doc_ref.update({"children": user_data["children"]})
-            print(f'updated children ages {user_data["children"]}')
     except Exception as e:
         return https_fn.Response(f"Error retrieving user data: {str(e)}", status=500)
     add_user_to_churches(user_data)
-    print(f'added to churches')
     update_names(user_id, user_data["name"], user_data["church"])
-    print(f'updated names')
 
     return https_fn.Response("User update completed successfully", status=200)
 
@@ -1556,9 +1543,9 @@ def set_user_next_week(user_id, week):
                 user_info["nextWeekServe"] = week
                 user_ref.set(user_info)
         except ValueError as e:
-            print(
-                f"ERROR: Invalid date format for week '{week}' - {e}"
-            )  # More informative error
+            return https_fn.Response(
+                f"Invalid date format: {str(e)}", status=400
+            )
     else:
         return
 
@@ -1704,7 +1691,6 @@ def new_years_cleanup(event: scheduler_fn.ScheduledEvent) -> None:
         move_and_clean_students(church_doc.reference, "Sunday School")
         church_count += 1
 
-    print(f"✅ New Year's cleanup done for {church_count} churches.")
 
 
 
@@ -1713,42 +1699,63 @@ def calc_age(dob_str):
         try:
             dob = datetime.datetime.strptime(dob_str, "%m-%d-%Y")
             today = datetime.datetime.now()
-            print(f'today: {today}')
             age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-            print(f'age: {age}')
             return age
         except Exception as e:
-            print(f'Error parsing DOB: {e}')
             return None
     return None
 
 
+UPDATE_USER_URL = "https://update-user-hy6oofbihq-uc.a.run.app"  # Replace with your actual deployed URL
+
+# Helper: call update_user as an HTTP request for one user
+async def trigger_update_user(session, user_id):
+    try:
+        async with session.post(
+            UPDATE_USER_URL,
+            json={"uid": user_id},
+            headers={"Authorization": ""}  # Add Bearer token here if needed
+        ) as resp:
+            text = await resp.text()
+            print(f"[{user_id}] Status: {resp.status} - {text}")
+    except Exception as e:
+        print(f"[{user_id}] Request failed: {str(e)}")
+
+# ✅ Asynchronous scheduler function
 @scheduler_fn.on_schedule(
-    schedule="0 0 * * 0", 
+    schedule="0 0 * * 0",  # Every Sunday at midnight
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def update_ages():
-    firestore_client = firestore.Client()
-    users_ref = firestore_client.collection("users")
-    users_docs = users_ref.stream()
-    for user in users_docs:
-        mock_request = Request.from_values(
-            headers={"Authorization": ""},
-            json={"uid": user.id},
-        )
-        update_user(mock_request)
-    return https_fn.Response("Ages updated successfully", status=200)
+    async def run():
+        firestore_client = firestore.Client()
+        users_ref = firestore_client.collection("users")
+        users_docs = users_ref.stream()
 
+        async with aiohttp.ClientSession() as session:
+            tasks = [
+                trigger_update_user(session, user.id)
+                for user in users_docs
+            ]
+            await asyncio.gather(*tasks)
 
+    asyncio.run(run())
+    return https_fn.Response("Scheduled user updates triggered", status=200)
+
+# ✅ Asynchronous on-request function
 @https_fn.on_request()
 def update_all_users(req: https_fn.Request) -> https_fn.Response:
-    firestore_client = firestore.Client()
-    users_ref = firestore_client.collection("users")
-    users_docs = users_ref.stream()
-    for user in users_docs:
-        mock_request = Request.from_values(
-            headers={"Authorization": ""},
-            json={"uid": user.id},
-        )
-        update_user(mock_request)
-    return https_fn.Response("users updated successfully", status=200)
+    async def run():
+        firestore_client = firestore.Client()
+        users_ref = firestore_client.collection("users")
+        users_docs = users_ref.stream()
+
+        async with aiohttp.ClientSession() as session:
+            tasks = [
+                trigger_update_user(session, user.id)
+                for user in users_docs
+            ]
+            await asyncio.gather(*tasks)
+
+    asyncio.run(run())
+    return https_fn.Response("Manual user updates triggered", status=200)

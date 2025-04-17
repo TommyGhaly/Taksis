@@ -15,6 +15,7 @@ import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { callFunction } from "../../components/functionCalls";
 
 const ChangeAge = () => {
   const [date, setDate] = useState(new Date());
@@ -63,8 +64,8 @@ const ChangeAge = () => {
     try {
       await firestore().collection("users").doc(user.uid).update({
         DOB: dob,
-        updatedAt: firestore.FieldValue.serverTimestamp(),
       });
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
     } catch (error) {
       throw new Error("Could not update date of birth. Please try again.");
     }
