@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Modal, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, FlatList, TouchableOpacity, Modal, StyleSheet, ActivityIndicator, Alert, Animated } from 'react-native';
 import Slider from '@react-native-community/slider';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
@@ -29,6 +29,43 @@ const DeaconEdits = () => {
   const [tempExperience, setTempExperience] = useState(0);
   const [tempFrequency, setTempFrequency] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  // Animation setup
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  // Animate modal open
+  const animateModalOpen = () => {
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 60,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  // Animate modal close
+  const animateModalClose = () => {
+    Animated.parallel([
+      Animated.timing(scaleAnim, {
+        toValue: 0.9,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setModalVisible(false));
+  };
 
   // Fetch the user's church on mount
   useEffect(() => {
@@ -60,17 +97,28 @@ const DeaconEdits = () => {
         .onSnapshot(
           (doc) => {
             if (doc.exists) {
-              const deaconList = (doc.data().deacons || []).sort((a, b) =>
-                a.name.localeCompare(b.name)
-              );
-              setDeacons(deaconList);
-              // If no deacon is selected and there are deacons, select the first one
-              if (deaconList.length > 0 && !selectedDeacon) {
-                setSelectedDeacon(deaconList[0]);
-                setTempExperience(deaconList[0].experience);
-                setTempFrequency(deaconList[0].frequency);
-                setModalVisible(true);
-              }
+              const deaconList = doc.data().deacons || [];
+              console.log('Raw deacon list:', deaconList);
+
+              const sortedDeacons = deaconList
+                .map((deacon) => ({
+                  ...deacon,
+                  name: (deacon.name || '').trim().toLowerCase(),
+                }))
+                .sort((a, b) => {
+                  const nameComparison = a.name.localeCompare(b.name);
+                  if (nameComparison === 0) {
+                    return a.uid.localeCompare(b.uid);
+                  }
+                  return nameComparison;
+                })
+                .map((deacon) => ({
+                  ...deacon,
+                  name: doc.data().deacons.find((d) => d.uid === deacon.uid).name,
+                }));
+
+              console.log('Sorted deacon list:', sortedDeacons);
+              setDeacons(sortedDeacons);
             }
           },
           (error) => {
@@ -81,13 +129,14 @@ const DeaconEdits = () => {
     }
   }, [church]);
 
-  // Open the edit modal with the selected deacon's data
+  // Open the edit modal with animation
   const openEditModal = (deacon) => {
     ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
     setSelectedDeacon(deacon);
     setTempExperience(deacon.experience);
     setTempFrequency(deacon.frequency);
     setModalVisible(true);
+    animateModalOpen();
   };
 
   // Save the edited values to Firestore
@@ -97,33 +146,29 @@ const DeaconEdits = () => {
     ReactNativeHapticFeedback.trigger('impactMedium', hapticOptions);
 
     try {
-      // Update the church document
       const churchRef = firestore().collection('churches').doc(church);
       const churchDoc = await churchRef.get();
       const currentDeacons = churchDoc.data().deacons || [];
       const updatedDeacons = currentDeacons.map((d) =>
-        d.name === selectedDeacon.name
+        d.uid === selectedDeacon.uid
           ? { ...d, experience: tempExperience, frequency: tempFrequency }
           : d
       );
       await churchRef.update({ deacons: updatedDeacons });
 
-      // Check if the deacon is a registered user
       const userQuery = await firestore()
         .collection('users')
         .where('church', '==', church)
-        .where('name', '==', selectedDeacon.name)
+        .where('uid', '==', selectedDeacon.uid)
         .get();
 
       if (!userQuery.empty) {
-        // Update the user document
         const userDoc = userQuery.docs[0];
         await userDoc.ref.update({
           experience: tempExperience,
           frequency: tempFrequency,
         });
       } else {
-        // Find the parent user for a child deacon
         const usersQuery = await firestore()
           .collection('users')
           .where('church', '==', church)
@@ -132,7 +177,7 @@ const DeaconEdits = () => {
         for (const userDoc of usersQuery.docs) {
           const userData = userDoc.data();
           const children = userData.children || [];
-          const childIndex = children.findIndex((c) => c.name === selectedDeacon.name);
+          const childIndex = children.findIndex((c) => c.uid === selectedDeacon.uid);
           if (childIndex !== -1) {
             const updatedChildren = [...children];
             updatedChildren[childIndex] = {
@@ -141,12 +186,12 @@ const DeaconEdits = () => {
               frequency: tempFrequency,
             };
             await userDoc.ref.update({ children: updatedChildren });
-            break; // Assume only one parent per child name
+            break;
           }
         }
       }
 
-      setModalVisible(false);
+      animateModalClose();
     } catch (error) {
       console.error('Error saving edits:', error);
     }
@@ -155,19 +200,91 @@ const DeaconEdits = () => {
   // Handle cancel with haptic feedback
   const handleCancel = () => {
     ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
-    setModalVisible(false);
+    animateModalClose();
+  };
+
+  // Handle remove deacon with warning
+  const handleRemove = () => {
+    if (!selectedDeacon) return;
+
+    ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
+
+    Alert.alert(
+      'Remove Deacon',
+      `Are you sure you want to remove ${selectedDeacon.name} as a deacon?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => ReactNativeHapticFeedback.trigger('impactLight', hapticOptions),
+        },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            ReactNativeHapticFeedback.trigger('impactMedium', hapticOptions);
+            try {
+              const churchRef = firestore().collection('churches').doc(church);
+              const churchDoc = await churchRef.get();
+              const currentDeacons = churchDoc.data().deacons || [];
+              const updatedDeacons = currentDeacons.filter(
+                (d) => d.uid !== selectedDeacon.uid
+              );
+              await churchRef.update({ deacons: updatedDeacons });
+
+              const userQuery = await firestore()
+                .collection('users')
+                .where('church', '==', church)
+                .where('uid', '==', selectedDeacon.uid)
+                .get();
+
+              if (!userQuery.empty) {
+                const userDoc = userQuery.docs[0];
+                await userDoc.ref.update({ isDeacon: false });
+              } else {
+                const usersQuery = await firestore()
+                  .collection('users')
+                  .where('church', '==', church)
+                  .get();
+
+                for (const userDoc of usersQuery.docs) {
+                  const userData = userDoc.data();
+                  const children = userData.children || [];
+                  const childIndex = children.findIndex(
+                    (c) => c.uid === selectedDeacon.uid
+                  );
+                  if (childIndex !== -1) {
+                    const updatedChildren = [...children];
+                    updatedChildren[childIndex] = {
+                      ...updatedChildren[childIndex],
+                      isDeacon: false,
+                    };
+                    await userDoc.ref.update({ children: updatedChildren });
+                    break;
+                  }
+                }
+              }
+
+              animateModalClose();
+            } catch (error) {
+              console.error('Error removing deacon:', error);
+              Alert.alert('Error', 'Failed to remove deacon. Please try again.');
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   // Handle slider value change with haptic feedback on discrete steps
   const handleSliderChange = (setter, currentValue) => (value) => {
-    // Trigger haptic only when crossing a 0.25 step boundary
     const step = 0.25;
     const prevStep = Math.round(currentValue / step) * step;
     const newStep = Math.round(value / step) * step;
     if (prevStep !== newStep) {
       ReactNativeHapticFeedback.trigger('selection', hapticOptions);
     }
-    // Update state immediately for smooth visual feedback
     setter(value);
   };
 
@@ -206,19 +323,36 @@ const DeaconEdits = () => {
         <FlatList
           data={deacons}
           renderItem={renderDeacon}
-          keyExtractor={(item) => item.name}
+          keyExtractor={(item) => item.uid}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
         />
       )}
 
       {/* Edit Modal */}
-      <Modal visible={modalVisible} animationType="fade" transparent={true}>
+      <Modal
+        visible={modalVisible}
+        animationType="none"
+        transparent={true}
+        onRequestClose={handleCancel}
+      >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                transform: [{ scale: scaleAnim }],
+                opacity: opacityAnim,
+              },
+            ]}
+          >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit {selectedDeacon?.name}</Text>
-              <TouchableOpacity onPress={handleCancel}>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={handleCancel}
+                activeOpacity={0.7}
+              >
                 <Ionicons name="close" size={24} color="#fff" />
               </TouchableOpacity>
             </View>
@@ -227,51 +361,68 @@ const DeaconEdits = () => {
               <Text style={styles.sliderLabel}>
                 Experience: {formatNumber(tempExperience)}
               </Text>
-              <Slider
-                value={tempExperience}
-                onValueChange={handleSliderChange(setTempExperience, tempExperience)}
-                minimumValue={0}
-                maximumValue={10}
-                step={0.25}
-                thumbTintColor="#147efb"
-                minimumTrackTintColor="#147efb"
-                maximumTrackTintColor="#555"
-                style={styles.slider}
-              />
+              <View style={styles.sliderTrack}>
+                <Slider
+                  value={tempExperience}
+                  onValueChange={handleSliderChange(setTempExperience, tempExperience)}
+                  minimumValue={0}
+                  maximumValue={10}
+                  step={0.25}
+                  thumbTintColor="#147efb"
+                  minimumTrackTintColor="#147efb"
+                  maximumTrackTintColor="#666"
+                  thumbStyle={styles.sliderThumb}
+                  trackStyle={styles.sliderTrackStyle}
+                  style={styles.slider}
+                />
+              </View>
             </View>
 
             <View style={styles.sliderContainer}>
               <Text style={styles.sliderLabel}>
                 Frequency: {formatNumber(tempFrequency)}
               </Text>
-              <Slider
-                value={tempFrequency}
-                onValueChange={handleSliderChange(setTempFrequency, tempFrequency)}
-                minimumValue={0}
-                maximumValue={10}
-                step={0.25}
-                thumbTintColor="#147efb"
-                minimumTrackTintColor="#147efb"
-                maximumTrackTintColor="#555"
-                style={styles.slider}
-              />
+              <View style={styles.sliderTrack}>
+                <Slider
+                  value={tempFrequency}
+                  onValueChange={handleSliderChange(setTempFrequency, tempFrequency)}
+                  minimumValue={0}
+                  maximumValue={10}
+                  step={0.25}
+                  thumbTintColor="#147efb"
+                  minimumTrackTintColor="#147efb"
+                  maximumTrackTintColor="#666"
+                  thumbStyle={styles.sliderThumb}
+                  trackStyle={styles.sliderTrackStyle}
+                  style={styles.slider}
+                />
+              </View>
             </View>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
+                style={[styles.button, styles.removeButton]}
+                onPress={handleRemove}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="trash" size={24} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={[styles.button, styles.cancelButton]}
                 onPress={handleCancel}
+                activeOpacity={0.7}
               >
                 <Text style={styles.buttonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.button, styles.confirmButton]}
                 onPress={saveEdits}
+                activeOpacity={0.7}
               >
                 <Text style={styles.buttonText}>Confirm</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
     </View>
@@ -344,64 +495,124 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: '#000000', // Solid black
   },
   modalContent: {
-    width: '90%',
-    backgroundColor: '#1e1e1e',
-    borderRadius: 16,
-    padding: 20,
+    width: '92%',
+    maxWidth: 400,
+    backgroundColor: '#222222', // Solid dark gray
+    borderRadius: 20,
+    padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#333333', // Solid border
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333', // Solid divider
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#ffffff',
+    letterSpacing: 0.5,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#444444', // Solid gray
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#555555', // Solid border
   },
   sliderContainer: {
-    marginVertical: 15,
+    marginVertical: 20,
+    padding: 16,
+    borderRadius: 12,
   },
   sliderLabel: {
     fontSize: 16,
-    color: '#fff',
-    marginBottom: 10,
+    fontWeight: '600',
+    color: '#ffffff',
+    marginBottom: 12,
+    letterSpacing: 0.3,
+  },
+  sliderTrack: {
+    borderRadius: 6,
+    paddingVertical: 4,
   },
   slider: {
     width: '100%',
     height: 40,
   },
+  sliderThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    backgroundColor: '#147efb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  sliderTrackStyle: {
+    height: 6,
+    borderRadius: 3,
+  },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
+    marginTop: 24,
     gap: 12,
   },
   button: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  removeButton: {
+    flex: 0,
+    width: 48,
+    paddingVertical: 12,
+    backgroundColor: '#ff4444', // Solid red
+    borderWidth: 1,
+    borderColor: '#cc3333', // Solid border
   },
   cancelButton: {
-    backgroundColor: '#ff4444',
+    backgroundColor: '#555555', // Solid gray
+    borderWidth: 1,
+    borderColor: '#444444', // Solid border
   },
   confirmButton: {
-    backgroundColor: '#147efb',
+    backgroundColor: '#147efb', // Solid blue
+    borderWidth: 1,
+    borderColor: '#1167d0', // Solid border
   },
   buttonText: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+    letterSpacing: 0.5,
   },
 });
 

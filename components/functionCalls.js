@@ -1,25 +1,23 @@
 export const callFunction = async (user, url) => {
   try {
-    // Await the Firebase ID token
     const idToken = await user.getIdToken();
 
-    // Fire the request without awaiting the response (runs in the background)
-    fetch(url, {
+    const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`, // Use the actual token here
+        Authorization: `Bearer ${idToken}`,
       },
-      body: JSON.stringify({ uid: user.uid }), // Send the correct uid parameter
-    }).catch((error) => {
-      console.error("Error calling function in the background:", error);
+      body: JSON.stringify({ uid: user.uid }),
     });
 
-    console.log("Function call fired, backend will process the request.");
+    const text = await res.text(); // Get server response
+    console.log("Function response:", text);
   } catch (error) {
-    console.error("Error preparing function call:", error);
+    console.error("Error calling function in the background:", error);
   }
 };
+
 
 export const callDeleteUser = async (user, church, uid, url) => {
   try {
