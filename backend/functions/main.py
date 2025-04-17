@@ -1666,8 +1666,11 @@ def move_and_clean_students(church_ref, class_name):
     for s in cls.document(grades_list[0]).collection("students").stream():
         s.reference.delete()
 
-@https_fn.on_request()
-def new_years_cleanup(req: https_fn.Request) -> https_fn.Response:
+@scheduler_fn.on_schedule(
+    schedule="0 0 11 9 *",
+    timezone=scheduler_fn.Timezone("America/New_York")
+)
+def new_years_cleanup(event: scheduler_fn.ScheduledEvent) -> None:
     db = firestore.Client()
     church_count = 0
 
@@ -1676,10 +1679,7 @@ def new_years_cleanup(req: https_fn.Request) -> https_fn.Response:
         move_and_clean_students(church_doc.reference, "Sunday School")
         church_count += 1
 
-    return https_fn.Response(
-        f"✅ New Year's cleanup done for {church_count} churches.",
-        status=200
-    )
+    print(f"✅ New Year's cleanup done for {church_count} churches.")
 
 
 def calc_age(dob):
@@ -1691,7 +1691,7 @@ def calc_age(dob):
 
 
 @scheduler_fn.on_schedule(
-    schedule="0 0 * * 0",  # Every Sunday at 12:00 AM
+    schedule="0 0 * * 0", 
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def update_ages():
