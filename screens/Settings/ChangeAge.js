@@ -40,18 +40,11 @@ const ChangeAge = () => {
 
     const currentDate = selectedDate || tempDate;
     setTempDate(currentDate);
-
-    if (Platform.OS === "android" && event.type === "set") {
-      setDate(currentDate);
-      setShowDatePicker(false);
-    }
+    setDate(currentDate); // Update date immediately
+    setShowDatePicker(false); // Close picker on selection
   };
 
-  const handlePickerConfirm = () => {
-    setDate(tempDate);
-    setShowDatePicker(false);
-  };
-
+  // Removed handlePickerConfirm as it's not needed
   const handlePickerCancel = () => {
     setTempDate(date);
     setShowDatePicker(false);
@@ -74,9 +67,9 @@ const ChangeAge = () => {
   const handleConfirm = async () => {
     try {
       const dob = formatDate(date);
+      navigation.goBack();
       await updateDOBInDB(dob);
       Alert.alert("Success", "Date of birth updated successfully.");
-      navigation.goBack();
     } catch (error) {
       Alert.alert("Error", error.message || "Failed to update date of birth.");
     }
@@ -154,7 +147,10 @@ const ChangeAge = () => {
                   </Pressable>
                   <Pressable
                     style={[styles.modalButton, styles.confirmModalButton]}
-                    onPress={handlePickerConfirm}
+                    onPress={() => {
+                      setDate(tempDate);
+                      setShowDatePicker(false);
+                    }}
                   >
                     <Text style={styles.modalButtonText}>Confirm</Text>
                   </Pressable>

@@ -1,7 +1,6 @@
 from typing import Any, List, Dict
 import random
 import uuid
-import aiohttp
 import asyncio
 import math
 from firebase_functions import https_fn, scheduler_fn, firestore_fn
@@ -613,9 +612,16 @@ def add_user_to_churches(user_data):
 
     # Add user to deacons list if applicable
     if user_data.get("isDeacon"):
+        user_ref = firestore_client.collection("users").document(user_data["uid"])
         if not any(
             deacon.get("uid") == user_data["uid"] for deacon in church_data["deacons"]
         ):
+            if "experience" not in user_data:
+                user_data["experience"] = 2
+                user_ref.update({"experience": 2})
+            if "frequency" not in user_data:
+                user_data["frequency"] = 2
+                user_ref.update({"frequency": 2})
             new_deacon = {
                 "uid": user_data["uid"],
                 "name": user_data["name"],
@@ -1706,56 +1712,63 @@ def calc_age(dob_str):
     return None
 
 
-UPDATE_USER_URL = "https://update-user-hy6oofbihq-uc.a.run.app"  # Replace with your actual deployed URL
-
-# Helper: call update_user as an HTTP request for one user
-async def trigger_update_user(session, user_id):
-    try:
-        async with session.post(
-            UPDATE_USER_URL,
-            json={"uid": user_id},
-            headers={"Authorization": ""}  # Add Bearer token here if needed
-        ) as resp:
-            text = await resp.text()
-            print(f"[{user_id}] Status: {resp.status} - {text}")
-    except Exception as e:
-        print(f"[{user_id}] Request failed: {str(e)}")
-
 # ✅ Asynchronous scheduler function
 @scheduler_fn.on_schedule(
     schedule="0 0 * * 0",  # Every Sunday at midnight
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def update_ages():
-    async def run():
-        firestore_client = firestore.Client()
-        users_ref = firestore_client.collection("users")
-        users_docs = users_ref.stream()
+    firestore_client = firestore.Client()
+    users_ref = firestore_client.collection("users")
+    users_docs = users_ref.stream()
+    for user in users_docs:
+        user_data = user.to_dict()
+        if "DOB" in user_data:
+            if int(user_data["age"]) != calc_age(user_data["DOB"]):
+                print(f"Updating age for user {user_data['name']}")
+                user_data["age"] = calc_age(user_data["DOB"])
+                user.reference.update(user_data)
+                mock_request = Request.from_values(
+                    headers={"Authorization": ""},
+                    json={"uid": user_data["uid"]},
+                )
+                update_user(mock_request)
+    return https_fn.Response("Ages updated successfully", status=200)
 
-        async with aiohttp.ClientSession() as session:
-            tasks = [
-                trigger_update_user(session, user.id)
-                for user in users_docs
-            ]
-            await asyncio.gather(*tasks)
-
-    asyncio.run(run())
-    return https_fn.Response("Scheduled user updates triggered", status=200)
-
-# ✅ Asynchronous on-request function
 @https_fn.on_request()
 def update_all_users(req: https_fn.Request) -> https_fn.Response:
-    async def run():
-        firestore_client = firestore.Client()
-        users_ref = firestore_client.collection("users")
-        users_docs = users_ref.stream()
+    firestore_client = firestore.Client()
+    users_ref = firestore_client.collection("users")
+    users_docs = users_ref.stream()
+    churches_ref = firestore_client.collection("churches")
+    for user in users_docs:
+        update = False
+        user_data = user.to_dict()
+        church_data = churches_ref.document(user_data["church"]).get().to_dict()
+        if user_data.get("isDeacon") and not deacon_present(user_data["uid"], church_data["deacons"]):
+            update = True
+        if user_data.get("isSSTeacher"):
+            if not churches_ref.document(user_data["church"]).collection("Sunday School").document(
+                user_data["uid"]
+            ).get().exists:
+                update = True
+        if churches_ref.document(user_data["church"]).collection("Sunday School").document(user_data["uid"]).get().exists:
+            if not user_data.get("isSSTeacher"):
+                update = True
+        
+        if update:
+            print(f"Updating user {user_data['name']}")
+            mock_request = Request.from_values(
+                headers={"Authorization": ""},
+                json={"uid": user_data["uid"]},
+            )
+            update_user(mock_request)
+            # update_user(mock_request)
+    return https_fn.Response("Users updated successfully", status=200)
 
-        async with aiohttp.ClientSession() as session:
-            tasks = [
-                trigger_update_user(session, user.id)
-                for user in users_docs
-            ]
-            await asyncio.gather(*tasks)
 
-    asyncio.run(run())
-    return https_fn.Response("Manual user updates triggered", status=200)
+def deacon_present(uid, deacons):
+    for deacon in deacons:
+        if deacon["uid"] == uid:
+            return True
+    return False
