@@ -199,7 +199,9 @@ async function getCurrentLocation() {
     const location = await Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.High,
     });
-    if (location) {
+    if (location
+
+) {
       console.log("Location retrieved:", location.coords);
       const userId = auth().currentUser?.uid;
       if (!userId) {
@@ -293,30 +295,19 @@ const HomeScreen = () => {
       .padStart(2, "0")}-${date.getDate().toString().padStart(2, "0")}-${date.getFullYear()}`;
   };
 
-  // Modified handleDateChange remains for iOS inline usage
+  // Modified handleDateChange for immediate date updates
   const handleDateChange = (event, selectedDate) => {
-    // For iOS, do not close modal on dismiss; let the user confirm via the "Submit" button.
     if (event.type === "dismissed") {
+      setShowDatePicker(false);
       return;
     }
     const currentDate = selectedDate || tempDate;
     setTempDate(currentDate);
+    setDate(currentDate); // Update date immediately
     if (Platform.OS === "android" && event.type === "set") {
-      setDate(currentDate);
+      setShowDatePicker(false); // Close Android date picker
     }
   };
-
-  // For iOS, only a Confirm button is provided.
-  const handlePickerConfirm = () => {
-    setDate(tempDate);
-    // Note: Do not hide the modal on confirm so that user must submit via DOB submission.
-  };
-
-  // Remove the cancel function so there is no option to quit updating DOB.
-  // const handlePickerCancel = () => {
-  //   setTempDate(date);
-  //   setShowDOBModal(false);
-  // };
 
   // Handle DOB submission (age update)
   const handleDOBSubmit = async () => {
@@ -334,7 +325,7 @@ const HomeScreen = () => {
         ssGrades: [],
         alhanGrades: [],
       });
-      // Call the update user function immediately after updating DOB.
+      // Call the update user function immediately after updating DOB
       await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
 
       // Check for children and handle deletion
@@ -358,7 +349,7 @@ const HomeScreen = () => {
         );
       }
 
-      setShowDOBModal(false);
+      setShowDOBModal(false); // Close modal immediately after submission
       console.log("User DOB updated:", formattedDOB);
     } catch (error) {
       console.error("Error updating DOB:", error);
@@ -388,7 +379,7 @@ const HomeScreen = () => {
           "https://update-user-hy6oofbihq-uc.a.run.app"
         );
         setUserName(fullName);
-        setShowNameModal(false);
+        setShowNameModal(false); // Close modal immediately after submission
         setFirstName("");
         setLastName("");
         console.log("User name updated:", fullName);
@@ -431,7 +422,12 @@ const HomeScreen = () => {
           console.log("User document found:", userData);
           const name = userData.name;
           setUserName(name);
-          if (!name || name === "null null" || name.trim() === "") {
+          if (
+            !name ||
+            name === "null null" ||
+            name.trim() === "" ||
+            !name.includes(" ")
+          ) {
             setShowNameModal(true);
           } else if (!userData.DOB || userData.DOB.trim() === "") {
             setShowDOBModal(true);
@@ -682,7 +678,7 @@ const HomeScreen = () => {
               style={styles.confirmButton}
               onPress={handleNameSubmit}
             >
-              <Text style={styles.confirmButtonText}>Confirm</Text>
+              <Text style={styles.confirmButtonText}>Submit</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -729,17 +725,6 @@ const HomeScreen = () => {
                 </Pressable>
               )}
             </View>
-            {/* For iOS, only a confirm button is provided */}
-            {Platform.OS === "ios" && (
-              <View style={styles.modalButtonContainer}>
-                <Pressable
-                  style={[styles.modalButton, styles.confirmModalButton]}
-                  onPress={handlePickerConfirm}
-                >
-                  <Text style={styles.modalButtonText}>Confirm</Text>
-                </Pressable>
-              </View>
-            )}
             <Pressable style={styles.confirmButton} onPress={handleDOBSubmit}>
               <Text style={styles.confirmButtonText}>Submit</Text>
             </Pressable>
@@ -766,44 +751,12 @@ const HomeScreen = () => {
                 value={tempDate}
                 mode="date"
                 display="spinner"
-                onChange={(event, selectedDate) => {
-                  if (event.type === "dismissed") {
-                    setTempDate(date);
-                    setShowDatePicker(false);
-                    return;
-                  }
-                  const currentDate = selectedDate || tempDate;
-                  setTempDate(currentDate);
-                  if (event.type === "set") {
-                    setDate(currentDate);
-                    setShowDatePicker(false);
-                  }
-                }}
+                onChange={handleDateChange}
                 maximumDate={new Date()}
                 textColor="#F0F0F0"
                 accentColor="#147efb"
                 style={styles.datePicker}
               />
-              <View style={styles.modalButtonContainer}>
-                <Pressable
-                  style={[styles.modalButton, styles.cancelButton]}
-                  onPress={() => {
-                    setTempDate(date);
-                    setShowDatePicker(false);
-                  }}
-                >
-                  <Text style={styles.modalButtonText}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.modalButton, styles.confirmModalButton]}
-                  onPress={() => {
-                    setDate(tempDate);
-                    setShowDatePicker(false);
-                  }}
-                >
-                  <Text style={styles.modalButtonText}>Confirm</Text>
-                </Pressable>
-              </View>
             </Animated.View>
           </View>
         </Modal>
@@ -1005,7 +958,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#252525",
     borderRadius: 20,
     padding: 24,
-    alignItems: "center",
+    align_ITEMS: "center",
     marginHorizontal: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -1069,36 +1022,6 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontWeight: "bold",
     textAlign: "center",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
-  modalButtonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-    marginBottom: 16,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: "center",
-    marginHorizontal: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  confirmModalButton: {
-    backgroundColor: "#147efb",
-  },
-  cancelButton: {
-    backgroundColor: "#555",
-  },
-  modalButtonText: {
-    fontSize: 16,
-    color: "#FFFFFF",
-    fontWeight: "600",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
 });

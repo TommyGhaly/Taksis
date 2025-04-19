@@ -54,15 +54,7 @@ const ChildAge = ({ route }) => {
 
     const currentDate = selectedDate || tempDate;
     setTempDate(currentDate);
-
-    if (Platform.OS === "android" && event.type === "set") {
-      setDate(currentDate);
-      setShowDatePicker(false);
-    }
-  };
-
-  const handlePickerConfirm = () => {
-    setDate(tempDate);
+    setDate(currentDate);
     setShowDatePicker(false);
   };
 
@@ -100,11 +92,10 @@ const ChildAge = ({ route }) => {
         } else {
           userData.children.push(updatedChildData);
         }
-
+        navigation.navigate("Settings");
         await userDocRef.update({ children: userData.children });
         await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
-        Alert.alert("Success", "Child data has been updated");
-        navigation.navigate("Settings");
+        Alert.alert("Success", "Child data updated successfully.");
       } else {
         Alert.alert("Error", "User document does not exist");
       }
@@ -142,7 +133,7 @@ const ChildAge = ({ route }) => {
             <Text style={styles.questionText}>
               What is your child's date of birth?
             </Text>
-            <View style={styles.pickerContainer}>
+            <View style={styles.datePickerContainer}>
               <Pressable
                 style={styles.dateButton}
                 onPress={() => setShowDatePicker(true)}
@@ -153,11 +144,12 @@ const ChildAge = ({ route }) => {
           </View>
         </View>
 
-        <Pressable style={styles.continueButton} onPress={handleContinue}>
-          <Text style={styles.buttonText}>Continue</Text>
-        </Pressable>
+        <View style={styles.continueLayout}>
+          <Pressable style={styles.continueButton} onPress={handleContinue}>
+            <Text style={styles.buttonText}>Continue</Text>
+          </Pressable>
+        </View>
 
-        {/* Date Picker Modal */}
         <Modal
           visible={showDatePicker}
           transparent={true}
@@ -191,7 +183,10 @@ const ChildAge = ({ route }) => {
                   </Pressable>
                   <Pressable
                     style={[styles.modalButton, styles.confirmModalButton]}
-                    onPress={handlePickerConfirm}
+                    onPress={() => {
+                      setDate(tempDate);
+                      setShowDatePicker(false);
+                    }}
                   >
                     <Text style={styles.modalButtonText}>Confirm</Text>
                   </Pressable>
@@ -208,17 +203,17 @@ const ChildAge = ({ route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0A0A0A",
+    backgroundColor: "#121212", // Updated to match ChildExperience
   },
   innerContainer: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingTop: 18,
+    paddingBottom: 40,
   },
   backarrow: {
-    position: "absolute",
-    top: 40,
+    top: 10, // Updated to match ChildExperience
     left: 16,
+    position: "absolute",
     zIndex: 10,
   },
   progressBar: {
@@ -230,8 +225,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 80,
   },
   card: {
     backgroundColor: "#1E1E1E",
@@ -256,7 +252,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
-  pickerContainer: {
+  datePickerContainer: {
     backgroundColor: "#2A2A2A",
     borderRadius: 12,
     paddingHorizontal: 15,
@@ -276,22 +272,30 @@ const styles = StyleSheet.create({
   datePicker: {
     width: "100%",
   },
-  continueButton: {
-    backgroundColor: "#333",
-    borderRadius: 12,
-    paddingVertical: 14,
+  continueLayout: {
+    bottom: 20,
+    height: 50,
+    width: "91%",
+    justifyContent: "center",
     alignItems: "center",
-    marginTop: 20,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    alignSelf: "center",
+    position: "absolute",
+  },
+  continueButton: {
+    width: "100%",
+    backgroundColor: "#333",
+    borderRadius: 10, // Updated to match ChildExperience
+    justifyContent: "center",
+    alignItems: "center",
+    height: "100%", // Updated to match ChildExperience
   },
   buttonText: {
-    fontSize: 18,
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+    fontSize: 17, // Updated to match ChildExperience
+    letterSpacing: -0.2, // Updated to match ChildExperience
+    fontWeight: "500", // Updated to match ChildExperience
+    fontFamily: "Roboto-Medium", // Updated to match ChildExperience
+    color: "#fff", // Updated to match ChildExperience
+    textAlign: "center",
   },
   modalOverlay: {
     flex: 1,
