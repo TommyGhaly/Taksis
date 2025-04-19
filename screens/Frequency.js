@@ -21,8 +21,9 @@ const Frequency = ({ route, navigation }) => {
   const { from } = route.params;
   const user = auth().currentUser;
   const [date, setDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [frequency, setFrequency] = useState(5);
-  const fromApplicable = from==="SelectApplicable";
+  const fromApplicable = from === "SelectApplicable";
   const { setSignUp } = useUser();
 
   const hapticOptions = {
@@ -49,10 +50,12 @@ const Frequency = ({ route, navigation }) => {
 
   const handleDateChange = (event, selectedDate) => {
     if (event.type === "dismissed") {
+      setShowDatePicker(false);
       return;
     }
     const currentDate = selectedDate || date;
     setDate(currentDate);
+    setShowDatePicker(false);
   };
 
   const handleFrequency = (value) => {
@@ -100,17 +103,32 @@ const Frequency = ({ route, navigation }) => {
         <View style={styles.card}>
           <Text style={styles.questionText}>What's your date of birth?</Text>
           <View style={styles.datePickerContainer}>
-            <DateTimePicker
-              value={date}
-              mode="date"
-              display={Platform.OS === "ios" ? "spinner" : "calendar"}
-              onChange={handleDateChange}
-              maximumDate={new Date()}
-              textColor="#E0E0E0"
-              accentColor="#147EFB"
-              style={styles.datePicker}
-            />
-            <Text style={styles.dateText}>{formatDate(date)}</Text>
+            <Pressable
+              onPress={() => {
+                ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+                setShowDatePicker(true);
+              }}
+            >
+              <Text
+                style={[styles.dateText, { textDecorationLine: "underline" }]}
+              >
+                {formatDate(date)}
+              </Text>
+            </Pressable>
+
+            {(Platform.OS === "ios" || showDatePicker) && (
+              <DateTimePicker
+                value={date}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "calendar"}
+                onChange={handleDateChange}
+                maximumDate={new Date()}
+                style={styles.datePicker}
+                {...(Platform.OS === "ios"
+                  ? { textColor: "#E0E0E0", accentColor: "#147EFB" }
+                  : {})}
+              />
+            )}
           </View>
 
           <Text style={[styles.questionText, { marginTop: 20 }]}>
