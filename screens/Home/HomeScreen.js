@@ -7,9 +7,6 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
-  AsyncStorage,
-  NativeEventEmitter,
-  NativeModules,
   Modal,
   TextInput,
   SafeAreaView,
@@ -21,14 +18,11 @@ import firestore from "@react-native-firebase/firestore";
 import { initializeApp } from "firebase/app";
 import messaging from "@react-native-firebase/messaging";
 import auth from "@react-native-firebase/auth";
-import * as Location from "expo-location";
-import { unavailableToServe, frequencyUpdate } from "../../components/functionCalls";
-import * as TaskManager from "expo-task-manager";
-import * as BackgroundFetch from "expo-background-fetch";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { deleteUser } from "@react-native-firebase/auth";
-import { callFunction, callDeleteUser } from "../../components/functionCalls";
+import { callFunction, callDeleteUser, unavailableToServe } from "../../components/functionCalls";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { check, request, PERMISSIONS, RESULTS } from "react-native-permissions";
 
 // Initialize Firebase
 initializeApp({
@@ -37,112 +31,123 @@ initializeApp({
   authDomain: "taksis-a8ba7.firebaseapp.com",
 });
 
-const LOCATION_TASK = "background-location-task";
-
-// Define the background task
-TaskManager.defineTask(LOCATION_TASK, async () => {
-  try {
-    if (!firebase.apps.length) {
-      initializeApp({
-        projectId: "taksis-a8ba7",
-        apiKey: "AIzaSyBWxEgHXcJx19Rklr7P6HhhweT9_I70WkA",
-        authDomain: "taksis-a8ba7.firebaseapp.com",
-      });
+// Create notification channel for Android with fallback
+async function createNotificationChannel() {
+  if (Platform.OS === "android") {
+    try {
+      await messaging().registerDeviceForRemoteMessages();
+      if (typeof messaging().createChannel === "function") {
+        const channelId = "default_channel";
+        await messaging().createChannel({
+          channelId,
+          channelName: "Default Notifications",
+          description: "Default channel for app notifications",
+          importance: 4, // Importance.HIGH
+          soundName: "default",
+          enableVibration: true,
+        });
+        console.log("Android notification channel created:", channelId);
+      } else {
+        console.warn("messaging().createChannel is not available. Ensure you're using @react-native-firebase/messaging >=12.0.0");
+      }
+    } catch (error) {
+      console.error("Error creating Android notification channel:", error);
     }
-    const now = new Date();
-    const user = auth().currentUser;
-    if (now.getDay() === 0 && now.getHours() === 9) {
-      console.log("It is Sunday at 9AM – getting current location");
-      await getCurrentLocation();
-    } else {
-      console.log("Background task ran, but condition not met:", now);
-    }
-    return BackgroundFetch.BackgroundFetchResult.NewData;
-  } catch (error) {
-    console.error("Error in background location task:", error);
-    return BackgroundFetch.BackgroundFetchResult.Failed;
   }
-});
+}
 
-// Setup native module event emitter (if needed)
-const { YourNativeModule } = NativeModules;
-const eventEmitter = YourNativeModule
-  ? new NativeEventEmitter(YourNativeModule)
-  : null;
-
-// Notification & FCM token logic for Android
+// Request notification permissions for Android
 async function requestUserPermissionAndroid() {
   try {
-    let permissionGranted = false;
-    while (!permissionGranted) {
-      const authStatus = await messaging().hasPermission();
-      permissionGranted =
-        authStatus === messaging.AuthorizationStatus.AUTHORIZED;
-      if (!permissionGranted) {
-        await messaging().requestPermission();
-        permissionGranted =
-          (await messaging().hasPermission()) ===
-          messaging.AuthorizationStatus.AUTHORIZED;
+    // Check POST_NOTIFICATIONS permission only for Android 13+ (API 33)
+    if (Platform.OS === "android" && Platform.Version >= 33 && PERMISSIONS.ANDROID.POST_NOTIFICATIONS) {
+      const permissionStatus = await check(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
+      if (permissionStatus !== RESULTS.GRANTED) {
+        const result = await request(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
+        if (result !== RESULTS.GRANTED) {
+          Alert.alert(
+            "Notifications Required",
+            "Please enable notifications in your device settings to receive important updates.",
+            [{ text: "OK", style: "cancel" }]
+          );
+          return false;
+        }
       }
-      if (permissionGranted) {
-        console.log("Android Notification Permission Granted");
-        await AsyncStorage.setItem("notification_permission", "granted");
-        await getFCMToken();
-      } else {
-        Alert.alert(
-          "Notifications Required",
-          "You need to enable notifications for important updates. Please grant permission.",
-          [
-            { text: "Retry", onPress: requestUserPermissionAndroid },
-            { text: "Cancel", style: "cancel" },
-          ]
-        );
-      }
+    }
+
+    const authStatus = await messaging().hasPermission();
+    if (authStatus === messaging.AuthorizationStatus.AUTHORIZED) {
+      console.log("Android Notification Permission Already Granted");
+      await getFCMToken();
+      return true;
+    }
+
+    const newAuthStatus = await messaging().requestPermission();
+    if (newAuthStatus === messaging.AuthorizationStatus.AUTHORIZED) {
+      console.log("Android Notification Permission Granted");
+      await getFCMToken();
+      return true;
+    } else {
+      Alert.alert(
+        "Notifications Required",
+        "Please enable notifications for important updates in your device settings.",
+        [{ text: "OK", style: "cancel" }]
+      );
+      return false;
     }
   } catch (error) {
     console.error("Error requesting Android notification permission:", error);
+    Alert.alert("Error", "Failed to request notification permission.");
+    return false;
   }
 }
 
-// Notification & FCM token logic for iOS
+// Request notification permissions for iOS
 async function requestUserPermissionIOS() {
   try {
-    let permissionGranted = false;
-    while (!permissionGranted) {
-      const authStatus = await messaging().requestPermission();
-      permissionGranted =
-        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
-      if (permissionGranted) {
-        console.log("iOS Notification Permission Granted:", authStatus);
-        await AsyncStorage.setItem("notification_permission", "granted");
-        await getFCMToken();
-      } else {
-        Alert.alert(
-          "Notifications Required",
-          "You need to enable notifications for important updates. Please grant permission.",
-          [
-            { text: "Retry", onPress: requestUserPermissionIOS },
-            { text: "Cancel", style: "cancel" },
-          ]
-        );
-      }
+    const authStatus = await messaging().requestPermission({
+      alert: true,
+      badge: true,
+      sound: true,
+    });
+    const granted =
+      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+    if (granted) {
+      console.log("iOS Notification Permission Granted:", authStatus);
+      await getFCMToken();
+      return true;
+    } else {
+      Alert.alert(
+        "Notifications Required",
+        "Please enable notifications for important updates in your device settings.",
+        [{ text: "OK", style: "cancel" }]
+      );
+      return false;
     }
   } catch (error) {
     console.error("Error requesting iOS notification permission:", error);
+    Alert.alert("Error", "Failed to request notification permission.");
+    return false;
   }
 }
 
-// Get the Firebase Cloud Messaging token
-async function getFCMToken() {
+// Get the Firebase Cloud Messaging token with retry
+async function getFCMToken(retries = 3, delay = 1000) {
   try {
-    const fcmToken = await messaging().getToken();
-    if (fcmToken) {
-      console.log("FCM Token:", fcmToken);
-      await AsyncStorage.setItem("fcm_token", fcmToken);
-    } else {
-      console.warn("Failed to get FCM token");
+    for (let i = 0; i < retries; i++) {
+      const fcmToken = await messaging().getToken();
+      if (fcmToken) {
+        console.log("FCM Token:", fcmToken);
+        return fcmToken;
+      }
+      console.warn(`FCM token attempt ${i + 1} failed`);
+      if (i < retries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
     }
+    console.warn("Failed to get FCM token after retries");
   } catch (error) {
     console.error("Error getting FCM token:", error);
   }
@@ -150,114 +155,24 @@ async function getFCMToken() {
 
 // Check and request notification permissions
 async function checkNotificationPermission() {
-  const storedPermission = await AsyncStorage.getItem("notification_permission");
-  if (!storedPermission) {
-    if (Platform.OS === "ios") {
+  try {
+    // Create notification channel for Android
+    await createNotificationChannel();
+
+    const authStatus = await messaging().hasPermission();
+    const isAuthorized =
+      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+    if (isAuthorized) {
+      await getFCMToken();
+    } else if (Platform.OS === "ios") {
       await requestUserPermissionIOS();
     } else {
       await requestUserPermissionAndroid();
     }
-  }
-}
-
-// Revised function to request location permission
-async function requestLocationPermission() {
-  try {
-    let { status: fgStatus } = await Location.getForegroundPermissionsAsync();
-    console.log(`Current foreground status: ${fgStatus}`);
-    if (fgStatus !== "granted") {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      fgStatus = status;
-      console.log(`Updated foreground status: ${fgStatus}`);
-    }
-
-    console.log("Foreground location permission granted.");
-
-    let { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
-    console.log(`Current background status: ${bgStatus}`);
-    if (bgStatus !== "granted") {
-      const { status } = await Location.requestBackgroundPermissionsAsync();
-      bgStatus = status;
-      console.log(`Updated background status: ${bgStatus}`);
-    }
-    console.log("Background location permission granted.");
-    return true;
   } catch (error) {
-    console.error("Error requesting location permissions:", error);
-    return false;
-  }
-}
-
-// Get the current location and save it to Firestore
-async function getCurrentLocation() {
-  try {
-    const { status } = await Location.getForegroundPermissionsAsync();
-    if (status !== "granted") {
-      console.log("Location permission not granted.");
-      return;
-    }
-    const location = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.High,
-    });
-    if (location
-
-) {
-      console.log("Location retrieved:", location.coords);
-      const userId = auth().currentUser?.uid;
-      if (!userId) {
-        console.log("No authenticated user found.");
-        return;
-      }
-      const user = auth().currentUser;
-      await frequencyUpdate(
-        user,
-        "https://update-user-frequency-hy6oofbihq-uc.a.run.app"
-      );
-      await firestore()
-        .collection("users")
-        .doc(userId)
-        .set(
-          {
-            location: {
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-            },
-          },
-          { merge: true }
-        );
-      console.log("Location saved to Firestore.");
-    }
-  } catch (error) {
-    console.error("Error getting location:", error);
-    Alert.alert("Location Error", "Unable to retrieve location.");
-  }
-}
-
-// Register background fetch task
-async function registerBackgroundFetchAsync() {
-  try {
-    await BackgroundFetch.registerTaskAsync(LOCATION_TASK, {
-      minimumInterval: 3600,
-      stopOnTerminate: false,
-      startOnBoot: true,
-    });
-    console.log("Background task registered successfully");
-    return true;
-  } catch (error) {
-    console.error("Error registering background task:", error);
-    return false;
-  }
-}
-
-// Check for location permissions
-async function checkLocationPermission() {
-  const { status } = await Location.getForegroundPermissionsAsync();
-  console.log("Current Permission Status:", status);
-  if (status !== "granted") {
-    console.log("Requesting location permission...");
-    await requestLocationPermission();
-  } else {
-    console.log("Location permission already granted.");
+    console.error("Error checking notification permission:", error);
   }
 }
 
@@ -285,9 +200,26 @@ const HomeScreen = () => {
   const [userName, setUserName] = useState(null);
   const [date, setDate] = useState(new Date());
   const [tempDate, setTempDate] = useState(date);
-  // New state for Android DateTimePicker modal
   const [showDatePicker, setShowDatePicker] = useState(false);
   const scaleValue = React.useRef(new Animated.Value(0.9)).current;
+
+  // Handle foreground notifications
+  useEffect(() => {
+    const unsubscribe = messaging().onMessage(async (remoteMessage) => {
+      console.log("Foreground Notification Received:", remoteMessage);
+      Alert.alert(
+        remoteMessage.notification?.title || "Notification",
+        remoteMessage.notification?.body || "You have a new message."
+      );
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Handle background notifications
+  messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+    console.log("Background Notification Received:", remoteMessage);
+  });
 
   const formatDate = (date) => {
     return `${(date.getMonth() + 1)
@@ -295,7 +227,6 @@ const HomeScreen = () => {
       .padStart(2, "0")}-${date.getDate().toString().padStart(2, "0")}-${date.getFullYear()}`;
   };
 
-  // Modified handleDateChange for immediate date updates
   const handleDateChange = (event, selectedDate) => {
     if (event.type === "dismissed") {
       setShowDatePicker(false);
@@ -303,13 +234,12 @@ const HomeScreen = () => {
     }
     const currentDate = selectedDate || tempDate;
     setTempDate(currentDate);
-    setDate(currentDate); // Update date immediately
+    setDate(currentDate);
     if (Platform.OS === "android" && event.type === "set") {
-      setShowDatePicker(false); // Close Android date picker
+      setShowDatePicker(false);
     }
   };
 
-  // Handle DOB submission (age update)
   const handleDOBSubmit = async () => {
     const user = auth().currentUser;
     if (!user) {
@@ -320,36 +250,38 @@ const HomeScreen = () => {
     try {
       const formattedDOB = formatDate(date);
       const userRef = firestore().collection("users").doc(user.uid);
+
       await userRef.update({
         DOB: formattedDOB,
         ssGrades: [],
         alhanGrades: [],
       });
-      // Call the update user function immediately after updating DOB
+
       await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
 
-      // Check for children and handle deletion
       const userDoc = await userRef.get();
       const userData = userDoc.data();
       if (userData.children && userData.children.length > 0) {
         const church = userData.church || null;
-        for (const child of userData.children) {
-          if (child.uid) {
-            await callDeleteUser(
-              user,
-              church,
-              child.uid,
-              "https://delete-child-hy6oofbihq-uc.a.run.app"
-            );
-          }
-        }
+        await Promise.all(
+          userData.children.map(async (child) => {
+            if (child.uid) {
+              await callDeleteUser(
+                user,
+                church,
+                child.uid,
+                "https://delete-child-hy6oofbihq-uc.a.run.app"
+              );
+            }
+          })
+        );
         Alert.alert(
           "Children Removed",
           "We have removed your children from the schedules. Please reregister them with their birthdays."
         );
       }
 
-      setShowDOBModal(false); // Close modal immediately after submission
+      setShowDOBModal(false);
       console.log("User DOB updated:", formattedDOB);
     } catch (error) {
       console.error("Error updating DOB:", error);
@@ -357,7 +289,6 @@ const HomeScreen = () => {
     }
   };
 
-  // Handle name submission
   const handleNameSubmit = async () => {
     if (!firstName.trim() || !lastName.trim()) {
       Alert.alert("Error", "Please enter both first and last names.");
@@ -368,18 +299,16 @@ const HomeScreen = () => {
     const user = auth().currentUser;
     if (user) {
       try {
-        await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .update({
-            name: fullName,
-          });
+        const userRef = firestore().collection("users").doc(user.uid);
+        await userRef.update({
+          name: fullName,
+        });
         await callFunction(
           user,
           "https://update-user-hy6oofbihq-uc.a.run.app"
         );
         setUserName(fullName);
-        setShowNameModal(false); // Close modal immediately after submission
+        setShowNameModal(false);
         setFirstName("");
         setLastName("");
         console.log("User name updated:", fullName);
@@ -390,22 +319,10 @@ const HomeScreen = () => {
     }
   };
 
-  // Check notification and location permissions on mount
   useEffect(() => {
     checkNotificationPermission();
-    /*checkLocationPermission();
-    const now = new Date();
-    if (now.getDay() === 0 && now.getHours() === 9) {
-      getCurrentLocation();
-    }
-    registerBackgroundFetchAsync()
-      .then(() => console.log("Background fetch task registered"))
-      .catch((err) =>
-        console.error("Failed to register background fetch task:", err)
-      );*/
   }, []);
 
-  // Check user name, DOB, and document existence
   useEffect(() => {
     const user = auth().currentUser;
     if (!user) {
@@ -422,16 +339,14 @@ const HomeScreen = () => {
           console.log("User document found:", userData);
           const name = userData.name;
           setUserName(name);
-          if (
+          const isNameInvalid =
             !name ||
             name === "null null" ||
             name.trim() === "" ||
-            !name.includes(" ")
-          ) {
-            setShowNameModal(true);
-          } else if (!userData.DOB || userData.DOB.trim() === "") {
-            setShowDOBModal(true);
-          }
+            !name.includes(" ");
+          const isDOBInvalid = !userData.DOB || userData.DOB.trim() === "";
+          setShowNameModal(isNameInvalid);
+          setShowDOBModal(!isNameInvalid && isDOBInvalid);
         } else {
           console.log("User doc not found");
           Alert.alert(
@@ -449,7 +364,6 @@ const HomeScreen = () => {
     return () => unsubscribe();
   }, []);
 
-  // Real-time listener for user document updates
   useEffect(() => {
     const user = auth().currentUser;
     if (!user) {
@@ -472,21 +386,23 @@ const HomeScreen = () => {
               setChurchId(userData.church);
               console.log("Church updated:", userData.church);
             }
-            // Clause for alhanGrades and ssGrades: if they are not an array,
-            // an empty string, or null then set them to null.
             if (
               userData.alhanGrades &&
-              !(Array.isArray(userData.alhanGrades) ||
+              !(
+                Array.isArray(userData.alhanGrades) ||
                 userData.alhanGrades === "" ||
-                userData.alhanGrades === null)
+                userData.alhanGrades === null
+              )
             ) {
               userData.alhanGrades = null;
             }
             if (
               userData.ssGrades &&
-              !(Array.isArray(userData.ssGrades) ||
+              !(
+                Array.isArray(userData.ssGrades) ||
                 userData.ssGrades === "" ||
-                userData.ssGrades === null)
+                userData.ssGrades === null
+              )
             ) {
               userData.ssGrades = null;
             }
@@ -499,7 +415,6 @@ const HomeScreen = () => {
     return () => unsubscribeUser();
   }, [churchId]);
 
-  // Real-time listener for church schedule
   useEffect(() => {
     if (!churchId) {
       console.log("No church selected. Waiting for churchId...");
@@ -586,7 +501,7 @@ const HomeScreen = () => {
     return () => unsubscribe();
   }, [churchId]);
 
-  const handleUnavailebleToServe = async () => {
+  const handleUnavailableToServe = async () => {
     const user = auth().currentUser;
     if (!user) {
       console.log("No authenticated user found.");
@@ -643,14 +558,11 @@ const HomeScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Name Input Modal */}
       <Modal
         animationType="slide"
         transparent={true}
         visible={showNameModal}
-        onRequestClose={() => {
-          // Prevent closing the modal by clicking outside
-        }}
+        onRequestClose={() => {}}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
@@ -684,16 +596,18 @@ const HomeScreen = () => {
         </View>
       </Modal>
 
-      {/* DOB Input Modal */}
       <Modal
         visible={showDOBModal}
         transparent={true}
         animationType="none"
-        onRequestClose={() => {
-          /* Disable modal closing */
-        }}
+        onRequestClose={() => {}}
       >
-        <View style={[styles.modalOverlay, Platform.OS === "ios" && styles.modalOverlayIOS]}>
+        <View
+          style={[
+            styles.modalOverlay,
+            Platform.OS === "ios" && styles.modalOverlayIOS,
+          ]}
+        >
           <Animated.View
             style={[
               styles.modalDOBContainer,
@@ -725,14 +639,16 @@ const HomeScreen = () => {
                 </Pressable>
               )}
             </View>
-            <Pressable style={styles.confirmButton} onPress={handleDOBSubmit}>
+            <Pressable
+              style={styles.confirmButton}
+              onPress={handleDOBSubmit}
+            >
               <Text style={styles.confirmButtonText}>Submit</Text>
             </Pressable>
           </Animated.View>
         </View>
       </Modal>
 
-      {/* Android Date Picker Modal */}
       {Platform.OS === "android" && showDatePicker && (
         <Modal
           visible={showDatePicker}
@@ -740,7 +656,12 @@ const HomeScreen = () => {
           animationType="none"
           onRequestClose={() => setShowDatePicker(false)}
         >
-          <View style={[styles.modalOverlay, Platform.OS === "ios" && styles.modalOverlayIOS]}>
+          <View
+            style={[
+              styles.modalOverlay,
+              Platform.OS === "ios" && styles.modalOverlayIOS,
+            ]}
+          >
             <Animated.View
               style={[
                 styles.modalDOBContainer,
@@ -767,13 +688,11 @@ const HomeScreen = () => {
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
         <Text style={styles.header}>
           Services of Week{"\n"}
           {currentWeek}
         </Text>
 
-        {/* Section for Readings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Readings</Text>
           {[
@@ -799,7 +718,6 @@ const HomeScreen = () => {
           ))}
         </View>
 
-        {/* Section for Offerings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Offering of the Lamb</Text>
           {[
@@ -820,7 +738,6 @@ const HomeScreen = () => {
           ))}
         </View>
 
-        {/* Section for Altar Servers */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Altar Servers</Text>
           {schedule.altar.map((deacon, index) => (
@@ -838,7 +755,6 @@ const HomeScreen = () => {
           ))}
         </View>
 
-        {/* Conditionally render Next Service Week box if the user is a deacon */}
         {isDeacon && (
           <View style={styles.nextServiceBox}>
             <Text style={styles.nextServiceHeader}>Next Service Week</Text>
@@ -847,7 +763,7 @@ const HomeScreen = () => {
             </Text>
             <TouchableOpacity
               style={styles.unavailableButton}
-              onPress={handleUnavailebleToServe}
+              onPress={handleUnavailableToServe}
             >
               <Text style={styles.requestButtonText}>Unavailable</Text>
             </TouchableOpacity>
@@ -860,9 +776,17 @@ const HomeScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#121212" },
-  scrollContainer: { paddingBottom: 20 },
-  homescreen: { flex: 1, width: "100%" },
+  container: {
+    flex: 1,
+    backgroundColor: "#121212",
+  },
+  scrollContainer: {
+    paddingBottom: 20,
+  },
+  homescreen: {
+    flex: 1,
+    width: "100%",
+  },
   header: {
     fontSize: 28,
     color: "#e0e0e0",
@@ -870,7 +794,10 @@ const styles = StyleSheet.create({
     marginVertical: 20,
     fontWeight: "bold",
   },
-  section: { paddingHorizontal: 16, marginBottom: 20 },
+  section: {
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
   sectionTitle: {
     fontSize: 22,
     color: "#4d9cff",
@@ -890,8 +817,13 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  icon: { marginRight: 10 },
-  name: { fontSize: 18, color: "#e0e0e0" },
+  icon: {
+    marginRight: 10,
+  },
+  name: {
+    fontSize: 18,
+    color: "#e0e0e0",
+  },
   nextServiceBox: {
     backgroundColor: "#333333",
     padding: 16,
@@ -936,8 +868,10 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
   },
-  blackspace: { height: 0, backgroundColor: "#1a1a1a" },
-  // Modal styles (Name)
+  blackspace: {
+    height: 0,
+    backgroundColor: "#1a1a1a",
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
@@ -953,12 +887,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     width: "80%",
     alignItems: "center",
+    position: "relative",
   },
   modalDOBContainer: {
     backgroundColor: "#252525",
     borderRadius: 20,
     padding: 24,
-    align_ITEMS: "center",
+    alignItems: "center",
     marginHorizontal: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -967,6 +902,7 @@ const styles = StyleSheet.create({
     elevation: 10,
     borderWidth: 1,
     borderColor: "#333",
+    position: "relative",
   },
   modalTitle: {
     fontSize: 24,
