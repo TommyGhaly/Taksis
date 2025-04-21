@@ -120,13 +120,13 @@ const Frequency = ({ route, navigation }) => {
               <DateTimePicker
                 value={date}
                 mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "calendar"}
+                display={Platform.OS === "ios" ? "spinner" : "spinner"} // Use spinner for both iOS and Android
                 onChange={handleDateChange}
                 maximumDate={new Date()}
                 style={styles.datePicker}
                 {...(Platform.OS === "ios"
                   ? { textColor: "#E0E0E0", accentColor: "#147EFB" }
-                  : {})}
+                  : { textColor: "#E0E0E0" })} // Apply textColor for Android
               />
             )}
           </View>
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   },
   datePicker: {
     width: "100%",
-    height: Platform.OS === "ios" ? 150 : 100,
+    height: Platform.OS === "ios" ? 150 : 180, // Slightly taller for Android spinner
   },
   dateText: {
     fontSize: 18,
