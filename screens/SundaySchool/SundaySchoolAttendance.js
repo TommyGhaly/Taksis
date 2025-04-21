@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -26,6 +26,9 @@ const SundaySchoolAttendance = ({ navigation }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [newStudentName, setNewStudentName] = useState("");
   const [newStudentGrade, setNewStudentGrade] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const scrollViewRef = useRef(null);
+  const gradeRefs = useRef({});
 
   // Fetch user data
   useEffect(() => {
@@ -137,6 +140,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
       return;
     }
 
+    setSubmitting(true);
     const newStudentRef = firestore()
       .collection("churches")
       .doc(userData.church)
@@ -160,6 +164,22 @@ const SundaySchoolAttendance = ({ navigation }) => {
     } catch (error) {
       console.error("Error adding student:", error);
       Alert.alert("Error", "Failed to add student");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const scrollToGrade = (grade) => {
+    if (gradeRefs.current[grade]) {
+      gradeRefs.current[grade].measureLayout(
+        scrollViewRef.current,
+        (x, y, width, height) => {
+          scrollViewRef.current.scrollTo({ y, animated: true });
+        },
+        () => {
+          console.error("Failed to measure layout for grade:", grade);
+        }
+      );
     }
   };
 
@@ -185,9 +205,13 @@ const SundaySchoolAttendance = ({ navigation }) => {
   const dateKey = getNextSunday();
 
   const renderGrade = ({ item }) => (
-    <View style={styles.gradeTag}>
+    <TouchableOpacity
+      style={styles.gradeTag}
+      onPress={() => scrollToGrade(item)}
+      activeOpacity={0.7}
+    >
       <Text style={styles.gradeTagText}>{formatGrade(item)}</Text>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -203,9 +227,17 @@ const SundaySchoolAttendance = ({ navigation }) => {
           contentContainerStyle={styles.gradesList}
         />
       </View>
-      <ScrollView contentContainerStyle={styles.studentsContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={styles.studentsContainer}
+        showsVerticalScrollIndicator={false}
+      >
         {userData.ssGrades.map((grade) => (
-          <View key={grade}>
+          <View
+            key={grade}
+            ref={(ref) => (gradeRefs.current[grade] = ref)}
+            style={{ paddingTop: 10 }}
+          >
             <Text style={styles.gradeHeader}>{formatGrade(grade)}</Text>
             {studentsByGrade[grade] && studentsByGrade[grade].length > 0 ? (
               studentsByGrade[grade].map((student) => (
@@ -273,45 +305,56 @@ const SundaySchoolAttendance = ({ navigation }) => {
           style={styles.modalContainer}
         >
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add New Student</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                autoCapitalize="words"
-                placeholder="Enter student name"
-                placeholderTextColor="#888"
-                value={newStudentName}
-                onChangeText={setNewStudentName}
-                accessible={true}
-                accessibilityLabel="Enter student name"
-              />
-              <Picker
-                selectedValue={newStudentGrade}
-                onValueChange={(itemValue) => setNewStudentGrade(itemValue)}
-                style={styles.picker}
-                itemStyle={styles.pickerItem}
-              >
-                {userData.ssGrades.map((grade) => (
-                  <Picker.Item key={grade} label={formatGrade(grade)} value={grade} />
-                ))}
-              </Picker>
-            </View>
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={addStudent}
-              activeOpacity={0.7}
-              accessible={true}
-              accessibilityLabel="Add student"
-            >
-              <Text style={styles.modalButtonText}>Add Student</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setModalVisible(false)}
-              accessible={true}
-              accessibilityLabel="Cancel adding student"
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
+            {submitting ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#147efb" />
+                <Text style={styles.loadingText}>Adding Student...</Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.modalTitle}>Add New Student</Text>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.input}
+                    autoCapitalize="words"
+                    placeholder="Enter student name"
+                    placeholderTextColor="#888"
+                    value={newStudentName}
+                    onChangeText={setNewStudentName}
+                    accessible={true}
+                    accessibilityLabel="Enter student name"
+                  />
+                  <Picker
+                    selectedValue={newStudentGrade}
+                    onValueChange={(itemValue) => setNewStudentGrade(itemValue)}
+                    style={styles.picker}
+                    itemStyle={styles.pickerItem}
+                  >
+                    {userData.ssGrades.map((grade) => (
+                      <Picker.Item key={grade} label={formatGrade(grade)} value={grade} />
+                    ))}
+                  </Picker>
+                </View>
+                <TouchableOpacity
+                  style={[styles.modalButton, submitting && { opacity: 0.5 }]}
+                  onPress={addStudent}
+                  activeOpacity={0.7}
+                  disabled={submitting}
+                  accessible={true}
+                  accessibilityLabel="Add student"
+                >
+                  <Text style={styles.modalButtonText}>Add Student</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setModalVisible(false)}
+                  disabled={submitting}
+                  accessible={true}
+                  accessibilityLabel="Cancel adding student"
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -329,12 +372,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   gradesContainer: {
-    height: 48, // Fixed height for consistent vertical size
+    height: 48,
     marginBottom: 20,
     justifyContent: "center",
   },
   gradesList: {
-    alignItems: "center", // Center tags vertically within the fixed height
+    alignItems: "center",
   },
   gradeTag: {
     backgroundColor: "#2a2a2a",
