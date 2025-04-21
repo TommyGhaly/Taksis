@@ -37,10 +37,10 @@ const ChangeName = () => {
       return;
     }
     try {
+      navigation.goBack();
       await updateNameInDB(name); // Function to update the name in the DB
       await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
       Alert.alert("Success", "Name updated successfully.");
-      navigation.goBack();
     } catch (error) {
       Alert.alert("Error", "Failed to update the name.");
     }

@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "642693016544-4lvmojsg1427qoguo3c4crtnvs7b1jkh.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tghaly.taksis",
+            "certificate_hash": "414bcb6108a1b6ae5af5c83cc24be9c235595799"
+          }
+        },
+        {
           "client_id": "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
           "client_type": 3
         }

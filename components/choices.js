@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Text, StyleSheet, View } from "react-native";
+import { Text, StyleSheet, View, TouchableOpacity } from "react-native";
 import { CheckBox } from "@rneui/themed";
+import * as Haptics from "react-native-haptic-feedback";
 
 const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
   const [deacon, setDeacon] = useState(false);
@@ -37,10 +38,20 @@ const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.option}>
+      <TouchableOpacity
+        style={styles.option}
+        onPress={() => {
+          Haptics.trigger("impactLight");
+          handleDeacon(!deacon);
+        }}
+        activeOpacity={0.7}
+      >
         <CheckBox
           checked={deacon}
-          onPress={() => handleDeacon(!deacon)}
+          onPress={() => {
+            Haptics.trigger("impactLight");
+            handleDeacon(!deacon);
+          }}
           containerStyle={styles.checkbox}
           iconType="material-community"
           checkedIcon="checkbox-outline"
@@ -50,13 +61,23 @@ const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
           uncheckedColor="#B0BEC5"
         />
         <Text style={styles.optionText}>Deacon</Text>
-      </View>
+      </TouchableOpacity>
       <View style={styles.divider} />
 
-      <View style={styles.option}>
+      <TouchableOpacity
+        style={styles.option}
+        onPress={() => {
+          Haptics.trigger("impactLight");
+          handleAlhan(!alhan);
+        }}
+        activeOpacity={0.7}
+      >
         <CheckBox
           checked={alhan}
-          onPress={() => handleAlhan(!alhan)}
+          onPress={() => {
+            Haptics.trigger("impactLight");
+            handleAlhan(!alhan);
+          }}
           containerStyle={styles.checkbox}
           iconType="material-community"
           checkedIcon="checkbox-outline"
@@ -66,13 +87,23 @@ const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
           uncheckedColor="#B0BEC5"
         />
         <Text style={styles.optionText}>Alhan Teacher</Text>
-      </View>
+      </TouchableOpacity>
       <View style={styles.divider} />
 
-      <View style={styles.option}>
+      <TouchableOpacity
+        style={styles.option}
+        onPress={() => {
+          Haptics.trigger("impactLight");
+          handleSSTeach(!ssTeach);
+        }}
+        activeOpacity={0.7}
+      >
         <CheckBox
           checked={ssTeach}
-          onPress={() => handleSSTeach(!ssTeach)}
+          onPress={() => {
+            Haptics.trigger("impactLight");
+            handleSSTeach(!ssTeach);
+          }}
           containerStyle={styles.checkbox}
           iconType="material-community"
           checkedIcon="checkbox-outline"
@@ -82,13 +113,23 @@ const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
           uncheckedColor="#B0BEC5"
         />
         <Text style={styles.optionText}>Sunday School Teacher</Text>
-      </View>
+      </TouchableOpacity>
       <View style={styles.divider} />
 
-      <View style={styles.option}>
+      <TouchableOpacity
+        style={styles.option}
+        onPress={() => {
+          Haptics.trigger("impactLight");
+          handleNone(!none);
+        }}
+        activeOpacity={0.7}
+      >
         <CheckBox
           checked={none}
-          onPress={() => handleNone(!none)}
+          onPress={() => {
+            Haptics.trigger("impactLight");
+            handleNone(!none);
+          }}
           containerStyle={styles.checkbox}
           iconType="material-community"
           checkedIcon="checkbox-outline"
@@ -98,7 +139,7 @@ const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
           uncheckedColor="#B0BEC5"
         />
         <Text style={styles.optionText}>None Applicable</Text>
-      </View>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -117,7 +158,7 @@ const styles = StyleSheet.create({
   option: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 12, // Corrected from HygieaService12
   },
   checkbox: {
     backgroundColor: "transparent",

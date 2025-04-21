@@ -22,11 +22,11 @@ const ChangeRank = ({ navigation }) => {
         await firestore().collection("users").doc(user.uid).update({
           rank: rank,
         });
+        navigation.goBack(); // Replace "NextScreen" with your target screen
         await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
         Alert.alert("Success", "Deacon rank updated successfully.");
         
         // Navigate to the next screen or show a success message
-        navigation.goBack(); // Replace "NextScreen" with your target screen
       } else {
         Alert.alert("Select a Rank", "Please select a rank before continuing.");
       }
