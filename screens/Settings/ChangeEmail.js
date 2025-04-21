@@ -30,9 +30,9 @@ const ChangeEmail = () => {
         password
       );
       // Update the email
+      navigation.goBack();
       await userCredential.user.updateEmail(email);
       Alert.alert("Success", "Email updated successfully.");
-      navigation.goBack();
     } catch (error) {
       console.error("Error updating email:", error);
       let errorMessage = "Could not update email.";

@@ -7,6 +7,7 @@ import {
   FlatList,
   Image,
 } from "react-native";
+import * as Haptics from "react-native-haptic-feedback";
 
 const DATA = [
   {
@@ -30,6 +31,7 @@ const ChurchItem = ({ item, onPress, isSelected }) => (
   <TouchableOpacity
     onPress={onPress}
     style={[styles.item, isSelected && styles.selectedItem]}
+    activeOpacity={0.7} // Subtle press feedback
   >
     <Image style={styles.image} resizeMode="cover" source={item.imageName} />
     <Text style={[styles.title, isSelected && styles.selectedText]}>
@@ -48,6 +50,7 @@ const Churches = ({ onSelectChurch }) => {
       <ChurchItem
         item={item}
         onPress={() => {
+          Haptics.trigger("impactLight"); // Trigger haptic feedback
           setSelectedId(item.id);
           onSelectChurch(item.title);
         }}

@@ -177,26 +177,18 @@ const IndividualAttendance = () => {
           style: "destructive",
           onPress: async () => {
             try {
+              await firestore()
+              .collection("churches")
+              .doc(church)
+              .collection(category)
+              .doc(grade)
+              .collection("students")
+              .doc(studentId)
+              .delete();
               // Show success alert and navigate back immediately
               Alert.alert(
                 "Success",
                 `${studentData.name || "Student"}'s record has been deleted.`,
-                [
-                  {
-                    text: "OK",
-                    onPress: async () => {
-                      // Perform deletion after navigation
-                      await firestore()
-                        .collection("churches")
-                        .doc(church)
-                        .collection(category)
-                        .doc(grade)
-                        .collection("students")
-                        .doc(studentId)
-                        .delete();
-                    },
-                  },
-                ]
               );
             } catch (error) {
               console.error("Error deleting student:", error);

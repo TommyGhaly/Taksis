@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, FlatList, SafeAreaView } from "react-native";
+import * as Haptics from "react-native-haptic-feedback";
 
 const DATA = [
   { id: 1, title: "Chanter (Epsaltos)" },
@@ -9,7 +10,11 @@ const DATA = [
 ];
 
 const Item = ({ item, onPress, backgroundColor, textColor }) => (
-  <TouchableOpacity onPress={onPress} style={[styles.item, { backgroundColor }]}>
+  <TouchableOpacity
+    onPress={onPress}
+    style={[styles.item, { backgroundColor }]}
+    activeOpacity={0.7} // Matches common pressable feedback
+  >
     <Text style={[styles.title, { color: textColor }]}>{item.title}</Text>
   </TouchableOpacity>
 );
@@ -25,6 +30,7 @@ const Rank = ({ onSelectRank }) => {
       <Item
         item={item}
         onPress={() => {
+          Haptics.trigger("impactLight"); // Trigger haptic feedback
           setSelectedId(item.id);
           onSelectRank(item.title);
         }}
