@@ -35,6 +35,16 @@ const SignUp = ({ navigation }) => {
   });
 
   const handleSignUp = async () => {
+    // Validate name has exactly two words
+    if (!name) {
+      Alert.alert("Error", "Please input a name before continuing.");
+      return;
+    }
+    const words = name.trim().split(/\s+/).filter(word => word.length > 0);
+    if (words.length !== 2) {
+      Alert.alert("Error", "Please input your first and last name.");
+      return;
+    }
     if (password !== confirmPassword) {
       Alert.alert("Error", "Passwords do not match!");
       return;
@@ -161,7 +171,7 @@ const SignUp = ({ navigation }) => {
         );
         return;
       }
-      const formattedFullName = `${fullName.givenName} ${fullName.familyName}`;
+      const formattedFullName = fullName ? `${fullName.givenName} ${fullName.familyName}` : "";
       await writeUserToDb(userCredential.user, formattedFullName);
       navigation.navigate("SelectChurch");
     } catch (error) {
