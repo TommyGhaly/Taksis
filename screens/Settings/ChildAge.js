@@ -7,8 +7,6 @@ import {
   Alert,
   SafeAreaView,
   Platform,
-  Modal,
-  Animated,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
@@ -17,6 +15,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
 import { callFunction } from "../../components/functionCalls";
+import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 
 const ChildAge = ({ route }) => {
   const { childData } = route.params;
@@ -24,9 +23,12 @@ const ChildAge = ({ route }) => {
   const userId = user ? user.uid : null;
   const [date, setDate] = useState(childData.DOB ? new Date(childData.DOB) : new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [tempDate, setTempDate] = useState(date);
   const navigation = useNavigation();
-  const scaleValue = React.useRef(new Animated.Value(0.9)).current;
+
+  const hapticOptions = {
+    enableVibrateFallback: true,
+    ignoreAndroidSystemSettings: false,
+  };
 
   const formatDate = (date) => {
     return `${(date.getMonth() + 1)
@@ -47,19 +49,11 @@ const ChildAge = ({ route }) => {
 
   const handleDateChange = (event, selectedDate) => {
     if (event.type === "dismissed") {
-      setTempDate(date);
       setShowDatePicker(false);
       return;
     }
-
-    const currentDate = selectedDate || tempDate;
-    setTempDate(currentDate);
+    const currentDate = selectedDate || date;
     setDate(currentDate);
-    setShowDatePicker(false);
-  };
-
-  const handlePickerCancel = () => {
-    setTempDate(date);
     setShowDatePicker(false);
   };
 
@@ -92,9 +86,9 @@ const ChildAge = ({ route }) => {
         } else {
           userData.children.push(updatedChildData);
         }
-        navigation.navigate("Settings");
         await userDocRef.update({ children: userData.children });
         await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
+        navigation.navigate("Settings");
         Alert.alert("Success", "Child data updated successfully.");
       } else {
         Alert.alert("Error", "User document does not exist");
@@ -105,23 +99,15 @@ const ChildAge = ({ route }) => {
     }
   };
 
-  useEffect(() => {
-    if (showDatePicker) {
-      Animated.spring(scaleValue, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      scaleValue.setValue(0.9);
-    }
-  }, [showDatePicker]);
+  const handleBackPress = () => {
+    ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+    navigation.goBack();
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.innerContainer}>
-        <Pressable style={styles.backarrow} onPress={() => navigation.goBack()}>
+        <Pressable style={styles.backarrow} onPress={handleBackPress}>
           <BackArrow />
         </Pressable>
         <View style={styles.progressBar}>
@@ -135,11 +121,30 @@ const ChildAge = ({ route }) => {
             </Text>
             <View style={styles.datePickerContainer}>
               <Pressable
-                style={styles.dateButton}
-                onPress={() => setShowDatePicker(true)}
+                onPress={() => {
+                  ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+                  setShowDatePicker(true);
+                }}
               >
-                <Text style={styles.dateText}>{formatDate(date)}</Text>
+                <Text
+                  style={[styles.dateText, { textDecorationLine: "underline" }]}
+                >
+                  {formatDate(date)}
+                </Text>
               </Pressable>
+
+              {(Platform.OS === "ios" || showDatePicker) && (
+                <DateTimePicker
+                  value={date}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "spinner" : "spinner"}
+                  onChange={handleDateChange}
+                  maximumDate={new Date()}
+                  style={styles.datePicker}
+                  textColor="#F0F0F0"
+                  accentColor="#147EFB"
+                />
+              )}
             </View>
           </View>
         </View>
@@ -149,52 +154,6 @@ const ChildAge = ({ route }) => {
             <Text style={styles.buttonText}>Continue</Text>
           </Pressable>
         </View>
-
-        <Modal
-          visible={showDatePicker}
-          transparent={true}
-          animationType="none"
-          onRequestClose={handlePickerCancel}
-        >
-          <View style={[styles.modalOverlay, Platform.OS === "ios" && styles.modalOverlayIOS]}>
-            <Animated.View
-              style={[
-                styles.modalContainer,
-                { transform: [{ scale: scaleValue }] },
-              ]}
-            >
-              <DateTimePicker
-                value={tempDate}
-                mode="date"
-                display="spinner"
-                onChange={handleDateChange}
-                maximumDate={new Date()}
-                textColor="#F0F0F0"
-                accentColor="#147efb"
-                style={styles.datePicker}
-              />
-              {Platform.OS === "ios" && (
-                <View style={styles.modalButtonContainer}>
-                  <Pressable
-                    style={[styles.modalButton, styles.cancelButton]}
-                    onPress={handlePickerCancel}
-                  >
-                    <Text style={styles.modalButtonText}>Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.modalButton, styles.confirmModalButton]}
-                    onPress={() => {
-                      setDate(tempDate);
-                      setShowDatePicker(false);
-                    }}
-                  >
-                    <Text style={styles.modalButtonText}>Confirm</Text>
-                  </Pressable>
-                </View>
-              )}
-            </Animated.View>
-          </View>
-        </Modal>
       </View>
     </SafeAreaView>
   );
@@ -203,7 +162,7 @@ const ChildAge = ({ route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#121212", // Updated to match ChildExperience
+    backgroundColor: "#121212",
   },
   innerContainer: {
     flex: 1,
@@ -211,7 +170,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   backarrow: {
-    top: 10, // Updated to match ChildExperience
+    top: 10,
     left: 16,
     position: "absolute",
     zIndex: 10,
@@ -247,30 +206,26 @@ const styles = StyleSheet.create({
   questionText: {
     fontSize: 24,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: "#F0F0F0",
     textAlign: "center",
     marginBottom: 20,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   datePickerContainer: {
-    backgroundColor: "#2A2A2A",
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    width: "100%",
     alignItems: "center",
-  },
-  dateButton: {
-    padding: 10,
-  },
-  dateText: {
-    fontSize: 18,
-    color: "#F0F0F0",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-    textAlign: "center",
+    marginBottom: 20,
   },
   datePicker: {
     width: "100%",
+    height: Platform.OS === "ios" ? 150 : 180,
+  },
+  dateText: {
+    fontSize: 20,
+    color: "#F0F0F0",
+    marginTop: 5,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+    textAlign: "center",
+    textDecorationLine: "underline",
   },
   continueLayout: {
     bottom: 20,
@@ -284,70 +239,18 @@ const styles = StyleSheet.create({
   continueButton: {
     width: "100%",
     backgroundColor: "#333",
-    borderRadius: 10, // Updated to match ChildExperience
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    height: "100%", // Updated to match ChildExperience
+    height: "100%",
   },
   buttonText: {
-    fontSize: 17, // Updated to match ChildExperience
-    letterSpacing: -0.2, // Updated to match ChildExperience
-    fontWeight: "500", // Updated to match ChildExperience
-    fontFamily: "Roboto-Medium", // Updated to match ChildExperience
-    color: "#fff", // Updated to match ChildExperience
+    fontSize: 17,
+    letterSpacing: -0.2,
+    fontWeight: "500",
+    fontFamily: "Roboto-Medium",
+    color: "#fff",
     textAlign: "center",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    justifyContent: "flex-end",
-  },
-  modalOverlayIOS: {
-    justifyContent: "center",
-  },
-  modalContainer: {
-    backgroundColor: "#252525",
-    borderRadius: 20,
-    padding: 24,
-    alignItems: "center",
-    marginHorizontal: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 10,
-    borderWidth: 1,
-    borderColor: "#333",
-  },
-  modalButtonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-    marginTop: 16,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: "center",
-    marginHorizontal: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cancelButton: {
-    backgroundColor: "#555",
-  },
-  confirmModalButton: {
-    backgroundColor: "#147efb",
-  },
-  modalButtonText: {
-    fontSize: 16,
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
 });
 

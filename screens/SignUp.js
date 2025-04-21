@@ -41,7 +41,7 @@ const SignUp = ({ navigation }) => {
       return;
     }
     const words = name.trim().split(/\s+/).filter(word => word.length > 0);
-    if (words.length !== 2) {
+    if (!(words.length >= 2)) {
       Alert.alert("Error", "Please input your first and last name.");
       return;
     }

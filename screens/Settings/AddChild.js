@@ -59,7 +59,7 @@ const AddChild = ({ navigation }) => {
       return;
     }
     const words = name.trim().split(/\s+/).filter(word => word.length > 0);
-    if (words.length !== 2) {
+    if (!(words.length >= 2)) {
       Alert.alert("Please input the first and last name.");
       return;
     }

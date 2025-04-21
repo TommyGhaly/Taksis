@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#E0E0E0",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 10,
     fontFamily: "Roboto-Regular",
   },
   datePickerContainer: {
@@ -222,11 +222,12 @@ const styles = StyleSheet.create({
     height: Platform.OS === "ios" ? 150 : 180, // Slightly taller for Android spinner
   },
   dateText: {
-    fontSize: 18,
+    fontSize: 20, // Increased from 18 to 20 for a slightly larger size
     color: "#E0E0E0",
-    marginTop: 10,
+    marginTop: 5, // Reduced from 10 to 5 to decrease padding above
     fontFamily: "Roboto-Regular",
     textAlign: "center",
+    textDecorationLine: "underline", // Retained underline
   },
   sliderValue: {
     fontSize: 56,

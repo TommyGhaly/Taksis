@@ -1,16 +1,10 @@
 import React, { useState, useEffect } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  SafeAreaView,
-} from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import NetInfo from "@react-native-community/netinfo";
 import auth from "@react-native-firebase/auth";
 import { UserProvider, useUser } from "./UserContext";
+import NetInfo from "@react-native-community/netinfo";
 import "react-native-gesture-handler";
 
 import Welcome from "./screens/Welcome";
@@ -27,91 +21,57 @@ import MainContainer from "./screens/MainContainer";
 
 const Stack = createNativeStackNavigator();
 
-// Component to display when no Wi-Fi is available
-const NoWifiScreen = ({ onRetry }) => (
-  <SafeAreaView style={styles.noWifiContainer}>
-    <View style={styles.noWifiContent}>
-      <Text style={styles.noWifiTitle}>No Wi-Fi Connection</Text>
-      <Text style={styles.noWifiMessage}>
-        This app requires a Wi-Fi connection to function. Please connect to Wi-Fi
-        and try again.
-      </Text>
-      <TouchableOpacity style={styles.retryButton} onPress={onRetry}>
-        <Text style={styles.retryButtonText}>Retry</Text>
-      </TouchableOpacity>
-    </View>
-  </SafeAreaView>
-);
-
 function AppNavigator() {
   const { user, setUser, signUp, setSignUp } = useUser();
   const [initializing, setInitializing] = useState(true);
-  const [isWifiConnected, setIsWifiConnected] = useState(null); // null until checked
+  const [isWifiConnected, setIsWifiConnected] = useState(true);
 
-  // Check Wi-Fi status and listen for network changes
   useEffect(() => {
-    // Initial check
-    const checkWifi = async () => {
-      try {
-        const state = await NetInfo.fetch();
-        setIsWifiConnected(state.isConnected && state.type === "wifi");
-      } catch (error) {
-        console.error("Error checking Wi-Fi:", error);
-        setIsWifiConnected(false);
-      }
-    };
-
-    checkWifi();
-
-    // Subscribe to network state updates
+    // Check Wi-Fi connectivity
     const unsubscribe = NetInfo.addEventListener((state) => {
-      console.log("Network state:", state);
-      setIsWifiConnected(state.isConnected && state.type === "wifi");
+      setIsWifiConnected(state.type === "wifi" && state.isConnected);
     });
 
-    return () => unsubscribe();
-  }, []);
-
-  // Handle authentication state
-  useEffect(() => {
+    // Initial auth state check
     if (!user) {
       setSignUp(false);
-      console.log("user:", !user);
-      console.log("signUp:", signUp);
+      console.log("user :", !user);
+      console.log("sign Up :", signUp);
     }
     const subscriber = auth().onAuthStateChanged((user) => {
       setUser(user);
       setInitializing(false);
     });
-    return subscriber;
+
+    return () => {
+      unsubscribe();
+      subscriber();
+    };
   }, []);
 
-  // Retry button handler
-  const handleRetry = async () => {
-    try {
-      const state = await NetInfo.fetch();
-      setIsWifiConnected(state.isConnected && state.type === "wifi");
-    } catch (error) {
-      console.error("Error retrying Wi-Fi check:", error);
-      setIsWifiConnected(false);
-    }
+  // Function to retry Wi-Fi connection
+  const handleRetry = () => {
+    NetInfo.fetch().then((state) => {
+      setIsWifiConnected(state.type === "wifi" && state.isConnected);
+    });
   };
 
-  // Show nothing while initializing or Wi-Fi status is unknown
-  if (initializing || isWifiConnected === null) {
+  if (initializing) return null;
+
+  // If not connected to Wi-Fi, show message with retry button
+  if (!isWifiConnected) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Checking connection...</Text>
-      </SafeAreaView>
+      <View style={styles.noWifiContainer}>
+        <Text style={styles.noWifiText}>
+          This app requires a Wi-Fi connection. Please connect to Wi-Fi and try again.
+        </Text>
+        <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
     );
   }
 
-  // Show No Wi-Fi screen if not connected to Wi-Fi
-  if (!isWifiConnected) {
-    return <NoWifiScreen onRetry={handleRetry} />;
-  }
-
-  // Render the navigation stack if Wi-Fi is connected
   return (
     <NavigationContainer style={styles.container}>
       <Stack.Navigator
@@ -131,7 +91,7 @@ function AppNavigator() {
                 headerShown: false,
                 gesturesEnabled: false,
                 listeners: {
-                  focus: ({ navigation }) => {
+                  focus: () => {
                     if (typeof navigation.reset === "function") {
                       navigation.reset({
                         index: 0,
@@ -196,49 +156,26 @@ const styles = StyleSheet.create({
   },
   noWifiContainer: {
     flex: 1,
-    backgroundColor: "#121212",
     justifyContent: "center",
     alignItems: "center",
-  },
-  noWifiContent: {
     padding: 20,
-    alignItems: "center",
+    backgroundColor: "#1e1e1e",
   },
-  noWifiTitle: {
-    fontSize: 24,
-    color: "#e0e0e0",
-    fontWeight: "bold",
-    marginBottom: 10,
+  noWifiText: {
+    fontSize: 18,
     textAlign: "center",
-  },
-  noWifiMessage: {
-    fontSize: 16,
-    color: "#e0e0e0",
-    textAlign: "center",
+    color: "#fff",
     marginBottom: 20,
   },
   retryButton: {
-    backgroundColor: "#147efb",
+    backgroundColor: "#147EFB",
     paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 10,
-    alignSelf: "center",
+    paddingHorizontal: 24,
+    borderRadius: 8,
   },
   retryButtonText: {
-    fontSize: 18,
-    color: "#ffffff",
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: "#121212",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    fontSize: 18,
-    color: "#e0e0e0",
-    textAlign: "center",
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
