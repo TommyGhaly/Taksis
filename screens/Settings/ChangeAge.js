@@ -7,8 +7,6 @@ import {
   Alert,
   SafeAreaView,
   Platform,
-  Modal,
-  Animated,
 } from "react-native";
 import BackArrow from "../../components/backArrow";
 import firestore from "@react-native-firebase/firestore";
@@ -16,14 +14,18 @@ import auth from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { callFunction } from "../../components/functionCalls";
+import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 
 const ChangeAge = () => {
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [tempDate, setTempDate] = useState(date);
   const navigation = useNavigation();
   const user = auth().currentUser;
-  const scaleValue = React.useRef(new Animated.Value(0.9)).current;
+
+  const hapticOptions = {
+    enableVibrateFallback: true,
+    ignoreAndroidSystemSettings: false,
+  };
 
   const formatDate = (date) => {
     return `${(date.getMonth() + 1)
@@ -33,20 +35,11 @@ const ChangeAge = () => {
 
   const handleDateChange = (event, selectedDate) => {
     if (event.type === "dismissed") {
-      setTempDate(date);
       setShowDatePicker(false);
       return;
     }
-
-    const currentDate = selectedDate || tempDate;
-    setTempDate(currentDate);
-    setDate(currentDate); // Update date immediately
-    setShowDatePicker(false); // Close picker on selection
-  };
-
-  // Removed handlePickerConfirm as it's not needed
-  const handlePickerCancel = () => {
-    setTempDate(date);
+    const currentDate = selectedDate || date;
+    setDate(currentDate);
     setShowDatePicker(false);
   };
 
@@ -75,36 +68,47 @@ const ChangeAge = () => {
     }
   };
 
-  React.useEffect(() => {
-    if (showDatePicker) {
-      Animated.spring(scaleValue, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      scaleValue.setValue(0.9);
-    }
-  }, [showDatePicker]);
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.innerContainer}>
-        <Pressable style={styles.backArrow} onPress={() => navigation.goBack()}>
-          <BackArrow />
-        </Pressable>
+        <View style={styles.header}>
+          <Pressable
+            style={styles.backArrow}
+            onPress={() => navigation.goBack()}
+          >
+            <BackArrow />
+          </Pressable>
+        </View>
 
         <View style={styles.content}>
           <View style={styles.card}>
             <Text style={styles.title}>Update Your Date of Birth</Text>
             <View style={styles.datePickerContainer}>
               <Pressable
-                style={styles.dateButton}
-                onPress={() => setShowDatePicker(true)}
+                onPress={() => {
+                  ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+                  setShowDatePicker(true);
+                }}
               >
-                <Text style={styles.dateText}>{formatDate(date)}</Text>
+                <Text
+                  style={[styles.dateText, { textDecorationLine: "underline" }]}
+                >
+                  {formatDate(date)}
+                </Text>
               </Pressable>
+
+              {(Platform.OS === "ios" || showDatePicker) && (
+                <DateTimePicker
+                  value={date}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "spinner" : "spinner"}
+                  onChange={handleDateChange}
+                  maximumDate={new Date()}
+                  style={styles.datePicker}
+                  textColor="#F0F0F0"
+                  accentColor="#147EFB"
+                />
+              )}
             </View>
           </View>
         </View>
@@ -112,53 +116,6 @@ const ChangeAge = () => {
         <Pressable style={styles.confirmButton} onPress={handleConfirm}>
           <Text style={styles.confirmText}>Confirm</Text>
         </Pressable>
-
-        {/* Date Picker Modal */}
-        <Modal
-          visible={showDatePicker}
-          transparent={true}
-          animationType="none"
-          onRequestClose={handlePickerCancel}
-        >
-          <View style={[styles.modalOverlay, Platform.OS === "ios" && styles.modalOverlayIOS]}>
-            <Animated.View
-              style={[
-                styles.modalContainer,
-                { transform: [{ scale: scaleValue }] },
-              ]}
-            >
-              <DateTimePicker
-                value={tempDate}
-                mode="date"
-                display="spinner"
-                onChange={handleDateChange}
-                maximumDate={new Date()}
-                textColor="#F0F0F0"
-                accentColor="#147efb"
-                style={styles.datePicker}
-              />
-              {Platform.OS === "ios" && (
-                <View style={styles.modalButtonContainer}>
-                  <Pressable
-                    style={[styles.modalButton, styles.cancelButton]}
-                    onPress={handlePickerCancel}
-                  >
-                    <Text style={styles.modalButtonText}>Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.modalButton, styles.confirmModalButton]}
-                    onPress={() => {
-                      setDate(tempDate);
-                      setShowDatePicker(false);
-                    }}
-                  >
-                    <Text style={styles.modalButtonText}>Confirm</Text>
-                  </Pressable>
-                </View>
-              )}
-            </Animated.View>
-          </View>
-        </Modal>
       </View>
     </SafeAreaView>
   );
@@ -174,11 +131,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 20,
   },
+  header: {
+    marginBottom: 20,
+  },
   backArrow: {
-    position: "absolute",
-    top: 40,
-    left: 16,
-    zIndex: 10,
+    marginBottom: 16,
   },
   content: {
     flex: 1,
@@ -203,30 +160,26 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: "#F0F0F0",
     textAlign: "center",
     marginBottom: 20,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   datePickerContainer: {
-    backgroundColor: "#2A2A2A",
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    width: "100%",
     alignItems: "center",
-  },
-  dateButton: {
-    padding: 10,
-  },
-  dateText: {
-    fontSize: 18,
-    color: "#F0F0F0",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-    textAlign: "center",
+    marginBottom: 20,
   },
   datePicker: {
     width: "100%",
+    height: Platform.OS === "ios" ? 150 : 180,
+  },
+  dateText: {
+    fontSize: 20,
+    color: "#F0F0F0",
+    marginTop: 5,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+    textAlign: "center",
+    textDecorationLine: "underline",
   },
   confirmButton: {
     backgroundColor: "#333",
@@ -241,58 +194,6 @@ const styles = StyleSheet.create({
   },
   confirmText: {
     fontSize: 18,
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    justifyContent: "flex-end",
-  },
-  modalOverlayIOS: {
-    justifyContent: "center",
-  },
-  modalContainer: {
-    backgroundColor: "#252525",
-    borderRadius: 20,
-    padding: 24,
-    alignItems: "center",
-    marginHorizontal: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 10,
-    borderWidth: 1,
-    borderColor: "#333",
-  },
-  modalButtonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-    marginTop: 16,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: "center",
-    marginHorizontal: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cancelButton: {
-    backgroundColor: "#555",
-  },
-  confirmModalButton: {
-    backgroundColor: "#147efb",
-  },
-  modalButtonText: {
-    fontSize: 16,
     color: "#FFFFFF",
     fontWeight: "600",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",

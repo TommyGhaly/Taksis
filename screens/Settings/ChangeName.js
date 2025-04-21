@@ -31,15 +31,30 @@ const ChangeName = () => {
       );
     }
   };
+
   const handleConfirm = async () => {
-    if (name.trim() === "") {
+    // Trim the input to remove leading/trailing spaces
+    const trimmedName = name.trim();
+
+    // Check if the name is empty
+    if (trimmedName === "") {
       Alert.alert("Error", "Name cannot be empty.");
       return;
     }
+
+    // Split the name by spaces and filter out empty strings
+    const nameWords = trimmedName.split(/\s+/).filter((word) => word.length > 0);
+
+    // Check if there are at least 2 words
+    if (nameWords.length < 2) {
+      Alert.alert("Error", "Please enter both your first and last name.");
+      return;
+    }
+
     try {
       navigation.goBack();
-      await updateNameInDB(name); // Function to update the name in the DB
-      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app")
+      await updateNameInDB(trimmedName); // Use trimmedName to avoid extra spaces
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
       Alert.alert("Success", "Name updated successfully.");
     } catch (error) {
       Alert.alert("Error", "Failed to update the name.");
