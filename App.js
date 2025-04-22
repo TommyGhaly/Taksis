@@ -24,12 +24,12 @@ const Stack = createNativeStackNavigator();
 function AppNavigator() {
   const { user, setUser, signUp, setSignUp } = useUser();
   const [initializing, setInitializing] = useState(true);
-  const [isWifiConnected, setIsWifiConnected] = useState(true);
+  const [isConnected, setIsConnected] = useState(true);
 
   useEffect(() => {
-    // Check Wi-Fi connectivity
+    // Check any internet connectivity
     const unsubscribe = NetInfo.addEventListener((state) => {
-      setIsWifiConnected(state.type === "wifi" && state.isConnected);
+      setIsConnected(state.isConnected && state.isInternetReachable);
     });
 
     // Initial auth state check
@@ -49,21 +49,22 @@ function AppNavigator() {
     };
   }, []);
 
-  // Function to retry Wi-Fi connection
+  // Function to retry internet connection and navigate if connected
   const handleRetry = () => {
     NetInfo.fetch().then((state) => {
-      setIsWifiConnected(state.type === "wifi" && state.isConnected);
+      const isNowConnected = state.isConnected && state.isInternetReachable;
+      setIsConnected(isNowConnected);
     });
   };
 
   if (initializing) return null;
 
-  // If not connected to Wi-Fi, show message with retry button
-  if (!isWifiConnected) {
+  // If not connected to the internet, show message with retry button
+  if (!isConnected) {
     return (
       <View style={styles.noWifiContainer}>
         <Text style={styles.noWifiText}>
-          This app requires a Wi-Fi connection. Please connect to Wi-Fi and try again.
+          This app requires an internet connection. Please connect to the internet and try again.
         </Text>
         <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
           <Text style={styles.retryButtonText}>Retry</Text>
