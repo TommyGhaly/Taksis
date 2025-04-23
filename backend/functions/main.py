@@ -1020,7 +1020,12 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
 
     if user_doc.exists:
         user_data = user_doc.to_dict()
-
+        if user_data.get("isSSTeacher"):
+            if user_data.get("church"):
+                church_ref = firestore_client.collection("churches").document(
+                    user_data["church"]
+                )
+                church_ref.collection("Servants Meeting").document(user_id).delete()
         if "children" in user_data:
             for child in user_data["children"]:
                 remove_user_from_churches(child.get("uid"))
