@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import * as Haptics from "react-native-haptic-feedback";
 
 const ServantsAttendance = ({ navigation }) => {
   const user = auth().currentUser;
@@ -104,6 +105,9 @@ const ServantsAttendance = ({ navigation }) => {
   };
 
   const handleAttendance = (servantID, status) => {
+    // Trigger haptic feedback
+    Haptics.trigger("impactLight");
+
     const dateKey = getNextSunday();
     firestore()
       .collection("churches")
