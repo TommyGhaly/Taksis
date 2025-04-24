@@ -51,29 +51,26 @@ const AdminManager = () => {
     }
   }, []);
 
-  // Fetch users from the same church with real-time updates
+  // Fetch all users from the database with real-time updates
   useEffect(() => {
-    if (church) {
-      const unsubscribe = firestore()
-        .collection("users")
-        .where("church", "==", church)
-        .onSnapshot(
-          (querySnapshot) => {
-            const userList = querySnapshot.docs
-              .map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-              }))
-              .sort((a, b) => a.name.localeCompare(b.name));
-            setUsers(userList);
-          },
-          (error) => {
-            console.error("Error fetching users:", error);
-          }
-        );
-      return () => unsubscribe();
-    }
-  }, [church]);
+    const unsubscribe = firestore()
+      .collection("users")
+      .onSnapshot(
+        (querySnapshot) => {
+          const userList = querySnapshot.docs
+            .map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          setUsers(userList);
+        },
+        (error) => {
+          console.error("Error fetching users:", error);
+        }
+      );
+    return () => unsubscribe();
+  }, []);
 
   const openEditModal = (user) => {
     setSelectedUser(user);
@@ -121,7 +118,7 @@ const AdminManager = () => {
       <View style={styles.userCard}>
         <View style={styles.userInfo}>
           <Text style={styles.userName}>{item.name}</Text>
-          <Text style={styles.userChurch}>{item.church}</Text>
+          <Text style={styles.userChurch}>{item.church || "No church assigned"}</Text>
           <Text style={styles.userRoles}>Roles: {activeRoles}</Text>
         </View>
         <TouchableOpacity

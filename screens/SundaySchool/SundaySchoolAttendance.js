@@ -17,6 +17,7 @@ import {
 import { Picker } from "@react-native-picker/picker";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import * as Haptics from "react-native-haptic-feedback";
 
 const SundaySchoolAttendance = ({ navigation }) => {
   const user = auth().currentUser;
@@ -117,6 +118,9 @@ const SundaySchoolAttendance = ({ navigation }) => {
   };
 
   const handleAttendance = (student, status) => {
+    // Trigger haptic feedback
+    Haptics.trigger("impactLight");
+
     const dateKey = getNextSunday();
     firestore()
       .collection("churches")
