@@ -24,7 +24,6 @@ const SignIn = ({ navigation }) => {
 
   useEffect(() => {
     setSignUp(false);
-    console.log("sign Up :", signUp);
   }, []);
 
   GoogleSignin.configure({

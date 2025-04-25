@@ -166,7 +166,6 @@ const AlhanAttendance = ({ navigation }) => {
       setNewStudentName("");
       setNewStudentGrade(userData.alhanGrades[0] || "");
     } catch (error) {
-      console.error("Error adding student:", error);
       Alert.alert("Error", "Failed to add student");
     } finally {
       setSubmitting(false); // Reset loading state

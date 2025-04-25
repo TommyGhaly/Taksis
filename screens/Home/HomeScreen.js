@@ -46,12 +46,9 @@ async function createNotificationChannel() {
           soundName: "default",
           enableVibration: true,
         });
-        console.log("Android notification channel created:", channelId);
       } else {
-        console.warn("messaging().createChannel is not available. Ensure you're using @react-native-firebase/messaging >=12.0.0");
       }
     } catch (error) {
-      console.error("Error creating Android notification channel:", error);
     }
   }
 }
@@ -77,14 +74,12 @@ async function requestUserPermissionAndroid() {
 
     const authStatus = await messaging().hasPermission();
     if (authStatus === messaging.AuthorizationStatus.AUTHORIZED) {
-      console.log("Android Notification Permission Already Granted");
       await getFCMToken();
       return true;
     }
 
     const newAuthStatus = await messaging().requestPermission();
     if (newAuthStatus === messaging.AuthorizationStatus.AUTHORIZED) {
-      console.log("Android Notification Permission Granted");
       await getFCMToken();
       return true;
     } else {
@@ -96,7 +91,6 @@ async function requestUserPermissionAndroid() {
       return false;
     }
   } catch (error) {
-    console.error("Error requesting Android notification permission:", error);
     Alert.alert("Error", "Failed to request notification permission.");
     return false;
   }
@@ -115,7 +109,6 @@ async function requestUserPermissionIOS() {
       authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
     if (granted) {
-      console.log("iOS Notification Permission Granted:", authStatus);
       await getFCMToken();
       return true;
     } else {
@@ -127,7 +120,6 @@ async function requestUserPermissionIOS() {
       return false;
     }
   } catch (error) {
-    console.error("Error requesting iOS notification permission:", error);
     Alert.alert("Error", "Failed to request notification permission.");
     return false;
   }
@@ -139,17 +131,13 @@ async function getFCMToken(retries = 3, delay = 1000) {
     for (let i = 0; i < retries; i++) {
       const fcmToken = await messaging().getToken();
       if (fcmToken) {
-        console.log("FCM Token:", fcmToken);
         return fcmToken;
       }
-      console.warn(`FCM token attempt ${i + 1} failed`);
       if (i < retries - 1) {
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
-    console.warn("Failed to get FCM token after retries");
   } catch (error) {
-    console.error("Error getting FCM token:", error);
   }
 }
 
@@ -172,7 +160,6 @@ async function checkNotificationPermission() {
       await requestUserPermissionAndroid();
     }
   } catch (error) {
-    console.error("Error checking notification permission:", error);
   }
 }
 
@@ -206,7 +193,6 @@ const HomeScreen = () => {
   // Handle foreground notifications
   useEffect(() => {
     const unsubscribe = messaging().onMessage(async (remoteMessage) => {
-      console.log("Foreground Notification Received:", remoteMessage);
       Alert.alert(
         remoteMessage.notification?.title || "Notification",
         remoteMessage.notification?.body || "You have a new message."
@@ -218,7 +204,6 @@ const HomeScreen = () => {
 
   // Handle background notifications
   messaging().setBackgroundMessageHandler(async (remoteMessage) => {
-    console.log("Background Notification Received:", remoteMessage);
   });
 
   const formatDate = (date) => {
@@ -282,9 +267,7 @@ const HomeScreen = () => {
       }
 
       setShowDOBModal(false);
-      console.log("User DOB updated:", formattedDOB);
     } catch (error) {
-      console.error("Error updating DOB:", error);
       Alert.alert("Error", "Failed to update date of birth. Please try again.");
     }
   };
@@ -311,9 +294,7 @@ const HomeScreen = () => {
         setShowNameModal(false);
         setFirstName("");
         setLastName("");
-        console.log("User name updated:", fullName);
       } catch (error) {
-        console.error("Error updating user name:", error);
         Alert.alert("Error", "Failed to update name. Please try again.");
       }
     }
@@ -326,7 +307,6 @@ const HomeScreen = () => {
   useEffect(() => {
     const user = auth().currentUser;
     if (!user) {
-      console.log("No authenticated user found.");
       return;
     }
 
@@ -336,7 +316,6 @@ const HomeScreen = () => {
       (doc) => {
         if (doc.exists) {
           const userData = doc.data();
-          console.log("User document found:", userData);
           const name = userData.name;
           setUserName(name);
           const isNameInvalid =
@@ -348,7 +327,6 @@ const HomeScreen = () => {
           setShowNameModal(isNameInvalid);
           setShowDOBModal(!isNameInvalid && isDOBInvalid);
         } else {
-          console.log("User doc not found");
           Alert.alert(
             "Sign up to continue",
             "Please sign up using this account to continue."
@@ -357,7 +335,6 @@ const HomeScreen = () => {
         }
       },
       (error) => {
-        console.error("Error fetching user document:", error);
       }
     );
 
@@ -367,7 +344,6 @@ const HomeScreen = () => {
   useEffect(() => {
     const user = auth().currentUser;
     if (!user) {
-      console.log("No authenticated user found for realtime user updates.");
       return;
     }
     const unsubscribeUser = firestore()
@@ -380,11 +356,9 @@ const HomeScreen = () => {
             setIsDeacon(userData.isDeacon);
             if (userData.nextWeekServe) {
               setNextWeek(userData.nextWeekServe);
-              console.log("Next week serve updated:", userData.nextWeekServe);
             }
             if (userData.church && userData.church !== churchId) {
               setChurchId(userData.church);
-              console.log("Church updated:", userData.church);
             }
             if (
               userData.alhanGrades &&
@@ -409,7 +383,6 @@ const HomeScreen = () => {
           }
         },
         (error) => {
-          console.error("Error listening to user document:", error);
         }
       );
     return () => unsubscribeUser();
@@ -417,7 +390,6 @@ const HomeScreen = () => {
 
   useEffect(() => {
     if (!churchId) {
-      console.log("No church selected. Waiting for churchId...");
       return;
     }
 
@@ -492,9 +464,7 @@ const HomeScreen = () => {
         );
         updatedSchedule.altar = altarServers;
         setSchedule(updatedSchedule);
-        console.log("Closest schedule updated:", updatedSchedule);
       } else {
-        console.log("No schedules found.");
       }
     });
 
@@ -504,7 +474,6 @@ const HomeScreen = () => {
   const handleUnavailableToServe = async () => {
     const user = auth().currentUser;
     if (!user) {
-      console.log("No authenticated user found.");
       return;
     }
 
@@ -521,7 +490,6 @@ const HomeScreen = () => {
               .doc(user.uid)
               .get();
             if (!userDoc.exists) {
-              console.log("User not found.");
               return;
             }
             const userData = userDoc.data();

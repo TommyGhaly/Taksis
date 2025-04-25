@@ -70,10 +70,8 @@ const EditSchedule = () => {
           const userData = doc.data();
           if (userData?.church && userData.church !== churchId) {
             setChurchId(userData.church);
-            console.log("Church updated to:", userData.church);
           }
         } else {
-          console.log("User not found");
         }
       }, (error) => {
         console.error("Error listening to user document:", error);
@@ -119,7 +117,6 @@ const EditSchedule = () => {
         if (closestScheduleDoc) {
           setWeek(closestScheduleDoc.id);
           const scheduleForTheWeek = closestScheduleDoc.data();
-          console.log("Nearest schedule for the week:", scheduleForTheWeek);
   
           // Build objects for readers and display names
           const readersObj = {};
@@ -150,7 +147,6 @@ const EditSchedule = () => {
           );
           setAvailableServers(filteredExtraServers);
         } else {
-          console.log("No schedules found.");
         }
       });
   
@@ -166,7 +162,6 @@ const EditSchedule = () => {
     }
     const readingKey = readings[index]; // e.g., "matins"
     const oldReader = currentReaders[readingKey];
-    console.log(oldReader, readingKey, newReader);
     if (!oldReader || !oldReader.uid) {
       Alert.alert("Error", "Old reader not found.");
       return;
@@ -199,7 +194,7 @@ const EditSchedule = () => {
       return;
     }
     try {
-      console.log("Servers to swap:", oldServer, newServer);
+
       await switchServersAPI(
         user,
         churchId,
