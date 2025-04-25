@@ -40,7 +40,6 @@ const SettingsContent = () => {
 
   const handleSignOut = () => {
     setSignUp(false);
-    console.log("sign Up :", signUp);
     auth().signOut();
   };
 

@@ -12,9 +12,7 @@ export const callFunction = async (user, url) => {
     });
 
     const text = await res.text(); // Get server response
-    console.log("Function response:", text);
   } catch (error) {
-    console.error("Error calling function in the background:", error);
   }
 };
 
@@ -33,13 +31,10 @@ export const callDeleteUser = async (user, church, uid, url) => {
       },
       body: JSON.stringify({ uid: uid, church: church }), // Send the correct uid parameter
     }).catch((error) => {
-      console.error("Error calling function in the background:", error);
     });
 
-    console.log("Function call fired, backend will process the request.");
     return;
   } catch (error) {
-    console.error("Error preparing function call:", error);
     return null; // Return null in case of failure
   }
 };
@@ -57,12 +52,9 @@ export const frequencyUpdate = async (user, url) => {
       },
       body: JSON.stringify({}), // Send an empty body if no parameters are needed
     }).catch((error) => {
-      console.error("Error calling function in the background:", error);
     });
 
-    console.log("Function call fired, backend will process the request.");
   } catch (error) {
-    console.error("Error preparing function call:", error);
   }
 };
 
@@ -80,12 +72,9 @@ export const removeServer = async (user, church, week, server, url) => {
       },
       body: JSON.stringify({ church: church, week: week, server: server }), // Send the correct uid parameter
     }).catch((error) => {
-      console.error("Error calling function in the background:", error);
     });
 
-    console.log("Function call fired, backend will process the request.");
   } catch (error) {
-    console.error("Error preparing function call:", error);
   }
 };
 
@@ -103,12 +92,9 @@ export const addServer = async (user, church, week, url) => {
       },
       body: JSON.stringify({ church: church, week: week }), // Send the correct uid parameter
     }).catch((error) => {
-      console.error("Error calling function in the background:", error);
     });
 
-    console.log("Function call fired, backend will process the request.");
   } catch (error) {
-    console.error("Error preparing function call:", error);
   }
 };
 
@@ -138,12 +124,9 @@ export const switchServers = async (
         secondServer: secondServer,
       }), // Send the correct uid parameter
     }).catch((error) => {
-      console.error("Error calling function in the background:", error);
     });
 
-    console.log("Function call fired, backend will process the request.");
   } catch (error) {
-    console.error("Error preparing function call:", error);
   }
 };
 export const unavailableToServe = async (user, church, week, family, url) => {
@@ -165,12 +148,9 @@ export const unavailableToServe = async (user, church, week, family, url) => {
         family: family,
       }), // Send the correct uid parameter
     }).catch((error) => {
-      console.error("Error calling function in the background:", error);
     });
 
-    console.log("Function call fired, backend will process the request.");
   } catch (error) {
-    console.error("Error preparing function call:", error);
   }
 };
 
@@ -188,28 +168,20 @@ export const checkClasses = async (user, url) => {
       },
       body: JSON.stringify({}), // Send the correct uid parameter
     }).catch((error) => {
-      console.error("Error calling function in the background:", error);
     });
 
-    console.log("Function call fired, backend will process the request.");
   } catch (error) {
-    console.error("Error preparing function call:", error);
   }
 };
 
 export const removeFamilySchedule = async (user, church, url) => {
   try {
-    console.log("Before getIdToken");
     const idToken = await user.getIdToken(); // Make sure user is still the full user object here.
-    console.log("ID Token acquired", idToken);
 
     const payload = {
       uid: user.uid,
       church: church,
     };
-
-    console.log("About to send payload:", payload);
-    console.log("Stringified Payload:", JSON.stringify(payload));
 
     fetch(url, {
       method: "POST",
@@ -219,11 +191,8 @@ export const removeFamilySchedule = async (user, church, url) => {
       },
       body: JSON.stringify(payload),
     }).catch((error) => {
-      console.error("Error calling function in the background:", error);
     });
 
-    console.log("Function call fired, backend will process the request.");
   } catch (error) {
-    console.error("Error preparing function call:", error);
   }
 };

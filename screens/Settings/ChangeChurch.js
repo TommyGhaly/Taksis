@@ -80,8 +80,6 @@ const ChangeChurch = ({ navigation }) => {
                 church: currentChurch.id || currentChurch, // Only simple values
                 children: userDoc.children,
               };
-              console.log("Payload:", payload);
-              console.log("Stringified Payload:", JSON.stringify(payload));
               await removeFamilySchedule(
                 user,
                 currentChurch,

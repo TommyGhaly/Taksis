@@ -98,7 +98,6 @@ const DeaconEdits = () => {
           (doc) => {
             if (doc.exists) {
               const deaconList = doc.data().deacons || [];
-              console.log('Raw deacon list:', deaconList);
 
               const sortedDeacons = deaconList
                 .map((deacon) => ({
@@ -117,8 +116,7 @@ const DeaconEdits = () => {
                   name: doc.data().deacons.find((d) => d.uid === deacon.uid).name,
                 }));
 
-              console.log('Sorted deacon list:', sortedDeacons);
-              setDeacons(sortedDeacons);
+                setDeacons(sortedDeacons);
             }
           },
           (error) => {
