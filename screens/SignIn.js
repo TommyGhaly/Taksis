@@ -36,8 +36,6 @@ const SignIn = ({ navigation }) => {
       await auth().signInWithEmailAndPassword(email, password);
       navigation.navigate("MainContainer");
     } catch (error) {
-      console.error("Sign In Error:", error);
-      Alert.alert("Sign In Error", error.message);
     }
   };
 
