@@ -34,7 +34,6 @@ const ChangeEmail = () => {
       await userCredential.user.updateEmail(email);
       Alert.alert("Success", "Email updated successfully.");
     } catch (error) {
-      console.error("Error updating email:", error);
       let errorMessage = "Could not update email.";
       if (error.code === "auth/wrong-password") {
         errorMessage = "Incorrect password.";

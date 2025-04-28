@@ -79,7 +79,6 @@ const Frequency = ({ route, navigation }) => {
       await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
       Alert.alert("Success", "Your account has been successfully created!");
     } catch (error) {
-      console.error("Error updating user data: ", error);
       Alert.alert("Error", "Could not update information. Please try again.");
     }
   };

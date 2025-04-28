@@ -163,7 +163,6 @@ export default function MainContainer() {
             }
           },
           (error) => {
-            console.error("Error fetching user roles: ", error);
           }
         );
 

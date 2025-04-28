@@ -93,7 +93,6 @@ const ChangeChurch = ({ navigation }) => {
         ]
       );
     } catch (error) {
-      console.error("Error updating user church: ", error);
       Alert.alert(
         "Error",
         "Could not update church information. Please try again."

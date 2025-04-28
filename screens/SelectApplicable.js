@@ -37,7 +37,6 @@ const SelectApplicable = ({ navigation }) => {
         navigation.navigate("Frequency", { from: "SelectApplicable" });
       }
     } catch (error) {
-      console.error("Error updating user data: ", error);
       Alert.alert("Error", "Could not update information. Please try again.");
     }
   };

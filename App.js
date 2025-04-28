@@ -74,8 +74,6 @@ function AppNavigator() {
   useEffect(() => {
     if (!user) {
       setSignUp(false);
-      console.log("user :", !user);
-      console.log("sign Up :", signUp);
     }
     const subscriber = auth().onAuthStateChanged((user) => {
       setUser(user);

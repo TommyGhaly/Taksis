@@ -28,7 +28,10 @@ const openUrl = async (url) => {
   try {
     await WebBrowser.openBrowserAsync(url); // Use WebBrowser's openBrowserAsync
   } catch (error) {
-    console.error(error);
+      Alert.alert(
+        "Error",
+        "Failed to open the link. Please try again."
+      );
   }
 };
 

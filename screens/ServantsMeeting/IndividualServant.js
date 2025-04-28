@@ -34,11 +34,10 @@ const IndividualServant = () => {
           }
 
           attendance.sort((a, b) => new Date(b.date) - new Date(a.date));
-          console.log(attendance);
           setAttendanceData(attendance);
         }
       } catch (error) {
-        console.error("Error fetching attendance data:", error);
+        Alert.alert("Error", "Failed to fetch attendance data. Please try again.");
       }
     };
 
@@ -115,7 +114,6 @@ const IndividualServant = () => {
                         );
                       } catch (error) {
                         Alert.alert("Error", "Failed to update teacher role. Please try again.");
-                        console.error("Error updating teacher role:", error);
                       }
                     },
                   },
@@ -123,7 +121,6 @@ const IndividualServant = () => {
               );
             } catch (error) {
               Alert.alert("Error", "Failed to remove servant. Please try again.");
-              console.error("Error deleting servant:", error);
             }
           },
         },

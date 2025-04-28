@@ -166,7 +166,6 @@ const SundaySchoolAttendance = ({ navigation }) => {
       setNewStudentName("");
       setNewStudentGrade(userData.ssGrades[0] || "");
     } catch (error) {
-      console.error("Error adding student:", error);
       Alert.alert("Error", "Failed to add student");
     } finally {
       setSubmitting(false);
@@ -181,7 +180,6 @@ const SundaySchoolAttendance = ({ navigation }) => {
           scrollViewRef.current.scrollTo({ y, animated: true });
         },
         () => {
-          console.error("Failed to measure layout for grade:", grade);
         }
       );
     }

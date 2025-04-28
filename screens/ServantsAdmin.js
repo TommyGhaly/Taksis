@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Modal,
   Switch,
+  Alert,
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
@@ -56,8 +57,12 @@ const ServantsAdmin = () => {
           setLoading(false);
         })
         .catch((error) => {
-          console.error('Error fetching church:', error);
           setLoading(false);
+          Alert.alert(
+            'Error',
+            'Could not fetch user data. Please try again.',
+            [{ text: 'OK' }]
+          );
         });
     }
   }, []);
@@ -80,7 +85,6 @@ const ServantsAdmin = () => {
             setServants(servantList);
           },
           (error) => {
-            console.error('Error fetching servants:', error);
           }
         );
       return () => unsubscribe();
@@ -108,7 +112,11 @@ const ServantsAdmin = () => {
         });
       setModalVisible(false);
     } catch (error) {
-      console.error('Error saving changes:', error);
+      Alert.alert(
+        'Error',
+        'Could not save classes. Please try again.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -123,7 +131,11 @@ const ServantsAdmin = () => {
           isServant: false,
         });
     } catch (error) {
-      console.error('Error removing servant:', error);
+      Alert.alert(
+        'Error',
+        'Could not remove servant. Please try again.',
+        [{ text: 'OK' }]
+      );
     }
   };
 

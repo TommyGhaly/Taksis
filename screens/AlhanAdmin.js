@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import { Ionicons } from '@expo/vector-icons'; // For icons (install expo vector-icons if needed)
@@ -33,8 +33,8 @@ const AlhanAdmin = () => {
           setLoading(false);
         })
         .catch((error) => {
-          console.error('Error fetching church:', error);
           setLoading(false);
+          Alert.alert('Error', 'Could not fetch user data. Please try again.');
         });
     }
   }, []);
@@ -57,7 +57,6 @@ const AlhanAdmin = () => {
             setTeachers(teacherList);
           },
           (error) => {
-            console.error('Error fetching teachers:', error);
           }
         );
       return () => unsubscribe();
@@ -82,7 +81,7 @@ const AlhanAdmin = () => {
         });
       setModalVisible(false);
     } catch (error) {
-      console.error('Error saving classes:', error);
+      Alert.alert('Error', 'Could not save classes. Please try again.');
     }
   };
 
@@ -96,7 +95,7 @@ const AlhanAdmin = () => {
           alhanGrades: [],
         });
     } catch (error) {
-      console.error('Error removing teacher:', error);
+      Alert.alert('Error', 'Could not remove teacher. Please try again.');
     }
   };
 

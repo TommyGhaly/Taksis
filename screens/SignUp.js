@@ -62,12 +62,10 @@ const SignUp = ({ navigation }) => {
           await writeUserToDb(updatedUser, updatedUser.displayName);
           navigation.navigate("SelectChurch");
         } else {
-          console.error("Failed to get updated user profile.");
           Alert.alert("Sign Up Error", "Failed to get updated user profile.");
         }
       }
     } catch (error) {
-      console.error("Sign Up Error:", error);
       Alert.alert("Sign Up Error", error.message);
     }
   };
@@ -90,7 +88,7 @@ const SignUp = ({ navigation }) => {
         });
       }
     } catch (error) {
-      console.error("Error handling Firestore operations: ", error);
+      Alert.alert("Database Error", "Failed to write user data to database.");
     }
   };
 
@@ -120,8 +118,6 @@ const SignUp = ({ navigation }) => {
       await writeUserToDb(userCredential.user, userCredential.user.displayName);
       navigation.navigate("SelectChurch");
     } catch (error) {
-      console.error(error);
-      Alert.alert("Google Sign-In Error", error.message);
     }
   };
 
@@ -174,8 +170,6 @@ const SignUp = ({ navigation }) => {
       await writeUserToDb(userCredential.user, formattedFullName);
       navigation.navigate("SelectChurch");
     } catch (error) {
-      console.error("Apple Sign-In Error:", error);
-      Alert.alert("Apple Sign-In Error", error.message);
     }
   };
 

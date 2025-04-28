@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ⲧⲁⲝⲓⲥ",
     "slug": "taksis",
-    "version": "1.1.02",
+    "version": "1.1.03",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",

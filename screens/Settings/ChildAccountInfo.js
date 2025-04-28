@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  Alert,
 } from "react-native";
 import BackArrow from "../../components/backArrow";
 import firestore from "@react-native-firebase/firestore";
@@ -29,12 +30,11 @@ const ChildAccountInfo = ({ route, navigation }) => {
             if (child) {
               setChildData(child);
             } else {
-              console.warn("Child not found in user's document");
             }
           }
         }
       } catch (error) {
-        console.error("Error fetching child data: ", error);
+        Alert.alert("Error", "Could not fetch child data. Please try again.");
       }
     };
 

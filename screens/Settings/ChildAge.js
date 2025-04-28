@@ -94,7 +94,6 @@ const ChildAge = ({ route }) => {
         Alert.alert("Error", "User document does not exist");
       }
     } catch (error) {
-      console.error("Error updating child data: ", error);
       Alert.alert("Error", "Failed to update child data");
     }
   };
