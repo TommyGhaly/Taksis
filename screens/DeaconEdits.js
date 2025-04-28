@@ -82,8 +82,8 @@ const DeaconEdits = () => {
           setLoading(false);
         })
         .catch((error) => {
-          console.error('Error fetching church:', error);
           setLoading(false);
+          Alert.alert('Error', 'Failed to fetch church data.');
         });
     }
   }, []);
@@ -120,7 +120,6 @@ const DeaconEdits = () => {
             }
           },
           (error) => {
-            console.error('Error fetching deacons:', error);
           }
         );
       return () => unsubscribe();
@@ -191,7 +190,7 @@ const DeaconEdits = () => {
 
       animateModalClose();
     } catch (error) {
-      console.error('Error saving edits:', error);
+      Alert.alert('Error', 'Failed to save changes. Please try again.');
     }
   };
 
@@ -265,7 +264,6 @@ const DeaconEdits = () => {
 
               animateModalClose();
             } catch (error) {
-              console.error('Error removing deacon:', error);
               Alert.alert('Error', 'Failed to remove deacon. Please try again.');
             }
           },

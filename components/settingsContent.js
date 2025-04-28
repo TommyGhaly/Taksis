@@ -28,7 +28,6 @@ const SettingsContent = () => {
             }
           },
           (error) => {
-            console.error("Error fetching user roles: ", error);
           }
         );
       return () => unsubscribe();
@@ -76,7 +75,7 @@ const SettingsContent = () => {
               await wait(2);
               await deleteUser(user);
             } catch (error) {
-              await handleSignOut();
+                await handleSignOut();
             } finally {
               setIsLoading(false);
             }

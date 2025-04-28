@@ -49,6 +49,7 @@ async function createNotificationChannel() {
       } else {
       }
     } catch (error) {
+      Alert.alert("Error", "Failed to create notification channel.");
     }
   }
 }
@@ -138,6 +139,7 @@ async function getFCMToken(retries = 3, delay = 1000) {
       }
     }
   } catch (error) {
+    Alert.alert("Error", "Failed to get FCM token.");
   }
 }
 
@@ -160,6 +162,7 @@ async function checkNotificationPermission() {
       await requestUserPermissionAndroid();
     }
   } catch (error) {
+    Alert.alert("Error", "Failed to check notification permission.");
   }
 }
 

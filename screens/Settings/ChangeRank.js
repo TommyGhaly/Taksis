@@ -31,7 +31,6 @@ const ChangeRank = ({ navigation }) => {
         Alert.alert("Select a Rank", "Please select a rank before continuing.");
       }
     } catch (error) {
-      console.error("Error updating user rank: ", error);
       Alert.alert(
         "Error",
         "Could not update rank information. Please try again."

@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Modal,
   Switch,
+  Alert,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
@@ -45,8 +46,11 @@ const AdminManager = () => {
           setLoading(false);
         })
         .catch((error) => {
-          console.error("Error fetching church:", error);
           setLoading(false);
+          Alert.alert(
+            "Error",
+            "Could not fetch user data. Please try again."
+          );
         });
     }
   }, []);
@@ -66,7 +70,6 @@ const AdminManager = () => {
           setUsers(userList);
         },
         (error) => {
-          console.error("Error fetching users:", error);
         }
       );
     return () => unsubscribe();
@@ -103,7 +106,10 @@ const AdminManager = () => {
         .update(roleUpdates);
       setModalVisible(false);
     } catch (error) {
-      console.error("Error saving roles:", error);
+      Alert.alert(
+        "Error",
+        "Could not update roles. Please try again."
+      );
     }
   };
 

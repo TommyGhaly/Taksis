@@ -36,6 +36,7 @@ const SignIn = ({ navigation }) => {
       await auth().signInWithEmailAndPassword(email, password);
       navigation.navigate("MainContainer");
     } catch (error) {
+      Alert.alert("Sign-In Error", error.message);
     }
   };
 
@@ -140,8 +141,7 @@ async function onGoogleButtonPress(navigation) {
     await auth().signInWithCredential(googleCredential);
     navigation.navigate("MainContainer");
   } catch (error) {
-    console.error(error);
-    Alert.alert("Google Sign-In Error", error.message);
+    Alert.alert("Error", "Google Sign-In failed. Please try again.");
   }
 }
 
@@ -184,8 +184,6 @@ async function onAppleButtonPress(navigation) {
     await auth().signInWithCredential(appleCredential);
     navigation.navigate("MainContainer");
   } catch (error) {
-    console.error(error);
-    Alert.alert("Apple Sign-In Error", error.message);
   }
 }
 

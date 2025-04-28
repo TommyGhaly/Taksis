@@ -92,7 +92,6 @@ const IndividualAttendance = () => {
             setLoading(false);
           },
           (error) => {
-            console.error("Firestore snapshot error:", error);
             Alert.alert("Error", "Failed to load student data.");
             setLoading(false);
           }
@@ -103,7 +102,6 @@ const IndividualAttendance = () => {
           isMounted.current = false;
         };
       } catch (error) {
-        console.error("Error setting up Firestore listener:", error);
         Alert.alert("Error", "An unexpected error occurred.");
         setLoading(false);
       }
@@ -156,7 +154,6 @@ const IndividualAttendance = () => {
       setModalVisible(false);
       Alert.alert("Success", "Student information updated successfully.");
     } catch (error) {
-      console.error("Error updating student data:", error);
       Alert.alert("Error", "Failed to update student information.");
     } finally {
       setLoading(false);
@@ -191,7 +188,6 @@ const IndividualAttendance = () => {
                 `${studentData.name || "Student"}'s record has been deleted.`,
               );
             } catch (error) {
-              console.error("Error deleting student:", error);
               Alert.alert("Error", "Failed to delete student record.");
             }
           },

@@ -74,7 +74,6 @@ const EditSchedule = () => {
         } else {
         }
       }, (error) => {
-        console.error("Error listening to user document:", error);
       });
     return () => unsubscribeUser();
   }, [user.uid, churchId]);
@@ -176,7 +175,6 @@ const EditSchedule = () => {
         "https://switch-server-hy6oofbihq-uc.a.run.app"
       );
     } catch (error) {
-      console.error("Error switching readers:", error);
       Alert.alert("Error", "Failed to switch reader.");
     }
     setReaderDropdownIndex(null);
@@ -204,7 +202,6 @@ const EditSchedule = () => {
         "https://switch-server-hy6oofbihq-uc.a.run.app"
       );
     } catch (error) {
-      console.error("Error switching servers:", error);
       Alert.alert("Error", "Failed to switch server.");
     }
     setServerDropdownIndex(null);
@@ -238,7 +235,6 @@ const EditSchedule = () => {
       scrollViewRef.current?.scrollToEnd({ animated: false });
       Alert.alert("Success", "Server added successfully.");
     } catch (error) {
-      console.error("Error adding server:", error);
       Alert.alert("Error", `Failed to add server: ${error.message}`);
     }
   };

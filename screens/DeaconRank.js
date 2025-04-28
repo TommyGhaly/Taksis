@@ -26,7 +26,6 @@ const DeaconRank = ({ navigation }) => {
       });
       navigation.navigate("Experience");
     } catch (error) {
-      console.error("Error updating user deacon: ", error);
       Alert.alert("Error", "Could not update deacon information. Please try again.");
     }
   };

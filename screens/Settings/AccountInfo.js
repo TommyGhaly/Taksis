@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  Alert,
 } from "react-native";
 import BackArrow from "../../components/backArrow";
 import firestore from "@react-native-firebase/firestore";
@@ -29,7 +30,10 @@ const AccountInfo = ({ navigation }) => {
           }
         }
       } catch (error) {
-        console.error("Error fetching user data: ", error);
+        Alert.alert(
+          "Error",
+          "Failed to fetch user data. Please try again."
+        );
       }
     };
 

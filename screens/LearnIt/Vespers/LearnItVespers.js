@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
   Animated,
+  Alert,
 } from "react-native";
 import * as WebBrowser from "expo-web-browser"; // Import Expo WebBrowser
 import BackArrow from "../../../components/backArrow";
@@ -28,7 +29,10 @@ const openUrl = async (url) => {
   try {
     await WebBrowser.openBrowserAsync(url); // Open URL using Expo WebBrowser
   } catch (error) {
-    console.error("Failed to open URL:", error);
+    Alert.alert(
+      "Error",
+      "Failed to open the link. Please try again."
+    );
   }
 };
 

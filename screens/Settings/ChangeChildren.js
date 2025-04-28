@@ -34,7 +34,10 @@ const ChangeChildren = () => {
             }
           },
           (error) => {
-            console.error("Error fetching children data: ", error);
+            Alert.alert(
+              "Error",
+              "Failed to fetch children data. Please try again."
+            );
           }
         );
 
@@ -91,7 +94,6 @@ const ChangeChildren = () => {
                 "Error",
                 "Failed to remove the child. Please try again."
               );
-              console.error("Error removing child: ", error);
             }
           },
         },

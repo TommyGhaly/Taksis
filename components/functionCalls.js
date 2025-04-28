@@ -1,3 +1,5 @@
+import { Alert } from "react-native";
+
 export const callFunction = async (user, url) => {
   try {
     const idToken = await user.getIdToken();
@@ -13,6 +15,10 @@ export const callFunction = async (user, url) => {
 
     const text = await res.text(); // Get server response
   } catch (error) {
+    Alert.alert(
+      "Error",
+      "Failed to call function. Please try again."
+    );
   }
 };
 
@@ -31,10 +37,18 @@ export const callDeleteUser = async (user, church, uid, url) => {
       },
       body: JSON.stringify({ uid: uid, church: church }), // Send the correct uid parameter
     }).catch((error) => {
+      Alert.alert(
+        "Error",
+        "Failed to delete the user. Please try again."
+      );
     });
 
     return;
   } catch (error) {
+    Alert.alert(
+      "Error",
+      "Failed to delete the user. Please try again."
+    );
     return null; // Return null in case of failure
   }
 };
@@ -52,9 +66,17 @@ export const frequencyUpdate = async (user, url) => {
       },
       body: JSON.stringify({}), // Send an empty body if no parameters are needed
     }).catch((error) => {
+      Alert.alert(
+        "Error",
+        "Failed to update frequency. Please try again."
+      );
     });
 
   } catch (error) {
+    Alert.alert(
+      "Error",
+      "Failed to update frequency. Please try again."
+    );
   }
 };
 
@@ -72,9 +94,17 @@ export const removeServer = async (user, church, week, server, url) => {
       },
       body: JSON.stringify({ church: church, week: week, server: server }), // Send the correct uid parameter
     }).catch((error) => {
+      Alert.alert(
+        "Error",
+        "Failed to remove the server. Please try again."
+      );
     });
 
   } catch (error) {
+    Alert.alert(
+      "Error",
+      "Failed to remove the server. Please try again."
+    );
   }
 };
 
@@ -92,9 +122,17 @@ export const addServer = async (user, church, week, url) => {
       },
       body: JSON.stringify({ church: church, week: week }), // Send the correct uid parameter
     }).catch((error) => {
+      Alert.alert(
+        "Error",
+        "Failed to add the server. Please try again."
+      );
     });
 
   } catch (error) {
+    Alert.alert(
+      "Error",
+      "Failed to add the server. Please try again."
+    );
   }
 };
 
@@ -127,8 +165,14 @@ export const switchServers = async (
     });
 
   } catch (error) {
+    Alert.alert(
+      "Error",
+      "Failed to switch servers. Please try again."
+    );
   }
 };
+
+
 export const unavailableToServe = async (user, church, week, family, url) => {
   try {
     // Await the Firebase ID token
@@ -148,9 +192,17 @@ export const unavailableToServe = async (user, church, week, family, url) => {
         family: family,
       }), // Send the correct uid parameter
     }).catch((error) => {
+      Alert.alert(
+        "Error",
+        "Failed to mark as unavailable. Please try again."
+      );
     });
 
   } catch (error) {
+    Alert.alert(
+      "Error",
+      "Failed to mark as unavailable. Please try again."
+    );
   }
 };
 
@@ -168,9 +220,17 @@ export const checkClasses = async (user, url) => {
       },
       body: JSON.stringify({}), // Send the correct uid parameter
     }).catch((error) => {
+      Alert.alert(
+        "Error",
+        "Failed to check classes. Please try again."
+      );
     });
 
   } catch (error) {
+    Alert.alert(
+      "Error",
+      "Failed to check classes. Please try again."
+    );
   }
 };
 
@@ -191,8 +251,16 @@ export const removeFamilySchedule = async (user, church, url) => {
       },
       body: JSON.stringify(payload),
     }).catch((error) => {
+      Alert.alert(
+        "Error",
+        "Failed to remove family from schedule. Please try again."
+      );
     });
 
   } catch (error) {
+    Alert.alert(
+      "Error",
+      "Failed to remove family from schedule. Please try again."
+    );
   }
 };

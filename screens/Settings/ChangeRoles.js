@@ -27,7 +27,6 @@ const ChangeRoles = ({ navigation }) => {
       await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
       Alert.alert("Success", "Roles updated successfully.");
     } catch (error) {
-      console.error("Error updating user roles: ", error);
       Alert.alert("Error", "Could not update roles. Please try again.");
     }
   };

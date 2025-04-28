@@ -181,7 +181,6 @@ const AlhanAttendance = ({ navigation }) => {
           scrollViewRef.current.scrollTo({ y, animated: true });
         },
         () => {
-          console.error("Failed to measure layout for grade:", grade);
         }
       );
     }

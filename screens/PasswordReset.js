@@ -33,7 +33,6 @@ const PasswordReset = ({ navigation }) => {
         navigation.goBack();
       })
       .catch((error) => {
-        console.error("Error sending password reset email: ", error);
         Alert.alert("Error", error.message);
       });
   };

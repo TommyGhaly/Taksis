@@ -46,7 +46,10 @@ const AddChild = ({ navigation }) => {
           }
         }
       } catch (error) {
-        console.error("Error fetching user data: ", error);
+        Alert.alert(
+          "Error",
+          "Failed to fetch user data. Please try again."
+        );
       }
     };
 

@@ -34,7 +34,6 @@ const Experience = ({ navigation }) => {
       });
       navigation.navigate("Frequency", { from: "Experience" });
     } catch (error) {
-      console.error("Error updating user experience: ", error);
       Alert.alert(
         "Error",
         "Could not update experience information. Please try again."
