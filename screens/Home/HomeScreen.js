@@ -46,7 +46,6 @@ async function createNotificationChannel() {
           soundName: "default",
           enableVibration: true,
         });
-      } else {
       }
     } catch (error) {
       Alert.alert("Error", "Failed to create notification channel.");
@@ -181,6 +180,7 @@ const HomeScreen = () => {
   });
   const [currentWeek, setCurrentWeek] = useState();
   const [nextWeek, setNextWeek] = useState();
+  const [nextRole, setNextRole] = useState("N/A");
   const [isDeacon, setIsDeacon] = useState(false);
   const [churchId, setChurchId] = useState(null);
   const [showNameModal, setShowNameModal] = useState(false);
@@ -206,8 +206,7 @@ const HomeScreen = () => {
   }, []);
 
   // Handle background notifications
-  messaging().setBackgroundMessageHandler(async (remoteMessage) => {
-  });
+  messaging().setBackgroundMessageHandler(async (remoteMessage) => {});
 
   const formatDate = (date) => {
     return `${(date.getMonth() + 1)
@@ -289,10 +288,7 @@ const HomeScreen = () => {
         await userRef.update({
           name: fullName,
         });
-        await callFunction(
-          user,
-          "https://update-user-hy6oofbihq-uc.a.run.app"
-        );
+        await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
         setUserName(fullName);
         setShowNameModal(false);
         setFirstName("");
@@ -337,8 +333,7 @@ const HomeScreen = () => {
           deleteUser(user);
         }
       },
-      (error) => {
-      }
+      (error) => {}
     );
 
     return () => unsubscribe();
@@ -359,6 +354,9 @@ const HomeScreen = () => {
             setIsDeacon(userData.isDeacon);
             if (userData.nextWeekServe) {
               setNextWeek(userData.nextWeekServe);
+            }
+            if (userData.nextRole) {
+              setNextRole(userData.nextRole);
             }
             if (userData.church && userData.church !== churchId) {
               setChurchId(userData.church);
@@ -385,8 +383,7 @@ const HomeScreen = () => {
             }
           }
         },
-        (error) => {
-        }
+        (error) => {}
       );
     return () => unsubscribeUser();
   }, [churchId]);
@@ -467,7 +464,6 @@ const HomeScreen = () => {
         );
         updatedSchedule.altar = altarServers;
         setSchedule(updatedSchedule);
-      } else {
       }
     });
 
@@ -576,7 +572,7 @@ const HomeScreen = () => {
         <View
           style={[
             styles.modalOverlay,
-            Platform.OS === "ios" && styles.modalOverlayIOS,
+            Platform.Os === "ios" && styles.modalOverlayIOS,
           ]}
         >
           <Animated.View
@@ -610,10 +606,7 @@ const HomeScreen = () => {
                 </Pressable>
               )}
             </View>
-            <Pressable
-              style={styles.confirmButton}
-              onPress={handleDOBSubmit}
-            >
+            <Pressable style={styles.confirmButton} onPress={handleDOBSubmit}>
               <Text style={styles.confirmButtonText}>Submit</Text>
             </Pressable>
           </Animated.View>
@@ -732,6 +725,7 @@ const HomeScreen = () => {
             <Text style={styles.nextServiceText}>
               Your next service is on: {nextWeek}
             </Text>
+            <Text style={styles.nextRoleText}>{nextRole}</Text>
             <TouchableOpacity
               style={styles.unavailableButton}
               onPress={handleUnavailableToServe}
@@ -819,6 +813,13 @@ const styles = StyleSheet.create({
     color: "#e0e0e0",
     textAlign: "center",
     marginBottom: 5,
+  },
+  nextRoleText: {
+    fontSize: 20,
+    color: "#e0e0e0",
+    textAlign: "center",
+    marginBottom: 5,
+    fontWeight: "bold",
   },
   unavailableButton: {
     backgroundColor: "#ff3b30",

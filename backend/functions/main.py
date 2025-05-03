@@ -124,7 +124,7 @@ def catholic(deacons):
         else:
 
             value += 2.4
-        
+
         if int(deacon["age"]) < 12:
             value = -40
 
@@ -151,7 +151,7 @@ def praxis(deacons):
         else:
 
             value += 2.4
-        
+
         if int(deacon["age"]) < 12:
             value = -40
 
@@ -181,7 +181,7 @@ def gospel(deacons):
         else:
 
             value += 5
-        
+
         if int(deacon["age"]) < 16:
             value = -40
 
@@ -457,7 +457,7 @@ async def my_async_scheduled_function(event: scheduler_fn.ScheduledEvent):
         start_date = datetime.datetime.now()
 
         if not schedules:
-            for i in range(1,6):
+            for i in range(1, 6):
                 deacons = await get_deacons(doc.id)
                 schedule = await create_schedule(
                     deacons, doc.reference, num_altar_servers
@@ -547,7 +547,6 @@ def remove_user_from_churches(user_id):
             servant.reference.delete()
             updated_data = True
 
-
         church_data["deacons"] = filtered_deacons
 
         # Update Firestore only if changes were made
@@ -582,16 +581,17 @@ def add_user_to_churches(user_data):
     # Ensure user_data is properly filtered
     user_data = filter_data(user_data)
 
-
     # Check if age is present; if not, calculate it from DOB if available
-    if 'age' not in user_data and 'DOB' not in user_data:
+    if "age" not in user_data and "DOB" not in user_data:
         return https_fn.Response("User does not have age or DOB")
-    elif not(isinstance(user_data.get("DOB"), type(None))) and isinstance(user_data.get("age"), type(None)):
+    elif not (isinstance(user_data.get("DOB"), type(None))) and isinstance(
+        user_data.get("age"), type(None)
+    ):
         user_data["age"] = calc_age(user_data["DOB"])
     elif not isinstance(user_data.get("age"), type(None)):
         pass
     else:
-        return f'user: {user_data['name']} does not have age or DOB'
+        return f"user: {user_data['name']} does not have age or DOB"
     # Retrieve the specific church document based on the user's church ID
     church_id = user_data.get("church")
     if not church_id:
@@ -884,7 +884,7 @@ def update_user_frequency(req: https_fn.Request) -> https_fn.Response:
         sync_child_params(mock_request)
         update_user(mock_request)
     return https_fn.Response(
-         f"Successfully updated user' frequency and synced with chidlren", status=200
+        f"Successfully updated user' frequency and synced with chidlren", status=200
     )
 
 
@@ -991,7 +991,8 @@ def delete_child(req: https_fn.Request) -> https_fn.Response:
         unavailable_for_week(mock_request)
 
     return https_fn.Response("child deleted", status=200)
-    
+
+
 @https_fn.on_request()
 def delete_user(req: https_fn.Request) -> https_fn.Response:
     try:
@@ -1524,13 +1525,37 @@ def reset_next_dates(church_id):
     for user in users_docs:
         user_data = user.to_dict()
         if user_data.get("church") == church_id:
-            user.reference.update({"nextWeekServe": "N/A"})
+            user.reference.update({"nextWeekServe": "N/A", "nextRole": "N/A"})
     return
 
+def interpret_role(role):
+    if role == "N/A":
+        return "N/A"
+    elif role == "matins":
+        return "Matins Gospel Reader"
+    elif role == "third":
+        return "Third"
+    elif role == "sixth":
+        return "Sixth Hour Gospel Reader"
+    elif role == "pauline":
+        return "Pauline Epistle Reader"
+    elif role == "catholic":
+        return "Catholic Epistle Reader"
+    elif role == "praxis":
+        return "Praxis Reader"
+    elif role == "gospel":
+        return "Gospel Reader"
+    elif role == "water":
+        return "Water Bearer"
+    elif role == "wine":
+        return "Wine Bearer"
+    elif role == "altar":
+        return "Altar Server"
 
-def set_user_next_week(user_id, week):
+def set_user_next_week(user_id, week, role):
     firestore_client = firestore.Client()
     user_ref = firestore_client.collection("users").document(user_id)
+    role = interpret_role(role)
     # Run the get() method in a separate thread
     user_data = user_ref.get()
     if user_data.exists:
@@ -1538,6 +1563,7 @@ def set_user_next_week(user_id, week):
         next_week_serve = user_info.get("nextWeekServe")  # May be None
         if next_week_serve == "N/A" or not next_week_serve:
             user_info["nextWeekServe"] = week
+            user_info["nextRole"] = role
             user_ref.set(user_info)
             return
 
@@ -1552,11 +1578,10 @@ def set_user_next_week(user_id, week):
             # Update only if the new date is earlier
             if new_date < existing_date:
                 user_info["nextWeekServe"] = week
+                user_info["nextRole"] = role
                 user_ref.set(user_info)
         except ValueError as e:
-            return https_fn.Response(
-                f"Invalid date format: {str(e)}", status=400
-            )
+            return https_fn.Response(f"Invalid date format: {str(e)}", status=400)
     else:
         return
 
@@ -1586,12 +1611,12 @@ def set_next_week_serve(church_id):
                 for altar_server in value:
                     for individual_key, individual_value in altar_server.items():
                         if individual_key == "uid" and individual_value != "N/A":
-                            set_user_next_week(individual_value, str(schedule_id))
+                            set_user_next_week(individual_value, str(schedule_id), key)
 
             if isinstance(value, dict):
                 for individual_key, individual_value in value.items():
                     if individual_key == "uid" and individual_value != "N/A":
-                        set_user_next_week(individual_value, str(schedule_id))
+                        set_user_next_week(individual_value, str(schedule_id), key)
 
     return
 
@@ -1646,52 +1671,66 @@ def create_test_data(req: https_fn.Request) -> https_fn.Response:
 
 
 grades_list = [
-    'Pre-School - Age 3', 'Pre-School - Age 4', 'Kindergarten', '1st Grade', '2nd Grade',
-    '3rd Grade', '4th Grade', '5th Grade', '6th Grade', '7th Grade', '8th Grade',
-    '9th Grade', '10th Grade', '11th Grade', '12th Grade', 'College'
+    "Pre-School - Age 3",
+    "Pre-School - Age 4",
+    "Kindergarten",
+    "1st Grade",
+    "2nd Grade",
+    "3rd Grade",
+    "4th Grade",
+    "5th Grade",
+    "6th Grade",
+    "7th Grade",
+    "8th Grade",
+    "9th Grade",
+    "10th Grade",
+    "11th Grade",
+    "12th Grade",
+    "College",
 ]
+
 
 def clean_student_data(student_data):
     current_year = datetime.datetime.now().year
     cleaned = {}
     for key, val in student_data.items():
-        if key.lower() == 'birthday':
+        if key.lower() == "birthday":
             cleaned[key] = val
-        elif re.fullmatch(r'\d{2}-\d{2}-\d{4}', key):
-            year = int(key.split('-')[2])
+        elif re.fullmatch(r"\d{2}-\d{2}-\d{4}", key):
+            year = int(key.split("-")[2])
             if year == current_year:
                 cleaned[key] = val
         else:
             cleaned[key] = val
 
-    grade = cleaned.get('grade')
-    if grade in grades_list and grade != 'College':
-        cleaned['grade'] = grades_list[grades_list.index(grade) + 1]
+    grade = cleaned.get("grade")
+    if grade in grades_list and grade != "College":
+        cleaned["grade"] = grades_list[grades_list.index(grade) + 1]
     return cleaned
+
 
 def move_and_clean_students(church_ref, class_name):
     cls = church_ref.collection(class_name)
     # Walk backwards through grades, skipping 'College'
     for i in reversed(range(1, len(grades_list))):
         current, prev = grades_list[i], grades_list[i - 1]
-        if current != 'College':
+        if current != "College":
             # 1) wipe out existing
             for s in cls.document(current).collection("students").stream():
                 s.reference.delete()
             # 2) copy + clean from prev
             for s in cls.document(prev).collection("students").stream():
-                cls.document(current)\
-                   .collection("students")\
-                   .document(s.id)\
-                   .set(clean_student_data(s.to_dict()))
+                cls.document(current).collection("students").document(s.id).set(
+                    clean_student_data(s.to_dict())
+                )
 
     # finally, clear Pre-School - Age 3
     for s in cls.document(grades_list[0]).collection("students").stream():
         s.reference.delete()
 
+
 @scheduler_fn.on_schedule(
-    schedule="0 0 11 9 *",
-    timezone=scheduler_fn.Timezone("America/New_York")
+    schedule="0 0 11 9 *", timezone=scheduler_fn.Timezone("America/New_York")
 )
 def new_years_cleanup(event: scheduler_fn.ScheduledEvent) -> None:
     db = firestore.Client()
@@ -1703,14 +1742,16 @@ def new_years_cleanup(event: scheduler_fn.ScheduledEvent) -> None:
         church_count += 1
 
 
-
-
 def calc_age(dob_str):
     if dob_str:
         try:
             dob = datetime.datetime.strptime(dob_str, "%m-%d-%Y")
             today = datetime.datetime.now()
-            age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+            age = (
+                today.year
+                - dob.year
+                - ((today.month, today.day) < (dob.month, dob.day))
+            )
             return age
         except Exception as e:
             return None
@@ -1740,6 +1781,7 @@ def update_ages():
                 update_user(mock_request)
     return https_fn.Response("Ages updated successfully", status=200)
 
+
 @https_fn.on_request()
 def update_all_users(req: https_fn.Request) -> https_fn.Response:
     firestore_client = firestore.Client()
@@ -1750,17 +1792,29 @@ def update_all_users(req: https_fn.Request) -> https_fn.Response:
         update = False
         user_data = user.to_dict()
         church_data = churches_ref.document(user_data["church"]).get().to_dict()
-        if user_data.get("isDeacon") and not deacon_present(user_data["uid"], church_data["deacons"]):
+        if user_data.get("isDeacon") and not deacon_present(
+            user_data["uid"], church_data["deacons"]
+        ):
             update = True
         if user_data.get("isSSTeacher"):
-            if not churches_ref.document(user_data["church"]).collection("Sunday School").document(
-                user_data["uid"]
-            ).get().exists:
+            if (
+                not churches_ref.document(user_data["church"])
+                .collection("Sunday School")
+                .document(user_data["uid"])
+                .get()
+                .exists
+            ):
                 update = True
-        if churches_ref.document(user_data["church"]).collection("Sunday School").document(user_data["uid"]).get().exists:
+        if (
+            churches_ref.document(user_data["church"])
+            .collection("Sunday School")
+            .document(user_data["uid"])
+            .get()
+            .exists
+        ):
             if not user_data.get("isSSTeacher"):
                 update = True
-        
+
         if update:
             print(f"Updating user {user_data['name']}")
             mock_request = Request.from_values(
