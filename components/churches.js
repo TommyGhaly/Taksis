@@ -21,6 +21,11 @@ const DATA = [
     imageName: require("../assets/stMaryArchAMichLogo.png"),
   },
   {
+    id: 4,
+    title: "St. Shenouda and St. Karas, Uxbridge, MA",
+    imageName: require("../assets/stShenoudaStKarasLogo.png"),
+  },
+  {
     id: 3,
     title: "St. Mark, Natick, MA",
     imageName: require("../assets/stMarkLogo.png"),
