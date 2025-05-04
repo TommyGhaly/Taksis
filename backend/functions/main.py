@@ -1528,6 +1528,7 @@ def reset_next_dates(church_id):
             user.reference.update({"nextWeekServe": "N/A", "nextRole": "N/A"})
     return
 
+
 def interpret_role(role):
     if role == "N/A":
         return "N/A"
@@ -1551,6 +1552,7 @@ def interpret_role(role):
         return "Wine Bearer"
     elif role == "altar":
         return "Altar Server"
+
 
 def set_user_next_week(user_id, week, role):
     firestore_client = firestore.Client()
