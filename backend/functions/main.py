@@ -1534,7 +1534,7 @@ def interpret_role(role):
     elif role == "matins":
         return "Matins Gospel Reader"
     elif role == "third":
-        return "Third"
+        return "Third Hour Gospel Reader"
     elif role == "sixth":
         return "Sixth Hour Gospel Reader"
     elif role == "pauline":
