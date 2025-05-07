@@ -56,7 +56,7 @@
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.tghaly.taksis",
-      "versionCode": 4,
+      "versionCode": 5,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
