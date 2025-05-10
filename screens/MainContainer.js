@@ -171,7 +171,7 @@ export default function MainContainer() {
   }, []);
 
   const shouldShowDrawer =
-    userRoles.isAlhan || userRoles.isSSTeacher || userRoles.isServant || userRoles.ssAdmin;
+    userRoles.isAlhan || userRoles.isSSTeacher || userRoles.isServant || userRoles.ssAdmin|| userRoles.admin || userRoles.alhanAdmin || userRoles.superAdmin;
 
   return (
     <NavigationContainer independent={true} theme={myTheme}>
