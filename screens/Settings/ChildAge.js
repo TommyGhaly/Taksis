@@ -86,9 +86,9 @@ const ChildAge = ({ route }) => {
         } else {
           userData.children.push(updatedChildData);
         }
+        navigation.navigate("Settings");
         await userDocRef.update({ children: userData.children });
         await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
-        navigation.navigate("Settings");
         Alert.alert("Success", "Child data updated successfully.");
       } else {
         Alert.alert("Error", "User document does not exist");
