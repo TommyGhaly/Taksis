@@ -35,7 +35,7 @@ initializeApp({
 async function createNotificationChannel() {
   if (Platform.OS === "android") {
     try {
-      await messaging().registerDeviceForRemoteMessages();
+      await messaging().registerDeviceForRemoteMessages_trial;
       if (typeof messaging().createChannel === "function") {
         const channelId = "default_channel";
         await messaging().createChannel({
@@ -344,7 +344,7 @@ const HomeScreen = () => {
     if (!user) {
       return;
     }
-    const unsubscribeකටකමුලු = firestore()
+    const unsubscribeUser = firestore()
       .collection("users")
       .doc(user.uid)
       .onSnapshot(
@@ -399,6 +399,11 @@ const HomeScreen = () => {
       .collection("schedule");
 
     const unsubscribeSchedules = schedulesRef.onSnapshot((snapshot) => {
+      if (!snapshot) {
+        // Prevent processing if snapshot is null or undefined
+        return;
+      }
+
       let closestSchedule = null;
       let closestDate = null;
       let chosenDocId = "";
@@ -406,84 +411,100 @@ const HomeScreen = () => {
 
       // Set up real-time listener for church document
       const churchRef = firestore().collection("churches").doc(churchId);
-      const unsubscribeChurch = churchRef.onSnapshot((churchDoc) => {
-        const fullDeacon = churchDoc.exists ? churchDoc.data().fullDeacon || false : false;
-
-        snapshot.docs.forEach((doc) => {
-          const scheduleData = doc.data();
-          const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
-          const [month, day, year] = scheduleDateStr.split("-").map(Number);
-          const scheduleDate = new Date(2000 + year, month - 1, day).setHours(
-            0,
-            0,
-            0,
-            0
-          );
-
-          if (
-            !closestDate ||
-            Math.abs(scheduleDate - today) < Math.abs(closestDate - today)
-          ) {
-            closestDate = scheduleDate;
-            closestSchedule = scheduleData;
-            chosenDocId = doc.id;
-          }
-        });
-
-        if (closestSchedule) {
-          setCurrentWeek(chosenDocId);
-          const defaultSchedule = {
-            matins: { name: "N/A" },
-            third: { name: "N/A" },
-            sixth: { name: "N/A" },
-            pauline: { name: "N/A" },
-            catholic: { name: "N/A" },
-            praxis: { name: "N/A" },
-            gospel: { name: "N/A" },
-            water: { name: "N/A" },
-            wine: { name: "N/A" },
-            altar: [],
-          };
-
-          const updatedSchedule = {
-            ...defaultSchedule,
-            ...closestSchedule,
-          };
-
-          if (!Array.isArray(updatedSchedule.altar)) {
-            updatedSchedule.altar = [];
+      const unsubscribeChurch = churchRef.onSnapshot(
+        (churchDoc) => {
+          if (!churchDoc.exists) {
+            // Handle case where church document does not exist
+            console.warn("Church document does not exist for churchId:", churchId);
+            return;
           }
 
-          const altarServers = [];
-          if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
-            altarServers.push(updatedSchedule.water);
-          }
-          if (
-            !fullDeacon &&
-            updatedSchedule.wine &&
-            typeof updatedSchedule.wine === "object"
-          ) {
-            altarServers.push(updatedSchedule.wine);
-          }
+          const fullDeacon = churchDoc.data().fullDeacon || false;
 
-          altarServers.push(
-            ...updatedSchedule.altar.filter(
-              (server) => server && typeof server === "object"
-            )
-          );
-          updatedSchedule.altar = altarServers;
-          setSchedule(updatedSchedule);
+          snapshot.docs.forEach((doc) => {
+            const scheduleData = doc.data();
+            const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
+            const [month, day, year] = scheduleDateStr.split("-").map(Number);
+            const scheduleDate = new Date(2000 + year, month - 1, day).setHours(
+              0,
+              0,
+              0,
+              0
+            );
+
+            if (
+              !closestDate ||
+              Math.abs(scheduleDate - today) < Math.abs(closestDate - today)
+            ) {
+              closestDate = scheduleDate;
+              closestSchedule = scheduleData;
+              chosenDocId = doc.id;
+            }
+          });
+
+          if (closestSchedule) {
+            setCurrentWeek(chosenDocId);
+            const defaultSchedule = {
+              matins: { name: "N/A" },
+              third: { name: "N/A" },
+              sixth: { name: "N/A" },
+              pauline: { name: "N/A" },
+              catholic: { name: "N/A" },
+              praxis: { name: "N/A" },
+              gospel: { name: "N/A" },
+              water: { name: "N/A" },
+              wine: { name: "N/A" },
+              altar: [],
+            };
+
+            const updatedSchedule = {
+              ...defaultSchedule,
+              ...closestSchedule,
+            };
+
+            if (!Array.isArray(updatedSchedule.altar)) {
+              updatedSchedule.altar = [];
+            }
+
+            const altarServers = [];
+            if (
+              updatedSchedule.water &&
+              typeof updatedSchedule.water === "object"
+            ) {
+              altarServers.push(updatedSchedule.water);
+            }
+            if (
+              !fullDeacon &&
+              updatedSchedule.wine &&
+              typeof updatedSchedule.wine === "object"
+            ) {
+              altarServers.push(updatedSchedule.wine);
+            }
+
+            altarServers.push(
+              ...updatedSchedule.altar.filter(
+                (server) => server && typeof server === "object"
+              )
+            );
+            updatedSchedule.altar = altarServers;
+            setSchedule(updatedSchedule);
+          }
+        },
+        (error) => {
+          console.error("Error in church document listener:", error);
         }
-      }, (error) => {
-        console.error("Error in church document listener:", error);
-      });
+      );
 
       // Return cleanup function for both listeners
       return () => {
-        unsubscribeSchedules();
         unsubscribeChurch();
+        unsubscribeSchedules();
       };
+    }, (error) => {
+      console.error("Error in schedules listener:", error);
     });
+
+    return () => unsubscribeSchedules();
   }, [churchId]);
 
   const handleUnavailableToServe = async () => {
@@ -588,7 +609,7 @@ const HomeScreen = () => {
         <View
           style={[
             styles.modalOverlay,
-            Platform.Os === "ios" && styles.modalOverlayIOS,
+            Platform.OS === "ios" && styles.modalOverlayIOS,
           ]}
         >
           <Animated.View

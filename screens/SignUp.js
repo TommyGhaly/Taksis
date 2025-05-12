@@ -7,6 +7,8 @@ import {
   Pressable,
   Alert,
   Image,
+  Dimensions,
+  Platform,
 } from "react-native";
 import auth from "@react-native-firebase/auth";
 import firestore from "@react-native-firebase/firestore";
@@ -16,6 +18,19 @@ import ProgressBar from "../components/progressBar";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import { useUser } from "../UserContext";
+
+// Get screen dimensions for dynamic scaling
+const { width, height } = Dimensions.get("window");
+
+// Reference dimensions (based on a standard mobile screen, e.g., iPhone X)
+const REFERENCE_WIDTH = 375;
+const REFERENCE_HEIGHT = 812;
+
+// Scaling functions
+const scale = (size) => (width / REFERENCE_WIDTH) * size;
+const verticalScale = (size) => (height / REFERENCE_HEIGHT) * size;
+const moderateScale = (size, factor = 0.5) =>
+  size + (scale(size) - size) * factor;
 
 const SignUp = ({ navigation }) => {
   const [name, setName] = useState("");
@@ -39,7 +54,7 @@ const SignUp = ({ navigation }) => {
       Alert.alert("Error", "Please input a name before continuing.");
       return;
     }
-    const words = name.trim().split(/\s+/).filter(word => word.length > 0);
+    const words = name.trim().split(/\s+/).filter((word) => word.length > 0);
     if (!(words.length >= 2)) {
       Alert.alert("Error", "Please input your first and last name.");
       return;
@@ -119,6 +134,7 @@ const SignUp = ({ navigation }) => {
       await writeUserToDb(userCredential.user, userCredential.user.displayName);
       navigation.navigate("SelectChurch");
     } catch (error) {
+      // Handle error silently as per original code
     }
   };
 
@@ -167,10 +183,13 @@ const SignUp = ({ navigation }) => {
         );
         return;
       }
-      const formattedFullName = fullName ? `${fullName.givenName} ${fullName.familyName}` : "";
+      const formattedFullName = fullName
+        ? `${fullName.givenName} ${fullName.familyName}`
+        : "";
       await writeUserToDb(userCredential.user, formattedFullName);
       navigation.navigate("SelectChurch");
     } catch (error) {
+      // Handle error silently as per original code
     }
   };
 
@@ -248,7 +267,7 @@ const SignUp = ({ navigation }) => {
             buttonStyle={
               AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
             }
-            cornerRadius={12}
+            cornerRadius={moderateScale(12)}
             style={styles.appleButton}
             onPress={onAppleButtonPress}
           />
@@ -261,69 +280,69 @@ const SignUp = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000", // Matches other screens
-    paddingHorizontal: 16, // Matches SelectChurch
-    paddingTop: 80, // Matches SelectChurch
-    paddingBottom: 40, // Matches SelectChurch
+    backgroundColor: "#000",
+    paddingHorizontal: scale(16),
+    paddingTop: verticalScale(80),
+    paddingBottom: verticalScale(40),
   },
   header: {
-    marginBottom: 32, // Matches SelectChurch
+    marginBottom: verticalScale(32),
   },
   backArrow: {
-    marginBottom: 16, // Matches SelectApplicable
+    marginBottom: verticalScale(16),
   },
   progressBar: {
-    height: 6,
+    height: verticalScale(6),
     width: "100%",
-    backgroundColor: "#2A2A2A", // Matches SelectChurch
-    borderRadius: 3,
-    marginBottom: 20, // Matches SelectChurch
+    backgroundColor: "#2A2A2A",
+    borderRadius: moderateScale(3),
+    marginBottom: verticalScale(20),
   },
   titleText: {
-    fontSize: 36,
-    fontFamily: "Roboto-Regular",
+    fontSize: moderateScale(36),
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
     fontWeight: "600",
-    color: "#E0E0E0", // Matches other screens
-    lineHeight: 42,
-    textAlign: "left", // Matches SelectChurch
+    color: "#E0E0E0",
+    lineHeight: moderateScale(42),
+    textAlign: "left",
   },
   content: {
-    marginBottom: 24, // Matches SelectChurch
+    marginBottom: verticalScale(24),
   },
   input: {
-    height: 52, // Matches button height for consistency
+    height: verticalScale(52),
     borderColor: "#8e8e93",
     borderWidth: 1,
-    borderRadius: 12, // Matches SelectChurch
-    paddingHorizontal: 15,
-    fontSize: 18, // Matches other text sizes
-    fontFamily: "Roboto-Regular",
-    color: "#8e8e93", // Matches primary text
-    backgroundColor: "#000", // Matches unselected items
-    marginBottom: 16, // Consistent spacing
+    borderRadius: moderateScale(12),
+    paddingHorizontal: scale(15),
+    fontSize: moderateScale(18),
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+    color: "#8e8e93",
+    backgroundColor: "#000",
+    marginBottom: verticalScale(16),
   },
   footer: {
     paddingTop: 0,
-    paddingBottom: 32, // Matches SelectChurch
+    paddingBottom: verticalScale(32),
     alignItems: "center",
   },
   continueButton: {
-    height: 52, // Matches SelectChurch
-    width: "100%", // Matches SelectChurch
-    backgroundColor: "#147EFB", // Matches SelectChurch
-    borderRadius: 12, // Matches SelectChurch
+    height: verticalScale(52),
+    width: "100%",
+    backgroundColor: "#147EFB",
+    borderRadius: moderateScale(12),
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16, // Matches SelectChurch
+    marginBottom: verticalScale(16),
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowRadius: moderateScale(4),
   },
   continueText: {
-    fontSize: 18, // Matches SelectChurch
-    fontFamily: "Roboto-Medium",
+    fontSize: moderateScale(18),
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
     fontWeight: "600",
     color: "#FFF",
     letterSpacing: -0.2,
@@ -331,57 +350,57 @@ const styles = StyleSheet.create({
   dividerContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 16, // Reduced from 30 for tighter spacing
+    marginVertical: verticalScale(16),
   },
   divider: {
     flex: 1,
     height: 1,
     backgroundColor: "#B0BEC5",
-    opacity: 0.3, // Matches Choices divider
+    opacity: 0.3,
   },
   orText: {
-    marginHorizontal: 10,
-    fontSize: 16,
-    fontFamily: "Roboto-Regular",
-    color: "#B0BEC5", // Matches secondary text
+    marginHorizontal: scale(10),
+    fontSize: moderateScale(16),
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+    color: "#B0BEC5",
   },
   googleButton: {
-    height: 52, // Matches SelectChurch
-    width: "100%", // Matches SelectChurch
-    backgroundColor: "#2A2A2A", // Matches unselected items
-    borderRadius: 12, // Matches SelectChurch
+    height: verticalScale(52),
+    width: "100%",
+    backgroundColor: "#2A2A2A",
+    borderRadius: moderateScale(12),
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16, // Matches SelectChurch
+    marginBottom: verticalScale(16),
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowRadius: moderateScale(4),
   },
   googleIcon: {
-    width: 24, // Slightly larger for visibility
-    height: 24,
-    marginRight: 12,
+    width: moderateScale(24),
+    height: moderateScale(24),
+    marginRight: scale(12),
   },
   socialText: {
-    fontSize: 20, // Matches other button text
-    fontFamily: "Roboto-Medium",
+    fontSize: moderateScale(20),
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
     fontWeight: "600",
-    color: "#E0E0E0", // Matches primary text
+    color: "#E0E0E0",
     letterSpacing: -0.2,
   },
   appleButtonContainer: {
-    borderWidth: 1, // Adds the border
-    borderColor: "#8e8e93", // Adjust the color as needed
-    borderRadius: 12, // Matches the button's corner radius
-    overflow: "hidden", // Ensures the button doesn't exceed the container's border
-    width: "100%"
+    borderWidth: 1,
+    borderColor: "#8e8e93",
+    borderRadius: moderateScale(12),
+    overflow: "hidden",
+    width: "100%",
   },
   appleButton: {
-    height: 52, // Matches SelectChurch
-    width: "100%", // Matches SelectChurch
+    height: verticalScale(52),
+    width: "100%",
   },
 });
 
