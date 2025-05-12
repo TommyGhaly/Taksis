@@ -315,9 +315,16 @@ def add_person(schedule_list, deacon_list):
     return schedule_list
 
 
-# takes in all the deacons for a church (one at a time) sorts them based off how long it has been since they served and passes them into the other functions
-async def create_schedule(deacons, church_ref, num_altar_servers):
+def sort_full_deacons(deacons):
+    return sorted(deacons, key=lambda x: x.get("weeksSince", 0), reverse=True)
 
+
+# takes in all the deacons for a church (one at a time) sorts them based off how long it has been since they served and passes them into the other functions
+async def create_schedule(deacons, church_ref, num_altar_servers, fullDeacons):
+    fullDeacon = not isinstance(fullDeacons, type(None))
+    fullDeacon = fullDeacon and len(fullDeacons) > 0
+    print(f'fullDeacon: {fullDeacon}')  
+    print(f'fullDeadcons: {fullDeacons}')
     sorted_deacons = sort_deacons(deacons)
     schedule = []
 
@@ -329,13 +336,17 @@ async def create_schedule(deacons, church_ref, num_altar_servers):
     praxis_list = praxis(sorted_deacons)
     gospel_list = gospel(sorted_deacons)
     water_list = water(sorted_deacons)
-    wine_list = wine(sorted_deacons)
+    if fullDeacon:
+        wine_list = sort_full_deacons(fullDeacons)
+    else:
+        wine_list = wine(sorted_deacons)
+    print(f'Wine List: {wine_list}')
     altar_list = altar(sorted_deacons)
 
     # makes a list of all the lists besides altar_list
     all_lists = [
-        gospel_list,
         wine_list,
+        gospel_list,
         water_list,
         praxis_list,
         catholic_list,
@@ -354,13 +365,13 @@ async def create_schedule(deacons, church_ref, num_altar_servers):
 
     schedule_dict = {
         "gospel": (
-            {"name": schedule[0]["name"], "uid": schedule[0]["uid"]}
-            if schedule[0] != "N/A"
+            {"name": schedule[1]["name"], "uid": schedule[1]["uid"]}
+            if schedule[1] != "N/A"
             else {"name": "N/A", "uid": str(uuid.uuid4())}
         ),
         "wine": (
-            {"name": schedule[1]["name"], "uid": schedule[1]["uid"]}
-            if schedule[1] != "N/A"
+            {"name": schedule[0]["name"], "uid": schedule[0]["uid"]}
+            if schedule[0] != "N/A"
             else {"name": "N/A", "uid": str(uuid.uuid4())}
         ),
         "water": (
@@ -434,15 +445,20 @@ async def get_deacons(church):
         return "Document does not exist"
 
 
+@https_fn.on_request()
+def force_generate_schedule(req: https_fn.Request) -> https_fn.Response:
+    return asyncio.run(my_async_scheduled_function())
+
+
 @scheduler_fn.on_schedule(
     schedule="0 16 * * 0",  # Every Sunday at 4:00 PM
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def generate_schedule(event: scheduler_fn.ScheduledEvent):
-    return asyncio.run(my_async_scheduled_function(event))
+    return asyncio.run(my_async_scheduled_function())
 
 
-async def my_async_scheduled_function(event: scheduler_fn.ScheduledEvent):
+async def my_async_scheduled_function():
     firestore_client = firestore.Client()
     collection_ref = firestore_client.collection("churches")
     docs = list(collection_ref.stream())  # using synchronous stream for now
@@ -451,6 +467,11 @@ async def my_async_scheduled_function(event: scheduler_fn.ScheduledEvent):
         church_doc = doc.reference.get()
         church_data = church_doc.to_dict()
         num_altar_servers = int(church_data.get("altarServers", 0))
+        full_deacon = church_data.get("fullDeacon", None)
+        if full_deacon:
+            full_deacons = [x for x in church_data.get("deacons", []) if x.get("rank") == "Deacon (Full Deacon)"]
+        else:
+            full_deacons = None
         schedule_ref = doc.reference.collection("schedule")
         schedules = list(schedule_ref.stream())
 
@@ -460,7 +481,7 @@ async def my_async_scheduled_function(event: scheduler_fn.ScheduledEvent):
             for i in range(1, 6):
                 deacons = await get_deacons(doc.id)
                 schedule = await create_schedule(
-                    deacons, doc.reference, num_altar_servers
+                    deacons, doc.reference, num_altar_servers, full_deacons
                 )
                 doc_date = start_date + datetime.timedelta(weeks=i)
                 doc_date_str = doc_date.strftime("%m-%d-%y")
@@ -468,7 +489,9 @@ async def my_async_scheduled_function(event: scheduler_fn.ScheduledEvent):
                 schedule_doc.set(schedule)
         else:
             deacons = await get_deacons(doc.id)
-            schedule = await create_schedule(deacons, doc.reference, num_altar_servers)
+            schedule = await create_schedule(
+                deacons, doc.reference, num_altar_servers, full_deacons
+            )
             # Delete the oldest schedule
             doc_delete_str = start_date.strftime("%m-%d-%y")
             delete_doc_ref = schedule_ref.document(doc_delete_str)
