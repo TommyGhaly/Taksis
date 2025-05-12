@@ -323,8 +323,6 @@ def sort_full_deacons(deacons):
 async def create_schedule(deacons, church_ref, num_altar_servers, fullDeacons):
     fullDeacon = not isinstance(fullDeacons, type(None))
     fullDeacon = fullDeacon and len(fullDeacons) > 0
-    print(f'fullDeacon: {fullDeacon}')  
-    print(f'fullDeadcons: {fullDeacons}')
     sorted_deacons = sort_deacons(deacons)
     schedule = []
 
@@ -340,7 +338,6 @@ async def create_schedule(deacons, church_ref, num_altar_servers, fullDeacons):
         wine_list = sort_full_deacons(fullDeacons)
     else:
         wine_list = wine(sorted_deacons)
-    print(f'Wine List: {wine_list}')
     altar_list = altar(sorted_deacons)
 
     # makes a list of all the lists besides altar_list
@@ -475,7 +472,10 @@ async def my_async_scheduled_function():
         schedule_ref = doc.reference.collection("schedule")
         schedules = list(schedule_ref.stream())
 
-        start_date = datetime.datetime.now()
+        # Use the most recent Sunday as the start date
+        today = datetime.datetime.now()
+        days_since_sunday = (today.weekday() + 1) % 7
+        start_date = today - datetime.timedelta(days=days_since_sunday)
 
         if not schedules:
             for i in range(1, 6):
@@ -505,7 +505,6 @@ async def my_async_scheduled_function():
         set_next_week_serve(doc.id)
 
     return https_fn.Response("Successfully wrote documents to 'schedules' collection.")
-
 
 def generate_test_data(num_people):
     ranks = ["Chanter (Epsaltos)", "Reader", "Subdeacon", "Full Deacon"]
