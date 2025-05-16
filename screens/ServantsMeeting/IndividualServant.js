@@ -200,27 +200,28 @@ const styles = StyleSheet.create({
   statusContainer: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
+    paddingVertical: 12, // Increased padding for more vertical space
     paddingHorizontal: 20,
     borderRadius: 8,
     justifyContent: "center",
     minWidth: 120,
-    marginLeft: 20,
-    height: 40, // Make the status box taller
+    minHeight: 44, // Replaced height with minHeight for flexibility
   },
   statusText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#ffffff", // White text for status
+    color: "#ffffff",
+    lineHeight: 24, // Added lineHeight to ensure consistent text rendering
+    textAlign: "center",
   },
   present: {
-    backgroundColor: "#147efb", // Blue for Present
-    borderColor: "#0f64d2", // Darker blue for the border
+    backgroundColor: "#147efb",
+    borderColor: "#0f64d2",
     borderWidth: 1,
   },
   absent: {
-    backgroundColor: "#F44336", // Red for Absent
-    borderColor: "#D32F2F", // Darker red for the border
+    backgroundColor: "#F44336",
+    borderColor: "#D32F2F",
     borderWidth: 1,
   },
   backArrow: {
