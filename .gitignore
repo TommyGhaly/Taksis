@@ -85,3 +85,7 @@ yarn-error.*
 # @end expo-cli
 
 eas.json
+# Expo
+.expo
+dist/
+web-build/

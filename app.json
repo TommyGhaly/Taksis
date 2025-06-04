@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ⲧⲁⲝⲓⲥ",
     "slug": "taksis",
-    "version": "1.1.07",
+    "version": "1.2.00",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -45,7 +45,9 @@
       "bundleIdentifier": "com.tghaly.taksis",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": ["remote-notification"],
+        "NSCameraUsageDescription": "This app uses the camera to take photos.",
+        "NSPhotoLibraryUsageDescription": "This app accesses your photo library to select images."
       },
       "entitlements": {
         "aps-environment": "production"
@@ -60,7 +62,13 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
-      }
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "VIBRATE"
+      ]
     },
     "web": {},
     "owner": "dgobran",

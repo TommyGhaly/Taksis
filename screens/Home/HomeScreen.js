@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   ScrollView,
@@ -14,35 +14,42 @@ import {
   Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import firestore from "@react-native-firebase/firestore";
-import { initializeApp } from "firebase/app";
+import firestore, { Timestamp } from "@react-native-firebase/firestore";
+import { initializeApp, getApps } from "firebase/app";
 import messaging from "@react-native-firebase/messaging";
 import auth from "@react-native-firebase/auth";
-import * as AppleAuthentication from "expo-apple-authentication";
 import { deleteUser } from "@react-native-firebase/auth";
 import { callFunction, callDeleteUser, unavailableToServe } from "../../components/functionCalls";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { check, request, PERMISSIONS, RESULTS } from "react-native-permissions";
+import * as ImagePicker from "expo-image-picker";
+import { Camera, Constants } from "expo-camera";
+import * as FileSystem from "expo-file-system";
 
-// Initialize Firebase
-initializeApp({
+// Firebase configuration
+const firebaseConfig = {
   projectId: "taksis-a8ba7",
   apiKey: "AIzaSyBWxEgHXcJx19Rklr7P6HhhweT9_I70WkA",
   authDomain: "taksis-a8ba7.firebaseapp.com",
-});
+};
+
+// Initialize Firebase only if not already initialized
+if (!getApps().length) {
+  initializeApp(firebaseConfig);
+}
 
 // Create notification channel for Android with fallback
 async function createNotificationChannel() {
   if (Platform.OS === "android") {
     try {
-      await messaging().registerDeviceForRemoteMessages_trial;
+      await messaging().registerDeviceForRemoteMessages();
       if (typeof messaging().createChannel === "function") {
         const channelId = "default_channel";
         await messaging().createChannel({
           channelId,
           channelName: "Default Notifications",
           description: "Default channel for app notifications",
-          importance: 4, // Importance.HIGH
+          importance: 4,
           soundName: "default",
           enableVibration: true,
         });
@@ -56,7 +63,6 @@ async function createNotificationChannel() {
 // Request notification permissions for Android
 async function requestUserPermissionAndroid() {
   try {
-    // Check POST_NOTIFICATIONS permission only for Android 13+ (API 33)
     if (Platform.OS === "android" && Platform.Version >= 33 && PERMISSIONS.ANDROID.POST_NOTIFICATIONS) {
       const permissionStatus = await check(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
       if (permissionStatus !== RESULTS.GRANTED) {
@@ -140,14 +146,13 @@ async function getFCMToken(retries = 3, delay = 1000) {
   } catch (error) {
     Alert.alert("Error", "Failed to get FCM token.");
   }
+  return null;
 }
 
-// Check and request notification permissions
+// Check notification permissions
 async function checkNotificationPermission() {
   try {
-    // Create notification channel for Android
     await createNotificationChannel();
-
     const authStatus = await messaging().hasPermission();
     const isAuthorized =
       authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
@@ -166,6 +171,7 @@ async function checkNotificationPermission() {
 }
 
 const HomeScreen = () => {
+  // State initialization
   const [schedule, setSchedule] = useState({
     matins: { name: "N/A" },
     third: { name: "N/A" },
@@ -178,27 +184,35 @@ const HomeScreen = () => {
     wine: { name: "N/A" },
     altar: [],
   });
-  const [currentWeek, setCurrentWeek] = useState();
-  const [nextWeek, setNextWeek] = useState();
+  const [currentWeek, setCurrentWeek] = useState(null);
+  const [nextWeek, setNextWeek] = useState(null);
   const [nextRole, setNextRole] = useState("N/A");
   const [isDeacon, setIsDeacon] = useState(false);
   const [churchId, setChurchId] = useState(null);
   const [showNameModal, setShowNameModal] = useState(false);
   const [showDOBModal, setShowDOBModal] = useState(false);
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [showWeekModal, setShowWeekModal] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [userName, setUserName] = useState(null);
   const [date, setDate] = useState(new Date());
   const [tempDate, setTempDate] = useState(date);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const scaleValue = React.useRef(new Animated.Value(0.9)).current;
+  const [selectedWeeks, setSelectedWeeks] = useState([]);
+  const [unavailableWeeks, setUnavailableWeeks] = useState([]);
+  const scaleValue = useRef(new Animated.Value(0.9)).current;
+  const cameraRef = useRef(null);
 
   // Handle foreground notifications
   useEffect(() => {
     const unsubscribe = messaging().onMessage(async (remoteMessage) => {
       Alert.alert(
-        remoteMessage.notification?.title || "Notification",
-        remoteMessage.notification?.body || "You have a new message."
+        remoteMessage?.notification?.title || "Notification",
+        remoteMessage?.notification?.body || "You have a new message."
       );
     });
 
@@ -208,12 +222,40 @@ const HomeScreen = () => {
   // Handle background notifications
   messaging().setBackgroundMessageHandler(async (remoteMessage) => {});
 
+  // Date formatting utility
   const formatDate = (date) => {
+    if (!date) return "N/A";
     return `${(date.getMonth() + 1)
       .toString()
       .padStart(2, "0")}-${date.getDate().toString().padStart(2, "0")}-${date.getFullYear()}`;
   };
 
+  // Get the next five weeks based on current week
+  const getNextFiveWeeks = () => {
+    const weeks = [];
+    if (!currentWeek) {
+      return weeks;
+    }
+
+    const [month, day, year] = currentWeek.split("-").map(Number);
+    const baseDate = new Date(2000 + year, month - 1, day);
+    baseDate.setHours(0, 0, 0, 0);
+
+    const dayOfWeek = baseDate.getDay();
+    if (dayOfWeek !== 0) {
+      baseDate.setDate(baseDate.getDate() + (7 - dayOfWeek));
+    }
+
+    for (let i = 0; i < 5; i++) {
+      const weekDate = new Date(baseDate);
+      weekDate.setDate(baseDate.getDate() + (i * 7));
+      weeks.push(formatDate(weekDate));
+    }
+
+    return weeks;
+  };
+
+  // Handle date picker change
   const handleDateChange = (event, selectedDate) => {
     if (event.type === "dismissed") {
       setShowDatePicker(false);
@@ -227,6 +269,7 @@ const HomeScreen = () => {
     }
   };
 
+  // Handle date of birth submission
   const handleDOBSubmit = async () => {
     const user = auth().currentUser;
     if (!user) {
@@ -248,11 +291,11 @@ const HomeScreen = () => {
 
       const userDoc = await userRef.get();
       const userData = userDoc.data();
-      if (userData.children && userData.children.length > 0) {
+      if (userData?.children?.length > 0) {
         const church = userData.church || null;
         await Promise.all(
           userData.children.map(async (child) => {
-            if (child.uid) {
+            if (child?.uid) {
               await callDeleteUser(
                 user,
                 church,
@@ -269,11 +312,13 @@ const HomeScreen = () => {
       }
 
       setShowDOBModal(false);
+      setShowPhoneModal(true);
     } catch (error) {
       Alert.alert("Error", "Failed to update date of birth. Please try again.");
     }
   };
 
+  // Handle name submission
   const handleNameSubmit = async () => {
     if (!firstName.trim() || !lastName.trim()) {
       Alert.alert("Error", "Please enter both first and last names.");
@@ -299,10 +344,217 @@ const HomeScreen = () => {
     }
   };
 
+  // Handle phone number submission
+  const handlePhoneSubmit = async () => {
+    const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+    if (!phoneNumber.trim() || !phoneRegex.test(phoneNumber.trim())) {
+      Alert.alert("Error", "Please enter a valid phone number (e.g., +1234567890).");
+      return;
+    }
+
+    const user = auth().currentUser;
+    if (user) {
+      try {
+        const userRef = firestore().collection("users").doc(user.uid);
+        await userRef.update({
+          phone: phoneNumber.trim(),
+        });
+        await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
+        setShowPhoneModal(false);
+        setShowPhotoModal(true);
+      } catch (error) {
+        Alert.alert("Error", "Failed to update phone number. Please try again.");
+      }
+    }
+  };
+
+  // Request camera permission
+  const requestCameraPermission = async () => {
+    const { status } = await Camera.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Error", "Camera permission is required to take a photo.");
+      return false;
+    }
+    return true;
+  };
+
+  // Request gallery permission
+  const requestGalleryPermission = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Error", "Gallery permission is required to select a photo.");
+      return false;
+    }
+    return true;
+  };
+
+  // Handle taking a photo
+  const handleTakePhoto = async () => {
+    const hasPermission = await requestCameraPermission();
+    if (!hasPermission) return;
+    setShowCamera(true);
+  };
+
+  // Capture photo from camera
+  const handleCapturePhoto = async () => {
+    if (cameraRef.current) {
+      try {
+        const photo = await cameraRef.current.takePictureAsync({ quality: 0.5 });
+        if (photo?.uri) {
+          await uploadPhoto(photo.uri);
+          setShowCamera(false);
+        }
+      } catch (error) {
+        Alert.alert("Error", "Failed to capture photo. Please try again.");
+      }
+    }
+  };
+
+  // Handle selecting a photo from gallery
+  const handleSelectPhoto = async () => {
+    const hasPermission = await requestGalleryPermission();
+    if (!hasPermission) return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.5,
+    });
+
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      await uploadPhoto(result.assets[0].uri);
+    }
+  };
+
+  // Upload photo to Firestore
+  const uploadPhoto = async (uri) => {
+    const user = auth().currentUser;
+    if (!user) {
+      Alert.alert("Error", "User not authenticated.");
+      return;
+    }
+
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const photoUrl = `data:image/jpeg;base64,${base64}`;
+
+      const pictureRef = firestore().collection("pictures").doc();
+      await pictureRef.set({
+        userId: user.uid,
+        photoUrl,
+        createdAt: Timestamp.fromDate(new Date()),
+      });
+
+      const userRef = firestore().collection("users").doc(user.uid);
+      await userRef.update({
+        photoUrl,
+        pictureId: pictureRef.id,
+      });
+
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
+      setShowPhotoModal(false);
+    } catch (error) {
+      Alert.alert("Error", "Failed to save photo. Please try again.");
+    }
+  };
+
+  // Handle unavailable to serve selection
+  const handleUnavailableToServe = async () => {
+    const user = auth().currentUser;
+    if (!user) return;
+
+    setShowWeekModal(true);
+  };
+
+  // Handle week selection for unavailability
+  const handleWeekSelection = async (week) => {
+    if (unavailableWeeks.includes(week)) {
+      Alert.alert("Cannot Undo", "This week is already marked as unavailable and cannot be changed.");
+      return;
+    }
+
+    setSelectedWeeks((prev) => {
+      if (prev.includes(week)) {
+        return prev.filter((w) => w !== week);
+      }
+      return [...prev, week];
+    });
+  };
+
+  // Confirm unavailable weeks
+  const confirmWeekSelection = async () => {
+    if (selectedWeeks.length === 0) {
+      Alert.alert("Error", "Please select at least one week.");
+      return;
+    }
+
+    Alert.alert(
+      "Confirm Unavailability",
+      "This action cannot be undone. You and your children will be marked as unavailable for the selected weeks.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          style: "destructive",
+          onPress: async () => {
+            const user = auth().currentUser;
+            if (!user) {
+              return;
+            }
+
+            try {
+              const userDoc = await firestore()
+                .collection("users")
+                .doc(user.uid)
+                .get();
+
+              if (!userDoc.exists) {
+                return;
+              }
+
+              const userData = userDoc.data();
+              const churchIdFromData = userData?.church;
+
+              await firestore()
+                .collection("users")
+                .doc(user.uid)
+                .update({
+                  unavailableWeeks: firestore.FieldValue.arrayUnion(...selectedWeeks),
+                });
+
+              setUnavailableWeeks((prev) => [...prev, ...selectedWeeks]);
+
+              for (const week of selectedWeeks) {
+                await unavailableToServe(
+                  user,
+                  churchIdFromData,
+                  week,
+                  true,
+                  "https://unavailable-for-week-hy6oofbihq-uc.a.run.app"
+                );
+              }
+
+              Alert.alert("Request Sent", `You have been marked as unavailable for the selected weeks.`);
+              setShowWeekModal(false);
+              setSelectedWeeks([]);
+            } catch (error) {
+              Alert.alert("Error", "Failed to mark as unavailable. Please try again.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Check notification permissions on mount
   useEffect(() => {
     checkNotificationPermission();
   }, []);
 
+  // Listen for user document updates
   useEffect(() => {
     const user = auth().currentUser;
     if (!user) {
@@ -315,30 +567,35 @@ const HomeScreen = () => {
       (doc) => {
         if (doc.exists) {
           const userData = doc.data();
-          const name = userData.name;
+          const name = userData?.name || null;
           setUserName(name);
           const isNameInvalid =
             !name ||
             name === "null null" ||
             name.trim() === "" ||
             !name.includes(" ");
-          const isDOBInvalid = !userData.DOB || userData.DOB.trim() === "";
+          const isDOBInvalid = !userData?.DOB || userData.DOB.trim() === "";
+          const isPhoneInvalid = !userData?.phone || userData.phone.trim() === "";
+          const isPhotoInvalid = !userData?.photoUrl || userData.photoUrl.trim() === "";
           setShowNameModal(isNameInvalid);
           setShowDOBModal(!isNameInvalid && isDOBInvalid);
+          setShowPhoneModal(!isNameInvalid && !isDOBInvalid && isPhoneInvalid);
+          setShowPhotoModal(!isNameInvalid && !isDOBInvalid && !isPhoneInvalid && isPhotoInvalid);
+          setUnavailableWeeks(userData?.unavailableWeeks || []);
         } else {
-          Alert.alert(
-            "Sign up to continue",
-            "Please sign up using this account to continue."
-          );
-          deleteUser(user);
+          Alert.alert("Sign up to continue", "Please sign up using this account to continue.");
+          deleteUser(user).catch(() => {});
         }
       },
-      (error) => {}
+      (error) => {
+        console.error("Error in user document listener:", error);
+      }
     );
 
     return () => unsubscribe();
   }, []);
 
+  // Listen for user role and church updates
   useEffect(() => {
     const user = auth().currentUser;
     if (!user) {
@@ -351,13 +608,9 @@ const HomeScreen = () => {
         (doc) => {
           const userData = doc.data();
           if (userData) {
-            setIsDeacon(userData.isDeacon);
-            if (userData.nextWeekServe) {
-              setNextWeek(userData.nextWeekServe);
-            }
-            if (userData.nextRole) {
-              setNextRole(userData.nextRole);
-            }
+            setIsDeacon(userData.isDeacon || false);
+            setNextWeek(userData.nextWeekServe || null);
+            setNextRole(userData.nextRole || "N/A");
             if (userData.church && userData.church !== churchId) {
               setChurchId(userData.church);
             }
@@ -383,11 +636,14 @@ const HomeScreen = () => {
             }
           }
         },
-        (error) => {}
+        (error) => {
+          console.error("Error in user document listener:", error);
+        }
       );
     return () => unsubscribeUser();
   }, [churchId]);
 
+  // Listen for schedule updates
   useEffect(() => {
     if (!churchId) {
       return;
@@ -399,8 +655,19 @@ const HomeScreen = () => {
       .collection("schedule");
 
     const unsubscribeSchedules = schedulesRef.onSnapshot((snapshot) => {
-      if (!snapshot) {
-        // Prevent processing if snapshot is null or undefined
+      if (!snapshot || snapshot.empty) {
+        setSchedule({
+          matins: { name: "N/A" },
+          third: { name: "N/A" },
+          sixth: { name: "N/A" },
+          pauline: { name: "N/A" },
+          catholic: { name: "N/A" },
+          praxis: { name: "N/A" },
+          gospel: { name: "N/A" },
+          water: { name: "N/A" },
+          wine: { name: "N/A" },
+          altar: [],
+        });
         return;
       }
 
@@ -409,33 +676,23 @@ const HomeScreen = () => {
       let chosenDocId = "";
       const today = new Date().setHours(0, 0, 0, 0);
 
-      // Set up real-time listener for church document
       const churchRef = firestore().collection("churches").doc(churchId);
       const unsubscribeChurch = churchRef.onSnapshot(
         (churchDoc) => {
           if (!churchDoc.exists) {
-            // Handle case where church document does not exist
             console.warn("Church document does not exist for churchId:", churchId);
             return;
           }
 
-          const fullDeacon = churchDoc.data().fullDeacon || false;
+          const fullDeacon = churchDoc.data()?.fullDeacon || false;
 
           snapshot.docs.forEach((doc) => {
             const scheduleData = doc.data();
             const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
             const [month, day, year] = scheduleDateStr.split("-").map(Number);
-            const scheduleDate = new Date(2000 + year, month - 1, day).setHours(
-              0,
-              0,
-              0,
-              0
-            );
+            const scheduleDate = new Date(2000 + year, month - 1, day).setHours(0, 0, 0, 0);
 
-            if (
-              !closestDate ||
-              Math.abs(scheduleDate - today) < Math.abs(closestDate - today)
-            ) {
+            if (!closestDate || Math.abs(scheduleDate - today) < Math.abs(closestDate - today)) {
               closestDate = scheduleDate;
               closestSchedule = scheduleData;
               chosenDocId = doc.id;
@@ -467,24 +724,15 @@ const HomeScreen = () => {
             }
 
             const altarServers = [];
-            if (
-              updatedSchedule.water &&
-              typeof updatedSchedule.water === "object"
-            ) {
+            if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
               altarServers.push(updatedSchedule.water);
             }
-            if (
-              !fullDeacon &&
-              updatedSchedule.wine &&
-              typeof updatedSchedule.wine === "object"
-            ) {
+            if (!fullDeacon && updatedSchedule.wine && typeof updatedSchedule.wine === "object") {
               altarServers.push(updatedSchedule.wine);
             }
 
             altarServers.push(
-              ...updatedSchedule.altar.filter(
-                (server) => server && typeof server === "object"
-              )
+              ...(updatedSchedule.altar || []).filter((server) => server && typeof server === "object")
             );
             updatedSchedule.altar = altarServers;
             setSchedule(updatedSchedule);
@@ -495,60 +743,19 @@ const HomeScreen = () => {
         }
       );
 
-      // Return cleanup function for both listeners
       return () => {
         unsubscribeChurch();
-        unsubscribeSchedules();
       };
     }, (error) => {
-      console.error("Error in schedules listener:", error);
+      console.error("Error loading schedules: ", error);
     });
 
     return () => unsubscribeSchedules();
   }, [churchId]);
 
-  const handleUnavailableToServe = async () => {
-    const user = auth().currentUser;
-    if (!user) {
-      return;
-    }
-
-    Alert.alert(
-      "Confirm Unavailability",
-      "Are you sure you are unavailable? This action cannot be undone, and your children will be marked as unavailable too.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Confirm",
-          onPress: async () => {
-            const userDoc = await firestore()
-              .collection("users")
-              .doc(user.uid)
-              .get();
-            if (!userDoc.exists) {
-              return;
-            }
-            const userData = userDoc.data();
-            const churchIdFromDoc = userData.church;
-            await unavailableToServe(
-              user,
-              churchIdFromDoc,
-              nextWeek,
-              true,
-              "https://unavailable-for-week-hy6oofbihq-uc.a.run.app"
-            );
-            Alert.alert(
-              "Request Sent",
-              "You have been marked as unavailable for this service, and the schedule will update accordingly."
-            );
-          },
-        },
-      ]
-    );
-  };
-
+  // Animate modal scale
   useEffect(() => {
-    if (showDOBModal) {
+    if (showDOBModal || showPhoneModal || showPhotoModal) {
       Animated.spring(scaleValue, {
         toValue: 1,
         friction: 8,
@@ -558,8 +765,9 @@ const HomeScreen = () => {
     } else {
       scaleValue.setValue(0.9);
     }
-  }, [showDOBModal]);
+  }, [showDOBModal, showPhoneModal, showPhotoModal]);
 
+  // Render the component
   return (
     <SafeAreaView style={styles.container}>
       <Modal
@@ -590,11 +798,8 @@ const HomeScreen = () => {
               onChangeText={setLastName}
               autoCapitalize="words"
             />
-            <TouchableOpacity
-              style={styles.confirmButton}
-              onPress={handleNameSubmit}
-            >
-              <Text style={styles.confirmButtonText}>Submit</Text>
+            <TouchableOpacity style={styles.submitButton} onPress={handleNameSubmit}>
+              <Text style={styles.buttonText}>Submit</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -606,17 +811,9 @@ const HomeScreen = () => {
         animationType="none"
         onRequestClose={() => {}}
       >
-        <View
-          style={[
-            styles.modalOverlay,
-            Platform.OS === "ios" && styles.modalOverlayIOS,
-          ]}
-        >
+        <View style={styles.modalOverlay}>
           <Animated.View
-            style={[
-              styles.modalDOBContainer,
-              { transform: [{ scale: scaleValue }] },
-            ]}
+            style={[styles.modalDOBContainer, { transform: [{ scale: scaleValue }] }]}
           >
             <Text style={styles.modalTitle}>We Need Your Date of Birth</Text>
             <Text style={styles.modalSubtitle}>
@@ -633,7 +830,7 @@ const HomeScreen = () => {
                     onChange={handleDateChange}
                     maximumDate={new Date()}
                     textColor="#F0F0F0"
-                    accentColor="#147efb"
+                    accentColor="#147ffb"
                     style={styles.datePicker}
                   />
                 </>
@@ -643,10 +840,95 @@ const HomeScreen = () => {
                 </Pressable>
               )}
             </View>
-            <Pressable style={styles.confirmButton} onPress={handleDOBSubmit}>
-              <Text style={styles.confirmButtonText}>Submit</Text>
+            <Pressable style={styles.submitButton} onPress={handleDOBSubmit}>
+              <Text style={styles.buttonText}>Submit</Text>
             </Pressable>
           </Animated.View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showPhoneModal}
+        transparent={true}
+        animationType="none"
+        onRequestClose={() => {
+          Alert.alert("Required", "You must provide a valid phone number to continue.");
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[styles.modalDOBContainer, { transform: [{ scale: scaleValue }] }]}
+          >
+            <Text style={styles.modalTitle}>We Need Your Phone Number</Text>
+            <Text style={styles.modalSubtitle}>
+              Please provide your phone number to continue (e.g., +1234567890).
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Phone Number"
+              placeholderTextColor="#888"
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              keyboardType="phone-pad"
+              autoCapitalize="none"
+              autoFocus={true}
+            />
+            <Pressable style={styles.submitButton} onPress={handlePhoneSubmit}>
+              <Text style={styles.buttonText}>Submit</Text>
+            </Pressable>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showPhotoModal}
+        transparent={true}
+        animationType="none"
+        onRequestClose={() => {
+          Alert.alert("Required", "You must provide a photo to continue.");
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[styles.modalDOBContainer, { transform: [{ scale: scaleValue }] }]}
+          >
+            <Text style={styles.modalTitle}>We Need Your Photo</Text>
+            <Text style={styles.modalSubtitle}>
+              Please take a photo or select one from your gallery.
+            </Text>
+            <View style={styles.photoButtonContainer}>
+              <Pressable style={styles.photoButton} onPress={handleTakePhoto}>
+                <Ionicons name="camera" size={24} color="#ffffff" />
+              </Pressable>
+              <Pressable style={styles.photoButton} onPress={handleSelectPhoto}>
+                <Ionicons name="image" size={24} color="#ffffff" />
+              </Pressable>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      <Modal visible={showCamera} transparent={true} animationType="slide">
+        <View style={styles.cameraContainer}>
+          <Camera
+            style={styles.camera}
+            ref={cameraRef}
+          >
+            <View style={styles.cameraOverlay}>
+              <View style={styles.faceOutline} />
+            </View>
+            <View style={styles.cameraControls}>
+              <Pressable
+                style={styles.cancelButton}
+                onPress={() => setShowCamera(false)}
+              >
+                <Text style={styles.buttonText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.submitButton} onPress={handleCapturePhoto}>
+                <Text style={styles.buttonText}>Capture</Text>
+              </Pressable>
+            </View>
+          </Camera>
         </View>
       </Modal>
 
@@ -657,17 +939,9 @@ const HomeScreen = () => {
           animationType="none"
           onRequestClose={() => setShowDatePicker(false)}
         >
-          <View
-            style={[
-              styles.modalOverlay,
-              Platform.OS === "ios" && styles.modalOverlayIOS,
-            ]}
-          >
+          <View style={styles.modalOverlay}>
             <Animated.View
-              style={[
-                styles.modalDOBContainer,
-                { transform: [{ scale: scaleValue }] },
-              ]}
+              style={[styles.modalDOBContainer, { transform: [{ scale: scaleValue }] }]}
             >
               <DateTimePicker
                 value={tempDate}
@@ -676,13 +950,55 @@ const HomeScreen = () => {
                 onChange={handleDateChange}
                 maximumDate={new Date()}
                 textColor="#F0F0F0"
-                accentColor="#147efb"
-                style={styles.datePicker}
+                accentColor="#147ffb"
               />
             </Animated.View>
           </View>
         </Modal>
       )}
+
+      <Modal
+        animationType="none"
+        transparent={true}
+        visible={showWeekModal}
+        onRequestClose={() => setShowWeekModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Select Unavailable Weeks</Text>
+            <Text style={styles.modalSubtitle}>
+              This action cannot be undone.
+            </Text>
+            {getNextFiveWeeks().map((week, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.weekButton,
+                  (selectedWeeks.includes(week) || unavailableWeeks.includes(week)) && styles.weekButtonSelected,
+                ]}
+                onPress={() => handleWeekSelection(week)}
+                disabled={unavailableWeeks.includes(week)}
+              >
+                <Text style={styles.weekButtonText}>Week of {week}</Text>
+              </TouchableOpacity>
+            ))}
+            <View style={styles.modalButtonContainer}>
+              <TouchableOpacity
+                style={[styles.submitButton, styles.cancelButton]}
+                onPress={() => {
+                  setShowWeekModal(false);
+                  setSelectedWeeks([]);
+                }}
+              >
+                <Text style={styles.buttonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.submitButton} onPress={confirmWeekSelection}>
+                <Text style={styles.buttonText}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <ScrollView
         style={styles.homescreen}
@@ -691,27 +1007,22 @@ const HomeScreen = () => {
       >
         <Text style={styles.header}>
           Services of Week{"\n"}
-          {currentWeek}
+          {currentWeek || "N/A"}
         </Text>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Readings</Text>
           {[
-            { title: "Matins Gospel", value: schedule.matins.name },
-            { title: "Third Hour Gospel", value: schedule.third.name },
-            { title: "Sixth Hour Gospel", value: schedule.sixth.name },
-            { title: "Pauline Epistle", value: schedule.pauline.name },
-            { title: "Catholic Epistle", value: schedule.catholic.name },
-            { title: "Praxis", value: schedule.praxis.name },
-            { title: "Gospel", value: schedule.gospel.name },
+            { title: "Matins Gospel", value: schedule?.matins?.name || "N/A" },
+            { title: "Third Hour Gospel", value: schedule?.third?.name || "N/A" },
+            { title: "Sixth Hour Gospel", value: schedule?.sixth?.name || "N/A" },
+            { title: "Pauline Epistle", value: schedule?.pauline?.name || "N/A" },
+            { title: "Catholic Epistle", value: schedule?.catholic?.name || "N/A" },
+            { title: "Praxis", value: schedule?.praxis?.name || "N/A" },
+            { title: "Gospel", value: schedule?.gospel?.name || "N/A" },
           ].map((item, index) => (
             <View key={index} style={styles.card}>
-              <Ionicons
-                name="book"
-                size={24}
-                color="#fff"
-                style={styles.icon}
-              />
+              <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
               <Text style={styles.name}>
                 {item.title}: {item.value}
               </Text>
@@ -722,8 +1033,8 @@ const HomeScreen = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Offering of the Lamb</Text>
           {[
-            { title: "Water", value: schedule.water.name },
-            { title: "Wine", value: schedule.wine.name },
+            { title: "Water", value: schedule?.water?.name || "N/A" },
+            { title: "Wine", value: schedule?.wine?.name || "N/A" },
           ].map((item, index) => (
             <View key={index} style={styles.card}>
               <Ionicons
@@ -741,33 +1052,23 @@ const HomeScreen = () => {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Altar Servers</Text>
-          {schedule.altar.map((deacon, index) => (
+          {(schedule?.altar || []).map((server, index) => (
             <View key={index} style={styles.card}>
-              <Ionicons
-                name="people"
-                size={24}
-                color="#fff"
-                style={styles.icon}
-              />
-              <Text style={styles.name}>
-                Altar: {deacon?.name || "Unknown"}
-              </Text>
+              <Ionicons name="people" size={24} color="#fff" style={styles.icon} />
+              <Text style={styles.name}>Altar: {server?.name || "Unknown"}</Text>
             </View>
           ))}
         </View>
 
         {isDeacon && (
           <View style={styles.nextServiceBox}>
-            <Text style={styles.nextServiceHeader}>Next Service Week</Text>
+            <Text style={styles.sectionTitle}>Next Service Week</Text>
             <Text style={styles.nextServiceText}>
-              Your next service is on: {nextWeek}
+              Your next service is on: {nextWeek || "N/A"}
             </Text>
             <Text style={styles.nextRoleText}>{nextRole}</Text>
-            <TouchableOpacity
-              style={styles.unavailableButton}
-              onPress={handleUnavailableToServe}
-            >
-              <Text style={styles.requestButtonText}>Unavailable</Text>
+            <TouchableOpacity style={styles.unavailableButton} onPress={handleUnavailableToServe}>
+              <Text style={styles.requestButtonText}>Select Unavailable Weeks</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -777,6 +1078,7 @@ const HomeScreen = () => {
   );
 };
 
+// Styles for the component
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -838,13 +1140,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  nextServiceHeader: {
-    fontSize: 20,
-    color: "#4d9cff",
-    marginBottom: 10,
-    textAlign: "center",
-    fontWeight: "bold",
-  },
   nextServiceText: {
     fontSize: 16,
     color: "#e0e0e0",
@@ -852,16 +1147,16 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   nextRoleText: {
-    fontSize: 20,
+    fontSize: 18,
     color: "#e0e0e0",
     textAlign: "center",
-    marginBottom: 5,
     fontWeight: "bold",
+    marginBottom: 10,
   },
   unavailableButton: {
     backgroundColor: "#ff3b30",
     paddingVertical: 12,
-    paddingHorizontal: 30,
+    paddingHorizontal: 20,
     borderRadius: 10,
     marginVertical: 10,
     alignSelf: "center",
@@ -869,7 +1164,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 5,
-    elevation: 4,
+    elevation: 5,
   },
   requestButtonText: {
     fontSize: 18,
@@ -886,9 +1181,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
-  },
-  modalOverlayIOS: {
-    justifyContent: "center",
   },
   modalContainer: {
     backgroundColor: "#1e1e1e",
@@ -911,11 +1203,10 @@ const styles = StyleSheet.create({
     elevation: 10,
     borderWidth: 1,
     borderColor: "#333",
-    position: "relative",
   },
   modalTitle: {
-    fontSize: 24,
-    color: "#e0e0e0",
+    fontSize: 20,
+    color: "#fff",
     fontWeight: "bold",
     marginBottom: 10,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
@@ -929,12 +1220,13 @@ const styles = StyleSheet.create({
   },
   input: {
     width: "100%",
-    backgroundColor: "#3c3c3c",
+    backgroundColor: "#333333",
     color: "#e0e0e0",
+    borderColor: "#555",
     padding: 10,
-    borderRadius: 5,
-    marginBottom: 15,
-    fontSize: 16,
+    borderRadius: 10,
+    marginVertical: 10,
+    fontSize: 18,
   },
   datePickerContainer: {
     backgroundColor: "#2A2A2A",
@@ -946,28 +1238,100 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   dateText: {
-    fontSize: 18,
-    color: "#F0F0F0",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-    textAlign: "center",
+    fontSize: 16,
+    color: "#F0FFF0",
     marginBottom: 10,
+    textAlign: Platform.OS === "ios" ? "center" : "center",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   datePicker: {
     width: "100%",
   },
-  confirmButton: {
-    backgroundColor: "#147efb",
+  submitButton: {
+    backgroundColor: "#2196F3",
     paddingVertical: 12,
-    paddingHorizontal: 30,
+    paddingHorizontal: 20,
     borderRadius: 10,
     marginTop: 10,
   },
-  confirmButtonText: {
+  buttonText: {
     fontSize: 18,
     color: "#ffffff",
     fontWeight: "bold",
     textAlign: "center",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  photoButtonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+  },
+  photoButton: {
+    backgroundColor: "#2196F3",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    flex: 1,
+    marginHorizontal: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cameraContainer: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  camera: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  cameraOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "transparent",
+  },
+  faceOutline: {
+    width: 200,
+    height: 280,
+    borderWidth: 2,
+    borderColor: "#fff",
+    borderRadius: 140,
+    backgroundColor: "transparent",
+  },
+  cameraControls: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  cancelButton: {
+    backgroundColor: "#666",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+  },
+  weekButton: {
+    backgroundColor: "#2c2c2c",
+    paddingVertical: 12,
+    borderRadius: 5,
+    marginVertical: 5,
+    width: "100%",
+    alignItems: "center",
+  },
+  weekButtonSelected: {
+    backgroundColor: "#ff3b30",
+  },
+  weekButtonText: {
+    fontSize: 16,
+    color: "#e0e0e0",
+    fontWeight: "500",
+    marginBottom: 5,
+  },
+  modalButtonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    marginTop: 20,
   },
 });
 

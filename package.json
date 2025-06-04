@@ -106,7 +106,10 @@
     "url": "^0.10.3",
     "util": "^0.10.4",
     "uuid": "^10.0.0",
-    "vm-browserify": "^0.0.4"
+    "vm-browserify": "^0.0.4",
+    "expo-image-picker": "~16.0.6",
+    "expo-camera": "~16.0.18",
+    "expo-file-system": "~18.0.12"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
