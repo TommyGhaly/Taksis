@@ -22,23 +22,18 @@ import { deleteUser } from "@react-native-firebase/auth";
 import { callFunction, callDeleteUser, unavailableToServe } from "../../components/functionCalls";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { check, request, PERMISSIONS, RESULTS } from "react-native-permissions";
-import * as ImagePicker from "expo-image-picker";
-import { Camera, Constants } from "expo-camera";
-import * as FileSystem from "expo-file-system";
+import HomeScreenNames from "../../components/homescreenNames";
 
-// Firebase configuration
 const firebaseConfig = {
   projectId: "taksis-a8ba7",
   apiKey: "AIzaSyBWxEgHXcJx19Rklr7P6HhhweT9_I70WkA",
   authDomain: "taksis-a8ba7.firebaseapp.com",
 };
 
-// Initialize Firebase only if not already initialized
 if (!getApps().length) {
   initializeApp(firebaseConfig);
 }
 
-// Create notification channel for Android with fallback
 async function createNotificationChannel() {
   if (Platform.OS === "android") {
     try {
@@ -60,7 +55,6 @@ async function createNotificationChannel() {
   }
 }
 
-// Request notification permissions for Android
 async function requestUserPermissionAndroid() {
   try {
     if (Platform.OS === "android" && Platform.Version >= 33 && PERMISSIONS.ANDROID.POST_NOTIFICATIONS) {
@@ -102,7 +96,6 @@ async function requestUserPermissionAndroid() {
   }
 }
 
-// Request notification permissions for iOS
 async function requestUserPermissionIOS() {
   try {
     const authStatus = await messaging().requestPermission({
@@ -131,7 +124,6 @@ async function requestUserPermissionIOS() {
   }
 }
 
-// Get the Firebase Cloud Messaging token with retry
 async function getFCMToken(retries = 3, delay = 1000) {
   try {
     for (let i = 0; i < retries; i++) {
@@ -149,7 +141,6 @@ async function getFCMToken(retries = 3, delay = 1000) {
   return null;
 }
 
-// Check notification permissions
 async function checkNotificationPermission() {
   try {
     await createNotificationChannel();
@@ -171,7 +162,6 @@ async function checkNotificationPermission() {
 }
 
 const HomeScreen = () => {
-  // State initialization
   const [schedule, setSchedule] = useState({
     matins: { name: "N/A" },
     third: { name: "N/A" },
@@ -192,8 +182,6 @@ const HomeScreen = () => {
   const [showNameModal, setShowNameModal] = useState(false);
   const [showDOBModal, setShowDOBModal] = useState(false);
   const [showPhoneModal, setShowPhoneModal] = useState(false);
-  const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [showCamera, setShowCamera] = useState(false);
   const [showWeekModal, setShowWeekModal] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -205,10 +193,9 @@ const HomeScreen = () => {
   const [selectedWeeks, setSelectedWeeks] = useState([]);
   const [unavailableWeeks, setUnavailableWeeks] = useState([]);
   const scaleValue = useRef(new Animated.Value(0.9)).current;
-  const cameraRef = useRef(null);
 
-  // Handle foreground notifications
   useEffect(() => {
+    constiseksi: true;
     const unsubscribe = messaging().onMessage(async (remoteMessage) => {
       Alert.alert(
         remoteMessage?.notification?.title || "Notification",
@@ -219,10 +206,8 @@ const HomeScreen = () => {
     return unsubscribe;
   }, []);
 
-  // Handle background notifications
   messaging().setBackgroundMessageHandler(async (remoteMessage) => {});
 
-  // Date formatting utility
   const formatDate = (date) => {
     if (!date) return "N/A";
     return `${(date.getMonth() + 1)
@@ -230,7 +215,6 @@ const HomeScreen = () => {
       .padStart(2, "0")}-${date.getDate().toString().padStart(2, "0")}-${date.getFullYear()}`;
   };
 
-  // Get the next five weeks based on current week
   const getNextFiveWeeks = () => {
     const weeks = [];
     if (!currentWeek) {
@@ -255,7 +239,6 @@ const HomeScreen = () => {
     return weeks;
   };
 
-  // Handle date picker change
   const handleDateChange = (event, selectedDate) => {
     if (event.type === "dismissed") {
       setShowDatePicker(false);
@@ -269,7 +252,6 @@ const HomeScreen = () => {
     }
   };
 
-  // Handle date of birth submission
   const handleDOBSubmit = async () => {
     const user = auth().currentUser;
     if (!user) {
@@ -318,7 +300,6 @@ const HomeScreen = () => {
     }
   };
 
-  // Handle name submission
   const handleNameSubmit = async () => {
     if (!firstName.trim() || !lastName.trim()) {
       Alert.alert("Error", "Please enter both first and last names.");
@@ -344,7 +325,6 @@ const HomeScreen = () => {
     }
   };
 
-  // Handle phone number submission
   const handlePhoneSubmit = async () => {
     const phoneRegex = /^\+?[1-9]\d{1,14}$/;
     if (!phoneNumber.trim() || !phoneRegex.test(phoneNumber.trim())) {
@@ -361,107 +341,12 @@ const HomeScreen = () => {
         });
         await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
         setShowPhoneModal(false);
-        setShowPhotoModal(true);
       } catch (error) {
         Alert.alert("Error", "Failed to update phone number. Please try again.");
       }
     }
   };
 
-  // Request camera permission
-  const requestCameraPermission = async () => {
-    const { status } = await Camera.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Error", "Camera permission is required to take a photo.");
-      return false;
-    }
-    return true;
-  };
-
-  // Request gallery permission
-  const requestGalleryPermission = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Error", "Gallery permission is required to select a photo.");
-      return false;
-    }
-    return true;
-  };
-
-  // Handle taking a photo
-  const handleTakePhoto = async () => {
-    const hasPermission = await requestCameraPermission();
-    if (!hasPermission) return;
-    setShowCamera(true);
-  };
-
-  // Capture photo from camera
-  const handleCapturePhoto = async () => {
-    if (cameraRef.current) {
-      try {
-        const photo = await cameraRef.current.takePictureAsync({ quality: 0.5 });
-        if (photo?.uri) {
-          await uploadPhoto(photo.uri);
-          setShowCamera(false);
-        }
-      } catch (error) {
-        Alert.alert("Error", "Failed to capture photo. Please try again.");
-      }
-    }
-  };
-
-  // Handle selecting a photo from gallery
-  const handleSelectPhoto = async () => {
-    const hasPermission = await requestGalleryPermission();
-    if (!hasPermission) return;
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.5,
-    });
-
-    if (!result.canceled && result.assets?.[0]?.uri) {
-      await uploadPhoto(result.assets[0].uri);
-    }
-  };
-
-  // Upload photo to Firestore
-  const uploadPhoto = async (uri) => {
-    const user = auth().currentUser;
-    if (!user) {
-      Alert.alert("Error", "User not authenticated.");
-      return;
-    }
-
-    try {
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      const photoUrl = `data:image/jpeg;base64,${base64}`;
-
-      const pictureRef = firestore().collection("pictures").doc();
-      await pictureRef.set({
-        userId: user.uid,
-        photoUrl,
-        createdAt: Timestamp.fromDate(new Date()),
-      });
-
-      const userRef = firestore().collection("users").doc(user.uid);
-      await userRef.update({
-        photoUrl,
-        pictureId: pictureRef.id,
-      });
-
-      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
-      setShowPhotoModal(false);
-    } catch (error) {
-      Alert.alert("Error", "Failed to save photo. Please try again.");
-    }
-  };
-
-  // Handle unavailable to serve selection
   const handleUnavailableToServe = async () => {
     const user = auth().currentUser;
     if (!user) return;
@@ -469,7 +354,6 @@ const HomeScreen = () => {
     setShowWeekModal(true);
   };
 
-  // Handle week selection for unavailability
   const handleWeekSelection = async (week) => {
     if (unavailableWeeks.includes(week)) {
       Alert.alert("Cannot Undo", "This week is already marked as unavailable and cannot be changed.");
@@ -484,7 +368,6 @@ const HomeScreen = () => {
     });
   };
 
-  // Confirm unavailable weeks
   const confirmWeekSelection = async () => {
     if (selectedWeeks.length === 0) {
       Alert.alert("Error", "Please select at least one week.");
@@ -549,12 +432,10 @@ const HomeScreen = () => {
     );
   };
 
-  // Check notification permissions on mount
   useEffect(() => {
     checkNotificationPermission();
   }, []);
 
-  // Listen for user document updates
   useEffect(() => {
     const user = auth().currentUser;
     if (!user) {
@@ -576,11 +457,9 @@ const HomeScreen = () => {
             !name.includes(" ");
           const isDOBInvalid = !userData?.DOB || userData.DOB.trim() === "";
           const isPhoneInvalid = !userData?.phone || userData.phone.trim() === "";
-          const isPhotoInvalid = !userData?.photoUrl || userData.photoUrl.trim() === "";
           setShowNameModal(isNameInvalid);
           setShowDOBModal(!isNameInvalid && isDOBInvalid);
           setShowPhoneModal(!isNameInvalid && !isDOBInvalid && isPhoneInvalid);
-          setShowPhotoModal(!isNameInvalid && !isDOBInvalid && !isPhoneInvalid && isPhotoInvalid);
           setUnavailableWeeks(userData?.unavailableWeeks || []);
         } else {
           Alert.alert("Sign up to continue", "Please sign up using this account to continue.");
@@ -595,7 +474,6 @@ const HomeScreen = () => {
     return () => unsubscribe();
   }, []);
 
-  // Listen for user role and church updates
   useEffect(() => {
     const user = auth().currentUser;
     if (!user) {
@@ -643,7 +521,6 @@ const HomeScreen = () => {
     return () => unsubscribeUser();
   }, [churchId]);
 
-  // Listen for schedule updates
   useEffect(() => {
     if (!churchId) {
       return;
@@ -753,9 +630,8 @@ const HomeScreen = () => {
     return () => unsubscribeSchedules();
   }, [churchId]);
 
-  // Animate modal scale
   useEffect(() => {
-    if (showDOBModal || showPhoneModal || showPhotoModal) {
+    if (showDOBModal || showPhoneModal) {
       Animated.spring(scaleValue, {
         toValue: 1,
         friction: 8,
@@ -765,9 +641,23 @@ const HomeScreen = () => {
     } else {
       scaleValue.setValue(0.9);
     }
-  }, [showDOBModal, showPhoneModal, showPhotoModal]);
+  }, [showDOBModal, showPhoneModal]);
 
-  // Render the component
+  const readings = [
+    { role: "Matins Gospel", user: schedule.matins || { name: "N/A" } },
+    { role: "Third Hour Gospel", user: schedule.third || { name: "N/A" } },
+    { role: "Sixth Hour Gospel", user: schedule.sixth || { name: "N/A" } },
+    { role: "Pauline Epistle", user: schedule.pauline || { name: "N/A" } },
+    { role: "Catholic Epistle", user: schedule.catholic || { name: "N/A" } },
+    { role: "Praxis", user: schedule.praxis || { name: "N/A" } },
+    { role: "Gospel", user: schedule.gospel || { name: "N/A" } },
+  ];
+
+  const offerings = [
+    { role: "Water", user: schedule.water || { name: "N/A" } },
+    { role: "Wine", user: schedule.wine || { name: "N/A" } },
+  ];
+
   return (
     <SafeAreaView style={styles.container}>
       <Modal
@@ -880,58 +770,6 @@ const HomeScreen = () => {
         </View>
       </Modal>
 
-      <Modal
-        visible={showPhotoModal}
-        transparent={true}
-        animationType="none"
-        onRequestClose={() => {
-          Alert.alert("Required", "You must provide a photo to continue.");
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <Animated.View
-            style={[styles.modalDOBContainer, { transform: [{ scale: scaleValue }] }]}
-          >
-            <Text style={styles.modalTitle}>We Need Your Photo</Text>
-            <Text style={styles.modalSubtitle}>
-              Please take a photo or select one from your gallery.
-            </Text>
-            <View style={styles.photoButtonContainer}>
-              <Pressable style={styles.photoButton} onPress={handleTakePhoto}>
-                <Ionicons name="camera" size={24} color="#ffffff" />
-              </Pressable>
-              <Pressable style={styles.photoButton} onPress={handleSelectPhoto}>
-                <Ionicons name="image" size={24} color="#ffffff" />
-              </Pressable>
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
-
-      <Modal visible={showCamera} transparent={true} animationType="slide">
-        <View style={styles.cameraContainer}>
-          <Camera
-            style={styles.camera}
-            ref={cameraRef}
-          >
-            <View style={styles.cameraOverlay}>
-              <View style={styles.faceOutline} />
-            </View>
-            <View style={styles.cameraControls}>
-              <Pressable
-                style={styles.cancelButton}
-                onPress={() => setShowCamera(false)}
-              >
-                <Text style={styles.buttonText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={styles.submitButton} onPress={handleCapturePhoto}>
-                <Text style={styles.buttonText}>Capture</Text>
-              </Pressable>
-            </View>
-          </Camera>
-        </View>
-      </Modal>
-
       {Platform.OS === "android" && showDatePicker && (
         <Modal
           visible={showDatePicker}
@@ -1012,57 +850,28 @@ const HomeScreen = () => {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Readings</Text>
-          {[
-            { title: "Matins Gospel", value: schedule?.matins?.name || "N/A" },
-            { title: "Third Hour Gospel", value: schedule?.third?.name || "N/A" },
-            { title: "Sixth Hour Gospel", value: schedule?.sixth?.name || "N/A" },
-            { title: "Pauline Epistle", value: schedule?.pauline?.name || "N/A" },
-            { title: "Catholic Epistle", value: schedule?.catholic?.name || "N/A" },
-            { title: "Praxis", value: schedule?.praxis?.name || "N/A" },
-            { title: "Gospel", value: schedule?.gospel?.name || "N/A" },
-          ].map((item, index) => (
-            <View key={index} style={styles.card}>
-              <Ionicons name="book" size={24} color="#fff" style={styles.icon} />
-              <Text style={styles.name}>
-                {item.title}: {item.value}
-              </Text>
-            </View>
+          {readings.map((item, index) => (
+            <HomeScreenNames key={index} role={item.role} user={item.user} />
           ))}
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Offering of the Lamb</Text>
-          {[
-            { title: "Water", value: schedule?.water?.name || "N/A" },
-            { title: "Wine", value: schedule?.wine?.name || "N/A" },
-          ].map((item, index) => (
-            <View key={index} style={styles.card}>
-              <Ionicons
-                name={item.title === "Water" ? "water" : "wine"}
-                size={24}
-                color="#fff"
-                style={styles.icon}
-              />
-              <Text style={styles.name}>
-                {item.title}: {item.value}
-              </Text>
-            </View>
+          {offerings.map((item, index) => (
+            <HomeScreenNames key={index} role={item.role} user={item.user} />
           ))}
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Altar Servers</Text>
-          {(schedule?.altar || []).map((server, index) => (
-            <View key={index} style={styles.card}>
-              <Ionicons name="people" size={24} color="#fff" style={styles.icon} />
-              <Text style={styles.name}>Altar: {server?.name || "Unknown"}</Text>
-            </View>
+          {(schedule?.altar || []).map((user, index) => (
+            <HomeScreenNames key={index} role="Altar" user={user} />
           ))}
         </View>
 
         {isDeacon && (
           <View style={styles.nextServiceBox}>
-            <Text style={styles.sectionTitle}>Next Service Week</Text>
+            <Text style={styles.nextServiceWeek}>Next Service Week</Text>
             <Text style={styles.nextServiceText}>
               Your next service is on: {nextWeek || "N/A"}
             </Text>
@@ -1078,7 +887,6 @@ const HomeScreen = () => {
   );
 };
 
-// Styles for the component
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1105,6 +913,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 22,
     color: "#4d9cff",
+    marginBottom: 10,
+    fontWeight: "bold",
+  },
+  nextServiceWeek: {
+    fontSize: 20,
+    color: "#4d9cff",
+    textAlign: "center",
     marginBottom: 10,
     fontWeight: "bold",
   },
@@ -1261,55 +1076,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
-  photoButtonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-  },
-  photoButton: {
-    backgroundColor: "#2196F3",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    flex: 1,
-    marginHorizontal: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cameraContainer: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-  camera: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  cameraOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "transparent",
-  },
-  faceOutline: {
-    width: 200,
-    height: 280,
-    borderWidth: 2,
-    borderColor: "#fff",
-    borderRadius: 140,
-    backgroundColor: "transparent",
-  },
-  cameraControls: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    padding: 20,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  cancelButton: {
-    backgroundColor: "#666",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-  },
   weekButton: {
     backgroundColor: "#2c2c2c",
     paddingVertical: 12,
@@ -1326,6 +1092,10 @@ const styles = StyleSheet.create({
     color: "#e0e0e0",
     fontWeight: "500",
     marginBottom: 5,
+  },
+  cancelButton: {
+    backgroundColor: "#555",
+    width: "40%",
   },
   modalButtonContainer: {
     flexDirection: "row",

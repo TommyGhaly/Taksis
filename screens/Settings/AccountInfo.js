@@ -63,7 +63,11 @@ const AccountInfo = ({ navigation }) => {
             {userData.email || "example@gmail.com"}
           </Text>
         </View>
-
+        <View style={styles.infoBlock}>
+          <Text style={styles.infoText}>
+            {userData.phone || "1234567890"}
+          </Text>
+        </View>
         {/* Conditionally render the Rank field if the user is a deacon */}
         {userData.isDeacon && (
           <View style={styles.infoBlock}>

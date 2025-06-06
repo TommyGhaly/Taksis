@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Modal, StyleSheet, ActivityIndicator, Alert, Animated } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, Modal, StyleSheet, ActivityIndicator, Alert, Animated, Image } from 'react-native';
 import Slider from '@react-native-community/slider';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
@@ -291,9 +291,29 @@ const DeaconEdits = () => {
       onPress={() => openEditModal(item)}
       activeOpacity={0.7}
     >
+      <View style={styles.deaconImageContainer}>
+        {item.uid ? (
+          <Image
+            source={{ uri: `${item.uid}.png` }}
+            style={styles.deaconImage}
+            defaultSource={require('../assets/default_profile.png')} // Fallback image
+            onError={() => {}}
+          />
+        ) : (
+          <Image
+            source={require('../assets/default_profile.png')}
+            style={styles.deaconImage}
+          />
+        )}
+      </View>
       <View style={styles.deaconInfo}>
         <Text style={styles.deaconName}>{item.name}</Text>
         <Text style={styles.deaconDetail}>Age: {item.age}</Text>
+        {item.number ? (
+          <Text style={styles.deaconDetail}>Phone: {item.number}</Text>
+        ) : (
+          <Text style={styles.deaconDetail}>Phone: Not provided</Text>
+        )}
         <Text style={styles.deaconDetail}>Experience: {formatNumber(item.experience)}</Text>
         <Text style={styles.deaconDetail}>Frequency: {formatNumber(item.frequency)}</Text>
       </View>
@@ -343,7 +363,22 @@ const DeaconEdits = () => {
             ]}
           >
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit {selectedDeacon?.name}</Text>
+              <View style={styles.modalHeaderContent}>
+                {selectedDeacon?.uid ? (
+                  <Image
+                    source={{ uri: `${selectedDeacon.uid}.png` }}
+                    style={styles.modalImage}
+                    defaultSource={require('../assets/default_profile.png')}
+                    onError={() => {}}
+                  />
+                ) : (
+                  <Image
+                    source={require('../assets/default_profile.png')}
+                    style={styles.modalImage}
+                  />
+                )}
+                <Text style={styles.modalTitle}>Edit {selectedDeacon?.name}</Text>
+              </View>
               <TouchableOpacity
                 style={styles.closeButton}
                 onPress={handleCancel}
@@ -352,6 +387,12 @@ const DeaconEdits = () => {
                 <Ionicons name="close" size={24} color="#fff" />
               </TouchableOpacity>
             </View>
+
+            {selectedDeacon?.number ? (
+              <Text style={styles.modalDetail}>Phone: {selectedDeacon.number}</Text>
+            ) : (
+              <Text style={styles.modalDetail}>Phone: Not provided</Text>
+            )}
 
             <View style={styles.sliderContainer}>
               <Text style={styles.sliderLabel}>
@@ -468,6 +509,16 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  deaconImageContainer: {
+    marginRight: 12,
+  },
+  deaconImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
   deaconInfo: {
     flex: 1,
   },
@@ -491,12 +542,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000000', // Solid black
+    backgroundColor: '#000000',
   },
   modalContent: {
     width: '92%',
     maxWidth: 400,
-    backgroundColor: '#222222', // Solid dark gray
+    backgroundColor: '#222222',
     borderRadius: 20,
     padding: 24,
     shadowColor: '#000',
@@ -505,7 +556,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
     borderWidth: 1,
-    borderColor: '#333333', // Solid border
+    borderColor: '#333333',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -514,7 +565,20 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333', // Solid divider
+    borderBottomColor: '#333333',
+  },
+  modalHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  modalImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: '#333333',
   },
   modalTitle: {
     fontSize: 22,
@@ -522,15 +586,21 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     letterSpacing: 0.5,
   },
+  modalDetail: {
+    fontSize: 14,
+    color: '#aaa',
+    marginBottom: 20,
+    marginLeft: 16,
+  },
   closeButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#444444', // Solid gray
+    backgroundColor: '#444444',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#555555', // Solid border
+    borderColor: '#555555',
   },
   sliderContainer: {
     marginVertical: 20,
@@ -590,19 +660,19 @@ const styles = StyleSheet.create({
     flex: 0,
     width: 48,
     paddingVertical: 12,
-    backgroundColor: '#ff4444', // Solid red
+    backgroundColor: '#ff4444',
     borderWidth: 1,
-    borderColor: '#cc3333', // Solid border
+    borderColor: '#cc3333',
   },
   cancelButton: {
-    backgroundColor: '#555555', // Solid gray
+    backgroundColor: '#555555',
     borderWidth: 1,
-    borderColor: '#444444', // Solid border
+    borderColor: '#444444',
   },
   confirmButton: {
-    backgroundColor: '#147efb', // Solid blue
+    backgroundColor: '#147efb',
     borderWidth: 1,
-    borderColor: '#1167d0', // Solid border
+    borderColor: '#1167d0',
   },
   buttonText: {
     color: '#ffffff',

@@ -1,9 +1,10 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator, Image } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import storage from "@react-native-firebase/storage";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useUser } from "../UserContext";
 import { callFunction, removeFamilySchedule } from "./functionCalls";
@@ -14,10 +15,12 @@ const SettingsContent = () => {
   const navigation = useNavigation();
   const [userRoles, setUserRoles] = useState({ name: "" });
   const [isLoading, setIsLoading] = useState(false);
+  const [imageUrl, setImageUrl] = useState(null);
 
   useEffect(() => {
     const user = auth().currentUser;
     if (user) {
+      // Fetch user data
       const unsubscribe = firestore()
         .collection("users")
         .doc(user.uid)
@@ -30,6 +33,18 @@ const SettingsContent = () => {
           (error) => {
           }
         );
+
+      // Fetch profile picture
+      const fetchImage = async () => {
+        try {
+          const url = await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
+          setImageUrl(url);
+        } catch (error) {
+          setImageUrl(null); // Set to null on any error, including object-not-found
+        }
+      };
+      fetchImage();
+
       return () => unsubscribe();
     }
   }, []);
@@ -53,7 +68,6 @@ const SettingsContent = () => {
           style: "destructive",
           onPress: async () => {
             setIsLoading(true);
-            let revokeSubscription;
             try {
               const user = auth().currentUser;
               if (user) {
@@ -75,7 +89,7 @@ const SettingsContent = () => {
               await wait(2);
               await deleteUser(user);
             } catch (error) {
-                await handleSignOut();
+              await handleSignOut();
             } finally {
               setIsLoading(false);
             }
@@ -93,6 +107,19 @@ const SettingsContent = () => {
         </View>
       )}
       <View style={styles.profileSection}>
+        {imageUrl ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.profileImage}
+            defaultSource={require('../assets/default_profile.png')}
+            onError={() => setImageUrl(null)}
+          />
+        ) : (
+          <Image
+            source={require('../assets/default_profile.png')}
+            style={styles.profileImage}
+          />
+        )}
         <Text style={styles.userName}>{userRoles.name}</Text>
       </View>
       <View style={styles.section}>
@@ -109,36 +136,36 @@ const SettingsContent = () => {
         <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangePassword")}>
           <Text style={styles.optionText}>Change password</Text>
         </TouchableOpacity>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Role</Text>
-          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeRank")}>
-            <Text style={styles.optionText}>Change deacon rank</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeRoles")}>
-            <Text style={styles.optionText}>Change church services that apply to you</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("RequestServants")}>
-            <Text style={styles.optionText}>Apply to be a servants meeting tracker</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Children</Text>
-          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeChildren")}>
-            <Text style={styles.optionText}>Change your children</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("AddChild")}>
-            <Text style={styles.optionText}>Add child</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Church Adjustments</Text>
-          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeChurch")}>
-            <Text style={styles.optionText}>Change church</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("RequestAdmin")}>
-            <Text style={styles.optionText}>Apply for admin</Text>
-          </TouchableOpacity>
-        </View>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Role</Text>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeRank")}>
+          <Text style={styles.optionText}>Change deacon rank</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeRoles")}>
+          <Text style={styles.optionText}>Change church services that apply to you</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("RequestServants")}>
+          <Text style={styles.optionText}>Apply to be a servants meeting tracker</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Children</Text>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeChildren")}>
+          <Text style={styles.optionText}>Change your children</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("AddChild")}>
+          <Text style={styles.optionText}>Add child</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Church Adjustments</Text>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeChurch")}>
+          <Text style={styles.optionText}>Change church</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("RequestAdmin")}>
+          <Text style={styles.optionText}>Apply for admin</Text>
+        </TouchableOpacity>
       </View>
       <TouchableOpacity style={styles.signOut} onPress={handleSignOut}>
         <Text style={styles.signOutText}>Log out</Text>
@@ -165,14 +192,23 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   profileSection: {
-    marginBottom: 20,
+    flexDirection: "row",
     alignItems: "center",
+    marginBottom: 20,
+  },
+  profileImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: "#333333",
   },
   userName: {
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: "600",
     color: "#fff",
-    textAlign: "center",
+    flex: 1,
   },
   section: {
     marginBottom: 20,
