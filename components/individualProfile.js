@@ -48,89 +48,109 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
   const [loading, setLoading] = useState(true);
   const [isChild, setIsChild] = useState(false);
 
-  // Fetch image and user data
+  // Fetch image and user data with real-time updates
   useEffect(() => {
-    let intervalId;
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
 
+    // Fetch profile picture URL
     const fetchImage = async () => {
       try {
-        const url = await storage().ref(`profilePictures/${userId}.png`).getDownloadURL();
+        const url = await storage()
+          .ref(`profilePictures/${userId}.png`)
+          .getDownloadURL();
         setImageUrl(url);
       } catch (error) {
         setImageUrl(null);
       }
     };
 
-    const fetchUserData = async () => {
-      try {
-        // Check if user has their own document
-        const userDoc = await firestore().collection("users").doc(userId).get();
-        if (userDoc.exists) {
-          const data = userDoc.data();
-          setUserData({
-            name: data.name || "N/A",
-            age: data.age || "N/A",
-            phone: data.number || data.phone || "Not provided",
-            nextWeekServe: data.nextWeekServe || "N/A",
-            nextRole: data.nextRole || "N/A",
-            experience: data.experience || 0,
-            frequency: data.frequency || 0,
-          });
-          setTempExperience(data.experience || 0);
-          setTempFrequency(data.frequency || 0);
-          setIsChild(false);
-        } else {
-          // Iterate through all user documents to find child with matching uid
-          const usersQuery = await firestore().collection("users").get();
-          let childData = null;
-          let parentId = null;
+    // Fetch user data with real-time listener
+    const fetchUserData = () => {
+      // Listen to user document
+      const userUnsubscribe = firestore()
+        .collection("users")
+        .doc(userId)
+        .onSnapshot(
+          (userDoc) => {
+            if (userDoc.exists) {
+              const data = userDoc.data();
+              setUserData({
+                name: data.name || "N/A",
+                age: data.age || "N/A",
+                phone: data.number || data.phone || "Not provided",
+                nextWeekServe: data.nextWeekServe || "N/A",
+                nextRole: data.nextRole || "N/A",
+                experience: data.experience || 0,
+                frequency: data.frequency || 0,
+              });
+              setTempExperience(data.experience || 0);
+              setTempFrequency(data.frequency || 0);
+              setIsChild(false);
+              setLoading(false);
+            } else {
+              // Check for child data
+              const usersQueryUnsubscribe = firestore()
+                .collection("users")
+                .onSnapshot(
+                  (querySnapshot) => {
+                    let childData = null;
+                    let parentId = null;
 
-          for (const doc of usersQuery.docs) {
-            const userData = doc.data();
-            const children = userData.children || [];
-            const child = children.find((child) => child.uid === userId);
-            if (child) {
-              childData = child;
-              parentId = doc.id;
-              break;
+                    for (const doc of querySnapshot.docs) {
+                      const userData = doc.data();
+                      const children = userData.children || [];
+                      const child = children.find((child) => child.uid === userId);
+                      if (child) {
+                        childData = child;
+                        parentId = doc.id;
+                        break;
+                      }
+                    }
+
+                    if (childData) {
+                      setUserData({
+                        name: childData.name || "N/A",
+                        age: childData.age || "N/A",
+                        phone: childData.number || childData.phone || "Not provided",
+                        nextWeekServe: childData.nextWeekServe || "N/A",
+                        nextRole: childData.nextRole || "N/A",
+                        experience: childData.experience || 0,
+                        frequency: childData.frequency || 0,
+                        parentId,
+                      });
+                      setTempExperience(childData.experience || 0);
+                      setTempFrequency(childData.frequency || 0);
+                      setIsChild(true);
+                      setLoading(false);
+                    } else {
+                      setLoading(false);
+                    }
+                  },
+                  (error) => {
+                    setLoading(false);
+                  }
+                );
+
+              return usersQueryUnsubscribe;
             }
+          },
+          (error) => {
+            setLoading(false);
           }
+        );
 
-          if (childData) {
-            setUserData({
-              name: childData.name || "N/A",
-              age: childData.age || "N/A",
-              phone: childData.number || childData.phone || "Not provided",
-              nextWeekServe: childData.nextWeekServe || "N/A",
-              nextRole: childData.nextRole || "N/A",
-              experience: childData.experience || 0,
-              frequency: childData.frequency || 0,
-              parentId,
-            });
-            setTempExperience(childData.experience || 0);
-            setTempFrequency(childData.frequency || 0);
-            setIsChild(true);
-          } else {
-            throw new Error("Child data not found");
-          }
-        }
-        setLoading(false);
-      } catch (error) {
-
-        setLoading(false);
-      }
+      return userUnsubscribe;
     };
 
     fetchImage();
-    fetchUserData();
-
-    if (userId) {
-      intervalId = setInterval(fetchImage, 1000);
-    }
+    const unsubscribeUserData = fetchUserData();
 
     return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
+      if (unsubscribeUserData) {
+        unsubscribeUserData();
       }
     };
   }, [userId]);
@@ -273,10 +293,14 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
 
           <View style={styles.profileImageContainer}>
             <Image
-              source={{ uri: imageUrl || require("../assets/default_profile.png") }}
+              source={{
+                uri: imageUrl,
+              }}
               style={styles.image}
               defaultSource={require("../assets/default_profile.png")}
-              onError={() => setImageUrl(null)}
+              onError={(error) => {
+                setImageUrl(null);
+              }}
             />
           </View>
 
