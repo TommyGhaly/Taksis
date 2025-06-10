@@ -413,6 +413,7 @@ const HomeScreen = () => {
               for (const week of selectedWeeks) {
                 await unavailableToServe(
                   user,
+                  user.uid, 
                   churchIdFromData,
                   week,
                   true,

@@ -12,10 +12,14 @@ import {
 import BackArrow from "../../components/backArrow";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import storage from "@react-native-firebase/storage";
 
 const AccountInfo = ({ navigation }) => {
   const [userData, setUserData] = useState(null); // Initialize as null or {}
-
+  const [imageUrl, setImageUrl] = useState(
+    require("../../assets/default_profile.png")
+  ); // Default image
+  const user = auth().currentUser;
   useEffect(() => {
     const fetchUserData = async () => {
       try {
@@ -30,14 +34,29 @@ const AccountInfo = ({ navigation }) => {
           }
         }
       } catch (error) {
-        Alert.alert(
-          "Error",
-          "Failed to fetch user data. Please try again."
-        );
+        Alert.alert("Error", "Failed to fetch user data. Please try again.");
       }
     };
 
     fetchUserData();
+  }, []);
+
+  useEffect(() => {
+    if (user?.uid) {
+      const fetchImage = async () => {
+        try {
+          const url = await storage()
+            .ref(`profilePictures/${user.uid}.png`)
+            .getDownloadURL();
+          setImageUrl(url);
+        } catch (error) {
+          setImageUrl(null); // Set to null on any error, including object-not-found
+        }
+      };
+      fetchImage();
+    } else {
+      setImageUrl(null);
+    }
   }, []);
 
   if (!userData) {
@@ -54,7 +73,14 @@ const AccountInfo = ({ navigation }) => {
           <BackArrow />
           <Text style={[styles.accountInfo, styles.text]}>Account info</Text>
         </View>
-
+        <View style={styles.profileImageContainer}>
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.profileImage}
+            defaultSource={require("../../assets/default_profile.png")}
+            onError={() => setImageUrl(null)}
+          />
+        </View>
         <View style={styles.infoBlock}>
           <Text style={styles.infoText}>{userData.name || "First Last"}</Text>
         </View>
@@ -64,9 +90,7 @@ const AccountInfo = ({ navigation }) => {
           </Text>
         </View>
         <View style={styles.infoBlock}>
-          <Text style={styles.infoText}>
-            {userData.phone || "1234567890"}
-          </Text>
+          <Text style={styles.infoText}>{userData.phone || "1234567890"}</Text>
         </View>
         {/* Conditionally render the Rank field if the user is a deacon */}
         {userData.isDeacon && (
@@ -163,6 +187,18 @@ const styles = StyleSheet.create({
   vectorIcon: {
     width: 8,
     height: 16,
+  },
+    profileImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    marginTop: 5,
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
+  profileImageContainer: {
+    alignItems: "center",
+    marginBottom: 30,
   },
 });
 

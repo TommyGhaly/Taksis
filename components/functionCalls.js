@@ -173,7 +173,7 @@ export const switchServers = async (
 };
 
 
-export const unavailableToServe = async (user, church, week, family, url) => {
+export const unavailableToServe = async (user, userId, church, week, family, url) => {
   try {
     // Await the Firebase ID token
     const idToken = await user.getIdToken();
@@ -188,7 +188,7 @@ export const unavailableToServe = async (user, church, week, family, url) => {
       body: JSON.stringify({
         church: church,
         week: week,
-        uid: user.uid,
+        uid: userId,
         family: family,
       }), // Send the correct uid parameter
     }).catch((error) => {

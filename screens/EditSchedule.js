@@ -5,17 +5,19 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Alert,
   FlatList,
   Modal,
+  Image,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
+import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import {
   removeServer as removeServerAPI,
   addServer as addServerAPI,
   switchServers as switchServersAPI,
 } from "../components/functionCalls";
+import IndividualProfile from "../components/individualProfile";
 
 // Sample readings list and display names mapping
 const readings = [
@@ -44,66 +46,59 @@ const displayNames = {
 
 const EditSchedule = () => {
   const [churchId, setChurchId] = useState(null);
-  // Week will now be determined dynamically (doc id from the schedule collection)
   const [week, setWeek] = useState(null);
-  // These states now hold only display values
   const [servers, setServers] = useState([]);
   const [assignedReaders, setAssignedReaders] = useState({});
   const [assignedServers, setAssignedServers] = useState({});
-  // New state variables for storing full objects (including uid)
   const [altarServers, setAltarServers] = useState([]);
   const [currentReaders, setCurrentReaders] = useState({});
   const [availableServers, setAvailableServers] = useState([]);
-
   const [serverDropdownIndex, setServerDropdownIndex] = useState(null);
   const [readerDropdownIndex, setReaderDropdownIndex] = useState(null);
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState(null);
   const scrollViewRef = useRef(null);
   const user = auth().currentUser;
 
-  // Realtime listener for user doc to update churchId if it changes
+  // Realtime listener for user doc to update churchId
   useEffect(() => {
     const unsubscribeUser = firestore()
       .collection("users")
       .doc(user.uid)
-      .onSnapshot((doc) => {
-        if (doc.exists) {
-          const userData = doc.data();
-          if (userData?.church && userData.church !== churchId) {
-            setChurchId(userData.church);
+      .onSnapshot(
+        (doc) => {
+          if (doc.exists) {
+            const userData = doc.data();
+            if (userData?.church && userData.church !== churchId) {
+              setChurchId(userData.church);
+            }
           }
-        } else {
+        },
+        (error) => {
+          console.error("Error fetching user data:", error);
         }
-      }, (error) => {
-      });
+      );
     return () => unsubscribeUser();
   }, [user.uid, churchId]);
 
-  // Query the schedule subcollection and determine the nearest upcoming week (schedule)
+  // Query schedule subcollection for nearest week
   useEffect(() => {
     if (churchId) {
       const schedulesRef = firestore()
         .collection("churches")
         .doc(churchId)
         .collection("schedule");
-  
+
       const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
         let closestScheduleDoc = null;
         let closestDate = null;
-        const today = new Date().setHours(0, 0, 0, 0); // Normalize today's date
-  
+        const today = new Date().setHours(0, 0, 0, 0);
+
         snapshot.docs.forEach((doc) => {
-          // Assume doc.id is in the format "MM-DD-YY"
           const scheduleDateStr = doc.id;
           const [month, day, year] = scheduleDateStr.split("-").map(Number);
-          // Assuming years are stored as two digits (e.g., "25" means 2025)
-          const scheduleDate = new Date(2000 + year, month - 1, day).setHours(
-            0,
-            0,
-            0,
-            0
-          ); // Normalize schedule date
-  
-          // Find the schedule closest to today (past or future)
+          const scheduleDate = new Date(2000 + year, month - 1, day).setHours(0, 0, 0, 0);
+
           if (
             !closestDate ||
             Math.abs(scheduleDate - today) < Math.abs(closestDate - today)
@@ -112,12 +107,11 @@ const EditSchedule = () => {
             closestScheduleDoc = doc;
           }
         });
-  
+
         if (closestScheduleDoc) {
           setWeek(closestScheduleDoc.id);
           const scheduleForTheWeek = closestScheduleDoc.data();
-  
-          // Build objects for readers and display names
+
           const readersObj = {};
           const readersDisplay = {};
           readings.forEach((reading) => {
@@ -127,8 +121,7 @@ const EditSchedule = () => {
           });
           setCurrentReaders(readersObj);
           setAssignedReaders(readersDisplay);
-  
-          // Process altar servers (full objects)
+
           const fetchedAltarServers = scheduleForTheWeek.altar || [];
           setAltarServers(fetchedAltarServers);
           const initialServerAssignments = {};
@@ -136,33 +129,47 @@ const EditSchedule = () => {
             initialServerAssignments[index] = server.name;
           });
           setAssignedServers(initialServerAssignments);
-          // Update servers array (for rendering list headers, etc.)
           setServers(fetchedAltarServers.map((_, index) => `Altar Server ${index + 1}`));
-  
-          // Also update available extra servers as full objects (filtering out placeholders)
+
           const extraServers = scheduleForTheWeek.extra || [];
-          const filteredExtraServers = extraServers.filter(
-            (server) => server.name !== "N/A"
-          );
+          const filteredExtraServers = extraServers
+            .filter((server) => server.name !== "N/A")
+            .sort((a, b) => {
+              const nameA = a.name.split(" ")[0].toLowerCase();
+              const nameB = b.name.split(" ")[0].toLowerCase();
+              return nameA.localeCompare(nameB);
+            });
           setAvailableServers(filteredExtraServers);
-        } else {
         }
       });
-  
+
       return () => unsubscribe();
     }
   }, [churchId]);
 
-  // When a new reader is selected, retrieve the old reader’s UID and call switchServersAPI
-  const assignReader = async (index, newReader) => {
-    if (!week) {
-      Alert.alert("Error", "Schedule week not determined yet.");
+  // Open profile modal
+  const openProfile = (userId) => {
+    if (!userId) {
       return;
     }
-    const readingKey = readings[index]; // e.g., "matins"
+    setSelectedUserId(userId);
+    setProfileModalVisible(true);
+  };
+
+  // Close profile modal
+  const closeProfile = () => {
+    setSelectedUserId(null);
+    setProfileModalVisible(false);
+  };
+
+  // Assign reader
+  const assignReader = async (index, newReader) => {
+    if (!week) {
+      return;
+    }
+    const readingKey = readings[index];
     const oldReader = currentReaders[readingKey];
     if (!oldReader || !oldReader.uid) {
-      Alert.alert("Error", "Old reader not found.");
       return;
     }
     try {
@@ -175,24 +182,21 @@ const EditSchedule = () => {
         "https://switch-server-hy6oofbihq-uc.a.run.app"
       );
     } catch (error) {
-      Alert.alert("Error", "Failed to switch reader.");
+      console.error("Error assigning reader:", error);
     }
     setReaderDropdownIndex(null);
   };
 
-  // When a new server is selected, retrieve the old server’s UID and call switchServersAPI
+  // Assign server
   const assignServer = async (index, newServer) => {
     if (!week) {
-      Alert.alert("Error", "Schedule week not determined yet.");
       return;
     }
     const oldServer = altarServers[index];
     if (!oldServer || !oldServer.uid) {
-      Alert.alert("Error", "Old server not found.");
       return;
     }
     try {
-
       await switchServersAPI(
         user,
         churchId,
@@ -202,23 +206,19 @@ const EditSchedule = () => {
         "https://switch-server-hy6oofbihq-uc.a.run.app"
       );
     } catch (error) {
-      Alert.alert("Error", "Failed to switch server.");
+      console.error("Error assigning server:", error);
     }
     setServerDropdownIndex(null);
   };
 
-  // Add a new server to the schedule
+  // Add server
   const handleAddServer = async () => {
     if (!churchId || !week) {
-      Alert.alert("Error", "Church ID or schedule week not found.");
       return;
     }
-
     if (servers.length >= 6) {
-      Alert.alert("Limit Reached", "You cannot add more than 6 servers.");
       return;
     }
-
     try {
       await addServerAPI(
         user,
@@ -226,48 +226,37 @@ const EditSchedule = () => {
         week,
         "https://add-server-hy6oofbihq-uc.a.run.app"
       );
-
       const churchRef = firestore().collection("churches").doc(churchId);
       await churchRef.update({
         altarServers: firestore.FieldValue.increment(1),
       });
-
       scrollViewRef.current?.scrollToEnd({ animated: false });
-      Alert.alert("Success", "Server added successfully.");
     } catch (error) {
-      Alert.alert("Error", `Failed to add server: ${error.message}`);
+      console.error("Error adding server:", error);
     }
   };
 
-  // Remove a server from the schedule
+  // Remove server
   const removeServerFromSchedule = async (index) => {
     if (!churchId || !week) {
-      Alert.alert("Error", "Church ID or schedule week not found.");
       return;
     }
-
     const schedulesRef = firestore()
       .collection("churches")
       .doc(churchId)
       .collection("schedule")
       .doc(week);
-
     try {
       const scheduleDoc = await schedulesRef.get();
       if (!scheduleDoc.exists) {
-        Alert.alert("Error", "Schedule not found.");
         return;
       }
-
       const scheduleData = scheduleDoc.data();
       const altarServers = scheduleData?.altar || [];
       const serverToRemove = altarServers[index];
-
       if (!serverToRemove || !serverToRemove.uid) {
-        Alert.alert("Error", "Server UID not found.");
         return;
       }
-
       await removeServerAPI(
         user,
         churchId,
@@ -275,14 +264,12 @@ const EditSchedule = () => {
         serverToRemove.uid,
         "https://remove-server-hy6oofbihq-uc.a.run.app"
       );
-
       const churchRef = firestore().collection("churches").doc(churchId);
       await churchRef.update({
         altarServers: firestore.FieldValue.increment(-1),
       });
-      Alert.alert("Success", "Server removed successfully.");
     } catch (error) {
-      Alert.alert("Error", `Failed to remove server: ${error.message}`);
+      console.error("Error removing server:", error);
     }
   };
 
@@ -297,37 +284,68 @@ const EditSchedule = () => {
       >
         <Text style={styles.sectionHeader}>Assign Readers</Text>
         {readings.map((item, index) => (
-          <View key={index} style={styles.listItem}>
-            <Text style={styles.itemText}>{displayNames[item]}</Text>
-            <TouchableOpacity
-              style={styles.dropdown}
-              onPress={() => setReaderDropdownIndex(index)}
-            >
-              <Text style={styles.dropdownText}>
-                {assignedReaders[displayNames[item]] || "Select Reader"}
+          <TouchableOpacity
+            key={index}
+            style={styles.listItem}
+            onPress={() => openProfile(currentReaders[item]?.uid)}
+            disabled={!currentReaders[item]?.uid}
+            activeOpacity={1}
+          >
+            <View style={styles.listItemContent}>
+              <Text
+                style={[
+                  styles.itemText,
+                  !currentReaders[item]?.uid && styles.disabledText,
+                ]}
+              >
+                {displayNames[item]}
               </Text>
-            </TouchableOpacity>
-          </View>
+              <View style={styles.dropdownContainer}>
+                <TouchableOpacity
+                  style={styles.dropdown}
+                  onPress={() => setReaderDropdownIndex(index)}
+                >
+                  <Text style={styles.dropdownText}>
+                    {assignedReaders[displayNames[item]] || "Select Reader"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
         ))}
 
         <Text style={styles.sectionHeader}>Altar Servers</Text>
         {servers.map((_, index) => (
-          <View key={index} style={styles.listItem}>
-            <TouchableOpacity
-              style={styles.dropdown}
-              onPress={() => setServerDropdownIndex(index)}
-            >
-              <Text style={styles.dropdownText}>
-                {assignedServers[index] || "Select Server"}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => removeServerFromSchedule(index)}>
-              <Text style={styles.removeButton}>Remove</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            key={index}
+            style={styles.listItem}
+            onPress={() => openProfile(altarServers[index]?.uid)}
+            disabled={!altarServers[index]?.uid}
+            activeOpacity={1}
+          >
+            <View style={styles.listItemContent}>
+              <TouchableOpacity
+                style={styles.dropdown}
+                onPress={() => setServerDropdownIndex(index)}
+              >
+                <Text
+                  style={[
+                    styles.dropdownText,
+                    !altarServers[index]?.uid && styles.disabledText,
+                  ]}
+                >
+                  {assignedServers[index] || "Select Server"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => removeServerFromSchedule(index)}
+              >
+                <Text style={styles.removeButton}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
         ))}
       </ScrollView>
-
       <TouchableOpacity style={styles.addButton} onPress={handleAddServer}>
         <Text style={styles.addButtonText}>Add Server</Text>
       </TouchableOpacity>
@@ -336,7 +354,7 @@ const EditSchedule = () => {
       <Modal
         visible={serverDropdownIndex !== null}
         transparent
-        animationType="none"
+        animationType="slide"
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
@@ -345,15 +363,25 @@ const EditSchedule = () => {
               keyExtractor={(item) => item.uid}
               renderItem={({ item }) => (
                 <TouchableOpacity
+                  style={styles.modalItemContainer}
                   onPress={() => assignServer(serverDropdownIndex, item)}
                 >
-                  <Text style={styles.modalItem}>{item.name}</Text>
+                  <View style={styles.modalItemContent}>
+                    <Image
+                      source={{
+                        uri: `https://firebasestorage.googleapis.com/v0/b/YOUR_PROJECT_ID.appspot.com/o/profilePictures%2F${item.uid}.png?alt=media`,
+                      }}
+                      style={styles.profilePic}
+                      defaultSource={require("../assets/default_profile.png")}
+                    />
+                    <Text style={styles.modalItem}>{item.name}</Text>
+                  </View>
                 </TouchableOpacity>
               )}
             />
             <TouchableOpacity onPress={() => setServerDropdownIndex(null)}>
               <Text style={styles.closeButton}>Close</Text>
-            </TouchableOpacity>
+              </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -362,7 +390,7 @@ const EditSchedule = () => {
       <Modal
         visible={readerDropdownIndex !== null}
         transparent
-        animationType="none"
+        animationType="slide"
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
@@ -371,9 +399,19 @@ const EditSchedule = () => {
               keyExtractor={(item) => item.uid}
               renderItem={({ item }) => (
                 <TouchableOpacity
+                  style={styles.modalItemContainer}
                   onPress={() => assignReader(readerDropdownIndex, item)}
                 >
-                  <Text style={styles.modalItem}>{item.name}</Text>
+                  <View style={styles.modalItemContent}>
+                    <Image
+                      source={{
+                        uri: `https://firebasestorage.googleapis.com/v0/b/YOUR_PROJECT_ID.appspot.com/o/profilePictures%2F${item.uid}.png?alt=media`,
+                      }}
+                      style={styles.profilePic}
+                      defaultSource={require("../assets/default_profile.png")}
+                    />
+                    <Text style={styles.modalItem}>{item.name}</Text>
+                  </View>
                 </TouchableOpacity>
               )}
             />
@@ -383,6 +421,17 @@ const EditSchedule = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Individual Profile modal */}
+      <IndividualProfile
+        userId={selectedUserId}
+        show={profileModalVisible}
+        onClose={closeProfile}
+        church={churchId}
+        week={week}
+        family={null}
+        url="https://unavailable-to-serve-hy6oofbihq-uc.a.run.app"
+      />
     </View>
   );
 };
@@ -401,10 +450,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   scrollView: {
-    flexGrow: 1,
-  },
-  itemText: {
-    color: "#bbb",
+    flex: 1,
   },
   sectionHeader: {
     fontSize: 20,
@@ -414,19 +460,35 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   listItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     backgroundColor: "#1e1e1e",
     padding: 15,
     borderRadius: 10,
     marginBottom: 10,
+  },
+  listItemContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  itemText: {
+    color: "#bbb",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  disabledText: {
+    color: "#666",
+  },
+  dropdownContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 1,
   },
   dropdown: {
     backgroundColor: "#333",
     paddingVertical: 10,
     paddingHorizontal: 15,
     borderRadius: 5,
+    alignSelf: "flex-start",
   },
   dropdownText: {
     color: "#fff",
@@ -456,18 +518,33 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.6)",
-    paddingVertical: 200,
   },
   modalContent: {
     backgroundColor: "#222",
     padding: 20,
     borderRadius: 10,
     width: "80%",
+    maxHeight: "60%", // Limit modal height to 60% of screen
+  },
+  modalItemContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 10,
+  },
+  modalItemContent: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   modalItem: {
     color: "#fff",
     fontSize: 18,
-    padding: 10,
+    marginLeft: 10,
+  },
+  profilePic: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
   closeButton: {
     color: "#ff3b30",

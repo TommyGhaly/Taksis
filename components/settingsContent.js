@@ -5,10 +5,10 @@ import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
-import * as AppleAuthentication from "expo-apple-authentication";
 import { useUser } from "../UserContext";
 import { callFunction, removeFamilySchedule } from "./functionCalls";
 import { deleteUser } from "@react-native-firebase/auth";
+
 
 const SettingsContent = () => {
   const { signUp, setSignUp } = useUser(true);
@@ -130,8 +130,17 @@ const SettingsContent = () => {
         <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeName")}>
           <Text style={styles.optionText}>Change name</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeEmail")}>
+          <Text style={styles.optionText}>Change email</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeEmail")}>
+          <Text style={styles.optionText}>Change phone number</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeAge")}>
           <Text style={styles.optionText}>Change date of birth</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeEmail")}>
+          <Text style={styles.optionText}>Change profile picture</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangePassword")}>
           <Text style={styles.optionText}>Change password</Text>
