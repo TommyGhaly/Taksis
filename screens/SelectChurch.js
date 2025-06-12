@@ -4,7 +4,7 @@ import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import Churches from "../components/churches";
 import ProgressBar from "../components/progressBar";
-import BackArrow from "../../components/backArrow";
+import BackArrow from "../components/backArrow";
 
 const SelectChurch = ({ navigation }) => {
   const [selectedChurch, setSelectedChurch] = useState(null);
