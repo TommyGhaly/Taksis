@@ -89,3 +89,5 @@ eas.json
 .expo
 dist/
 web-build/
+
+*.apk
