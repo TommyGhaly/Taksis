@@ -6,21 +6,25 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
+  Image,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import storage from "@react-native-firebase/storage";
 import BackArrow from "../../components/backArrow"; // Import your BackButton component
 import { callDeleteUser } from "../../components/functionCalls";
 
 const ChangeChildren = () => {
   const navigation = useNavigation();
   const [children, setChildren] = useState([]);
+  const [profilePictureUrls, setProfilePictureUrls] = useState({});
 
   useEffect(() => {
     const user = auth().currentUser;
 
     if (user) {
+      // Fetch user data and children
       const unsubscribe = firestore()
         .collection("users")
         .doc(user.uid)
@@ -41,8 +45,50 @@ const ChangeChildren = () => {
           }
         );
 
-      // Cleanup subscription on unmount
-      return () => unsubscribe();
+      // Fetch profile pictures
+      const fetchProfilePictures = async () => {
+        try {
+          const doc = await firestore().collection("users").doc(user.uid).get();
+          if (doc.exists) {
+            const userData = doc.data();
+            const children = userData.children || [];
+            const urls = {};
+            await Promise.all(
+              children.map(async (child) => {
+                if (child.uid) {
+                  try {
+                    const url = await storage()
+                      .ref(`childProfilePictures/${child.uid}.png`)
+                      .getDownloadURL();
+                    if (typeof url === "string" && url.trim() !== "") {
+                      urls[child.uid] = url;
+                    } else {
+                      urls[child.uid] = null;
+                    }
+                  } catch (error) {
+                    urls[child.uid] = null; // Fallback to default image
+                  }
+                }
+              })
+            );
+            setProfilePictureUrls(urls);
+          }
+        } catch (error) {
+          console.warn("Failed to fetch profile picture URLs:", error);
+        }
+      };
+
+      // Fetch profile pictures immediately
+      fetchProfilePictures();
+
+      // Set up interval to check for updates every 10 seconds
+      const intervalId = setInterval(fetchProfilePictures, 10000);
+
+      // Cleanup subscription and interval on unmount
+      return () => {
+        unsubscribe();
+        clearInterval(intervalId);
+      };
     }
   }, []);
 
@@ -74,14 +120,38 @@ const ChangeChildren = () => {
                   );
 
                   if (childToRemove) {
-                    await callDeleteUser(user, userData.church, childId, "https://delete-child-hy6oofbihq-uc.a.run.app")
+                    // Delete profile picture from storage
+                    try {
+                      await storage()
+                        .ref(`childProfilePictures/${childId}.png`)
+                        .delete();
+                    } catch (error) {
+                      console.warn("Failed to delete child profile picture:", error);
+                      // Continue with removal even if image deletion fails
+                    }
+
+                    // Call custom delete function
+                    await callDeleteUser(
+                      user,
+                      userData.church,
+                      childId,
+                      "https://delete-child-hy6oofbihq-uc.a.run.app"
+                    );
+
+                    // Remove child from Firestore
                     await firestore()
                       .collection("users")
                       .doc(user.uid)
                       .update({
-                        children:
-                          firestore.FieldValue.arrayRemove(childToRemove),
+                        children: firestore.FieldValue.arrayRemove(childToRemove),
                       });
+
+                    // Update local state to remove profile picture
+                    setProfilePictureUrls((prev) => {
+                      const updated = { ...prev };
+                      delete updated[childId];
+                      return updated;
+                    });
                   } else {
                     Alert.alert("Error", "Child not found.");
                   }
@@ -107,10 +177,29 @@ const ChangeChildren = () => {
       {children.length === 0 ? (
         <Text style={styles.noChildrenText}>You have no children</Text>
       ) : (
-        <ScrollView style={styles.childrenList}
-        showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.childrenList}
+          showsVerticalScrollIndicator={false}
+        >
           {children.map((child) => (
             <View key={child.uid} style={styles.childContainer}>
+              <Image
+                style={styles.profileImage}
+                source={
+                  profilePictureUrls[child.uid] &&
+                  typeof profilePictureUrls[child.uid] === "string" &&
+                  profilePictureUrls[child.uid].trim() !== ""
+                    ? { uri: profilePictureUrls[child.uid] }
+                    : require("../../assets/default_profile.png")
+                }
+                defaultSource={require("../../assets/default_profile.png")}
+                onError={() =>
+                  setProfilePictureUrls((prev) => ({
+                    ...prev,
+                    [child.uid]: null,
+                  }))
+                }
+              />
               <Text style={styles.childName}>{child.name}</Text>
               <TouchableOpacity
                 style={styles.removeButton}
@@ -161,9 +250,18 @@ const styles = StyleSheet.create({
     padding: 15,
     marginBottom: 10,
   },
+  profileImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: "#333333",
+  },
   childName: {
     color: "#8e8e93",
     fontSize: 18,
+    flex: 1,
   },
   removeButton: {
     backgroundColor: "#ff3b30",

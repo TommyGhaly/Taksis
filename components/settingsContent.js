@@ -9,7 +9,6 @@ import { useUser } from "../UserContext";
 import { callFunction, removeFamilySchedule } from "./functionCalls";
 import { deleteUser } from "@react-native-firebase/auth";
 
-
 const SettingsContent = () => {
   const { signUp, setSignUp } = useUser(true);
   const navigation = useNavigation();
@@ -31,6 +30,7 @@ const SettingsContent = () => {
             }
           },
           (error) => {
+            console.warn("Failed to fetch user data:", error);
           }
         );
 
@@ -38,14 +38,28 @@ const SettingsContent = () => {
       const fetchImage = async () => {
         try {
           const url = await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
-          setImageUrl(url);
+          // Ensure the URL is a non-empty string before setting it
+          if (typeof url === "string" && url.trim() !== "") {
+            setImageUrl(url);
+          } else {
+            setImageUrl(null);
+          }
         } catch (error) {
-          setImageUrl(null); // Set to null on any error, including object-not-found
+          setImageUrl(null); // Fallback to default image on error
         }
       };
+
+      // Fetch image immediately
       fetchImage();
 
-      return () => unsubscribe();
+      // Set up interval to check for updates every 30 seconds
+      const intervalId = setInterval(fetchImage, 10000);
+
+      // Cleanup interval and Firestore listener
+      return () => {
+        clearInterval(intervalId);
+        unsubscribe();
+      };
     }
   }, []);
 
@@ -71,25 +85,44 @@ const SettingsContent = () => {
             try {
               const user = auth().currentUser;
               if (user) {
+                // Remove family schedule
                 await removeFamilySchedule(
                   user,
                   userRoles.church,
                   "https://remove-family-schedules-hy6oofbihq-uc.a.run.app"
                 );
+
+                // Call custom delete function
                 await callFunction(
                   user,
                   "https://delete-user-hy6oofbihq-uc.a.run.app"
                 );
+
+                // Delete profile picture from storage
+                try {
+                  await storage().ref(`profilePictures/${user.uid}.png`).delete();
+                } catch (error) {
+                  console.warn("Failed to delete profile picture:", error);
+                  // Continue with deletion even if image deletion fails
+                }
+
+                // Update user context
                 setSignUp(false);
+
+                // Delete Firestore user document
+                await firestore().collection("users").doc(user.uid).delete();
+
+                // Wait briefly to ensure operations complete
                 await wait(2);
+
+                // Delete Firebase Auth user
+                await deleteUser(user);
+
                 Alert.alert("Success", "Your account has been deleted.");
               }
-              await wait(2);
-              await firestore().collection("users").doc(user.uid).delete();
-              await wait(2);
-              await deleteUser(user);
             } catch (error) {
-              await handleSignOut();
+              console.warn("Account deletion failed:", error);
+              await handleSignOut(); // Fallback to sign out on error
             } finally {
               setIsLoading(false);
             }
@@ -107,19 +140,16 @@ const SettingsContent = () => {
         </View>
       )}
       <View style={styles.profileSection}>
-        {imageUrl ? (
-          <Image
-            source={{ uri: imageUrl }}
-            style={styles.profileImage}
-            defaultSource={require('../assets/default_profile.png')}
-            onError={() => setImageUrl(null)}
-          />
-        ) : (
-          <Image
-            source={require('../assets/default_profile.png')}
-            style={styles.profileImage}
-          />
-        )}
+        <Image
+          style={styles.profileImage}
+          source={
+            typeof imageUrl === "string" && imageUrl.trim() !== ""
+              ? { uri: imageUrl }
+              : require("../assets/default_profile.png")
+          }
+          defaultSource={require("../assets/default_profile.png")}
+          onError={() => setImageUrl(null)}
+        />
         <Text style={styles.userName}>{userRoles.name}</Text>
       </View>
       <View style={styles.section}>

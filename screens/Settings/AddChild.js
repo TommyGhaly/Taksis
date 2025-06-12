@@ -12,6 +12,7 @@ import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
 import firestore from '@react-native-firebase/firestore';
 import auth from "@react-native-firebase/auth";
+import storage from '@react-native-firebase/storage';
 
 // Custom function to generate a UID
 const generateUID = () => firestore().collection("dummy").doc().id;
@@ -56,6 +57,22 @@ const AddChild = ({ navigation }) => {
     getUserData();
   }, []);
 
+  const handleBackPress = async () => {
+    try {
+      // Attempt to delete the profile picture from cloud storage if it exists
+      const storageRef = storage().ref(`profilePictures/${childData.uid}.png`);
+      await storageRef.delete();
+      console.log(`Deleted profile picture for UID: ${childData.uid}`);
+    } catch (error) {
+      // Ignore error if file doesn't exist (error code 'storage/object-not-found')
+      if (error.code !== 'storage/object-not-found') {
+        console.error('Error deleting profile picture:', error);
+      }
+    }
+    // Navigate back
+    navigation.goBack();
+  };
+
   const handleContinue = () => {
     if (!name) {
       Alert.alert("Please input a name before continuing.");
@@ -74,14 +91,14 @@ const AddChild = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       {/* Back Arrow */}
       <View style={styles.backarrow}>
-        <BackArrow onPress={() => navigation.goBack()} />
+        <BackArrow onPress={handleBackPress} />
       </View>
       {/* Progress Bar */}
       <View style={styles.progressBar}>
         <ProgressBar startPercentage={0} endPercentage={20} />
       </View>
       {/* Title */}
-      <Text style={styles.title}>Add Child</Text>
+      <Text style={styles.title}>AddChild</Text>
       {/* Text Input */}
       <TextInput
         value={name}
