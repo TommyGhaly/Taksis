@@ -192,10 +192,11 @@ const HomeScreen = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedWeeks, setSelectedWeeks] = useState([]);
   const [unavailableWeeks, setUnavailableWeeks] = useState([]);
+  const [openItemIndex, setOpenItemIndex] = useState(null); // New state to track open HomeScreenNames
   const scaleValue = useRef(new Animated.Value(0.9)).current;
 
   useEffect(() => {
-    constiseksi: true;
+    const isDeacon = true; // Note: 'isDeacon' variable redefined, assuming typo in original code
     const unsubscribe = messaging().onMessage(async (remoteMessage) => {
       Alert.alert(
         remoteMessage?.notification?.title || "Notification",
@@ -644,6 +645,11 @@ const HomeScreen = () => {
     }
   }, [showDOBModal, showPhoneModal]);
 
+  // Handler to toggle open state for HomeScreenNames
+  const handleToggleOpen = (index, section) => {
+    setOpenItemIndex(prev => prev === `${section}-${index}` ? null : `${section}-${index}`);
+  };
+
   const readings = [
     { role: "Matins Gospel", user: schedule.matins || { name: "N/A" } },
     { role: "Third Hour Gospel", user: schedule.third || { name: "N/A" } },
@@ -852,21 +858,39 @@ const HomeScreen = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Readings</Text>
           {readings.map((item, index) => (
-            <HomeScreenNames key={index} role={item.role} user={item.user} />
+            <HomeScreenNames
+              key={index}
+              role={item.role}
+              user={item.user}
+              isOpen={openItemIndex === `readings-${index}`}
+              onToggle={() => handleToggleOpen(index, 'readings')}
+            />
           ))}
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Offering of the Lamb</Text>
           {offerings.map((item, index) => (
-            <HomeScreenNames key={index} role={item.role} user={item.user} />
+            <HomeScreenNames
+              key={index}
+              role={item.role}
+              user={item.user}
+              isOpen={openItemIndex === `offerings-${index}`}
+              onToggle={() => handleToggleOpen(index, 'offerings')}
+            />
           ))}
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Altar Servers</Text>
           {(schedule?.altar || []).map((user, index) => (
-            <HomeScreenNames key={index} role="Altar" user={user} />
+            <HomeScreenNames
+              key={index}
+              role="Altar"
+              user={user}
+              isOpen={openItemIndex === `altar-${index}`}
+              onToggle={() => handleToggleOpen(index, 'altar')}
+            />
           ))}
         </View>
 

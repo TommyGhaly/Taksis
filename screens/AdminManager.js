@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
-  FlatList,
+  SectionList,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
   Modal,
   Switch,
   Alert,
+  Dimensions,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
@@ -30,6 +31,13 @@ const AdminManager = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedRoles, setSelectedRoles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sections, setSections] = useState([]);
+  const sectionListRef = useRef(null);
+
+  // Alphabet for index bar
+  const alphabet = Array.from({ length: 26 }, (_, i) =>
+    String.fromCharCode(65 + i)
+  );
 
   // Fetch current user's church
   useEffect(() => {
@@ -47,15 +55,12 @@ const AdminManager = () => {
         })
         .catch((error) => {
           setLoading(false);
-          Alert.alert(
-            "Error",
-            "Could not fetch user data. Please try again."
-          );
+          Alert.alert("Error", "Could not fetch user data. Please try again.");
         });
     }
   }, []);
 
-  // Fetch all users from the database with real-time updates
+  // Fetch all users and group by first letter
   useEffect(() => {
     const unsubscribe = firestore()
       .collection("users")
@@ -67,9 +72,30 @@ const AdminManager = () => {
               ...doc.data(),
             }))
             .sort((a, b) => a.name.localeCompare(b.name));
+
+          // Group users by first letter
+          const grouped = userList.reduce((acc, user) => {
+            const firstLetter = user.name.charAt(0).toUpperCase();
+            if (!acc[firstLetter]) {
+              acc[firstLetter] = [];
+            }
+            acc[firstLetter].push(user);
+            return acc;
+          }, {});
+
+          // Convert to SectionList format
+          const sectionData = Object.keys(grouped)
+            .sort()
+            .map((letter) => ({
+              title: letter,
+              data: grouped[letter],
+            }));
+
           setUsers(userList);
+          setSections(sectionData);
         },
         (error) => {
+          Alert.alert("Error", "Could not fetch users. Please try again.");
         }
       );
     return () => unsubscribe();
@@ -106,10 +132,20 @@ const AdminManager = () => {
         .update(roleUpdates);
       setModalVisible(false);
     } catch (error) {
-      Alert.alert(
-        "Error",
-        "Could not update roles. Please try again."
-      );
+      Alert.alert("Error", "Could not update roles. Please try again.");
+    }
+  };
+
+  const scrollToSection = (letter) => {
+    const sectionIndex = sections.findIndex(
+      (section) => section.title === letter
+    );
+    if (sectionIndex !== -1 && sectionListRef.current) {
+      sectionListRef.current.scrollToLocation({
+        sectionIndex,
+        itemIndex: 0,
+        animated: true,
+      });
     }
   };
 
@@ -138,6 +174,12 @@ const AdminManager = () => {
     );
   };
 
+  const renderSectionHeader = ({ section: { title } }) => (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionHeaderText}>{title}</Text>
+    </View>
+  );
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -150,16 +192,32 @@ const AdminManager = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Manage Admin Privileges</Text>
-      <FlatList
-        data={users}
-        renderItem={renderUser}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContainer}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>No users found.</Text>
-        }
-        showsVerticalScrollIndicator={false}
-      />
+      <View style={styles.listWrapper}>
+        <SectionList
+          ref={sectionListRef}
+          sections={sections}
+          renderItem={renderUser}
+          renderSectionHeader={renderSectionHeader}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContainer}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>No users found.</Text>
+          }
+          showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={true}
+        />
+        <View style={styles.indexBar}>
+          {alphabet.map((letter) => (
+            <TouchableOpacity
+              key={letter}
+              style={styles.indexItem}
+              onPress={() => scrollToSection(letter)}
+            >
+              <Text style={styles.indexText}>{letter}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
       <Modal visible={modalVisible} animationType="fade" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
@@ -224,8 +282,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: "center",
   },
+  listWrapper: {
+    flex: 1,
+    flexDirection: "row",
+  },
   listContainer: {
     paddingBottom: 20,
+    flexGrow: 1,
   },
   userCard: {
     backgroundColor: "#1e1e1e",
@@ -359,6 +422,33 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "500",
+  },
+  sectionHeader: {
+    backgroundColor: "#2a2a2a",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  sectionHeaderText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  indexBar: {
+    width: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20,
+  },
+  indexItem: {
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  indexText: {
+    fontSize: 12,
+    color: "#147efb",
+    fontWeight: "600",
   },
 });
 

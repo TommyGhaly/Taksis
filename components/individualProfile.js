@@ -63,11 +63,22 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
       try {
         const storagePath = isChild ? `childProfilePictures/${userId}.png` : `profilePictures/${userId}.png`;
         const url = await storage().ref(storagePath).getDownloadURL();
-        setImageUrl(url);
+        // Ensure the URL is a non-empty string before setting it
+        if (typeof url === "string" && url.trim() !== "") {
+          setImageUrl(url);
+        } else {
+          setImageUrl(null);
+        }
       } catch (error) {
         setImageUrl(null);
       }
     };
+
+    // Fetch image immediately
+    fetchImage();
+
+    // Set up interval to check for updates every 30 seconds
+    const intervalId = setInterval(fetchImage, 10000);
 
     // Fetch user data with real-time listener
     const fetchUserData = () => {
@@ -156,13 +167,14 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
           }
         );
 
-      fetchImage();
       return userUnsubscribe;
     };
 
     const unsubscribeUserData = fetchUserData();
 
+    // Cleanup interval and Firestore listener
     return () => {
+      clearInterval(intervalId);
       if (unsubscribeUserData) {
         unsubscribeUserData();
       }
@@ -279,8 +291,14 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
     try {
       const storagePath = isChild ? `childProfilePictures/${userId}.png` : `profilePictures/${userId}.png`;
       const newUrl = await storage().ref(storagePath).getDownloadURL();
-      setImageUrl(newUrl);
+      // Ensure the URL is a non-empty string before setting it
+      if (typeof newUrl === "string" && newUrl.trim() !== "") {
+        setImageUrl(newUrl);
+      } else {
+        setImageUrl(null);
+      }
     } catch (error) {
+      setImageUrl(null);
     }
   };
 
@@ -321,14 +339,14 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
 
           <View style={styles.profileImageContainer}>
             <Image
-              source={{
-                uri: imageUrl,
-              }}
               style={styles.image}
+              source={
+                typeof imageUrl === "string" && imageUrl.trim() !== ""
+                  ? { uri: imageUrl }
+                  : require("../assets/default_profile.png")
+              }
               defaultSource={require("../assets/default_profile.png")}
-              onError={() => {
-                setImageUrl(null);
-              }}
+              onError={() => setImageUrl(null)}
             />
             <TouchableOpacity
               style={styles.editIconContainer}

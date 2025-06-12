@@ -26,7 +26,6 @@ const ChildAccountInfo = ({ route, navigation }) => {
         const user = auth().currentUser;
         if (user) {
           const userDoc = await firestore().collection("users").doc(user.uid).get();
-
           if (userDoc.exists) {
             const userData = userDoc.data();
             const child = userData.children?.find((child) => child.uid === childUid);
@@ -48,18 +47,34 @@ const ChildAccountInfo = ({ route, navigation }) => {
         const url = await storage()
           .ref(`childProfilePictures/${childUid}.png`)
           .getDownloadURL();
-        setImageUrl(url);
+        // Ensure the URL is a non-empty string before setting it
+        if (typeof url === "string" && url.trim() !== "") {
+          setImageUrl(url);
+        } else {
+          setImageUrl(null);
+        }
       } catch (error) {
-        setImageUrl(null);
+        setImageUrl(null); // Fallback to default image on error
       }
     };
 
+    // Fetch data and image immediately
     fetchChildData();
     fetchImage();
+
+    // Set up interval to check for image updates every 30 seconds
+    const intervalId = setInterval(fetchImage, 10000);
+
+    // Cleanup interval on component unmount or childUid change
+    return () => clearInterval(intervalId);
   }, [childUid]);
 
   if (!childData) {
-    return <Text style={styles.loadingText}>Loading...</Text>;
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
   }
 
   return (
@@ -74,10 +89,11 @@ const ChildAccountInfo = ({ route, navigation }) => {
           <Image
             style={styles.profileImage}
             source={
-              typeof imageUrl === "string"
+              typeof imageUrl === "string" && imageUrl.trim() !== ""
                 ? { uri: imageUrl }
                 : require("../../assets/default_profile.png")
             }
+            defaultSource={require("../../assets/default_profile.png")}
             onError={() => setImageUrl(null)}
           />
         </View>
@@ -153,11 +169,16 @@ const styles = StyleSheet.create({
     marginTop: 20,
     paddingHorizontal: 16,
   },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#121212",
+  },
   loadingText: {
     fontSize: 16,
     color: "#fff",
     textAlign: "center",
-    marginTop: 20,
   },
 });
 

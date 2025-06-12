@@ -15,15 +15,13 @@ import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
 
 const AccountInfo = ({ navigation }) => {
-  const [userData, setUserData] = useState(null); // Initialize as null or {}
-  const [imageUrl, setImageUrl] = useState(
-    require("../../assets/default_profile.png")
-  ); // Default image
+  const [userData, setUserData] = useState(null); // Initialize as null
+  const [imageUrl, setImageUrl] = useState(null); // Initialize as null for consistency
   const user = auth().currentUser;
+
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const user = auth().currentUser;
         if (user) {
           const userDoc = await firestore()
             .collection("users")
@@ -39,7 +37,7 @@ const AccountInfo = ({ navigation }) => {
     };
 
     fetchUserData();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (user?.uid) {
@@ -48,19 +46,36 @@ const AccountInfo = ({ navigation }) => {
           const url = await storage()
             .ref(`profilePictures/${user.uid}.png`)
             .getDownloadURL();
-          setImageUrl(url);
+          // Ensure the URL is a non-empty string before setting it
+          if (typeof url === "string" && url.trim() !== "") {
+            setImageUrl(url);
+          } else {
+            setImageUrl(null);
+          }
         } catch (error) {
-          setImageUrl(null); // Set to null on any error, including object-not-found
+          setImageUrl(null); // Fallback to default image on error
         }
       };
+
+      // Fetch image immediately
       fetchImage();
+
+      // Set up interval to check for updates every 30 seconds
+      const intervalId = setInterval(fetchImage, 10000);
+
+      // Cleanup interval on component unmount or user change
+      return () => clearInterval(intervalId);
     } else {
       setImageUrl(null);
     }
-  }, []);
+  }, [user]);
 
   if (!userData) {
-    return <Text>Loading...</Text>; // Or any loading indicator
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
   }
 
   return (
@@ -77,10 +92,11 @@ const AccountInfo = ({ navigation }) => {
           <Image
             style={styles.profileImage}
             source={
-              typeof imageUrl === "string"
+              typeof imageUrl === "string" && imageUrl.trim() !== ""
                 ? { uri: imageUrl }
                 : require("../../assets/default_profile.png")
             }
+            defaultSource={require("../../assets/default_profile.png")}
             onError={() => setImageUrl(null)}
           />
         </View>
@@ -101,14 +117,12 @@ const AccountInfo = ({ navigation }) => {
             <Text style={styles.infoText}>{userData.rank || "Deacon"}</Text>
           </View>
         )}
-
         <View style={styles.infoBlock}>
           <Text style={styles.infoText}>{userData.church || "Church 1"}</Text>
         </View>
         <View style={styles.infoBlock}>
           <Text style={styles.infoText}>{userData.DOB || "Date of Birth"}</Text>
         </View>
-
         {/* Conditionally render the Children heading and list if children exist */}
         {userData.children && userData.children.length > 0 && (
           <>
@@ -197,11 +211,21 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     marginTop: 5,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: "#333333",
   },
   profileImageContainer: {
     alignItems: "center",
     marginBottom: 30,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#121212",
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#aaa",
   },
 });
 

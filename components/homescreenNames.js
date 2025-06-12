@@ -15,12 +15,25 @@ const HomeScreenNames = ({ role, user }) => {
       const fetchImage = async () => {
         try {
           const url = await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
-          setImageUrl(url);
+          // Ensure the URL is a non-empty string before setting it
+          if (typeof url === "string" && url.trim() !== "") {
+            setImageUrl(url);
+          } else {
+            setImageUrl(null);
+          }
         } catch (error) {
           setImageUrl(null); // Set to null on any error, including object-not-found
         }
       };
+
+      // Fetch image immediately
       fetchImage();
+
+      // Set up interval to check for updates every 30 seconds
+      const intervalId = setInterval(fetchImage, 10000);
+
+      // Cleanup interval on component unmount or user change
+      return () => clearInterval(intervalId);
     } else {
       setImageUrl(null);
     }
@@ -67,19 +80,16 @@ const HomeScreenNames = ({ role, user }) => {
     <Pressable style={styles.card} onPress={() => setExpand(!expand)}>
       <View style={styles.contentContainer}>
         <Animated.View style={[styles.expandedContent, { height: expandedHeight, opacity: opacityAnim }]}>
-          {imageUrl ? (
-            <Image
-              source={{ uri: imageUrl }}
-              style={styles.profileImage}
-              defaultSource={require('../assets/default_profile.png')}
-              onError={() => setImageUrl(null)}
-            />
-          ) : (
-            <Image
-              source={require('../assets/default_profile.png')}
-              style={styles.profileImage}
-            />
-          )}
+          <Image
+            style={styles.profileImage}
+            source={
+              typeof imageUrl === "string" && imageUrl.trim() !== ""
+                ? { uri: imageUrl }
+                : require('../assets/default_profile.png')
+            }
+            defaultSource={require('../assets/default_profile.png')}
+            onError={() => setImageUrl(null)}
+          />
         </Animated.View>
         <Animated.View
           style={[
