@@ -33,7 +33,7 @@ const SelectChurch = ({ navigation }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.progressBar}>
-          <ProgressBar startPercentage={1} endPercentage={20} />
+          <ProgressBar startPercentage={17} endPercentage={33} />
         </View>
         <Text style={styles.titleText}>Select Your Church</Text>
       </View>

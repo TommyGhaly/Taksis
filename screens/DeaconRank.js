@@ -37,7 +37,7 @@ const DeaconRank = ({ navigation }) => {
           <BackArrow />
         </View>
         <View style={styles.progressBar}>
-          <ProgressBar startPercentage={40} endPercentage={60} />
+          <ProgressBar startPercentage={50} endPercentage={67} />
         </View>
         <Text style={styles.titleText}>What Rank of Deacon Are You?</Text>
       </View>

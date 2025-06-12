@@ -15,6 +15,8 @@ import { unavailableToServe } from "./functionCalls";
 import Slider from "@react-native-community/slider";
 import firestore from "@react-native-firebase/firestore";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
+import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import PhotoInput from "./photoInput";
 
 // Haptic feedback options
 const hapticOptions = {
@@ -47,6 +49,7 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
   const [tempFrequency, setTempFrequency] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isChild, setIsChild] = useState(false);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
 
   // Fetch image and user data with real-time updates
   useEffect(() => {
@@ -58,9 +61,8 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
     // Fetch profile picture URL
     const fetchImage = async () => {
       try {
-        const url = await storage()
-          .ref(`profilePictures/${userId}.png`)
-          .getDownloadURL();
+        const storagePath = isChild ? `childProfilePictures/${userId}.png` : `profilePictures/${userId}.png`;
+        const url = await storage().ref(storagePath).getDownloadURL();
         setImageUrl(url);
       } catch (error) {
         setImageUrl(null);
@@ -74,7 +76,7 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
         .collection("users")
         .doc(userId)
         .onSnapshot(
-          (userDoc) => {
+          async (userDoc) => {
             if (userDoc.exists) {
               const data = userDoc.data();
               setUserData({
@@ -95,7 +97,7 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
               const usersQueryUnsubscribe = firestore()
                 .collection("users")
                 .onSnapshot(
-                  (querySnapshot) => {
+                  async (querySnapshot) => {
                     let childData = null;
                     let parentId = null;
 
@@ -111,10 +113,22 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
                     }
 
                     if (childData) {
+                      // Fetch parent's phone number
+                      let parentPhone = "Not provided";
+                      try {
+                        const parentDoc = await firestore().collection("users").doc(parentId).get();
+                        if (parentDoc.exists) {
+                          const parentData = parentDoc.data();
+                          parentPhone = parentData.number || parentData.phone || "Not provided";
+                        }
+                      } catch (error) {
+                        console.warn("Failed to fetch parent phone:", error);
+                      }
+
                       setUserData({
                         name: childData.name || "N/A",
                         age: childData.age || "N/A",
-                        phone: childData.number || childData.phone || "Not provided",
+                        phone: parentPhone,
                         nextWeekServe: childData.nextWeekServe || "N/A",
                         nextRole: childData.nextRole || "N/A",
                         experience: childData.experience || 0,
@@ -142,10 +156,10 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
           }
         );
 
+      fetchImage();
       return userUnsubscribe;
     };
 
-    fetchImage();
     const unsubscribeUserData = fetchUserData();
 
     return () => {
@@ -153,7 +167,7 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
         unsubscribeUserData();
       }
     };
-  }, [userId]);
+  }, [userId, isChild]);
 
   // Handle slider value change
   const handleSliderChange = (setter) => (value) => {
@@ -223,7 +237,6 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
 
               // Update unavailableWeeks in Firestore
               if (isChild) {
-                // Update child data in parent's document
                 const parentDoc = await firestore().collection("users").doc(userData.parentId).get();
                 if (parentDoc.exists) {
                   const parentData = parentDoc.data();
@@ -240,7 +253,6 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
                   await parentDoc.ref.update({ children: updatedChildren });
                 }
               } else {
-                // Update user's own document
                 await firestore()
                   .collection("users")
                   .doc(userId)
@@ -249,7 +261,6 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
                   });
               }
 
-              // Call existing unavailableToServe function
               await unavailableToServe(currentUser, userId, church, week, family, url);
               onClose();
             } catch (error) {
@@ -260,6 +271,24 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
       ],
       { cancelable: true }
     );
+  };
+
+  // Handle photo upload completion
+  const handlePhotoUpload = async () => {
+    setShowPhotoModal(false);
+    try {
+      const storagePath = isChild ? `childProfilePictures/${userId}.png` : `profilePictures/${userId}.png`;
+      const newUrl = await storage().ref(storagePath).getDownloadURL();
+      setImageUrl(newUrl);
+    } catch (error) {
+      Alert.alert("Error", "Failed to update profile picture. Please try again.");
+    }
+  };
+
+  // Handle edit icon press
+  const handleEditPhoto = () => {
+    ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+    setShowPhotoModal(true);
   };
 
   // Handle cancel
@@ -298,10 +327,18 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
               }}
               style={styles.image}
               defaultSource={require("../assets/default_profile.png")}
-              onError={(error) => {
+              onError={() => {
                 setImageUrl(null);
               }}
             />
+            <TouchableOpacity
+              style={styles.editIconContainer}
+              onPress={handleEditPhoto}
+              activeOpacity={0.7}
+              accessibilityLabel="Edit Profile Picture"
+            >
+              <Icon name="pencil" size={16} color="#fff" />
+            </TouchableOpacity>
           </View>
 
           <Text style={styles.title}>{userData?.name || "N/A"}</Text>
@@ -309,7 +346,7 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
 
           <View style={styles.section}>
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Phone:</Text>
+              <Text style={styles.detailLabel}>{isChild ? "Parent's Phone:" : "Phone:"}</Text>
               <Text style={styles.detail}>{userData?.phone || "Not provided"}</Text>
             </View>
             <View style={styles.detailRow}>
@@ -385,6 +422,12 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
           </View>
         </View>
       </View>
+
+      <PhotoInput
+        visible={showPhotoModal}
+        onClose={handlePhotoUpload}
+        userId={userId}
+      />
     </Modal>
   );
 };
@@ -424,6 +467,7 @@ const styles = StyleSheet.create({
   profileImageContainer: {
     marginBottom: 8,
     alignItems: "center",
+    position: "relative",
   },
   image: {
     width: 80,
@@ -431,6 +475,19 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     borderWidth: 2,
     borderColor: "#147efb",
+  },
+  editIconContainer: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    backgroundColor: "#147efb",
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#fff",
   },
   title: {
     fontSize: 20,

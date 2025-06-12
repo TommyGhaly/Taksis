@@ -93,7 +93,7 @@ const Frequency = ({ route, navigation }) => {
         </View>
         <View style={styles.progressBar}>
           <ProgressBar
-            startPercentage={fromApplicable ? 40 : 80}
+            startPercentage={fromApplicable ? 50 : 83}
             endPercentage={100}
           />
         </View>
