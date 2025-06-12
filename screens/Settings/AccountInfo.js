@@ -75,9 +75,12 @@ const AccountInfo = ({ navigation }) => {
         </View>
         <View style={styles.profileImageContainer}>
           <Image
-            source={{ uri: imageUrl }}
             style={styles.profileImage}
-            defaultSource={require("../../assets/default_profile.png")}
+            source={
+              typeof imageUrl === "string"
+                ? { uri: imageUrl }
+                : require("../../assets/default_profile.png")
+            }
             onError={() => setImageUrl(null)}
           />
         </View>
@@ -188,7 +191,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 16,
   },
-    profileImage: {
+  profileImage: {
     width: 100,
     height: 100,
     borderRadius: 50,
