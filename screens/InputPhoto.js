@@ -11,7 +11,6 @@ import {
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import { useUser } from "../UserContext";
-import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
 import PhotoInput from "../components/photoInput";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
@@ -55,11 +54,6 @@ const InputPhoto = ({ route, navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View style={styles.backArrow}>
-          <Pressable onPress={() => navigation.goBack()}>
-            <BackArrow />
-          </Pressable>
-        </View>
         <View style={styles.progressBar}>
           <ProgressBar
             startPercentage={1}
@@ -126,9 +120,6 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 0,
-  },
-  backArrow: {
-    marginBottom: 16,
   },
   progressBar: {
     height: 6,

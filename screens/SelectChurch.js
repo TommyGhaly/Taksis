@@ -4,6 +4,7 @@ import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import Churches from "../components/churches";
 import ProgressBar from "../components/progressBar";
+import BackArrow from "../../components/backArrow";
 
 const SelectChurch = ({ navigation }) => {
   const [selectedChurch, setSelectedChurch] = useState(null);
@@ -32,6 +33,11 @@ const SelectChurch = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <View style={styles.backArrow}>
+          <Pressable onPress={() => navigation.goBack()}>
+            <BackArrow />
+          </Pressable>
+        </View>
         <View style={styles.progressBar}>
           <ProgressBar startPercentage={17} endPercentage={33} />
         </View>
@@ -130,6 +136,9 @@ const styles = StyleSheet.create({
   linkAction: {
     color: "#147EFB", // Matches blue accent
     fontWeight: "500",
+  },
+  backArrow: {
+    marginBottom: 16,
   },
 });
 
