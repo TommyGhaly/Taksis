@@ -67,7 +67,7 @@ const AddChild = ({ navigation }) => {
       return;
     }
     const updatedChildData = { ...childData, name };
-    navigation.navigate("ChildDeaconRank", { childData: updatedChildData });
+    navigation.navigate("ChildPhoto", { childData: updatedChildData });
   };
 
   return (
@@ -78,7 +78,7 @@ const AddChild = ({ navigation }) => {
       </View>
       {/* Progress Bar */}
       <View style={styles.progressBar}>
-        <ProgressBar startPercentage={0} endPercentage={1} />
+        <ProgressBar startPercentage={0} endPercentage={20} />
       </View>
       {/* Title */}
       <Text style={styles.title}>Add Child</Text>

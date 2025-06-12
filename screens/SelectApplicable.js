@@ -48,7 +48,7 @@ const SelectApplicable = ({ navigation }) => {
           <BackArrow />
         </View>
         <View style={styles.progressBar}>
-          <ProgressBar startPercentage={20} endPercentage={40} />
+          <ProgressBar startPercentage={33} endPercentage={50} />
         </View>
         <Text style={styles.titleText}>Select All That Apply</Text>
       </View>

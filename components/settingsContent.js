@@ -133,13 +133,13 @@ const SettingsContent = () => {
         <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeEmail")}>
           <Text style={styles.optionText}>Change email</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeEmail")}>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeNumber")}>
           <Text style={styles.optionText}>Change phone number</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeAge")}>
           <Text style={styles.optionText}>Change date of birth</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeEmail")}>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangePhoto")}>
           <Text style={styles.optionText}>Change profile picture</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangePassword")}>

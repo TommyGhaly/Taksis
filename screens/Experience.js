@@ -48,7 +48,7 @@ const Experience = ({ navigation }) => {
           <BackArrow />
         </View>
         <View style={styles.progressBar}>
-          <ProgressBar startPercentage={60} endPercentage={80} />
+          <ProgressBar startPercentage={67} endPercentage={83} />
         </View>
       </View>
       <View style={styles.content}>

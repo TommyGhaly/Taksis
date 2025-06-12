@@ -6,6 +6,8 @@ import ChangeAge from "./ChangeAge";
 import ChangeChildren from "./ChangeChildren";
 import ChangeEmail from "./ChangeEmail";
 import ChangeName from "./ChangeName";
+import ChangeNumber from "./ChangeNumber";
+import ChangePhoto from "./ChangePhoto";
 import ChangeRank from "./ChangeRank";
 import ChangeRoles from "./ChangeRoles";
 import ChangeChurch from "./ChangeChurch";
@@ -13,6 +15,7 @@ import ChildAccountInfo from "./ChildAccountInfo";
 import RequestAdmin from "./RequestAdmin";
 import RequestServants from "./RequestServants";
 import AddChild from "./AddChild";
+import ChildPhoto from "./ChildPhoto";
 import Settings from "./Settings";
 import SettingsContent from "../../components/settingsContent";
 import ChildDeaconRank from "./ChildDeaconRank";
@@ -51,6 +54,8 @@ export default function SettingsNavigation() {
         <SettingsNav.Screen name="ChangeChildren" component={ChangeChildren} />
         <SettingsNav.Screen name="ChangeEmail" component={ChangeEmail} />
         <SettingsNav.Screen name="ChangeName" component={ChangeName} />
+        <SettingsNav.Screen name="ChangeNumber" component={ChangeNumber} />
+        <SettingsNav.Screen name="ChangePhoto" component={ChangePhoto} />
         <SettingsNav.Screen name="ChangeChurch" component={ChangeChurch} />
         <SettingsNav.Screen name="ChangeRank" component={ChangeRank} />
         <SettingsNav.Screen name="ChangeRoles" component={ChangeRoles} />
@@ -63,6 +68,11 @@ export default function SettingsNavigation() {
         <SettingsNav.Screen
           name="AddChild"
           component={AddChild}
+          options={{ animation: "none" }}
+        />
+        <SettingsNav.Screen
+          name="ChildPhoto"
+          component={ChildPhoto}
           options={{ animation: "none" }}
         />
         <SettingsNav.Screen

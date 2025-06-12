@@ -110,7 +110,7 @@ const ChildAge = ({ route }) => {
           <BackArrow />
         </Pressable>
         <View style={styles.progressBar}>
-          <ProgressBar startPercentage={67} endPercentage={100} />
+          <ProgressBar startPercentage={80} endPercentage={100} />
         </View>
 
         <View style={styles.content}>

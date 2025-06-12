@@ -48,7 +48,7 @@ const ChildExperience = ({ navigation, route }) => {
           <BackArrow onPress={() => navigation.goBack()} />
         </View>
         <View style={styles.progressBar}>
-          <ProgressBar startPercentage={33} endPercentage={67} />
+          <ProgressBar startPercentage={60} endPercentage={80} />
         </View>
 
         <View style={styles.content}>

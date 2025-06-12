@@ -10,6 +10,7 @@ import "react-native-gesture-handler";
 import Welcome from "./screens/Welcome";
 import SignIn from "./screens/SignIn";
 import SignUp from "./screens/SignUp";
+import InputPhoto from "./screens/InputPhoto";
 import SelectChurch from "./screens/SelectChurch";
 import SelectApplicable from "./screens/SelectApplicable";
 import DeaconRank from "./screens/DeaconRank";
@@ -132,6 +133,7 @@ function AppNavigator() {
           <Stack.Screen name="MainContainer" component={MainContainer} />
         ) : (
           <>
+            <Stack.Screen name="InputPhoto" component={InputPhoto} />
             <Stack.Screen name="SelectChurch" component={SelectChurch} />
             <Stack.Screen
               name="ChurchRegistration"
