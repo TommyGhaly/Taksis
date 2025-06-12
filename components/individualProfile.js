@@ -281,7 +281,6 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
       const newUrl = await storage().ref(storagePath).getDownloadURL();
       setImageUrl(newUrl);
     } catch (error) {
-      Alert.alert("Error", "Failed to update profile picture. Please try again.");
     }
   };
 
