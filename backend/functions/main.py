@@ -966,13 +966,20 @@ def sync_child_params(req: https_fn.Request) -> https_fn.Response:
 
     if user_doc.exists:
         user_data = user_doc.to_dict()
-
+    church_ref = firestore_client.collection("churches").document(
+        user_data["church"]
+    )
+    church_data = church_ref.get().to_dict()
+    deacons = church_data.get("deacons", [])
     if "children" in user_data:
         for child in user_data["children"]:
             child["church"] = user_data["church"]
             child["frequency"] = user_data["frequency"]
             updated_children.append(child)
-
+            for deacon in deacons:
+                if deacon.get("uid") == child.get("uid"):
+                    deacon["frequency"] = child.get("frequency", 0)
+    church_ref.update({"deacons": deacons})
     user_data["children"] = updated_children
     user_doc_ref.update(user_data)
 
@@ -1484,12 +1491,23 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
 
 
 def update_attendance(user_ref):
+    firestore_client = firestore.Client()
     user_doc = user_ref.get()
     user_data = user_doc.to_dict()
+    church_ref = firestore_client.collection("churches").document(
+        user_data["church"]
+    )
+    church_data = church_ref.get().to_dict()
+    deacons = church_data.get("deacons", [])
     if "frequency" in user_data:
         user_data["frequency"] *= 0.8
         if user_data["frequency"] < 0.1:
             user_data["frequency"] = 0.5
+    for deacon in deacons:
+        if deacon["uid"] == user_data["uid"]:
+            deacon["frequency"] = user_data["frequency"]
+            break
+    church_ref.update({"deacons": deacons})
     user_ref.update(user_data)
     sync_child_params(user_data["uid"])
     return
