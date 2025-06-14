@@ -458,7 +458,7 @@ const EditSchedule = () => {
         church={churchId}
         week={week}
         family={null}
-        url="https://unavailable-to-serve-hy6oofbihq-uc.a.run.app"
+        url="https://unavailable-for-week-hy6oofbihq-uc.a.run.app"
       />
     </View>
   );

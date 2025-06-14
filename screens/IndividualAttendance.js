@@ -20,7 +20,7 @@ import storage from "@react-native-firebase/storage";
 import { LinearGradient } from "expo-linear-gradient";
 import BackArrow from "../components/backArrow";
 import PhotoInput from "../components/photoInput";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons"; // Added for edit icon
+import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 const IndividualAttendance = () => {
   const navigation = useNavigation();
@@ -132,6 +132,10 @@ const IndividualAttendance = () => {
 
   // Handle photo upload
   const handlePhotoUpload = async (imageUri) => {
+    if (!studentId) {
+      Alert.alert("Error", "Student ID is missing.");
+      return;
+    }
     try {
       setLoading(true);
       const ref = storage().ref(`profilePictures/${studentId}.png`);
@@ -219,7 +223,7 @@ const IndividualAttendance = () => {
 
               // Delete profile picture from Storage
               try {
-                await storage().ref(`ProfilePictures/${studentId}.png`).delete();
+                await storage().ref(`profilePictures/${studentId}.png`).delete();
               } catch (error) {
                 if (error.code !== "storage/object-not-found") {
                   console.warn("Error deleting profile picture:", error);

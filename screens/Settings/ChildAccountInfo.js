@@ -45,7 +45,7 @@ const ChildAccountInfo = ({ route, navigation }) => {
     const fetchImage = async () => {
       try {
         const url = await storage()
-          .ref(`childProfilePictures/${childUid}.png`)
+          .ref(`profilePictures/${childUid}.png`)
           .getDownloadURL();
         // Ensure the URL is a non-empty string before setting it
         if (typeof url === "string" && url.trim() !== "") {

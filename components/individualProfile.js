@@ -71,9 +71,7 @@ const IndividualProfile = ({
     // Fetch profile picture URL
     const fetchImage = async () => {
       try {
-        const storagePath = isChild
-          ? `childProfilePictures/${userId}.png`
-          : `profilePictures/${userId}.png`;
+        const storagePath = isChild `profilePictures/${userId}.png`;
         const url = await storage().ref(storagePath).getDownloadURL();
         if (typeof url === "string" && url.trim() !== "") {
           setImageUrl(url);
@@ -271,79 +269,61 @@ const IndividualProfile = ({
   };
 
   // Handle unavailable to serve
-  const handleUnavailable = () => {
-    Alert.alert(
-      "Mark Unavailable",
-      "Are you sure you want to mark this user as unavailable to serve?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Confirm",
-          style: "destructive",
-          onPress: async () => {
-            ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
-            try {
-              const currentUser = auth().currentUser;
-              if (!currentUser) {
-                throw new Error("No authenticated user found");
-              }
-
-              const formattedWeek = formatDate(week);
-
-              if (isChild) {
-                const parentDoc = await firestore()
-                  .collection("users")
-                  .doc(userData.parentId)
-                  .get();
-                if (parentDoc.exists) {
-                  const parentData = parentDoc.data();
-                  const updatedChildren = parentData.children.map((child) =>
-                    child.uid === userId
-                      ? {
-                          ...child,
-                          unavailableWeeks: child.unavailableWeeks
-                            ? [...child.unavailableWeeks, formattedWeek]
-                            : [formattedWeek],
-                        }
-                      : child
-                  );
-                  await parentDoc.ref.update({ children: updatedChildren });
-                }
-              } else {
-                await firestore()
-                  .collection("users")
-                  .doc(userId)
-                  .update({
-                    unavailableWeeks:
-                      firestore.FieldValue.arrayUnion(formattedWeek),
-                  });
-              }
-
-              // Pass week as-is, assuming it's mm-dd-yy from EditSchedule
-              await unavailableToServe(
-                currentUser,
-                userId,
-                church,
-                week,
-                family,
-                url
-              );
-              onClose();
-            } catch (error) {
-              Alert.alert(
-                "Error",
-                "Failed to mark as unavailable. Please try again."
-              );
+const handleUnavailable = () => {
+  Alert.alert(
+    "Mark Unavailable",
+    "Are you sure you want to mark this user as unavailable to serve?",
+    [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Confirm",
+        style: "destructive",
+        onPress: async () => {
+          ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
+          try {
+            const currentUser = auth().currentUser;
+            if (!currentUser) {
+              throw new Error("No authenticated user found");
             }
-          },
+
+            const weekToMark = userData.nextWeekServe;
+
+            // Only update unavailableWeeks for users with their own user document
+            if (!isChild) {
+              await firestore()
+                .collection("users")
+                .doc(userId)
+                .update({
+                  unavailableWeeks:
+                    firestore.FieldValue.arrayUnion(weekToMark),
+                });
+            }
+
+            // Call unavailableToServe with nextWeekServe
+            await unavailableToServe(
+              currentUser,
+              userId,
+              church,
+              userData.nextWeekServe,
+              family,
+              "https://unavailable-for-week-hy6oofbihq-uc.a.run.app"
+            );
+            onClose();
+          } catch (error) {
+            Alert.alert(
+              "Error",
+              "Failed to mark as unavailable. Please try again."
+            );
+          }
         },
-      ],
-      { cancelable: true }
-    );
-  };
+      },
+    ],
+    { cancelable: true }
+  );
+};
 
   // Handle remove deacon
   const handleRemoveDeacon = () => {
@@ -469,6 +449,7 @@ const IndividualProfile = ({
                 <Icon name="delete" size={16} color="#fff" />
               </TouchableOpacity>
             )}
+            <View style={styles.spacer} />
             <TouchableOpacity
               style={styles.closeButton}
               onPress={handleCancel}
@@ -624,7 +605,7 @@ const styles = StyleSheet.create({
   },
   headerButtons: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "center",
     width: "100%",
     marginBottom: 8,
   },
@@ -633,8 +614,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#ff3b30",
     borderRadius: 8,
   },
+  spacer: {
+    flex: 1,
+  },
   closeButton: {
-    alignSelf: "flex-end",
     padding: 6,
     backgroundColor: "#333",
     borderRadius: 8,
