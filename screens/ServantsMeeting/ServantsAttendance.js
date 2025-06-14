@@ -1,26 +1,30 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   Alert,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   Image,
+  SectionList
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import * as Haptics from "react-native-haptic-feedback";
+import storage from "@react-native-firebase/storage";
 
 const ServantsAttendance = ({ navigation }) => {
   const user = auth().currentUser;
-  const [students, setServants] = useState([]);
+  const [servants, setServants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
+  const [sections, setSections] = useState([]);
+  const [availableLetters, setAvailableLetters] = useState([]);
+  const [profilePictureUrls, setProfilePictureUrls] = useState({});
+  const sectionListRef = useRef(null);
 
   useEffect(() => {
-    // Fetch user data in real-time
     const unsubscribeUserData = firestore()
       .collection("users")
       .doc(user.uid)
@@ -32,14 +36,29 @@ const ServantsAttendance = ({ navigation }) => {
         }
       });
 
-    // Clean up real-time listener when component unmounts
     return () => unsubscribeUserData();
   }, [user.uid]);
 
   useEffect(() => {
     if (!userData) return;
 
-    // Fetch servants data in real-time
+    const fetchProfilePictures = async (servantList) => {
+      const urls = {};
+      await Promise.all(
+        servantList.map(async (servant) => {
+          try {
+            const url = await storage()
+              .ref(`profilePictures/${servant.uid}.png`)
+              .getDownloadURL();
+            urls[servant.uid] = url;
+          } catch (error) {
+            urls[servant.uid] = null;
+          }
+        })
+      );
+      setProfilePictureUrls(urls);
+    };
+
     const servantsMeetingRef = firestore()
       .collection("churches")
       .doc(userData.church)
@@ -50,6 +69,8 @@ const ServantsAttendance = ({ navigation }) => {
         uid: doc.id,
         ...doc.data(),
       }));
+
+      // Sort servants alphabetically
       servantsData.sort((a, b) => a.name.localeCompare(b.name));
 
       const dateKey = getNextSunday();
@@ -73,30 +94,60 @@ const ServantsAttendance = ({ navigation }) => {
         })
       );
 
+      // Fetch profile pictures
+      fetchProfilePictures(servantsWithAttendance);
+
+      // Group servants by first letter
+      const grouped = servantsWithAttendance.reduce((acc, servant) => {
+        const firstLetter = servant.name.charAt(0).toUpperCase() || 'Other';
+        if (!acc[firstLetter]) acc[firstLetter] = [];
+        acc[firstLetter].push(servant);
+        return acc;
+      }, {});
+
+      // Convert to SectionList format
+      const sectionData = Object.keys(grouped)
+        .sort()
+        .map((letter) => ({
+          title: letter,
+          data: grouped[letter],
+        }));
+
       setServants(servantsWithAttendance);
-      setLoading(false); // Stop loading after data is fetched
+      setSections(sectionData);
+      setAvailableLetters(Object.keys(grouped).sort());
+      setLoading(false);
     });
 
-    // Clean up listener when component unmounts
     return () => unsubscribeServants();
-  }, [userData]); // Re-fetch servants when userData changes
+  }, [userData]);
+
+  const scrollToSection = (letter) => {
+    const sectionIndex = sections.findIndex(
+      (section) => section.title.toUpperCase() === letter.toUpperCase()
+    );
+
+    if (sectionIndex >= 0 && sectionListRef.current) {
+      sectionListRef.current.scrollToLocation({
+        sectionIndex,
+        itemIndex: 0,
+        animated: true,
+        viewPosition: 0,
+      });
+      Haptics.trigger("impactLight");
+    }
+  };
 
   const getNextSunday = () => {
     const today = new Date();
-    const currentDay = today.getDay(); // Get the current day of the week (0 is Sunday)
-
-    // If today is Sunday, return the current date
-    if (currentDay === 0) {
-      return formatDate(today);
-    }
-
-    // If not Sunday, find the next Sunday
+    const currentDay = today.getDay();
+    if (currentDay === 0) return formatDate(today);
+    
     const nextSunday = new Date(today);
     nextSunday.setDate(today.getDate() + (7 - currentDay));
     return formatDate(nextSunday);
   };
 
-  // Helper function to format the date as MM-DD-YYYY
   const formatDate = (date) => {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
@@ -105,10 +156,9 @@ const ServantsAttendance = ({ navigation }) => {
   };
 
   const handleAttendance = (servantID, status) => {
-    // Trigger haptic feedback
     Haptics.trigger("impactLight");
-
     const dateKey = getNextSunday();
+    
     firestore()
       .collection("churches")
       .doc(userData.church)
@@ -118,8 +168,8 @@ const ServantsAttendance = ({ navigation }) => {
         [dateKey]: status,
       })
       .then(() => {
-        setServants((prevStudents) =>
-          prevStudents.map((servant) =>
+        setServants((prev) =>
+          prev.map((servant) =>
             servant.uid === servantID
               ? { ...servant, attendance: status }
               : servant
@@ -127,6 +177,75 @@ const ServantsAttendance = ({ navigation }) => {
         );
       });
   };
+
+  const renderServant = ({ item: servant }) => (
+    <View style={styles.servantCard}>
+      <View style={styles.servantInfo}>
+        <View style={styles.servantImageContainer}>
+          <Image
+            style={styles.servantImage}
+            source={
+              profilePictureUrls[servant.uid]
+                ? { uri: profilePictureUrls[servant.uid] }
+                : require("../../assets/default_profile.png")
+            }
+            defaultSource={require("../../assets/default_profile.png")}
+            onError={() => {
+              setProfilePictureUrls(prev => ({
+                ...prev,
+                [servant.uid]: null
+              }));
+            }}
+          />
+        </View>
+        <View style={styles.servantDetails}>
+          <View style={styles.studentHeader}>
+            <Text style={styles.studentName}>{servant.name}</Text>
+            <TouchableOpacity
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              onPress={() =>
+                navigation.navigate("IndividualServant", {
+                  church: userData.church,
+                  servantID: servant.uid,
+                })
+              }
+            >
+              <Image
+                source={require("../../assets/vector.png")}
+                style={styles.icon}
+              />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.attendanceButtons}>
+            <TouchableOpacity
+              style={[
+                styles.attendanceButton,
+                servant.attendance === false && styles.absentSelected,
+              ]}
+              onPress={() => handleAttendance(servant.uid, false)}
+            >
+              <Text style={styles.attendanceButtonText}>Absent</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.attendanceButton,
+                servant.attendance === true && styles.presentSelected,
+              ]}
+              onPress={() => handleAttendance(servant.uid, true)}
+            >
+              <Text style={styles.attendanceButtonText}>Present</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderSectionHeader = ({ section: { title } }) => (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionHeaderText}>{title}</Text>
+    </View>
+  );
 
   if (loading) {
     return (
@@ -143,56 +262,32 @@ const ServantsAttendance = ({ navigation }) => {
         Attendance for the week of {getNextSunday()}
       </Text>
 
-      <ScrollView
-        contentContainerStyle={styles.studentsContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        {students.length === 0 ? (
-          <Text style={styles.noStudentsText}>Church has no servants</Text>
-        ) : (
-          students.map((servant) => (
-            <View key={servant.uid} style={styles.studentContainer}>
-              <View style={styles.studentHeader}>
-                <Text style={styles.studentName}>{servant.name}</Text>
-                <TouchableOpacity
-                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }} // Added for larger touch area
-                  onPress={() =>
-                    navigation.navigate("IndividualServant", {
-                      church: userData.church,
-                      servantID: servant.uid,
-                    })
-                  }
-                >
-                  <Image
-                    source={require("../../assets/vector.png")}
-                    style={styles.icon}
-                  />
-                </TouchableOpacity>
-              </View>
-              <View style={styles.attendanceButtons}>
-                <TouchableOpacity
-                  style={[
-                    styles.attendanceButton,
-                    servant.attendance === false && styles.absentSelected,
-                  ]}
-                  onPress={() => handleAttendance(servant.uid, false)}
-                >
-                  <Text style={styles.attendanceButtonText}>Absent</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.attendanceButton,
-                    servant.attendance === true && styles.presentSelected,
-                  ]}
-                  onPress={() => handleAttendance(servant.uid, true)}
-                >
-                  <Text style={styles.attendanceButtonText}>Present</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))
-        )}
-      </ScrollView>
+      <View style={styles.listWrapper}>
+        <SectionList
+          ref={sectionListRef}
+          sections={sections}
+          renderItem={renderServant}
+          renderSectionHeader={renderSectionHeader}
+          keyExtractor={(item) => item.uid}
+          contentContainerStyle={styles.listContainer}
+          ListEmptyComponent={
+            <Text style={styles.noStudentsText}>Church has no servants</Text>
+          }
+          showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false}
+        />
+        <View style={styles.indexBar}>
+          {availableLetters.map((letter) => (
+            <TouchableOpacity
+              key={letter}
+              style={styles.indexItem}
+              onPress={() => scrollToSection(letter)}
+            >
+              <Text style={styles.indexText}>{letter}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
     </View>
   );
 };
@@ -206,23 +301,56 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 30,
   },
-  studentContainer: {
+  listWrapper: {
+    flex: 1,
+    flexDirection: "row",
+  },
+  listContainer: {
+    flexGrow: 1,
+  },
+  servantCard: {
     backgroundColor: "#1E1E1E",
-    padding: 15,
-    borderRadius: 8,
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 15,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  servantInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  servantImageContainer: {
+    marginRight: 12,
+  },
+  servantImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#333333",
+  },
+  servantDetails: {
+    flex: 1,
   },
   studentHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  studentName: { fontSize: 20, color: "#FFFFFF" },
-  icon: { width: 8, height: 15 }, // Adjust size as needed
+  studentName: { 
+    fontSize: 18, 
+    fontWeight: "600", 
+    color: "#FFFFFF" 
+  },
+  icon: { width: 8, height: 15 },
   attendanceButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 20, // Increased from 10 to 20
+    marginTop: 20,
   },
   attendanceButton: {
     flex: 1,
@@ -234,18 +362,53 @@ const styles = StyleSheet.create({
   },
   presentSelected: { backgroundColor: "#147efb" },
   absentSelected: { backgroundColor: "#D32F2F" },
-  attendanceButtonText: { fontSize: 16, fontWeight: "bold", color: "#FFFFFF" },
+  attendanceButtonText: { 
+    fontSize: 16, 
+    fontWeight: "bold", 
+    color: "#FFFFFF" 
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#121212",
   },
+  loadingText: {
+    color: "#fff",
+    marginTop: 10,
+  },
   noStudentsText: {
     fontSize: 18,
     color: "#fff",
     textAlign: "center",
     marginTop: 20,
+  },
+  sectionHeader: {
+    backgroundColor: "#2a2a2a",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  sectionHeaderText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  indexBar: {
+    width: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20,
+  },
+  indexItem: {
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  indexText: {
+    fontSize: 12,
+    color: "#147efb",
+    fontWeight: "600",
   },
 });
 

@@ -57,6 +57,7 @@ const EditSchedule = () => {
   const [readerDropdownIndex, setReaderDropdownIndex] = useState(null);
   const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState(null);
+  const [imageUrls, setImageUrls] = useState({}); // Store image URLs for deacons
   const scrollViewRef = useRef(null);
   const user = auth().currentUser;
 
@@ -81,7 +82,7 @@ const EditSchedule = () => {
     return () => unsubscribeUser();
   }, [user.uid, churchId]);
 
-  // Query schedule subcollection for nearest week
+  // Query schedule subcollection for nearest week and fetch image URLs
   useEffect(() => {
     if (churchId) {
       const schedulesRef = firestore()
@@ -131,15 +132,36 @@ const EditSchedule = () => {
           setAssignedServers(initialServerAssignments);
           setServers(fetchedAltarServers.map((_, index) => `Altar Server ${index + 1}`));
 
+          // Use the 'extra' array from the schedule for available servers
           const extraServers = scheduleForTheWeek.extra || [];
           const filteredExtraServers = extraServers
-            .filter((server) => server.name !== "N/A")
+            .filter((server) => server.name !== "N/A" && server.uid)
             .sort((a, b) => {
               const nameA = a.name.split(" ")[0].toLowerCase();
               const nameB = b.name.split(" ")[0].toLowerCase();
               return nameA.localeCompare(nameB);
             });
           setAvailableServers(filteredExtraServers);
+
+          // Fetch image URLs for extra servers
+          const fetchImages = async () => {
+            const newImageUrls = {};
+            for (const server of filteredExtraServers) {
+              try {
+                const storagePath = `profilePictures/${server.uid}.png`;
+                const url = await storage().ref(storagePath).getDownloadURL();
+                if (typeof url === "string" && url.trim() !== "") {
+                  newImageUrls[server.uid] = url;
+                } else {
+                  newImageUrls[server.uid] = null;
+                }
+              } catch (error) {
+                newImageUrls[server.uid] = null;
+              }
+            }
+            setImageUrls(newImageUrls);
+          };
+          fetchImages();
         }
       });
 
@@ -368,11 +390,14 @@ const EditSchedule = () => {
                 >
                   <View style={styles.modalItemContent}>
                     <Image
-                      source={{
-                        uri: `https://firebasestorage.googleapis.com/v0/b/YOUR_PROJECT_ID.appspot.com/o/profilePictures%2F${item.uid}.png?alt=media`,
-                      }}
+                      source={
+                        imageUrls[item.uid] && typeof imageUrls[item.uid] === "string" && imageUrls[item.uid].trim() !== ""
+                          ? { uri: imageUrls[item.uid] }
+                          : require("../assets/default_profile.png")
+                      }
                       style={styles.profilePic}
                       defaultSource={require("../assets/default_profile.png")}
+                      onError={() => setImageUrls((prev) => ({ ...prev, [item.uid]: null }))}
                     />
                     <Text style={styles.modalItem}>{item.name}</Text>
                   </View>
@@ -381,7 +406,7 @@ const EditSchedule = () => {
             />
             <TouchableOpacity onPress={() => setServerDropdownIndex(null)}>
               <Text style={styles.closeButton}>Close</Text>
-              </TouchableOpacity>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -404,11 +429,14 @@ const EditSchedule = () => {
                 >
                   <View style={styles.modalItemContent}>
                     <Image
-                      source={{
-                        uri: `https://firebasestorage.googleapis.com/v0/b/YOUR_PROJECT_ID.appspot.com/o/profilePictures%2F${item.uid}.png?alt=media`,
-                      }}
+                      source={
+                        imageUrls[item.uid] && typeof imageUrls[item.uid] === "string" && imageUrls[item.uid].trim() !== ""
+                          ? { uri: imageUrls[item.uid] }
+                          : require("../assets/default_profile.png")
+                      }
                       style={styles.profilePic}
                       defaultSource={require("../assets/default_profile.png")}
+                      onError={() => setImageUrls((prev) => ({ ...prev, [item.uid]: null }))}
                     />
                     <Text style={styles.modalItem}>{item.name}</Text>
                   </View>
@@ -545,6 +573,8 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
+    borderWidth: 2,
+    borderColor: "#147efb",
   },
   closeButton: {
     color: "#ff3b30",

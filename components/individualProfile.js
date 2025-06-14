@@ -33,16 +33,25 @@ const formatNumber = (num) => {
   }
 };
 
-// Function to format date to dd-mm-yyyy
+// Function to format date to mm-dd-yy
 const formatDate = (date) => {
+  if (!date) return "N/A";
   const d = new Date(date);
-  const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
-  const year = d.getFullYear();
-  return `${day}-${month}-${year}`;
+  const day = String(d.getDate()).padStart(2, "0");
+  const year = String(d.getFullYear()).slice(-2);
+  return `${month}-${day}-${year}`;
 };
 
-const IndividualProfile = ({ userId, show, onClose, church, week, family, url }) => {
+const IndividualProfile = ({
+  userId,
+  show,
+  onClose,
+  church,
+  week,
+  family,
+  url,
+}) => {
   const [imageUrl, setImageUrl] = useState(null);
   const [userData, setUserData] = useState(null);
   const [tempExperience, setTempExperience] = useState(0);
@@ -50,6 +59,7 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
   const [loading, setLoading] = useState(true);
   const [isChild, setIsChild] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [isDeacon, setIsDeacon] = useState(false);
 
   // Fetch image and user data with real-time updates
   useEffect(() => {
@@ -61,9 +71,10 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
     // Fetch profile picture URL
     const fetchImage = async () => {
       try {
-        const storagePath = isChild ? `childProfilePictures/${userId}.png` : `profilePictures/${userId}.png`;
+        const storagePath = isChild
+          ? `childProfilePictures/${userId}.png`
+          : `profilePictures/${userId}.png`;
         const url = await storage().ref(storagePath).getDownloadURL();
-        // Ensure the URL is a non-empty string before setting it
         if (typeof url === "string" && url.trim() !== "") {
           setImageUrl(url);
         } else {
@@ -74,15 +85,11 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
       }
     };
 
-    // Fetch image immediately
     fetchImage();
-
-    // Set up interval to check for updates every 30 seconds
     const intervalId = setInterval(fetchImage, 10000);
 
     // Fetch user data with real-time listener
     const fetchUserData = () => {
-      // Listen to user document
       const userUnsubscribe = firestore()
         .collection("users")
         .doc(userId)
@@ -101,10 +108,10 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
               });
               setTempExperience(data.experience || 0);
               setTempFrequency(data.frequency || 0);
+              setIsDeacon(data.isDeacon || false);
               setIsChild(false);
               setLoading(false);
             } else {
-              // Check for child data
               const usersQueryUnsubscribe = firestore()
                 .collection("users")
                 .onSnapshot(
@@ -115,7 +122,9 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
                     for (const doc of querySnapshot.docs) {
                       const userData = doc.data();
                       const children = userData.children || [];
-                      const child = children.find((child) => child.uid === userId);
+                      const child = children.find(
+                        (child) => child.uid === userId
+                      );
                       if (child) {
                         childData = child;
                         parentId = doc.id;
@@ -124,13 +133,18 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
                     }
 
                     if (childData) {
-                      // Fetch parent's phone number
                       let parentPhone = "Not provided";
                       try {
-                        const parentDoc = await firestore().collection("users").doc(parentId).get();
+                        const parentDoc = await firestore()
+                          .collection("users")
+                          .doc(parentId)
+                          .get();
                         if (parentDoc.exists) {
                           const parentData = parentDoc.data();
-                          parentPhone = parentData.number || parentData.phone || "Not provided";
+                          parentPhone =
+                            parentData.number ||
+                            parentData.phone ||
+                            "Not provided";
                         }
                       } catch (error) {
                         console.warn("Failed to fetch parent phone:", error);
@@ -149,6 +163,7 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
                       setTempExperience(childData.experience || 0);
                       setTempFrequency(childData.frequency || 0);
                       setIsChild(true);
+                      setIsDeacon(false); // Children are typically not deacons
                       setLoading(false);
                     } else {
                       setLoading(false);
@@ -172,7 +187,6 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
 
     const unsubscribeUserData = fetchUserData();
 
-    // Cleanup interval and Firestore listener
     return () => {
       clearInterval(intervalId);
       if (unsubscribeUserData) {
@@ -189,37 +203,70 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
   // Handle save edits to Firestore
   const handleSaveEdits = async () => {
     ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
+
     try {
+      const batch = firestore().batch();
+      const userRef = isChild
+        ? firestore().collection("users").doc(userData.parentId)
+        : firestore().collection("users").doc(userId);
+
       if (isChild) {
-        // Update child data in parent's document
-        const parentDoc = await firestore().collection("users").doc(userData.parentId).get();
+        const parentDoc = await userRef.get();
         if (parentDoc.exists) {
           const parentData = parentDoc.data();
           const updatedChildren = parentData.children.map((child) =>
             child.uid === userId
-              ? { ...child, experience: tempExperience, frequency: tempFrequency }
+              ? {
+                  ...child,
+                  experience: tempExperience,
+                  frequency: tempFrequency,
+                }
               : child
           );
-          await parentDoc.ref.update({ children: updatedChildren });
+          batch.update(userRef, { children: updatedChildren });
         }
       } else {
-        // Update user's own document
-        await firestore()
-          .collection("users")
-          .doc(userId)
-          .update({
-            experience: tempExperience,
-            frequency: tempFrequency,
-          });
+        batch.update(userRef, {
+          experience: tempExperience,
+          frequency: tempFrequency,
+        });
       }
+
+      // Update church document if user is a deacon
+      if (isDeacon && !isChild) {
+        const churchRef = firestore().collection("churches").doc(church);
+        const churchDoc = await churchRef.get();
+
+        if (churchDoc.exists) {
+          const churchData = churchDoc.data();
+          const updatedDeacons = (churchData.deacons || []).map((deacon) =>
+            deacon.uid === userId
+              ? {
+                  ...deacon,
+                  experience: tempExperience,
+                  frequency: tempFrequency,
+                }
+              : deacon
+          );
+
+          batch.update(churchRef, { deacons: updatedDeacons });
+        }
+      }
+
+      // Commit all updates as a single batch
+      await batch.commit();
+
+      // Update local state
       setUserData((prev) => ({
         ...prev,
         experience: tempExperience,
         frequency: tempFrequency,
       }));
+
       onClose();
     } catch (error) {
-      Alert.alert("Error", "Failed to save changes. Please try again.");
+      console.error("Update failed:", error);
+      Alert.alert("Update Error", "Failed to save changes. Please try again.");
     }
   };
 
@@ -244,12 +291,13 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
                 throw new Error("No authenticated user found");
               }
 
-              // Format the week to dd-mm-yyyy
               const formattedWeek = formatDate(week);
 
-              // Update unavailableWeeks in Firestore
               if (isChild) {
-                const parentDoc = await firestore().collection("users").doc(userData.parentId).get();
+                const parentDoc = await firestore()
+                  .collection("users")
+                  .doc(userData.parentId)
+                  .get();
                 if (parentDoc.exists) {
                   const parentData = parentDoc.data();
                   const updatedChildren = parentData.children.map((child) =>
@@ -269,14 +317,90 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
                   .collection("users")
                   .doc(userId)
                   .update({
-                    unavailableWeeks: firestore.FieldValue.arrayUnion(formattedWeek),
+                    unavailableWeeks:
+                      firestore.FieldValue.arrayUnion(formattedWeek),
                   });
               }
 
-              await unavailableToServe(currentUser, userId, church, week, family, url);
+              // Pass week as-is, assuming it's mm-dd-yy from EditSchedule
+              await unavailableToServe(
+                currentUser,
+                userId,
+                church,
+                week,
+                family,
+                url
+              );
               onClose();
             } catch (error) {
-              Alert.alert("Error", "Failed to mark as unavailable. Please try again.");
+              Alert.alert(
+                "Error",
+                "Failed to mark as unavailable. Please try again."
+              );
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  // Handle remove deacon
+  const handleRemoveDeacon = () => {
+    Alert.alert(
+      "Remove Deacon",
+      "Are you sure you want to remove this user as a deacon? This action cannot be undone.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Confirm",
+          style: "destructive",
+          onPress: async () => {
+            ReactNativeHapticFeedback.trigger("impactHeavy", hapticOptions);
+            try {
+              const currentUser = auth().currentUser;
+              if (!currentUser) {
+                throw new Error("No authenticated user found");
+              }
+
+              // Fetch church document
+              const churchDocRef = firestore()
+                .collection("churches")
+                .doc(church);
+              const churchDoc = await churchDocRef.get();
+              if (!churchDoc.exists) {
+                throw new Error("Church document not found");
+              }
+
+              const churchData = churchDoc.data();
+              const deacons = churchData.deacons || [];
+              // Filter out the deacon with matching userId
+              const updatedDeacons = deacons.filter(
+                (deacon) => deacon.uid !== userId
+              );
+
+              // Update church document
+              await churchDocRef.update({
+                deacons: updatedDeacons,
+              });
+
+              // Update user document
+              await firestore().collection("users").doc(userId).update({
+                isDeacon: false,
+              });
+
+              setIsDeacon(false);
+              Alert.alert("Success", "The user has been removed as a deacon.");
+              onClose();
+            } catch (error) {
+              console.error("Error removing deacon:", error);
+              Alert.alert(
+                "Error",
+                "Failed to remove deacon. Please try again."
+              );
             }
           },
         },
@@ -289,9 +413,10 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
   const handlePhotoUpload = async () => {
     setShowPhotoModal(false);
     try {
-      const storagePath = isChild ? `childProfilePictures/${userId}.png` : `profilePictures/${userId}.png`;
+      const storagePath = isChild
+        ? `childProfilePictures/${userId}.png`
+        : `profilePictures/${userId}.png`;
       const newUrl = await storage().ref(storagePath).getDownloadURL();
-      // Ensure the URL is a non-empty string before setting it
       if (typeof newUrl === "string" && newUrl.trim() !== "") {
         setImageUrl(newUrl);
       } else {
@@ -325,17 +450,34 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
   }
 
   return (
-    <Modal visible={show} animationType="none" transparent={true} onRequestClose={handleCancel}>
+    <Modal
+      visible={show}
+      animationType="none"
+      transparent={true}
+      onRequestClose={handleCancel}
+    >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={handleCancel}
-            activeOpacity={0.7}
-            accessibilityLabel="Close"
-          >
-            <Text style={styles.closeButtonText}>Close</Text>
-          </TouchableOpacity>
+          <View style={styles.headerButtons}>
+            {!isChild && isDeacon && (
+              <TouchableOpacity
+                style={styles.removeDeaconButton}
+                onPress={handleRemoveDeacon}
+                activeOpacity={0.7}
+                accessibilityLabel="Remove Deacon"
+              >
+                <Icon name="delete" size={16} color="#fff" />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={handleCancel}
+              activeOpacity={0.7}
+              accessibilityLabel="Close"
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.profileImageContainer}>
             <Image
@@ -363,8 +505,12 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
 
           <View style={styles.section}>
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>{isChild ? "Parent's Phone:" : "Phone:"}</Text>
-              <Text style={styles.detail}>{userData?.phone || "Not provided"}</Text>
+              <Text style={styles.detailLabel}>
+                {isChild ? "Parent's Phone:" : "Phone:"}
+              </Text>
+              <Text style={styles.detail}>
+                {userData?.phone || "Not provided"}
+              </Text>
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Age:</Text>
@@ -372,7 +518,9 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Next Week Serve:</Text>
-              <Text style={styles.detail}>{userData?.nextWeekServe || "N/A"}</Text>
+              <Text style={styles.detail}>
+                {userData?.nextWeekServe || "N/A"}
+              </Text>
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Next Role:</Text>
@@ -381,7 +529,9 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.label}>Experience: {formatNumber(tempExperience)}</Text>
+            <Text style={styles.label}>
+              Experience: {formatNumber(tempExperience)}
+            </Text>
             <Slider
               value={tempExperience}
               onValueChange={handleSliderChange(setTempExperience)}
@@ -395,7 +545,9 @@ const IndividualProfile = ({ userId, show, onClose, church, week, family, url })
               accessibilityLabel="Experience"
             />
 
-            <Text style={styles.label}>Frequency: {formatNumber(tempFrequency)}</Text>
+            <Text style={styles.label}>
+              Frequency: {formatNumber(tempFrequency)}
+            </Text>
             <Slider
               value={tempFrequency}
               onValueChange={handleSliderChange(setTempFrequency)}
@@ -469,6 +621,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
+  },
+  headerButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    marginBottom: 8,
+  },
+  removeDeaconButton: {
+    padding: 6,
+    backgroundColor: "#ff3b30",
+    borderRadius: 8,
   },
   closeButton: {
     alignSelf: "flex-end",

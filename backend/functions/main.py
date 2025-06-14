@@ -1383,7 +1383,6 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
     week_id = request_data.get("week")
     user_id = request_data.get("uid")
     family = request_data.get("family")
-
     if not all([church_id, week_id, user_id]):
         return https_fn.Response("Missing required parameters", status=400)
 
@@ -1397,7 +1396,6 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
     firestore_client = firestore.Client()
     user_ref = firestore_client.collection("users").document(user_id)
     user_doc = user_ref.get()
-
     all_uids = [user_id]
     if user_doc.exists:
         user_data = user_doc.to_dict()
@@ -1415,7 +1413,6 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
         .document(week_id)
     )
     schedule_doc = schedule_ref.get()
-
     if not schedule_doc.exists:
         return https_fn.Response("Schedule not found", status=404)
 
@@ -1471,6 +1468,7 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
                 schedule_data["altar"][key[1]] = replacement
                 del schedule_data["extra"][new_key[1]]
             elif key[0] == "extra":
+                print(f"Removing extra server: {key[1]}")
                 del schedule_data["extra"][key[1]]
 
     # Final Firestore update

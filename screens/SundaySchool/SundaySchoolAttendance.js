@@ -17,6 +17,7 @@ import {
 import { Picker } from "@react-native-picker/picker";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import storage from "@react-native-firebase/storage";
 import * as Haptics from "react-native-haptic-feedback";
 
 const SundaySchoolAttendance = ({ navigation }) => {
@@ -28,6 +29,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
   const [newStudentName, setNewStudentName] = useState("");
   const [newStudentGrade, setNewStudentGrade] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const scrollViewRef = useRef(null);
   const gradeRefs = useRef({});
 
@@ -59,9 +61,28 @@ const SundaySchoolAttendance = ({ navigation }) => {
     return () => unsubscribe();
   }, [user]);
 
-  // Fetch students from all selected grades
+  // Fetch students and profile pictures
   useEffect(() => {
     if (!userData || !userData.ssGrades || userData.ssGrades.length === 0) return;
+
+    const fetchProfilePictures = async (studentList) => {
+      const urls = { ...profilePictureUrls };
+      await Promise.all(
+        studentList.map(async (student) => {
+          if (!urls[student.uid]) {
+            try {
+              const url = await storage()
+                .ref(`profilePictures/${student.uid}.png`) // Updated path
+                .getDownloadURL();
+              urls[student.uid] = url;
+            } catch (error) {
+              urls[student.uid] = null;
+            }
+          }
+        })
+      );
+      setProfilePictureUrls(urls);
+    };
 
     const unsubscribeFunctions = [];
 
@@ -73,13 +94,16 @@ const SundaySchoolAttendance = ({ navigation }) => {
         .doc(grade)
         .collection("students");
 
-      const unsubscribe = studentsRef.onSnapshot((snapshot) => {
+      const unsubscribe = studentsRef.onSnapshot(async (snapshot) => {
         const gradeStudents = snapshot.docs.map((doc) => ({
           uid: doc.id,
           grade: grade,
           ...doc.data(),
         }));
         gradeStudents.sort((a, b) => a.name.localeCompare(b.name));
+
+        await fetchProfilePictures(gradeStudents);
+
         setStudentsByGrade((prev) => ({
           ...prev,
           [grade]: gradeStudents,
@@ -118,9 +142,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
   };
 
   const handleAttendance = (student, status) => {
-    // Trigger haptic feedback
     Haptics.trigger("impactLight");
-
     const dateKey = getNextSunday();
     firestore()
       .collection("churches")
@@ -179,8 +201,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
         (x, y, width, height) => {
           scrollViewRef.current.scrollTo({ y, animated: true });
         },
-        () => {
-        }
+        () => {}
       );
     }
   };
@@ -245,22 +266,42 @@ const SundaySchoolAttendance = ({ navigation }) => {
               studentsByGrade[grade].map((student) => (
                 <View key={student.uid} style={styles.studentContainer}>
                   <View style={styles.studentHeader}>
-                    <Text style={styles.studentName}>
-                      {student.name} - {formatGrade(student.grade)}
-                    </Text>
-                    <TouchableOpacity
-                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                      onPress={() =>
-                        navigation.navigate("IndividualAttendance", {
-                          church: userData.church,
-                          category: "Sunday School",
-                          grade: student.grade,
-                          studentId: student.uid,
-                        })
+                    <Image
+                      style={styles.profilePicture}
+                      source={
+                        profilePictureUrls[student.uid]
+                          ? { uri: profilePictureUrls[student.uid] }
+                          : require("../../assets/default_profile.png")
                       }
-                    >
-                      <Image source={require("../../assets/vector.png")} style={styles.icon} />
-                    </TouchableOpacity>
+                      defaultSource={require("../../assets/default_profile.png")}
+                      onError={() =>
+                        setProfilePictureUrls((prev) => ({
+                          ...prev,
+                          [student.uid]: null,
+                        }))
+                      }
+                    />
+                    <View style={styles.studentInfo}>
+                      <Text style={styles.studentName}>
+                        {student.name} - {formatGrade(student.grade)}
+                      </Text>
+                      <TouchableOpacity
+                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                        onPress={() =>
+                          navigation.navigate("IndividualAttendance", {
+                            church: userData.church,
+                            category: "Sunday School",
+                            grade: student.grade,
+                            studentId: student.uid,
+                          })
+                        }
+                      >
+                        <Image
+                          source={require("../../assets/vector.png")}
+                          style={styles.icon}
+                        />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                   <View style={styles.attendanceButtons}>
                     <TouchableOpacity
@@ -413,6 +454,20 @@ const styles = StyleSheet.create({
   },
   studentHeader: {
     flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  profilePicture: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#333333",
+    marginRight: 12,
+  },
+  studentInfo: {
+    flex: 1,
+    flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
@@ -421,7 +476,7 @@ const styles = StyleSheet.create({
   attendanceButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 25,
+    marginTop: 15,
   },
   attendanceButton: {
     flex: 1,
