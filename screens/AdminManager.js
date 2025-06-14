@@ -9,11 +9,21 @@ import {
   Modal,
   Switch,
   Alert,
-  Dimensions,
+  Image,
+  FlatList
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
+import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import { Ionicons } from "@expo/vector-icons";
+import ReactNativeHapticFeedback from "react-native-haptic-feedback";
+import PhotoInput from "../components/photoInput";
+
+// Haptic feedback options
+const hapticOptions = {
+  enableVibrateFallback: true,
+  ignoreAndroidSystemSettings: false,
+};
 
 const adminRoles = [
   { key: "admin", label: "Schedule Admin" },
@@ -32,36 +42,69 @@ const AdminManager = () => {
   const [selectedRoles, setSelectedRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sections, setSections] = useState([]);
+  const [profilePictureUrls, setProfilePictureUrls] = useState({});
+  const [photoInputVisible, setPhotoInputVisible] = useState(false);
+  const [isListReady, setIsListReady] = useState(false);
   const sectionListRef = useRef(null);
 
-  // Alphabet for index bar
-  const alphabet = Array.from({ length: 26 }, (_, i) =>
-    String.fromCharCode(65 + i)
-  );
+  // Alphabet for index bar (only letters with data)
+  const [availableLetters, setAvailableLetters] = useState([]);
 
   // Fetch current user's church
   useEffect(() => {
     const user = auth().currentUser;
     if (user) {
-      firestore()
+      const unsubscribe = firestore()
         .collection("users")
         .doc(user.uid)
-        .get()
-        .then((doc) => {
-          if (doc.exists) {
-            setChurch(doc.data().church);
+        .onSnapshot(
+          (doc) => {
+            if (doc.exists) {
+              setChurch(doc.data().church || null);
+            }
+            setLoading(false);
+          },
+          (error) => {
+            setLoading(false);
+            Alert.alert("Error", "Failed to fetch church data.");
           }
-          setLoading(false);
-        })
-        .catch((error) => {
-          setLoading(false);
-          Alert.alert("Error", "Could not fetch user data. Please try again.");
-        });
+        );
+      return () => unsubscribe();
+    } else {
+      setLoading(false);
+      Alert.alert("Error", "No user authenticated.");
     }
   }, []);
 
-  // Fetch all users and group by first letter
+  // Fetch users and profile pictures
   useEffect(() => {
+    if (!church) return;
+
+    const fetchProfilePictureUrls = async () => {
+      try {
+        const querySnapshot = await firestore().collection("users").get();
+        const urls = {};
+        await Promise.all(
+          querySnapshot.docs.map(async (doc) => {
+            const uid = doc.id;
+            try {
+              const url = await storage()
+                .ref(`profilePictures/${uid}.png`)
+                .getDownloadURL();
+              urls[uid] = typeof url === "string" && url.trim() ? url : null;
+            } catch (error) {
+              urls[uid] = null;
+            }
+          })
+        );
+        setProfilePictureUrls(urls);
+      } catch (error) {
+      }
+    };
+
+    fetchProfilePictureUrls();
+    const intervalId = setInterval(fetchProfilePictureUrls, 30000);
+
     const unsubscribe = firestore()
       .collection("users")
       .onSnapshot(
@@ -69,16 +112,27 @@ const AdminManager = () => {
           const userList = querySnapshot.docs
             .map((doc) => ({
               id: doc.id,
+              name: (doc.data().name || "").trim().toLowerCase(),
               ...doc.data(),
             }))
-            .sort((a, b) => a.name.localeCompare(b.name));
+            .sort((a, b) => {
+              const nameComparison = a.name.localeCompare(b.name);
+              if (nameComparison === 0) {
+                return a.id.localeCompare(b.id);
+              }
+              return nameComparison;
+            })
+            .map((user) => ({
+              ...user,
+              name: querySnapshot.docs
+                .find((d) => d.id === user.id)
+                ?.data().name || "",
+            }));
 
           // Group users by first letter
           const grouped = userList.reduce((acc, user) => {
-            const firstLetter = user.name.charAt(0).toUpperCase();
-            if (!acc[firstLetter]) {
-              acc[firstLetter] = [];
-            }
+            const firstLetter = user.name.charAt(0).toUpperCase() || "Other";
+            if (!acc[firstLetter]) acc[firstLetter] = [];
             acc[firstLetter].push(user);
             return acc;
           }, {});
@@ -91,23 +145,50 @@ const AdminManager = () => {
               data: grouped[letter],
             }));
 
+          // Set available letters
+          const letters = sectionData.map((section) => section.title).sort();
+
           setUsers(userList);
           setSections(sectionData);
+          setAvailableLetters(letters);
         },
         (error) => {
-          Alert.alert("Error", "Could not fetch users. Please try again.");
+          Alert.alert("Error", "Could not fetch users.");
         }
       );
-    return () => unsubscribe();
-  }, []);
+
+    return () => {
+      clearInterval(intervalId);
+      unsubscribe();
+    };
+  }, [church]);
 
   const openEditModal = (user) => {
+    if (!user?.id) return;
+    ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setSelectedUser(user);
     const initialRoles = adminRoles
       .filter((role) => user[role.key])
       .map((role) => role.key);
     setSelectedRoles(initialRoles);
     setModalVisible(true);
+  };
+
+  const openPhotoInputModal = () => {
+    ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+    setPhotoInputVisible(true);
+  };
+
+  const closeEditModal = () => {
+    ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+    setModalVisible(false);
+    setSelectedUser(null);
+    setSelectedRoles([]);
+  };
+
+  const closePhotoInputModal = () => {
+    ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+    setPhotoInputVisible(false);
   };
 
   const toggleRole = (roleKey) => {
@@ -137,15 +218,44 @@ const AdminManager = () => {
   };
 
   const scrollToSection = (letter) => {
+    if (!sectionListRef.current || !availableLetters.includes(letter) || !isListReady) {
+      return;
+    }
+
     const sectionIndex = sections.findIndex(
-      (section) => section.title === letter
+      (section) => section.title.toUpperCase() === letter.toUpperCase()
     );
-    if (sectionIndex !== -1 && sectionListRef.current) {
-      sectionListRef.current.scrollToLocation({
-        sectionIndex,
-        itemIndex: 0,
-        animated: true,
-      });
+
+
+    if (sectionIndex >= 0) {
+      setTimeout(() => {
+        try {
+          sectionListRef.current.scrollToLocation({
+            sectionIndex,
+            itemIndex: 0,
+            animated: true,
+            viewPosition: 0,
+            viewOffset: 0,
+          });
+          ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+        } catch (error) {
+          // Fallback: Calculate item index
+          let itemIndex = 0;
+          for (let i = 0; i < sectionIndex; i++) {
+            itemIndex += sections[i].data.length; // Items only
+            itemIndex += 1; // Section header
+          }
+          try {
+            sectionListRef.current.scrollToIndex({
+              index: itemIndex,
+              animated: true,
+              viewPosition: 0,
+            });
+          } catch (fallbackError) {
+          }
+        }
+      }, 0);
+    } else {
     }
   };
 
@@ -157,7 +267,28 @@ const AdminManager = () => {
         .join(", ") || "No roles assigned";
 
     return (
-      <View style={styles.userCard}>
+      <TouchableOpacity
+        style={styles.userCard}
+        onPress={() => openEditModal(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.userImageContainer}>
+          <Image
+            style={styles.userImage}
+            source={
+              item.id && profilePictureUrls[item.id]
+                ? { uri: profilePictureUrls[item.id] }
+                : require("../assets/default_profile.png")
+            }
+            defaultSource={require("../assets/default_profile.png")}
+            onError={() => {
+              setProfilePictureUrls((prev) => ({
+                ...prev,
+                [item.id]: null,
+              }));
+            }}
+          />
+        </View>
         <View style={styles.userInfo}>
           <Text style={styles.userName}>{item.name}</Text>
           <Text style={styles.userChurch}>{item.church || "No church assigned"}</Text>
@@ -170,7 +301,7 @@ const AdminManager = () => {
           <Ionicons name="pencil" size={18} color="#fff" />
           <Text style={styles.buttonText}>Edit</Text>
         </TouchableOpacity>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -204,10 +335,14 @@ const AdminManager = () => {
             <Text style={styles.emptyText}>No users found.</Text>
           }
           showsVerticalScrollIndicator={false}
-          stickySectionHeadersEnabled={true}
+          stickySectionHeadersEnabled={false}
+          extraData={profilePictureUrls}
+          onLayout={() => {
+            setIsListReady(true);
+          }}
         />
         <View style={styles.indexBar}>
-          {alphabet.map((letter) => (
+          {availableLetters.map((letter) => (
             <TouchableOpacity
               key={letter}
               style={styles.indexItem}
@@ -218,52 +353,86 @@ const AdminManager = () => {
           ))}
         </View>
       </View>
-      <Modal visible={modalVisible} animationType="fade" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                Edit Roles for {selectedUser?.name}
-              </Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
-            <FlatList
-              data={adminRoles}
-              renderItem={({ item: role }) => (
-                <View style={styles.roleItem}>
-                  <Text style={styles.roleText}>{role.label}</Text>
-                  <Switch
-                    value={selectedRoles.includes(role.key)}
-                    onValueChange={() => toggleRole(role.key)}
-                    trackColor={{ false: "#555", true: "#147efb" }}
-                    thumbColor={
-                      selectedRoles.includes(role.key) ? "#fff" : "#aaa"
-                    }
-                  />
+      {selectedUser && (
+        <Modal visible={modalVisible} animationType="fade" transparent={true}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <View style={styles.headerContent}>
+                  <View style={styles.profileImageContainer}>
+                    <Image
+                      style={styles.profileImage}
+                      source={
+                        selectedUser.id && profilePictureUrls[selectedUser.id]
+                          ? { uri: profilePictureUrls[selectedUser.id] }
+                          : require("../assets/default_profile.png")
+                      }
+                      defaultSource={require("../assets/default_profile.png")}
+                      onError={() => {
+                        setProfilePictureUrls((prev) => ({
+                          ...prev,
+                          [selectedUser.id]: null,
+                        }));
+                      }}
+                    />
+                    <TouchableOpacity
+                      style={styles.editProfilePictureButton}
+                      onPress={openPhotoInputModal}
+                    >
+                      <Ionicons name="pencil" size={16} color="#147efb" />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.modalTitle}>
+                    Edit Roles for {selectedUser?.name}
+                  </Text>
                 </View>
-              )}
-              keyExtractor={(item) => item.key}
-              contentContainerStyle={styles.rolesList}
-            />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.modalButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
-                onPress={saveRoles}
-              >
-                <Text style={styles.modalButtonText}>Confirm</Text>
-              </TouchableOpacity>
+                <TouchableOpacity style={styles.closeButton} onPress={closeEditModal}>
+                  <Ionicons name="close" size={24} color="#fff" />
+                </TouchableOpacity>
+              </View>
+              <FlatList
+                data={adminRoles}
+                renderItem={({ item: role }) => (
+                  <View style={styles.roleItem}>
+                    <Text style={styles.roleText}>{role.label}</Text>
+                    <Switch
+                      value={selectedRoles.includes(role.key)}
+                      onValueChange={() => toggleRole(role.key)}
+                      trackColor={{ false: "#555", true: "#147efb" }}
+                      thumbColor={
+                        selectedRoles.includes(role.key) ? "#fff" : "#aaa"
+                      }
+                    />
+                  </View>
+                )}
+                keyExtractor={(item) => item.key}
+                contentContainerStyle={styles.rolesList}
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={closeEditModal}
+                >
+                  <Text style={styles.modalButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.saveButton]}
+                  onPress={saveRoles}
+                >
+                  <Text style={styles.modalButtonText}>Confirm</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
+      {selectedUser && (
+        <PhotoInput
+          visible={photoInputVisible}
+          onClose={closePhotoInputModal}
+          userId={selectedUser.id}
+        />
+      )}
     </View>
   );
 };
@@ -301,8 +470,17 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+  },
+  userImageContainer: {
+    marginRight: 12,
+  },
+  userImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#333333",
   },
   userInfo: {
     flex: 1,
@@ -375,10 +553,42 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: "#147efb",
   },
+  headerContent: {
+    flex: 1,
+    alignItems: "center",
+  },
+  profileImageContainer: {
+    position: "relative",
+    marginBottom: 12,
+  },
+  profileImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  editProfilePictureButton: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    backgroundColor: "#1e1e1e",
+    borderRadius: 12,
+    padding: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   modalTitle: {
     fontSize: 18,
     fontWeight: "600",
     color: "#fff",
+    textAlign: "center",
+  },
+  closeButton: {
+    padding: 4,
   },
   rolesList: {
     padding: 16,

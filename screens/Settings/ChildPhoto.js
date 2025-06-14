@@ -37,7 +37,7 @@ const ChildPhoto = ({ route }) => {
   const updatePhotoUrlInDB = async () => {
     try {
       const photoUrl = await storage()
-        .ref(`childProfilePictures/${childData.uid}.png`)
+        .ref(`profilePictures/${childData.uid}.png`)
         .getDownloadURL();
       setPreviewUri(photoUrl); // Update preview
       setPhotoUploaded(true); // Mark photo as uploaded
@@ -61,7 +61,7 @@ const ChildPhoto = ({ route }) => {
 
     try {
       const photoUrl = await storage()
-        .ref(`childProfilePictures/${childData.uid}.png`)
+        .ref(`profilePictures/${childData.uid}.png`)
         .getDownloadURL();
       const updatedChildData = { ...childData, photoUrl };
 

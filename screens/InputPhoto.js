@@ -6,6 +6,7 @@ import {
   Pressable,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
   Platform,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
@@ -52,7 +53,11 @@ const InputPhoto = ({ route, navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+    >
       <View style={styles.header}>
         <View style={styles.progressBar}>
           <ProgressBar
@@ -106,7 +111,7 @@ const InputPhoto = ({ route, navigation }) => {
         onClose={() => setShowPhotoModal(false)}
         userId={user?.uid || "default"}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -179,6 +184,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     alignItems: "center",
+    paddingBottom: 20,
   },
   continueButton: {
     height: 52,
@@ -187,7 +193,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 67,
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },

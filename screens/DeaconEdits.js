@@ -14,7 +14,7 @@ import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
-import IndividualProfile from "../components/individualProfile"; // Adjust the import path as needed
+import IndividualProfile from "../components/individualProfile";
 
 // Haptic feedback options
 const hapticOptions = {
@@ -22,13 +22,13 @@ const hapticOptions = {
   ignoreAndroidSystemSettings: false,
 };
 
-// Function to format numbers, removing unnecessary decimal places
+// Function to format numbers
 const formatNumber = (num) => {
+  if (!num && num !== 0) return "N/A";
   if (num % 1 === 0) {
     return num.toString();
-  } else {
-    return num.toFixed(2).replace(/\.?0+$/, "");
   }
+  return num.toFixed(2).replace(/\.?0+$/, "");
 };
 
 const DeaconEdits = () => {
@@ -40,139 +40,139 @@ const DeaconEdits = () => {
   const [loading, setLoading] = useState(true);
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const sectionListRef = useRef(null);
+  const [isListReady, setIsListReady] = useState(false);
 
-  // Alphabet for index bar
-  const alphabet = Array.from({ length: 26 }, (_, i) =>
-    String.fromCharCode(65 + i)
-  );
+  // Alphabet for index bar (only letters with data)
+  const [availableLetters, setAvailableLetters] = useState([]);
 
-  // Fetch the user's church on mount with real-time updates
+  // Fetch user's church with real-time updates
   useEffect(() => {
     const user = auth().currentUser;
-    if (user) {
-      const unsubscribe = firestore()
-        .collection("users")
-        .doc(user.uid)
-        .onSnapshot(
-          (doc) => {
-            if (doc.exists) {
-              setChurch(doc.data().church);
-            }
-            setLoading(false);
-          },
-          (error) => {
-            setLoading(false);
-            Alert.alert("Error", "Failed to fetch church data.");
-          }
-        );
-      return () => unsubscribe();
+    if (!user) {
+      setLoading(false);
+      Alert.alert("Error", "No user authenticated.");
+      return;
     }
+
+    const unsubscribe = firestore()
+      .collection("users")
+      .doc(user.uid)
+      .onSnapshot(
+        (doc) => {
+          if (doc.exists) {
+            setChurch(doc.data().church || null);
+          }
+          setLoading(false);
+        },
+        (error) => {
+          setLoading(false);
+          Alert.alert("Error", "Failed to fetch church data.");
+        }
+      );
+
+    return () => unsubscribe();
   }, []);
 
-  // Subscribe to deacons array updates and fetch profile picture URLs
+  // Subscribe to deacons array updates and profile pictures
   useEffect(() => {
-    if (church) {
-      const fetchProfilePictureUrls = async () => {
-        try {
-          const doc = await firestore().collection("churches").doc(church).get();
+    if (!church) return;
+
+    const fetchProfilePictureUrls = async () => {
+      try {
+        const doc = await firestore().collection("churches").doc(church).get();
+        if (doc.exists) {
+          const deaconList = doc.data().deacons || [];
+          const urls = {};
+          await Promise.all(
+            deaconList.map(async (deacon) => {
+              if (deacon.uid) {
+                try {
+                  const url = await storage()
+                    .ref(`profilePictures/${deacon.uid}.png`)
+                    .getDownloadURL();
+                  urls[deacon.uid] = typeof url === "string" && url.trim() ? url : null;
+                } catch (error) {
+                  urls[deacon.uid] = null;
+                }
+              }
+            })
+          );
+          setProfilePictureUrls(urls);
+        }
+      } catch (error) {
+      }
+    };
+
+    fetchProfilePictureUrls();
+    const intervalId = setInterval(fetchProfilePictureUrls, 30000);
+
+    const unsubscribe = firestore()
+      .collection("churches")
+      .doc(church)
+      .onSnapshot(
+        async (doc) => {
           if (doc.exists) {
             const deaconList = doc.data().deacons || [];
-            const urls = {};
-            await Promise.all(
-              deaconList.map(async (deacon) => {
-                if (deacon.uid) {
-                  try {
-                    const url = await storage()
-                      .ref(`profilePictures/${deacon.uid}.png`)
-                      .getDownloadURL();
-                    if (typeof url === "string" && url.trim() !== "") {
-                      urls[deacon.uid] = url;
-                    } else {
-                      urls[deacon.uid] = null;
-                    }
-                  } catch (error) {
-                    urls[deacon.uid] = null; // Fallback to default image
-                  }
+
+            // Sort and group deacons
+            const sortedDeacons = deaconList
+              .map((deacon) => ({
+                ...deacon,
+                name: (deacon.name || "").trim().toLowerCase(),
+              }))
+              .sort((a, b) => {
+                const nameComparison = a.name.localeCompare(b.name);
+                if (nameComparison === 0) {
+                  return a.uid.localeCompare(b.uid);
                 }
+                return nameComparison;
               })
-            );
-            setProfilePictureUrls(urls);
+              .map((deacon) => ({
+                ...deacon,
+                name: doc.data().deacons.find((d) => d.uid === deacon.uid)?.name || "",
+              }));
+
+            // Group by first letter
+            const grouped = sortedDeacons.reduce((acc, deacon) => {
+              const firstLetter = deacon.name.charAt(0).toUpperCase() || "Other";
+              if (!acc[firstLetter]) acc[firstLetter] = [];
+              acc[firstLetter].push(deacon);
+              return acc;
+            }, {});
+
+            // Convert to SectionList format
+            const sectionData = Object.keys(grouped)
+              .sort()
+              .map((letter) => ({
+                title: letter,
+                data: grouped[letter],
+              }));
+
+            // Ensure availableLetters matches sectionData titles
+            const letters = sectionData.map((section) => section.title).sort();
+
+            setDeacons(sortedDeacons);
+            setSections(sectionData);
+            setAvailableLetters(letters);
+
+            // Debug log to verify sections
+
           }
-        } catch (error) {
-          console.warn("Failed to fetch profile picture URLs:", error);
+        },
+        (error) => {
+          Alert.alert("Error", "Failed to fetch deacons.");
         }
-      };
+      );
 
-      // Fetch profile pictures immediately
-      fetchProfilePictureUrls();
-
-      // Set up interval to check for updates every 30 seconds
-      const intervalId = setInterval(fetchProfilePictureUrls, 10000);
-
-      const unsubscribe = firestore()
-        .collection("churches")
-        .doc(church)
-        .onSnapshot(
-          async (doc) => {
-            if (doc.exists) {
-              const deaconList = doc.data().deacons || [];
-
-              // Sort and group deacons by first letter
-              const sortedDeacons = deaconList
-                .map((deacon) => ({
-                  ...deacon,
-                  name: (deacon.name || "").trim().toLowerCase(),
-                }))
-                .sort((a, b) => {
-                  const nameComparison = a.name.localeCompare(b.name);
-                  if (nameComparison === 0) {
-                    return a.uid.localeCompare(b.uid);
-                  }
-                  return nameComparison;
-                })
-                .map((deacon) => ({
-                  ...deacon,
-                  name: doc.data().deacons.find((d) => d.uid === deacon.uid)
-                    .name,
-                }));
-
-              // Group deacons by first letter
-              const grouped = sortedDeacons.reduce((acc, deacon) => {
-                const firstLetter = deacon.name.charAt(0).toUpperCase();
-                if (!acc[firstLetter]) {
-                  acc[firstLetter] = [];
-                }
-                acc[firstLetter].push(deacon);
-                return acc;
-              }, {});
-
-              // Convert to SectionList format
-              const sectionData = Object.keys(grouped)
-                .sort()
-                .map((letter) => ({
-                  title: letter,
-                  data: grouped[letter],
-                }));
-
-              setDeacons(sortedDeacons);
-              setSections(sectionData);
-            }
-          },
-          (error) => {
-            Alert.alert("Error", "Failed to fetch deacons.");
-          }
-        );
-
-      // Cleanup interval and Firestore listener
-      return () => {
-        clearInterval(intervalId);
-        unsubscribe();
-      };
-    }
+    return () => {
+      clearInterval(intervalId);
+      unsubscribe();
+    };
   }, [church]);
 
-  // Open the edit modal
+  // Open edit modal
   const openEditModal = (deacon) => {
+    if (!deacon?.uid) return;
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setSelectedDeacon(deacon);
     setModalVisible(true);
@@ -185,22 +185,50 @@ const DeaconEdits = () => {
     setSelectedDeacon(null);
   };
 
-  // Scroll to section
+  // Scroll to section safely
   const scrollToSection = (letter) => {
+    if (!sectionListRef.current || !availableLetters.includes(letter) || !isListReady) {
+      return;
+    }
+
     const sectionIndex = sections.findIndex(
-      (section) => section.title === letter
+      (section) => section.title.toUpperCase() === letter.toUpperCase()
     );
-    if (sectionIndex !== -1 && sectionListRef.current) {
-      sectionListRef.current.scrollToLocation({
-        sectionIndex,
-        itemIndex: 0,
-        animated: true,
-      });
-      ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+
+
+    if (sectionIndex >= 0) {
+      setTimeout(() => {
+        try {
+          sectionListRef.current.scrollToLocation({
+            sectionIndex,
+            itemIndex: 0,
+            animated: true,
+            viewPosition: 0,
+            viewOffset: 0,
+          });
+          ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+        } catch (error) {
+          // Fallback: Calculate item index
+          let itemIndex = 0;
+          for (let i = 0; i < sectionIndex; i++) {
+            itemIndex += sections[i].data.length; // Items only
+            itemIndex += 1; // Section header
+          }
+          try {
+            sectionListRef.current.scrollToIndex({
+              index: itemIndex,
+              animated: true,
+              viewPosition: 0,
+            });
+          } catch (fallbackError) {
+          }
+        }
+      }, 0); // Increased delay to 500ms
+    } else {
     }
   };
 
-  // Render each deacon item
+  // Render deacon item
   const renderDeacon = ({ item }) => (
     <TouchableOpacity
       style={styles.deaconItem}
@@ -211,10 +239,7 @@ const DeaconEdits = () => {
         <Image
           style={styles.deaconImage}
           source={
-            item.uid &&
-            profilePictureUrls[item.uid] &&
-            typeof profilePictureUrls[item.uid] === "string" &&
-            profilePictureUrls[item.uid].trim() !== ""
+            item.uid && profilePictureUrls[item.uid]
               ? { uri: profilePictureUrls[item.uid] }
               : require("../assets/default_profile.png")
           }
@@ -228,13 +253,11 @@ const DeaconEdits = () => {
         />
       </View>
       <View style={styles.deaconInfo}>
-        <Text style={styles.deaconName}>{item.name}</Text>
-        <Text style={styles.deaconDetail}>Age: {item.age}</Text>
-        {item.number ? (
-          <Text style={styles.deaconDetail}>Phone: {item.number}</Text>
-        ) : (
-          <Text style={styles.deaconDetail}>Phone: Not provided</Text>
-        )}
+        <Text style={styles.deaconName}>{item.name || "Unknown"}</Text>
+        <Text style={styles.deaconDetail}>Age: {formatNumber(item.age)}</Text>
+        <Text style={styles.deaconDetail}>
+          Phone: {item.number || "Not provided"}
+        </Text>
         <Text style={styles.deaconDetail}>
           Experience: {formatNumber(item.experience)}
         </Text>
@@ -264,7 +287,6 @@ const DeaconEdits = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Edit Deacons</Text>
       {sections.length === 0 ? (
         <Text style={styles.noData}>No deacons found.</Text>
       ) : (
@@ -274,13 +296,17 @@ const DeaconEdits = () => {
             sections={sections}
             renderItem={renderDeacon}
             renderSectionHeader={renderSectionHeader}
-            keyExtractor={(item) => item.uid}
+            keyExtractor={(item) => item.uid || Math.random().toString()}
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
-            stickySectionHeadersEnabled={true}
+            stickySectionHeadersEnabled={false} // Disabled to test
+            extraData={profilePictureUrls}
+            onLayout={() => {
+              setIsListReady(true);
+            }}
           />
           <View style={styles.indexBar}>
-            {alphabet.map((letter) => (
+            {availableLetters.map((letter) => (
               <TouchableOpacity
                 key={letter}
                 style={styles.indexItem}
@@ -293,16 +319,15 @@ const DeaconEdits = () => {
         </View>
       )}
 
-      {/* IndividualProfile Modal */}
       {selectedDeacon && (
         <IndividualProfile
           userId={selectedDeacon.uid}
           show={modalVisible}
           onClose={handleCancel}
           church={church}
-          week="" // Placeholder; replace with actual value if available
-          family="" // Placeholder; replace with actual value if available
-          url="" // Placeholder; replace with actual Firebase function URL
+          week=""
+          family=""
+          url=""
         />
       )}
     </View>
@@ -315,13 +340,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#121212",
     paddingHorizontal: 16,
     paddingTop: 20,
-  },
-  header: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#fff",
-    textAlign: "center",
-    marginBottom: 20,
   },
   listWrapper: {
     flex: 1,

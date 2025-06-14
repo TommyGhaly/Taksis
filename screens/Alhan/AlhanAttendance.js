@@ -17,6 +17,7 @@ import {
 import { Picker } from "@react-native-picker/picker";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import storage from "@react-native-firebase/storage"; // Added Firebase Storage
 import * as Haptics from "react-native-haptic-feedback";
 
 const AlhanAttendance = ({ navigation }) => {
@@ -27,9 +28,10 @@ const AlhanAttendance = ({ navigation }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [newStudentName, setNewStudentName] = useState("");
   const [newStudentGrade, setNewStudentGrade] = useState("");
-  const [submitting, setSubmitting] = useState(false); // New state for add student loading
-  const scrollViewRef = useRef(null); // Ref for ScrollView
-  const gradeRefs = useRef({}); // Refs for each grade section
+  const [submitting, setSubmitting] = useState(false);
+  const [profilePictureUrls, setProfilePictureUrls] = useState({}); // State for profile pictures
+  const scrollViewRef = useRef(null);
+  const gradeRefs = useRef({});
 
   // Fetch user data
   useEffect(() => {
@@ -59,9 +61,28 @@ const AlhanAttendance = ({ navigation }) => {
     return () => unsubscribe();
   }, [user]);
 
-  // Fetch students from all selected grades
+  // Fetch students and profile pictures
   useEffect(() => {
     if (!userData || !userData.alhanGrades || userData.alhanGrades.length === 0) return;
+
+    const fetchProfilePictures = async (studentList) => {
+      const urls = { ...profilePictureUrls }; // Preserve existing URLs
+      await Promise.all(
+        studentList.map(async (student) => {
+          if (!urls[student.uid]) {
+            try {
+              const url = await storage()
+                .ref(`profilePictures/${student.uid}.png`) // Use studentProfile folder
+                .getDownloadURL();
+              urls[student.uid] = url;
+            } catch (error) {
+              urls[student.uid] = null;
+            }
+          }
+        })
+      );
+      setProfilePictureUrls(urls);
+    };
 
     const unsubscribeFunctions = [];
 
@@ -73,13 +94,17 @@ const AlhanAttendance = ({ navigation }) => {
         .doc(grade)
         .collection("students");
 
-      const unsubscribe = studentsRef.onSnapshot((snapshot) => {
+      const unsubscribe = studentsRef.onSnapshot(async (snapshot) => {
         const gradeStudents = snapshot.docs.map((doc) => ({
           uid: doc.id,
           grade: grade,
           ...doc.data(),
         }));
         gradeStudents.sort((a, b) => a.name.localeCompare(b.name));
+
+        // Fetch profile pictures for new students
+        await fetchProfilePictures(gradeStudents);
+
         setStudentsByGrade((prev) => ({
           ...prev,
           [grade]: gradeStudents,
@@ -118,9 +143,7 @@ const AlhanAttendance = ({ navigation }) => {
   };
 
   const handleAttendance = (student, status) => {
-    // Trigger haptic feedback
     Haptics.trigger("impactLight");
-
     const dateKey = getNextSaturday();
     firestore()
       .collection("churches")
@@ -144,7 +167,7 @@ const AlhanAttendance = ({ navigation }) => {
       return;
     }
 
-    setSubmitting(true); // Set loading state
+    setSubmitting(true);
     const newStudentRef = firestore()
       .collection("churches")
       .doc(userData.church)
@@ -168,11 +191,10 @@ const AlhanAttendance = ({ navigation }) => {
     } catch (error) {
       Alert.alert("Error", "Failed to add student");
     } finally {
-      setSubmitting(false); // Reset loading state
+      setSubmitting(false);
     }
   };
 
-  // Scroll to a specific grade section
   const scrollToGrade = (grade) => {
     if (gradeRefs.current[grade]) {
       gradeRefs.current[grade].measureLayout(
@@ -180,8 +202,7 @@ const AlhanAttendance = ({ navigation }) => {
         (x, y) => {
           scrollViewRef.current.scrollTo({ y, animated: true });
         },
-        () => {
-        }
+        () => {}
       );
     }
   };
@@ -238,7 +259,7 @@ const AlhanAttendance = ({ navigation }) => {
         {userData.alhanGrades.map((grade) => (
           <View
             key={grade}
-            ref={(ref) => (gradeRefs.current[grade] = ref)} // Assign ref to each grade section
+            ref={(ref) => (gradeRefs.current[grade] = ref)}
             style={{ paddingTop: 10 }}
           >
             <Text style={styles.gradeHeader}>{formatGrade(grade)}</Text>
@@ -246,22 +267,42 @@ const AlhanAttendance = ({ navigation }) => {
               studentsByGrade[grade].map((student) => (
                 <View key={student.uid} style={styles.studentContainer}>
                   <View style={styles.studentHeader}>
-                    <Text style={styles.studentName}>
-                      {student.name} - {formatGrade(student.grade)}
-                    </Text>
-                    <TouchableOpacity
-                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                      onPress={() =>
-                        navigation.navigate("IndividualAttendance", {
-                          church: userData.church,
-                          category: "Hymns Class",
-                          grade: student.grade,
-                          studentId: student.uid,
-                        })
+                    <Image
+                      style={styles.profilePicture}
+                      source={
+                        profilePictureUrls[student.uid]
+                          ? { uri: profilePictureUrls[student.uid] }
+                          : require("../../assets/default_profile.png")
                       }
-                    >
-                      <Image source={require("../../assets/vector.png")} style={styles.icon} />
-                    </TouchableOpacity>
+                      defaultSource={require("../../assets/default_profile.png")}
+                      onError={() =>
+                        setProfilePictureUrls((prev) => ({
+                          ...prev,
+                          [student.uid]: null,
+                        }))
+                      }
+                    />
+                    <View style={styles.studentInfo}>
+                      <Text style={styles.studentName}>
+                        {student.name} - {formatGrade(student.grade)}
+                      </Text>
+                      <TouchableOpacity
+                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                        onPress={() =>
+                          navigation.navigate("IndividualAttendance", {
+                            church: userData.church,
+                            category: "Hymns Class",
+                            grade: student.grade,
+                            studentId: student.uid,
+                          })
+                        }
+                      >
+                        <Image
+                          source={require("../../assets/vector.png")}
+                          style={styles.icon}
+                        />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                   <View style={styles.attendanceButtons}>
                     <TouchableOpacity
@@ -414,6 +455,20 @@ const styles = StyleSheet.create({
   },
   studentHeader: {
     flexDirection: "row",
+    alignItems: "center", // Align image, name, and icon vertically
+    marginBottom: 10,
+  },
+  profilePicture: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#333333",
+    marginRight: 12, // Space between image and name
+  },
+  studentInfo: {
+    flex: 1,
+    flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
@@ -422,7 +477,7 @@ const styles = StyleSheet.create({
   attendanceButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 25,
+    marginTop: 15, // Reduced to balance with profile picture
   },
   attendanceButton: {
     flex: 1,

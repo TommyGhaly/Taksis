@@ -12,11 +12,15 @@ import {
   Platform,
   ActivityIndicator,
   Dimensions,
+  Image,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
+import storage from "@react-native-firebase/storage";
 import { LinearGradient } from "expo-linear-gradient";
 import BackArrow from "../components/backArrow";
+import PhotoInput from "../components/photoInput";
+import Icon from "react-native-vector-icons/MaterialCommunityIcons"; // Added for edit icon
 
 const IndividualAttendance = () => {
   const navigation = useNavigation();
@@ -27,6 +31,8 @@ const IndividualAttendance = () => {
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [photoInputVisible, setPhotoInputVisible] = useState(false);
+  const [profilePictureUrl, setProfilePictureUrl] = useState(null);
   const [editData, setEditData] = useState({
     name: "",
     phone: "",
@@ -36,10 +42,10 @@ const IndividualAttendance = () => {
   });
   const isMounted = useRef(true);
 
-  // Fetch student data and attendance with real-time updates
+  // Fetch student data, attendance, and profile picture
   useEffect(() => {
     isMounted.current = true;
-    const fetchAttendance = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
         const studentRef = firestore()
@@ -49,6 +55,16 @@ const IndividualAttendance = () => {
           .doc(grade)
           .collection("students")
           .doc(studentId);
+
+        // Fetch profile picture
+        try {
+          const url = await storage()
+            .ref(`profilePictures/${studentId}.png`)
+            .getDownloadURL();
+          if (isMounted.current) setProfilePictureUrl(url);
+        } catch (error) {
+          if (isMounted.current) setProfilePictureUrl(null);
+        }
 
         const unsubscribe = studentRef.onSnapshot(
           (doc) => {
@@ -107,12 +123,29 @@ const IndividualAttendance = () => {
       }
     };
 
-    fetchAttendance();
+    fetchData();
 
     return () => {
       isMounted.current = false;
     };
   }, [church, category, grade, studentId, navigation]);
+
+  // Handle photo upload
+  const handlePhotoUpload = async (imageUri) => {
+    try {
+      setLoading(true);
+      const ref = storage().ref(`profilePictures/${studentId}.png`);
+      await ref.putFile(imageUri);
+      const url = await ref.getDownloadURL();
+      setProfilePictureUrl(url);
+      setPhotoInputVisible(false);
+      Alert.alert("Success", "Profile picture updated successfully.");
+    } catch (error) {
+      Alert.alert("Error", "Failed to upload profile picture.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Format grade
   const formatGrade = useCallback((grade) => {
@@ -160,7 +193,7 @@ const IndividualAttendance = () => {
     }
   };
 
-  // Delete student
+  // Delete student and profile picture
   const deleteStudent = async () => {
     Alert.alert(
       "Delete Student",
@@ -174,18 +207,30 @@ const IndividualAttendance = () => {
           style: "destructive",
           onPress: async () => {
             try {
+              // Delete Firestore record
               await firestore()
-              .collection("churches")
-              .doc(church)
-              .collection(category)
-              .doc(grade)
-              .collection("students")
-              .doc(studentId)
-              .delete();
-              // Show success alert and navigate back immediately
+                .collection("churches")
+                .doc(church)
+                .collection(category)
+                .doc(grade)
+                .collection("students")
+                .doc(studentId)
+                .delete();
+
+              // Delete profile picture from Storage
+              try {
+                await storage().ref(`ProfilePictures/${studentId}.png`).delete();
+              } catch (error) {
+                if (error.code !== "storage/object-not-found") {
+                  console.warn("Error deleting profile picture:", error);
+                }
+              }
+
+              // Show success alert and navigate back
               Alert.alert(
                 "Success",
                 `${studentData.name || "Student"}'s record has been deleted.`,
+                [{ text: "OK", onPress: () => navigation.goBack() }]
               );
             } catch (error) {
               Alert.alert("Error", "Failed to delete student record.");
@@ -257,6 +302,16 @@ const IndividualAttendance = () => {
         <Text style={styles.title}>{`Attendance for ${
           studentData.name || "Student"
         }`}</Text>
+        <Image
+          style={styles.profilePicture}
+          source={
+            profilePictureUrl
+              ? { uri: profilePictureUrl }
+              : require("../assets/default_profile.png")
+          }
+          defaultSource={require("../assets/default_profile.png")}
+          onError={() => setProfilePictureUrl(null)}
+        />
         <Text style={styles.subtitle}>{`Grade: ${formatGrade(
           grade
         )} - Category: ${category}`}</Text>
@@ -317,6 +372,26 @@ const IndividualAttendance = () => {
             <View style={styles.infoContainer}>
               {editMode ? (
                 <>
+                  <View style={styles.profilePictureContainer}>
+                    <Image
+                      style={styles.modalProfilePicture}
+                      source={
+                        profilePictureUrl
+                          ? { uri: profilePictureUrl }
+                          : require("../assets/default_profile.png")
+                      }
+                      defaultSource={require("../assets/default_profile.png")}
+                      onError={() => setProfilePictureUrl(null)}
+                    />
+                    <TouchableOpacity
+                      style={styles.editPhotoIcon}
+                      onPress={() => setPhotoInputVisible(true)}
+                      accessible={true}
+                      accessibilityLabel="Edit profile picture"
+                    >
+                      <Icon name="pencil" size={16} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
                   <TextInput
                     style={styles.input}
                     value={editData.name}
@@ -401,6 +476,18 @@ const IndividualAttendance = () => {
                 </>
               ) : (
                 <>
+                  <View style={styles.profilePictureContainer}>
+                    <Image
+                      style={styles.modalProfilePicture}
+                      source={
+                        profilePictureUrl
+                          ? { uri: profilePictureUrl }
+                          : require("../assets/default_profile.png")
+                      }
+                      defaultSource={require("../assets/default_profile.png")}
+                      onError={() => setProfilePictureUrl(null)}
+                    />
+                  </View>
                   <View style={styles.infoCard}>
                     <View style={styles.infoRow}>
                       <Text style={styles.infoLabel}>Name</Text>
@@ -465,6 +552,13 @@ const IndividualAttendance = () => {
           </LinearGradient>
         </KeyboardAvoidingView>
       </Modal>
+
+      <Modal visible={photoInputVisible} transparent animationType="fade">
+        <PhotoInput
+          onClose={() => setPhotoInputVisible(false)}
+          onSave={handlePhotoUpload}
+        />
+      </Modal>
     </View>
   );
 };
@@ -489,11 +583,22 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#ffffff",
     marginBottom: 8,
+    textAlign: "center",
+  },
+  profilePicture: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: "#ffffff",
+    alignSelf: "center",
+    marginBottom: 12,
   },
   subtitle: {
     fontSize: 18,
     color: "#b0b0b0",
     marginBottom: 20,
+    textAlign: "center",
   },
   infoButton: {
     backgroundColor: "#333",
@@ -534,18 +639,18 @@ const styles = StyleSheet.create({
   statusContainer: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12, // Increased padding for more vertical space
+    paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
     justifyContent: "center",
     minWidth: 120,
-    minHeight: 44, // Replaced height with minHeight for flexibility
+    minHeight: 44,
   },
   statusText: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#ffffff",
-    lineHeight: 24, // Added lineHeight to ensure consistent text rendering
+    lineHeight: 24,
     textAlign: "center",
   },
   present: {
@@ -594,6 +699,31 @@ const styles = StyleSheet.create({
   infoContainer: {
     width: "100%",
     marginBottom: 20,
+  },
+  profilePictureContainer: {
+    position: "relative",
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  modalProfilePicture: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 2,
+    borderColor: "#ffffff",
+  },
+  editPhotoIcon: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    backgroundColor: "#147efb",
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#fff",
   },
   infoCard: {
     backgroundColor: "#2a2a2a",

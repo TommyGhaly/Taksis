@@ -14,7 +14,7 @@ import {
   Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import firestore, { Timestamp } from "@react-native-firebase/firestore";
+import firestore from "@react-native-firebase/firestore";
 import { initializeApp, getApps } from "firebase/app";
 import messaging from "@react-native-firebase/messaging";
 import auth from "@react-native-firebase/auth";
@@ -192,11 +192,11 @@ const HomeScreen = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedWeeks, setSelectedWeeks] = useState([]);
   const [unavailableWeeks, setUnavailableWeeks] = useState([]);
-  const [openItemIndex, setOpenItemIndex] = useState(null); // New state to track open HomeScreenNames
+  const [isLoading, setIsLoading] = useState(false);
   const scaleValue = useRef(new Animated.Value(0.9)).current;
 
   useEffect(() => {
-    const isDeacon = true; // Note: 'isDeacon' variable redefined, assuming typo in original code
+    setIsDeacon(true); // Fixed typo from 'const isDeacon = true'
     const unsubscribe = messaging().onMessage(async (remoteMessage) => {
       Alert.alert(
         remoteMessage?.notification?.title || "Notification",
@@ -211,9 +211,11 @@ const HomeScreen = () => {
 
   const formatDate = (date) => {
     if (!date) return "N/A";
-    return `${(date.getMonth() + 1)
-      .toString()
-      .padStart(2, "0")}-${date.getDate().toString().padStart(2, "0")}-${date.getFullYear()}`;
+    const d = new Date(date);
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const year = String(d.getFullYear()).slice(-2); // Use last 2 digits of year
+    return `${month}-${day}-${year}`;
   };
 
   const getNextFiveWeeks = () => {
@@ -386,9 +388,11 @@ const HomeScreen = () => {
           onPress: async () => {
             const user = auth().currentUser;
             if (!user) {
+              Alert.alert("Error", "User not authenticated.");
               return;
             }
 
+            setIsLoading(true);
             try {
               const userDoc = await firestore()
                 .collection("users")
@@ -396,6 +400,7 @@ const HomeScreen = () => {
                 .get();
 
               if (!userDoc.exists) {
+                Alert.alert("Error", "User data not found.");
                 return;
               }
 
@@ -414,7 +419,7 @@ const HomeScreen = () => {
               for (const week of selectedWeeks) {
                 await unavailableToServe(
                   user,
-                  user.uid, 
+                  user.uid,
                   churchIdFromData,
                   week,
                   true,
@@ -423,10 +428,13 @@ const HomeScreen = () => {
               }
 
               Alert.alert("Request Sent", `You have been marked as unavailable for the selected weeks.`);
-              setShowWeekModal(false);
               setSelectedWeeks([]);
+              setShowWeekModal(false);
             } catch (error) {
+              console.error("Error marking weeks as unavailable:", error);
               Alert.alert("Error", "Failed to mark as unavailable. Please try again.");
+            } finally {
+              setIsLoading(false);
             }
           },
         },
@@ -645,11 +653,6 @@ const HomeScreen = () => {
     }
   }, [showDOBModal, showPhoneModal]);
 
-  // Handler to toggle open state for HomeScreenNames
-  const handleToggleOpen = (index, section) => {
-    setOpenItemIndex(prev => prev === `${section}-${index}` ? null : `${section}-${index}`);
-  };
-
   const readings = [
     { role: "Matins Gospel", user: schedule.matins || { name: "N/A" } },
     { role: "Third Hour Gospel", user: schedule.third || { name: "N/A" } },
@@ -837,8 +840,12 @@ const HomeScreen = () => {
               >
                 <Text style={styles.buttonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.submitButton} onPress={confirmWeekSelection}>
-                <Text style={styles.buttonText}>Confirm</Text>
+              <TouchableOpacity
+                style={[styles.submitButton, isLoading && { opacity: 0.6 }]}
+                onPress={confirmWeekSelection}
+                disabled={isLoading}
+              >
+                <Text style={styles.buttonText}>{isLoading ? "Processing..." : "Confirm"}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -858,39 +865,21 @@ const HomeScreen = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Readings</Text>
           {readings.map((item, index) => (
-            <HomeScreenNames
-              key={index}
-              role={item.role}
-              user={item.user}
-              isOpen={openItemIndex === `readings-${index}`}
-              onToggle={() => handleToggleOpen(index, 'readings')}
-            />
+            <HomeScreenNames key={index} role={item.role} user={item.user} />
           ))}
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Offering of the Lamb</Text>
           {offerings.map((item, index) => (
-            <HomeScreenNames
-              key={index}
-              role={item.role}
-              user={item.user}
-              isOpen={openItemIndex === `offerings-${index}`}
-              onToggle={() => handleToggleOpen(index, 'offerings')}
-            />
+            <HomeScreenNames key={index} role={item.role} user={item.user} />
           ))}
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Altar Servers</Text>
           {(schedule?.altar || []).map((user, index) => (
-            <HomeScreenNames
-              key={index}
-              role="Altar"
-              user={user}
-              isOpen={openItemIndex === `altar-${index}`}
-              onToggle={() => handleToggleOpen(index, 'altar')}
-            />
+            <HomeScreenNames key={index} role="Altar" user={user} />
           ))}
         </View>
 
