@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  PanResponder,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
@@ -16,13 +18,11 @@ import auth from "@react-native-firebase/auth";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import IndividualProfile from "../components/individualProfile";
 
-// Haptic feedback options
 const hapticOptions = {
   enableVibrateFallback: true,
   ignoreAndroidSystemSettings: false,
 };
 
-// Function to format numbers
 const formatNumber = (num) => {
   if (!num && num !== 0) return "N/A";
   if (num % 1 === 0) {
@@ -41,11 +41,48 @@ const DeaconEdits = () => {
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const sectionListRef = useRef(null);
   const [isListReady, setIsListReady] = useState(false);
-
-  // Alphabet for index bar (only letters with data)
+  const indexBarRef = useRef(null);
+  const [indexBarLayout, setIndexBarLayout] = useState({ height: 0, y: 0 });
+  const [activeLetter, setActiveLetter] = useState(null);
+  const [headerHeight, setHeaderHeight] = useState(40);
   const [availableLetters, setAvailableLetters] = useState([]);
 
-  // Fetch user's church with real-time updates
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt, gestureState) => {
+        handleIndexTouch(gestureState.y0);
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        handleIndexTouch(gestureState.moveY);
+      },
+      onPanResponderRelease: () => {
+        setActiveLetter(null);
+      },
+      onPanResponderTerminate: () => {
+        setActiveLetter(null);
+      },
+    })
+  ).current;
+
+  const handleIndexTouch = (touchY) => {
+    if (!indexBarLayout.height || availableLetters.length === 0) return;
+    const relativeY = touchY - indexBarLayout.y;
+    const positionRatio = Math.max(
+      0,
+      Math.min(relativeY / indexBarLayout.height, 1)
+    );
+    const letterIndex = Math.floor(positionRatio * availableLetters.length);
+    const clampedIndex = Math.min(
+      Math.max(letterIndex, 0),
+      availableLetters.length - 1
+    );
+    const letter = availableLetters[clampedIndex];
+    setActiveLetter(letter);
+    scrollToSection(letter);
+  };
+
   useEffect(() => {
     const user = auth().currentUser;
     if (!user) {
@@ -64,7 +101,7 @@ const DeaconEdits = () => {
           }
           setLoading(false);
         },
-        (error) => {
+        () => {
           setLoading(false);
           Alert.alert("Error", "Failed to fetch church data.");
         }
@@ -73,7 +110,6 @@ const DeaconEdits = () => {
     return () => unsubscribe();
   }, []);
 
-  // Subscribe to deacons array updates and profile pictures
   useEffect(() => {
     if (!church) return;
 
@@ -90,8 +126,9 @@ const DeaconEdits = () => {
                   const url = await storage()
                     .ref(`profilePictures/${deacon.uid}.png`)
                     .getDownloadURL();
-                  urls[deacon.uid] = typeof url === "string" && url.trim() ? url : null;
-                } catch (error) {
+                  urls[deacon.uid] =
+                    typeof url === "string" && url.trim() ? url : null;
+                } catch {
                   urls[deacon.uid] = null;
                 }
               }
@@ -99,8 +136,7 @@ const DeaconEdits = () => {
           );
           setProfilePictureUrls(urls);
         }
-      } catch (error) {
-      }
+      } catch {}
     };
 
     fetchProfilePictureUrls();
@@ -114,54 +150,42 @@ const DeaconEdits = () => {
           if (doc.exists) {
             const deaconList = doc.data().deacons || [];
 
-            // Sort and group deacons
             const sortedDeacons = deaconList
               .map((deacon) => ({
                 ...deacon,
                 name: (deacon.name || "").trim().toLowerCase(),
               }))
-              .sort((a, b) => {
-                const nameComparison = a.name.localeCompare(b.name);
-                if (nameComparison === 0) {
-                  return a.uid.localeCompare(b.uid);
-                }
-                return nameComparison;
-              })
+              .sort(
+                (a, b) =>
+                  a.name.localeCompare(b.name) || a.uid.localeCompare(b.uid)
+              )
               .map((deacon) => ({
                 ...deacon,
-                name: doc.data().deacons.find((d) => d.uid === deacon.uid)?.name || "",
+                name:
+                  doc.data().deacons.find((d) => d.uid === deacon.uid)?.name ||
+                  "",
               }));
 
-            // Group by first letter
             const grouped = sortedDeacons.reduce((acc, deacon) => {
-              const firstLetter = deacon.name.charAt(0).toUpperCase() || "Other";
+              const firstLetter =
+                deacon.name.charAt(0).toUpperCase() || "Other";
               if (!acc[firstLetter]) acc[firstLetter] = [];
               acc[firstLetter].push(deacon);
               return acc;
             }, {});
 
-            // Convert to SectionList format
             const sectionData = Object.keys(grouped)
               .sort()
-              .map((letter) => ({
-                title: letter,
-                data: grouped[letter],
-              }));
+              .map((letter) => ({ title: letter, data: grouped[letter] }));
 
-            // Ensure availableLetters matches sectionData titles
             const letters = sectionData.map((section) => section.title).sort();
 
             setDeacons(sortedDeacons);
             setSections(sectionData);
             setAvailableLetters(letters);
-
-            // Debug log to verify sections
-
           }
         },
-        (error) => {
-          Alert.alert("Error", "Failed to fetch deacons.");
-        }
+        () => Alert.alert("Error", "Failed to fetch deacons.")
       );
 
     return () => {
@@ -170,7 +194,6 @@ const DeaconEdits = () => {
     };
   }, [church]);
 
-  // Open edit modal
   const openEditModal = (deacon) => {
     if (!deacon?.uid) return;
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
@@ -178,24 +201,22 @@ const DeaconEdits = () => {
     setModalVisible(true);
   };
 
-  // Handle cancel
   const handleCancel = () => {
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setModalVisible(false);
     setSelectedDeacon(null);
   };
 
-  // Scroll to section safely
   const scrollToSection = (letter) => {
-    if (!sectionListRef.current || !availableLetters.includes(letter) || !isListReady) {
+    if (
+      !sectionListRef.current ||
+      !availableLetters.includes(letter) ||
+      !isListReady
+    )
       return;
-    }
-
     const sectionIndex = sections.findIndex(
       (section) => section.title.toUpperCase() === letter.toUpperCase()
     );
-
-
     if (sectionIndex >= 0) {
       setTimeout(() => {
         try {
@@ -204,31 +225,28 @@ const DeaconEdits = () => {
             itemIndex: 0,
             animated: true,
             viewPosition: 0,
-            viewOffset: 0,
+            viewOffset: 0, // No offset to make the clicked section the dominant header
           });
           ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
-        } catch (error) {
-          // Fallback: Calculate item index
-          let itemIndex = 0;
-          for (let i = 0; i < sectionIndex; i++) {
-            itemIndex += sections[i].data.length; // Items only
-            itemIndex += 1; // Section header
-          }
-          try {
-            sectionListRef.current.scrollToIndex({
-              index: itemIndex,
-              animated: true,
-              viewPosition: 0,
-            });
-          } catch (fallbackError) {
-          }
-        }
-      }, 0); // Increased delay to 500ms
-    } else {
+        } catch {}
+      }, 0);
     }
   };
 
-  // Render deacon item
+  // In the panResponder onPanResponderMove, add smoothing behavior to avoid jumpy scrolling
+  onPanResponderMove: (evt, gestureState) => {
+    const now = Date.now();
+    if (
+      !panResponder.lastScrollTime ||
+      now - panResponder.lastScrollTime > 20
+    ) {
+      handleIndexTouch(gestureState.moveY);
+      panResponder.lastScrollTime = now;
+    }
+  },
+    // Initialize lastScrollTime
+    (panResponder.lastScrollTime = 0);
+
   const renderDeacon = ({ item }) => (
     <TouchableOpacity
       style={styles.deaconItem}
@@ -244,12 +262,9 @@ const DeaconEdits = () => {
               : require("../assets/default_profile.png")
           }
           defaultSource={require("../assets/default_profile.png")}
-          onError={() => {
-            setProfilePictureUrls((prev) => ({
-              ...prev,
-              [item.uid]: null,
-            }));
-          }}
+          onError={() =>
+            setProfilePictureUrls((prev) => ({ ...prev, [item.uid]: null }))
+          }
         />
       </View>
       <View style={styles.deaconInfo}>
@@ -269,9 +284,13 @@ const DeaconEdits = () => {
     </TouchableOpacity>
   );
 
-  // Render section header
   const renderSectionHeader = ({ section: { title } }) => (
-    <View style={styles.sectionHeader}>
+    <View
+      style={styles.sectionHeader}
+      onLayout={({ nativeEvent }) => {
+        if (!headerHeight) setHeaderHeight(nativeEvent.layout.height);
+      }}
+    >
       <Text style={styles.sectionHeaderText}>{title}</Text>
     </View>
   );
@@ -299,20 +318,48 @@ const DeaconEdits = () => {
             keyExtractor={(item) => item.uid || Math.random().toString()}
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
-            stickySectionHeadersEnabled={false} // Disabled to test
+            stickySectionHeadersEnabled={true}
             extraData={profilePictureUrls}
-            onLayout={() => {
-              setIsListReady(true);
+            onLayout={() => setIsListReady(true)}
+            getItemLayout={(data, index) => {
+              const ITEM_HEIGHT = 120;
+              const HEADER_HEIGHT = headerHeight;
+              let offset = 0,
+                currentIndex = 0;
+              for (let i = 0; i < sections.length; i++) {
+                offset += HEADER_HEIGHT;
+                if (index < currentIndex + sections[i].data.length) {
+                  offset += (index - currentIndex) * ITEM_HEIGHT;
+                  break;
+                }
+                offset += sections[i].data.length * ITEM_HEIGHT;
+                currentIndex += sections[i].data.length;
+              }
+              return { length: ITEM_HEIGHT, offset, index };
             }}
           />
-          <View style={styles.indexBar}>
+          <View
+            ref={indexBarRef}
+            style={styles.indexBar}
+            onLayout={(event) => setIndexBarLayout(event.nativeEvent.layout)}
+            {...panResponder.panHandlers}
+          >
             {availableLetters.map((letter) => (
               <TouchableOpacity
                 key={letter}
                 style={styles.indexItem}
                 onPress={() => scrollToSection(letter)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8 }}
               >
-                <Text style={styles.indexText}>{letter}</Text>
+                <Text
+                  style={[
+                    styles.indexText,
+                    activeLetter === letter && styles.activeIndexText,
+                  ]}
+                >
+                  {letter}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -326,8 +373,8 @@ const DeaconEdits = () => {
           onClose={handleCancel}
           church={church}
           week=""
-          family=""
-          url=""
+          family={true}
+          url="https://unavailable-for-week-hy6oofbihq-uc.a.run.app"
         />
       )}
     </View>
@@ -409,6 +456,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     marginBottom: 8,
+    zIndex: 1,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1,
   },
   sectionHeaderText: {
     fontSize: 18,
@@ -416,19 +469,28 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   indexBar: {
-    width: 24,
+    width: 30,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 20,
+    paddingVertical: 10,
+    marginLeft: 4,
   },
   indexItem: {
-    paddingVertical: 2,
-    paddingHorizontal: 4,
+    justifyContent: "center",
+    alignItems: "center",
+    height: 22,
+    width: "100%",
+    paddingVertical: 0,
   },
   indexText: {
     fontSize: 12,
     color: "#147efb",
     fontWeight: "600",
+  },
+  activeIndexText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "bold",
   },
 });
 
