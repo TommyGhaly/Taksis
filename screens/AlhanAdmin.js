@@ -81,7 +81,7 @@ const AlhanAdmin = () => {
             })
           );
           setProfilePictureUrls(urls);
-        } catch (error) {        }
+        } catch (error) {}
       };
 
       fetchProfilePictureUrls();
@@ -212,36 +212,30 @@ const AlhanAdmin = () => {
       (section) => section.title.toUpperCase() === letter.toUpperCase()
     );
 
-
     if (sectionIndex >= 0) {
-      setTimeout(() => {
-        try {
-          sectionListRef.current.scrollToLocation({
-            sectionIndex,
-            itemIndex: 0,
-            animated: true,
-            viewPosition: 0,
-            viewOffset: 0,
-          });
-          ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
-        } catch (error) {
-          // Fallback: Calculate item index
-          let itemIndex = 0;
-          for (let i = 0; i < sectionIndex; i++) {
-            itemIndex += sections[i].data.length; // Items only
-            itemIndex += 1; // Section header
-          }
-          try {
-            sectionListRef.current.scrollToIndex({
-              index: itemIndex,
-              animated: true,
-              viewPosition: 0,
-            });
-          } catch (fallbackError) {
-          }
+      try {
+        sectionListRef.current.scrollToLocation({
+          sectionIndex,
+          itemIndex: 0,
+          animated: false,
+          viewPosition: 0,
+          viewOffset: 0,
+        });
+      } catch (error) {
+        // Fallback: Calculate item index
+        let itemIndex = 0;
+        for (let i = 0; i < sectionIndex; i++) {
+          itemIndex += sections[i].data.length; // Items only
+          itemIndex += 1; // Section header
         }
-      }, 0);
-    } else {
+        try {
+          sectionListRef.current.scrollToIndex({
+            index: itemIndex,
+            animated: false,
+            viewPosition: 0,
+          });
+        } catch (fallbackError) {}
+      }
     }
   };
 
@@ -334,7 +328,10 @@ const AlhanAdmin = () => {
             <TouchableOpacity
               key={letter}
               style={styles.indexItem}
-              onPress={() => scrollToSection(letter)}
+              onPressIn={() => {
+                scrollToSection(letter);
+                ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+              }}
             >
               <Text style={styles.indexText}>{letter}</Text>
             </TouchableOpacity>
@@ -660,7 +657,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   indexText: {
-    fontSize: 12,
+    fontSize: 16,
     color: '#147efb',
     fontWeight: '600',
   },

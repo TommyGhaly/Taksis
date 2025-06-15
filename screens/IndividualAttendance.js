@@ -46,6 +46,11 @@ const IndividualAttendance = () => {
   useEffect(() => {
     isMounted.current = true;
     const fetchData = async () => {
+      if (!studentId) {
+        Alert.alert("Error", "Student ID is missing.");
+        navigation.goBack();
+        return;
+      }
       try {
         setLoading(true);
         const studentRef = firestore()
@@ -55,7 +60,7 @@ const IndividualAttendance = () => {
           .doc(grade)
           .collection("students")
           .doc(studentId);
-
+        
         // Fetch profile picture
         try {
           const url = await storage()
@@ -132,8 +137,8 @@ const IndividualAttendance = () => {
 
   // Handle photo upload
   const handlePhotoUpload = async (imageUri) => {
-    if (!studentId) {
-      Alert.alert("Error", "Student ID is missing.");
+    if (!studentId || studentId === "undefined") {
+      Alert.alert("Error", "Invalid or missing Student ID.");
       return;
     }
     try {
@@ -319,7 +324,8 @@ const IndividualAttendance = () => {
         <Text style={styles.subtitle}>{`Grade: ${formatGrade(
           grade
         )} - Category: ${category}`}</Text>
-        <ScrollView contentContainerStyle={styles.attendanceContainer}>
+        <ScrollView contentContainerStyle={styles.attendanceContainer}
+        showsVerticalScrollIndicator={false}>
           {attendanceData.length > 0 ? (
             attendanceData.map((attendance, index) => (
               <View key={index} style={styles.attendanceItem}>
@@ -559,8 +565,10 @@ const IndividualAttendance = () => {
 
       <Modal visible={photoInputVisible} transparent animationType="fade">
         <PhotoInput
+          visible={photoInputVisible}
           onClose={() => setPhotoInputVisible(false)}
           onSave={handlePhotoUpload}
+          userId={studentId}
         />
       </Modal>
     </View>

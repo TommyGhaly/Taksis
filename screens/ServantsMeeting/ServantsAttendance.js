@@ -22,6 +22,7 @@ const ServantsAttendance = ({ navigation }) => {
   const [sections, setSections] = useState([]);
   const [availableLetters, setAvailableLetters] = useState([]);
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
+  const [isListReady, setIsListReady] = useState(false);
   const sectionListRef = useRef(null);
 
   useEffect(() => {
@@ -123,18 +124,38 @@ const ServantsAttendance = ({ navigation }) => {
   }, [userData]);
 
   const scrollToSection = (letter) => {
+    if (!sectionListRef.current || !availableLetters.includes(letter) || !isListReady) {
+      return;
+    }
+
     const sectionIndex = sections.findIndex(
       (section) => section.title.toUpperCase() === letter.toUpperCase()
     );
 
-    if (sectionIndex >= 0 && sectionListRef.current) {
-      sectionListRef.current.scrollToLocation({
-        sectionIndex,
-        itemIndex: 0,
-        animated: true,
-        viewPosition: 0,
-      });
-      Haptics.trigger("impactLight");
+    if (sectionIndex >= 0) {
+      try {
+        sectionListRef.current.scrollToLocation({
+          sectionIndex,
+          itemIndex: 0,
+          animated: false,
+          viewPosition: 0,
+          viewOffset: 0,
+        });
+      } catch (error) {
+        // Fallback: Calculate item index
+        let itemIndex = 0;
+        for (let i = 0; i < sectionIndex; i++) {
+          itemIndex += sections[i].data.length; // Items only
+          itemIndex += 1; // Section header
+        }
+        try {
+          sectionListRef.current.scrollToIndex({
+            index: itemIndex,
+            animated: false,
+            viewPosition: 0,
+          });
+        } catch (fallbackError) {}
+      }
     }
   };
 
@@ -275,13 +296,17 @@ const ServantsAttendance = ({ navigation }) => {
           }
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={false}
+          onLayout={() => setIsListReady(true)}
         />
         <View style={styles.indexBar}>
           {availableLetters.map((letter) => (
             <TouchableOpacity
               key={letter}
               style={styles.indexItem}
-              onPress={() => scrollToSection(letter)}
+              onPressIn={() => {
+                scrollToSection(letter);
+                Haptics.trigger("impactLight");
+              }}
             >
               <Text style={styles.indexText}>{letter}</Text>
             </TouchableOpacity>
@@ -406,7 +431,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   indexText: {
-    fontSize: 12,
+    fontSize: 16,
     color: "#147efb",
     fontWeight: "600",
   },
