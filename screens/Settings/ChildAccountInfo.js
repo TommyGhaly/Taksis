@@ -145,9 +145,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   profileImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 100, // Increased from 80
+    height: 100, // Increased from 80
+    borderRadius: 50, // Adjusted to maintain circular shape (half of width/height)
     borderWidth: 1,
     borderColor: "#8e8e93",
   },

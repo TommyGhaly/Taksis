@@ -44,9 +44,8 @@ const InputPhoto = ({ route, navigation }) => {
       await firestore().collection("users").doc(user.uid).update({
         phoneNumber: phoneNumber.trim(),
       });
-      setSignUp(false);
-      navigation.navigate("MainContainer");
-      Alert.alert("Success", "Your profile has been successfully updated!");
+      setSignUp(true); // Keep user in sign-up flow
+      navigation.navigate("SelectChurch");
     } catch (error) {
       Alert.alert("Error", "Could not update profile information. Please try again.");
     }
@@ -56,14 +55,11 @@ const InputPhoto = ({ route, navigation }) => {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 120}
     >
       <View style={styles.header}>
         <View style={styles.progressBar}>
-          <ProgressBar
-            startPercentage={1}
-            endPercentage={17}
-          />
+          <ProgressBar startPercentage={1} endPercentage={17} />
         </View>
       </View>
       <View style={styles.content}>
@@ -95,14 +91,8 @@ const InputPhoto = ({ route, navigation }) => {
         </View>
       </View>
       <View style={styles.footer}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.continueButton,
-            pressed && styles.buttonPressed,
-          ]}
-          onPress={handleContinue}
-        >
-          <Text style={styles.buttonText}>Continue</Text>
+        <Pressable style={styles.continueButton} onPress={handleContinue}>
+          <Text style={styles.continueText}>Continue</Text>
         </Pressable>
       </View>
 
@@ -120,11 +110,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#121212",
     paddingHorizontal: 16,
-    paddingTop: 80,
+    paddingTop: 120,
     paddingBottom: 40,
   },
   header: {
-    marginBottom: 0,
+    marginBottom: 32,
   },
   progressBar: {
     height: 6,
@@ -183,8 +173,8 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   footer: {
+    paddingBottom: 32,
     alignItems: "center",
-    paddingBottom: 20,
   },
   continueButton: {
     height: 52,
@@ -193,22 +183,19 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: 16,
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
-  buttonPressed: {
-    backgroundColor: "#115EBB",
-    elevation: 2,
-  },
-  buttonText: {
+  continueText: {
     fontSize: 18,
-    fontWeight: "600",
-    color: "#FFF",
-    fontFamily: "Roboto-Medium",
     letterSpacing: -0.2,
+    fontWeight: "600",
+    fontFamily: "Roboto-Medium",
+    color: "#FFF",
   },
 });
 
