@@ -12,7 +12,7 @@ import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
-import BackArrow from "../../components/backArrow"; // Import your BackButton component
+import BackArrow from "../../components/backArrow";
 import { callDeleteUser } from "../../components/functionCalls";
 
 const ChangeChildren = () => {
@@ -58,7 +58,7 @@ const ChangeChildren = () => {
                 if (child.uid) {
                   try {
                     const url = await storage()
-                      .ref(`childProfilePictures/${child.uid}.png`)
+                      .ref(`profilePictures/${child.uid}.png`)
                       .getDownloadURL();
                     if (typeof url === "string" && url.trim() !== "") {
                       urls[child.uid] = url;
@@ -81,8 +81,8 @@ const ChangeChildren = () => {
       // Fetch profile pictures immediately
       fetchProfilePictures();
 
-      // Set up interval to check for updates every 10 seconds
-      const intervalId = setInterval(fetchProfilePictures, 10000);
+      // Set up interval to check for updates every 30 seconds
+      const intervalId = setInterval(fetchProfilePictures, 30000);
 
       // Cleanup subscription and interval on unmount
       return () => {
@@ -123,7 +123,7 @@ const ChangeChildren = () => {
                     // Delete profile picture from storage
                     try {
                       await storage()
-                        .ref(`childProfilePictures/${childId}.png`)
+                        .ref(`profilePictures/${childId}.png`)
                         .delete();
                     } catch (error) {
                       console.warn("Failed to delete child profile picture:", error);

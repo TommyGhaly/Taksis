@@ -104,7 +104,7 @@ const ChildPhoto = ({ route }) => {
         <BackArrow onPress={handleBackPress} />
       </View>
       <View style={styles.progressBar}>
-        <ProgressBar startPercentage={0} endPercentage={20} />
+        <ProgressBar startPercentage={20} endPercentage={40} />
       </View>
 
       <View style={styles.headerContainer}>
