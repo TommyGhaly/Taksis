@@ -122,6 +122,7 @@ const Frequency = ({ route, navigation }) => {
                 display={Platform.OS === "ios" ? "spinner" : "spinner"} // Use spinner for both iOS and Android
                 onChange={handleDateChange}
                 maximumDate={new Date()}
+                minimumDate={new Date(1900, 0, 1)} // Allow dates from 1900
                 style={styles.datePicker}
                 {...(Platform.OS === "ios"
                   ? { textColor: "#E0E0E0", accentColor: "#147EFB" }

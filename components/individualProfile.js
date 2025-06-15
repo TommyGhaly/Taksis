@@ -69,9 +69,11 @@ const IndividualProfile = ({
     }
 
     // Fetch profile picture URL
-    const fetchImage = async () => {
+    const fetchImage = async (childStatus) => {
       try {
-        const storagePath = isChild `profilePictures/${userId}.png`;
+        const storagePath = childStatus
+          ? `childProfilePictures/${userId}.png`
+          : `profilePictures/${userId}.png`;
         const url = await storage().ref(storagePath).getDownloadURL();
         if (typeof url === "string" && url.trim() !== "") {
           setImageUrl(url);
@@ -79,12 +81,10 @@ const IndividualProfile = ({
           setImageUrl(null);
         }
       } catch (error) {
+        console.warn("Failed to fetch image:", error.message);
         setImageUrl(null);
       }
     };
-
-    fetchImage();
-    const intervalId = setInterval(fetchImage, 10000);
 
     // Fetch user data with real-time listener
     const fetchUserData = () => {
@@ -108,6 +108,7 @@ const IndividualProfile = ({
               setTempFrequency(data.frequency || 0);
               setIsDeacon(data.isDeacon || false);
               setIsChild(false);
+              await fetchImage(false); // Fetch adult profile picture
               setLoading(false);
             } else {
               const usersQueryUnsubscribe = firestore()
@@ -162,12 +163,14 @@ const IndividualProfile = ({
                       setTempFrequency(childData.frequency || 0);
                       setIsChild(true);
                       setIsDeacon(false); // Children are typically not deacons
+                      await fetchImage(true); // Fetch child profile picture
                       setLoading(false);
                     } else {
                       setLoading(false);
                     }
                   },
                   (error) => {
+                    console.warn("Error fetching users:", error.message);
                     setLoading(false);
                   }
                 );
@@ -176,6 +179,7 @@ const IndividualProfile = ({
             }
           },
           (error) => {
+            console.warn("Error fetching user data:", error.message);
             setLoading(false);
           }
         );
@@ -186,12 +190,11 @@ const IndividualProfile = ({
     const unsubscribeUserData = fetchUserData();
 
     return () => {
-      clearInterval(intervalId);
       if (unsubscribeUserData) {
         unsubscribeUserData();
       }
     };
-  }, [userId, isChild]);
+  }, [userId]);
 
   // Handle slider value change
   const handleSliderChange = (setter) => (value) => {
@@ -269,61 +272,61 @@ const IndividualProfile = ({
   };
 
   // Handle unavailable to serve
-const handleUnavailable = () => {
-  Alert.alert(
-    "Mark Unavailable",
-    "Are you sure you want to mark this user as unavailable to serve?",
-    [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Confirm",
-        style: "destructive",
-        onPress: async () => {
-          ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
-          try {
-            const currentUser = auth().currentUser;
-            if (!currentUser) {
-              throw new Error("No authenticated user found");
-            }
-
-            const weekToMark = userData.nextWeekServe;
-
-            // Only update unavailableWeeks for users with their own user document
-            if (!isChild) {
-              await firestore()
-                .collection("users")
-                .doc(userId)
-                .update({
-                  unavailableWeeks:
-                    firestore.FieldValue.arrayUnion(weekToMark),
-                });
-            }
-
-            // Call unavailableToServe with nextWeekServe
-            await unavailableToServe(
-              currentUser,
-              userId,
-              church,
-              userData.nextWeekServe,
-              family,
-              "https://unavailable-for-week-hy6oofbihq-uc.a.run.app"
-            );
-            onClose();
-          } catch (error) {
-            Alert.alert(
-              "Error",
-              "Failed to mark as unavailable. Please try again."
-            );
-          }
+  const handleUnavailable = () => {
+    Alert.alert(
+      "Mark Unavailable",
+      "Are you sure you want to mark this user as unavailable to serve?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
         },
-      },
-    ],
-    { cancelable: true }
-  );
-};
+        {
+          text: "Confirm",
+          style: "destructive",
+          onPress: async () => {
+            ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
+            try {
+              const currentUser = auth().currentUser;
+              if (!currentUser) {
+                throw new Error("No authenticated user found");
+              }
+
+              const weekToMark = userData.nextWeekServe;
+
+              // Only update unavailableWeeks for users with their own user document
+              if (!isChild) {
+                await firestore()
+                  .collection("users")
+                  .doc(userId)
+                  .update({
+                    unavailableWeeks:
+                      firestore.FieldValue.arrayUnion(weekToMark),
+                  });
+              }
+
+              // Call unavailableToServe with nextWeekServe
+              await unavailableToServe(
+                currentUser,
+                userId,
+                church,
+                userData.nextWeekServe,
+                family,
+                "https://unavailable-for-week-hy6oofbihq-uc.a.run.app"
+              );
+              onClose();
+            } catch (error) {
+              Alert.alert(
+                "Error",
+                "Failed to mark as unavailable. Please try again."
+              );
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
 
   // Handle remove deacon
   const handleRemoveDeacon = () => {
@@ -403,6 +406,7 @@ const handleUnavailable = () => {
         setImageUrl(null);
       }
     } catch (error) {
+      console.warn("Failed to fetch image after upload:", error.message);
       setImageUrl(null);
     }
   };
@@ -470,6 +474,7 @@ const handleUnavailable = () => {
               }
               defaultSource={require("../assets/default_profile.png")}
               onError={() => setImageUrl(null)}
+              key={imageUrl || "default"} // Force re-render when imageUrl changes
             />
             <TouchableOpacity
               style={styles.editIconContainer}

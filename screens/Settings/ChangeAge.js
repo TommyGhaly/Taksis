@@ -104,6 +104,7 @@ const ChangeAge = () => {
                   display={Platform.OS === "ios" ? "spinner" : "spinner"}
                   onChange={handleDateChange}
                   maximumDate={new Date()}
+                  minimumDate={new Date(1900, 0, 1)} // Allow dates from 1900
                   style={styles.datePicker}
                   textColor="#F0F0F0"
                   accentColor="#147EFB"

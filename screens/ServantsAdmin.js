@@ -109,9 +109,7 @@ const ServantsAdmin = () => {
             })
           );
           setProfilePictureUrls(urls);
-        } catch (error) {
-          console.warn('Profile picture fetch error:', error);
-        }
+        } catch (error) {}
       };
 
       fetchProfilePictureUrls();
@@ -167,7 +165,6 @@ const ServantsAdmin = () => {
             setAvailableLetters(letters);
           },
           (error) => {
-            console.warn('Servants fetch error:', error);
             Alert.alert('Error', 'Could not fetch servants.');
           }
         );
@@ -248,7 +245,6 @@ const ServantsAdmin = () => {
 
   const scrollToSection = (letter) => {
     if (!sectionListRef.current || !availableLetters.includes(letter) || !isListReady) {
-      console.warn(`Cannot scroll to ${letter}: ref=${!!sectionListRef.current}, letterExists=${availableLetters.includes(letter)}, listReady=${isListReady}`);
       return;
     }
 
@@ -256,44 +252,30 @@ const ServantsAdmin = () => {
       (section) => section.title.toUpperCase() === letter.toUpperCase()
     );
 
-    console.log(`Attempting to scroll to letter ${letter}, sectionIndex: ${sectionIndex}`);
-
     if (sectionIndex >= 0) {
-      setTimeout(() => {
-        try {
-          console.log(`Executing scrollToLocation for sectionIndex: ${sectionIndex}`);
-          sectionListRef.current.scrollToLocation({
-            sectionIndex,
-            itemIndex: 0,
-            animated: true,
-            viewPosition: 0,
-            viewOffset: 0,
-          });
-          ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
-          console.log(`scrollToLocation successful for ${letter}`);
-        } catch (error) {
-          console.warn(`scrollToLocation error for ${letter}:`, error);
-          // Fallback: Calculate item index
-          let itemIndex = 0;
-          for (let i = 0; i < sectionIndex; i++) {
-            itemIndex += sections[i].data.length; // Items only
-            itemIndex += 1; // Section header
-          }
-          try {
-            console.log(`Falling back to scrollToIndex: ${itemIndex}`);
-            sectionListRef.current.scrollToIndex({
-              index: itemIndex,
-              animated: true,
-              viewPosition: 0,
-            });
-            console.log(`scrollToIndex successful for ${letter}`);
-          } catch (fallbackError) {
-            console.warn(`scrollToIndex error for ${letter}:`, fallbackError);
-          }
+      try {
+        sectionListRef.current.scrollToLocation({
+          sectionIndex,
+          itemIndex: 0,
+          animated: false,
+          viewPosition: 0,
+          viewOffset: 0,
+        });
+      } catch (error) {
+        // Fallback: Calculate item index
+        let itemIndex = 0;
+        for (let i = 0; i < sectionIndex; i++) {
+          itemIndex += sections[i].data.length; // Items only
+          itemIndex += 1; // Section header
         }
-      }, 0);
-    } else {
-      console.warn(`Section for letter ${letter} not found`);
+        try {
+          sectionListRef.current.scrollToIndex({
+            index: itemIndex,
+            animated: false,
+            viewPosition: 0,
+          });
+        } catch (fallbackError) {}
+      }
     }
   };
 
@@ -376,7 +358,6 @@ const ServantsAdmin = () => {
           stickySectionHeadersEnabled={false}
           extraData={profilePictureUrls}
           onLayout={() => {
-            console.log('SectionList rendered');
             setIsListReady(true);
           }}
         />
@@ -385,7 +366,10 @@ const ServantsAdmin = () => {
             <TouchableOpacity
               key={letter}
               style={styles.indexItem}
-              onPress={() => scrollToSection(letter)}
+              onPressIn={() => {
+                scrollToSection(letter);
+                ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
+              }}
             >
               <Text style={styles.indexText}>{letter}</Text>
             </TouchableOpacity>
@@ -742,7 +726,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   indexText: {
-    fontSize: 12,
+    fontSize: 16,
     color: '#147efb',
     fontWeight: '600',
   },

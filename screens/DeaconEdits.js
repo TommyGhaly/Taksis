@@ -99,8 +99,7 @@ const DeaconEdits = () => {
           );
           setProfilePictureUrls(urls);
         }
-      } catch (error) {
-      }
+      } catch (error) {}
     };
 
     fetchProfilePictureUrls();
@@ -154,9 +153,6 @@ const DeaconEdits = () => {
             setDeacons(sortedDeacons);
             setSections(sectionData);
             setAvailableLetters(letters);
-
-            // Debug log to verify sections
-
           }
         },
         (error) => {
@@ -185,7 +181,7 @@ const DeaconEdits = () => {
     setSelectedDeacon(null);
   };
 
-  // Scroll to section safely
+  // Jump to section
   const scrollToSection = (letter) => {
     if (!sectionListRef.current || !availableLetters.includes(letter) || !isListReady) {
       return;
@@ -195,36 +191,30 @@ const DeaconEdits = () => {
       (section) => section.title.toUpperCase() === letter.toUpperCase()
     );
 
-
     if (sectionIndex >= 0) {
-      setTimeout(() => {
-        try {
-          sectionListRef.current.scrollToLocation({
-            sectionIndex,
-            itemIndex: 0,
-            animated: true,
-            viewPosition: 0,
-            viewOffset: 0,
-          });
-          ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
-        } catch (error) {
-          // Fallback: Calculate item index
-          let itemIndex = 0;
-          for (let i = 0; i < sectionIndex; i++) {
-            itemIndex += sections[i].data.length; // Items only
-            itemIndex += 1; // Section header
-          }
-          try {
-            sectionListRef.current.scrollToIndex({
-              index: itemIndex,
-              animated: true,
-              viewPosition: 0,
-            });
-          } catch (fallbackError) {
-          }
+      try {
+        sectionListRef.current.scrollToLocation({
+          sectionIndex,
+          itemIndex: 0,
+          animated: false, // No animation to jump directly
+          viewPosition: 0,
+          viewOffset: 0,
+        });
+      } catch (error) {
+        // Fallback: Calculate item index
+        let itemIndex = 0;
+        for (let i = 0; i < sectionIndex; i++) {
+          itemIndex += sections[i].data.length; // Items only
+          itemIndex += 1; // Section header
         }
-      }, 0); // Increased delay to 500ms
-    } else {
+        try {
+          sectionListRef.current.scrollToIndex({
+            index: itemIndex,
+            animated: false, // No animation to jump directly
+            viewPosition: 0,
+          });
+        } catch (fallbackError) {}
+      }
     }
   };
 
@@ -299,7 +289,7 @@ const DeaconEdits = () => {
             keyExtractor={(item) => item.uid || Math.random().toString()}
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
-            stickySectionHeadersEnabled={false} // Disabled to test
+            stickySectionHeadersEnabled={false} // Enable sticky headers
             extraData={profilePictureUrls}
             onLayout={() => {
               setIsListReady(true);
@@ -310,7 +300,10 @@ const DeaconEdits = () => {
               <TouchableOpacity
                 key={letter}
                 style={styles.indexItem}
-                onPress={() => scrollToSection(letter)}
+                onPressIn={() => {
+                  scrollToSection(letter);
+                  ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+                }}
               >
                 <Text style={styles.indexText}>{letter}</Text>
               </TouchableOpacity>
@@ -426,7 +419,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   indexText: {
-    fontSize: 12,
+    fontSize: 16,
     color: "#147efb",
     fontWeight: "600",
   },
