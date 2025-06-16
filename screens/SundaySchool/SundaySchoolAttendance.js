@@ -62,59 +62,65 @@ const SundaySchoolAttendance = ({ navigation }) => {
   }, [user]);
 
   // Fetch students and profile pictures
-  useEffect(() => {
-    if (!userData || !userData.ssGrades || userData.ssGrades.length === 0) return;
+useEffect(() => {
+  if (!userData?.ssGrades?.length) return;
 
-    const fetchProfilePictures = async (studentList) => {
-      const urls = { ...profilePictureUrls };
-      await Promise.all(
-        studentList.map(async (student) => {
-          if (!urls[student.uid]) {
-            try {
-              const url = await storage()
-                .ref(`profilePictures/${student.uid}.png`) // Updated path
-                .getDownloadURL();
-              urls[student.uid] = url;
-            } catch (error) {
-              urls[student.uid] = null;
-            }
-          }
-        })
-      );
-      setProfilePictureUrls(urls);
-    };
+  // 1) helper to always re-fetch every student's picture URL
+  const fetchAllProfilePictures = async (allStudents) => {
+    const urls = {};
+    await Promise.all(
+      Object.values(allStudents).flat().map(async (student) => {
+        try {
+          urls[student.uid] = await storage()
+            .ref(`profilePictures/${student.uid}.png`)
+            .getDownloadURL();
+        } catch {
+          urls[student.uid] = null;
+        }
+      })
+    );
+    setProfilePictureUrls(urls);
+  };
 
-    const unsubscribeFunctions = [];
+  // 2) set up Firestore listeners per grade
+  const unsubscribeFuncs = [];
+  userData.ssGrades.forEach((grade) => {
+    const studentsRef = firestore()
+      .collection("churches")
+      .doc(userData.church)
+      .collection("Sunday School")
+      .doc(grade)
+      .collection("students");
 
-    userData.ssGrades.forEach((grade) => {
-      const studentsRef = firestore()
-        .collection("churches")
-        .doc(userData.church)
-        .collection("Sunday School")
-        .doc(grade)
-        .collection("students");
+    const unsub = studentsRef.onSnapshot((snap) => {
+      const gradeStudents = snap.docs
+        .map(d => ({ uid: d.id, grade, ...d.data() }))
+        .sort((a, b) => a.name.localeCompare(b.name));
 
-      const unsubscribe = studentsRef.onSnapshot(async (snapshot) => {
-        const gradeStudents = snapshot.docs.map((doc) => ({
-          uid: doc.id,
-          grade: grade,
-          ...doc.data(),
-        }));
-        gradeStudents.sort((a, b) => a.name.localeCompare(b.name));
-
-        await fetchProfilePictures(gradeStudents);
-
-        setStudentsByGrade((prev) => ({
-          ...prev,
-          [grade]: gradeStudents,
-        }));
+      // merge into state
+      setStudentsByGrade(prev => {
+        const next = { ...prev, [grade]: gradeStudents };
+        // immediately fetch URLs for all grades so far
+        fetchAllProfilePictures(next);
+        return next;
       });
-      unsubscribeFunctions.push(unsubscribe);
     });
 
-    setNewStudentGrade(userData.ssGrades[0] || "");
-    return () => unsubscribeFunctions.forEach((unsubscribe) => unsubscribe());
-  }, [userData]);
+    unsubscribeFuncs.push(unsub);
+  });
+
+  // 3) poll every minute for any new changes
+  const POLL_INTERVAL = 10_000; // ms
+  const intervalId = setInterval(() => {
+    fetchAllProfilePictures(studentsByGrade);
+  }, POLL_INTERVAL);
+
+  return () => {
+    unsubscribeFuncs.forEach(fn => fn());
+    clearInterval(intervalId);
+  };
+}, [userData]);
+
 
   const getNextSunday = () => {
     const today = new Date();

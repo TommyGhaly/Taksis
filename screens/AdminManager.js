@@ -10,6 +10,8 @@ import {
   Switch,
   Alert,
   Image,
+  Dimensions,
+  Platform,
   FlatList
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
@@ -24,6 +26,13 @@ const hapticOptions = {
   enableVibrateFallback: true,
   ignoreAndroidSystemSettings: false,
 };
+
+// Responsive design helper
+const { width, height } = Dimensions.get("window");
+const isTablet = Platform.isPad || (width >= 768 && height >= 768);
+const scale = isTablet ? 1.2 : 1;
+const paddingHorizontal = isTablet ? 32 : 16;
+const indexBarWidth = isTablet ? 32 : 24;
 
 const adminRoles = [
   { key: "admin", label: "Schedule Admin" },
@@ -44,7 +53,8 @@ const AdminManager = () => {
   const [sections, setSections] = useState([]);
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [photoInputVisible, setPhotoInputVisible] = useState(false);
-  const [isListReady, setIsListReady] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const headerHeightRef = useRef(0);
   const sectionListRef = useRef(null);
 
   // Alphabet for index bar (only letters with data)
@@ -216,41 +226,34 @@ const AdminManager = () => {
     }
   };
 
+  // Corrected scroll function to match DeaconEdits
   const scrollToSection = (letter) => {
-    if (!sectionListRef.current || !availableLetters.includes(letter) || !isListReady) {
-      return;
-    }
+    const sectionIndex = sections.findIndex((s) => s.title === letter);
+    if (sectionIndex < 0 || !sectionListRef.current) return;
 
-    const sectionIndex = sections.findIndex(
-      (section) => section.title.toUpperCase() === letter.toUpperCase()
-    );
-
-    if (sectionIndex >= 0) {
-      try {
-        sectionListRef.current.scrollToLocation({
-          sectionIndex,
-          itemIndex: 0,
-          animated: false,
-          viewPosition: 0,
-          viewOffset: 0,
-        });
-      } catch (error) {
-        // Fallback: Calculate item index
-        let itemIndex = 0;
-        for (let i = 0; i < sectionIndex; i++) {
-          itemIndex += sections[i].data.length; // Items only
-          itemIndex += 1; // Section header
-        }
-        try {
-          sectionListRef.current.scrollToIndex({
-            index: itemIndex,
-            animated: false,
-            viewPosition: 0,
-          });
-        } catch (fallbackError) {}
-      }
-    }
+    sectionListRef.current.scrollToLocation({
+      sectionIndex,
+      itemIndex: 1,
+      animated: false,
+      viewPosition: 0,
+    });
   };
+
+  // Measure section header height
+  const renderSectionHeader = ({ section: { title } }) => (
+    <View
+      style={styles.sectionHeader}
+      onLayout={(event) => {
+        const { height } = event.nativeEvent.layout;
+        if (height > 0 && headerHeightRef.current !== height) {
+          headerHeightRef.current = height;
+          setHeaderHeight(height);
+        }
+      }}
+    >
+      <Text style={[styles.sectionHeaderText, { fontSize: 18 * scale }]}>{title}</Text>
+    </View>
+  );
 
   const renderUser = ({ item }) => {
     const activeRoles =
@@ -261,13 +264,13 @@ const AdminManager = () => {
 
     return (
       <TouchableOpacity
-        style={styles.userCard}
+        style={[styles.userCard, { padding: 16 * scale, marginBottom: 12 * scale }]}
         onPress={() => openEditModal(item)}
         activeOpacity={0.7}
       >
-        <View style={styles.userImageContainer}>
+        <View style={[styles.userImageContainer, { marginRight: 12 * scale }]}>
           <Image
-            style={styles.userImage}
+            style={[styles.userImage, { width: 48 * scale, height: 48 * scale, borderRadius: 24 * scale }]}
             source={
               item.id && profilePictureUrls[item.id]
                 ? { uri: profilePictureUrls[item.id] }
@@ -283,40 +286,38 @@ const AdminManager = () => {
           />
         </View>
         <View style={styles.userInfo}>
-          <Text style={styles.userName}>{item.name}</Text>
-          <Text style={styles.userChurch}>{item.church || "No church assigned"}</Text>
-          <Text style={styles.userRoles}>Roles: {activeRoles}</Text>
+          <Text style={[styles.userName, { fontSize: 18 * scale }]}>{item.name}</Text>
+          <Text style={[styles.userChurch, { fontSize: 14 * scale, marginTop: 4 * scale }]}>
+            {item.church || "No church assigned"}
+          </Text>
+          <Text style={[styles.userRoles, { fontSize: 14 * scale, marginTop: 4 * scale }]}>
+            Roles: {activeRoles}
+          </Text>
         </View>
         <TouchableOpacity
-          style={[styles.actionButton, styles.editButton]}
+          style={[styles.actionButton, styles.editButton, { paddingVertical: 8 * scale, paddingHorizontal: 16 * scale }]}
           onPress={() => openEditModal(item)}
         >
-          <Ionicons name="pencil" size={18} color="#fff" />
-          <Text style={styles.buttonText}>Edit</Text>
+          <Ionicons name="pencil" size={18 * scale} color="#fff" />
+          <Text style={[styles.buttonText, { fontSize: 14 * scale }]}>Edit</Text>
         </TouchableOpacity>
       </TouchableOpacity>
     );
   };
 
-  const renderSectionHeader = ({ section: { title } }) => (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionHeaderText}>{title}</Text>
-    </View>
-  );
-
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#147efb" />
-        <Text style={styles.loadingText}>Loading...</Text>
+      <View style={styles.centered}>
+        <ActivityIndicator size={isTablet ? "large" : "small"} color="#147efb" />
+        <Text style={[styles.loadingText, { fontSize: 16 * scale }]}>Loading...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Manage Admin Privileges</Text>
-      <View style={styles.listWrapper}>
+    <View style={[styles.container, { paddingHorizontal }]}>
+      <Text style={[styles.header, { fontSize: 24 * scale }]}>Manage Admin Privileges</Text>
+      <View style={[styles.listWrapper, { paddingRight: indexBarWidth }]}>
         <SectionList
           ref={sectionListRef}
           sections={sections}
@@ -325,39 +326,36 @@ const AdminManager = () => {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>No users found.</Text>
+            <Text style={[styles.emptyText, { fontSize: 16 * scale }]}>No users found.</Text>
           }
           showsVerticalScrollIndicator={false}
-          stickySectionHeadersEnabled={false}
+          stickySectionHeadersEnabled={true}
           extraData={profilePictureUrls}
-          onLayout={() => {
-            setIsListReady(true);
-          }}
         />
-        <View style={styles.indexBar}>
+        <View style={[styles.indexBar, { width: indexBarWidth }]}>
           {availableLetters.map((letter) => (
-            <TouchableOpacity
+            <View
               key={letter}
-              style={styles.indexItem}
-              onPressIn={() => {
+              style={[styles.indexItem, { paddingVertical: 2 * scale }]}
+              onTouchStart={() => {
                 scrollToSection(letter);
                 ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
               }}
             >
-              <Text style={styles.indexText}>{letter}</Text>
-            </TouchableOpacity>
+              <Text style={[styles.indexText, { fontSize: 18 * scale }]}>{letter}</Text>
+            </View>
           ))}
         </View>
       </View>
       {selectedUser && (
         <Modal visible={modalVisible} animationType="fade" transparent={true}>
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContainer}>
+            <View style={[styles.modalContainer, { width: isTablet ? "70%" : "90%", maxHeight: isTablet ? "90%" : "80%" }]}>
               <View style={styles.modalHeader}>
                 <View style={styles.headerContent}>
-                  <View style={styles.profileImageContainer}>
+                  <View style={[styles.profileImageContainer, { marginBottom: 12 * scale }]}>
                     <Image
-                      style={styles.profileImage}
+                      style={[styles.profileImage, { width: 80 * scale, height: 80 * scale, borderRadius: 40 * scale }]}
                       source={
                         selectedUser.id && profilePictureUrls[selectedUser.id]
                           ? { uri: profilePictureUrls[selectedUser.id] }
@@ -372,50 +370,48 @@ const AdminManager = () => {
                       }}
                     />
                     <TouchableOpacity
-                      style={styles.editProfilePictureButton}
+                      style={[styles.editProfilePictureButton, { padding: 6 * scale }]}
                       onPress={openPhotoInputModal}
                     >
-                      <Ionicons name="pencil" size={16} color="#147efb" />
+                      <Ionicons name="pencil" size={16 * scale} color="#147efb" />
                     </TouchableOpacity>
                   </View>
-                  <Text style={styles.modalTitle}>
+                  <Text style={[styles.modalTitle, { fontSize: 18 * scale }]}>
                     Edit Roles for {selectedUser?.name}
                   </Text>
                 </View>
                 <TouchableOpacity style={styles.closeButton} onPress={closeEditModal}>
-                  <Ionicons name="close" size={24} color="#fff" />
+                  <Ionicons name="close" size={24 * scale} color="#fff" />
                 </TouchableOpacity>
               </View>
               <FlatList
                 data={adminRoles}
                 renderItem={({ item: role }) => (
-                  <View style={styles.roleItem}>
-                    <Text style={styles.roleText}>{role.label}</Text>
+                  <View style={[styles.roleItem, { paddingVertical: 12 * scale, paddingHorizontal: 8 * scale, marginBottom: 8 * scale }]}>
+                    <Text style={[styles.roleText, { fontSize: 16 * scale }]}>{role.label}</Text>
                     <Switch
                       value={selectedRoles.includes(role.key)}
                       onValueChange={() => toggleRole(role.key)}
                       trackColor={{ false: "#555", true: "#147efb" }}
-                      thumbColor={
-                        selectedRoles.includes(role.key) ? "#fff" : "#aaa"
-                      }
+                      thumbColor={selectedRoles.includes(role.key) ? "#fff" : "#aaa"}
                     />
                   </View>
                 )}
                 keyExtractor={(item) => item.key}
-                contentContainerStyle={styles.rolesList}
+                contentContainerStyle={[styles.rolesList, { padding: 16 * scale }]}
               />
-              <View style={styles.modalButtons}>
+              <View style={[styles.modalButtons, { padding: 16 * scale, gap: 12 * scale }]}>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.cancelButton]}
+                  style={[styles.modalButton, styles.cancelButton, { paddingVertical: 12 * scale }]}
                   onPress={closeEditModal}
                 >
-                  <Text style={styles.modalButtonText}>Cancel</Text>
+                  <Text style={[styles.modalButtonText, { fontSize: 16 * scale }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.saveButton]}
+                  style={[styles.modalButton, styles.saveButton, { paddingVertical: 12 * scale }]}
                   onPress={saveRoles}
                 >
-                  <Text style={styles.modalButtonText}>Confirm</Text>
+                  <Text style={[styles.modalButtonText, { fontSize: 16 * scale }]}>Confirm</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -437,14 +433,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#121212",
-    paddingHorizontal: 16,
     paddingTop: 20,
   },
   header: {
-    fontSize: 24,
     fontWeight: "bold",
     color: "#fff",
-    marginBottom: 20,
+    marginBottom: 20 * scale,
     textAlign: "center",
   },
   listWrapper: {
@@ -458,9 +452,8 @@ const styles = StyleSheet.create({
   userCard: {
     backgroundColor: "#1e1e1e",
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
     shadowColor: "#000",
+    marginRight: 10,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -469,12 +462,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   userImageContainer: {
-    marginRight: 12,
+    marginRight: 12 * scale,
   },
   userImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
     borderWidth: 1,
     borderColor: "#333333",
   },
@@ -482,25 +472,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userName: {
-    fontSize: 18,
     fontWeight: "600",
     color: "#fff",
   },
   userChurch: {
-    fontSize: 14,
     color: "#aaa",
-    marginTop: 4,
   },
   userRoles: {
-    fontSize: 14,
     color: "#aaa",
-    marginTop: 4,
   },
   actionButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
     borderRadius: 8,
   },
   editButton: {
@@ -508,11 +491,10 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: "#fff",
-    fontSize: 14,
     fontWeight: "500",
-    marginLeft: 6,
+    marginLeft: 6 * scale,
   },
-  loadingContainer: {
+  centered: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
@@ -520,11 +502,9 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 10,
-    fontSize: 16,
-    color: "#fff",
+    color: "#aaa",
   },
   emptyText: {
-    fontSize: 16,
     color: "#aaa",
     textAlign: "center",
     marginTop: 20,
@@ -538,15 +518,13 @@ const styles = StyleSheet.create({
   modalContainer: {
     backgroundColor: "#1e1e1e",
     borderRadius: 16,
-    width: "90%",
-    maxHeight: "80%",
     overflow: "hidden",
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
+    padding: 16 * scale,
     backgroundColor: "#147efb",
   },
   headerContent: {
@@ -555,12 +533,8 @@ const styles = StyleSheet.create({
   },
   profileImageContainer: {
     position: "relative",
-    marginBottom: 12,
   },
   profileImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
     borderWidth: 2,
     borderColor: "#fff",
   },
@@ -570,7 +544,6 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: "#1e1e1e",
     borderRadius: 12,
-    padding: 6,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
@@ -578,44 +551,35 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   modalTitle: {
-    fontSize: 18,
     fontWeight: "600",
     color: "#fff",
     textAlign: "center",
   },
   closeButton: {
-    padding: 4,
+    padding: 4 * scale,
   },
   rolesList: {
-    padding: 16,
+    padding: 16 * scale,
   },
   roleItem: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 8,
     borderRadius: 8,
-    marginBottom: 8,
     backgroundColor: "#2a2a2a",
   },
   roleText: {
-    fontSize: 16,
     color: "#fff",
     flex: 1,
   },
   modalButtons: {
     flexDirection: "row",
-    padding: 16,
     borderTopWidth: 1,
     borderTopColor: "#333",
     justifyContent: "space-between",
-    gap: 12,
   },
   modalButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
     alignItems: "center",
   },
   saveButton: {
@@ -626,33 +590,32 @@ const styles = StyleSheet.create({
   },
   modalButtonText: {
     color: "#fff",
-    fontSize: 16,
     fontWeight: "500",
   },
   sectionHeader: {
-    backgroundColor: "#2a2a2a",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginBottom: 8,
+    backgroundColor: "transparent",
+    paddingVertical: 8 * scale,
+    paddingHorizontal: 12 * scale,
   },
   sectionHeaderText: {
-    fontSize: 18,
     fontWeight: "600",
     color: "#fff",
   },
   indexBar: {
-    width: 24,
+    width: indexBarWidth,
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 20,
+    justifyContent: "flex-start", // Changed from "center" to move letters higher
+    paddingVertical: 0,
+    position: "absolute",
+    right: 0,
+    top: 50 * scale, // Added top padding to shift letters up
+    bottom: 0,
   },
   indexItem: {
-    paddingVertical: 2,
-    paddingHorizontal: 4,
+    backgroundColor: "#121212",
+    borderRadius: 4,
   },
   indexText: {
-    fontSize: 16,
     color: "#147efb",
     fontWeight: "600",
   },
