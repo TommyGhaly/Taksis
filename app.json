@@ -46,8 +46,8 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": ["remote-notification"],
-        "NSCameraUsageDescription": "This app uses the camera to take photos.",
-        "NSPhotoLibraryUsageDescription": "This app accesses your photo library to select images."
+        "NSCameraUsageDescription": "Allow Ⲧⲁⲝⲓⲥ to access your camera for taking photos for profile identification.",
+        "NSPhotoLibraryUsageDescription": "Allow Ⲧⲁⲝⲓⲥ to access your photo library for uploading profile pictures."
       },
       "entitlements": {
         "aps-environment": "production"
