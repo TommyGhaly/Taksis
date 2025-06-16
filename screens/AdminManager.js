@@ -34,6 +34,10 @@ const scale = isTablet ? 1.2 : 1;
 const paddingHorizontal = isTablet ? 32 : 16;
 const indexBarWidth = isTablet ? 32 : 24;
 
+// Constants for item layout
+const ITEM_HEIGHT = 76 * scale; // Approximate height of user card (48 * scale for image + padding/margins)
+const SECTION_HEADER_HEIGHT = 34 * scale; // Approximate height of section header (18 * scale font + padding)
+
 const adminRoles = [
   { key: "admin", label: "Schedule Admin" },
   { key: "ssAdmin", label: "Servants Manager" },
@@ -53,8 +57,9 @@ const AdminManager = () => {
   const [sections, setSections] = useState([]);
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [photoInputVisible, setPhotoInputVisible] = useState(false);
-  const [headerHeight, setHeaderHeight] = useState(0);
-  const headerHeightRef = useRef(0);
+  const [headerHeight, setHeaderHeight] = useState(SECTION_HEADER_HEIGHT);
+  const [isListReady, setIsListReady] = useState(false);
+  const headerHeightRef = useRef(SECTION_HEADER_HEIGHT);
   const sectionListRef = useRef(null);
 
   // Alphabet for index bar (only letters with data)
@@ -85,6 +90,16 @@ const AdminManager = () => {
       Alert.alert("Error", "No user authenticated.");
     }
   }, []);
+
+  // Ensure SectionList is ready before allowing scrolls
+  useEffect(() => {
+    if (sectionListRef.current && sections.length > 0) {
+      const timer = setTimeout(() => {
+        setIsListReady(true);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [sections]);
 
   // Fetch users and profile pictures
   useEffect(() => {
@@ -226,17 +241,59 @@ const AdminManager = () => {
     }
   };
 
-  // Corrected scroll function to match DeaconEdits
+  // Updated scroll function with readiness check
   const scrollToSection = (letter) => {
-    const sectionIndex = sections.findIndex((s) => s.title === letter);
-    if (sectionIndex < 0 || !sectionListRef.current) return;
+    if (!isListReady || !sectionListRef.current) {
+      Alert.alert("Error", "List is not ready yet. Please try again.");
+      return;
+    }
 
-    sectionListRef.current.scrollToLocation({
-      sectionIndex,
-      itemIndex: 1,
-      animated: false,
-      viewPosition: 0,
-    });
+    const sectionIndex = sections.findIndex((s) => s.title === letter);
+    if (sectionIndex < 0) return;
+
+    try {
+      sectionListRef.current.scrollToLocation({
+        sectionIndex,
+        itemIndex: 0,
+        animated: true,
+        viewPosition: 0,
+      });
+    } catch (error) {
+      Alert.alert("Error", "Failed to scroll to section.");
+    }
+  };
+
+  // Provide layout information for SectionList
+  const getItemLayout = (data, index) => {
+    let offset = 0;
+    let itemIndex = index;
+
+    // Calculate offset by iterating through sections
+    for (let i = 0; i < data.length; i++) {
+      if (itemIndex === 0) {
+        return { length: SECTION_HEADER_HEIGHT, offset, index };
+      }
+      offset += SECTION_HEADER_HEIGHT; // Add section header height
+      itemIndex -= 1; // Account for header
+
+      const sectionItems = data[i].data.length;
+      if (itemIndex < sectionItems) {
+        return {
+          length: ITEM_HEIGHT,
+          offset: offset + itemIndex * ITEM_HEIGHT,
+          index,
+        };
+      }
+      offset += sectionItems * ITEM_HEIGHT; // Add items height
+      itemIndex -= sectionItems; // Move to next section
+    }
+
+    return { length: ITEM_HEIGHT, offset, index };
+  };
+
+  // Handle scroll failures
+  const onScrollToIndexFailed = (info) => {
+    Alert.alert("Error", "Failed to scroll to section. Please try again.");
   };
 
   // Measure section header height
@@ -331,19 +388,26 @@ const AdminManager = () => {
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={true}
           extraData={profilePictureUrls}
+          getItemLayout={getItemLayout}
+          onScrollToIndexFailed={onScrollToIndexFailed}
+          onLayout={() => {
+            if (sections.length > 0) {
+              setIsListReady(true);
+            }
+          }}
         />
         <View style={[styles.indexBar, { width: indexBarWidth }]}>
           {availableLetters.map((letter) => (
-            <View
+            <TouchableOpacity
               key={letter}
               style={[styles.indexItem, { paddingVertical: 2 * scale }]}
-              onTouchStart={() => {
+              onPress={() => {
                 scrollToSection(letter);
                 ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
               }}
             >
               <Text style={[styles.indexText, { fontSize: 18 * scale }]}>{letter}</Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       </View>
@@ -604,11 +668,11 @@ const styles = StyleSheet.create({
   indexBar: {
     width: indexBarWidth,
     alignItems: "center",
-    justifyContent: "flex-start", // Changed from "center" to move letters higher
+    justifyContent: "flex-start",
     paddingVertical: 0,
     position: "absolute",
     right: 0,
-    top: 50 * scale, // Added top padding to shift letters up
+    top: 50 * scale,
     bottom: 0,
   },
   indexItem: {
