@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Dimensions,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
@@ -31,6 +33,13 @@ const formatNumber = (num) => {
   return num.toFixed(2).replace(/\.?0+$/, "");
 };
 
+// Responsive design helper
+const { width, height } = Dimensions.get("window");
+const isTablet = Platform.isPad || (width >= 768 && height >= 768);
+const scale = isTablet ? 1.2 : 1;
+const paddingHorizontal = isTablet ? 32 : 16;
+const indexBarWidth = isTablet ? 32 : 24;
+
 const DeaconEdits = () => {
   const [church, setChurch] = useState(null);
   const [deacons, setDeacons] = useState([]);
@@ -40,7 +49,8 @@ const DeaconEdits = () => {
   const [loading, setLoading] = useState(true);
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const sectionListRef = useRef(null);
-  const [isListReady, setIsListReady] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const headerHeightRef = useRef(0);
 
   // Alphabet for index bar (only letters with data)
   const [availableLetters, setAvailableLetters] = useState([]);
@@ -90,7 +100,8 @@ const DeaconEdits = () => {
                   const url = await storage()
                     .ref(`profilePictures/${deacon.uid}.png`)
                     .getDownloadURL();
-                  urls[deacon.uid] = typeof url === "string" && url.trim() ? url : null;
+                  urls[deacon.uid] =
+                    typeof url === "string" && url.trim() ? url : null;
                 } catch (error) {
                   urls[deacon.uid] = null;
                 }
@@ -128,12 +139,15 @@ const DeaconEdits = () => {
               })
               .map((deacon) => ({
                 ...deacon,
-                name: doc.data().deacons.find((d) => d.uid === deacon.uid)?.name || "",
+                name:
+                  doc.data().deacons.find((d) => d.uid === deacon.uid)?.name ||
+                  "",
               }));
 
             // Group by first letter
             const grouped = sortedDeacons.reduce((acc, deacon) => {
-              const firstLetter = deacon.name.charAt(0).toUpperCase() || "Other";
+              const firstLetter =
+                deacon.name.charAt(0).toUpperCase() || "Other";
               if (!acc[firstLetter]) acc[firstLetter] = [];
               acc[firstLetter].push(deacon);
               return acc;
@@ -181,42 +195,34 @@ const DeaconEdits = () => {
     setSelectedDeacon(null);
   };
 
-  // Jump to section
+  // Corrected scroll function using scrollToLocation
   const scrollToSection = (letter) => {
-    if (!sectionListRef.current || !availableLetters.includes(letter) || !isListReady) {
-      return;
-    }
+    const sectionIndex = sections.findIndex((s) => s.title === letter);
+    if (sectionIndex < 0 || !sectionListRef.current) return;
 
-    const sectionIndex = sections.findIndex(
-      (section) => section.title.toUpperCase() === letter.toUpperCase()
-    );
-
-    if (sectionIndex >= 0) {
-      try {
-        sectionListRef.current.scrollToLocation({
-          sectionIndex,
-          itemIndex: 0,
-          animated: false, // No animation to jump directly
-          viewPosition: 0,
-          viewOffset: 0,
-        });
-      } catch (error) {
-        // Fallback: Calculate item index
-        let itemIndex = 0;
-        for (let i = 0; i < sectionIndex; i++) {
-          itemIndex += sections[i].data.length; // Items only
-          itemIndex += 1; // Section header
-        }
-        try {
-          sectionListRef.current.scrollToIndex({
-            index: itemIndex,
-            animated: false, // No animation to jump directly
-            viewPosition: 0,
-          });
-        } catch (fallbackError) {}
-      }
-    }
+    sectionListRef.current.scrollToLocation({
+      sectionIndex,
+      itemIndex: 1,
+      animated: false,
+      viewPosition: 0,
+    });
   };
+
+  // Measure section header height
+  const renderSectionHeader = ({ section: { title } }) => (
+    <View
+      style={styles.sectionHeader}
+      onLayout={(event) => {
+        const { height } = event.nativeEvent.layout;
+        if (height > 0 && headerHeightRef.current !== height) {
+          headerHeightRef.current = height;
+          setHeaderHeight(height);
+        }
+      }}
+    >
+      <Text style={styles.sectionHeaderText}>{title}</Text>
+    </View>
+  );
 
   // Render deacon item
   const renderDeacon = ({ item }) => (
@@ -255,32 +261,32 @@ const DeaconEdits = () => {
           Frequency: {formatNumber(item.frequency)}
         </Text>
       </View>
-      <Ionicons name="pencil" size={20} color="#147efb" />
+      <Ionicons name="pencil" size={20 * scale} color="#147efb" />
     </TouchableOpacity>
-  );
-
-  // Render section header
-  const renderSectionHeader = ({ section: { title } }) => (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionHeaderText}>{title}</Text>
-    </View>
   );
 
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#147efb" />
-        <Text style={styles.loadingText}>Loading...</Text>
+        <ActivityIndicator
+          size={isTablet ? "large" : "small"}
+          color="#147efb"
+        />
+        <Text style={[styles.loadingText, { fontSize: 16 * scale }]}>
+          Loading...
+        </Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingHorizontal }]}>
       {sections.length === 0 ? (
-        <Text style={styles.noData}>No deacons found.</Text>
+        <Text style={[styles.noData, { fontSize: 16 * scale }]}>
+          No deacons found.
+        </Text>
       ) : (
-        <View style={styles.listWrapper}>
+        <View style={[styles.listWrapper, { paddingRight: indexBarWidth }]}>
           <SectionList
             ref={sectionListRef}
             sections={sections}
@@ -289,24 +295,26 @@ const DeaconEdits = () => {
             keyExtractor={(item) => item.uid || Math.random().toString()}
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
-            stickySectionHeadersEnabled={false} // Enable sticky headers
+            stickySectionHeadersEnabled={true}
             extraData={profilePictureUrls}
-            onLayout={() => {
-              setIsListReady(true);
-            }}
           />
-          <View style={styles.indexBar}>
+          <View style={[styles.indexBar, { width: indexBarWidth }]}>
             {availableLetters.map((letter) => (
-              <TouchableOpacity
+              <View
                 key={letter}
                 style={styles.indexItem}
-                onPressIn={() => {
+                onTouchStart={() => {
                   scrollToSection(letter);
-                  ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+                  ReactNativeHapticFeedback.trigger(
+                    "impactLight",
+                    hapticOptions
+                  );
                 }}
               >
-                <Text style={styles.indexText}>{letter}</Text>
-              </TouchableOpacity>
+                <Text style={[styles.indexText, { fontSize: 18 * scale }]}>
+                  {letter}
+                </Text>
+              </View>
             ))}
           </View>
         </View>
@@ -331,7 +339,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#121212",
-    paddingHorizontal: 16,
     paddingTop: 20,
   },
   listWrapper: {
@@ -350,7 +357,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 10,
-    fontSize: 16,
     color: "#aaa",
   },
   deaconItem: {
@@ -359,8 +365,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#1e1e1e",
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    padding: 16 * scale,
+    marginBottom: 12 * scale,
+    marginRight: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
@@ -368,12 +375,12 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   deaconImageContainer: {
-    marginRight: 12,
+    marginRight: 12 * scale,
   },
   deaconImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 48 * scale,
+    height: 48 * scale,
+    borderRadius: 24 * scale,
     borderWidth: 1,
     borderColor: "#333333",
   },
@@ -381,47 +388,49 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   deaconName: {
-    fontSize: 18,
+    fontSize: 18 * scale,
     fontWeight: "600",
     color: "#fff",
   },
   deaconDetail: {
-    fontSize: 14,
+    fontSize: 14 * scale,
     color: "#aaa",
-    marginTop: 4,
+    marginTop: 4 * scale,
   },
   noData: {
     textAlign: "center",
-    fontSize: 16,
     color: "#aaa",
     marginTop: 20,
   },
   sectionHeader: {
-    backgroundColor: "#2a2a2a",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginBottom: 8,
+    backgroundColor: "transparent",
+    paddingVertical: 8 * scale,
+    paddingHorizontal: 12 * scale,
   },
   sectionHeaderText: {
-    fontSize: 18,
+    fontSize: 18 * scale,
     fontWeight: "600",
     color: "#fff",
   },
   indexBar: {
-    width: 24,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 20,
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
   },
   indexItem: {
-    paddingVertical: 2,
-    paddingHorizontal: 4,
+    paddingVertical: 2 * scale, // Reduced vertical padding
+    backgroundColor: "#121212",
+    borderRadius: 4,
+    marginVertical: 2 * scale,
   },
   indexText: {
-    fontSize: 16,
     color: "#147efb",
     fontWeight: "600",
+    fontSize: 18 * scale, // Increased font size
   },
 });
 

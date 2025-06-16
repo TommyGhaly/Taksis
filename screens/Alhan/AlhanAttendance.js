@@ -62,60 +62,63 @@ const AlhanAttendance = ({ navigation }) => {
   }, [user]);
 
   // Fetch students and profile pictures
-  useEffect(() => {
-    if (!userData || !userData.alhanGrades || userData.alhanGrades.length === 0) return;
+useEffect(() => {
+  if (!userData?.alhanGrades?.length) return;
 
-    const fetchProfilePictures = async (studentList) => {
-      const urls = { ...profilePictureUrls }; // Preserve existing URLs
-      await Promise.all(
-        studentList.map(async (student) => {
-          if (!urls[student.uid]) {
-            try {
-              const url = await storage()
-                .ref(`profilePictures/${student.uid}.png`) // Use studentProfile folder
-                .getDownloadURL();
-              urls[student.uid] = url;
-            } catch (error) {
-              urls[student.uid] = null;
-            }
-          }
-        })
-      );
-      setProfilePictureUrls(urls);
-    };
+  // 1) Always-reload helper
+  const fetchAllProfilePictures = async (allStudents) => {
+    const urls = {};
+    await Promise.all(
+      Object.values(allStudents).flat().map(async (student) => {
+        try {
+          urls[student.uid] = await storage()
+            .ref(`profilePictures/${student.uid}.png`)
+            .getDownloadURL();
+        } catch {
+          urls[student.uid] = null;
+        }
+      })
+    );
+    setProfilePictureUrls(urls);
+  };
 
-    const unsubscribeFunctions = [];
+  // 2) Firestore listeners per grade
+  const unsubscribes = [];
+  userData.alhanGrades.forEach((grade) => {
+    const ref = firestore()
+      .collection("churches")
+      .doc(userData.church)
+      .collection("Hymns Class")
+      .doc(grade)
+      .collection("students");
 
-    userData.alhanGrades.forEach((grade) => {
-      const studentsRef = firestore()
-        .collection("churches")
-        .doc(userData.church)
-        .collection("Hymns Class")
-        .doc(grade)
-        .collection("students");
+    const unsub = ref.onSnapshot((snap) => {
+      const gradeStudents = snap.docs
+        .map(d => ({ uid: d.id, grade, ...d.data() }))
+        .sort((a, b) => a.name.localeCompare(b.name));
 
-      const unsubscribe = studentsRef.onSnapshot(async (snapshot) => {
-        const gradeStudents = snapshot.docs.map((doc) => ({
-          uid: doc.id,
-          grade: grade,
-          ...doc.data(),
-        }));
-        gradeStudents.sort((a, b) => a.name.localeCompare(b.name));
-
-        // Fetch profile pictures for new students
-        await fetchProfilePictures(gradeStudents);
-
-        setStudentsByGrade((prev) => ({
-          ...prev,
-          [grade]: gradeStudents,
-        }));
+      setStudentsByGrade(prev => {
+        const next = { ...prev, [grade]: gradeStudents };
+        // fire off an immediate fresh‐URL fetch
+        fetchAllProfilePictures(next);
+        return next;
       });
-      unsubscribeFunctions.push(unsubscribe);
     });
 
-    setNewStudentGrade(userData.alhanGrades[0] || "");
-    return () => unsubscribeFunctions.forEach((unsubscribe) => unsubscribe());
-  }, [userData]);
+    unsubscribes.push(unsub);
+  });
+
+  // 3) Periodic poll for any missed updates
+  const INTERVAL = 10_000; // 60 s
+  const intervalId = setInterval(() => {
+    fetchAllProfilePictures(studentsByGrade);
+  }, INTERVAL);
+
+  return () => {
+    unsubscribes.forEach(fn => fn());
+    clearInterval(intervalId);
+  };
+}, [userData]);
 
   const getNextSaturday = () => {
     const today = new Date();
