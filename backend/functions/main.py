@@ -478,7 +478,7 @@ async def my_async_scheduled_function():
         start_date = today - datetime.timedelta(days=days_since_sunday)
 
         if not schedules:
-            for i in range(1, 6):
+            for i in range(0, 5):
                 deacons = await get_deacons(doc.id)
                 schedule = await create_schedule(
                     deacons, doc.reference, num_altar_servers, full_deacons
@@ -497,7 +497,7 @@ async def my_async_scheduled_function():
             delete_doc_ref = schedule_ref.document(doc_delete_str)
             delete_doc_ref.delete()
             # Add a new schedule for the future
-            doc_date = start_date + datetime.timedelta(weeks=6)
+            doc_date = start_date + datetime.timedelta(weeks=5)
             doc_date_str = doc_date.strftime("%m-%d-%y")
             schedule_doc = schedule_ref.document(doc_date_str)
             schedule_doc.set(schedule)
