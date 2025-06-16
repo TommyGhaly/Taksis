@@ -457,54 +457,70 @@ def generate_schedule(event: scheduler_fn.ScheduledEvent):
 
 async def my_async_scheduled_function():
     firestore_client = firestore.Client()
-    collection_ref = firestore_client.collection("churches")
-    docs = list(collection_ref.stream())  # using synchronous stream for now
+    churches_ref = firestore_client.collection("churches")
+    churches_docs = list(churches_ref.stream())
 
-    for doc in docs:
-        church_doc = doc.reference.get()
+    for church_doc in churches_docs:
         church_data = church_doc.to_dict()
         num_altar_servers = int(church_data.get("altarServers", 0))
-        full_deacon = church_data.get("fullDeacon", None)
-        if full_deacon:
-            full_deacons = [x for x in church_data.get("deacons", []) if x.get("rank") == "Deacon (Full Deacon)"]
-        else:
-            full_deacons = None
-        schedule_ref = doc.reference.collection("schedule")
+        full_deacon_enabled = church_data.get("fullDeacon", None)
+
+        full_deacons = (
+            [
+                d
+                for d in church_data.get("deacons", [])
+                if d.get("rank") == "Deacon (Full Deacon)"
+            ]
+            if full_deacon_enabled
+            else None
+        )
+
+        schedule_ref = church_doc.reference.collection("schedule")
         schedules = list(schedule_ref.stream())
 
-        # Use the most recent Sunday as the start date
+        # Determine the upcoming Sunday
         today = datetime.datetime.now()
-        days_since_sunday = (today.weekday() + 1) % 7
-        start_date = today - datetime.timedelta(days=days_since_sunday)
+        days_until_sunday = (6 - today.weekday()) % 7
+        upcoming_sunday = today + datetime.timedelta(days=days_until_sunday)
+        upcoming_sunday = upcoming_sunday.replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
 
-        if not schedules:
-            for i in range(0, 5):
-                deacons = await get_deacons(doc.id)
-                schedule = await create_schedule(
-                    deacons, doc.reference, num_altar_servers, full_deacons
-                )
-                doc_date = start_date + datetime.timedelta(weeks=i)
-                doc_date_str = doc_date.strftime("%m-%d-%y")
-                schedule_doc = schedule_ref.document(doc_date_str)
-                schedule_doc.set(schedule)
+        # If today *is* Sunday, then skip to next week
+        if today.weekday() == 6:  # Sunday
+            first_schedule_date = upcoming_sunday + datetime.timedelta(weeks=1)
         else:
-            deacons = await get_deacons(doc.id)
-            schedule = await create_schedule(
-                deacons, doc.reference, num_altar_servers, full_deacons
+            first_schedule_date = upcoming_sunday
+
+        if len(schedules) < 5:
+            for i in range(5):
+                schedule_date = first_schedule_date + datetime.timedelta(weeks=i)
+                schedule_id = schedule_date.strftime("%m-%d-%y")
+
+                deacons = await get_deacons(church_doc.id)
+                schedule = await create_schedule(
+                    deacons, church_doc.reference, num_altar_servers, full_deacons
+                )
+
+                schedule_ref.document(schedule_id).set(schedule)
+        else:
+            # Delete current Sunday (which was today at 12am)
+            to_delete = upcoming_sunday.strftime("%m-%d-%y")
+            schedule_ref.document(to_delete).delete()
+
+            # Add 6-weeks-ahead schedule
+            new_schedule_date = upcoming_sunday + datetime.timedelta(weeks=6)
+            new_schedule_id = new_schedule_date.strftime("%m-%d-%y")
+
+            deacons = await get_deacons(church_doc.id)
+            new_schedule = await create_schedule(
+                deacons, church_doc.reference, num_altar_servers, full_deacons
             )
-            # Delete the oldest schedule
-            doc_delete_str = start_date.strftime("%m-%d-%y")
-            delete_doc_ref = schedule_ref.document(doc_delete_str)
-            delete_doc_ref.delete()
-            # Add a new schedule for the future
-            doc_date = start_date + datetime.timedelta(weeks=5)
-            doc_date_str = doc_date.strftime("%m-%d-%y")
-            schedule_doc = schedule_ref.document(doc_date_str)
-            schedule_doc.set(schedule)
 
-        set_next_week_serve(doc.id)
+            schedule_ref.document(new_schedule_id).set(new_schedule)
 
-    return https_fn.Response("Successfully wrote documents to 'schedules' collection.")
+        set_next_week_serve(church_doc.id)
+
 
 def generate_test_data(num_people):
     ranks = ["Chanter (Epsaltos)", "Reader", "Subdeacon", "Full Deacon"]
@@ -966,9 +982,7 @@ def sync_child_params(req: https_fn.Request) -> https_fn.Response:
 
     if user_doc.exists:
         user_data = user_doc.to_dict()
-    church_ref = firestore_client.collection("churches").document(
-        user_data["church"]
-    )
+    church_ref = firestore_client.collection("churches").document(user_data["church"])
     church_data = church_ref.get().to_dict()
     deacons = church_data.get("deacons", [])
     if "children" in user_data:
@@ -1494,9 +1508,7 @@ def update_attendance(user_ref):
     firestore_client = firestore.Client()
     user_doc = user_ref.get()
     user_data = user_doc.to_dict()
-    church_ref = firestore_client.collection("churches").document(
-        user_data["church"]
-    )
+    church_ref = firestore_client.collection("churches").document(user_data["church"])
     church_data = church_ref.get().to_dict()
     deacons = church_data.get("deacons", [])
     if "frequency" in user_data:
