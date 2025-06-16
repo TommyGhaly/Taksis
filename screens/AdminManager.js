@@ -12,7 +12,7 @@ import {
   Image,
   Dimensions,
   Platform,
-  FlatList
+  FlatList,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
@@ -34,10 +34,6 @@ const scale = isTablet ? 1.2 : 1;
 const paddingHorizontal = isTablet ? 32 : 16;
 const indexBarWidth = isTablet ? 32 : 24;
 
-// Constants for item layout
-const ITEM_HEIGHT = 76 * scale; // Approximate height of user card (48 * scale for image + padding/margins)
-const SECTION_HEADER_HEIGHT = 34 * scale; // Approximate height of section header (18 * scale font + padding)
-
 const adminRoles = [
   { key: "admin", label: "Schedule Admin" },
   { key: "ssAdmin", label: "Servants Manager" },
@@ -57,9 +53,8 @@ const AdminManager = () => {
   const [sections, setSections] = useState([]);
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [photoInputVisible, setPhotoInputVisible] = useState(false);
-  const [headerHeight, setHeaderHeight] = useState(SECTION_HEADER_HEIGHT);
-  const [isListReady, setIsListReady] = useState(false);
-  const headerHeightRef = useRef(SECTION_HEADER_HEIGHT);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const headerHeightRef = useRef(0);
   const sectionListRef = useRef(null);
 
   // Alphabet for index bar (only letters with data)
@@ -90,16 +85,6 @@ const AdminManager = () => {
       Alert.alert("Error", "No user authenticated.");
     }
   }, []);
-
-  // Ensure SectionList is ready before allowing scrolls
-  useEffect(() => {
-    if (sectionListRef.current && sections.length > 0) {
-      const timer = setTimeout(() => {
-        setIsListReady(true);
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [sections]);
 
   // Fetch users and profile pictures
   useEffect(() => {
@@ -148,9 +133,9 @@ const AdminManager = () => {
             })
             .map((user) => ({
               ...user,
-              name: querySnapshot.docs
-                .find((d) => d.id === user.id)
-                ?.data().name || "",
+              name:
+                querySnapshot.docs.find((d) => d.id === user.id)?.data().name ||
+                "",
             }));
 
           // Group users by first letter
@@ -241,59 +226,17 @@ const AdminManager = () => {
     }
   };
 
-  // Updated scroll function with readiness check
+  // Corrected scroll function to match DeaconEdits
   const scrollToSection = (letter) => {
-    if (!isListReady || !sectionListRef.current) {
-      Alert.alert("Error", "List is not ready yet. Please try again.");
-      return;
-    }
-
     const sectionIndex = sections.findIndex((s) => s.title === letter);
-    if (sectionIndex < 0) return;
+    if (sectionIndex < 0 || !sectionListRef.current) return;
 
-    try {
-      sectionListRef.current.scrollToLocation({
-        sectionIndex,
-        itemIndex: 0,
-        animated: true,
-        viewPosition: 0,
-      });
-    } catch (error) {
-      Alert.alert("Error", "Failed to scroll to section.");
-    }
-  };
-
-  // Provide layout information for SectionList
-  const getItemLayout = (data, index) => {
-    let offset = 0;
-    let itemIndex = index;
-
-    // Calculate offset by iterating through sections
-    for (let i = 0; i < data.length; i++) {
-      if (itemIndex === 0) {
-        return { length: SECTION_HEADER_HEIGHT, offset, index };
-      }
-      offset += SECTION_HEADER_HEIGHT; // Add section header height
-      itemIndex -= 1; // Account for header
-
-      const sectionItems = data[i].data.length;
-      if (itemIndex < sectionItems) {
-        return {
-          length: ITEM_HEIGHT,
-          offset: offset + itemIndex * ITEM_HEIGHT,
-          index,
-        };
-      }
-      offset += sectionItems * ITEM_HEIGHT; // Add items height
-      itemIndex -= sectionItems; // Move to next section
-    }
-
-    return { length: ITEM_HEIGHT, offset, index };
-  };
-
-  // Handle scroll failures
-  const onScrollToIndexFailed = (info) => {
-    Alert.alert("Error", "Failed to scroll to section. Please try again.");
+    sectionListRef.current.scrollToLocation({
+      sectionIndex,
+      itemIndex: 1,
+      animated: false,
+      viewOffset: 0, // ensures sticky header doesn't overlap content
+    });
   };
 
   // Measure section header height
@@ -308,7 +251,9 @@ const AdminManager = () => {
         }
       }}
     >
-      <Text style={[styles.sectionHeaderText, { fontSize: 18 * scale }]}>{title}</Text>
+      <Text style={[styles.sectionHeaderText, { fontSize: 18 * scale }]}>
+        {title}
+      </Text>
     </View>
   );
 
@@ -321,13 +266,23 @@ const AdminManager = () => {
 
     return (
       <TouchableOpacity
-        style={[styles.userCard, { padding: 16 * scale, marginBottom: 12 * scale }]}
+        style={[
+          styles.userCard,
+          { padding: 16 * scale, marginBottom: 12 * scale },
+        ]}
         onPress={() => openEditModal(item)}
         activeOpacity={0.7}
       >
         <View style={[styles.userImageContainer, { marginRight: 12 * scale }]}>
           <Image
-            style={[styles.userImage, { width: 48 * scale, height: 48 * scale, borderRadius: 24 * scale }]}
+            style={[
+              styles.userImage,
+              {
+                width: 48 * scale,
+                height: 48 * scale,
+                borderRadius: 24 * scale,
+              },
+            ]}
             source={
               item.id && profilePictureUrls[item.id]
                 ? { uri: profilePictureUrls[item.id] }
@@ -343,20 +298,38 @@ const AdminManager = () => {
           />
         </View>
         <View style={styles.userInfo}>
-          <Text style={[styles.userName, { fontSize: 18 * scale }]}>{item.name}</Text>
-          <Text style={[styles.userChurch, { fontSize: 14 * scale, marginTop: 4 * scale }]}>
+          <Text style={[styles.userName, { fontSize: 18 * scale }]}>
+            {item.name}
+          </Text>
+          <Text
+            style={[
+              styles.userChurch,
+              { fontSize: 14 * scale, marginTop: 4 * scale },
+            ]}
+          >
             {item.church || "No church assigned"}
           </Text>
-          <Text style={[styles.userRoles, { fontSize: 14 * scale, marginTop: 4 * scale }]}>
+          <Text
+            style={[
+              styles.userRoles,
+              { fontSize: 14 * scale, marginTop: 4 * scale },
+            ]}
+          >
             Roles: {activeRoles}
           </Text>
         </View>
         <TouchableOpacity
-          style={[styles.actionButton, styles.editButton, { paddingVertical: 8 * scale, paddingHorizontal: 16 * scale }]}
+          style={[
+            styles.actionButton,
+            styles.editButton,
+            { paddingVertical: 8 * scale, paddingHorizontal: 16 * scale },
+          ]}
           onPress={() => openEditModal(item)}
         >
           <Ionicons name="pencil" size={18 * scale} color="#fff" />
-          <Text style={[styles.buttonText, { fontSize: 14 * scale }]}>Edit</Text>
+          <Text style={[styles.buttonText, { fontSize: 14 * scale }]}>
+            Edit
+          </Text>
         </TouchableOpacity>
       </TouchableOpacity>
     );
@@ -365,15 +338,22 @@ const AdminManager = () => {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size={isTablet ? "large" : "small"} color="#147efb" />
-        <Text style={[styles.loadingText, { fontSize: 16 * scale }]}>Loading...</Text>
+        <ActivityIndicator
+          size={isTablet ? "large" : "small"}
+          color="#147efb"
+        />
+        <Text style={[styles.loadingText, { fontSize: 16 * scale }]}>
+          Loading...
+        </Text>
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
-      <Text style={[styles.header, { fontSize: 24 * scale }]}>Manage Admin Privileges</Text>
+      <Text style={[styles.header, { fontSize: 24 * scale }]}>
+        Manage Admin Privileges
+      </Text>
       <View style={[styles.listWrapper, { paddingRight: indexBarWidth }]}>
         <SectionList
           ref={sectionListRef}
@@ -383,43 +363,73 @@ const AdminManager = () => {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
           ListEmptyComponent={
-            <Text style={[styles.emptyText, { fontSize: 16 * scale }]}>No users found.</Text>
+            <Text style={[styles.emptyText, { fontSize: 16 * scale }]}>
+              No users found.
+            </Text>
           }
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={true}
           extraData={profilePictureUrls}
-          getItemLayout={getItemLayout}
-          onScrollToIndexFailed={onScrollToIndexFailed}
-          onLayout={() => {
-            if (sections.length > 0) {
-              setIsListReady(true);
-            }
+          onScrollToIndexFailed={(info) => {
+            setTimeout(() => {
+              if (sectionListRef.current) {
+                sectionListRef.current.scrollToLocation({
+                  sectionIndex: 0,
+                  itemIndex: 0,
+                  animated: false,
+                  viewPosition: 0,
+                });
+              }
+            }, 500);
           }}
         />
+
         <View style={[styles.indexBar, { width: indexBarWidth }]}>
           {availableLetters.map((letter) => (
-            <TouchableOpacity
+            <View
               key={letter}
               style={[styles.indexItem, { paddingVertical: 2 * scale }]}
-              onPress={() => {
+              onTouchStart={() => {
                 scrollToSection(letter);
                 ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
               }}
             >
-              <Text style={[styles.indexText, { fontSize: 18 * scale }]}>{letter}</Text>
-            </TouchableOpacity>
+              <Text style={[styles.indexText, { fontSize: 18 * scale }]}>
+                {letter}
+              </Text>
+            </View>
           ))}
         </View>
       </View>
       {selectedUser && (
         <Modal visible={modalVisible} animationType="fade" transparent={true}>
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContainer, { width: isTablet ? "70%" : "90%", maxHeight: isTablet ? "90%" : "80%" }]}>
+            <View
+              style={[
+                styles.modalContainer,
+                {
+                  width: isTablet ? "70%" : "90%",
+                  maxHeight: isTablet ? "90%" : "80%",
+                },
+              ]}
+            >
               <View style={styles.modalHeader}>
                 <View style={styles.headerContent}>
-                  <View style={[styles.profileImageContainer, { marginBottom: 12 * scale }]}>
+                  <View
+                    style={[
+                      styles.profileImageContainer,
+                      { marginBottom: 12 * scale },
+                    ]}
+                  >
                     <Image
-                      style={[styles.profileImage, { width: 80 * scale, height: 80 * scale, borderRadius: 40 * scale }]}
+                      style={[
+                        styles.profileImage,
+                        {
+                          width: 80 * scale,
+                          height: 80 * scale,
+                          borderRadius: 40 * scale,
+                        },
+                      ]}
                       source={
                         selectedUser.id && profilePictureUrls[selectedUser.id]
                           ? { uri: profilePictureUrls[selectedUser.id] }
@@ -434,48 +444,95 @@ const AdminManager = () => {
                       }}
                     />
                     <TouchableOpacity
-                      style={[styles.editProfilePictureButton, { padding: 6 * scale }]}
+                      style={[
+                        styles.editProfilePictureButton,
+                        { padding: 6 * scale },
+                      ]}
                       onPress={openPhotoInputModal}
                     >
-                      <Ionicons name="pencil" size={16 * scale} color="#147efb" />
+                      <Ionicons
+                        name="pencil"
+                        size={16 * scale}
+                        color="#147efb"
+                      />
                     </TouchableOpacity>
                   </View>
                   <Text style={[styles.modalTitle, { fontSize: 18 * scale }]}>
                     Edit Roles for {selectedUser?.name}
                   </Text>
                 </View>
-                <TouchableOpacity style={styles.closeButton} onPress={closeEditModal}>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={closeEditModal}
+                >
                   <Ionicons name="close" size={24 * scale} color="#fff" />
                 </TouchableOpacity>
               </View>
               <FlatList
                 data={adminRoles}
                 renderItem={({ item: role }) => (
-                  <View style={[styles.roleItem, { paddingVertical: 12 * scale, paddingHorizontal: 8 * scale, marginBottom: 8 * scale }]}>
-                    <Text style={[styles.roleText, { fontSize: 16 * scale }]}>{role.label}</Text>
+                  <View
+                    style={[
+                      styles.roleItem,
+                      {
+                        paddingVertical: 12 * scale,
+                        paddingHorizontal: 8 * scale,
+                        marginBottom: 8 * scale,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.roleText, { fontSize: 16 * scale }]}>
+                      {role.label}
+                    </Text>
                     <Switch
                       value={selectedRoles.includes(role.key)}
                       onValueChange={() => toggleRole(role.key)}
                       trackColor={{ false: "#555", true: "#147efb" }}
-                      thumbColor={selectedRoles.includes(role.key) ? "#fff" : "#aaa"}
+                      thumbColor={
+                        selectedRoles.includes(role.key) ? "#fff" : "#aaa"
+                      }
                     />
                   </View>
                 )}
                 keyExtractor={(item) => item.key}
-                contentContainerStyle={[styles.rolesList, { padding: 16 * scale }]}
+                contentContainerStyle={[
+                  styles.rolesList,
+                  { padding: 16 * scale },
+                ]}
               />
-              <View style={[styles.modalButtons, { padding: 16 * scale, gap: 12 * scale }]}>
+              <View
+                style={[
+                  styles.modalButtons,
+                  { padding: 16 * scale, gap: 12 * scale },
+                ]}
+              >
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.cancelButton, { paddingVertical: 12 * scale }]}
+                  style={[
+                    styles.modalButton,
+                    styles.cancelButton,
+                    { paddingVertical: 12 * scale },
+                  ]}
                   onPress={closeEditModal}
                 >
-                  <Text style={[styles.modalButtonText, { fontSize: 16 * scale }]}>Cancel</Text>
+                  <Text
+                    style={[styles.modalButtonText, { fontSize: 16 * scale }]}
+                  >
+                    Cancel
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.saveButton, { paddingVertical: 12 * scale }]}
+                  style={[
+                    styles.modalButton,
+                    styles.saveButton,
+                    { paddingVertical: 12 * scale },
+                  ]}
                   onPress={saveRoles}
                 >
-                  <Text style={[styles.modalButtonText, { fontSize: 16 * scale }]}>Confirm</Text>
+                  <Text
+                    style={[styles.modalButtonText, { fontSize: 16 * scale }]}
+                  >
+                    Confirm
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -668,11 +725,11 @@ const styles = StyleSheet.create({
   indexBar: {
     width: indexBarWidth,
     alignItems: "center",
-    justifyContent: "flex-start",
+    justifyContent: "flex-start", // Changed from "center" to move letters higher
     paddingVertical: 0,
     position: "absolute",
     right: 0,
-    top: 50 * scale,
+    top: 50 * scale, // Added top padding to shift letters up
     bottom: 0,
   },
   indexItem: {
