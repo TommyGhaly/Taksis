@@ -143,7 +143,7 @@ const ServantsAttendance = ({ navigation }) => {
       itemIndex: 1,
       animated: false,
       viewPosition: 0,
-      viewOffset: headerHeight,
+      viewOffset: 0,
     });
   };
 
