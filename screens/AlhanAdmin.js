@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, SectionList, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert, Image, FlatList, Dimensions, Platform } from 'react-native';
+import { View, Text, SectionList, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert, Image, FlatList, Dimensions, Platform, ScrollView } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import storage from '@react-native-firebase/storage';
 import auth from '@react-native-firebase/auth';
@@ -259,47 +259,44 @@ const AlhanAdmin = () => {
   // Render teacher item
   const renderTeacher = ({ item }) => (
     <TouchableOpacity
-      style={styles.teacherItem}
+      style={styles.teacherCard}
       onPress={() => openEditModal(item)}
       activeOpacity={0.7}
     >
-      <View style={styles.teacherImageContainer}>
-        <Image
-          style={styles.teacherImage}
-          source={
-            item.id && profilePictureUrls[item.id]
-              ? { uri: profilePictureUrls[item.id] }
-              : require('../assets/default_profile.png')
-          }
-          defaultSource={require('../assets/default_profile.png')}
-          onError={() => {
-            setProfilePictureUrls((prev) => ({
-              ...prev,
-              [item.id]: null,
-            }));
-          }}
-        />
-      </View>
       <View style={styles.teacherInfo}>
-        <Text style={styles.teacherName}>{item.name || 'Unknown'}</Text>
-        <Text style={styles.teacherDetail}>
-          {Array.isArray(item.alhanGrades) && item.alhanGrades.length > 0
-            ? item.alhanGrades.join(', ')
-            : 'No classes assigned'}
-        </Text>
+        <View style={styles.teacherImageContainer}>
+          <Image
+            style={styles.teacherImage}
+            source={
+              item.id && profilePictureUrls[item.id]
+                ? { uri: profilePictureUrls[item.id] }
+                : require('../assets/default_profile.png')
+            }
+            defaultSource={require('../assets/default_profile.png')}
+            onError={() => {
+              setProfilePictureUrls((prev) => ({
+                ...prev,
+                [item.id]: null,
+              }));
+            }}
+          />
+        </View>
+        <View style={styles.teacherTextInfo}>
+          <Text style={styles.teacherName}>{item.name || 'Unknown'}</Text>
+          <Text style={styles.teacherGrades}>
+            {Array.isArray(item.alhanGrades) && item.alhanGrades.length > 0
+              ? item.alhanGrades.join(', ')
+              : 'No classes assigned'}
+          </Text>
+        </View>
       </View>
       <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={[styles.actionButton, styles.editButton]}
-          onPress={() => openEditModal(item)}
-        >
-          <Ionicons name="pencil" size={20 * scale} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.removeButton]}
+          style={[styles.actionButton, styles.deleteButton]}
           onPress={() => removeTeacher(item.id)}
         >
           <Ionicons name="trash" size={20 * scale} color="#fff" />
+          <Text style={styles.buttonText}>Delete</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -385,32 +382,37 @@ const AlhanAdmin = () => {
                   <Ionicons name="close" size={24 * scale} color="#fff" />
                 </TouchableOpacity>
               </View>
-              <FlatList
-                data={gradesList}
-                renderItem={({ item: grade }) => (
-                  <TouchableOpacity
-                    style={[
-                      styles.gradeItem,
-                      selectedGrades.includes(grade) && styles.gradeItemSelected,
-                    ]}
-                    onPress={() => {
-                      setSelectedGrades((prev) => {
-                        const toggled = prev.includes(grade)
-                          ? prev.filter((g) => g !== grade)
-                          : [...prev, grade];
-                        return gradesList.filter((g) => toggled.includes(g));
-                      });
-                    }}
-                  >
-                    <Text style={[styles.gradeText, { fontSize: 16 * scale }]}>{grade}</Text>
-                    {selectedGrades.includes(grade) && (
-                      <Ionicons name="checkmark-circle" size={20 * scale} color="#147efb" />
+              <ScrollView style={styles.modalScrollView} contentContainerStyle={styles.modalScrollContent}>
+                <View style={styles.modalContent}>
+                  <FlatList
+                    data={gradesList}
+                    renderItem={({ item: grade }) => (
+                      <TouchableOpacity
+                        style={[
+                          styles.gradeItem,
+                          selectedGrades.includes(grade) && styles.gradeItemSelected,
+                        ]}
+                        onPress={() => {
+                          setSelectedGrades((prev) => {
+                            const toggled = prev.includes(grade)
+                              ? prev.filter((g) => g !== grade)
+                              : [...prev, grade];
+                            return gradesList.filter((g) => toggled.includes(g));
+                          });
+                        }}
+                      >
+                        <Text style={[styles.gradeText, { fontSize: 16 * scale }]}>{grade}</Text>
+                        {selectedGrades.includes(grade) && (
+                          <Ionicons name="checkmark-circle" size={20 * scale} color="#147efb" />
+                        )}
+                      </TouchableOpacity>
                     )}
-                  </TouchableOpacity>
-                )}
-                keyExtractor={(item) => item}
-                contentContainerStyle={styles.gradesList}
-              />
+                    keyExtractor={(item) => item}
+                    contentContainerStyle={styles.gradesList}
+                    scrollEnabled={false}
+                  />
+                </View>
+              </ScrollView>
               <View style={styles.modalButtons}>
                 <TouchableOpacity
                   style={[styles.modalButton, styles.cancelButton]}
@@ -470,10 +472,8 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: '#aaa',
   },
-  teacherItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  teacherCard: {
+    flexDirection: 'column',
     backgroundColor: '#1e1e1e',
     borderRadius: 12,
     padding: 16 * scale,
@@ -483,6 +483,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
+  },
+  teacherInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12 * scale,
   },
   teacherImageContainer: {
     marginRight: 12 * scale,
@@ -494,7 +499,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#333333',
   },
-  teacherInfo: {
+  teacherTextInfo: {
     flex: 1,
   },
   teacherName: {
@@ -502,25 +507,31 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
-  teacherDetail: {
+  teacherGrades: {
     fontSize: 14 * scale,
     color: '#aaa',
     marginTop: 4 * scale,
   },
   buttonContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
     gap: 12 * scale,
   },
   actionButton: {
-    padding: 8 * scale,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8 * scale,
+    paddingHorizontal: 16 * scale,
     borderRadius: 8,
   },
-  editButton: {
-    backgroundColor: '#147efb',
-  },
-  removeButton: {
+  deleteButton: {
     backgroundColor: '#ff4444',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 14 * scale,
+    fontWeight: '500',
+    marginLeft: 6 * scale,
   },
   noData: {
     textAlign: 'center',
@@ -564,10 +575,15 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     backgroundColor: '#1e1e1e',
-    borderRadius: 16,
-    width: '90%',
+    borderRadius: 20,
+    width: '80%',
     maxHeight: '80%',
-    overflow: 'hidden',
+  },
+  modalScrollView: {
+    flexGrow: 1,
+  },
+  modalScrollContent: {
+    paddingBottom: 16 * scale,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -575,6 +591,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16 * scale,
     backgroundColor: '#147efb',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   headerContent: {
     flex: 1,
@@ -609,11 +627,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     textAlign: 'center',
   },
+  modalContent: {
+    padding: 16 * scale,
+  },
   closeButton: {
     padding: 4 * scale,
   },
   gradesList: {
-    padding: 16 * scale,
+    paddingHorizontal: 16 * scale,
   },
   gradeItem: {
     flexDirection: 'row',

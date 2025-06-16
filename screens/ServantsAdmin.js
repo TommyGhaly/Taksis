@@ -1,29 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  SectionList,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Modal,
-  Alert,
-  Image,
-  Dimensions,
-  Platform,
-} from 'react-native';
+import { View, Text, SectionList, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Switch, Alert, Image, FlatList, Dimensions, Platform, ScrollView } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import storage from '@react-native-firebase/storage';
 import auth from '@react-native-firebase/auth';
 import { Ionicons } from '@expo/vector-icons';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
-import IndividualProfile from '../components/individualProfile';
+import PhotoInput from '../components/photoInput';
 
 // Haptic feedback options
 const hapticOptions = {
   enableVibrateFallback: true,
   ignoreAndroidSystemSettings: false,
 };
+
+// Grades list
+const gradesList = [
+  'Pre-School - Age 3', 'Pre-School - Age 4', 'Kindergarten', '1st Grade', '2nd Grade',
+  '3rd Grade', '4th Grade', '5th Grade', '6th Grade', '7th Grade', '8th Grade',
+  '9th Grade', '10th Grade', '11th Grade', '12th Grade', 'College'
+];
 
 // Responsive design helper
 const { width, height } = Dimensions.get('window');
@@ -37,20 +32,23 @@ const ServantsAdmin = () => {
   const [church, setChurch] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedServant, setSelectedServant] = useState(null);
+  const [selectedGrades, setSelectedGrades] = useState([]);
+  const [isServantMeeting, setIsServantMeeting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
+  const [photoInputVisible, setPhotoInputVisible] = useState(false);
   const [sections, setSections] = useState([]);
   const [availableLetters, setAvailableLetters] = useState([]);
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerHeightRef = useRef(0);
   const sectionListRef = useRef(null);
 
-  // Fetch user's church with real-time updates
+  // Fetch current user's church with real-time updates
   useEffect(() => {
     const user = auth().currentUser;
     if (!user) {
       setLoading(false);
-      Alert.alert('Error', 'No user authenticated.', [{ text: 'OK' }]);
+      Alert.alert('Error', 'No user authenticated.');
       return;
     }
 
@@ -66,7 +64,7 @@ const ServantsAdmin = () => {
         },
         (error) => {
           setLoading(false);
-          Alert.alert('Error', 'Failed to fetch church data.', [{ text: 'OK' }]);
+          Alert.alert('Error', 'Failed to fetch church data.');
         }
       );
 
@@ -94,15 +92,12 @@ const ServantsAdmin = () => {
                 .getDownloadURL();
               urls[uid] = typeof url === 'string' && url.trim() ? url : null;
             } catch (error) {
-              console.warn(`Failed to fetch profile picture for ${uid}:`, error);
               urls[uid] = null;
             }
           })
         );
         setProfilePictureUrls(urls);
-      } catch (error) {
-        console.warn('Error fetching profile pictures:', error);
-      }
+      } catch (error) {}
     };
 
     fetchProfilePictureUrls();
@@ -158,7 +153,7 @@ const ServantsAdmin = () => {
           setAvailableLetters(letters);
         },
         (error) => {
-          Alert.alert('Error', 'Could not fetch servants.', [{ text: 'OK' }]);
+          Alert.alert('Error', 'Could not fetch servants.');
         }
       );
 
@@ -173,7 +168,15 @@ const ServantsAdmin = () => {
     if (!servant?.id) return;
     ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
     setSelectedServant(servant);
+    setSelectedGrades(Array.isArray(servant.ssGrades) ? servant.ssGrades : []);
+    setIsServantMeeting(servant.isServant || false);
     setModalVisible(true);
+  };
+
+  // Open photo input modal
+  const openPhotoInputModal = () => {
+    ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
+    setPhotoInputVisible(true);
   };
 
   // Close edit modal
@@ -181,6 +184,32 @@ const ServantsAdmin = () => {
     ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
     setModalVisible(false);
     setSelectedServant(null);
+    setSelectedGrades([]);
+    setIsServantMeeting(false);
+  };
+
+  // Close photo input modal
+  const closePhotoInputModal = () => {
+    ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
+    setPhotoInputVisible(false);
+  };
+
+  // Save classes
+  const saveClasses = async () => {
+    if (!selectedServant) return;
+
+    try {
+      await firestore()
+        .collection('users')
+        .doc(selectedServant.id)
+        .update({
+          ssGrades: selectedGrades,
+          isServant: isServantMeeting,
+        });
+      closeEditModal();
+    } catch (error) {
+      Alert.alert('Error', 'Could not save classes. Please try again.');
+    }
   };
 
   // Remove servant
@@ -194,9 +223,8 @@ const ServantsAdmin = () => {
           ssGrades: [],
           isServant: false,
         });
-      closeEditModal();
     } catch (error) {
-      Alert.alert('Error', 'Could not remove servant. Please try again.', [{ text: 'OK' }]);
+      Alert.alert('Error', 'Could not remove servant. Please try again.');
     }
   };
 
@@ -210,7 +238,7 @@ const ServantsAdmin = () => {
       itemIndex: 1,
       animated: false,
       viewPosition: 0,
-      viewOffset: headerHeight,
+      viewOffset: 0,
     });
   };
 
@@ -233,44 +261,53 @@ const ServantsAdmin = () => {
   // Render servant item
   const renderServant = ({ item }) => (
     <TouchableOpacity
-      style={styles.servantItem}
+      style={styles.servantCard}
       onPress={() => openEditModal(item)}
       activeOpacity={0.7}
     >
-      <View style={styles.servantImageContainer}>
-        <Image
-          style={styles.servantImage}
-          source={
-            item.id && profilePictureUrls[item.id]
-              ? { uri: profilePictureUrls[item.id] }
-              : require('../assets/default_profile.png')
-          }
-          defaultSource={require('../assets/default_profile.png')}
-          onError={() => {
-            setProfilePictureUrls((prev) => ({
-              ...prev,
-              [item.id]: null,
-            }));
-          }}
-        />
-      </View>
       <View style={styles.servantInfo}>
-        <Text style={styles.servantName}>{item.name || 'Unknown'}</Text>
-        <Text style={styles.servantDetail}>
-          Grades: {Array.isArray(item.ssGrades) && item.ssGrades.length > 0 ? item.ssGrades.join(', ') : 'None'}
-        </Text>
-        <Text style={styles.servantDetail}>
-          Servant Meeting: {item.isServant ? 'Yes' : 'No'}
-        </Text>
+        <View style={styles.servantImageContainer}>
+          <Image
+            style={styles.servantImage}
+            source={
+              item.id && profilePictureUrls[item.id]
+                ? { uri: profilePictureUrls[item.id] }
+                : require('../assets/default_profile.png')
+            }
+            defaultSource={require('../assets/default_profile.png')}
+            onError={() => {
+              setProfilePictureUrls((prev) => ({
+                ...prev,
+                [item.id]: null,
+              }));
+            }}
+          />
+        </View>
+        <View style={styles.servantTextInfo}>
+          <Text style={styles.servantName}>{item.name}</Text>
+          <Text style={styles.servantGrades}>
+            {Array.isArray(item.ssGrades) && item.ssGrades.length > 0
+              ? item.ssGrades.join(', ')
+              : 'No classes assigned'}
+          </Text>
+        </View>
       </View>
-      <Ionicons name="pencil" size={20 * scale} color="#147efb" />
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.deleteButton]}
+          onPress={() => removeServant(item.id)}
+        >
+          <Ionicons name='trash' size={20 * scale} color='#fff' />
+          <Text style={styles.buttonText}>Delete</Text>
+        </TouchableOpacity>
+      </View>
     </TouchableOpacity>
   );
 
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size={isTablet ? 'large' : 'small'} color="#147efb" />
+        <ActivityIndicator size={isTablet ? 'large' : 'small'} color='#147efb' />
         <Text style={[styles.loadingText, { fontSize: 16 * scale }]}>Loading...</Text>
       </View>
     );
@@ -278,6 +315,7 @@ const ServantsAdmin = () => {
 
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
+      <Text style={[styles.header, { fontSize: 24 * scale }]}>Manage Sunday School Servants</Text>
       {sections.length === 0 ? (
         <Text style={[styles.noData, { fontSize: 16 * scale }]}>No servants found.</Text>
       ) : (
@@ -287,7 +325,7 @@ const ServantsAdmin = () => {
             sections={sections}
             renderItem={renderServant}
             renderSectionHeader={renderSectionHeader}
-            keyExtractor={(item) => item.id || Math.random().toString()}
+            keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
@@ -310,15 +348,105 @@ const ServantsAdmin = () => {
         </View>
       )}
       {selectedServant && (
-        <IndividualProfile
+        <Modal visible={modalVisible} animationType='fade' transparent={true}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <View style={styles.headerContent}>
+                  <View style={styles.profileImageContainer}>
+                    <Image
+                      style={styles.profileImage}
+                      source={
+                        selectedServant.id && profilePictureUrls[selectedServant.id]
+                          ? { uri: profilePictureUrls[selectedServant.id] }
+                          : require('../assets/default_profile.png')
+                      }
+                      defaultSource={require('../assets/default_profile.png')}
+                      onError={() => {
+                        setProfilePictureUrls((prev) => ({
+                          ...prev,
+                          [selectedServant.id]: null,
+                        }));
+                      }}
+                    />
+                    <TouchableOpacity
+                      style={styles.editProfilePictureButton}
+                      onPress={openPhotoInputModal}
+                    >
+                      <Ionicons name='pencil' size={16 * scale} color='#147efb' />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={[styles.modalTitle, { fontSize: 18 * scale }]}>
+                    Assign Classes for {selectedServant?.name}
+                  </Text>
+                </View>
+                <TouchableOpacity style={styles.closeButton} onPress={closeEditModal}>
+                  <Ionicons name='close' size={24 * scale} color='#fff' />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalScrollView} contentContainerStyle={styles.modalScrollContent}>
+                <View style={styles.modalContent}>
+                  <View style={styles.servantTrackerContainer}>
+                    <Text style={[styles.servantTrackerText, { fontSize: 16 * scale }]}>Servant Meeting Tracker</Text>
+                    <Switch
+                      value={isServantMeeting}
+                      onValueChange={(value) => setIsServantMeeting(value)}
+                      trackColor={{ false: '#555', true: '#147efb' }}
+                      thumbColor={isServantMeeting ? '#fff' : '#aaa'}
+                    />
+                  </View>
+                  <FlatList
+                    data={gradesList}
+                    renderItem={({ item: grade }) => (
+                      <TouchableOpacity
+                        style={[
+                          styles.gradeItem,
+                          selectedGrades.includes(grade) && styles.gradeItemSelected,
+                        ]}
+                        onPress={() => {
+                          setSelectedGrades((prev) => {
+                            const toggled = prev.includes(grade)
+                              ? prev.filter((g) => g !== grade)
+                              : [...prev, grade];
+                            return gradesList.filter((g) => toggled.includes(g));
+                          });
+                        }}
+                      >
+                        <Text style={[styles.gradeText, { fontSize: 16 * scale }]}>{grade}</Text>
+                        {selectedGrades.includes(grade) && (
+                          <Ionicons name='checkmark-circle' size={20 * scale} color='#147efb' />
+                        )}
+                      </TouchableOpacity>
+                    )}
+                    keyExtractor={(item) => item}
+                    contentContainerStyle={styles.gradesList}
+                    scrollEnabled={false}
+                  />
+                </View>
+              </ScrollView>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={closeEditModal}
+                >
+                  <Text style={[styles.modalButtonText, { fontSize: 16 * scale }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.saveButton]}
+                  onPress={saveClasses}
+                >
+                  <Text style={[styles.modalButtonText, { fontSize: 16 * scale }]}>Confirm</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+      {selectedServant && (
+        <PhotoInput
+          visible={photoInputVisible}
+          onClose={closePhotoInputModal}
           userId={selectedServant.id}
-          show={modalVisible}
-          onClose={closeEditModal}
-          church={church}
-          week=""
-          family=""
-          url=""
-          onRemove={() => removeServant(selectedServant.id)}
         />
       )}
     </View>
@@ -331,12 +459,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#121212',
     paddingTop: 20,
   },
+  header: {
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
   listWrapper: {
     flex: 1,
     flexDirection: 'row',
   },
   listContainer: {
-    paddingBottom: 20,
+    paddingBottom: 0,
     flexGrow: 1,
   },
   centered: {
@@ -349,20 +483,22 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: '#aaa',
   },
-  servantItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  servantCard: {
+    flexDirection: 'column',
     backgroundColor: '#1e1e1e',
     borderRadius: 12,
     padding: 16 * scale,
-    marginRight: 10,
     marginBottom: 12 * scale,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
+  },
+  servantInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12 * scale,
   },
   servantImageContainer: {
     marginRight: 12 * scale,
@@ -374,7 +510,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#333333',
   },
-  servantInfo: {
+  servantTextInfo: {
     flex: 1,
   },
   servantName: {
@@ -382,10 +518,31 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
-  servantDetail: {
+  servantGrades: {
     fontSize: 14 * scale,
     color: '#aaa',
     marginTop: 4 * scale,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12 * scale,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8 * scale,
+    paddingHorizontal: 16 * scale,
+    borderRadius: 8,
+  },
+  deleteButton: {
+    backgroundColor: '#ff4444',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 14 * scale,
+    fontWeight: '500',
+    marginLeft: 6 * scale,
   },
   noData: {
     textAlign: 'center',
@@ -412,7 +569,7 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   indexItem: {
-    paddingVertical: 0,
+    paddingVertical: 2 * scale,
     backgroundColor: '#121212',
     borderRadius: 4,
     marginVertical: 2 * scale,
@@ -420,6 +577,125 @@ const styles = StyleSheet.create({
   indexText: {
     color: '#147efb',
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 20,
+    width: '80%',
+    maxHeight: '80%',
+  },
+  modalScrollView: {
+    flexGrow: 1,
+  },
+  modalScrollContent: {
+    paddingBottom: 16 * scale,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16 * scale,
+    backgroundColor: '#147efb',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  headerContent: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  profileImageContainer: {
+    position: 'relative',
+    marginBottom: 12 * scale,
+  },
+  profileImage: {
+    width: 80 * scale,
+    height: 80 * scale,
+    borderRadius: 40 * scale,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  editProfilePictureButton: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#1e1e1e',
+    borderRadius: 12 * scale,
+    padding: 6 * scale,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  modalTitle: {
+    fontWeight: '600',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  modalContent: {
+    padding: 16 * scale,
+  },
+  servantTrackerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12 * scale,
+    paddingHorizontal: 8 * scale,
+    borderRadius: 8,
+    marginBottom: 12 * scale,
+    backgroundColor: '#2a2a2a',
+  },
+  servantTrackerText: {
+    color: '#fff',
+  },
+  gradesList: {
+    paddingHorizontal: 16 * scale,
+  },
+  gradeItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12 * scale,
+    paddingHorizontal: 8 * scale,
+    borderRadius: 8,
+    marginBottom: 8 * scale,
+    backgroundColor: '#2a2a2a',
+  },
+  gradeItemSelected: {
+    backgroundColor: '#3a3a3a',
+  },
+  gradeText: {
+    color: '#fff',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    padding: 16 * scale,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+    justifyContent: 'space-between',
+    gap: 12 * scale,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12 * scale,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  saveButton: {
+    backgroundColor: '#147efb',
+  },
+  cancelButton: {
+    backgroundColor: '#ff4444',
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontWeight: '500',
   },
 });
 
