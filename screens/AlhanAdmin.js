@@ -1,11 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, SectionList, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert, Image, FlatList, Dimensions, Platform, ScrollView } from 'react-native';
-import firestore from '@react-native-firebase/firestore';
-import storage from '@react-native-firebase/storage';
-import auth from '@react-native-firebase/auth';
-import { Ionicons } from '@expo/vector-icons';
-import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
-import PhotoInput from '../components/photoInput';
+import React, { useState, useEffect, useRef } from "react";
+import {
+  View,
+  Text,
+  SectionList,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Modal,
+  Alert,
+  Image,
+  FlatList,
+  Dimensions,
+  Platform,
+  ScrollView,
+} from "react-native";
+import firestore from "@react-native-firebase/firestore";
+import storage from "@react-native-firebase/storage";
+import auth from "@react-native-firebase/auth";
+import { Ionicons } from "@expo/vector-icons";
+import ReactNativeHapticFeedback from "react-native-haptic-feedback";
+import PhotoInput from "../components/photoInput";
 
 // Haptic feedback options
 const hapticOptions = {
@@ -15,13 +29,26 @@ const hapticOptions = {
 
 // Grades list
 const gradesList = [
-  'Pre-School - Age 3', 'Pre-School - Age 4', 'Kindergarten', '1st Grade', '2nd Grade',
-  '3rd Grade', '4th Grade', '5th Grade', '6th Grade', '7th Grade', '8th Grade',
-  '9th Grade', '10th Grade', '11th Grade', '12th Grade', 'College'
+  "Pre-School - Age 3",
+  "Pre-School - Age 4",
+  "Kindergarten",
+  "1st Grade",
+  "2nd Grade",
+  "3rd Grade",
+  "4th Grade",
+  "5th Grade",
+  "6th Grade",
+  "7th Grade",
+  "8th Grade",
+  "9th Grade",
+  "10th Grade",
+  "11th Grade",
+  "12th Grade",
+  "College",
 ];
 
 // Responsive design helper
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 const isTablet = Platform.isPad || (width >= 768 && height >= 768);
 const scale = isTablet ? 1.2 : 1;
 const paddingHorizontal = isTablet ? 32 : 16;
@@ -47,12 +74,12 @@ const AlhanAdmin = () => {
     const user = auth().currentUser;
     if (!user) {
       setLoading(false);
-      Alert.alert('Error', 'No user authenticated.');
+      Alert.alert("Error", "No user authenticated.");
       return;
     }
 
     const unsubscribe = firestore()
-      .collection('users')
+      .collection("users")
       .doc(user.uid)
       .onSnapshot(
         (doc) => {
@@ -63,7 +90,7 @@ const AlhanAdmin = () => {
         },
         (error) => {
           setLoading(false);
-          Alert.alert('Error', 'Failed to fetch church data.');
+          Alert.alert("Error", "Failed to fetch church data.");
         }
       );
 
@@ -77,9 +104,9 @@ const AlhanAdmin = () => {
     const fetchProfilePictureUrls = async () => {
       try {
         const querySnapshot = await firestore()
-          .collection('users')
-          .where('church', '==', church)
-          .where('isAlhan', '==', true)
+          .collection("users")
+          .where("church", "==", church)
+          .where("isAlhan", "==", true)
           .get();
         const urls = {};
         await Promise.all(
@@ -89,16 +116,19 @@ const AlhanAdmin = () => {
               const url = await storage()
                 .ref(`profilePictures/${uid}.png`)
                 .getDownloadURL();
-              urls[uid] = typeof url === 'string' && url.trim() ? url : null;
+              urls[uid] = typeof url === "string" && url.trim() ? url : null;
             } catch (error) {
-              console.warn(`Failed to fetch profile picture for ${uid}:`, error);
+              console.warn(
+                `Failed to fetch profile picture for ${uid}:`,
+                error
+              );
               urls[uid] = null;
             }
           })
         );
         setProfilePictureUrls(urls);
       } catch (error) {
-        console.warn('Error fetching profile pictures:', error);
+        console.warn("Error fetching profile pictures:", error);
       }
     };
 
@@ -106,15 +136,15 @@ const AlhanAdmin = () => {
     const intervalId = setInterval(fetchProfilePictureUrls, 30000);
 
     const unsubscribe = firestore()
-      .collection('users')
-      .where('church', '==', church)
-      .where('isAlhan', '==', true)
+      .collection("users")
+      .where("church", "==", church)
+      .where("isAlhan", "==", true)
       .onSnapshot(
         (querySnapshot) => {
           const teacherList = querySnapshot.docs
             .map((doc) => ({
               id: doc.id,
-              name: (doc.data().name || '').trim().toLowerCase(),
+              name: (doc.data().name || "").trim().toLowerCase(),
               ...doc.data(),
             }))
             .sort((a, b) => {
@@ -126,14 +156,14 @@ const AlhanAdmin = () => {
             })
             .map((teacher) => ({
               ...teacher,
-              name: querySnapshot.docs
-                .find((d) => d.id === teacher.id)
-                ?.data().name || '',
+              name:
+                querySnapshot.docs.find((d) => d.id === teacher.id)?.data()
+                  .name || "",
             }));
 
           // Group teachers by first letter
           const grouped = teacherList.reduce((acc, teacher) => {
-            const firstLetter = teacher.name.charAt(0).toUpperCase() || 'Other';
+            const firstLetter = teacher.name.charAt(0).toUpperCase() || "Other";
             if (!acc[firstLetter]) acc[firstLetter] = [];
             acc[firstLetter].push(teacher);
             return acc;
@@ -155,7 +185,7 @@ const AlhanAdmin = () => {
           setAvailableLetters(letters);
         },
         (error) => {
-          Alert.alert('Error', 'Could not fetch teachers.');
+          Alert.alert("Error", "Could not fetch teachers.");
         }
       );
 
@@ -168,21 +198,23 @@ const AlhanAdmin = () => {
   // Open edit modal
   const openEditModal = (teacher) => {
     if (!teacher?.id) return;
-    ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
+    ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setSelectedTeacher(teacher);
-    setSelectedGrades(Array.isArray(teacher.alhanGrades) ? teacher.alhanGrades : []);
+    setSelectedGrades(
+      Array.isArray(teacher.alhanGrades) ? teacher.alhanGrades : []
+    );
     setModalVisible(true);
   };
 
   // Open photo input modal
   const openPhotoInputModal = () => {
-    ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
+    ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setPhotoInputVisible(true);
   };
 
   // Close edit modal
   const closeEditModal = () => {
-    ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
+    ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setModalVisible(false);
     setSelectedTeacher(null);
     setSelectedGrades([]);
@@ -190,7 +222,7 @@ const AlhanAdmin = () => {
 
   // Close photo input modal
   const closePhotoInputModal = () => {
-    ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
+    ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setPhotoInputVisible(false);
   };
 
@@ -199,30 +231,24 @@ const AlhanAdmin = () => {
     if (!selectedTeacher) return;
 
     try {
-      await firestore()
-        .collection('users')
-        .doc(selectedTeacher.id)
-        .update({
-          alhanGrades: selectedGrades,
-        });
+      await firestore().collection("users").doc(selectedTeacher.id).update({
+        alhanGrades: selectedGrades,
+      });
       closeEditModal();
     } catch (error) {
-      Alert.alert('Error', 'Could not save classes. Please try again.');
+      Alert.alert("Error", "Could not save classes. Please try again.");
     }
   };
 
   // Remove teacher
   const removeTeacher = async (teacherId) => {
     try {
-      await firestore()
-        .collection('users')
-        .doc(teacherId)
-        .update({
-          isAlhan: false,
-          alhanGrades: [],
-        });
+      await firestore().collection("users").doc(teacherId).update({
+        isAlhan: false,
+        alhanGrades: [],
+      });
     } catch (error) {
-      Alert.alert('Error', 'Could not remove teacher. Please try again.');
+      Alert.alert("Error", "Could not remove teacher. Please try again.");
     }
   };
 
@@ -270,9 +296,9 @@ const AlhanAdmin = () => {
             source={
               item.id && profilePictureUrls[item.id]
                 ? { uri: profilePictureUrls[item.id] }
-                : require('../assets/default_profile.png')
+                : require("../assets/default_profile.png")
             }
-            defaultSource={require('../assets/default_profile.png')}
+            defaultSource={require("../assets/default_profile.png")}
             onError={() => {
               setProfilePictureUrls((prev) => ({
                 ...prev,
@@ -282,11 +308,11 @@ const AlhanAdmin = () => {
           />
         </View>
         <View style={styles.teacherTextInfo}>
-          <Text style={styles.teacherName}>{item.name || 'Unknown'}</Text>
+          <Text style={styles.teacherName}>{item.name || "Unknown"}</Text>
           <Text style={styles.teacherGrades}>
             {Array.isArray(item.alhanGrades) && item.alhanGrades.length > 0
-              ? item.alhanGrades.join(', ')
-              : 'No classes assigned'}
+              ? item.alhanGrades.join(", ")
+              : "No classes assigned"}
           </Text>
         </View>
       </View>
@@ -305,17 +331,26 @@ const AlhanAdmin = () => {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size={isTablet ? 'large' : 'small'} color="#147efb" />
-        <Text style={[styles.loadingText, { fontSize: 16 * scale }]}>Loading...</Text>
+        <ActivityIndicator
+          size={isTablet ? "large" : "small"}
+          color="#147efb"
+        />
+        <Text style={[styles.loadingText, { fontSize: 16 * scale }]}>
+          Loading...
+        </Text>
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
-      <Text style={[styles.header, { fontSize: 24 * scale }]}>Manage Alhan Teachers</Text>
+      <Text style={[styles.header, { fontSize: 24 * scale }]}>
+        Manage Alhan Teachers
+      </Text>
       {sections.length === 0 ? (
-        <Text style={[styles.noData, { fontSize: 16 * scale }]}>No teachers found.</Text>
+        <Text style={[styles.noData, { fontSize: 16 * scale }]}>
+          No teachers found.
+        </Text>
       ) : (
         <View style={[styles.listWrapper, { paddingRight: indexBarWidth }]}>
           <SectionList
@@ -328,6 +363,18 @@ const AlhanAdmin = () => {
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
             extraData={profilePictureUrls}
+            onScrollToIndexFailed={(info) => {
+              setTimeout(() => {
+                if (sectionListRef.current) {
+                  sectionListRef.current.scrollToLocation({
+                    sectionIndex: 0,
+                    itemIndex: 0,
+                    animated: false,
+                    viewPosition: 0,
+                  });
+                }
+              }, 500);
+            }}
           />
           <View style={[styles.indexBar, { width: indexBarWidth }]}>
             {availableLetters.map((letter) => (
@@ -336,10 +383,15 @@ const AlhanAdmin = () => {
                 style={styles.indexItem}
                 onTouchStart={() => {
                   scrollToSection(letter);
-                  ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
+                  ReactNativeHapticFeedback.trigger(
+                    "impactLight",
+                    hapticOptions
+                  );
                 }}
               >
-                <Text style={[styles.indexText, { fontSize: 18 * scale }]}>{letter}</Text>
+                <Text style={[styles.indexText, { fontSize: 18 * scale }]}>
+                  {letter}
+                </Text>
               </View>
             ))}
           </View>
@@ -355,11 +407,12 @@ const AlhanAdmin = () => {
                     <Image
                       style={styles.profileImage}
                       source={
-                        selectedTeacher.id && profilePictureUrls[selectedTeacher.id]
+                        selectedTeacher.id &&
+                        profilePictureUrls[selectedTeacher.id]
                           ? { uri: profilePictureUrls[selectedTeacher.id] }
-                          : require('../assets/default_profile.png')
+                          : require("../assets/default_profile.png")
                       }
-                      defaultSource={require('../assets/default_profile.png')}
+                      defaultSource={require("../assets/default_profile.png")}
                       onError={() => {
                         setProfilePictureUrls((prev) => ({
                           ...prev,
@@ -371,18 +424,28 @@ const AlhanAdmin = () => {
                       style={styles.editProfilePictureButton}
                       onPress={openPhotoInputModal}
                     >
-                      <Ionicons name="pencil" size={16 * scale} color="#147efb" />
+                      <Ionicons
+                        name="pencil"
+                        size={16 * scale}
+                        color="#147efb"
+                      />
                     </TouchableOpacity>
                   </View>
                   <Text style={[styles.modalTitle, { fontSize: 18 * scale }]}>
                     Assign Classes for {selectedTeacher?.name}
                   </Text>
                 </View>
-                <TouchableOpacity style={styles.closeButton} onPress={closeEditModal}>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={closeEditModal}
+                >
                   <Ionicons name="close" size={24 * scale} color="#fff" />
                 </TouchableOpacity>
               </View>
-              <ScrollView style={styles.modalScrollView} contentContainerStyle={styles.modalScrollContent}>
+              <ScrollView
+                style={styles.modalScrollView}
+                contentContainerStyle={styles.modalScrollContent}
+              >
                 <View style={styles.modalContent}>
                   <FlatList
                     data={gradesList}
@@ -390,20 +453,31 @@ const AlhanAdmin = () => {
                       <TouchableOpacity
                         style={[
                           styles.gradeItem,
-                          selectedGrades.includes(grade) && styles.gradeItemSelected,
+                          selectedGrades.includes(grade) &&
+                            styles.gradeItemSelected,
                         ]}
                         onPress={() => {
                           setSelectedGrades((prev) => {
                             const toggled = prev.includes(grade)
                               ? prev.filter((g) => g !== grade)
                               : [...prev, grade];
-                            return gradesList.filter((g) => toggled.includes(g));
+                            return gradesList.filter((g) =>
+                              toggled.includes(g)
+                            );
                           });
                         }}
                       >
-                        <Text style={[styles.gradeText, { fontSize: 16 * scale }]}>{grade}</Text>
+                        <Text
+                          style={[styles.gradeText, { fontSize: 16 * scale }]}
+                        >
+                          {grade}
+                        </Text>
                         {selectedGrades.includes(grade) && (
-                          <Ionicons name="checkmark-circle" size={20 * scale} color="#147efb" />
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={20 * scale}
+                            color="#147efb"
+                          />
                         )}
                       </TouchableOpacity>
                     )}
@@ -418,13 +492,21 @@ const AlhanAdmin = () => {
                   style={[styles.modalButton, styles.cancelButton]}
                   onPress={closeEditModal}
                 >
-                  <Text style={[styles.modalButtonText, { fontSize: 16 * scale }]}>Cancel</Text>
+                  <Text
+                    style={[styles.modalButtonText, { fontSize: 16 * scale }]}
+                  >
+                    Cancel
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.modalButton, styles.saveButton]}
                   onPress={saveClasses}
                 >
-                  <Text style={[styles.modalButtonText, { fontSize: 16 * scale }]}>Confirm</Text>
+                  <Text
+                    style={[styles.modalButtonText, { fontSize: 16 * scale }]}
+                  >
+                    Confirm
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -445,18 +527,18 @@ const AlhanAdmin = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: "#121212",
     paddingTop: 20,
   },
   header: {
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: "bold",
+    color: "#fff",
     marginBottom: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   listWrapper: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   listContainer: {
     paddingBottom: 0,
@@ -464,29 +546,29 @@ const styles = StyleSheet.create({
   },
   centered: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#121212',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#121212",
   },
   loadingText: {
     marginTop: 10,
-    color: '#aaa',
+    color: "#aaa",
   },
   teacherCard: {
-    flexDirection: 'column',
-    backgroundColor: '#1e1e1e',
+    flexDirection: "column",
+    backgroundColor: "#1e1e1e",
     borderRadius: 12,
     padding: 16 * scale,
     marginBottom: 12 * scale,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
   },
   teacherInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 12 * scale,
   },
   teacherImageContainer: {
@@ -497,87 +579,87 @@ const styles = StyleSheet.create({
     height: 48 * scale,
     borderRadius: 24 * scale,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: "#333333",
   },
   teacherTextInfo: {
     flex: 1,
   },
   teacherName: {
     fontSize: 18 * scale,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: "600",
+    color: "#fff",
   },
   teacherGrades: {
     fontSize: 14 * scale,
-    color: '#aaa',
+    color: "#aaa",
     marginTop: 4 * scale,
   },
   buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
+    flexDirection: "row",
+    justifyContent: "flex-end",
     gap: 12 * scale,
   },
   actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 8 * scale,
     paddingHorizontal: 16 * scale,
     borderRadius: 8,
   },
   deleteButton: {
-    backgroundColor: '#ff4444',
+    backgroundColor: "#ff4444",
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 14 * scale,
-    fontWeight: '500',
+    fontWeight: "500",
     marginLeft: 6 * scale,
   },
   noData: {
-    textAlign: 'center',
-    color: '#aaa',
+    textAlign: "center",
+    color: "#aaa",
     marginTop: 20,
   },
   sectionHeader: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     paddingVertical: 8 * scale,
     paddingHorizontal: 12 * scale,
   },
   sectionHeaderText: {
     fontSize: 18 * scale,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: "600",
+    color: "#fff",
   },
   indexBar: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 20,
-    position: 'absolute',
+    position: "absolute",
     right: 0,
     top: 0,
     bottom: 0,
   },
   indexItem: {
     paddingVertical: 2 * scale,
-    backgroundColor: '#121212',
+    backgroundColor: "#121212",
     borderRadius: 4,
     marginVertical: 2 * scale,
   },
   indexText: {
-    color: '#147efb',
-    fontWeight: '600',
+    color: "#147efb",
+    fontWeight: "600",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalContainer: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: "#1e1e1e",
     borderRadius: 20,
-    width: '80%',
-    maxHeight: '80%',
+    width: "80%",
+    maxHeight: "80%",
   },
   modalScrollView: {
     flexGrow: 1,
@@ -586,20 +668,20 @@ const styles = StyleSheet.create({
     paddingBottom: 16 * scale,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 16 * scale,
-    backgroundColor: '#147efb',
+    backgroundColor: "#147efb",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
   headerContent: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: "center",
   },
   profileImageContainer: {
-    position: 'relative',
+    position: "relative",
     marginBottom: 12 * scale,
   },
   profileImage: {
@@ -607,25 +689,25 @@ const styles = StyleSheet.create({
     height: 80 * scale,
     borderRadius: 40 * scale,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: "#fff",
   },
   editProfilePictureButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     right: 0,
-    backgroundColor: '#1e1e1e',
+    backgroundColor: "#1e1e1e",
     borderRadius: 12 * scale,
     padding: 6 * scale,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
   },
   modalTitle: {
-    fontWeight: '600',
-    color: '#fff',
-    textAlign: 'center',
+    fontWeight: "600",
+    color: "#fff",
+    textAlign: "center",
   },
   modalContent: {
     padding: 16 * scale,
@@ -637,44 +719,44 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16 * scale,
   },
   gradeItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 12 * scale,
     paddingHorizontal: 8 * scale,
     borderRadius: 8,
     marginBottom: 8 * scale,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: "#2a2a2a",
   },
   gradeItemSelected: {
-    backgroundColor: '#3a3a3a',
+    backgroundColor: "#3a3a3a",
   },
   gradeText: {
-    color: '#fff',
+    color: "#fff",
   },
   modalButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 16 * scale,
     borderTopWidth: 1,
-    borderTopColor: '#333',
-    justifyContent: 'space-between',
+    borderTopColor: "#333",
+    justifyContent: "space-between",
     gap: 12 * scale,
   },
   modalButton: {
     flex: 1,
     paddingVertical: 12 * scale,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   saveButton: {
-    backgroundColor: '#147efb',
+    backgroundColor: "#147efb",
   },
   cancelButton: {
-    backgroundColor: '#ff4444',
+    backgroundColor: "#ff4444",
   },
   modalButtonText: {
-    color: '#fff',
-    fontWeight: '500',
+    color: "#fff",
+    fontWeight: "500",
   },
 });
 

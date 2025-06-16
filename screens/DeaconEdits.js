@@ -297,6 +297,18 @@ const DeaconEdits = () => {
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
             extraData={profilePictureUrls}
+            onScrollToIndexFailed={(info) => {
+              setTimeout(() => {
+                if (sectionListRef.current) {
+                  sectionListRef.current.scrollToLocation({
+                    sectionIndex: 0,
+                    itemIndex: 0,
+                    animated: false,
+                    viewPosition: 0,
+                  });
+                }
+              }, 500);
+            }}
           />
           <View style={[styles.indexBar, { width: indexBarWidth }]}>
             {availableLetters.map((letter) => (
