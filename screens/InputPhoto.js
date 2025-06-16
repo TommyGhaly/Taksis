@@ -15,6 +15,7 @@ import { useUser } from "../UserContext";
 import ProgressBar from "../components/progressBar";
 import PhotoInput from "../components/photoInput";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
+import BackArrow from "../components/backArrow";
 
 const InputPhoto = ({ route, navigation }) => {
   const { from } = route.params || {};
@@ -44,7 +45,7 @@ const InputPhoto = ({ route, navigation }) => {
       await firestore().collection("users").doc(user.uid).update({
         phoneNumber: phoneNumber.trim(),
       });
-      setSignUp(true); // Keep user in sign-up flow
+      setSignUp(true);
       navigation.navigate("SelectChurch");
     } catch (error) {
       Alert.alert("Error", "Could not update profile information. Please try again.");
@@ -58,13 +59,19 @@ const InputPhoto = ({ route, navigation }) => {
       keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 120}
     >
       <View style={styles.header}>
+        <View style={styles.backArrow}>
+          <Pressable onPress={() => navigation.goBack()}>
+            <BackArrow />
+          </Pressable>
+        </View>
         <View style={styles.progressBar}>
           <ProgressBar startPercentage={1} endPercentage={17} />
         </View>
+        <Text style={styles.titleText}>Set Up Your Profile</Text>
       </View>
       <View style={styles.content}>
         <View style={styles.card}>
-          <Text style={styles.questionText}>Upload your profile picture</Text>
+          <Text style={styles.questionText}>Upload your profile picture (optional)</Text>
           <Pressable
             style={styles.uploadButton}
             onPress={() => {
@@ -116,15 +123,28 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 32,
   },
+  backArrow: {
+    marginBottom: 16,
+  },
   progressBar: {
     height: 6,
-    width: "100%",
+    marginBottom: 12,
     backgroundColor: "#2A2A2A",
     borderRadius: 3,
-    marginBottom: 12,
+  },
+  titleText: {
+    fontSize: 36,
+    letterSpacing: -0.5,
+    fontFamily: "Roboto-Regular",
+    fontWeight: "600",
+    color: "#E0E0E0",
+    lineHeight: 42,
+    maxWidth: "90%",
+    marginTop: 30,
   },
   content: {
     flex: 1,
+    marginBottom: 24,
     justifyContent: "center",
     alignItems: "center",
   },
