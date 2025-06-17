@@ -75,7 +75,7 @@ const SignUp = ({ navigation }) => {
         const updatedUser = auth().currentUser;
         if (updatedUser && updatedUser.displayName) {
           await writeUserToDb(updatedUser, updatedUser.displayName);
-          navigation.navigate("SelectChurch");
+          navigation.navigate("PhotoInput");
         } else {
           Alert.alert("Sign Up Error", "Failed to get updated user profile.");
         }
@@ -132,7 +132,7 @@ const SignUp = ({ navigation }) => {
         return;
       }
       await writeUserToDb(userCredential.user, userCredential.user.displayName);
-      navigation.navigate("SelectChurch");
+      navigation.navigate("PhotoInput");
     } catch (error) {
       // Handle error silently as per original code
     }
@@ -187,7 +187,7 @@ const SignUp = ({ navigation }) => {
         ? `${fullName.givenName} ${fullName.familyName}`
         : "";
       await writeUserToDb(userCredential.user, formattedFullName);
-      navigation.navigate("SelectChurch");
+      navigation.navigate("PhotoInput");
     } catch (error) {
       // Handle error silently as per original code
     }
