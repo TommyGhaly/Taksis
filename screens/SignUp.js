@@ -9,6 +9,7 @@ import {
   Image,
   Dimensions,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import auth from "@react-native-firebase/auth";
 import firestore from "@react-native-firebase/firestore";
@@ -75,7 +76,7 @@ const SignUp = ({ navigation }) => {
         const updatedUser = auth().currentUser;
         if (updatedUser && updatedUser.displayName) {
           await writeUserToDb(updatedUser, updatedUser.displayName);
-          navigation.navigate("PhotoInput");
+          navigation.navigate("InputPhoto");
         } else {
           Alert.alert("Sign Up Error", "Failed to get updated user profile.");
         }
@@ -132,7 +133,7 @@ const SignUp = ({ navigation }) => {
         return;
       }
       await writeUserToDb(userCredential.user, userCredential.user.displayName);
-      navigation.navigate("PhotoInput");
+      navigation.navigate("InputPhoto");
     } catch (error) {
       // Handle error silently as per original code
     }
@@ -187,14 +188,18 @@ const SignUp = ({ navigation }) => {
         ? `${fullName.givenName} ${fullName.familyName}`
         : "";
       await writeUserToDb(userCredential.user, formattedFullName);
-      navigation.navigate("PhotoInput");
+      navigation.navigate("InputPhoto");
     } catch (error) {
       // Handle error silently as per original code
     }
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 80}
+    >
       <View style={styles.header}>
         <View style={styles.backArrow}>
           <BackArrow />
@@ -273,7 +278,7 @@ const SignUp = ({ navigation }) => {
           />
         </View>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 

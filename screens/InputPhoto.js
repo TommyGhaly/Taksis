@@ -15,7 +15,6 @@ import { useUser } from "../UserContext";
 import ProgressBar from "../components/progressBar";
 import PhotoInput from "../components/photoInput";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
-import BackArrow from "../components/backArrow";
 
 const InputPhoto = ({ route, navigation }) => {
   const { from } = route.params || {};
@@ -56,14 +55,9 @@ const InputPhoto = ({ route, navigation }) => {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 120}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 80}
     >
       <View style={styles.header}>
-        <View style={styles.backArrow}>
-          <Pressable onPress={() => navigation.goBack()}>
-            <BackArrow />
-          </Pressable>
-        </View>
         <View style={styles.progressBar}>
           <ProgressBar startPercentage={1} endPercentage={17} />
         </View>
@@ -122,9 +116,6 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 32,
-  },
-  backArrow: {
-    marginBottom: 16,
   },
   progressBar: {
     height: 6,
