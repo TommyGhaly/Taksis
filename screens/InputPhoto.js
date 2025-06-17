@@ -42,7 +42,7 @@ const InputPhoto = ({ route, navigation }) => {
 
     try {
       await firestore().collection("users").doc(user.uid).update({
-        phoneNumber: phoneNumber.trim(),
+        phone: phoneNumber.trim(),
       });
       setSignUp(true);
       navigation.navigate("SelectChurch");
