@@ -182,7 +182,7 @@ const HomeScreen = () => {
   const [showNameModal, setShowNameModal] = useState(false);
   const [showDOBModal, setShowDOBModal] = useState(false);
   const [showPhoneModal, setShowPhoneModal] = useState(false);
-  const [showWeekModal, setShowWeekModal] = useState(false);
+  const [phoneModalShownThisSession, setPhoneModalShownThisSession] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -193,16 +193,19 @@ const HomeScreen = () => {
   const [selectedWeeks, setSelectedWeeks] = useState([]);
   const [unavailableWeeks, setUnavailableWeeks] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showWeekModal, setShowWeekModal] = useState(false);
   const scaleValue = useRef(new Animated.Value(0.9)).current;
 
   useEffect(() => {
-    setIsDeacon(true); // Fixed typo from 'const isDeacon = true'
+    setIsDeacon(true);
     const unsubscribe = messaging().onMessage(async (remoteMessage) => {
       Alert.alert(
         remoteMessage?.notification?.title || "Notification",
         remoteMessage?.notification?.body || "You have a new message."
       );
     });
+
+    setPhoneModalShownThisSession(false);
 
     return unsubscribe;
   }, []);
@@ -214,7 +217,7 @@ const HomeScreen = () => {
     const d = new Date(date);
     const month = String(d.getMonth() + 1).padStart(2, "0");
     const day = String(d.getDate()).padStart(2, "0");
-    const year = String(d.getFullYear()).slice(-2); // Use last 2 digits of year
+    const year = String(d.getFullYear()).slice(-2);
     return `${month}-${day}-${year}`;
   };
 
@@ -344,6 +347,7 @@ const HomeScreen = () => {
         });
         await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
         setShowPhoneModal(false);
+        setPhoneModalShownThisSession(true);
       } catch (error) {
         Alert.alert("Error", "Failed to update phone number. Please try again.");
       }
@@ -357,12 +361,15 @@ const HomeScreen = () => {
       [
         {
           text: "No",
-          onPress: () => setShowPhoneModal(false),
+          onPress: () => {
+            setShowPhoneModal(false);
+            setPhoneModalShownThisSession(true);
+          },
           style: "cancel",
         },
         {
           text: "Yes",
-          onPress: () => {}, // Stay in modal
+          onPress: () => {},
         },
       ]
     );
@@ -487,8 +494,7 @@ const HomeScreen = () => {
           const isPhoneInvalid = !userData?.phone || userData.phone.trim() === "";
           setShowNameModal(isNameInvalid);
           setShowDOBModal(!isNameInvalid && isDOBInvalid);
-          setShowPhoneModal(!isNameInvalid && !isDOBInvalid && isPhoneInvalid);
-          setUnavailableWeeks(userData?.unavailableWeeks || []);
+          setShowPhoneModal(!isNameInvalid && !isDOBInvalid && isPhoneInvalid && !phoneModalShownThisSession);
         } else {
           Alert.alert("Sign up to continue", "Please sign up using this account to continue.");
           deleteUser(user).catch(() => {});
@@ -500,7 +506,7 @@ const HomeScreen = () => {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [phoneModalShownThisSession]);
 
   useEffect(() => {
     const user = auth().currentUser;
