@@ -136,7 +136,7 @@ const DeaconEdits = () => {
                   return {
                     ...deacon,
                     phone: userDoc.exists
-                      ? userDoc.data().phone || "Not provided"
+                      ? userDoc.data().phone || userDoc.data().number || "Not provided"
                       : "Not provided",
                   };
                 }
