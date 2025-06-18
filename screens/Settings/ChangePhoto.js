@@ -24,10 +24,7 @@ const ChangePhoto = () => {
 
   const updatePhotoUrlInDB = async () => {
     try {
-      const photoUrl = await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
-      await firestore().collection("users").doc(user.uid).update({
-        photoUrl: photoUrl,
-      });
+      await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
       setPreviewUri(photoUrl); // Update preview after successful upload
     } catch (error) {
       Alert.alert(

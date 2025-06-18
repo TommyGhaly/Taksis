@@ -110,7 +110,8 @@ const DeaconEdits = () => {
           );
           setProfilePictureUrls(urls);
         }
-      } catch (error) {}
+      } catch (error) {
+        }
     };
 
     fetchProfilePictureUrls();
@@ -124,8 +125,28 @@ const DeaconEdits = () => {
           if (doc.exists) {
             const deaconList = doc.data().deacons || [];
 
+            // Fetch phone numbers from users collection
+            const deaconListWithPhone = await Promise.all(
+              deaconList.map(async (deacon) => {
+                if (deacon.uid) {
+                  const userDoc = await firestore()
+                    .collection("users")
+                    .doc(deacon.uid)
+                    .get();
+                  return {
+                    ...deacon,
+                    phone: userDoc.exists
+                      ? userDoc.data().phone || "Not provided"
+                      : "Not provided",
+                  };
+                }
+                return { ...deacon, phone: "Not provided" };
+              })
+            );
+
+
             // Sort and group deacons
-            const sortedDeacons = deaconList
+            const sortedDeacons = deaconListWithPhone
               .map((deacon) => ({
                 ...deacon,
                 name: (deacon.name || "").trim().toLowerCase(),
@@ -133,7 +154,7 @@ const DeaconEdits = () => {
               .sort((a, b) => {
                 const nameComparison = a.name.localeCompare(b.name);
                 if (nameComparison === 0) {
-                  return a.uid.localeCompare(b.uid);
+                  return a.uid.localeCompare(b.uid); // Fixed typo from uidJones
                 }
                 return nameComparison;
               })
@@ -195,7 +216,7 @@ const DeaconEdits = () => {
     setSelectedDeacon(null);
   };
 
-  // Corrected scroll function using scrollToLocation
+  // Scroll to section
   const scrollToSection = (letter) => {
     const sectionIndex = sections.findIndex((s) => s.title === letter);
     if (sectionIndex < 0 || !sectionListRef.current) return;
@@ -225,45 +246,47 @@ const DeaconEdits = () => {
   );
 
   // Render deacon item
-  const renderDeacon = ({ item }) => (
-    <TouchableOpacity
-      style={styles.deaconItem}
-      onPress={() => openEditModal(item)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.deaconImageContainer}>
-        <Image
-          style={styles.deaconImage}
-          source={
-            item.uid && profilePictureUrls[item.uid]
-              ? { uri: profilePictureUrls[item.uid] }
-              : require("../assets/default_profile.png")
-          }
-          defaultSource={require("../assets/default_profile.png")}
-          onError={() => {
-            setProfilePictureUrls((prev) => ({
-              ...prev,
-              [item.uid]: null,
-            }));
-          }}
-        />
-      </View>
-      <View style={styles.deaconInfo}>
-        <Text style={styles.deaconName}>{item.name || "Unknown"}</Text>
-        <Text style={styles.deaconDetail}>Age: {formatNumber(item.age)}</Text>
-        <Text style={styles.deaconDetail}>
-          Phone: {item.number || "Not provided"}
-        </Text>
-        <Text style={styles.deaconDetail}>
-          Experience: {formatNumber(item.experience)}
-        </Text>
-        <Text style={styles.deaconDetail}>
-          Frequency: {formatNumber(item.frequency)}
-        </Text>
-      </View>
-      <Ionicons name="pencil" size={20 * scale} color="#147efb" />
-    </TouchableOpacity>
-  );
+  const renderDeacon = ({ item }) => {
+    return (
+      <TouchableOpacity
+        style={styles.deaconItem}
+        onPress={() => openEditModal(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.deaconImageContainer}>
+          <Image
+            style={styles.deaconImage}
+            source={
+              item.uid && profilePictureUrls[item.uid]
+                ? { uri: profilePictureUrls[item.uid] }
+                : require("../assets/default_profile.png")
+            }
+            defaultSource={require("../assets/default_profile.png")}
+            onError={() => {
+              setProfilePictureUrls((prev) => ({
+                ...prev,
+                [item.uid]: null,
+              }));
+            }}
+          />
+        </View>
+        <View style={styles.deaconInfo}>
+          <Text style={styles.deaconName}>{item.name || "Unknown"}</Text>
+          <Text style={styles.deaconDetail}>Age: {formatNumber(item.age)}</Text>
+          <Text style={styles.deaconDetail}>
+            Phone: {item.phone !== undefined && item.phone !== null ? item.phone : "Not provided"}
+          </Text>
+          <Text style={styles.deaconDetail}>
+            Experience: {formatNumber(item.experience)}
+          </Text>
+          <Text style={styles.deaconDetail}>
+            Frequency: {formatNumber(item.frequency)}
+          </Text>
+        </View>
+        <Ionicons name="pencil" size={20 * scale} color="#147efb" />
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
@@ -434,7 +457,7 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   indexItem: {
-    paddingVertical: 2 * scale, // Reduced vertical padding
+    paddingVertical: 2 * scale,
     backgroundColor: "#121212",
     borderRadius: 4,
     marginVertical: 2 * scale,
@@ -442,7 +465,7 @@ const styles = StyleSheet.create({
   indexText: {
     color: "#147efb",
     fontWeight: "600",
-    fontSize: 18 * scale, // Increased font size
+    fontSize: 18 * scale,
   },
 });
 
