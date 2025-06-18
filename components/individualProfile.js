@@ -98,7 +98,7 @@ const IndividualProfile = ({
               setUserData({
                 name: data.name || "N/A",
                 age: data.age || "N/A",
-                phone: data.number || data.phone || "Not provided",
+                phone: data.phone || data.number || "Not provided",
                 nextWeekServe: data.nextWeekServe || "N/A",
                 nextRole: data.nextRole || "N/A",
                 experience: data.experience || 0,
