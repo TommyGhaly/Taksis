@@ -21,7 +21,7 @@ const ChangeNumber = () => {
   const updateNumberInDB = async (phoneNumber) => {
     try {
       await firestore().collection("users").doc(user.uid).update({
-        phoneNumber: phoneNumber,
+        number: phoneNumber,
       });
     } catch (error) {
       Alert.alert(
