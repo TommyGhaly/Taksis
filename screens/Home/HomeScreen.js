@@ -350,6 +350,24 @@ const HomeScreen = () => {
     }
   };
 
+  const handlePhoneModalClose = () => {
+    Alert.alert(
+      "Add Phone Number?",
+      "Would you like to add your phone number to be contacted when necessary?",
+      [
+        {
+          text: "No",
+          onPress: () => setShowPhoneModal(false),
+          style: "cancel",
+        },
+        {
+          text: "Yes",
+          onPress: () => {}, // Stay in modal
+        },
+      ]
+    );
+  };
+
   const handleUnavailableToServe = async () => {
     const user = auth().currentUser;
     if (!user) return;
@@ -751,15 +769,18 @@ const HomeScreen = () => {
         visible={showPhoneModal}
         transparent={true}
         animationType="none"
-        onRequestClose={() => {
-          Alert.alert("Required", "You must provide a valid phone number to continue.");
-        }}
+        onRequestClose={handlePhoneModalClose}
       >
         <View style={styles.modalOverlay}>
           <Animated.View
             style={[styles.modalDOBContainer, { transform: [{ scale: scaleValue }] }]}
           >
-            <Text style={styles.modalTitle}>We Need Your Phone Number</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>We Need Your Phone Number</Text>
+              <TouchableOpacity onPress={handlePhoneModalClose} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
             <Text style={styles.modalSubtitle}>
               Please provide your phone number to continue (e.g., +1234567890).
             </Text>
@@ -1033,11 +1054,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#333",
   },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+    marginBottom: 10,
+  },
   modalTitle: {
     fontSize: 20,
     color: "#fff",
     fontWeight: "bold",
-    marginBottom: 10,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   modalSubtitle: {
@@ -1082,6 +1109,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 10,
     marginTop: 10,
+  },
+  closeButton: {
+    padding: 5,
   },
   buttonText: {
     fontSize: 18,
