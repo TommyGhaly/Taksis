@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  Dimensions, // Added for screen size detection
 } from "react-native";
 import auth from "@react-native-firebase/auth";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
@@ -21,6 +22,10 @@ const SignIn = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { signUp, setSignUp } = useUser();
+
+  // Get screen width to detect iPad
+  const { width } = Dimensions.get("window");
+  const isTablet = width >= 768; // Typical iPad width threshold
 
   useEffect(() => {
     setSignUp(false);
@@ -105,7 +110,7 @@ const SignIn = ({ navigation }) => {
           </View>
         </Pressable>
 
-        <View style={styles.appleButtonContainer}>
+        <View style={[styles.appleButtonContainer, isTablet && styles.appleButtonContainerTablet]}>
           <AppleAuthentication.AppleAuthenticationButton
             buttonType={
               AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
@@ -114,8 +119,8 @@ const SignIn = ({ navigation }) => {
               AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
             }
             cornerRadius={12}
-            style={styles.appleButton}
-            onPress={onAppleButtonPress}
+            style={[styles.appleButton, isTablet && styles.appleButtonTablet]}
+            onPress={() => onAppleButtonPress(navigation)} // Pass navigation to the function
           />
         </View>
 
@@ -184,6 +189,7 @@ async function onAppleButtonPress(navigation) {
     await auth().signInWithCredential(appleCredential);
     navigation.navigate("MainContainer");
   } catch (error) {
+    Alert.alert("Error", "Apple Sign-In failed. Please try again.");
   }
 }
 
@@ -194,11 +200,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   backarrow: {
-    paddingTop: 70, // Keeps the back arrow high
+    paddingTop: 70,
     marginBottom: 0,
   },
   contentWrapper: {
-    paddingTop: 30, // Moves all content down slightly
+    paddingTop: 30,
   },
   titleText: {
     fontSize: 36,
@@ -212,9 +218,9 @@ const styles = StyleSheet.create({
   },
   icon: {
     alignSelf: "center",
-    width: "100%", // Increased to full width for a bigger image
-    height: undefined, // Height adjusts based on aspect ratio
-    aspectRatio: 1089 / 499, // Maintains original aspect ratio (1089x499)
+    width: "100%",
+    height: undefined,
+    aspectRatio: 1089 / 499,
     marginBottom: 20,
   },
   input: {
@@ -282,18 +288,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginVertical: 5,
     alignItems: "center",
-    marginBottom: 15
+    marginBottom: 15,
   },
   appleButtonContainer: {
-    borderWidth: 1, // Adds the border
-    borderColor: "#8e8e93", // Adjust the color as needed
-    borderRadius: 12, // Matches the button's corner radius
-    overflow: "hidden", // Ensures the button doesn't exceed the container's border
-    width: "100%",
+    borderWidth: 1,
+    borderColor: "#8e8e93",
+    borderRadius: 12,
+    overflow: "hidden",
+    width: "100%", // Default for phones
+  },
+  appleButtonContainerTablet: {
+    width: "60%", // Smaller width for iPad
+    alignSelf: "center", // Center the button on iPad
   },
   appleButton: {
-    height: 52, // Matches SelectChurch
-    width: "100%", // Matches SelectChurch
+    height: 52,
+    width: "100%",
+  },
+  appleButtonTablet: {
+    height: 44, // Slightly smaller height for iPad
   },
   socialButtonContent: {
     flexDirection: "row",
