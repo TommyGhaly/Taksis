@@ -34,9 +34,7 @@ const SelectChurch = ({ navigation }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.backArrow}>
-          <Pressable onPress={() => navigation.goBack()}>
-            <BackArrow />
-          </Pressable>
+          <BackArrow />
         </View>
         <View style={styles.progressBar}>
           <ProgressBar startPercentage={17} endPercentage={33} />
@@ -69,29 +67,33 @@ const SelectChurch = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#121212", // Deep charcoal gray
+    backgroundColor: "#121212",
     paddingHorizontal: 16,
-    paddingTop: 120,
-    paddingBottom: 40
+    paddingTop: 80,
+    paddingBottom: 40,
   },
   header: {
     marginBottom: 32,
   },
+  backArrow: {
+    marginBottom: 16,
+  },
   progressBar: {
     height: 6,
-    marginBottom: 12, // Lowered from 24 to bring it closer to the title
-    backgroundColor: "#2A2A2A", // Darker track for contrast
+    width: "100%",
+    backgroundColor: "#2A2A2A",
     borderRadius: 3,
+    marginBottom: 12,
   },
   titleText: {
     fontSize: 36,
     letterSpacing: -0.5,
     fontFamily: "Roboto-Regular",
     fontWeight: "600",
-    color: "#E0E0E0", // Light gray for readability
+    color: "#E0E0E0",
     lineHeight: 42,
     maxWidth: "90%",
-    marginTop: 30
+    marginTop: 30,
   },
   content: {
     flex: 1,
@@ -104,11 +106,11 @@ const styles = StyleSheet.create({
   continueButton: {
     height: 52,
     width: "100%",
-    backgroundColor: "#147EFB", // Vibrant, slightly deeper blue
+    backgroundColor: "#147EFB",
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 35,
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -131,14 +133,11 @@ const styles = StyleSheet.create({
     fontFamily: "Roboto-Regular",
   },
   linkPrefix: {
-    color: "#B0BEC5", // Muted gray-blue for contrast
+    color: "#B0BEC5",
   },
   linkAction: {
-    color: "#147EFB", // Matches blue accent
+    color: "#147EFB",
     fontWeight: "500",
-  },
-  backArrow: {
-    marginBottom: 16,
   },
 });
 
