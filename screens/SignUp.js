@@ -287,21 +287,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#000",
     paddingHorizontal: scale(16),
-    paddingTop: verticalScale(80),
-    paddingBottom: verticalScale(40),
+    paddingTop: verticalScale(60), // Reduced from 80 to move everything higher
+    paddingBottom: verticalScale(30), // Reduced from 40 to move everything higher
   },
   header: {
-    marginBottom: verticalScale(32),
+    marginBottom: verticalScale(24), // Reduced from 32 to move content higher
   },
   backArrow: {
-    marginBottom: verticalScale(16),
+    marginBottom: verticalScale(12), // Reduced from 16
   },
   progressBar: {
     height: verticalScale(6),
     width: "100%",
     backgroundColor: "#2A2A2A",
     borderRadius: moderateScale(3),
-    marginBottom: verticalScale(20),
+    marginBottom: verticalScale(16), // Reduced from 20
   },
   titleText: {
     fontSize: moderateScale(36),
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
     textAlign: "left",
   },
   content: {
-    marginBottom: verticalScale(24),
+    marginBottom: verticalScale(20), // Reduced from 24
   },
   input: {
     height: verticalScale(52),
@@ -324,11 +324,11 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
     color: "#8e8e93",
     backgroundColor: "#000",
-    marginBottom: verticalScale(16),
+    marginBottom: verticalScale(12), // Reduced from 16
   },
   footer: {
     paddingTop: 0,
-    paddingBottom: verticalScale(32),
+    paddingBottom: verticalScale(24), // Reduced from 32
     alignItems: "center",
   },
   continueButton: {
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
     borderRadius: moderateScale(12),
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: verticalScale(16),
+    marginBottom: verticalScale(12), // Reduced from 16 to move button higher
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
   dividerContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: verticalScale(16),
+    marginBottom: verticalScale(12), // Reduced from 16 to move divider closer to button
   },
   divider: {
     flex: 1,
@@ -377,7 +377,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: verticalScale(16),
+    marginBottom: verticalScale(16), // Reduced from 16
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },

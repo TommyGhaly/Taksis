@@ -34,12 +34,6 @@ const InputPhoto = ({ route, navigation }) => {
       Alert.alert("Error", "User not authenticated");
       return;
     }
-
-    if (!phoneNumber.trim()) {
-      Alert.alert("Error", "Please enter a phone number");
-      return;
-    }
-
     try {
       await firestore().collection("users").doc(user.uid).update({
         phone: phoneNumber.trim(),
@@ -77,14 +71,14 @@ const InputPhoto = ({ route, navigation }) => {
           </Pressable>
 
           <Text style={[styles.questionText, { marginTop: 20 }]}>
-            What's your phone number?
+            What's your phone number (Optional)?
           </Text>
           <TextInput
             style={styles.input}
             value={phoneNumber}
             onChangeText={setPhoneNumber}
             placeholder="Enter phone number"
-            placeholderTextColor="#8E8E93"
+            placeholderTextColorr="#8E8E93"
             keyboardType="phone-pad"
             autoCapitalize="none"
             onPressIn={() => ReactNativeHapticFeedback.trigger("impactLight", hapticOptions)}
