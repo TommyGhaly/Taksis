@@ -510,7 +510,7 @@ const AdminManager = () => {
                   style={[
                     styles.modalButton,
                     styles.cancelButton,
-                    { paddingVertical: 12 * scale },
+                    { paddingVertical: 12 * scale, borderRadius: 8},
                   ]}
                   onPress={closeEditModal}
                 >
@@ -524,7 +524,7 @@ const AdminManager = () => {
                   style={[
                     styles.modalButton,
                     styles.saveButton,
-                    { paddingVertical: 12 * scale },
+                    { paddingVertical: 12 * scale, borderRadius: 8 },
                   ]}
                   onPress={saveRoles}
                 >
