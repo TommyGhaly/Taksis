@@ -345,7 +345,6 @@ const HomeScreen = () => {
         await userRef.update({
           phone: phoneNumber.trim(),
         });
-        await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
         setShowPhoneModal(false);
         setPhoneModalShownThisSession(true);
       } catch (error) {
