@@ -12,6 +12,7 @@ import {
   SafeAreaView,
   Animated,
   Pressable,
+  AppState,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
@@ -39,9 +40,8 @@ async function createNotificationChannel() {
     try {
       await messaging().registerDeviceForRemoteMessages();
       if (typeof messaging().createChannel === "function") {
-        const channelId = "default_channel";
         await messaging().createChannel({
-          channelId,
+          channelId: "default_channel",
           channelName: "Default Notifications",
           description: "Default channel for app notifications",
           importance: 4,
@@ -50,48 +50,52 @@ async function createNotificationChannel() {
         });
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to create notification channel.");
+      console.error("Failed to create notification channel:", error);
     }
+  }
+}
+
+async function getFCMToken() {
+  try {
+    const fcmToken = await messaging().getToken();
+    return fcmToken || null;
+  } catch (error) {
+    console.error("Failed to get FCM token:", error);
+    return null;
+  }
+}
+
+async function storeFCMToken(userId, fcmToken) {
+  try {
+    const userRef = firestore().collection("users").doc(userId);
+    const userDoc = await userRef.get();
+    
+    // Check if token is different or doesn't exist
+    if (!userDoc.exists || userDoc.data().fcmToken !== fcmToken) {
+      await userRef.set({ fcmToken }, { merge: true });
+      console.log("FCM token stored/updated successfully");
+    }
+  } catch (error) {
+    console.error("Failed to store FCM token:", error);
   }
 }
 
 async function requestUserPermissionAndroid() {
   try {
-    if (Platform.OS === "android" && Platform.Version >= 33 && PERMISSIONS.ANDROID.POST_NOTIFICATIONS) {
+    if (Platform.OS === "android" && Platform.Version >= 33) {
       const permissionStatus = await check(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
       if (permissionStatus !== RESULTS.GRANTED) {
         const result = await request(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
         if (result !== RESULTS.GRANTED) {
-          Alert.alert(
-            "Notifications Required",
-            "Please enable notifications in your device settings to receive important updates.",
-            [{ text: "OK", style: "cancel" }]
-          );
           return false;
         }
       }
     }
 
-    const authStatus = await messaging().hasPermission();
-    if (authStatus === messaging.AuthorizationStatus.AUTHORIZED) {
-      await getFCMToken();
-      return true;
-    }
-
-    const newAuthStatus = await messaging().requestPermission();
-    if (newAuthStatus === messaging.AuthorizationStatus.AUTHORIZED) {
-      await getFCMToken();
-      return true;
-    } else {
-      Alert.alert(
-        "Notifications Required",
-        "Please enable notifications for important updates in your device settings.",
-        [{ text: "OK", style: "cancel" }]
-      );
-      return false;
-    }
+    const authStatus = await messaging().requestPermission();
+    return authStatus === messaging.AuthorizationStatus.AUTHORIZED;
   } catch (error) {
-    Alert.alert("Error", "Failed to request notification permission.");
+    console.error("Failed to request Android permission:", error);
     return false;
   }
 }
@@ -103,61 +107,46 @@ async function requestUserPermissionIOS() {
       badge: true,
       sound: true,
     });
-    const granted =
-      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
-
-    if (granted) {
-      await getFCMToken();
-      return true;
-    } else {
-      Alert.alert(
-        "Notifications Required",
-        "Please enable notifications for important updates in your device settings.",
-        [{ text: "OK", style: "cancel" }]
-      );
-      return false;
-    }
+    return authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+           authStatus === messaging.AuthorizationStatus.PROVISIONAL;
   } catch (error) {
-    Alert.alert("Error", "Failed to request notification permission.");
+    console.error("Failed to request iOS permission:", error);
     return false;
   }
-}
-
-async function getFCMToken(retries = 3, delay = 1000) {
-  try {
-    for (let i = 0; i < retries; i++) {
-      const fcmToken = await messaging().getToken();
-      if (fcmToken) {
-        return fcmToken;
-      }
-      if (i < retries - 1) {
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
-  } catch (error) {
-    Alert.alert("Error", "Failed to get FCM token.");
-  }
-  return null;
 }
 
 async function checkNotificationPermission() {
   try {
     await createNotificationChannel();
     const authStatus = await messaging().hasPermission();
-    const isAuthorized =
-      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+    const isAuthorized = authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+                         authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
     if (isAuthorized) {
-      await getFCMToken();
-    } else if (Platform.OS === "ios") {
-      await requestUserPermissionIOS();
+      const fcmToken = await getFCMToken();
+      if (fcmToken && auth().currentUser) {
+        await storeFCMToken(auth().currentUser.uid, fcmToken);
+      }
     } else {
-      await requestUserPermissionAndroid();
+      const granted = Platform.OS === "ios" 
+        ? await requestUserPermissionIOS()
+        : await requestUserPermissionAndroid();
+
+      if (granted) {
+        const fcmToken = await getFCMToken();
+        if (fcmToken && auth().currentUser) {
+          await storeFCMToken(auth().currentUser.uid, fcmToken);
+        }
+      } else {
+        Alert.alert(
+          "Notifications Required",
+          "Please enable notifications in your device settings to receive important updates.",
+          [{ text: "OK", style: "cancel" }]
+        );
+      }
     }
   } catch (error) {
-    Alert.alert("Error", "Failed to check notification permission.");
+    console.error("Error handling notifications:", error);
   }
 }
 
@@ -207,7 +196,25 @@ const HomeScreen = () => {
 
     setPhoneModalShownThisSession(false);
 
-    return unsubscribe;
+    // Handle app state changes (foreground/background)
+    const handleAppStateChange = (nextAppState) => {
+      if (nextAppState === "active" && auth().currentUser) {
+        checkNotificationPermission();
+      }
+    };
+
+    // Add AppState listener
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+
+    // Initial check
+    if (auth().currentUser) {
+      checkNotificationPermission();
+    }
+
+    return () => {
+      unsubscribe();
+      subscription.remove();
+    };
   }, []);
 
   messaging().setBackgroundMessageHandler(async (remoteMessage) => {});
@@ -465,10 +472,6 @@ const HomeScreen = () => {
       ]
     );
   };
-
-  useEffect(() => {
-    checkNotificationPermission();
-  }, []);
 
   useEffect(() => {
     const user = auth().currentUser;
