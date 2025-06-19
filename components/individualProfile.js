@@ -43,6 +43,131 @@ const formatDate = (date) => {
   return `${month}-${day}-${year}`;
 };
 
+// Syncs the frequency and experience in the deacons array with the provided values
+const syncDocToArray = (uid, experience, frequency, churchData, churchRef, deaconsUpdates, processedUids) => {
+  if (!uid) {
+    console.warn("syncDocToArray: Invalid or missing UID");
+    return;
+  }
+
+  if (processedUids.has(uid)) {
+    console.log(`syncDocToArray: Skipping duplicate UID ${uid}`);
+    return;
+  }
+
+  processedUids.add(uid);
+
+  try {
+    let deacons = churchData.deacons || [];
+    
+    // Check if deacon exists
+    const deaconExists = deacons.some((deacon) => deacon.uid === uid);
+    
+    if (deaconExists) {
+      // Update existing deacon
+      deaconsUpdates[uid] = { frequency: frequency ?? 0, experience: experience ?? 0 };
+      console.log(`syncDocToArray: Queued update for UID ${uid} with frequency=${frequency ?? 0}, experience=${experience ?? 0}`);
+    } else {
+      // Add new deacon entry
+      deaconsUpdates[uid] = { uid, frequency: frequency ?? 0, experience: experience ?? 0 };
+      console.log(`syncDocToArray: Queued new deacon entry for UID ${uid} with frequency=${frequency ?? 0}, experience=${experience ?? 0}`);
+    }
+  } catch (error) {
+    console.warn(`syncDocToArray: Error for UID ${uid}: ${error.message}`);
+  }
+};
+
+// Syncs the parent's frequency and all children's frequencies, then syncs deacons array
+const syncChildren = async (parentId, frequency, church, batch, churchData, churchRef) => {
+  if (!parentId) {
+    console.warn("syncChildren: Invalid or missing parentId");
+    return;
+  }
+
+  try {
+    const parentRef = firestore().collection("users").doc(parentId);
+    const parentDoc = await parentRef.get();
+
+    if (!parentDoc.exists) {
+      console.warn(`syncChildren: Parent document ${parentId} not found`);
+      return;
+    }
+
+    const parentData = parentDoc.data();
+    const updatedChildren = (parentData.children || []).map((child) => {
+      if (!child.uid) {
+        console.warn(`syncChildren: Skipping child with missing UID in parent ${parentId}`);
+        return child;
+      }
+      return {
+        ...child,
+        frequency: frequency ?? 0,
+        experience: child.experience ?? 0, // Ensure experience exists
+      };
+    });
+
+    // Update parent's frequency and children array
+    batch.update(parentRef, {
+      frequency: frequency ?? 0,
+      children: updatedChildren,
+    });
+    console.log(`syncChildren: Updated parent ${parentId} frequency=${frequency ?? 0} and ${updatedChildren.length} children with frequency=${frequency ?? 0}`);
+
+    // Prepare deacons updates
+    const deaconsUpdates = {};
+    const processedUids = new Set();
+
+    // Sync parent to deacons array only if isDeacon is true
+    if (parentData.isDeacon === true) {
+      syncDocToArray(
+        parentId,
+        parentData.experience ?? 0,
+        frequency ?? 0,
+        churchData,
+        churchRef,
+        deaconsUpdates,
+        processedUids
+      );
+    } else {
+      console.log(`syncChildren: Skipped parent ${parentId} deacon sync as isDeacon is not true`);
+    }
+
+    // Sync each child to deacons array
+    for (const child of updatedChildren) {
+      if (child.uid) {
+        syncDocToArray(
+          child.uid,
+          child.experience ?? 0,
+          frequency ?? 0,
+          churchData,
+          churchRef,
+          deaconsUpdates,
+          processedUids
+        );
+        console.log(`syncChildren: Processed child ${child.uid} for parent ${parentId} with frequency=${frequency ?? 0}, experience=${child.experience ?? 0}`);
+      }
+    }
+
+    // Apply deacons updates in a single write
+    if (Object.keys(deaconsUpdates).length > 0) {
+      let deacons = churchData.deacons || [];
+      for (const uid in deaconsUpdates) {
+        const update = deaconsUpdates[uid];
+        const existingIndex = deacons.findIndex((deacon) => deacon.uid === uid);
+        if (existingIndex !== -1) {
+          deacons[existingIndex] = { ...deacons[existingIndex], ...update };
+        } else {
+          deacons.push(update);
+        }
+      }
+      batch.update(churchRef, { deacons });
+      console.log(`syncChildren: Queued single deacons array update with ${Object.keys(deaconsUpdates).length} entries`);
+    }
+  } catch (error) {
+    console.warn(`syncChildren: Error for parent ${parentId}: ${error.message}`);
+  }
+};
+
 const IndividualProfile = ({
   userId,
   show,
@@ -81,7 +206,7 @@ const IndividualProfile = ({
           setImageUrl(null);
         }
       } catch (error) {
-        console.warn("Failed to fetch image:", error.message);
+        console.warn(`fetchImage: Failed for UID ${userId}: ${error.message}`);
         setImageUrl(null);
       }
     };
@@ -101,15 +226,16 @@ const IndividualProfile = ({
                 phone: data.phone || data.number || "Not provided",
                 nextWeekServe: data.nextWeekServe || "N/A",
                 nextRole: data.nextRole || "N/A",
-                experience: data.experience || 0,
-                frequency: data.frequency || 0,
+                experience: data.experience ?? 0,
+                frequency: data.frequency ?? 0,
               });
-              setTempExperience(data.experience || 0);
-              setTempFrequency(data.frequency || 0);
+              setTempExperience(data.experience ?? 0);
+              setTempFrequency(data.frequency ?? 0);
               setIsDeacon(data.isDeacon || false);
               setIsChild(false);
               await fetchImage(false); // Fetch adult profile picture
               setLoading(false);
+              console.log(`fetchUserData: Loaded parent ${userId}`);
             } else {
               const usersQueryUnsubscribe = firestore()
                 .collection("users")
@@ -146,7 +272,7 @@ const IndividualProfile = ({
                             "Not provided";
                         }
                       } catch (error) {
-                        console.warn("Failed to fetch parent phone:", error);
+                        console.warn(`fetchUserData: Failed to fetch parent phone for ${parentId}: ${error}`);
                       }
 
                       setUserData({
@@ -155,22 +281,24 @@ const IndividualProfile = ({
                         phone: parentPhone,
                         nextWeekServe: childData.nextWeekServe || "N/A",
                         nextRole: childData.nextRole || "N/A",
-                        experience: childData.experience || 0,
-                        frequency: childData.frequency || 0,
+                        experience: childData.experience ?? 0,
+                        frequency: childData.frequency ?? 0,
                         parentId,
                       });
-                      setTempExperience(childData.experience || 0);
-                      setTempFrequency(childData.frequency || 0);
+                      setTempExperience(childData.experience ?? 0);
+                      setTempFrequency(childData.frequency ?? 0);
                       setIsChild(true);
                       setIsDeacon(false); // Children are typically not deacons
                       await fetchImage(true); // Fetch child profile picture
                       setLoading(false);
+                      console.log(`fetchUserData: Loaded child ${userId} for parent ${parentId}`);
                     } else {
                       setLoading(false);
+                      console.warn(`fetchUserData: No data found for UID ${userId}`);
                     }
                   },
                   (error) => {
-                    console.warn("Error fetching users:", error.message);
+                    console.warn(`fetchUserData: Error fetching users: ${error.message}`);
                     setLoading(false);
                   }
                 );
@@ -179,7 +307,7 @@ const IndividualProfile = ({
             }
           },
           (error) => {
-            console.warn("Error fetching user data:", error.message);
+            console.warn(`fetchUserData: Error for UID ${userId}: ${error.message}`);
             setLoading(false);
           }
         );
@@ -207,66 +335,73 @@ const IndividualProfile = ({
 
     try {
       const batch = firestore().batch();
-      const userRef = isChild
-        ? firestore().collection("users").doc(userData.parentId)
-        : firestore().collection("users").doc(userId);
+      const churchRef = firestore().collection("churches").doc(church);
+      const churchDoc = await churchRef.get();
 
-      if (isChild) {
-        const parentDoc = await userRef.get();
-        if (parentDoc.exists) {
-          const parentData = parentDoc.data();
-          const updatedChildren = parentData.children.map((child) =>
-            child.uid === userId
-              ? {
-                  ...child,
-                  experience: tempExperience,
-                  frequency: tempFrequency,
-                }
-              : child
-          );
-          batch.update(userRef, { children: updatedChildren });
-        }
-      } else {
-        batch.update(userRef, {
-          experience: tempExperience,
-          frequency: tempFrequency,
-        });
+      if (!churchDoc.exists) {
+        console.warn(`handleSaveEdits: Church document ${church} not found`);
+        throw new Error("Church document not found");
       }
 
-      // Update church document if user is a deacon
-      if (isDeacon && !isChild) {
-        const churchRef = firestore().collection("churches").doc(church);
-        const churchDoc = await churchRef.get();
+      const churchData = churchDoc.data();
 
-        if (churchDoc.exists) {
-          const churchData = churchDoc.data();
-          const updatedDeacons = (churchData.deacons || []).map((deacon) =>
-            deacon.uid === userId
-              ? {
-                  ...deacon,
-                  experience: tempExperience,
-                  frequency: tempFrequency,
-                }
-              : deacon
-          );
+      if (isChild) {
+        // Child: Update parent's children array for this child and siblings' frequencies
+        const parentRef = firestore().collection("users").doc(userData.parentId);
+        const parentDoc = await parentRef.get();
 
-          batch.update(churchRef, { deacons: updatedDeacons });
+        if (parentDoc.exists) {
+          const parentData = parentDoc.data();
+          const updatedChildren = (parentData.children || []).map((child) => {
+            if (!child.uid) {
+              console.warn(`handleSaveEdits: Skipping child with missing UID in parent ${userData.parentId}`);
+              return child;
+            }
+            return {
+              ...child,
+              frequency: tempFrequency ?? 0, // Update all siblings' frequency
+              experience: child.uid === userId ? tempExperience ?? 0 : child.experience ?? 0, // Update only current child's experience
+            };
+          });
+
+          // Update parent's children array
+          batch.update(parentRef, { children: updatedChildren });
+          console.log(`handleSaveEdits: Updated child ${userId} and ${updatedChildren.length - 1} siblings in parent ${userData.parentId} with frequency=${tempFrequency ?? 0}, current child experience=${tempExperience ?? 0}`);
+
+          // Sync parent's frequency and all children's frequencies, and update deacons array
+          await syncChildren(userData.parentId, tempFrequency, church, batch, churchData, churchRef);
+        } else {
+          console.warn(`handleSaveEdits: Parent ${userData.parentId} not found for child ${userId}`);
+          throw new Error("Parent document not found");
         }
+      } else {
+        // Parent: Update user doc and sync children and deacons
+        const userRef = firestore().collection("users").doc(userId);
+        batch.update(userRef, {
+          experience: tempExperience ?? 0,
+          frequency: tempFrequency ?? 0,
+        });
+        console.log(`handleSaveEdits: Updated parent ${userId} with frequency=${tempFrequency ?? 0}, experience=${tempExperience ?? 0}`);
+
+        // Sync parent's frequency and all children's frequencies, and update deacons array
+        await syncChildren(userId, tempFrequency, church, batch, churchData, churchRef);
       }
 
       // Commit all updates as a single batch
       await batch.commit();
+      console.log(`handleSaveEdits: Batch committed successfully for ${isChild ? 'child' : 'parent'} ${userId}`);
 
       // Update local state
       setUserData((prev) => ({
         ...prev,
-        experience: tempExperience,
-        frequency: tempFrequency,
+        experience: tempExperience ?? 0,
+        frequency: tempFrequency ?? 0,
       }));
 
+      Alert.alert("Success", "Changes saved successfully.");
       onClose();
     } catch (error) {
-      console.error("Update failed:", error);
+      console.error(`handleSaveEdits: Update failed for ${isChild ? 'child' : 'parent'} ${userId}: ${error.message}`);
       Alert.alert("Update Error", "Failed to save changes. Please try again.");
     }
   };
@@ -406,7 +541,7 @@ const IndividualProfile = ({
         setImageUrl(null);
       }
     } catch (error) {
-      console.warn("Failed to fetch image after upload:", error.message);
+      console.warn(`handlePhotoUpload: Failed for UID ${userId}: ${error.message}`);
       setImageUrl(null);
     }
   };
