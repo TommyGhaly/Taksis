@@ -239,7 +239,7 @@ const IndividualAttendance = () => {
               Alert.alert(
                 "Success",
                 `${studentData.name || "Student"}'s record has been deleted.`,
-                [{ text: "OK", onPress: () => navigation.goBack() }]
+                [{ text: "OK" }]
               );
             } catch (error) {
               Alert.alert("Error", "Failed to delete student record.");
