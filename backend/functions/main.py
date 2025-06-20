@@ -4,7 +4,7 @@ import uuid
 import asyncio
 import math
 from firebase_functions import https_fn, scheduler_fn, firestore_fn
-from firebase_admin import initialize_app, firestore, credentials, auth
+from firebase_admin import initialize_app, firestore, credentials, auth, messaging
 import google.cloud.firestore
 from google.cloud import firestore
 import requests
@@ -1121,6 +1121,29 @@ def find_server(schedule_data, target_uid):
     return (None, None)
 
 
+def determine_role(location):
+    if location == "gospel":
+        return "Gospel Server"
+    elif location == "wine":
+        return "Wine Server"
+    elif location == "water":
+        return "Water Server"
+    elif location == "praxis":
+        return "Praxis Server"
+    elif location == "catholic":
+        return "Catholic Server"
+    elif location == "pauline":
+        return "Pauline Server"
+    elif location == "sixth":
+        return "Sixth Server"
+    elif location == "third":
+        return "Third Server"
+    elif location == "matins":
+        return "Matins Server"
+    else:
+        return None
+
+
 @https_fn.on_request()
 def switch_server(req: https_fn.Request) -> https_fn.Response:
     try:
@@ -1183,7 +1206,9 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
             schedule_data[str(second_location[0])] = first_server
 
         schedule_ref.update(schedule_data)
-
+        handle_switch_server_notification(
+            first_server, second_server, first_location, second_location
+        )
         # 🔥 Run the slow function in a separate thread
         trigger_async_function(
             "https://set-next-week-serve-async-hy6oofbihq-uc.a.run.app",
@@ -1194,6 +1219,56 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
 
     except Exception as e:
         return https_fn.Response(f"Error: {str(e)}", status=500)
+
+
+def handle_switch_server_notification(
+    first_server, second_server, first_location, second_location
+):
+    if len(first_location) == 2:
+        if first_location[0] == "extra":
+            update_notification(
+                second_server["uid"],
+                f"{second_server["name"]}! An admin has switched you with another server for this Sunday! Check the app for details.",
+                f"An admin has switched your son {second_server["name"]} with another server for this Sunday! Check the app for details.",
+                "Schedule Update!",
+            )
+        elif first_location[0] == "altar":
+            update_notification(
+                second_server["uid"],
+                f"{second_server["name"]}! You have been switched with another server to serve in the altar this Sunday! Check the app for details.",
+                f"Your son {second_server["name"]} has been switched with another server to serve in the altar this Sunday! Check the app for details.",
+                "Schedule Update!",
+            )
+    elif len(second_location) == 2:
+        if second_location[0] == "extra":
+            update_notification(
+                first_server["uid"],
+                f"{first_server["name"]}! An admin has switched you with another server for this Sunday! Check the app for details.",
+                f"An admin has switched your son {first_server["name"]} with another server for this Sunday! Check the app for details.",
+                "Schedule Update!",
+            )
+        elif second_location[0] == "altar":
+            update_notification(
+                first_server["uid"],
+                f"{first_server["name"]}! You have been switched with another server to serve in the altar this Sunday! Check the app for details.",
+                f"Your son {first_server["name"]} has been switched with another server to serve in the altar this Sunday! Check the app for details.",
+                "Schedule Update!",
+            )
+    else:
+        first_server_role = determine_role(second_location[0])
+        second_server_role = determine_role(first_location[0])
+        update_notification(
+            first_server["uid"],
+            f"{first_server["name"]}! You have been switched with another server to serve as a {second_server_role} this Sunday! Check the app for details.",
+            f"Your son {first_server["name"]} has been switched with another server to serve as a {second_server_role} this Sunday! Check the app for details.",
+            "Schedule Update!",
+        )
+        update_notification(
+            second_server["uid"],
+            f"{second_server["name"]}! You have been switched with another server to serve as a {first_server_role} this Sunday! Check the app for details.",
+            f"Your son {second_server["name"]} has been switched with another server to serve as a {first_server_role} this Sunday! Check the app for details.",
+            "Schedule Update!",
+        )
 
 
 @https_fn.on_request()
@@ -1251,7 +1326,12 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
 
     # Update Firestore
     schedule_ref.update({"altar": updated_altar_servers, "extra": extra_servers})
-
+    update_notification(
+        server_uid,
+        "An admin has removed you from serving in the altar this Sunday. Check the app for details.",
+        "Your son has been removed from serving in the altar this Sunday. Check the app for details.",
+        "Schedule Update!",
+    )
     # 🔁 Synchronously run update_future_schedules
     update_future_schedules(church_id)
 
@@ -1311,6 +1391,12 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
     if extra_servers:
         # Move first extra server to altar
         altar_servers.append(extra_servers[0])
+        update_notification(
+            extra_servers[0]["uid"],
+            f"{extra_servers[0]["name"]}! You have been moved to serve in the altar this Sunday! Check the app for details.",
+            f"Your son {extra_servers[0]["name"]} has been moved to serve in the altarr this Sunday! Check the app for details.",
+            "Schedule Update!",
+        )
         updated_extra_servers = extra_servers[1:]
 
         # Update Firestore
@@ -1502,6 +1588,31 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
     )
 
     return https_fn.Response("User removed and replacement scheduled", status=200)
+
+
+def is_today_or_upcoming_sunday(week_id_str):
+    try:
+        week_id_date = datetime.datetime.strptime(week_id_str, "%d-%m-%y").date()
+    except ValueError:
+        return False
+
+    today = datetime.datetime.today().date()
+    weekday = today.weekday()  # Monday = 0, Sunday = 6
+    days_until_sunday = (6 - weekday) % 7
+    next_sunday = today + datetime.timedelta(days=days_until_sunday)
+
+    return week_id_date == today or week_id_date == next_sunday
+
+
+def handle_unavailable_notification(user_id, week_id, role, name):
+    if is_today_or_upcoming_sunday(week_id):
+        update_notification(
+            user_id,
+            f"{name}! You have been rescheduled to serve as {role} this Sunday! Check the app for details.",
+            f"Your son {name} has been rescheduled to serve as {role} this Sunday! Check the app for details.",
+            "Schedule Update!",
+        )
+    return
 
 
 def update_attendance(user_ref):
@@ -1863,3 +1974,196 @@ def deacon_present(uid, deacons):
         if deacon["uid"] == uid:
             return True
     return False
+
+
+@https_fn.on_request()
+def testing_notifcations(req: https_fn.Request) -> https_fn.Response:
+    message = messaging.Message(
+        token="fUdnk8uvSU4_mfpQihxUFu:APA91bH2SVMsjz8mhWAJtG3m2lEmmIskXBticQcvayhcNg0m-uyh2e3B3sRY84n-HeIjzL3WnD4K8IG0GjirF52jA204xpT9fakec0DO25ZoMJ1F6AJ9Ajw",
+        notification=messaging.Notification(
+            title="this is a test",
+            body="I want to see if this works",
+        ),
+        android=messaging.AndroidConfig(priority="high"),
+        apns=messaging.APNSConfig(
+            payload=messaging.APNSPayload(
+                aps=messaging.Aps(sound="default", content_available=True)
+            )
+        ),
+    )
+
+    try:
+        response = messaging.send(message)
+        return https_fn.Response(
+            f"Notification sent successfully: {response}", status=200
+        )
+    except Exception as e:
+        return https_fn.Response(f"Error sending notification: {str(e)}", status=500)
+
+
+def send_notification(fcm_tokens, body, title):
+    message = messaging.Message(
+        tokens=fcm_tokens,
+        notification=messaging.Notification(
+            title=title,
+            body=body,
+        ),
+        android=messaging.AndroidConfig(priority="high"),
+        apns=messaging.APNSConfig(
+            payload=messaging.APNSPayload(
+                aps=messaging.Aps(sound="default", content_available=True)
+            )
+        ),
+    )
+
+    try:
+        response = messaging.send_multicast(message)
+        print(f"Notification sent successfully: {response}")
+    except Exception as e:
+        print(f"Error sending notification: {str(e)}")
+
+
+@scheduler_fn.on_schedule(
+    schedule="15 16 * * 0",  # Every Sunday at 4:15 PM
+    timezone=scheduler_fn.Timezone("America/New_York"),
+)
+@scheduler_fn.on_schedule(
+    schedule="0 20 * * 5",  # Every Friday at 8:00 PM
+    timezone=scheduler_fn.Timezone("America/New_York"),
+)
+@scheduler_fn.on_schedule(
+    schedule="0 20 * * 6",  # Every Saturday at 8:00 PM
+    timezone=scheduler_fn.Timezone("America/New_York"),
+)
+def liturgy_notification(event: scheduler_fn.ScheduledEvent) -> None:
+    today = datetime.date.today()
+    next_sunday = today + datetime.timedelta(weeks=1)
+    next_sunday_str = next_sunday.strftime("%m-%d-%Y")
+    firestore_client = firestore.Client()
+    churches_ref = firestore_client.collection("churches")
+    churches_docs = churches_ref.stream()
+    for church_doc in churches_docs:
+        schedule_ref = church_doc.reference.collection("schedule")
+        schedule_doc = schedule_ref.document(next_sunday_str).get()
+        if not schedule_doc.exists:
+            continue
+        for key, value in schedule_doc.to_dict().items():
+            if key == "extra":
+                continue
+            if isinstance(value, list):
+                for server in value:
+                    user_doc = (
+                        firestore_client.collection("users")
+                        .document(server.get("uid"))
+                        .get()
+                    )
+                    if user_doc.exists:
+                        user_data = user_doc.to_dict()
+                        if "fcmTokens" in user_data:
+                            fcm_tokens = user_data["fcmTokens"]
+                            send_notification(
+                                fcm_tokens,
+                                f"You are scheduled to serve as an {user_data.get('nextRole')} this coming Sunday on {next_sunday_str}!",
+                                f'{user_data.get("name")}!! You are needed this Sunday',
+                            )
+                        else:
+                            continue
+                    else:
+                        continue
+
+            elif isinstance(value, dict):
+                user_doc = (
+                    firestore_client.collection("users")
+                    .document(value.get("uid"))
+                    .get()
+                )
+                if user_doc.exists:
+                    user_data = user_doc.to_dict()
+                    if "fcmTokens" in user_data:
+                        fcm_tokens = user_data["fcmTokens"]
+                        send_notification(
+                            fcm_tokens,
+                            f"You are scheduled to serve as a {user_data.get('nextRole')} this coming Sunday on {next_sunday_str}!",
+                            f'{user_data.get("name")}!! You are needed this Sunday',
+                        )
+
+
+@scheduler_fn.on_schedule(
+    schedule="30 12 * * 1",  # Every Monday at 12:30 AM
+    timezone=scheduler_fn.Timezone("America/New_York"),
+)
+def servants_meeting_notification(event: scheduler_fn.ScheduledEvent) -> None:
+    asyncio.run(process_servant_notifications())
+
+
+async def process_servant_notifications():
+    firestore_client = firestore.Client()
+    users_ref = firestore_client.collection("users")
+    users_docs = list(users_ref.stream())
+
+    # Run all notification tasks concurrently
+    await asyncio.gather(
+        *[notify_servant(firestore_client, user) for user in users_docs]
+    )
+
+
+async def notify_servant(firestore_client, user_doc):
+    user_data = user_doc.to_dict()
+    if not user_data.get("isServant") or not user_data.get("fcmTokens"):
+        return
+
+    # Offload the blocking get() call
+    church_id = user_data.get("church")
+    if not church_id:
+        return
+
+    church_doc = await asyncio.to_thread(
+        lambda: firestore_client.collection("churches").document(church_id).get()
+    )
+    church_data = church_doc.to_dict() or {}
+
+    # Send notification (non-blocking if implemented with async)
+    await asyncio.to_thread(
+        send_notification,
+        user_data["fcmTokens"],
+        f"Reminder: Servants Meeting is starting soon at {church_data.get('servantsMeetingTime', '12:30 PM')}! Please be on time.",
+        "Servants Meeting Reminder",
+    )
+
+
+def search_for_child(uid):
+    firestore_client = firestore.Client()
+    users_ref = firestore_client.collection("users")
+    query = users_ref.where("children", "array_contains", uid).get()
+    if query:
+        for user in query:
+            user_data = user.to_dict()
+            if (
+                user_data["fcmTokens"]
+                and isinstance(user_data["fcmTokens"], list)
+                and len(user_data["fcmTokens"]) > 0
+            ):
+                return (True, user_data["fcmTokens"])
+            else:
+                return (False, None)
+
+
+def update_notification(uid, message, child_message, title):
+    firestore_client = firestore.Client()
+    user_ref = firestore_client.collection("users").document(uid)
+    user_doc = user_ref.get()
+    if user_doc.exists:
+        user_data = user_doc.to_dict()
+        if (
+                user_data["fcmTokens"]
+                and isinstance(user_data["fcmTokens"], list)
+                and len(user_data["fcmTokens"]) > 0
+            ):
+            fcm_tokens = user_data["fcmTokens"]
+            send_notification(fcm_tokens, message, title)
+    else:
+        child_info = search_for_child(uid)
+        if child_info[0]:
+            send_notification(child_info[1], child_message, title)
+        else:
+            print(f"No FCM tokens found for user {uid} or their children.")

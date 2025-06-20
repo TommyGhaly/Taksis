@@ -68,15 +68,12 @@ async function getFCMToken() {
 async function storeFCMToken(userId, fcmToken) {
   try {
     const userRef = firestore().collection("users").doc(userId);
-    const userDoc = await userRef.get();
-    
-    // Check if token is different or doesn't exist
-    if (!userDoc.exists || userDoc.data().fcmToken !== fcmToken) {
-      await userRef.set({ fcmToken }, { merge: true });
-      console.log("FCM token stored/updated successfully");
-    }
+    await userRef.update({
+      fcmTokens: firestore.FieldValue.arrayUnion(fcmToken)
+    });
+    console.log("FCM token added to array successfully");
   } catch (error) {
-    console.error("Failed to store FCM token:", error);
+    console.error("Failed to add FCM token:", error);
   }
 }
 
