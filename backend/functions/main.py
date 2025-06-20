@@ -4,7 +4,7 @@ import uuid
 import asyncio
 import math
 from firebase_functions import https_fn, scheduler_fn, firestore_fn
-from firebase_admin import initialize_app, firestore, credentials, auth
+from firebase_admin import initialize_app, firestore, credentials, auth, messaging
 import google.cloud.firestore
 from google.cloud import firestore
 import requests
@@ -19,7 +19,7 @@ initialize_app()
 # takes in the 30 deacons and scores them based off best fit
 
 
-# add like 5 extra deacons to the list for bakcups
+# add like 5 extra deacons to the list for backups
 def sort_values(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return sorted(deacons, key=lambda deacon: deacon["value"], reverse=True)
 
@@ -1863,3 +1863,71 @@ def deacon_present(uid, deacons):
         if deacon["uid"] == uid:
             return True
     return False
+
+
+def get_current_week_id():
+    """Return schedule document ID for the current week's Sunday."""
+    today = datetime.datetime.now()
+    days_until_sunday = (6 - today.weekday()) % 7
+    current_sunday = today + datetime.timedelta(days=days_until_sunday)
+    return current_sunday.strftime("%m-%d-%y")
+
+
+@https_fn.on_request()
+def notify_current_week_schedule(req: https_fn.Request) -> https_fn.Response:
+    """Fetch schedule for current week and send FCM notification to each scheduled user."""
+    firestore_client = firestore.Client()
+    # Optional: allow targeting a single church via request JSON
+    try:
+        data = req.get_json() or {}
+        target_church = data.get("church")
+    except Exception:
+        target_church = None
+
+    # Determine which church documents to process
+    if target_church:
+        church_docs = [firestore_client.collection("churches").document(target_church).get()]
+    else:
+        church_docs = list(firestore_client.collection("churches").stream())
+
+    week_id = get_current_week_id()
+    for church_doc in church_docs:
+        if not church_doc.exists:
+            continue
+        schedule_ref = church_doc.reference.collection("schedule").document(week_id)
+        schedule_snap = schedule_ref.get()
+        if not schedule_snap.exists:
+            continue
+        schedule = schedule_snap.to_dict() or {}
+        # Iterate through roles in schedule
+        for role_key, entry in schedule.items():
+            if isinstance(entry, dict):
+                entries = [entry]
+            elif isinstance(entry, list):
+                entries = [e for e in entry if isinstance(e, dict)]
+            else:
+                continue
+            for item in entries:
+                uid = item.get("uid")
+                if not uid or uid == "N/A":
+                    continue
+                user_doc = firestore_client.collection("users").document(uid).get()
+                if not user_doc.exists:
+                    continue
+                token = user_doc.to_dict().get("fcmToken")
+                if not token:
+                    continue
+                # Prepare and send FCM message
+                message = messaging.Message(
+                    data={
+                        'role': interpret_role(role_key),
+                        'week': week_id
+                    },
+                    token=token,
+                )
+                try:
+                    resp = messaging.send(message)
+                    print(f"Successfully sent schedule notification to {uid}: {resp}")
+                except Exception as e:
+                    print(f"Error sending notification to {uid}: {e}")
+    return https_fn.Response("Notifications sent", status=200)
