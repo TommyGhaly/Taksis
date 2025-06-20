@@ -1901,72 +1901,55 @@ def calc_age(dob_str):
     return None
 
 
-# ✅ Asynchronous scheduler function
+
 @scheduler_fn.on_schedule(
     schedule="0 0 * * 0",  # Every Sunday at midnight
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
-def update_ages():
+async def scheduled_update_ages():
     firestore_client = firestore.Client()
     users_ref = firestore_client.collection("users")
     users_docs = users_ref.stream()
-    for user in users_docs:
-        user_data = user.to_dict()
-        if "DOB" in user_data:
-            if int(user_data["age"]) != calc_age(user_data["DOB"]):
-                print(f"Updating age for user {user_data['name']}")
-                user_data["age"] = calc_age(user_data["DOB"])
-                user.reference.update(user_data)
-                mock_request = Request.from_values(
-                    headers={"Authorization": ""},
-                    json={"uid": user_data["uid"]},
-                )
-                update_user(mock_request)
-    return https_fn.Response("Ages updated successfully", status=200)
+
+    tasks = []
+    for user_doc in users_docs:
+        tasks.append(asyncio.to_thread(update_user_sync, user_doc))
+
+    await asyncio.gather(*tasks)
+
+    return https_fn.Response("Scheduled age update completed", status=200)
 
 
-@https_fn.on_request()
-def update_all_users(req: https_fn.Request) -> https_fn.Response:
-    firestore_client = firestore.Client()
-    users_ref = firestore_client.collection("users")
-    users_docs = users_ref.stream()
-    churches_ref = firestore_client.collection("churches")
-    for user in users_docs:
-        update = False
-        user_data = user.to_dict()
-        church_data = churches_ref.document(user_data["church"]).get().to_dict()
-        if user_data.get("isDeacon") and not deacon_present(
-            user_data["uid"], church_data["deacons"]
-        ):
-            update = True
-        if user_data.get("isSSTeacher"):
-            if (
-                not churches_ref.document(user_data["church"])
-                .collection("Sunday School")
-                .document(user_data["uid"])
-                .get()
-                .exists
-            ):
-                update = True
-        if (
-            churches_ref.document(user_data["church"])
-            .collection("Sunday School")
-            .document(user_data["uid"])
-            .get()
-            .exists
-        ):
-            if not user_data.get("isSSTeacher"):
-                update = True
+def update_user_sync(user_doc):
+    user_data = user_doc.to_dict()
+    if "DOB" in user_data:
+        current_age = calc_age(user_data["DOB"])
+        stored_age = user_data.get("age")
+        if stored_age is None or int(stored_age) != current_age:
+            print(f"Updating age for user {user_data['name']}")
+            user_doc.reference.update({"age": current_age})
 
-        if update:
-            print(f"Updating user {user_data['name']}")
             mock_request = Request.from_values(
                 headers={"Authorization": ""},
                 json={"uid": user_data["uid"]},
             )
             update_user(mock_request)
-            # update_user(mock_request)
-    return https_fn.Response("Users updated successfully", status=200)
+
+async def update_all_users():
+    firestore_client = firestore.Client()
+    users_ref = firestore_client.collection("users")
+    users_docs = users_ref.stream()
+
+    tasks = []
+    for user_doc in users_docs:
+        tasks.append(asyncio.to_thread(update_user_sync, user_doc))
+
+    await asyncio.gather(*tasks)
+
+@https_fn.on_request()
+def test_update_ages(req: https_fn.Request) -> https_fn.Response:
+    asyncio.run(update_all_users())
+    return https_fn.Response("Manual age update completed", status=200)
 
 
 def deacon_present(uid, deacons):
