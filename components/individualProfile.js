@@ -24,7 +24,7 @@ const hapticOptions = {
   ignoreAndroidSystemSettings: false,
 };
 
-// Function to format numbers, removing unnecessary decimal places
+// Function to format numbers
 const formatNumber = (num) => {
   if (num % 1 === 0) {
     return num.toString();
@@ -33,7 +33,7 @@ const formatNumber = (num) => {
   }
 };
 
-// Function to format date to mm-dd-yy
+// Function to format date
 const formatDate = (date) => {
   if (!date) return "N/A";
   const d = new Date(date);
@@ -43,115 +43,45 @@ const formatDate = (date) => {
   return `${month}-${day}-${year}`;
 };
 
-// Syncs the frequency and experience in the deacons array with the provided values
-const syncDocToArray = (uid, experience, frequency, churchData, churchRef, deaconsUpdates, processedUids) => {
-  if (!uid) {
-    return;
-  }
+// Syncs only the frequency for parent and children in user doc and deacons array
+const syncChildren = async (parentId, frequency, church, batch, churchData, churchRef) => {
+  if (!parentId) return;
 
-  if (processedUids.has(uid)) {
-    return;
-  }
+  const parentRef = firestore().collection("users").doc(parentId);
+  const parentDoc = await parentRef.get();
+  if (!parentDoc.exists) return;
 
-  processedUids.add(uid);
+  const parentData = parentDoc.data();
+  const updatedChildren = (parentData.children || []).map((child) => ({
+    ...child,
+    frequency: frequency ?? 0,
+  }));
 
-  try {
-    let deacons = churchData.deacons || [];
-    
-    // Check if deacon exists
-    const deaconExists = deacons.some((deacon) => deacon.uid === uid);
-    
-    if (deaconExists) {
-      // Update existing deacon
-      deaconsUpdates[uid] = { frequency: frequency ?? 0, experience: experience ?? 0 };
-    } else {
-      // Add new deacon entry
-      deaconsUpdates[uid] = { uid, frequency: frequency ?? 0, experience: experience ?? 0 };
+  batch.update(parentRef, {
+    frequency: frequency ?? 0,
+    children: updatedChildren,
+  });
+
+  const deacons = churchData.deacons || [];
+  const updatedDeacons = deacons.map((deacon) => {
+    if (deacon.uid === parentId || updatedChildren.some((child) => child.uid === deacon.uid)) {
+      return { ...deacon, frequency: frequency ?? 0 };
     }
-  } catch (error) {
-  }
+    return deacon;
+  });
+
+  batch.update(churchRef, { deacons: updatedDeacons });
 };
 
-// Syncs the parent's frequency and all children's frequencies, then syncs deacons array
-const syncChildren = async (parentId, frequency, church, batch, churchData, churchRef) => {
-  if (!parentId) {
-    return;
-  }
+// Updates deacon frequency for a single user
+const syncDeaconFrequency = (uid, frequency, churchData, churchRef, batch) => {
+  if (!uid) return;
 
-  try {
-    const parentRef = firestore().collection("users").doc(parentId);
-    const parentDoc = await parentRef.get();
-
-    if (!parentDoc.exists) {
-      return;
-    }
-
-    const parentData = parentDoc.data();
-    const updatedChildren = (parentData.children || []).map((child) => {
-      if (!child.uid) {
-        return child;
-      }
-      return {
-        ...child,
-        frequency: frequency ?? 0,
-        experience: child.experience ?? 0, // Ensure experience exists
-      };
-    });
-
-    // Update parent's frequency and children array
-    batch.update(parentRef, {
-      frequency: frequency ?? 0,
-      children: updatedChildren,
-    });
-
-    // Prepare deacons updates
-    const deaconsUpdates = {};
-    const processedUids = new Set();
-
-    // Sync parent to deacons array only if isDeacon is true
-    if (parentData.isDeacon === true) {
-      syncDocToArray(
-        parentId,
-        parentData.experience ?? 0,
-        frequency ?? 0,
-        churchData,
-        churchRef,
-        deaconsUpdates,
-        processedUids
-      );
-    } else {
-    }
-
-    // Sync each child to deacons array
-    for (const child of updatedChildren) {
-      if (child.uid) {
-        syncDocToArray(
-          child.uid,
-          child.experience ?? 0,
-          frequency ?? 0,
-          churchData,
-          churchRef,
-          deaconsUpdates,
-          processedUids
-        );
-      }
-    }
-
-    // Apply deacons updates in a single write
-    if (Object.keys(deaconsUpdates).length > 0) {
-      let deacons = churchData.deacons || [];
-      for (const uid in deaconsUpdates) {
-        const update = deaconsUpdates[uid];
-        const existingIndex = deacons.findIndex((deacon) => deacon.uid === uid);
-        if (existingIndex !== -1) {
-          deacons[existingIndex] = { ...deacons[existingIndex], ...update };
-        } else {
-          deacons.push(update);
-        }
-      }
-      batch.update(churchRef, { deacons });
-    }
-  } catch (error) {
+  const deacons = churchData.deacons || [];
+  const deaconIndex = deacons.findIndex((deacon) => deacon.uid === uid);
+  if (deaconIndex !== -1) {
+    deacons[deaconIndex] = { ...deacons[deaconIndex], frequency: frequency ?? 0 };
+    batch.update(churchRef, { deacons });
   }
 };
 
@@ -173,14 +103,12 @@ const IndividualProfile = ({
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [isDeacon, setIsDeacon] = useState(false);
 
-  // Fetch image and user data with real-time updates
   useEffect(() => {
     if (!userId) {
       setLoading(false);
       return;
     }
 
-    // Fetch profile picture URL
     const fetchImage = async (childStatus) => {
       try {
         const storagePath = childStatus
@@ -197,7 +125,6 @@ const IndividualProfile = ({
       }
     };
 
-    // Fetch user data with real-time listener
     const fetchUserData = () => {
       const userUnsubscribe = firestore()
         .collection("users")
@@ -214,12 +141,13 @@ const IndividualProfile = ({
                 nextRole: data.nextRole || "N/A",
                 experience: data.experience ?? 0,
                 frequency: data.frequency ?? 0,
+                children: data.children || [],
               });
               setTempExperience(data.experience ?? 0);
               setTempFrequency(data.frequency ?? 0);
               setIsDeacon(data.isDeacon || false);
               setIsChild(false);
-              await fetchImage(false); // Fetch adult profile picture
+              await fetchImage(false);
               setLoading(false);
             } else {
               const usersQueryUnsubscribe = firestore()
@@ -228,37 +156,21 @@ const IndividualProfile = ({
                   async (querySnapshot) => {
                     let childData = null;
                     let parentId = null;
+                    let parentPhone = "Not provided";
 
                     for (const doc of querySnapshot.docs) {
                       const userData = doc.data();
                       const children = userData.children || [];
-                      const child = children.find(
-                        (child) => child.uid === userId
-                      );
+                      const child = children.find((c) => c.uid === userId);
                       if (child) {
                         childData = child;
                         parentId = doc.id;
+                        parentPhone = userData.phone || userData.number || "Not provided";
                         break;
                       }
                     }
 
                     if (childData) {
-                      let parentPhone = "Not provided";
-                      try {
-                        const parentDoc = await firestore()
-                          .collection("users")
-                          .doc(parentId)
-                          .get();
-                        if (parentDoc.exists) {
-                          const parentData = parentDoc.data();
-                          parentPhone =
-                            parentData.number ||
-                            parentData.phone ||
-                            "Not provided";
-                        }
-                      } catch (error) {
-                      }
-
                       setUserData({
                         name: childData.name || "N/A",
                         age: childData.age || "N/A",
@@ -272,122 +184,146 @@ const IndividualProfile = ({
                       setTempExperience(childData.experience ?? 0);
                       setTempFrequency(childData.frequency ?? 0);
                       setIsChild(true);
-                      setIsDeacon(false); // Children are typically not deacons
-                      await fetchImage(true); // Fetch child profile picture
+                      setIsDeacon(false);
+                      await fetchImage(true);
                       setLoading(false);
                     } else {
                       setLoading(false);
                     }
                   },
-                  (error) => {
-                    setLoading(false);
-                  }
+                  () => setLoading(false)
                 );
 
               return usersQueryUnsubscribe;
             }
           },
-          (error) => {
-            setLoading(false);
-          }
+          () => setLoading(false)
         );
 
       return userUnsubscribe;
     };
 
     const unsubscribeUserData = fetchUserData();
-
-    return () => {
-      if (unsubscribeUserData) {
-        unsubscribeUserData();
-      }
-    };
+    return () => unsubscribeUserData && unsubscribeUserData();
   }, [userId]);
 
-  // Handle slider value change
   const handleSliderChange = (setter) => (value) => {
     setter(value);
   };
 
-  // Handle save edits to Firestore
-  const handleSaveEdits = async () => {
-    ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
+const handleSaveEdits = async () => {
+  ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
+  try {
+    const batch = firestore().batch();
+    const churchRef = firestore().collection("churches").doc(church);
+    const churchDoc = await churchRef.get();
+    if (!churchDoc.exists) {
+      throw new Error("Church document not found");
+    }
+    const churchData = churchDoc.data();
+    const deacons = churchData.deacons || [];
 
-    try {
-      const batch = firestore().batch();
-      const churchRef = firestore().collection("churches").doc(church);
-      const churchDoc = await churchRef.get();
-
-      if (!churchDoc.exists) {
-        throw new Error("Church document not found");
+    // Helper function to sync a user's frequency in the deacons array
+    const syncDeacon = (uid, frequency) => {
+      const deaconIndex = deacons.findIndex((d) => d.uid === uid);
+      if (deaconIndex !== -1) {
+        deacons[deaconIndex] = { ...deacons[deaconIndex], frequency };
       }
+    };
 
-      const churchData = churchDoc.data();
+    if (isChild) {
+      // Handle child user
+      const parentRef = firestore().collection("users").doc(userData.parentId);
+      const parentDoc = await parentRef.get();
+      if (!parentDoc.exists) {
+        throw new Error("Parent document not found");
+      }
+      const parentData = parentDoc.data();
 
-      if (isChild) {
-        // Child: Update parent's children array for this child and siblings' frequencies
-        const parentRef = firestore().collection("users").doc(userData.parentId);
-        const parentDoc = await parentRef.get();
+      // Update the child's data in the parent's children array
+      const updatedChildren = (parentData.children || []).map((child) =>
+        child.uid === userId
+          ? { ...child, experience: tempExperience ?? 0, frequency: tempFrequency ?? 0 }
+          : child
+      );
 
-        if (parentDoc.exists) {
-          const parentData = parentDoc.data();
-          const updatedChildren = (parentData.children || []).map((child) => {
-            if (!child.uid) {
-              return child;
-            }
-            return {
-              ...child,
-              frequency: tempFrequency ?? 0, // Update all siblings' frequency
-              experience: child.uid === userId ? tempExperience ?? 0 : child.experience ?? 0, // Update only current child's experience
-            };
-          });
-
-          // Update parent's children array
-          batch.update(parentRef, { children: updatedChildren });
-
-          // Sync parent's frequency and all children's frequencies, and update deacons array
-          await syncChildren(userData.parentId, tempFrequency, church, batch, churchData, churchRef);
-        } else {
-          throw new Error("Parent document not found");
-        }
-      } else {
-        // Parent: Update user doc and sync children and deacons
-        const userRef = firestore().collection("users").doc(userId);
-        batch.update(userRef, {
-          experience: tempExperience ?? 0,
-          frequency: tempFrequency ?? 0,
+      // If frequency changed, sync it across parent and siblings
+      if (userData.frequency !== tempFrequency) {
+        const syncedFrequency = tempFrequency ?? 0;
+        const syncedChildren = updatedChildren.map((child) => ({
+          ...child,
+          frequency: syncedFrequency,
+        }));
+        batch.update(parentRef, {
+          frequency: syncedFrequency,
+          children: syncedChildren,
         });
 
-        // Sync parent's frequency and all children's frequencies, and update deacons array
-        await syncChildren(userId, tempFrequency, church, batch, churchData, churchRef);
+        // Sync parent and siblings in deacons array
+        syncDeacon(userData.parentId, syncedFrequency);
+        syncedChildren.forEach((child) => syncDeacon(child.uid, syncedFrequency));
+      } else {
+        // Only update the child's data
+        batch.update(parentRef, { children: updatedChildren });
       }
 
-      // Commit all updates as a single batch
-      await batch.commit();
-
-      // Update local state
-      setUserData((prev) => ({
-        ...prev,
+      // Update the child's deacon entry
+      syncDeacon(userId, tempFrequency ?? 0);
+      const childDeaconIndex = deacons.findIndex((d) => d.uid === userId);
+      if (childDeaconIndex !== -1) {
+        deacons[childDeaconIndex].experience = tempExperience ?? 0;
+      }
+    } else {
+      // Handle parent user
+      const userRef = firestore().collection("users").doc(userId);
+      batch.update(userRef, {
         experience: tempExperience ?? 0,
         frequency: tempFrequency ?? 0,
-      }));
+      });
 
-      onClose();
-    } catch (error) {
-      Alert.alert("Update Error", "Failed to save changes. Please try again.");
+      // If the user has children and frequency changed, sync with children
+      if (userData.children?.length > 0 && userData.frequency !== tempFrequency) {
+        const syncedFrequency = tempFrequency ?? 0;
+        const updatedChildren = userData.children.map((child) => ({
+          ...child,
+          frequency: syncedFrequency,
+        }));
+        batch.update(userRef, { children: updatedChildren });
+
+        // Sync each child in the deacons array
+        updatedChildren.forEach((child) => syncDeacon(child.uid, syncedFrequency));
+      }
+
+      // Update the parent's deacon entry
+      syncDeacon(userId, tempFrequency ?? 0);
+      const parentDeaconIndex = deacons.findIndex((d) => d.uid === userId);
+      if (parentDeaconIndex !== -1) {
+        deacons[parentDeaconIndex].experience = tempExperience ?? 0;
+      }
     }
-  };
 
-  // Handle unavailable to serve
+    // Commit all updates to the deacons array
+    batch.update(churchRef, { deacons });
+    await batch.commit();
+
+    // Update local state and close
+    setUserData((prev) => ({
+      ...prev,
+      experience: tempExperience ?? 0,
+      frequency: tempFrequency ?? 0,
+    }));
+    onClose();
+  } catch (error) {
+    Alert.alert("Update Error", "Failed to save changes. Please try again.");
+  }
+};
+
   const handleUnavailable = () => {
     Alert.alert(
       "Mark Unavailable",
       "Are you sure you want to mark this user as unavailable to serve?",
       [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
+        { text: "Cancel", style: "cancel" },
         {
           text: "Confirm",
           style: "destructive",
@@ -399,20 +335,15 @@ const IndividualProfile = ({
                 throw new Error("No authenticated user found");
               }
 
-              const weekToMark = userData.nextWeekServe;
-
-              // Only update unavailableWeeks for users with their own user document
               if (!isChild) {
                 await firestore()
                   .collection("users")
                   .doc(userId)
                   .update({
-                    unavailableWeeks:
-                      firestore.FieldValue.arrayUnion(weekToMark),
+                    unavailableWeeks: firestore.FieldValue.arrayUnion(userData.nextWeekServe),
                   });
               }
 
-              // Call unavailableToServe with nextWeekServe
               await unavailableToServe(
                 currentUser,
                 userId,
@@ -423,10 +354,7 @@ const IndividualProfile = ({
               );
               onClose();
             } catch (error) {
-              Alert.alert(
-                "Error",
-                "Failed to mark as unavailable. Please try again."
-              );
+              Alert.alert("Error", "Failed to mark as unavailable. Please try again.");
             }
           },
         },
@@ -435,16 +363,12 @@ const IndividualProfile = ({
     );
   };
 
-  // Handle remove deacon
   const handleRemoveDeacon = () => {
     Alert.alert(
       "Remove Deacon",
       "Are you sure you want to remove this user as a deacon? This action cannot be undone.",
       [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
+        { text: "Cancel", style: "cancel" },
         {
           text: "Confirm",
           style: "destructive",
@@ -456,40 +380,23 @@ const IndividualProfile = ({
                 throw new Error("No authenticated user found");
               }
 
-              // Fetch church document
-              const churchDocRef = firestore()
-                .collection("churches")
-                .doc(church);
+              const churchDocRef = firestore().collection("churches").doc(church);
               const churchDoc = await churchDocRef.get();
               if (!churchDoc.exists) {
                 throw new Error("Church document not found");
               }
 
               const churchData = churchDoc.data();
-              const deacons = churchData.deacons || [];
-              // Filter out the deacon with matching userId
-              const updatedDeacons = deacons.filter(
-                (deacon) => deacon.uid !== userId
-              );
+              const updatedDeacons = (churchData.deacons || []).filter((deacon) => deacon.uid !== userId);
 
-              // Update church document
-              await churchDocRef.update({
-                deacons: updatedDeacons,
-              });
-
-              // Update user document
-              await firestore().collection("users").doc(userId).update({
-                isDeacon: false,
-              });
+              await churchDocRef.update({ deacons: updatedDeacons });
+              await firestore().collection("users").doc(userId).update({ isDeacon: false });
 
               setIsDeacon(false);
               Alert.alert("Success", "The user has been removed as a deacon.");
               onClose();
             } catch (error) {
-              Alert.alert(
-                "Error",
-                "Failed to remove deacon. Please try again."
-              );
+              Alert.alert("Error", "Failed to remove deacon. Please try again.");
             }
           },
         },
@@ -498,7 +405,6 @@ const IndividualProfile = ({
     );
   };
 
-  // Handle photo upload completion
   const handlePhotoUpload = async () => {
     setShowPhotoModal(false);
     try {
@@ -516,13 +422,11 @@ const IndividualProfile = ({
     }
   };
 
-  // Handle edit icon press
   const handleEditPhoto = () => {
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setShowPhotoModal(true);
   };
 
-  // Handle cancel
   const handleCancel = () => {
     onClose();
   };
@@ -579,7 +483,7 @@ const IndividualProfile = ({
               }
               defaultSource={require("../assets/default_profile.png")}
               onError={() => setImageUrl(null)}
-              key={imageUrl || "default"} // Force re-render when imageUrl changes
+              key={imageUrl || "default"}
             />
             <TouchableOpacity
               style={styles.editIconContainer}
@@ -599,9 +503,7 @@ const IndividualProfile = ({
               <Text style={styles.detailLabel}>
                 {isChild ? "Parent's Phone:" : "Phone:"}
               </Text>
-              <Text style={styles.detail}>
-                {userData?.phone || "Not provided"}
-              </Text>
+              <Text style={styles.detail}>{userData?.phone || "Not provided"}</Text>
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Age:</Text>
@@ -609,9 +511,7 @@ const IndividualProfile = ({
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Next Week Serve:</Text>
-              <Text style={styles.detail}>
-                {userData?.nextWeekServe || "N/A"}
-              </Text>
+              <Text style={styles.detail}>{userData?.nextWeekServe || "N/A"}</Text>
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Next Role:</Text>

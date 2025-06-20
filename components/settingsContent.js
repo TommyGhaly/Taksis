@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator, Image } from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator, Image, Modal, TextInput } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
@@ -8,6 +8,7 @@ import storage from "@react-native-firebase/storage";
 import { useUser } from "../UserContext";
 import { callFunction, removeFamilySchedule } from "./functionCalls";
 import { deleteUser } from "@react-native-firebase/auth";
+import messaging from "@react-native-firebase/messaging";
 
 const SettingsContent = () => {
   const { signUp, setSignUp } = useUser(true);
@@ -15,6 +16,8 @@ const SettingsContent = () => {
   const [userRoles, setUserRoles] = useState({ name: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [imageUrl, setImageUrl] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [suggestion, setSuggestion] = useState("");
 
   useEffect(() => {
     const user = auth().currentUser;
@@ -38,24 +41,19 @@ const SettingsContent = () => {
       const fetchImage = async () => {
         try {
           const url = await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
-          // Ensure the URL is a non-empty string before setting it
           if (typeof url === "string" && url.trim() !== "") {
             setImageUrl(url);
           } else {
             setImageUrl(null);
           }
         } catch (error) {
-          setImageUrl(null); // Fallback to default image on error
+          setImageUrl(null);
         }
       };
 
-      // Fetch image immediately
       fetchImage();
-
-      // Set up interval to check for updates every 30 seconds
       const intervalId = setInterval(fetchImage, 10000);
 
-      // Cleanup interval and Firestore listener
       return () => {
         clearInterval(intervalId);
         unsubscribe();
@@ -66,9 +64,28 @@ const SettingsContent = () => {
   const wait = (time) =>
     new Promise((resolve) => setTimeout(resolve, time * 1000));
 
-  const handleSignOut = () => {
-    setSignUp(false);
-    auth().signOut();
+  const handleSignOut = async () => {
+    try {
+      const user = auth().currentUser;
+      if (user) {
+        const token = await messaging().getToken();
+        const userDocRef = firestore().collection("users").doc(user.uid);
+        const userDoc = await userDocRef.get();
+        if (userDoc.exists) {
+          const fcmTokens = userDoc.data().fcmTokens || [];
+          if (fcmTokens.includes(token)) {
+            await userDocRef.update({
+              fcmTokens: fcmTokens.filter((t) => t !== token),
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("Error updating fcmTokens during sign out:", error);
+    } finally {
+      setSignUp(false);
+      auth().signOut();
+    }
   };
 
   const handleDeleteAccount = () => {
@@ -85,44 +102,29 @@ const SettingsContent = () => {
             try {
               const user = auth().currentUser;
               if (user) {
-                // Remove family schedule
                 await removeFamilySchedule(
                   user,
                   userRoles.church,
                   "https://remove-family-schedules-hy6oofbihq-uc.a.run.app"
                 );
-
-                // Call custom delete function
                 await callFunction(
                   user,
                   "https://delete-user-hy6oofbihq-uc.a.run.app"
                 );
-
-                // Delete profile picture from storage
                 try {
                   await storage().ref(`profilePictures/${user.uid}.png`).delete();
                 } catch (error) {
                   console.warn("Failed to delete profile picture:", error);
-                  // Continue with deletion even if image deletion fails
                 }
-
-                // Update user context
                 setSignUp(false);
-
-                // Delete Firestore user document
                 await firestore().collection("users").doc(user.uid).delete();
-
-                // Wait briefly to ensure operations complete
                 await wait(2);
-
-                // Delete Firebase Auth user
                 await deleteUser(user);
-
                 Alert.alert("Success", "Your account has been deleted.");
               }
             } catch (error) {
               console.warn("Account deletion failed:", error);
-              await handleSignOut(); // Fallback to sign out on error
+              await handleSignOut();
             } finally {
               setIsLoading(false);
             }
@@ -132,6 +134,32 @@ const SettingsContent = () => {
     );
   };
 
+  const handleSubmitSuggestion = async () => {
+    if (suggestion.trim() === "") {
+      Alert.alert("Error", "Please enter a suggestion.");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const user = auth().currentUser;
+      if (user && userRoles.name) {
+        const suggestionDocRef = firestore().collection("suggestions").doc(userRoles.name);
+        const doc = await suggestionDocRef.get();
+        let suggestions = doc.exists ? doc.data().suggestions || [] : [];
+        suggestions.push(suggestion);
+        await suggestionDocRef.set({ suggestions }, { merge: true });
+        Alert.alert("Success", "Your suggestion has been submitted!");
+        setSuggestion("");
+        setModalVisible(false);
+      }
+    } catch (error) {
+      console.warn("Failed to submit suggestion:", error);
+      Alert.alert("Error", "Failed to submit suggestion. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       {isLoading && (
@@ -139,6 +167,40 @@ const SettingsContent = () => {
           <ActivityIndicator size="large" color="#fff" />
         </View>
       )}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>App Suggestions</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your suggestion"
+              placeholderTextColor="#888"
+              value={suggestion}
+              onChangeText={setSuggestion}
+              multiline
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.submitButton]}
+                onPress={handleSubmitSuggestion}
+              >
+                <Text style={styles.modalButtonText}>Submit</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
       <View style={styles.profileSection}>
         <Image
           style={styles.profileImage}
@@ -205,6 +267,9 @@ const SettingsContent = () => {
         <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("RequestAdmin")}>
           <Text style={styles.optionText}>Apply for admin</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.option} onPress={() => setModalVisible(true)}>
+          <Text style={styles.optionText}>App suggestions</Text>
+        </TouchableOpacity>
       </View>
       <TouchableOpacity style={styles.signOut} onPress={handleSignOut}>
         <Text style={styles.signOutText}>Log out</Text>
@@ -224,7 +289,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   loadingOverlay: {
-    position: "absolute", // Changed to fixed position
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
@@ -233,6 +298,58 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     zIndex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#2e2e2e",
+    borderRadius: 10,
+    padding: 20,
+    width: "80%",
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 15,
+    textAlign: "center",
+  },
+  input: {
+    backgroundColor: "#fff",
+    borderRadius: 5,
+    padding: 10,
+    fontSize: 16,
+    color: "#000",
+    marginBottom: 20,
+    minHeight: 100,
+    textAlignVertical: "top",
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  modalButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 5,
+    alignItems: "center",
+    marginHorizontal: 5,
+  },
+  cancelButton: {
+    backgroundColor: "#888",
+  },
+  submitButton: {
+    backgroundColor: "#147efb",
+  },
+  modalButtonText: {
+    fontSize: 16,
+    color: "#fff",
+    fontWeight: "bold",
   },
   profileSection: {
     flexDirection: "row",
