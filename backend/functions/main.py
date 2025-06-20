@@ -1228,30 +1228,30 @@ def handle_switch_server_notification(
         if first_location[0] == "extra":
             update_notification(
                 second_server["uid"],
-                f"{second_server["name"]}! An admin has switched you with another server for this Sunday! Check the app for details.",
-                f"An admin has switched your son {second_server["name"]} with another server for this Sunday! Check the app for details.",
+                f"{second_server["name"].split()[0]}! An admin has switched you with another deacon for this Sunday! Check the app for details.",
+                f"An admin has switched your son {second_server["name"].split()[0]} with another deacon for this Sunday! Check the app for details.",
                 "Schedule Update!",
             )
         elif first_location[0] == "altar":
             update_notification(
                 second_server["uid"],
-                f"{second_server["name"]}! You have been switched with another server to serve in the altar this Sunday! Check the app for details.",
-                f"Your son {second_server["name"]} has been switched with another server to serve in the altar this Sunday! Check the app for details.",
+                f"{second_server["name"].split()[0]}! You have been switched with another deacon to serve in the altar this Sunday! Check the app for details.",
+                f"Your son {second_server["name"].split()[0]} has been switched with another deacon to serve in the altar this Sunday! Check the app for details.",
                 "Schedule Update!",
             )
     elif len(second_location) == 2:
         if second_location[0] == "extra":
             update_notification(
                 first_server["uid"],
-                f"{first_server["name"]}! An admin has switched you with another server for this Sunday! Check the app for details.",
-                f"An admin has switched your son {first_server["name"]} with another server for this Sunday! Check the app for details.",
+                f"{first_server["name"].split()[0]}! An admin has switched you with another deacon for this Sunday! Check the app for details.",
+                f"An admin has switched your son {first_server["name"].split()[0]} with another deacon for this Sunday! Check the app for details.",
                 "Schedule Update!",
             )
         elif second_location[0] == "altar":
             update_notification(
                 first_server["uid"],
-                f"{first_server["name"]}! You have been switched with another server to serve in the altar this Sunday! Check the app for details.",
-                f"Your son {first_server["name"]} has been switched with another server to serve in the altar this Sunday! Check the app for details.",
+                f"{first_server["name"].split()[0]}! You have been switched with another deacon to serve in the altar this Sunday! Check the app for details.",
+                f"Your son {first_server["name"].split()[0]} has been switched with another deacon to serve in the altar this Sunday! Check the app for details.",
                 "Schedule Update!",
             )
     else:
@@ -1259,14 +1259,14 @@ def handle_switch_server_notification(
         second_server_role = determine_role(first_location[0])
         update_notification(
             first_server["uid"],
-            f"{first_server["name"]}! You have been switched with another server to serve as a {second_server_role} this Sunday! Check the app for details.",
-            f"Your son {first_server["name"]} has been switched with another server to serve as a {second_server_role} this Sunday! Check the app for details.",
+            f"{first_server["name"].split()[0]}! You have been switched with another deacon to serve as a {second_server_role} this Sunday! Check the app for details.",
+            f"Your son {first_server["name"].split()[0]} has been switched with another deacon to serve as a {second_server_role} this Sunday! Check the app for details.",
             "Schedule Update!",
         )
         update_notification(
             second_server["uid"],
-            f"{second_server["name"]}! You have been switched with another server to serve as a {first_server_role} this Sunday! Check the app for details.",
-            f"Your son {second_server["name"]} has been switched with another server to serve as a {first_server_role} this Sunday! Check the app for details.",
+            f"{second_server["name"].split()[0]}! You have been switched with another deacon to serve as a {first_server_role} this Sunday! Check the app for details.",
+            f"Your son {second_server["name"].split()[0]} has been switched with another deacon to serve as a {first_server_role} this Sunday! Check the app for details.",
             "Schedule Update!",
         )
 
@@ -1393,8 +1393,8 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
         altar_servers.append(extra_servers[0])
         update_notification(
             extra_servers[0]["uid"],
-            f"{extra_servers[0]["name"]}! You have been moved to serve in the altar this Sunday! Check the app for details.",
-            f"Your son {extra_servers[0]["name"]} has been moved to serve in the altarr this Sunday! Check the app for details.",
+            f"{extra_servers[0]["name"].split()[0]}! You have been moved to serve in the altar this Sunday! Check the app for details.",
+            f"Your son {extra_servers[0]["name"].split()[0]} has been moved to serve in the altarr this Sunday! Check the app for details.",
             "Schedule Update!",
         )
         updated_extra_servers = extra_servers[1:]
@@ -1608,8 +1608,8 @@ def handle_unavailable_notification(user_id, week_id, role, name):
     if is_today_or_upcoming_sunday(week_id):
         update_notification(
             user_id,
-            f"{name}! You have been rescheduled to serve as {role} this Sunday! Check the app for details.",
-            f"Your son {name} has been rescheduled to serve as {role} this Sunday! Check the app for details.",
+            f"{name.split()[0]}! You have been rescheduled to serve as {role} this Sunday! Check the app for details.",
+            f"Your son {name.split()[0]} has been rescheduled to serve as {role} this Sunday! Check the app for details.",
             "Schedule Update!",
         )
     return
@@ -2002,40 +2002,51 @@ def testing_notifcations(req: https_fn.Request) -> https_fn.Response:
 
 
 def send_notification(fcm_tokens, body, title):
-    message = messaging.Message(
-        tokens=fcm_tokens,
-        notification=messaging.Notification(
-            title=title,
-            body=body,
-        ),
-        android=messaging.AndroidConfig(priority="high"),
-        apns=messaging.APNSConfig(
-            payload=messaging.APNSPayload(
-                aps=messaging.Aps(sound="default", content_available=True)
-            )
-        ),
-    )
-
-    try:
-        response = messaging.send_multicast(message)
-        print(f"Notification sent successfully: {response}")
-    except Exception as e:
-        print(f"Error sending notification: {str(e)}")
+    for token in fcm_tokens:
+        message = messaging.Message(
+            token=token,
+            notification=messaging.Notification(
+                title=title,
+                body=body,
+            ),
+            android=messaging.AndroidConfig(priority="high"),
+            apns=messaging.APNSConfig(
+                payload=messaging.APNSPayload(
+                    aps=messaging.Aps(sound="default", content_available=True)
+                )
+            ),
+        )
+        try:
+            messaging.send(message)
+        except Exception:
+            pass  # Silently ignore errors
 
 
 @scheduler_fn.on_schedule(
     schedule="15 16 * * 0",  # Every Sunday at 4:15 PM
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
+def first_reminder(event: scheduler_fn.ScheduledEvent) -> None:
+    liturgy_notification()
+
+
 @scheduler_fn.on_schedule(
     schedule="0 20 * * 5",  # Every Friday at 8:00 PM
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
+def second_reminder(event: scheduler_fn.ScheduledEvent) -> None:
+    liturgy_notification()
+
+
 @scheduler_fn.on_schedule(
     schedule="0 20 * * 6",  # Every Saturday at 8:00 PM
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
-def liturgy_notification(event: scheduler_fn.ScheduledEvent) -> None:
+def third_reminder(event: scheduler_fn.ScheduledEvent) -> None:
+    liturgy_notification()
+
+
+def liturgy_notification():
     today = datetime.date.today()
     next_sunday = today + datetime.timedelta(weeks=1)
     next_sunday_str = next_sunday.strftime("%m-%d-%Y")
@@ -2139,7 +2150,7 @@ def search_for_child(uid):
         for user in query:
             user_data = user.to_dict()
             if (
-                user_data["fcmTokens"]
+                "fcmTokens" in user_data
                 and isinstance(user_data["fcmTokens"], list)
                 and len(user_data["fcmTokens"]) > 0
             ):
@@ -2155,10 +2166,10 @@ def update_notification(uid, message, child_message, title):
     if user_doc.exists:
         user_data = user_doc.to_dict()
         if (
-                user_data["fcmTokens"]
-                and isinstance(user_data["fcmTokens"], list)
-                and len(user_data["fcmTokens"]) > 0
-            ):
+            "fcmTokens" in user_data
+            and isinstance(user_data["fcmTokens"], list)
+            and len(user_data["fcmTokens"]) > 0
+        ):
             fcm_tokens = user_data["fcmTokens"]
             send_notification(fcm_tokens, message, title)
     else:
