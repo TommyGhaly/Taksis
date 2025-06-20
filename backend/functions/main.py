@@ -30,7 +30,7 @@ def matins(deacons):
         value = 0
         value += deacon["weeksSince"] * 4
 
-        if int(deacon["age"]) > 14 and int(deacon["age"]) < 22:
+        if int(deacon["age"]) > 12 and int(deacon["age"]) < 25:
             value += 30
 
         value += (deacon["frequency"] - 3) * 0.4
@@ -83,7 +83,7 @@ def pauline(deacons):
         value = 0
         value += deacon["weeksSince"] * 4
 
-        if int(deacon["age"]) > 16 and int(deacon["age"]) < 35:
+        if int(deacon["age"]) > 13 and int(deacon["age"]) < 45:
 
             value += 30
 
@@ -111,7 +111,7 @@ def catholic(deacons):
         value = 0
         value += deacon["weeksSince"] * 4
 
-        if int(deacon["age"]) > 16 and int(deacon["age"]) < 35:
+        if int(deacon["age"]) > 13 and int(deacon["age"]) < 45:
 
             value += 30
 
@@ -138,7 +138,7 @@ def praxis(deacons):
         value = 0
         value += deacon["weeksSince"] * 4
 
-        if int(deacon["age"]) > 16 and int(deacon["age"]) < 35:
+        if int(deacon["age"]) > 15 and int(deacon["age"]) < 45:
 
             value += 30
 
@@ -166,7 +166,7 @@ def gospel(deacons):
         value = 0
         value += deacon["weeksSince"] * 4
 
-        if int(deacon["age"]) > 20 and int(deacon["age"]) < 40:
+        if int(deacon["age"]) > 18 and int(deacon["age"]) < 55:
 
             value += 30
 
