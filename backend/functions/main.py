@@ -1901,7 +1901,6 @@ def calc_age(dob_str):
     return None
 
 
-
 @scheduler_fn.on_schedule(
     schedule="0 0 * * 0",  # Every Sunday at midnight
     timezone=scheduler_fn.Timezone("America/New_York"),
@@ -1935,6 +1934,7 @@ def update_user_sync(user_doc):
             )
             update_user(mock_request)
 
+
 async def update_all_users():
     firestore_client = firestore.Client()
     users_ref = firestore_client.collection("users")
@@ -1945,6 +1945,7 @@ async def update_all_users():
         tasks.append(asyncio.to_thread(update_user_sync, user_doc))
 
     await asyncio.gather(*tasks)
+
 
 @https_fn.on_request()
 def test_update_ages(req: https_fn.Request) -> https_fn.Response:
@@ -2010,76 +2011,84 @@ def send_notification(fcm_tokens, body, title):
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def first_reminder(event: scheduler_fn.ScheduledEvent) -> None:
-    liturgy_notification()
-
+    asyncio.run(liturgy_notification())
 
 @scheduler_fn.on_schedule(
     schedule="0 20 * * 5",  # Every Friday at 8:00 PM
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def second_reminder(event: scheduler_fn.ScheduledEvent) -> None:
-    liturgy_notification()
-
+    asyncio.run(liturgy_notification())
 
 @scheduler_fn.on_schedule(
     schedule="0 20 * * 6",  # Every Saturday at 8:00 PM
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def third_reminder(event: scheduler_fn.ScheduledEvent) -> None:
-    liturgy_notification()
+    asyncio.run(liturgy_notification())
 
 
-def liturgy_notification():
+async def liturgy_notification():
     today = datetime.date.today()
-    next_sunday = today + datetime.timedelta(weeks=1)
-    next_sunday_str = next_sunday.strftime("%m-%d-%Y")
+    days_since_sunday = (today.weekday() + 1) % 7
+    nearest_sunday = today - datetime.timedelta(days=days_since_sunday)
+    next_sunday = nearest_sunday + datetime.timedelta(weeks=1)
+    next_sunday_str = next_sunday.strftime("%m-%d-%y")
+
     firestore_client = firestore.Client()
     churches_ref = firestore_client.collection("churches")
     churches_docs = churches_ref.stream()
+
+    tasks = []
+
     for church_doc in churches_docs:
         schedule_ref = church_doc.reference.collection("schedule")
         schedule_doc = schedule_ref.document(next_sunday_str).get()
         if not schedule_doc.exists:
             continue
+
         for key, value in schedule_doc.to_dict().items():
+            print(f"Processing key: {key}, value: {value}")
+
+            if isinstance(value, dict):
+                if value["name"] == "N/A":
+                    continue
+
             if key == "extra":
                 continue
+
             if isinstance(value, list):
                 for server in value:
-                    user_doc = (
-                        firestore_client.collection("users")
-                        .document(server.get("uid"))
-                        .get()
-                    )
-                    if user_doc.exists:
-                        user_data = user_doc.to_dict()
-                        if "fcmTokens" in user_data:
-                            fcm_tokens = user_data["fcmTokens"]
-                            send_notification(
-                                fcm_tokens,
-                                f"You are scheduled to serve as an {user_data.get('nextRole')} this coming Sunday on {next_sunday_str}!",
-                                f'{user_data.get("name")}!! You are needed this Sunday',
-                            )
-                        else:
-                            continue
-                    else:
+                    if server["name"] == "N/A":
+                        print(f"Skipping {server['name']} in {key}")
                         continue
+                    tasks.append(asyncio.to_thread(
+                        update_notification,
+                        server["uid"],
+                        f"Great News {server['name'].split()[0]}! You are scheduled to serve this Sunday, {next_sunday_str} as an altar server. Please check the app for details.",
+                        f"Great News! Your son {server['name'].split()[0]} is scheduled to serve this Sunday, {next_sunday_str} as an altar server. Please check the app for details.",
+                        "Liturgy Reminder"
+                    ))
+            else:
+                if "uid" in value and value["uid"] != "N/A":
+                    print(f"Sending notification to {value['name']}")
+                    tasks.append(asyncio.to_thread(
+                        update_notification,
+                        value["uid"],
+                        f"Great News {value['name'].split()[0]}! You are scheduled to serve this Sunday, {next_sunday_str} as a {interpret_role(key)}. Please check the app for details.",
+                        f"Great News! Your son {value['name'].split()[0]} is scheduled to serve this Sunday, {next_sunday_str} as a {interpret_role(key)}. Please check the app for details.",
+                        "Liturgy Reminder"
+                    ))
 
-            elif isinstance(value, dict):
-                user_doc = (
-                    firestore_client.collection("users")
-                    .document(value.get("uid"))
-                    .get()
-                )
-                if user_doc.exists:
-                    user_data = user_doc.to_dict()
-                    if "fcmTokens" in user_data:
-                        fcm_tokens = user_data["fcmTokens"]
-                        send_notification(
-                            fcm_tokens,
-                            f"You are scheduled to serve as a {user_data.get('nextRole')} this coming Sunday on {next_sunday_str}!",
-                            f'{user_data.get("name")}!! You are needed this Sunday',
-                        )
+    await asyncio.gather(*tasks)
+
+@https_fn.on_request()
+def test_liturgy_notification(req: https_fn.Request) -> https_fn.Response:
+    try:
+        asyncio.run(liturgy_notification())
+        return https_fn.Response("Liturgy notification sent successfully", status=200)
+    except Exception as e:
+        return https_fn.Response(f"Error sending notification: {str(e)}", status=500)
 
 
 @scheduler_fn.on_schedule(
@@ -2128,18 +2137,26 @@ async def notify_servant(firestore_client, user_doc):
 def search_for_child(uid):
     firestore_client = firestore.Client()
     users_ref = firestore_client.collection("users")
-    query = users_ref.where("children", "array_contains", uid).get()
-    if query:
-        for user in query:
-            user_data = user.to_dict()
-            if (
-                "fcmTokens" in user_data
-                and isinstance(user_data["fcmTokens"], list)
-                and len(user_data["fcmTokens"]) > 0
-            ):
-                return (True, user_data["fcmTokens"])
-            else:
-                return (False, None)
+    
+    # Only fetch users that have a `children` field
+    users_with_children = users_ref.where("children", "!=", None).stream()
+
+    for user in users_with_children:
+        user_data = user.to_dict()
+        children = user_data.get("children", [])
+        if isinstance(children, list):
+            for child in children:
+                if isinstance(child, dict) and child.get("uid") == uid:
+                    if (
+                        "fcmTokens" in user_data
+                        and isinstance(user_data["fcmTokens"], list)
+                        and len(user_data["fcmTokens"]) > 0
+                    ):
+                        return (True, user_data["fcmTokens"])
+                    else:
+                        return (False, None)
+
+    return (False, None)
 
 
 def update_notification(uid, message, child_message, title):
