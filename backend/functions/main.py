@@ -1551,6 +1551,12 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
             replacement = {"name": new_deacon["name"], "uid": new_deacon["uid"]}
             new_key, _ = find_server(schedule_data, new_deacon["uid"])
             schedule_data[target_key] = replacement
+            handle_unavailable_notification(
+                replacement["uid"],
+                week_id,
+                target_key,
+                replacement["name"]
+            )
             del schedule_data["extra"][new_key[1]]
 
         if not isinstance(key, tuple):
@@ -1573,6 +1579,12 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
                 replacement = {"name": new_deacon["name"], "uid": new_deacon["uid"]}
                 new_key, _ = find_server(schedule_data, new_deacon["uid"])
                 schedule_data["altar"][key[1]] = replacement
+                handle_unavailable_notification(
+                    replacement["uid"],
+                    week_id,
+                    "altar",
+                    replacement["name"]
+                )
                 del schedule_data["extra"][new_key[1]]
             elif key[0] == "extra":
                 print(f"Removing extra server: {key[1]}")
@@ -1608,8 +1620,8 @@ def handle_unavailable_notification(user_id, week_id, role, name):
     if is_today_or_upcoming_sunday(week_id):
         update_notification(
             user_id,
-            f"{name.split()[0]}! You have been rescheduled to serve as {role} this Sunday! Check the app for details.",
-            f"Your son {name.split()[0]} has been rescheduled to serve as {role} this Sunday! Check the app for details.",
+            f"{name.split()[0]}! You have been rescheduled to serve as {interpret_role(role)} this Sunday! Check the app for details.",
+            f"Your son {name.split()[0]} has been rescheduled to serve as {interpret_role(role)} this Sunday! Check the app for details.",
             "Schedule Update!",
         )
     return
