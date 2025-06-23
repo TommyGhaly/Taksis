@@ -509,7 +509,7 @@ async def my_async_scheduled_function():
             schedule_ref.document(to_delete).delete()
 
             # Add 6-weeks-ahead schedule
-            new_schedule_date = upcoming_sunday + datetime.timedelta(weeks=6)
+            new_schedule_date = upcoming_sunday + datetime.timedelta(weeks=5)
             new_schedule_id = new_schedule_date.strftime("%m-%d-%y")
 
             deacons = await get_deacons(church_doc.id)
