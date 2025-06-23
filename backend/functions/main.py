@@ -2104,7 +2104,7 @@ def test_liturgy_notification(req: https_fn.Request) -> https_fn.Response:
 
 
 @scheduler_fn.on_schedule(
-    schedule="30 12 * * 1",  # Every Monday at 12:30 AM
+    schedule="30 12 * * 0",  # Every Sunday at 12:30 AM
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def servants_meeting_notification(event: scheduler_fn.ScheduledEvent) -> None:
