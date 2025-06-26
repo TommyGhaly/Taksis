@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
-  StyleSheet,
   ScrollView,
   View,
   Text,
@@ -13,6 +12,7 @@ import {
   Animated,
   Pressable,
   AppState,
+  StyleSheet
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
@@ -39,18 +39,9 @@ async function createNotificationChannel() {
   if (Platform.OS === "android") {
     try {
       await messaging().registerDeviceForRemoteMessages();
-      if (typeof messaging().createChannel === "function") {
-        await messaging().createChannel({
-          channelId: "default_channel",
-          channelName: "Default Notifications",
-          description: "Default channel for app notifications",
-          importance: 4,
-          soundName: "default",
-          enableVibration: true,
-        });
-      }
+      console.log("Device registered for remote messages");
     } catch (error) {
-      console.error("Failed to create notification channel:", error);
+      console.error("Failed to register device for notifications:", error);
     }
   }
 }
@@ -69,7 +60,7 @@ async function storeFCMToken(userId, fcmToken) {
   try {
     const userRef = firestore().collection("users").doc(userId);
     await userRef.update({
-      fcmTokens: firestore.FieldValue.arrayUnion(fcmToken)
+      fcmTokens: firestore.FieldValue.arrayUnion(fcmToken),
     });
     console.log("FCM token added to array successfully");
   } catch (error) {
@@ -81,16 +72,20 @@ async function requestUserPermissionAndroid() {
   try {
     if (Platform.OS === "android" && Platform.Version >= 33) {
       const permissionStatus = await check(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
+      console.log("Permission Status:", permissionStatus);
       if (permissionStatus !== RESULTS.GRANTED) {
         const result = await request(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
+        console.log("Permission Request Result:", result);
         if (result !== RESULTS.GRANTED) {
+          console.log("Notification permission denied");
           return false;
         }
       }
     }
-
     const authStatus = await messaging().requestPermission();
-    return authStatus === messaging.AuthorizationStatus.AUTHORIZED;
+    const authorized = authStatus === messaging.AuthorizationStatus.AUTHORIZED;
+    console.log("FCM Authorization Status:", authStatus);
+    return authorized;
   } catch (error) {
     console.error("Failed to request Android permission:", error);
     return false;
@@ -104,8 +99,10 @@ async function requestUserPermissionIOS() {
       badge: true,
       sound: true,
     });
-    return authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-           authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+    return (
+      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+      authStatus === messaging.AuthorizationStatus.PROVISIONAL
+    );
   } catch (error) {
     console.error("Failed to request iOS permission:", error);
     return false;
@@ -116,25 +113,26 @@ async function checkNotificationPermission() {
   try {
     await createNotificationChannel();
     const authStatus = await messaging().hasPermission();
-    const isAuthorized = authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-                         authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+    const isAuthorized =
+      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
     if (isAuthorized) {
+      console.log("Notifications already authorized");
       const fcmToken = await getFCMToken();
       if (fcmToken && auth().currentUser) {
         await storeFCMToken(auth().currentUser.uid, fcmToken);
       }
-    } else {
-      const granted = Platform.OS === "ios" 
-        ? await requestUserPermissionIOS()
-        : await requestUserPermissionAndroid();
-
+ redesigned } else {
+      const granted = await (Platform.OS === "android" ? requestUserPermissionAndroid() : requestUserPermissionIOS());
       if (granted) {
+        console.log("Notification permission granted");
         const fcmToken = await getFCMToken();
         if (fcmToken && auth().currentUser) {
           await storeFCMToken(auth().currentUser.uid, fcmToken);
         }
       } else {
+        console.log("Notification permission not granted");
         Alert.alert(
           "Notifications Required",
           "Please enable notifications in your device settings to receive important updates.",
@@ -193,17 +191,14 @@ const HomeScreen = () => {
 
     setPhoneModalShownThisSession(false);
 
-    // Handle app state changes (foreground/background)
     const handleAppStateChange = (nextAppState) => {
       if (nextAppState === "active" && auth().currentUser) {
         checkNotificationPermission();
       }
     };
 
-    // Add AppState listener
     const subscription = AppState.addEventListener("change", handleAppStateChange);
 
-    // Initial check
     if (auth().currentUser) {
       checkNotificationPermission();
     }
@@ -214,7 +209,9 @@ const HomeScreen = () => {
     };
   }, []);
 
-  messaging().setBackgroundMessageHandler(async (remoteMessage) => {});
+  messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+    console.log("Background message received:", remoteMessage);
+  });
 
   const formatDate = (date) => {
     if (!date) return "N/A";
@@ -250,7 +247,7 @@ const HomeScreen = () => {
   };
 
   const handleDateChange = (event, selectedDate) => {
-    if (event.type === "dismissed") {
+    if (!event || event.type === "dismissed") {
       setShowDatePicker(false);
       return;
     }
@@ -306,6 +303,7 @@ const HomeScreen = () => {
       setShowDOBModal(false);
       setShowPhoneModal(true);
     } catch (error) {
+      console.error("Error updating DOB:", error);
       Alert.alert("Error", "Failed to update date of birth. Please try again.");
     }
   };
@@ -318,20 +316,24 @@ const HomeScreen = () => {
 
     const fullName = `${firstName.trim()} ${lastName.trim()}`;
     const user = auth().currentUser;
-    if (user) {
-      try {
-        const userRef = firestore().collection("users").doc(user.uid);
-        await userRef.update({
-          name: fullName,
-        });
-        await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
-        setUserName(fullName);
-        setShowNameModal(false);
-        setFirstName("");
-        setLastName("");
-      } catch (error) {
-        Alert.alert("Error", "Failed to update name. Please try again.");
-      }
+    if (!user) {
+      Alert.alert("Error", "User not authenticated.");
+      return;
+    }
+
+    try {
+      const userRef = firestore().collection("users").doc(user.uid);
+      await userRef.update({
+        name: fullName,
+      });
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
+      setUserName(fullName);
+      setShowNameModal(false);
+      setFirstName("");
+      setLastName("");
+    } catch (error) {
+      console.error("Error updating name:", error);
+      Alert.alert("Error", "Failed to update name. Please try again.");
     }
   };
 
@@ -343,36 +345,38 @@ const HomeScreen = () => {
     }
 
     const user = auth().currentUser;
-    if (user) {
-      try {
-        const userRef = firestore().collection("users").doc(user.uid);
-        await userRef.update({
-          phone: phoneNumber.trim(),
-        });
-        setShowPhoneModal(false);
-        setPhoneModalShownThisSession(true);
-      } catch (error) {
-        Alert.alert("Error", "Failed to update phone number. Please try again.");
-      }
+    if (!user) {
+      Alert.alert("Error", "User not authenticated.");
+      return;
+    }
+
+    try {
+      const userRef = firestore().collection("users").doc(user.uid);
+      await userRef.update({
+        phone: phoneNumber.trim(),
+      });
+      setShowPhoneModal(false);
+      setPhoneModalShownThisSession(true);
+    } catch (error) {
+      console.error("Error updating phone number:", error);
+      Alert.alert("Error", "Failed to update phone number. Please try again.");
     }
   };
 
   const handlePhoneModalClose = () => {
+    setShowPhoneModal(false);
+    setPhoneModalShownThisSession(true);
     Alert.alert(
       "Add Phone Number?",
       "Would you like to add your phone number to be contacted when necessary?",
       [
         {
           text: "No",
-          onPress: () => {
-            setShowPhoneModal(false);
-            setPhoneModalShownThisSession(true);
-          },
           style: "cancel",
         },
         {
           text: "Yes",
-          onPress: () => {},
+          onPress: () => setShowPhoneModal(true),
         },
       ]
     );
@@ -380,8 +384,10 @@ const HomeScreen = () => {
 
   const handleUnavailableToServe = async () => {
     const user = auth().currentUser;
-    if (!user) return;
-
+    if (!user) {
+      Alert.alert("Error", "User not authenticated.");
+      return;
+    }
     setShowWeekModal(true);
   };
 
@@ -439,7 +445,7 @@ const HomeScreen = () => {
                 .collection("users")
                 .doc(user.uid)
                 .update({
-                  unavailableWeeks: firestore.FieldValue.arrayUnion(...selectedWeeks),
+                  unavailableWeeks: Racism.FieldValue.arrayUnion(...selectedWeeks),
                 });
 
               setUnavailableWeeks((prev) => [...prev, ...selectedWeeks]);
@@ -480,23 +486,27 @@ const HomeScreen = () => {
 
     const unsubscribe = userRef.onSnapshot(
       (doc) => {
-        if (doc.exists) {
-          const userData = doc.data();
-          const name = userData?.name || null;
-          setUserName(name);
-          const isNameInvalid =
-            !name ||
-            name === "null null" ||
-            name.trim() === "" ||
-            !name.includes(" ");
-          const isDOBInvalid = !userData?.DOB || userData.DOB.trim() === "";
-          const isPhoneInvalid = !userData?.phone || userData.phone.trim() === "";
-          setShowNameModal(isNameInvalid);
-          setShowDOBModal(!isNameInvalid && isDOBInvalid);
-          setShowPhoneModal(!isNameInvalid && !isDOBInvalid && isPhoneInvalid && !phoneModalShownThisSession);
-        } else {
-          Alert.alert("Sign up to continue", "Please sign up using this account to continue.");
-          deleteUser(user).catch(() => {});
+        try {
+          if (doc.exists) {
+            const userData = doc.data();
+            const name = userData?.name || null;
+            setUserName(name);
+            const isNameInvalid =
+              !name ||
+              name === "null null" ||
+              name.trim() === "" ||
+              !name.includes(" ");
+            const isDOBInvalid = !userData?.DOB || userData.DOB.trim() === "";
+            const isPhoneInvalid = !userData?.phone || userData.phone.trim() === "";
+            setShowNameModal(isNameInvalid);
+            setShowDOBModal(!isNameInvalid && isDOBInvalid);
+            setShowPhoneModal(!isNameInvalid && !isDOBInvalid && isPhoneInvalid && !phoneModalShownThisSession);
+          } else {
+            Alert.alert("Sign up to continue", "Please sign up using this account to continue.");
+            deleteUser(user).catch((error) => console.error("Error deleting user:", error));
+          }
+        } catch (error) {
+          console.error("Error processing user document:", error);
         }
       },
       (error) => {
@@ -517,34 +527,38 @@ const HomeScreen = () => {
       .doc(user.uid)
       .onSnapshot(
         (doc) => {
-          const userData = doc.data();
-          if (userData) {
-            setIsDeacon(userData.isDeacon || false);
-            setNextWeek(userData.nextWeekServe || null);
-            setNextRole(userData.nextRole || "N/A");
-            if (userData.church && userData.church !== churchId) {
-              setChurchId(userData.church);
+          try {
+            const userData = doc.data();
+            if (userData) {
+              setIsDeacon(userData.isDeacon || false);
+              setNextWeek(userData.nextWeekServe || null);
+              setNextRole(userData.nextRole || "N/A");
+              if (userData.church && userData.church !== churchId) {
+                setChurchId(userData.church);
+              }
+              if (
+                userData.alhanGrades &&
+                !(
+                  Array.isArray(userData.alhanGrades) ||
+                  userData.alhanGrades === "" ||
+                  userData.alhanGrades === null
+                )
+              ) {
+                userData.alhanGrades = null;
+              }
+              if (
+                userData.ssGrades &&
+                !(
+                  Array.isArray(userData.ssGrades) ||
+                  userData.ssGrades === "" ||
+                  userData.ssGrades === null
+                )
+              ) {
+                userData.ssGrades = null;
+              }
             }
-            if (
-              userData.alhanGrades &&
-              !(
-                Array.isArray(userData.alhanGrades) ||
-                userData.alhanGrades === "" ||
-                userData.alhanGrades === null
-              )
-            ) {
-              userData.alhanGrades = null;
-            }
-            if (
-              userData.ssGrades &&
-              !(
-                Array.isArray(userData.ssGrades) ||
-                userData.ssGrades === "" ||
-                userData.ssGrades === null
-              )
-            ) {
-              userData.ssGrades = null;
-            }
+          } catch (error) {
+            console.error("Error processing user data:", error);
           }
         },
         (error) => {
@@ -565,99 +579,107 @@ const HomeScreen = () => {
       .collection("schedule");
 
     const unsubscribeSchedules = schedulesRef.onSnapshot((snapshot) => {
-      if (!snapshot || snapshot.empty) {
-        setSchedule({
-          matins: { name: "N/A" },
-          third: { name: "N/A" },
-          sixth: { name: "N/A" },
-          pauline: { name: "N/A" },
-          catholic: { name: "N/A" },
-          praxis: { name: "N/A" },
-          gospel: { name: "N/A" },
-          water: { name: "N/A" },
-          wine: { name: "N/A" },
-          altar: [],
-        });
-        return;
-      }
-
-      let closestSchedule = null;
-      let closestDate = null;
-      let chosenDocId = "";
-      const today = new Date().setHours(0, 0, 0, 0);
-
-      const churchRef = firestore().collection("churches").doc(churchId);
-      const unsubscribeChurch = churchRef.onSnapshot(
-        (churchDoc) => {
-          if (!churchDoc.exists) {
-            console.warn("Church document does not exist for churchId:", churchId);
-            return;
-          }
-
-          const fullDeacon = churchDoc.data()?.fullDeacon || false;
-
-          snapshot.docs.forEach((doc) => {
-            const scheduleData = doc.data();
-            const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
-            const [month, day, year] = scheduleDateStr.split("-").map(Number);
-            const scheduleDate = new Date(2000 + year, month - 1, day).setHours(0, 0, 0, 0);
-
-            if (!closestDate || Math.abs(scheduleDate - today) < Math.abs(closestDate - today)) {
-              closestDate = scheduleDate;
-              closestSchedule = scheduleData;
-              chosenDocId = doc.id;
-            }
+      try {
+        if (!snapshot || snapshot.empty) {
+          setSchedule({
+            matins: { name: "N/A" },
+            third: { name: "N/A" },
+            sixth: { name: "N/A" },
+            pauline: { name: "N/A" },
+            catholic: { name: "N/A" },
+            praxis: { name: "N/A" },
+            gospel: { name: "N/A" },
+            water: { name: "N/A" },
+            wine: { name: "N/A" },
+            altar: [],
           });
-
-          if (closestSchedule) {
-            setCurrentWeek(chosenDocId);
-            const defaultSchedule = {
-              matins: { name: "N/A" },
-              third: { name: "N/A" },
-              sixth: { name: "N/A" },
-              pauline: { name: "N/A" },
-              catholic: { name: "N/A" },
-              praxis: { name: "N/A" },
-              gospel: { name: "N/A" },
-              water: { name: "N/A" },
-              wine: { name: "N/A" },
-              altar: [],
-            };
-
-            const updatedSchedule = {
-              ...defaultSchedule,
-              ...closestSchedule,
-            };
-
-            if (!Array.isArray(updatedSchedule.altar)) {
-              updatedSchedule.altar = [];
-            }
-
-            const altarServers = [];
-            if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
-              altarServers.push(updatedSchedule.water);
-            }
-            if (!fullDeacon && updatedSchedule.wine && typeof updatedSchedule.wine === "object") {
-              altarServers.push(updatedSchedule.wine);
-            }
-
-            altarServers.push(
-              ...(updatedSchedule.altar || []).filter((server) => server && typeof server === "object")
-            );
-            updatedSchedule.altar = altarServers;
-            setSchedule(updatedSchedule);
-          }
-        },
-        (error) => {
-          console.error("Error in church document listener:", error);
+          return;
         }
-      );
 
-      return () => {
-        unsubscribeChurch();
-      };
+        let closestSchedule = null;
+        let closestDate = null;
+        let chosenDocId = "";
+        const today = new Date().setHours(0, 0, 0, 0);
+
+        const churchRef = firestore().collection("churches").doc(churchId);
+        const unsubscribeChurch = churchRef.onSnapshot(
+          (churchDoc) => {
+            try {
+              if (!churchDoc.exists) {
+                console.warn("Church document does not exist for churchId:", churchId);
+                return;
+              }
+
+              const fullDeacon = churchDoc.data()?.fullDeacon || false;
+
+              snapshot.docs.forEach((doc) => {
+                const scheduleData = doc.data();
+                const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
+                const [month, day, year] = scheduleDateStr.split("-").map(Number);
+                const scheduleDate = new Date(2000 + year, month - 1, day).setHours(0, 0, 0, 0);
+
+                if (!closestDate || Math.abs(scheduleDate - today) < Math.abs(closestDate - today)) {
+                  closestDate = scheduleDate;
+                  closestSchedule = scheduleData;
+                  chosenDocId = doc.id;
+                }
+              });
+
+              if (closestSchedule) {
+                setCurrentWeek(chosenDocId);
+                const defaultSchedule = {
+                  matins: { name: "N/A" },
+                  third: { name: "N/A" },
+                  sixth: { name: "N/A" },
+                  pauline: { name: "N/A" },
+                  catholic: { name: "N/A" },
+                  praxis: { name: "N/A" },
+                  gospel: { name: "N/A" },
+                  water: { name: "N/A" },
+                  wine: { name: "N/A" },
+                  altar: [],
+                };
+
+                const updatedSchedule = {
+                  ...defaultSchedule,
+                  ...closestSchedule,
+                };
+
+                if (!Array.isArray(updatedSchedule.altar)) {
+                  updatedSchedule.altar = [];
+                }
+
+                const altarServers = [];
+                if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
+                  altarServers.push(updatedSchedule.water);
+                }
+                if (!fullDeacon && updatedSchedule.wine && typeof updatedSchedule.wine === "object") {
+                  altarServers.push(updatedSchedule.wine);
+                }
+
+                altarServers.push(
+                  ...(updatedSchedule.altar || []).filter((server) => server && typeof server === "object")
+                );
+                updatedSchedule.altar = altarServers;
+                setSchedule(updatedSchedule);
+              }
+            } catch (error) {
+              console.error("Error processing church document:", error);
+            }
+          },
+          (error) => {
+            console.error("Error in church document listener:", error);
+          }
+        );
+
+        return () => {
+          unsubscribeChurch();
+        };
+      } catch (error) {
+        console.error("Error loading schedules:", error);
+      }
     }, (error) => {
-      console.error("Error loading schedules: ", error);
+      console.error("Error in schedules listener:", error);
     });
 
     return () => unsubscribeSchedules();
@@ -665,12 +687,16 @@ const HomeScreen = () => {
 
   useEffect(() => {
     if (showDOBModal || showPhoneModal) {
-      Animated.spring(scaleValue, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }).start();
+      try {
+        Animated.spring(scaleValue, {
+          toValue: 1,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }).start();
+      } catch (error) {
+        console.error("Animation error:", error);
+      }
     } else {
       scaleValue.setValue(0.9);
     }
@@ -752,7 +778,7 @@ const HomeScreen = () => {
                     display="spinner"
                     onChange={handleDateChange}
                     maximumDate={new Date()}
-                    textColor="#F0F0F0"
+                    {...(Platform.OS === "ios" ? { textColor: "#F0F0F0" } : {})}
                     accentColor="#147ffb"
                     style={styles.datePicker}
                   />
@@ -817,15 +843,23 @@ const HomeScreen = () => {
             <Animated.View
               style={[styles.modalDOBContainer, { transform: [{ scale: scaleValue }] }]}
             >
-              <DateTimePicker
-                value={tempDate}
-                mode="date"
-                display="spinner"
-                onChange={handleDateChange}
-                maximumDate={new Date()}
-                textColor="#F0F0F0"
-                accentColor="#147ffb"
-              />
+              {(() => {
+                try {
+                  return (
+                    <DateTimePicker
+                      value={tempDate}
+                      mode="date"
+                      display="spinner"
+                      onChange={handleDateChange}
+                      maximumDate={new Date()}
+                      accentColor="#147ffb"
+                    />
+                  );
+                } catch (error) {
+                  console.error("DateTimePicker error:", error);
+                  return <Text>Error rendering date picker</Text>;
+                }
+              })()}
             </Animated.View>
           </View>
         </Modal>

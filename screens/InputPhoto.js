@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -8,6 +8,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  SafeAreaView,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
@@ -29,7 +30,7 @@ const InputPhoto = ({ route, navigation }) => {
     ignoreAndroidSystemSettings: false,
   };
 
-  const handleContinue = async () => {
+  const handleContinue = useCallback(async () => {
     if (!user?.uid) {
       Alert.alert("Error", "User not authenticated");
       return;
@@ -43,64 +44,78 @@ const InputPhoto = ({ route, navigation }) => {
     } catch (error) {
       Alert.alert("Error", "Could not update profile information. Please try again.");
     }
-  };
+  }, [phoneNumber, user, setSignUp, navigation]);
+
+  const handlePhotoPress = useCallback(() => {
+    ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+    setShowPhotoModal(true);
+  }, []);
+
+  const handleTextInputPress = useCallback(() => {
+    ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+  }, []);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 80}
-    >
-      <View style={styles.header}>
-        <View style={styles.progressBar}>
-          <ProgressBar startPercentage={1} endPercentage={17} />
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.progressBar}>
+            <ProgressBar startPercentage={1} endPercentage={17} />
+          </View>
+          <Text style={styles.titleText}>Set Up Your Profile</Text>
         </View>
-        <Text style={styles.titleText}>Set Up Your Profile</Text>
-      </View>
-      <View style={styles.content}>
-        <View style={styles.card}>
-          <Text style={styles.questionText}>Upload your profile picture (optional)</Text>
-          <Pressable
-            style={styles.uploadButton}
-            onPress={() => {
-              ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
-              setShowPhotoModal(true);
-            }}
+        <View style={styles.content}>
+          {/* Photo Input Section */}
+          <View style={styles.card}>
+            <Text style={styles.questionText}>Upload your profile picture (optional)</Text>
+            <Pressable style={styles.uploadButton} onPress={handlePhotoPress}>
+              <Text style={styles.uploadButtonText}>Choose Profile Picture</Text>
+            </Pressable>
+          </View>
+
+          {/* Phone Input Section */}
+          <KeyboardAvoidingView
+            style={styles.phoneContainer}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
+            enabled
           >
-            <Text style={styles.uploadButtonText}>Choose Profile Picture</Text>
-          </Pressable>
-
-          <Text style={[styles.questionText, { marginTop: 20 }]}>
-            What's your phone number (Optional)?
-          </Text>
-          <TextInput
-            style={styles.input}
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-            placeholder="Enter phone number"
-            placeholderTextColorr="#8E8E93"
-            keyboardType="phone-pad"
-            autoCapitalize="none"
-            onPressIn={() => ReactNativeHapticFeedback.trigger("impactLight", hapticOptions)}
-          />
+            <View style={[styles.card, { marginTop: 20 }]}>
+              <Text style={styles.questionText}>What's your phone number (Optional)?</Text>
+              <TextInput
+                style={styles.input}
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                placeholder="Enter phone number"
+                placeholderTextColor="#8E8E93"
+                keyboardType="phone-pad"
+                autoCapitalize="none"
+                onPressIn={handleTextInputPress}
+              />
+            </View>
+          </KeyboardAvoidingView>
         </View>
-      </View>
-      <View style={styles.footer}>
-        <Pressable style={styles.continueButton} onPress={handleContinue}>
-          <Text style={styles.continueText}>Continue</Text>
-        </Pressable>
-      </View>
+        <View style={styles.footer}>
+          <Pressable style={styles.continueButton} onPress={handleContinue}>
+            <Text style={styles.continueText}>Continue</Text>
+          </Pressable>
+        </View>
 
-      <PhotoInput
-        visible={showPhotoModal}
-        onClose={() => setShowPhotoModal(false)}
-        userId={user?.uid || "default"}
-      />
-    </KeyboardAvoidingView>
+        <PhotoInput
+          visible={showPhotoModal}
+          onClose={() => setShowPhotoModal(false)}
+          userId={user?.uid || "default"}
+        />
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#121212",
+  },
   container: {
     flex: 1,
     backgroundColor: "#121212",
@@ -144,6 +159,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 5,
     alignItems: "center",
+  },
+  phoneContainer: {
+    width: "100%",
   },
   questionText: {
     fontSize: 24,
