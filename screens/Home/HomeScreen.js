@@ -70,7 +70,13 @@ async function storeFCMToken(userId, fcmToken) {
 
 async function requestUserPermissionAndroid() {
   try {
+    // Only attempt POST_NOTIFICATIONS check on Android 13 (API 33) or higher
     if (Platform.OS === "android" && Platform.Version >= 33) {
+      // Verify that POST_NOTIFICATIONS is defined
+      if (!PERMISSIONS.ANDROID.POST_NOTIFICATIONS) {
+        console.warn("POST_NOTIFICATIONS permission is not supported in this version of react-native-permissions");
+        return false;
+      }
       const permissionStatus = await check(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
       console.log("Permission Status:", permissionStatus);
       if (permissionStatus !== RESULTS.GRANTED) {
@@ -81,6 +87,8 @@ async function requestUserPermissionAndroid() {
           return false;
         }
       }
+    } else {
+      console.log("Skipping POST_NOTIFICATIONS check for Android version < 33");
     }
     const authStatus = await messaging().requestPermission();
     const authorized = authStatus === messaging.AuthorizationStatus.AUTHORIZED;
@@ -123,8 +131,10 @@ async function checkNotificationPermission() {
       if (fcmToken && auth().currentUser) {
         await storeFCMToken(auth().currentUser.uid, fcmToken);
       }
- redesigned } else {
-      const granted = await (Platform.OS === "android" ? requestUserPermissionAndroid() : requestUserPermissionIOS());
+    } else {
+      const granted = await (Platform.OS === "android"
+        ? requestUserPermissionAndroid()
+        : requestUserPermissionIOS());
       if (granted) {
         console.log("Notification permission granted");
         const fcmToken = await getFCMToken();
@@ -445,7 +455,7 @@ const HomeScreen = () => {
                 .collection("users")
                 .doc(user.uid)
                 .update({
-                  unavailableWeeks: Racism.FieldValue.arrayUnion(...selectedWeeks),
+                  unavailableWeeks: firestore.FieldValue.arrayUnion(...selectedWeeks),
                 });
 
               setUnavailableWeeks((prev) => [...prev, ...selectedWeeks]);
@@ -653,7 +663,7 @@ const HomeScreen = () => {
                 if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
                   altarServers.push(updatedSchedule.water);
                 }
-                if (!fullDeacon && updatedSchedule.wine && typeof updatedSchedule.wine === "object") {
+                if (!fullDeacon && updatedSchedule.wine &&  typeof updatedSchedule.wine === "object") {
                   altarServers.push(updatedSchedule.wine);
                 }
 
