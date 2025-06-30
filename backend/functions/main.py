@@ -2039,12 +2039,15 @@ def second_reminder(event: scheduler_fn.ScheduledEvent) -> None:
 def third_reminder(event: scheduler_fn.ScheduledEvent) -> None:
     asyncio.run(liturgy_notification())
 
+def get_next_sunday(base_date: datetime.date) -> datetime.date:
+    days_ahead = (6 - base_date.weekday()) % 7
+    days_ahead = 7 if days_ahead == 0 else days_ahead
+    return base_date + datetime.timedelta(days=days_ahead)
+
 
 async def liturgy_notification():
     today = datetime.date.today()
-    days_since_sunday = (today.weekday() + 1) % 7
-    nearest_sunday = today - datetime.timedelta(days=days_since_sunday)
-    next_sunday = nearest_sunday + datetime.timedelta(weeks=1)
+    next_sunday = get_next_sunday(today)
     next_sunday_str = next_sunday.strftime("%m-%d-%y")
 
     firestore_client = firestore.Client()
