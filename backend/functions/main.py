@@ -1635,7 +1635,7 @@ def update_attendance(user_ref):
     church_data = church_ref.get().to_dict()
     deacons = church_data.get("deacons", [])
     if "frequency" in user_data:
-        user_data["frequency"] *= 0.8
+        user_data["frequency"] *= 0.95
         if user_data["frequency"] < 0.1:
             user_data["frequency"] = 0.5
     for deacon in deacons:
