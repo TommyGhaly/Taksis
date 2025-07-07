@@ -440,27 +440,24 @@ const ServantsAdmin = () => {
                   <Ionicons name="close" size={24 * scale} color="#fff" />
                 </TouchableOpacity>
               </View>
+              <View style={styles.servantTrackerContainer}>
+                <Text
+                  style={[styles.servantTrackerText, { fontSize: 16 * scale }]}
+                >
+                  Servant Meeting Tracker
+                </Text>
+                <Switch
+                  value={isServantMeeting}
+                  onValueChange={(value) => setIsServantMeeting(value)}
+                  trackColor={{ false: "#555", true: "#147efb" }}
+                  thumbColor={isServantMeeting ? "#fff" : "#aaa"}
+                />
+              </View>
               <ScrollView
                 style={styles.modalScrollView}
                 contentContainerStyle={styles.modalScrollContent}
               >
                 <View style={styles.modalContent}>
-                  <View style={styles.servantTrackerContainer}>
-                    <Text
-                      style={[
-                        styles.servantTrackerText,
-                        { fontSize: 16 * scale },
-                      ]}
-                    >
-                      Servant Meeting Tracker
-                    </Text>
-                    <Switch
-                      value={isServantMeeting}
-                      onValueChange={(value) => setIsServantMeeting(value)}
-                      trackColor={{ false: "#555", true: "#147efb" }}
-                      thumbColor={isServantMeeting ? "#fff" : "#aaa"}
-                    />
-                  </View>
                   <FlatList
                     data={gradesList}
                     renderItem={({ item: grade }) => (
@@ -733,7 +730,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12 * scale,
     paddingHorizontal: 8 * scale,
     borderRadius: 8,
-    marginBottom: 12 * scale,
+    margin: 16 * scale,
     backgroundColor: "#2a2a2a",
   },
   servantTrackerText: {

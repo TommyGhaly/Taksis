@@ -10,11 +10,14 @@ import {
   SectionList,
   Dimensions,
   Platform,
+  Modal,
+  FlatList,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import * as Haptics from "react-native-haptic-feedback";
 import storage from "@react-native-firebase/storage";
+import Icon from "react-native-vector-icons/MaterialIcons";
 
 // Responsive design helper (for section headers, index bar, and list padding)
 const { width, height } = Dimensions.get('window');
@@ -32,38 +35,54 @@ const ServantsAttendance = ({ navigation }) => {
   const [availableLetters, setAvailableLetters] = useState([]);
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [headerHeight, setHeaderHeight] = useState(0);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [dateModalVisible, setDateModalVisible] = useState(false);
+  const [previousSundays, setPreviousSundays] = useState([]);
   const headerHeightRef = useRef(0);
   const sectionListRef = useRef(null);
 
+  // Fetch user data
   useEffect(() => {
+    if (!user) {
+      Alert.alert("Error", "No user found.");
+      return;
+    }
+
     const unsubscribeUserData = firestore()
       .collection("users")
       .doc(user.uid)
-      .onSnapshot((userDoc) => {
-        if (userDoc.exists) {
+      .onSnapshot(
+        (userDoc) => {
+          if (!userDoc.exists) {
+            Alert.alert("Error", "User not found.");
+            return;
+          }
           setUserData(userDoc.data());
-        } else {
-          Alert.alert("Error", "User not found.");
+        },
+        (error) => {
+          Alert.alert("Error", error.message);
         }
-      });
+      );
 
     return () => unsubscribeUserData();
-  }, [user.uid]);
+  }, [user?.uid]);
 
+  // Fetch servants and profile pictures
   useEffect(() => {
     if (!userData) return;
 
     const fetchProfilePictures = async (servantList) => {
-      const urls = {};
+      const urls = { ...profilePictureUrls };
+      const servantsToFetch = servantList.filter((servant) => !profilePictureUrls[servant.uid]);
+
       await Promise.all(
-        servantList.map(async (servant) => {
+        servantsToFetch.map(async (servant) => {
           try {
             const url = await storage()
               .ref(`profilePictures/${servant.uid}.png`)
               .getDownloadURL();
             urls[servant.uid] = typeof url === 'string' && url.trim() ? url : null;
-          } catch (error) {
-            console.warn(`Failed to fetch profile picture for ${servant.uid}:`, error);
+          } catch {
             urls[servant.uid] = null;
           }
         })
@@ -85,7 +104,7 @@ const ServantsAttendance = ({ navigation }) => {
       // Sort servants alphabetically
       servantsData.sort((a, b) => a.name.localeCompare(b.name));
 
-      const dateKey = getNextSunday();
+      const dateKey = selectedDate || getNextSunday();
       const servantsWithAttendance = await Promise.all(
         servantsData.map(async (servant) => {
           const attendanceDoc = await firestore()
@@ -132,7 +151,38 @@ const ServantsAttendance = ({ navigation }) => {
     });
 
     return () => unsubscribeServants();
-  }, [userData]);
+  }, [userData, selectedDate, profilePictureUrls]);
+
+  // Generate list of previous Sundays
+  useEffect(() => {
+    const generatePreviousSundays = () => {
+      const today = new Date();
+      const sundays = [];
+      let currentDate = new Date(today);
+
+      // Determine the most recent September 11
+      const currentYear = today.getFullYear();
+      const september11ThisYear = new Date(currentYear, 8, 11); // Month 8 = September
+      const cutoffDate =
+        today < september11ThisYear
+          ? new Date(currentYear - 1, 8, 11)
+          : september11ThisYear;
+
+      // Get the most recent Sunday
+      const day = currentDate.getDay();
+      const diffToSunday = day === 0 ? 0 : day;
+      currentDate.setDate(currentDate.getDate() - diffToSunday);
+
+      while (currentDate >= cutoffDate) {
+        sundays.push(formatDate(currentDate));
+        currentDate.setDate(currentDate.getDate() - 7);
+      }
+
+      setPreviousSundays(sundays);
+    };
+
+    generatePreviousSundays();
+  }, []);
 
   const scrollToSection = (letter) => {
     const sectionIndex = sections.findIndex((s) => s.title === letter);
@@ -143,7 +193,7 @@ const ServantsAttendance = ({ navigation }) => {
       itemIndex: 1,
       animated: false,
       viewPosition: 0,
-      viewOffset: 0,
+      viewOffset: headerHeight,
     });
   };
 
@@ -165,6 +215,7 @@ const ServantsAttendance = ({ navigation }) => {
   };
 
   const handleAttendance = (servantID, status) => {
+    if (selectedDate && selectedDate !== getNextSunday()) return;
     Haptics.trigger("impactLight");
     const dateKey = getNextSunday();
     
@@ -187,6 +238,16 @@ const ServantsAttendance = ({ navigation }) => {
       });
   };
 
+  const handleDateSelect = (date) => {
+    setSelectedDate(date);
+    setDateModalVisible(false);
+  };
+
+  const handleJumpToCurrentWeek = () => {
+    setSelectedDate(getNextSunday());
+    setDateModalVisible(false);
+  };
+
   const renderServant = ({ item: servant }) => (
     <View style={styles.servantCard}>
       <View style={styles.servantInfo}>
@@ -199,6 +260,7 @@ const ServantsAttendance = ({ navigation }) => {
                 : require("../../assets/default_profile.png")
             }
             defaultSource={require("../../assets/default_profile.png")}
+            resizeMode="cover"
             onError={() => {
               setProfilePictureUrls(prev => ({
                 ...prev,
@@ -222,29 +284,56 @@ const ServantsAttendance = ({ navigation }) => {
               <Image
                 source={require("../../assets/vector.png")}
                 style={styles.icon}
+                resizeMode="contain"
               />
             </TouchableOpacity>
           </View>
-          <View style={styles.attendanceButtons}>
-            <TouchableOpacity
-              style={[
-                styles.attendanceButton,
-                servant.attendance === false && styles.absentSelected,
-              ]}
-              onPress={() => handleAttendance(servant.uid, false)}
-            >
-              <Text style={styles.attendanceButtonText}>Absent</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.attendanceButton,
-                servant.attendance === true && styles.presentSelected,
-              ]}
-              onPress={() => handleAttendance(servant.uid, true)}
-            >
-              <Text style={styles.attendanceButtonText}>Present</Text>
-            </TouchableOpacity>
-          </View>
+          {isPastDate ? (
+            <View style={styles.attendanceStatusContainer}>
+              <View
+                style={[
+                  styles.attendanceStatus,
+                  {
+                    backgroundColor:
+                      servant.attendance === true
+                        ? "#147efb"
+                        : servant.attendance === false
+                        ? "#D32F2F"
+                        : "#444",
+                  },
+                ]}
+              >
+                <Text style={styles.attendanceStatusText}>
+                  {servant.attendance === true
+                    ? "Present"
+                    : servant.attendance === false
+                    ? "Absent"
+                    : "Not Recorded"}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.attendanceButtons}>
+              <TouchableOpacity
+                style={[
+                  styles.attendanceButton,
+                  servant.attendance === false && styles.absentSelected,
+                ]}
+                onPress={() => handleAttendance(servant.uid, false)}
+              >
+                <Text style={styles.attendanceButtonText}>Absent</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.attendanceButton,
+                  servant.attendance === true && styles.presentSelected,
+                ]}
+                onPress={() => handleAttendance(servant.uid, true)}
+              >
+                <Text style={styles.attendanceButtonText}>Present</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
     </View>
@@ -265,6 +354,16 @@ const ServantsAttendance = ({ navigation }) => {
     </View>
   );
 
+  const renderDate = ({ item }) => (
+    <TouchableOpacity
+      style={styles.dateItem}
+      onPress={() => handleDateSelect(item)}
+      activeOpacity={0.7}
+    >
+      <Text style={styles.dateText}>{item}</Text>
+    </TouchableOpacity>
+  );
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -274,11 +373,26 @@ const ServantsAttendance = ({ navigation }) => {
     );
   }
 
+  const dateKey = selectedDate || getNextSunday();
+  const isPastDate = selectedDate && selectedDate !== getNextSunday();
+
   return (
     <View style={styles.container}>
-      <Text style={styles.headerText}>
-        Attendance for the week of {getNextSunday()}
-      </Text>
+      <TouchableOpacity
+        style={styles.headerContainer}
+        onPress={() => setDateModalVisible(true)}
+        activeOpacity={0.7}
+        accessible={true}
+        accessibilityLabel="Select previous week"
+      >
+        <Text style={styles.headerText}>{dateKey}</Text>
+        <Icon
+          name="calendar-today"
+          size={24}
+          color="#fff"
+          style={styles.calendarIcon}
+        />
+      </TouchableOpacity>
 
       <View style={styles.listWrapper}>
         <SectionList
@@ -309,18 +423,60 @@ const ServantsAttendance = ({ navigation }) => {
           ))}
         </View>
       </View>
+
+      <Modal visible={dateModalVisible} transparent animationType="fade">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Previous Week</Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={handleJumpToCurrentWeek}
+              activeOpacity={0.7}
+              accessible={true}
+              accessibilityLabel="Jump to current week"
+            >
+              <Text style={styles.modalButtonText}>Jump to This Week</Text>
+            </TouchableOpacity>
+            <FlatList
+              data={previousSundays}
+              renderItem={renderDate}
+              keyExtractor={(item) => item}
+              style={styles.dateList}
+              showsVerticalScrollIndicator={false}
+            />
+            <TouchableOpacity
+              onPress={() => setDateModalVisible(false)}
+              accessible={true}
+              accessibilityLabel="Close date selector"
+            >
+              <Text style={styles.cancelButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: "#121212" },
+  headerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: "#2a2a2a",
+  },
   headerText: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "bold",
     color: "#fff",
     textAlign: "center",
-    marginBottom: 30,
+  },
+  calendarIcon: {
+    marginLeft: 10,
   },
   listWrapper: {
     flex: 1,
@@ -392,6 +548,28 @@ const styles = StyleSheet.create({
     fontWeight: "bold", 
     color: "#FFFFFF" 
   },
+  attendanceStatusContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  attendanceStatus: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  attendanceStatusText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#ffffff",
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -436,6 +614,74 @@ const styles = StyleSheet.create({
   indexText: {
     color: "#147efb",
     fontWeight: "600",
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.8)",
+  },
+  modalContent: {
+    width: 340,
+    padding: 25,
+    backgroundColor: "#1e1e1e",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#333",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 15,
+  },
+  modalTitle: {
+    fontSize: 24,
+    color: "#fff",
+    fontWeight: "bold",
+    marginBottom: 20,
+    letterSpacing: 0.5,
+  },
+  modalButton: {
+    width: "100%",
+    backgroundColor: "#147efb",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 15,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  modalButtonText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#ffffff",
+    letterSpacing: 0.5,
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    color: "#f44336",
+    marginTop: 15,
+    fontWeight: "600",
+  },
+  dateList: {
+    width: "100%",
+    maxHeight: 300,
+    marginBottom: 20,
+  },
+  dateItem: {
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#444",
+  },
+  dateText: {
+    fontSize: 18,
+    color: "#fff",
+    textAlign: "center",
   },
 });
 

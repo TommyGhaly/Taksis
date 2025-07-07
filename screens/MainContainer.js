@@ -3,8 +3,8 @@ import { StyleSheet, View, Text } from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createDrawerNavigator } from "@react-navigation/drawer";
-import Icon from 'react-native-vector-icons/FontAwesome';  
-import 'react-native-gesture-handler';
+import Icon from "react-native-vector-icons/FontAwesome";
+import "react-native-gesture-handler";
 import HomeScreenNavigation from "./Home/HomeScreenNavigator";
 import AlhanNavigator from "./Alhan/AlhanNavigator";
 import SundaySchoolNavigator from "./SundaySchool/SundaySchoolNavigator";
@@ -49,15 +49,26 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
           borderTopWidth: 0,
         },
         tabBarLabel: () => null,
-        headerLeft: showDrawer ? () => <CustomHeader navigation={navigation}/> : undefined,
+        headerLeft: showDrawer
+          ? () => <CustomHeader navigation={navigation} />
+          : undefined,
         tabBarIcon: ({ color, size }) => {
           let iconName;
           switch (route.name) {
-            case "This Week's Services": iconName = 'home'; break;
-            case "Learn to Serve": iconName = 'book'; break;
-            case "Edit Schedule": iconName = 'pencil'; break;
-            case "Settings": iconName = 'gear'; break;
-            default: iconName = 'question';
+            case "This Week's Services":
+              iconName = "home";
+              break;
+            case "Learn to Serve":
+              iconName = "book";
+              break;
+            case "Edit Schedule":
+              iconName = "pencil";
+              break;
+            case "Settings":
+              iconName = "gear";
+              break;
+            default:
+              iconName = "question";
           }
           return <Icon name={iconName} size={size} color={color} />;
         },
@@ -98,7 +109,7 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
           width: 270,
         },
         headerShown: true,
-        headerTitle: route.name === 'Home' ? homeTitle : route.name,
+        headerTitle: route.name === "Home" ? homeTitle : route.name,
         headerLeft: () => <CustomHeader navigation={navigation} />,
         drawerActiveTintColor: "#147efb",
         drawerInactiveTintColor: "#8e8e93",
@@ -115,14 +126,23 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
           />
         )}
       </Drawer.Screen>
-      {userRoles.isAlhan && (
-        <Drawer.Screen name="Hymns Class Attendance" component={AlhanNavigator} />
-      )}
       {userRoles.isSSTeacher && (
-        <Drawer.Screen name="Sunday School Attendance" component={SundaySchoolNavigator} />
+        <Drawer.Screen
+          name="Sunday School Attendance"
+          component={SundaySchoolNavigator}
+        />
+      )}
+      {userRoles.isAlhan && (
+        <Drawer.Screen
+          name="Hymns Class Attendance"
+          component={AlhanNavigator}
+        />
       )}
       {userRoles.isServant && (
-        <Drawer.Screen name="Servants Meeting Attendance" component={ServantsMeetingNavigator} />
+        <Drawer.Screen
+          name="Servants Meeting Attendance"
+          component={ServantsMeetingNavigator}
+        />
       )}
       {userRoles.admin && (
         <Drawer.Screen name="Edit Deacons" component={DeaconEdits} />
@@ -162,8 +182,7 @@ export default function MainContainer() {
               setUserRoles(doc.data());
             }
           },
-          (error) => {
-          }
+          (error) => {}
         );
 
       return () => unsubscribe();
@@ -171,7 +190,13 @@ export default function MainContainer() {
   }, []);
 
   const shouldShowDrawer =
-    userRoles.isAlhan || userRoles.isSSTeacher || userRoles.isServant || userRoles.ssAdmin|| userRoles.admin || userRoles.alhanAdmin || userRoles.superAdmin;
+    userRoles.isAlhan ||
+    userRoles.isSSTeacher ||
+    userRoles.isServant ||
+    userRoles.ssAdmin ||
+    userRoles.admin ||
+    userRoles.alhanAdmin ||
+    userRoles.superAdmin;
 
   return (
     <NavigationContainer independent={true} theme={myTheme}>

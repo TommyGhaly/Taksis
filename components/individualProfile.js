@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
@@ -211,112 +212,112 @@ const IndividualProfile = ({
     setter(value);
   };
 
-const handleSaveEdits = async () => {
-  ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
-  try {
-    const batch = firestore().batch();
-    const churchRef = firestore().collection("churches").doc(church);
-    const churchDoc = await churchRef.get();
-    if (!churchDoc.exists) {
-      throw new Error("Church document not found");
-    }
-    const churchData = churchDoc.data();
-    const deacons = churchData.deacons || [];
-
-    // Helper function to sync a user's frequency in the deacons array
-    const syncDeacon = (uid, frequency) => {
-      const deaconIndex = deacons.findIndex((d) => d.uid === uid);
-      if (deaconIndex !== -1) {
-        deacons[deaconIndex] = { ...deacons[deaconIndex], frequency };
+  const handleSaveEdits = async () => {
+    ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
+    try {
+      const batch = firestore().batch();
+      const churchRef = firestore().collection("churches").doc(church);
+      const churchDoc = await churchRef.get();
+      if (!churchDoc.exists) {
+        throw new Error("Church document not found");
       }
-    };
+      const churchData = churchDoc.data();
+      const deacons = churchData.deacons || [];
 
-    if (isChild) {
-      // Handle child user
-      const parentRef = firestore().collection("users").doc(userData.parentId);
-      const parentDoc = await parentRef.get();
-      if (!parentDoc.exists) {
-        throw new Error("Parent document not found");
-      }
-      const parentData = parentDoc.data();
+      // Helper function to sync a user's frequency in the deacons array
+      const syncDeacon = (uid, frequency) => {
+        const deaconIndex = deacons.findIndex((d) => d.uid === uid);
+        if (deaconIndex !== -1) {
+          deacons[deaconIndex] = { ...deacons[deaconIndex], frequency };
+        }
+      };
 
-      // Update the child's data in the parent's children array
-      const updatedChildren = (parentData.children || []).map((child) =>
-        child.uid === userId
-          ? { ...child, experience: tempExperience ?? 0, frequency: tempFrequency ?? 0 }
-          : child
-      );
+      if (isChild) {
+        // Handle child user
+        const parentRef = firestore().collection("users").doc(userData.parentId);
+        const parentDoc = await parentRef.get();
+        if (!parentDoc.exists) {
+          throw new Error("Parent document not found");
+        }
+        const parentData = parentDoc.data();
 
-      // If frequency changed, sync it across parent and siblings
-      if (userData.frequency !== tempFrequency) {
-        const syncedFrequency = tempFrequency ?? 0;
-        const syncedChildren = updatedChildren.map((child) => ({
-          ...child,
-          frequency: syncedFrequency,
-        }));
-        batch.update(parentRef, {
-          frequency: syncedFrequency,
-          children: syncedChildren,
+        // Update the child's data in the parent's children array
+        const updatedChildren = (parentData.children || []).map((child) =>
+          child.uid === userId
+            ? { ...child, experience: tempExperience ?? 0, frequency: tempFrequency ?? 0 }
+            : child
+        );
+
+        // If frequency changed, sync it across parent and siblings
+        if (userData.frequency !== tempFrequency) {
+          const syncedFrequency = tempFrequency ?? 0;
+          const syncedChildren = updatedChildren.map((child) => ({
+            ...child,
+            frequency: syncedFrequency,
+          }));
+          batch.update(parentRef, {
+            frequency: syncedFrequency,
+            children: syncedChildren,
+          });
+
+          // Sync parent and siblings in deacons array
+          syncDeacon(userData.parentId, syncedFrequency);
+          syncedChildren.forEach((child) => syncDeacon(child.uid, syncedFrequency));
+        } else {
+          // Only update the child's data
+          batch.update(parentRef, { children: updatedChildren });
+        }
+
+        // Update the child's deacon entry
+        syncDeacon(userId, tempFrequency ?? 0);
+        const childDeaconIndex = deacons.findIndex((d) => d.uid === userId);
+        if (childDeaconIndex !== -1) {
+          deacons[childDeaconIndex].experience = tempExperience ?? 0;
+        }
+      } else {
+        // Handle parent user
+        const userRef = firestore().collection("users").doc(userId);
+        batch.update(userRef, {
+          experience: tempExperience ?? 0,
+          frequency: tempFrequency ?? 0,
         });
 
-        // Sync parent and siblings in deacons array
-        syncDeacon(userData.parentId, syncedFrequency);
-        syncedChildren.forEach((child) => syncDeacon(child.uid, syncedFrequency));
-      } else {
-        // Only update the child's data
-        batch.update(parentRef, { children: updatedChildren });
+        // If the user has children and frequency changed, sync with children
+        if (userData.children?.length > 0 && userData.frequency !== tempFrequency) {
+          const syncedFrequency = tempFrequency ?? 0;
+          const updatedChildren = userData.children.map((child) => ({
+            ...child,
+            frequency: syncedFrequency,
+          }));
+          batch.update(userRef, { children: updatedChildren });
+
+          // Sync each child in the deacons array
+          updatedChildren.forEach((child) => syncDeacon(child.uid, syncedFrequency));
+        }
+
+        // Update the parent's deacon entry
+        syncDeacon(userId, tempFrequency ?? 0);
+        const parentDeaconIndex = deacons.findIndex((d) => d.uid === userId);
+        if (parentDeaconIndex !== -1) {
+          deacons[parentDeaconIndex].experience = tempExperience ?? 0;
+        }
       }
 
-      // Update the child's deacon entry
-      syncDeacon(userId, tempFrequency ?? 0);
-      const childDeaconIndex = deacons.findIndex((d) => d.uid === userId);
-      if (childDeaconIndex !== -1) {
-        deacons[childDeaconIndex].experience = tempExperience ?? 0;
-      }
-    } else {
-      // Handle parent user
-      const userRef = firestore().collection("users").doc(userId);
-      batch.update(userRef, {
+      // Commit all updates to the deacons array
+      batch.update(churchRef, { deacons });
+      await batch.commit();
+
+      // Update local state and close
+      setUserData((prev) => ({
+        ...prev,
         experience: tempExperience ?? 0,
         frequency: tempFrequency ?? 0,
-      });
-
-      // If the user has children and frequency changed, sync with children
-      if (userData.children?.length > 0 && userData.frequency !== tempFrequency) {
-        const syncedFrequency = tempFrequency ?? 0;
-        const updatedChildren = userData.children.map((child) => ({
-          ...child,
-          frequency: syncedFrequency,
-        }));
-        batch.update(userRef, { children: updatedChildren });
-
-        // Sync each child in the deacons array
-        updatedChildren.forEach((child) => syncDeacon(child.uid, syncedFrequency));
-      }
-
-      // Update the parent's deacon entry
-      syncDeacon(userId, tempFrequency ?? 0);
-      const parentDeaconIndex = deacons.findIndex((d) => d.uid === userId);
-      if (parentDeaconIndex !== -1) {
-        deacons[parentDeaconIndex].experience = tempExperience ?? 0;
-      }
+      }));
+      onClose();
+    } catch (error) {
+      Alert.alert("Update Error", "Failed to save changes. Please try again.");
     }
-
-    // Commit all updates to the deacons array
-    batch.update(churchRef, { deacons });
-    await batch.commit();
-
-    // Update local state and close
-    setUserData((prev) => ({
-      ...prev,
-      experience: tempExperience ?? 0,
-      frequency: tempFrequency ?? 0,
-    }));
-    onClose();
-  } catch (error) {
-    Alert.alert("Update Error", "Failed to save changes. Please try again.");
-  }
-};
+  };
 
   const handleUnavailable = () => {
     Alert.alert(
@@ -431,6 +432,24 @@ const handleSaveEdits = async () => {
     onClose();
   };
 
+  const handlePhonePress = async () => {
+    ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+    const phoneNumber = userData?.phone;
+    if (phoneNumber && phoneNumber !== "Not provided") {
+      const smsUrl = `sms:${phoneNumber}`;
+      try {
+        const supported = await Linking.canOpenURL(smsUrl);
+        if (supported) {
+          await Linking.openURL(smsUrl);
+        } else {
+          Alert.alert("Error", "Messaging is not supported on this device.");
+        }
+      } catch (error) {
+        Alert.alert("Error", "Failed to open messaging app. Please try again.");
+      }
+    }
+  };
+
   if (loading) {
     return (
       <Modal visible={show} animationType="none" transparent={true}>
@@ -503,7 +522,17 @@ const handleSaveEdits = async () => {
               <Text style={styles.detailLabel}>
                 {isChild ? "Parent's Phone:" : "Phone:"}
               </Text>
-              <Text style={styles.detail}>{userData?.phone || "Not provided"}</Text>
+              {userData?.phone && userData.phone !== "Not provided" ? (
+                <TouchableOpacity
+                  onPress={handlePhonePress}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Message User"
+                >
+                  <Text style={styles.phoneText}>{userData.phone}</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.detail}>{userData?.phone || "Not provided"}</Text>
+              )}
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Age:</Text>
@@ -697,6 +726,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#bbb",
     flex: 1,
+    textAlign: "left",
+  },
+  phoneText: {
+    fontSize: 14,
+    color: "#bbb",
+    flex: 1,
+    textAlign: "left",
+    textDecorationLine: "underline",
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 40,
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  unavailableButton: {
+    backgroundColor: "#ff3b30",
+    marginBottom: 12,
+    width: "100%",
+  },
+  cancelButton: {
+    backgroundColor: "#333",
+  },
+  confirmButton: {
+    backgroundColor: "#147efb",
   },
   label: {
     fontSize: 15,
@@ -715,33 +779,6 @@ const styles = StyleSheet.create({
     gap: 8,
     width: "100%",
   },
-  button: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 40,
-  },
-  unavailableButton: {
-    backgroundColor: "#ff3b30",
-    marginBottom: 12,
-    width: "100%",
-  },
-  cancelButton: {
-    backgroundColor: "#333",
-  },
-  confirmButton: {
-    backgroundColor: "#147efb",
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "600",
-    textAlign: "center",
-    lineHeight: 20,
-  },
   centered: {
     flex: 1,
     justifyContent: "center",
@@ -753,6 +790,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#bbb",
     fontWeight: "500",
+    textAlign: "center",
   },
 });
 
