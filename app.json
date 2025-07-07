@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ⲧⲁⲝⲓⲥ",
     "slug": "taksis",
-    "version": "2.0.02",
+    "version": "2.1.00",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -58,7 +58,7 @@
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.tghaly.taksis",
-      "versionCode": 17,
+      "versionCode": 18,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
