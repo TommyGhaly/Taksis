@@ -546,6 +546,7 @@ const HomeScreen = () => {
               if (userData.church && userData.church !== churchId) {
                 setChurchId(userData.church);
               }
+              setUnavailableWeeks(Array.isArray(userData.unavailableWeeks) ? userData.unavailableWeeks : []);
               if (
                 userData.alhanGrades &&
                 !(

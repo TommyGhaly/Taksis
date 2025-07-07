@@ -1655,13 +1655,13 @@ def reset_next_dates(church_id):
     for user in users_docs:
         user_data = user.to_dict()
         if user_data.get("church") == church_id:
-            user.reference.update({"nextWeekServe": "N/A", "nextRole": "N/A"})
+            user.reference.update({"nextWeekServe": "Not Yet Scheduled", "nextRole": "Not Yet Scheduled"})
     return
 
 
 def interpret_role(role):
     if role == "N/A":
-        return "N/A"
+        return "Not Yet Scheduled"
     elif role == "matins":
         return "Matins Gospel Reader"
     elif role == "third":
@@ -1693,7 +1693,7 @@ def set_user_next_week(user_id, week, role):
     if user_data.exists:
         user_info = user_data.to_dict()
         next_week_serve = user_info.get("nextWeekServe")  # May be None
-        if next_week_serve == "N/A" or not next_week_serve:
+        if next_week_serve == "N/A" or next_week_serve == "Not Yet Scheduled" or not next_week_serve:
             user_info["nextWeekServe"] = week
             user_info["nextRole"] = role
             user_ref.set(user_info)

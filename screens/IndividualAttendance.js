@@ -308,7 +308,7 @@ const IndividualAttendance = () => {
             <Text style={styles.infoButtonText}>i</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.title}>{`Attendance for ${
+        <Text style={styles.title}>{`${
           studentData.name || "Student"
         }`}</Text>
         <Image

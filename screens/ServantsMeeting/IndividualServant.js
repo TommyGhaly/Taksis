@@ -139,7 +139,7 @@ const IndividualServant = () => {
     <View style={styles.container}>
       <BackArrow style={styles.backArrow} onPress={() => navigation.goBack()} />
       <View style={styles.headerContainer}>
-        <Text style={styles.title}>{`Attendance for ${servantName}`}</Text>
+        <Text style={styles.title}>{`${servantName}`}</Text>
         <Image
           source={{ uri: profilePicture }}
           style={styles.profilePicture}
