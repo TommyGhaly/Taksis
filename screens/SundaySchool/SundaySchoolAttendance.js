@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
 import * as Haptics from "react-native-haptic-feedback";
+import Icon from "react-native-vector-icons/MaterialIcons";
 
 const SundaySchoolAttendance = ({ navigation }) => {
   const user = auth().currentUser;
@@ -30,6 +31,9 @@ const SundaySchoolAttendance = ({ navigation }) => {
   const [newStudentGrade, setNewStudentGrade] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [dateModalVisible, setDateModalVisible] = useState(false);
+  const [previousSundays, setPreviousSundays] = useState([]);
   const scrollViewRef = useRef(null);
   const gradeRefs = useRef({});
 
@@ -62,65 +66,89 @@ const SundaySchoolAttendance = ({ navigation }) => {
   }, [user]);
 
   // Fetch students and profile pictures
-useEffect(() => {
-  if (!userData?.ssGrades?.length) return;
+  useEffect(() => {
+    if (!userData?.ssGrades?.length) return;
 
-  // 1) helper to always re-fetch every student's picture URL
-  const fetchAllProfilePictures = async (allStudents) => {
-    const urls = {};
-    await Promise.all(
-      Object.values(allStudents).flat().map(async (student) => {
-        try {
-          urls[student.uid] = await storage()
-            .ref(`profilePictures/${student.uid}.png`)
-            .getDownloadURL();
-        } catch {
-          urls[student.uid] = null;
-        }
-      })
-    );
-    setProfilePictureUrls(urls);
-  };
+    const fetchAllProfilePictures = async (allStudents) => {
+      const urls = { ...profilePictureUrls };
+      const studentsToFetch = Object.values(allStudents)
+        .flat()
+        .filter((student) => !profilePictureUrls[student.uid]);
 
-  // 2) set up Firestore listeners per grade
-  const unsubscribeFuncs = [];
-  userData.ssGrades.forEach((grade) => {
-    const studentsRef = firestore()
-      .collection("churches")
-      .doc(userData.church)
-      .collection("Sunday School")
-      .doc(grade)
-      .collection("students");
+      await Promise.all(
+        studentsToFetch.map(async (student) => {
+          try {
+            const url = await storage()
+              .ref(`profilePictures/${student.uid}.png`)
+              .getDownloadURL();
+            urls[student.uid] = url;
+          } catch {
+            urls[student.uid] = null;
+          }
+        })
+      );
+      setProfilePictureUrls(urls);
+    };
 
-    const unsub = studentsRef.onSnapshot((snap) => {
-      const gradeStudents = snap.docs
-        .map(d => ({ uid: d.id, grade, ...d.data() }))
-        .sort((a, b) => a.name.localeCompare(b.name));
+    const unsubscribes = [];
+    userData.ssGrades.forEach((grade) => {
+      const ref = firestore()
+        .collection("churches")
+        .doc(userData.church)
+        .collection("Sunday School")
+        .doc(grade)
+        .collection("students");
 
-      // merge into state
-      setStudentsByGrade(prev => {
-        const next = { ...prev, [grade]: gradeStudents };
-        // immediately fetch URLs for all grades so far
-        fetchAllProfilePictures(next);
-        return next;
+      const unsub = ref.onSnapshot((snap) => {
+        const gradeStudents = snap.docs
+          .map((d) => ({ uid: d.id, grade, ...d.data() }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+
+        setStudentsByGrade((prev) => {
+          const next = { ...prev, [grade]: gradeStudents };
+          fetchAllProfilePictures(next);
+          return next;
+        });
       });
+
+      unsubscribes.push(unsub);
     });
 
-    unsubscribeFuncs.push(unsub);
-  });
+    return () => {
+      unsubscribes.forEach((fn) => fn());
+    };
+  }, [userData, profilePictureUrls]);
 
-  // 3) poll every minute for any new changes
-  const POLL_INTERVAL = 10_000; // ms
-  const intervalId = setInterval(() => {
-    fetchAllProfilePictures(studentsByGrade);
-  }, POLL_INTERVAL);
+  // Generate list of previous Sundays
+  useEffect(() => {
+    const generatePreviousSundays = () => {
+      const today = new Date();
+      const sundays = [];
+      let currentDate = new Date(today);
 
-  return () => {
-    unsubscribeFuncs.forEach(fn => fn());
-    clearInterval(intervalId);
-  };
-}, [userData]);
+      // Determine the most recent September 11
+      const currentYear = today.getFullYear();
+      const september11ThisYear = new Date(currentYear, 8, 11); // Month 8 = September
+      const cutoffDate =
+        today < september11ThisYear
+          ? new Date(currentYear - 1, 8, 11)
+          : september11ThisYear;
 
+      // Get the most recent Sunday
+      const day = currentDate.getDay();
+      const diffToSunday = day === 0 ? 0 : day;
+      currentDate.setDate(currentDate.getDate() - diffToSunday);
+
+      while (currentDate >= cutoffDate) {
+        sundays.push(formatDate(currentDate));
+        currentDate.setDate(currentDate.getDate() - 7);
+      }
+
+      setPreviousSundays(sundays);
+    };
+
+    generatePreviousSundays();
+  }, []);
 
   const getNextSunday = () => {
     const today = new Date();
@@ -143,11 +171,13 @@ useEffect(() => {
       return grade;
     }
     const num = parseInt(grade);
-    const suffix = num === 1 ? "st" : num === 2 ? "nd" : num === 3 ? "rd" : "th";
+    const suffix =
+      num === 1 ? "st" : num === 2 ? "nd" : num === 3 ? "rd" : "th";
     return `${num}${suffix} Grade`;
   };
 
   const handleAttendance = (student, status) => {
+    if (selectedDate && selectedDate !== getNextSunday()) return;
     Haptics.trigger("impactLight");
     const dateKey = getNextSunday();
     firestore()
@@ -203,14 +233,29 @@ useEffect(() => {
   const scrollToGrade = (grade) => {
     if (gradeRefs.current[grade]) {
       gradeRefs.current[grade].measureLayout(
-        scrollViewRef.current,
-        (x, y, width, height) => {
+        scrollViewRef.current.getScrollableNode(),
+        (x, y) => {
           scrollViewRef.current.scrollTo({ y, animated: true });
         },
         () => {}
       );
     }
   };
+
+  const handleDateSelect = (date) => {
+    setSelectedDate(date);
+    setDateModalVisible(false);
+  };
+
+  const handleJumpToCurrentWeek = () => {
+    setSelectedDate(getNextSunday());
+    setDateModalVisible(false);
+  };
+
+  const memoizedProfilePictureUrls = useMemo(
+    () => profilePictureUrls,
+    [profilePictureUrls]
+  );
 
   if (loading) {
     return (
@@ -231,7 +276,8 @@ useEffect(() => {
     );
   }
 
-  const dateKey = getNextSunday();
+  const dateKey = selectedDate || getNextSunday();
+  const isPastDate = selectedDate && selectedDate !== getNextSunday();
 
   const renderGrade = ({ item }) => (
     <TouchableOpacity
@@ -243,9 +289,33 @@ useEffect(() => {
     </TouchableOpacity>
   );
 
+  const renderDate = ({ item }) => (
+    <TouchableOpacity
+      style={styles.dateItem}
+      onPress={() => handleDateSelect(item)}
+      activeOpacity={0.7}
+    >
+      <Text style={styles.dateText}>{item}</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Week of {dateKey}</Text>
+      <TouchableOpacity
+        style={styles.titleContainer}
+        onPress={() => setDateModalVisible(true)}
+        activeOpacity={0.7}
+        accessible={true}
+        accessibilityLabel="Select previous week"
+      >
+        <Text style={styles.title}>{dateKey}</Text>
+        <Icon
+          name="calendar-today"
+          size={24}
+          color="#fff"
+          style={styles.calendarIcon}
+        />
+      </TouchableOpacity>
       <View style={styles.gradesContainer}>
         <FlatList
           data={userData.ssGrades}
@@ -261,11 +331,11 @@ useEffect(() => {
         contentContainerStyle={styles.studentsContainer}
         showsVerticalScrollIndicator={false}
       >
-        {userData.ssGrades.map((grade) => (
+        {userData.ssGrades.map((grade, index) => (
           <View
             key={grade}
             ref={(ref) => (gradeRefs.current[grade] = ref)}
-            style={{ paddingTop: 10 }}
+            style={{ paddingTop: index === 0 ? 0 : 10 }}
           >
             <Text style={styles.gradeHeader}>{formatGrade(grade)}</Text>
             {studentsByGrade[grade] && studentsByGrade[grade].length > 0 ? (
@@ -275,11 +345,12 @@ useEffect(() => {
                     <Image
                       style={styles.profilePicture}
                       source={
-                        profilePictureUrls[student.uid]
-                          ? { uri: profilePictureUrls[student.uid] }
+                        memoizedProfilePictureUrls[student.uid]
+                          ? { uri: memoizedProfilePictureUrls[student.uid] }
                           : require("../../assets/default_profile.png")
                       }
                       defaultSource={require("../../assets/default_profile.png")}
+                      resizeMode="cover"
                       onError={() =>
                         setProfilePictureUrls((prev) => ({
                           ...prev,
@@ -305,36 +376,71 @@ useEffect(() => {
                         <Image
                           source={require("../../assets/vector.png")}
                           style={styles.icon}
+                          resizeMode="contain"
                         />
                       </TouchableOpacity>
                     </View>
                   </View>
-                  <View style={styles.attendanceButtons}>
-                    <TouchableOpacity
-                      style={[
-                        styles.attendanceButton,
-                        { backgroundColor: student[dateKey] === false ? "#D32F2F" : "#444" },
-                      ]}
-                      onPress={() => handleAttendance(student, false)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.attendanceButtonText}>Absent</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.attendanceButton,
-                        { backgroundColor: student[dateKey] === true ? "#147efb" : "#444" },
-                      ]}
-                      onPress={() => handleAttendance(student, true)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.attendanceButtonText}>Present</Text>
-                    </TouchableOpacity>
-                  </View>
+                  {isPastDate ? (
+                    <View style={styles.attendanceStatusContainer}>
+                      <View
+                        style={[
+                          styles.attendanceStatus,
+                          {
+                            backgroundColor:
+                              student[dateKey] === true
+                                ? "#147efb"
+                                : student[dateKey] === false
+                                ? "#D32F2F"
+                                : "#444",
+                          },
+                        ]}
+                      >
+                        <Text style={styles.attendanceStatusText}>
+                          {student[dateKey] === true
+                            ? "Present"
+                            : student[dateKey] === false
+                            ? "Absent"
+                            : "Not Recorded"}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.attendanceButtons}>
+                      <TouchableOpacity
+                        style={[
+                          styles.attendanceButton,
+                          {
+                            backgroundColor:
+                              student[dateKey] === false ? "#D32F2F" : "#444",
+                          },
+                        ]}
+                        onPress={() => handleAttendance(student, false)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.attendanceButtonText}>Absent</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.attendanceButton,
+                          {
+                            backgroundColor:
+                              student[dateKey] === true ? "#147efb" : "#444",
+                          },
+                        ]}
+                        onPress={() => handleAttendance(student, true)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.attendanceButtonText}>Present</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               ))
             ) : (
-              <Text style={styles.noStudentsText}>No students in this grade</Text>
+              <Text style={styles.noStudentsText}>
+                No students in this grade
+              </Text>
             )}
           </View>
         ))}
@@ -380,7 +486,11 @@ useEffect(() => {
                     itemStyle={styles.pickerItem}
                   >
                     {userData.ssGrades.map((grade) => (
-                      <Picker.Item key={grade} label={formatGrade(grade)} value={grade} />
+                      <Picker.Item
+                        key={grade}
+                        label={formatGrade(grade)}
+                        value={grade}
+                      />
                     ))}
                   </Picker>
                 </View>
@@ -396,9 +506,9 @@ useEffect(() => {
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setModalVisible(false)}
-                  disabled={submitting}
                   accessible={true}
                   accessibilityLabel="Cancel adding student"
+                  disabled={submitting}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
@@ -407,18 +517,60 @@ useEffect(() => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <Modal visible={dateModalVisible} transparent animationType="fade">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Previous Week</Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={handleJumpToCurrentWeek}
+              activeOpacity={0.7}
+              accessible={true}
+              accessibilityLabel="Jump to current week"
+            >
+              <Text style={styles.modalButtonText}>Jump to This Week</Text>
+            </TouchableOpacity>
+            <FlatList
+              data={previousSundays}
+              renderItem={renderDate}
+              keyExtractor={(item) => item}
+              style={styles.dateList}
+              showsVerticalScrollIndicator={false}
+            />
+            <TouchableOpacity
+              onPress={() => setDateModalVisible(false)}
+              accessible={true}
+              accessibilityLabel="Close date selector"
+            >
+              <Text style={styles.cancelButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: "#121212" },
+  titleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: "#2a2a2a",
+  },
   title: {
     fontSize: 28,
     fontWeight: "bold",
     color: "#fff",
     textAlign: "center",
-    marginBottom: 10,
+  },
+  calendarIcon: {
+    marginLeft: 10,
   },
   gradesContainer: {
     height: 48,
@@ -444,7 +596,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "bold",
     color: "#ccc",
-    marginTop: 20,
+    marginTop: 0,
     marginBottom: 10,
   },
   studentContainer: {
@@ -498,6 +650,28 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   attendanceButtonText: { fontSize: 16, fontWeight: "bold", color: "#ffffff" },
+  attendanceStatusContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 15,
+  },
+  attendanceStatus: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  attendanceStatusText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#ffffff",
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -591,6 +765,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 15,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
@@ -620,6 +795,21 @@ const styles = StyleSheet.create({
     color: "#b0b0b0",
     textAlign: "center",
     marginVertical: 10,
+  },
+  dateList: {
+    width: "100%",
+    maxHeight: 300,
+    marginBottom: 20,
+  },
+  dateItem: {
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#444",
+  },
+  dateText: {
+    fontSize: 18,
+    color: "#fff",
+    textAlign: "center",
   },
 });
 
