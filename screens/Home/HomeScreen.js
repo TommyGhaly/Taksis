@@ -12,7 +12,7 @@ import {
   Animated,
   Pressable,
   AppState,
-  StyleSheet
+  StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
@@ -20,10 +20,12 @@ import { initializeApp, getApps } from "firebase/app";
 import messaging from "@react-native-firebase/messaging";
 import auth from "@react-native-firebase/auth";
 import { deleteUser } from "@react-native-firebase/auth";
+import storage from "@react-native-firebase/storage";
+import { check, request, PERMISSIONS, RESULTS } from "react-native-permissions";
 import { callFunction, callDeleteUser, unavailableToServe } from "../../components/functionCalls";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { check, request, PERMISSIONS, RESULTS } from "react-native-permissions";
 import HomeScreenNames from "../../components/homescreenNames";
+import PhotoInput from "../../components/photoInput";
 
 const firebaseConfig = {
   projectId: "taksis-a8ba7",
@@ -70,9 +72,7 @@ async function storeFCMToken(userId, fcmToken) {
 
 async function requestUserPermissionAndroid() {
   try {
-    // Only attempt POST_NOTIFICATIONS check on Android 13 (API 33) or higher
     if (Platform.OS === "android" && Platform.Version >= 33) {
-      // Verify that POST_NOTIFICATIONS is defined
       if (!PERMISSIONS.ANDROID.POST_NOTIFICATIONS) {
         console.warn("POST_NOTIFICATIONS permission is not supported in this version of react-native-permissions");
         return false;
@@ -172,11 +172,16 @@ const HomeScreen = () => {
   const [nextWeek, setNextWeek] = useState(null);
   const [nextRole, setNextRole] = useState("N/A");
   const [isDeacon, setIsDeacon] = useState(false);
+  const [isSSTeacher, setIsSSTeacher] = useState(false);
   const [churchId, setChurchId] = useState(null);
   const [showNameModal, setShowNameModal] = useState(false);
   const [showDOBModal, setShowDOBModal] = useState(false);
   const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [phoneModalShownThisSession, setPhoneModalShownThisSession] = useState(false);
+  const [showProfilePicModal, setShowProfilePicModal] = useState(false);
+  const [showChildrenProfilePicModal, setShowChildrenProfilePicModal] = useState(false);
+  const [childrenWithoutPfp, setChildrenWithoutPfp] = useState([]);
+  const [showPhotoInputModal, setShowPhotoInputModal] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -361,7 +366,7 @@ const HomeScreen = () => {
     }
 
     try {
-      const userRef = firestore().collection("users").doc(user.uid);
+      const userRef = firestore().collection("users"). Visser(uid);
       await userRef.update({
         phone: phoneNumber.trim(),
       });
@@ -390,6 +395,69 @@ const HomeScreen = () => {
         },
       ]
     );
+  };
+
+  const handleOpenPhotoInput = () => {
+    setShowProfilePicModal(false);
+    setShowPhotoInputModal(true);
+  };
+
+  const handleClosePhotoInput = () => {
+    setShowPhotoInputModal(false);
+    const checkUserProfilePicture = async () => {
+      try {
+        await storage().ref(`profilePictures/${auth().currentUser.uid}.png`).getDownloadURL();
+        setShowProfilePicModal(false);
+      } catch (error) {
+        if (error.code === "storage/object-not-found") {
+          setShowProfilePicModal(true);
+        } else {
+          console.error("Error re-checking user profile picture:", error);
+        }
+      }
+    };
+    checkUserProfilePicture();
+  };
+
+  const handleRemoveChildren = async () => {
+    const user = auth().currentUser;
+    if (!user) {
+      Alert.alert("Error", "User not authenticated.");
+      return;
+    }
+
+    try {
+      const userRef = firestore().collection("users").doc(user.uid);
+      const userDoc = await userRef.get();
+      const userData = userDoc.data();
+      const church = userData?.church || null;
+
+      await Promise.all(
+        childrenWithoutPfp.map(async (childId) => {
+          await callDeleteUser(
+            user,
+            church,
+            childId,
+            "https://delete-child-hy6oofbihq-uc.a.run.app"
+          );
+        })
+      );
+
+      await userRef.update({
+        children: firestore.FieldValue.arrayRemove(...userData.children.filter(c => childrenWithoutPfp.includes(c.uid))),
+      });
+
+      Alert.alert("Success", "Children without profile pictures have been removed. Please reregister them with profile pictures.");
+      setShowChildrenProfilePicModal(false);
+      setChildrenWithoutPfp([]);
+    } catch (error) {
+      console.error("Error removing children:", error);
+      Alert.alert("Error", "Failed to remove children. Please try again.");
+    }
+  };
+
+  const handleCloseChildrenModal = () => {
+    setShowChildrenProfilePicModal(false);
   };
 
   const handleUnavailableToServe = async () => {
@@ -485,6 +553,62 @@ const HomeScreen = () => {
       ]
     );
   };
+
+  useEffect(() => {
+    const user = auth().currentUser;
+    if (!user) return;
+
+    const checkProfilePictures = async () => {
+      try {
+        const userRef = firestore().collection("users").doc(user.uid);
+        const userDoc = await userRef.get();
+        if (!userDoc.exists) return;
+
+        const userData = userDoc.data();
+        const isDeaconUser = userData?.isDeacon || false;
+        const isSSTeacherUser = userData?.isSSTeacher || false;
+        setIsSSTeacher(isSSTeacherUser);
+
+        if (isDeaconUser || isSSTeacherUser) {
+          try {
+            await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
+          } catch (error) {
+            if (error.code === "storage/object-not-found") {
+              setShowProfilePicModal(true);
+            } else {
+              console.error("Error checking user profile picture:", error);
+            }
+          }
+        }
+
+        const children = userData?.children || [];
+        if (children.length > 0) {
+          const missingPfpChildren = [];
+          for (const child of children) {
+            if (child?.uid) {
+              try {
+                await storage().ref(`profilePictures/${child.uid}.png`).getDownloadURL();
+              } catch (error) {
+                if (error.code === "storage/object-not-found") {
+                  missingPfpChildren.push(child.uid);
+                } else {
+                  console.error(`Error checking profile picture for child ${child.uid}:`, error);
+                }
+              }
+            }
+          }
+          if (missingPfpChildren.length > 0) {
+            setChildrenWithoutPfp(missingPfpChildren);
+            setShowChildrenProfilePicModal(true);
+          }
+        }
+      } catch (error) {
+        console.error("Error checking profile pictures:", error);
+      }
+    };
+
+    checkProfilePictures();
+  }, []);
 
   useEffect(() => {
     const user = auth().currentUser;
@@ -664,7 +788,7 @@ const HomeScreen = () => {
                 if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
                   altarServers.push(updatedSchedule.water);
                 }
-                if (!fullDeacon && updatedSchedule.wine &&  typeof updatedSchedule.wine === "object") {
+                if (!fullDeacon && updatedSchedule.wine && typeof updatedSchedule.wine === "object") {
                   altarServers.push(updatedSchedule.wine);
                 }
 
@@ -697,7 +821,7 @@ const HomeScreen = () => {
   }, [churchId]);
 
   useEffect(() => {
-    if (showDOBModal || showPhoneModal) {
+    if (showDOBModal || showPhoneModal || showProfilePicModal || showChildrenProfilePicModal) {
       try {
         Animated.spring(scaleValue, {
           toValue: 1,
@@ -711,7 +835,7 @@ const HomeScreen = () => {
     } else {
       scaleValue.setValue(0.9);
     }
-  }, [showDOBModal, showPhoneModal]);
+  }, [showDOBModal, showPhoneModal, showProfilePicModal, showChildrenProfilePicModal]);
 
   const readings = [
     { role: "Matins Gospel", user: schedule.matins || { name: "N/A" } },
@@ -920,6 +1044,59 @@ const HomeScreen = () => {
               </TouchableOpacity>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="none"
+        transparent={true}
+        visible={showProfilePicModal}
+        onRequestClose={() => {}}
+      >
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[styles.modalDOBContainer, { transform: [{ scale: scaleValue }] }]}
+          >
+            <Text style={styles.modalTitle}>Profile Picture Required</Text>
+            <Text style={styles.modalSubtitle}>
+              As a {isDeacon ? "deacon" : "Sunday school servant"}, you must upload a profile picture to continue.
+            </Text>
+            <Pressable style={styles.submitButton} onPress={handleOpenPhotoInput}>
+              <Text style={styles.buttonText}>Add Profile Picture</Text>
+            </Pressable>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      <PhotoInput
+        visible={showPhotoInputModal}
+        onClose={handleClosePhotoInput}
+        userId={auth().currentUser?.uid || ""}
+      />
+
+      <Modal
+        animationType="none"
+        transparent={true}
+        visible={showChildrenProfilePicModal}
+        onRequestClose={handleCloseChildrenModal}
+      >
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[styles.modalDOBContainer, { transform: [{ scale: scaleValue }] }]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Children Profile Pictures Required</Text>
+              <TouchableOpacity onPress={handleCloseChildrenModal} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSubtitle}>
+              Some of your children are missing profile pictures. Please remove them and reregister with profile pictures.
+            </Text>
+            <Pressable style={styles.submitButton} onPress={handleRemoveChildren}>
+              <Text style={styles.buttonText}>Remove Children</Text>
+            </Pressable>
+          </Animated.View>
         </View>
       </Modal>
 
