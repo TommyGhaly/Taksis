@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from "react-native";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
@@ -12,54 +12,67 @@ const IndividualServant = () => {
   const [attendanceData, setAttendanceData] = useState([]);
   const [servantName, setServantName] = useState("");
   const [profilePicture, setProfilePicture] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchAttendanceAndProfile = async () => {
-      try {
-        // Fetch servant data from Firestore
-        const studentRef = firestore()
+  const fetchAttendanceAndProfile = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      // Fetch servant data and profile picture concurrently
+      const [servantDoc, profileUrl] = await Promise.all([
+        firestore()
           .collection("churches")
           .doc(church)
           .collection("Servants Meeting")
-          .doc(servantID);
+          .doc(servantID)
+          .get(),
+        storage()
+          .ref(`profilePictures/${servantID}.png`)
+          .getDownloadURL()
+          .catch(() => null), // Return null if image fetch fails
+      ]);
 
-        const servantDoc = await studentRef.get();
-        if (servantDoc.exists) {
-          const servantData = servantDoc.data();
+      // Process servant data
+      if (servantDoc.exists) {
+        const servantData = servantDoc.data();
+        if (servantName !== servantData.name) {
           setServantName(servantData.name);
+        }
 
-          const attendance = [];
-          for (const [key, value] of Object.entries(servantData)) {
-            if (key !== "name" && key !== "uid") {
-              attendance.push({ date: key, status: value });
-            }
+        const attendance = [];
+        for (const [key, value] of Object.entries(servantData)) {
+          if (key !== "name" && key !== "uid") {
+            attendance.push({ date: key, status: value });
           }
-          attendance.sort((a, b) => new Date(b.date) - new Date(a.date));
-          setAttendanceData(attendance);
         }
-
-        // Fetch profile picture from Firebase Storage
-        try {
-          const url = await storage()
-            .ref(`profilePictures/${servantID}.png`)
-            .getDownloadURL();
-          setProfilePicture(url);
-        } catch (error) {
-          setProfilePicture(null); // Set to null if image doesn't exist
-        }
-      } catch (error) {
-        Alert.alert("Error", "Failed to fetch data. Please try again.");
+        setAttendanceData(attendance);
       }
-    };
 
+      // Set profile picture
+      if (profileUrl !== profilePicture) {
+        setProfilePicture(profileUrl);
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to fetch data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [church, servantID, servantName, profilePicture]);
+
+  useEffect(() => {
     fetchAttendanceAndProfile();
-  }, [church, servantID]);
+  }, [fetchAttendanceAndProfile]);
+
+  // Memoize sorted attendance data
+  const sortedAttendanceData = useMemo(() => {
+    return [...attendanceData].sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [attendanceData]);
 
   const getStatusStyle = (status) => {
     return status === false ? styles.absent : styles.present;
   };
 
-  const handleDeleteServant = () => {
+  const handleDeleteServant = useCallback(() => {
     Alert.alert(
       "Confirm Removal",
       `Are you sure you want to remove ${servantName} from Servants Meeting?`,
@@ -133,7 +146,15 @@ const IndividualServant = () => {
         },
       ]
     );
-  };
+  }, [church, servantID, servantName, navigation]);
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#147efb" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -149,7 +170,7 @@ const IndividualServant = () => {
         <Text style={styles.subtitle}>{`Category: Servants Meeting`}</Text>
       </View>
       <ScrollView contentContainerStyle={styles.attendanceContainer}>
-        {attendanceData.map((attendance, index) => (
+        {sortedAttendanceData.map((attendance, index) => (
           <View key={index} style={styles.attendanceItem}>
             <Text style={styles.dateText}>{attendance.date}</Text>
             <View
@@ -181,6 +202,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#121212",
     padding: 20,
+    justifyContent: "center", // Center loading indicator
   },
   headerContainer: {
     alignItems: "center",
@@ -190,7 +212,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    marginVertical: 15, // Adjusted for spacing above and below
+    marginVertical: 15,
     borderWidth: 2,
     borderColor: "#ffffff",
   },
