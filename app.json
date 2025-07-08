@@ -54,7 +54,7 @@
       },
       "supportsTablet": false,
       "usesAppleSignIn": true,
-      "buildNumber": "3"},
+      "buildNumber": "4"},
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.tghaly.taksis",
