@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,20 +13,22 @@ import {
   Modal,
   FlatList,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import * as Haptics from "react-native-haptic-feedback";
 import storage from "@react-native-firebase/storage";
+import * as Haptics from "react-native-haptic-feedback";
 import Icon from "react-native-vector-icons/MaterialIcons";
 
-// Responsive design helper (for section headers, index bar, and list padding)
-const { width, height } = Dimensions.get('window');
+// Responsive design helper
+const { width, height } = Dimensions.get("window");
 const isTablet = Platform.isPad || (width >= 768 && height >= 768);
 const scale = isTablet ? 1.2 : 1;
 const paddingHorizontal = isTablet ? 32 : 16;
 const indexBarWidth = isTablet ? 32 : 24;
 
-const ServantsAttendance = ({ navigation }) => {
+const ServantsAttendance = () => {
+  const navigation = useNavigation();
   const user = auth().currentUser;
   const [servants, setServants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,151 +40,152 @@ const ServantsAttendance = ({ navigation }) => {
   const [selectedDate, setSelectedDate] = useState(null);
   const [dateModalVisible, setDateModalVisible] = useState(false);
   const [previousSundays, setPreviousSundays] = useState([]);
+  const [isNavigating, setIsNavigating] = useState(false);
   const headerHeightRef = useRef(0);
   const sectionListRef = useRef(null);
+  const isMounted = useRef(true);
 
-  // Fetch user data
   useEffect(() => {
-    if (!user) {
-      Alert.alert("Error", "No user found.");
-      return;
-    }
+    isMounted.current = true;
 
-    const unsubscribeUserData = firestore()
-      .collection("users")
-      .doc(user.uid)
-      .onSnapshot(
-        (userDoc) => {
-          if (!userDoc.exists) {
-            Alert.alert("Error", "User not found.");
-            return;
-          }
-          setUserData(userDoc.data());
-        },
-        (error) => {
-          Alert.alert("Error", error.message);
-        }
-      );
-
-    return () => unsubscribeUserData();
-  }, [user?.uid]);
-
-  // Fetch servants and profile pictures
-  useEffect(() => {
-    if (!userData) return;
-
-    const fetchProfilePictures = async (servantList) => {
-      const urls = { ...profilePictureUrls };
-      const servantsToFetch = servantList.filter((servant) => !profilePictureUrls[servant.uid]);
-
-      await Promise.all(
-        servantsToFetch.map(async (servant) => {
-          try {
-            const url = await storage()
-              .ref(`profilePictures/${servant.uid}.png`)
-              .getDownloadURL();
-            urls[servant.uid] = typeof url === 'string' && url.trim() ? url : null;
-          } catch {
-            urls[servant.uid] = null;
-          }
-        })
-      );
-      setProfilePictureUrls(urls);
-    };
-
-    const servantsMeetingRef = firestore()
-      .collection("churches")
-      .doc(userData.church)
-      .collection("Servants Meeting");
-
-    const unsubscribeServants = servantsMeetingRef.onSnapshot(async (snapshot) => {
-      let servantsData = snapshot.docs.map((doc) => ({
-        uid: doc.id,
-        ...doc.data(),
-      }));
-
-      // Sort servants alphabetically
-      servantsData.sort((a, b) => a.name.localeCompare(b.name));
-
-      const dateKey = selectedDate || getNextSunday();
-      const servantsWithAttendance = await Promise.all(
-        servantsData.map(async (servant) => {
-          const attendanceDoc = await firestore()
-            .collection("churches")
-            .doc(userData.church)
-            .collection("Servants Meeting")
-            .doc(servant.uid)
-            .get();
-
-          const attendanceStatus = attendanceDoc.exists
-            ? attendanceDoc.data()[dateKey]
-            : null;
-
-          return {
-            ...servant,
-            attendance: attendanceStatus,
-          };
-        })
-      );
-
-      // Fetch profile pictures
-      fetchProfilePictures(servantsWithAttendance);
-
-      // Group servants by first letter
-      const grouped = servantsWithAttendance.reduce((acc, servant) => {
-        const firstLetter = servant.name.charAt(0).toUpperCase() || 'Other';
-        if (!acc[firstLetter]) acc[firstLetter] = [];
-        acc[firstLetter].push(servant);
-        return acc;
-      }, {});
-
-      // Convert to SectionList format
-      const sectionData = Object.keys(grouped)
-        .sort()
-        .map((letter) => ({
-          title: letter,
-          data: grouped[letter],
-        }));
-
-      setServants(servantsWithAttendance);
-      setSections(sectionData);
-      setAvailableLetters(Object.keys(grouped).sort());
-      setLoading(false);
-    });
-
-    return () => unsubscribeServants();
-  }, [userData, selectedDate, profilePictureUrls]);
-
-  // Generate list of previous Sundays
-  useEffect(() => {
-    const generatePreviousSundays = () => {
-      const today = new Date();
-      const sundays = [];
-      let currentDate = new Date(today);
-
-      // Determine the most recent September 11
-      const currentYear = today.getFullYear();
-      const september11ThisYear = new Date(currentYear, 8, 11); // Month 8 = September
-      const cutoffDate =
-        today < september11ThisYear
-          ? new Date(currentYear - 1, 8, 11)
-          : september11ThisYear;
-
-      // Get the most recent Sunday
-      const day = currentDate.getDay();
-      const diffToSunday = day === 0 ? 0 : day;
-      currentDate.setDate(currentDate.getDate() - diffToSunday);
-
-      while (currentDate >= cutoffDate) {
-        sundays.push(formatDate(currentDate));
-        currentDate.setDate(currentDate.getDate() - 7);
+    const fetchData = async () => {
+      if (!user) {
+        Alert.alert("Error", "No user found.");
+        setLoading(false);
+        return () => {};
       }
 
-      setPreviousSundays(sundays);
+      try {
+        // Fetch user data once
+        const userDoc = await firestore()
+          .collection("users")
+          .doc(user.uid)
+          .get();
+        if (!isMounted.current) return;
+        if (!userDoc.exists) {
+          Alert.alert("Error", "User not found.");
+          setLoading(false);
+          return () => {};
+        }
+        const localUserData = userDoc.data();
+        setUserData(localUserData);
+
+        if (!localUserData.church) {
+          Alert.alert("Error", "No church assigned to user.");
+          setLoading(false);
+          return () => {};
+        }
+
+        // Generate previous Sundays
+        const today = new Date();
+        const sundays = [];
+        let currentDate = new Date(today);
+
+        const currentYear = today.getFullYear();
+        const september11ThisYear = new Date(currentYear, 8, 11);
+        const cutoffDate =
+          today < september11ThisYear
+            ? new Date(currentYear - 1, 8, 11)
+            : september11ThisYear;
+
+        const day = currentDate.getDay();
+        const diffToSunday = day === 0 ? 0 : day;
+        currentDate.setDate(currentDate.getDate() - diffToSunday);
+
+        while (currentDate >= cutoffDate) {
+          sundays.push(formatDate(currentDate));
+          currentDate.setDate(currentDate.getDate() - 7);
+        }
+        setPreviousSundays(sundays);
+
+        // Set up persistent snapshot listener for Servants Meeting
+        const servantsMeetingRef = firestore()
+          .collection("churches")
+          .doc(localUserData.church)
+          .collection("Servants Meeting");
+
+        const unsubscribe = servantsMeetingRef.onSnapshot(
+          async (snapshot) => {
+            if (!isMounted.current) return;
+
+            const servantsData = snapshot.docs.map((doc) => ({
+              uid: doc.id,
+              ...doc.data(),
+              attendance: doc.data()[selectedDate || getNextSunday()],
+            }));
+
+            servantsData.sort((a, b) => a.name.localeCompare(b.name));
+
+            // Fetch profile pictures only for new servants
+            const urls = { ...profilePictureUrls };
+            const servantsToFetch = servantsData.filter(
+              (servant) => !urls[servant.uid]
+            );
+
+            await Promise.all(
+              servantsToFetch.map(async (servant) => {
+                try {
+                  const url = await storage()
+                    .ref(`profilePictures/${servant.uid}.png`)
+                    .getDownloadURL();
+                  urls[servant.uid] = typeof url === "string" && url.trim() ? url : null;
+                } catch {
+                  urls[servant.uid] = null;
+                }
+              })
+            );
+
+            // Group servants by first letter
+            const grouped = servantsData.reduce((acc, servant) => {
+              const firstLetter = servant.name.charAt(0).toUpperCase() || "Other";
+              if (!acc[firstLetter]) acc[firstLetter] = [];
+              acc[firstLetter].push(servant);
+              return acc;
+            }, {});
+
+            const sectionData = Object.keys(grouped)
+              .sort()
+              .map((letter) => ({
+                title: letter,
+                data: grouped[letter],
+              }));
+
+            // Batch state updates to reduce re-renders
+            if (isMounted.current) {
+              setServants(servantsData);
+              setSections(sectionData);
+              setAvailableLetters(Object.keys(grouped).sort());
+              setProfilePictureUrls(urls);
+              setLoading(false);
+            }
+          },
+          (error) => {
+            if (isMounted.current) {
+              Alert.alert("Error", "Failed to load servants.");
+              setLoading(false);
+            }
+          }
+        );
+
+        return () => {
+          isMounted.current = false;
+          unsubscribe();
+        };
+      } catch (error) {
+        if (isMounted.current) {
+          Alert.alert("Error", error.message);
+          setLoading(false);
+        }
+        return () => {};
+      }
     };
 
-    generatePreviousSundays();
-  }, []);
+    fetchData();
+
+    return () => {
+      isMounted.current = false;
+    };
+  }, [user]);
 
   const scrollToSection = (letter) => {
     const sectionIndex = sections.findIndex((s) => s.title === letter);
@@ -201,7 +204,7 @@ const ServantsAttendance = ({ navigation }) => {
     const today = new Date();
     const currentDay = today.getDay();
     if (currentDay === 0) return formatDate(today);
-    
+
     const nextSunday = new Date(today);
     nextSunday.setDate(today.getDate() + (7 - currentDay));
     return formatDate(nextSunday);
@@ -218,10 +221,10 @@ const ServantsAttendance = ({ navigation }) => {
     if (selectedDate && selectedDate !== getNextSunday()) return;
     Haptics.trigger("impactLight");
     const dateKey = getNextSunday();
-    
+
     firestore()
       .collection("churches")
-      .doc(userData.church)
+      .doc(userData?.church)
       .collection("Servants Meeting")
       .doc(servantID)
       .update({
@@ -248,120 +251,138 @@ const ServantsAttendance = ({ navigation }) => {
     setDateModalVisible(false);
   };
 
-  const renderServant = ({ item: servant }) => (
-    <View style={styles.servantCard}>
-      <View style={styles.servantInfo}>
-        <View style={styles.servantImageContainer}>
-          <Image
-            style={styles.servantImage}
-            source={
-              profilePictureUrls[servant.uid]
-                ? { uri: profilePictureUrls[servant.uid] }
-                : require("../../assets/default_profile.png")
-            }
-            defaultSource={require("../../assets/default_profile.png")}
-            resizeMode="cover"
-            onError={() => {
-              setProfilePictureUrls(prev => ({
-                ...prev,
-                [servant.uid]: null
-              }));
-            }}
-          />
-        </View>
-        <View style={styles.servantDetails}>
-          <View style={styles.studentHeader}>
-            <Text style={styles.studentName}>{servant.name}</Text>
-            <TouchableOpacity
-              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-              onPress={() =>
-                navigation.navigate("IndividualServant", {
-                  church: userData.church,
-                  servantID: servant.uid,
-                })
-              }
-            >
+  const renderServant = useMemo(
+    () =>
+      ({ item: servant }) => (
+        <View style={styles.servantCard}>
+          <View style={styles.servantInfo}>
+            <View style={styles.servantImageContainer}>
               <Image
-                source={require("../../assets/vector.png")}
-                style={styles.icon}
-                resizeMode="contain"
+                style={styles.servantImage}
+                source={
+                  profilePictureUrls[servant.uid]
+                    ? { uri: profilePictureUrls[servant.uid] }
+                    : require("../../assets/default_profile.png")
+                }
+                defaultSource={require("../../assets/default_profile.png")}
+                resizeMode="cover"
+                onError={() => {
+                  setProfilePictureUrls((prev) => ({
+                    ...prev,
+                    [servant.uid]: null,
+                  }));
+                }}
               />
-            </TouchableOpacity>
-          </View>
-          {isPastDate ? (
-            <View style={styles.attendanceStatusContainer}>
-              <View
-                style={[
-                  styles.attendanceStatus,
-                  {
-                    backgroundColor:
-                      servant.attendance === true
-                        ? "#147efb"
-                        : servant.attendance === false
-                        ? "#D32F2F"
-                        : "#444",
-                  },
-                ]}
-              >
-                <Text style={styles.attendanceStatusText}>
-                  {servant.attendance === true
-                    ? "Present"
-                    : servant.attendance === false
-                    ? "Absent"
-                    : "Not Recorded"}
-                </Text>
+            </View>
+            <View style={styles.servantDetails}>
+              <View style={styles.studentHeader}>
+                <Text style={styles.studentName}>{servant.name}</Text>
+                <TouchableOpacity
+                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                  onPress={() => {
+                    if (!userData) {
+                      Alert.alert("Error", "User data not loaded.");
+                      return;
+                    }
+                    setIsNavigating(true);
+                    navigation.navigate("IndividualServant", {
+                      church: userData.church,
+                      servantID: servant.uid,
+                    });
+                    setTimeout(() => setIsNavigating(false), 1000);
+                  }}
+                  disabled={isNavigating}
+                >
+                  <Image
+                    source={require("../../assets/vector.png")}
+                    style={styles.icon}
+                  />
+                </TouchableOpacity>
               </View>
+              {isPastDate ? (
+                <View style={styles.attendanceStatusContainer}>
+                  <View
+                    style={[
+                      styles.attendanceStatus,
+                      {
+                        backgroundColor:
+                          servant.attendance === true
+                            ? "#147efb"
+                            : servant.attendance === false
+                            ? "#D32F2F"
+                            : "#444",
+                      },
+                    ]}
+                  >
+                    <Text style={styles.attendanceStatusText}>
+                      {servant.attendance === true
+                        ? "Present"
+                        : servant.attendance === false
+                        ? "Absent"
+                        : "Not Recorded"}
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.attendanceButtons}>
+                  <TouchableOpacity
+                    style={[
+                      styles.attendanceButton,
+                      servant.attendance === false && styles.absentSelected,
+                    ]}
+                    onPress={() => handleAttendance(servant.uid, false)}
+                  >
+                    <Text style={styles.attendanceButtonText}>Absent</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.attendanceButton,
+                      servant.attendance === true && styles.presentSelected,
+                    ]}
+                    onPress={() => handleAttendance(servant.uid, true)}
+                  >
+                    <Text style={styles.attendanceButtonText}>Present</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
-          ) : (
-            <View style={styles.attendanceButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.attendanceButton,
-                  servant.attendance === false && styles.absentSelected,
-                ]}
-                onPress={() => handleAttendance(servant.uid, false)}
-              >
-                <Text style={styles.attendanceButtonText}>Absent</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.attendanceButton,
-                  servant.attendance === true && styles.presentSelected,
-                ]}
-                onPress={() => handleAttendance(servant.uid, true)}
-              >
-                <Text style={styles.attendanceButtonText}>Present</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          </View>
         </View>
-      </View>
-    </View>
+      ),
+    [profilePictureUrls, userData, selectedDate, isNavigating]
   );
 
-  const renderSectionHeader = ({ section: { title } }) => (
-    <View
-      style={styles.sectionHeader}
-      onLayout={(event) => {
-        const { height } = event.nativeEvent.layout;
-        if (height > 0 && headerHeightRef.current !== height) {
-          headerHeightRef.current = height;
-          setHeaderHeight(height);
-        }
-      }}
-    >
-      <Text style={styles.sectionHeaderText}>{title}</Text>
-    </View>
+  const renderSectionHeader = useMemo(
+    () =>
+      ({ section: { title } }) => (
+        <View
+          style={styles.sectionHeader}
+          onLayout={(event) => {
+            const { height } = event.nativeEvent.layout;
+            if (height > 0 && headerHeightRef.current !== height) {
+              headerHeightRef.current = height;
+              setHeaderHeight(height);
+            }
+          }}
+        >
+          <Text style={styles.sectionHeaderText}>{title}</Text>
+        </View>
+      ),
+    []
   );
 
-  const renderDate = ({ item }) => (
-    <TouchableOpacity
-      style={styles.dateItem}
-      onPress={() => handleDateSelect(item)}
-      activeOpacity={0.7}
-    >
-      <Text style={styles.dateText}>{item}</Text>
-    </TouchableOpacity>
+  const renderDate = useMemo(
+    () =>
+      ({ item }) => (
+        <TouchableOpacity
+          style={styles.dateItem}
+          onPress={() => handleDateSelect(item)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.dateText}>{item}</Text>
+        </TouchableOpacity>
+      ),
+    []
   );
 
   if (loading) {
@@ -378,6 +399,12 @@ const ServantsAttendance = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      {isNavigating && (
+        <View style={styles.navigatingOverlay}>
+          <ActivityIndicator size="large" color="#fff" />
+          <Text style={styles.loadingText}>Navigating...</Text>
+        </View>
+      )}
       <TouchableOpacity
         style={styles.headerContainer}
         onPress={() => setDateModalVisible(true)}
@@ -522,10 +549,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  studentName: { 
-    fontSize: 18, 
-    fontWeight: "600", 
-    color: "#FFFFFF" 
+  studentName: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   icon: { width: 8, height: 15 },
   attendanceButtons: {
@@ -543,10 +570,10 @@ const styles = StyleSheet.create({
   },
   presentSelected: { backgroundColor: "#147efb" },
   absentSelected: { backgroundColor: "#D32F2F" },
-  attendanceButtonText: { 
-    fontSize: 16, 
-    fontWeight: "bold", 
-    color: "#FFFFFF" 
+  attendanceButtonText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#FFFFFF",
   },
   attendanceStatusContainer: {
     flexDirection: "row",
@@ -682,6 +709,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#fff",
     textAlign: "center",
+  },
+  navigatingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 

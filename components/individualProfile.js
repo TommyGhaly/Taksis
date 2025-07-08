@@ -105,10 +105,23 @@ const IndividualProfile = ({
   const [isDeacon, setIsDeacon] = useState(false);
 
   useEffect(() => {
-    if (!userId) {
+    // Reset state when modal is opened or userId changes
+    setImageUrl(null);
+    setUserData(null);
+    setTempExperience(0);
+    setTempFrequency(0);
+    setLoading(true);
+    setIsChild(false);
+    setShowPhotoModal(false);
+    setIsDeacon(false);
+
+    if (!show || !userId) {
       setLoading(false);
       return;
     }
+
+    let userUnsubscribe = null;
+    let usersQueryUnsubscribe = null;
 
     const fetchImage = async (childStatus) => {
       try {
@@ -127,7 +140,7 @@ const IndividualProfile = ({
     };
 
     const fetchUserData = () => {
-      const userUnsubscribe = firestore()
+      userUnsubscribe = firestore()
         .collection("users")
         .doc(userId)
         .onSnapshot(
@@ -151,7 +164,7 @@ const IndividualProfile = ({
               await fetchImage(false);
               setLoading(false);
             } else {
-              const usersQueryUnsubscribe = firestore()
+              usersQueryUnsubscribe = firestore()
                 .collection("users")
                 .onSnapshot(
                   async (querySnapshot) => {
@@ -194,19 +207,20 @@ const IndividualProfile = ({
                   },
                   () => setLoading(false)
                 );
-
-              return usersQueryUnsubscribe;
             }
           },
           () => setLoading(false)
         );
-
-      return userUnsubscribe;
     };
 
-    const unsubscribeUserData = fetchUserData();
-    return () => unsubscribeUserData && unsubscribeUserData();
-  }, [userId]);
+    fetchUserData();
+
+    // Cleanup listeners when modal is closed or userId changes
+    return () => {
+      if (userUnsubscribe) userUnsubscribe();
+      if (usersQueryUnsubscribe) usersQueryUnsubscribe();
+    };
+  }, [show, userId]);
 
   const handleSliderChange = (setter) => (value) => {
     setter(value);

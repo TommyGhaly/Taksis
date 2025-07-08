@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import {
   Dimensions,
   Image,
 } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import { LinearGradient } from "expo-linear-gradient";
@@ -41,18 +41,32 @@ const IndividualAttendance = () => {
   });
   const isMounted = useRef(true);
 
-  // Fetch student data and profile picture
-  useEffect(() => {
-    isMounted.current = true;
+  useFocusEffect(
+    useCallback(() => {
+      isMounted.current = true;
 
-    const fetchData = async () => {
-      if (!studentId) {
-        Alert.alert("Error", "Student ID is missing.");
-        navigation.goBack();
-        return;
-      }
-      try {
-        setLoading(true);
+      // Reset state when screen is focused
+      setStudentData({});
+      setLoading(true);
+      setModalVisible(false);
+      setEditMode(false);
+      setPhotoInputVisible(false);
+      setProfilePictureUrl(null);
+      setEditData({
+        name: "",
+        phone: "",
+        address: "",
+        description: "",
+        birthday: "",
+      });
+
+      const fetchData = () => {
+        if (!studentId) {
+          Alert.alert("Error", "Student ID is missing.");
+          navigation.goBack();
+          return () => {};
+        }
+
         const studentRef = firestore()
           .collection("churches")
           .doc(church)
@@ -71,24 +85,31 @@ const IndividualAttendance = () => {
         const unsubscribe = studentRef.onSnapshot(
           async (doc) => {
             if (!isMounted.current) return;
-            if (doc.exists) {
-              const data = doc.data();
-              setStudentData(data);
-              setEditData({
-                name: data.name || "",
-                phone: data.phone || "",
-                address: data.address || "",
-                description: data.description || "",
-                birthday: data.birthday || "",
-              });
-            } else {
-              navigation.goBack();
-            }
+            try {
+              if (doc.exists) {
+                const data = doc.data();
+                setStudentData(data);
+                setEditData({
+                  name: data.name || "",
+                  phone: data.phone || "",
+                  address: data.address || "",
+                  description: data.description || "",
+                  birthday: data.birthday || "",
+                });
+              } else {
+                navigation.goBack();
+              }
 
-            // Resolve profile picture
-            const url = await profilePicturePromise;
-            setProfilePictureUrl(url);
-            setLoading(false);
+              // Resolve profile picture
+              const url = await profilePicturePromise;
+              setProfilePictureUrl(url);
+              setLoading(false);
+            } catch (error) {
+              if (isMounted.current) {
+                Alert.alert("Error", "Failed to load student data.");
+                setLoading(false);
+              }
+            }
           },
           (error) => {
             if (isMounted.current) {
@@ -98,27 +119,21 @@ const IndividualAttendance = () => {
           }
         );
 
-        return () => {
-          unsubscribe();
-          isMounted.current = false;
-        };
-      } catch (error) {
-        if (isMounted.current) {
-          Alert.alert("Error", "An unexpected error occurred.");
-          setLoading(false);
-        }
-      }
-    };
+        return unsubscribe;
+      };
 
-    fetchData();
+      const unsubscribe = fetchData();
 
-    return () => {
-      isMounted.current = false;
-    };
-  }, [church, category, grade, studentId, navigation]);
+      // Cleanup listener when screen is unfocused
+      return () => {
+        isMounted.current = false;
+        if (unsubscribe) unsubscribe();
+      };
+    }, [church, category, grade, studentId, navigation])
+  );
 
   // Compute attendance data
-  const attendanceDataMemo = useMemo(() => {
+  const attendanceDataMemo = React.useMemo(() => {
     if (!studentData || Object.keys(studentData).length === 0) return [];
     const attendance = [];
     for (const [key, value] of Object.entries(studentData)) {

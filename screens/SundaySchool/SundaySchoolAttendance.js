@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -15,13 +15,15 @@ import {
   FlatList,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
+import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
 import * as Haptics from "react-native-haptic-feedback";
 import Icon from "react-native-vector-icons/MaterialIcons";
 
-const SundaySchoolAttendance = ({ navigation }) => {
+const SundaySchoolAttendance = () => {
+  const navigation = useNavigation();
   const user = auth().currentUser;
   const [studentsByGrade, setStudentsByGrade] = useState({});
   const [loading, setLoading] = useState(true);
@@ -34,121 +36,153 @@ const SundaySchoolAttendance = ({ navigation }) => {
   const [selectedDate, setSelectedDate] = useState(null);
   const [dateModalVisible, setDateModalVisible] = useState(false);
   const [previousSundays, setPreviousSundays] = useState([]);
+  const [isNavigating, setIsNavigating] = useState(false);
   const scrollViewRef = useRef(null);
   const gradeRefs = useRef({});
+  const isMounted = useRef(true);
 
-  // Fetch user data
   useEffect(() => {
-    if (!user) {
-      Alert.alert("Error", "No user found.");
-      return;
-    }
+    isMounted.current = true;
 
-    const unsubscribe = firestore()
-      .collection("users")
-      .doc(user.uid)
-      .onSnapshot(
-        (doc) => {
-          if (!doc.exists) {
-            Alert.alert("Error", "User not found.");
-            return;
-          }
-          setUserData(doc.data());
+    const fetchData = async () => {
+      if (!user) {
+        Alert.alert("Error", "No user found.");
+        setLoading(false);
+        return () => {};
+      }
+
+      try {
+        // Fetch user data once
+        const userDoc = await firestore()
+          .collection("users")
+          .doc(user.uid)
+          .get();
+        if (!isMounted.current) return;
+        if (!userDoc.exists) {
+          Alert.alert("Error", "User not found.");
           setLoading(false);
-        },
-        (error) => {
+          return () => {};
+        }
+        const localUserData = userDoc.data();
+        setUserData(localUserData);
+        setNewStudentGrade(localUserData.ssGrades[0] || "");
+
+        if (!localUserData.ssGrades?.length) {
+          setLoading(false);
+          return () => {};
+        }
+
+        // Generate previous Sundays
+        await generatePreviousSundays();
+
+        // Set up persistent snapshot listener for all grades
+        const gradeStudents = {};
+        localUserData.ssGrades.forEach((grade) => {
+          gradeStudents[grade] = [];
+        });
+
+        const unsubscribes = localUserData.ssGrades.map((grade) =>
+          firestore()
+            .collection("churches")
+            .doc(localUserData.church)
+            .collection("Sunday School")
+            .doc(grade)
+            .collection("students")
+            .onSnapshot(
+              (snapshot) => {
+                if (!isMounted.current) return;
+                const students = snapshot.docs.map((doc) => ({
+                  uid: doc.id,
+                  grade,
+                  ...doc.data(),
+                }));
+                students.sort((a, b) => a.name.localeCompare(b.name));
+
+                setStudentsByGrade((prev) => ({
+                  ...prev,
+                  [grade]: students,
+                }));
+
+                // Fetch profile pictures for new students
+                fetchProfilePictures(students);
+              },
+              (error) => {
+                if (isMounted.current) {
+                  Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
+                }
+              }
+            )
+        );
+
+        setLoading(false);
+
+        // Return cleanup function to unsubscribe listeners
+        return () => {
+          isMounted.current = false;
+          unsubscribes.forEach((unsubscribe) => unsubscribe());
+        };
+      } catch (error) {
+        if (isMounted.current) {
           Alert.alert("Error", error.message);
           setLoading(false);
         }
-      );
-
-    return () => unsubscribe();
-  }, [user]);
-
-  // Fetch students and profile pictures
-  useEffect(() => {
-    if (!userData?.ssGrades?.length) return;
-
-    const fetchAllProfilePictures = async (allStudents) => {
-      const urls = { ...profilePictureUrls };
-      const studentsToFetch = Object.values(allStudents)
-        .flat()
-        .filter((student) => !profilePictureUrls[student.uid]);
-
-      await Promise.all(
-        studentsToFetch.map(async (student) => {
-          try {
-            const url = await storage()
-              .ref(`profilePictures/${student.uid}.png`)
-              .getDownloadURL();
-            urls[student.uid] = url;
-          } catch {
-            urls[student.uid] = null;
-          }
-        })
-      );
-      setProfilePictureUrls(urls);
+        return () => {};
+      }
     };
 
-    const unsubscribes = [];
-    userData.ssGrades.forEach((grade) => {
-      const ref = firestore()
-        .collection("churches")
-        .doc(userData.church)
-        .collection("Sunday School")
-        .doc(grade)
-        .collection("students");
-
-      const unsub = ref.onSnapshot((snap) => {
-        const gradeStudents = snap.docs
-          .map((d) => ({ uid: d.id, grade, ...d.data() }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-
-        setStudentsByGrade((prev) => {
-          const next = { ...prev, [grade]: gradeStudents };
-          fetchAllProfilePictures(next);
-          return next;
-        });
-      });
-
-      unsubscribes.push(unsub);
-    });
+    fetchData();
 
     return () => {
-      unsubscribes.forEach((fn) => fn());
+      isMounted.current = false;
     };
-  }, [userData, profilePictureUrls]);
+  }, [user]);
 
-  // Generate list of previous Sundays
-  useEffect(() => {
-    const generatePreviousSundays = () => {
-      const today = new Date();
-      const sundays = [];
-      let currentDate = new Date(today);
+  const generatePreviousSundays = async () => {
+    const today = new Date();
+    const sundays = [];
+    let currentDate = new Date(today);
 
-      // Determine the most recent September 11
-      const currentYear = today.getFullYear();
-      const september11ThisYear = new Date(currentYear, 8, 11); // Month 8 = September
-      const cutoffDate =
-        today < september11ThisYear
-          ? new Date(currentYear - 1, 8, 11)
-          : september11ThisYear;
+    const currentYear = today.getFullYear();
+    const september11ThisYear = new Date(currentYear, 8, 11);
+    const cutoffDate =
+      today < september11ThisYear
+        ? new Date(currentYear - 1, 8, 11)
+        : september11ThisYear;
 
-      // Get the most recent Sunday
-      const day = currentDate.getDay();
-      const diffToSunday = day === 0 ? 0 : day;
-      currentDate.setDate(currentDate.getDate() - diffToSunday);
+    const day = currentDate.getDay();
+    const diffToSunday = day === 0 ? 0 : day;
+    currentDate.setDate(currentDate.getDate() - diffToSunday);
 
-      while (currentDate >= cutoffDate) {
-        sundays.push(formatDate(currentDate));
-        currentDate.setDate(currentDate.getDate() - 7);
-      }
+    while (currentDate >= cutoffDate) {
+      sundays.push(formatDate(currentDate));
+      currentDate.setDate(currentDate.getDate() - 7);
+    }
 
-      setPreviousSundays(sundays);
-    };
+    setPreviousSundays(sundays);
+  };
 
-    generatePreviousSundays();
-  }, []);
+  const fetchProfilePictures = async (students) => {
+    const urls = { ...profilePictureUrls };
+    const studentsToFetch = students.filter(
+      (student) => !urls[student.uid]
+    );
+
+    await Promise.all(
+      studentsToFetch.map(async (student) => {
+        try {
+          const url = await storage()
+            .ref(`profilePictures/${student.uid}.png`)
+            .getDownloadURL();
+          urls[student.uid] = typeof url === "string" && url.trim() ? url : null;
+        } catch {
+          urls[student.uid] = null;
+        }
+      })
+    );
+    if (isMounted.current) {
+      setProfilePictureUrls(urls);
+    }
+  };
 
   const getNextSunday = () => {
     const today = new Date();
@@ -182,7 +216,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
     const dateKey = getNextSunday();
     firestore()
       .collection("churches")
-      .doc(userData.church)
+      .doc(userData?.church)
       .collection("Sunday School")
       .doc(student.grade)
       .collection("students")
@@ -205,7 +239,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
     setSubmitting(true);
     const newStudentRef = firestore()
       .collection("churches")
-      .doc(userData.church)
+      .doc(userData?.church)
       .collection("Sunday School")
       .doc(newStudentGrade)
       .collection("students")
@@ -219,10 +253,11 @@ const SundaySchoolAttendance = ({ navigation }) => {
         address: "",
         description: "",
         birthday: "",
+        grade: newStudentGrade,
       });
       setModalVisible(false);
       setNewStudentName("");
-      setNewStudentGrade(userData.ssGrades[0] || "");
+      setNewStudentGrade(userData?.ssGrades[0] || "");
     } catch (error) {
       Alert.alert("Error", "Failed to add student");
     } finally {
@@ -252,6 +287,144 @@ const SundaySchoolAttendance = ({ navigation }) => {
     setDateModalVisible(false);
   };
 
+  const renderGrade = useMemo(
+    () =>
+      ({ item }) => (
+        <TouchableOpacity
+          style={styles.gradeTag}
+          onPress={() => scrollToGrade(item)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.gradeTagText}>{formatGrade(item)}</Text>
+        </TouchableOpacity>
+      ),
+    []
+  );
+
+  const renderDate = useMemo(
+    () =>
+      ({ item }) => (
+        <TouchableOpacity
+          style={styles.dateItem}
+          onPress={() => handleDateSelect(item)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.dateText}>{item}</Text>
+        </TouchableOpacity>
+      ),
+    []
+  );
+
+  const renderStudent = useCallback(
+    (student, dateKey, isPastDate) => (
+      <View key={student.uid} style={styles.studentContainer}>
+        <View style={styles.studentHeader}>
+          <Image
+            style={styles.profilePicture}
+            source={
+              profilePictureUrls[student.uid]
+                ? { uri: profilePictureUrls[student.uid] }
+                : require("../../assets/default_profile.png")
+            }
+            defaultSource={require("../../assets/default_profile.png")}
+            resizeMode="cover"
+            onError={() =>
+              setProfilePictureUrls((prev) => ({
+                ...prev,
+                [student.uid]: null,
+              }))
+            }
+          />
+          <View style={styles.studentInfo}>
+            <Text style={styles.studentName}>
+              {student.name} - {formatGrade(student.grade)}
+            </Text>
+            {/* Navigation logic from first AlhanAttendance */}
+            <TouchableOpacity
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              onPress={() => {
+                if (!userData) {
+                  Alert.alert("Error", "User data not loaded.");
+                  return;
+                }
+                setIsNavigating(true);
+                navigation.navigate("IndividualAttendance", {
+                  church: userData.church,
+                  category: "Sunday School",
+                  grade: student.grade,
+                  studentId: student.uid,
+                });
+                setTimeout(() => setIsNavigating(false), 1000);
+              }}
+              disabled={isNavigating}
+            >
+              <Image
+                source={require("../../assets/vector.png")}
+                style={styles.icon}
+              />
+            </TouchableOpacity>
+            {/* Note: If navigation lag persists, check for memory leaks in Firestore listeners, excessive re-renders, or heavy logic in IndividualAttendance screen. */}
+          </View>
+        </View>
+        {isPastDate ? (
+          <View style={styles.attendanceStatusContainer}>
+            <View
+              style={[
+                styles.attendanceStatus,
+                {
+                  backgroundColor:
+                    student[dateKey] === true
+                      ? "#147efb"
+                      : student[dateKey] === false
+                      ? "#D32F2F"
+                      : "#444",
+                },
+              ]}
+            >
+              <Text style={styles.attendanceStatusText}>
+                {student[dateKey] === true
+                  ? "Present"
+                  : student[dateKey] === false
+                  ? "Absent"
+                  : "Not Recorded"}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.attendanceButtons}>
+            <TouchableOpacity
+              style={[
+                styles.attendanceButton,
+                {
+                  backgroundColor:
+                    student[dateKey] === false ? "#D32F2F" : "#444",
+                },
+              ]}
+              onPress={() => handleAttendance(student, false)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.attendanceButtonText}>Absent</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.attendanceButton,
+                {
+                  backgroundColor:
+                    student[dateKey] === true ? "#147efb" : "#444",
+                },
+              ]}
+              onPress={() => handleAttendance(student, true)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.attendanceButtonText}>Present</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    ),
+    [profilePictureUrls, userData, selectedDate, isNavigating]
+  );
+
   const memoizedProfilePictureUrls = useMemo(
     () => profilePictureUrls,
     [profilePictureUrls]
@@ -270,7 +443,8 @@ const SundaySchoolAttendance = ({ navigation }) => {
     return (
       <View style={styles.container}>
         <Text style={styles.message}>
-          Contact your church's servants admin to get assigned a Sunday School class.
+          Contact your church's servants admin to get assigned a Sunday School
+          class.
         </Text>
       </View>
     );
@@ -279,28 +453,14 @@ const SundaySchoolAttendance = ({ navigation }) => {
   const dateKey = selectedDate || getNextSunday();
   const isPastDate = selectedDate && selectedDate !== getNextSunday();
 
-  const renderGrade = ({ item }) => (
-    <TouchableOpacity
-      style={styles.gradeTag}
-      onPress={() => scrollToGrade(item)}
-      activeOpacity={0.7}
-    >
-      <Text style={styles.gradeTagText}>{formatGrade(item)}</Text>
-    </TouchableOpacity>
-  );
-
-  const renderDate = ({ item }) => (
-    <TouchableOpacity
-      style={styles.dateItem}
-      onPress={() => handleDateSelect(item)}
-      activeOpacity={0.7}
-    >
-      <Text style={styles.dateText}>{item}</Text>
-    </TouchableOpacity>
-  );
-
   return (
     <View style={styles.container}>
+      {isNavigating && (
+        <View style={styles.navigatingOverlay}>
+          <ActivityIndicator size="large" color="#147efb" />
+          <Text style={styles.loadingText}>Navigating...</Text>
+        </View>
+      )}
       <TouchableOpacity
         style={styles.titleContainer}
         onPress={() => setDateModalVisible(true)}
@@ -339,104 +499,9 @@ const SundaySchoolAttendance = ({ navigation }) => {
           >
             <Text style={styles.gradeHeader}>{formatGrade(grade)}</Text>
             {studentsByGrade[grade] && studentsByGrade[grade].length > 0 ? (
-              studentsByGrade[grade].map((student) => (
-                <View key={student.uid} style={styles.studentContainer}>
-                  <View style={styles.studentHeader}>
-                    <Image
-                      style={styles.profilePicture}
-                      source={
-                        memoizedProfilePictureUrls[student.uid]
-                          ? { uri: memoizedProfilePictureUrls[student.uid] }
-                          : require("../../assets/default_profile.png")
-                      }
-                      defaultSource={require("../../assets/default_profile.png")}
-                      resizeMode="cover"
-                      onError={() =>
-                        setProfilePictureUrls((prev) => ({
-                          ...prev,
-                          [student.uid]: null,
-                        }))
-                      }
-                    />
-                    <View style={styles.studentInfo}>
-                      <Text style={styles.studentName}>
-                        {student.name} - {formatGrade(student.grade)}
-                      </Text>
-                      <TouchableOpacity
-                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                        onPress={() =>
-                          navigation.navigate("IndividualAttendance", {
-                            church: userData.church,
-                            category: "Sunday School",
-                            grade: student.grade,
-                            studentId: student.uid,
-                          })
-                        }
-                      >
-                        <Image
-                          source={require("../../assets/vector.png")}
-                          style={styles.icon}
-                          resizeMode="contain"
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                  {isPastDate ? (
-                    <View style={styles.attendanceStatusContainer}>
-                      <View
-                        style={[
-                          styles.attendanceStatus,
-                          {
-                            backgroundColor:
-                              student[dateKey] === true
-                                ? "#147efb"
-                                : student[dateKey] === false
-                                ? "#D32F2F"
-                                : "#444",
-                          },
-                        ]}
-                      >
-                        <Text style={styles.attendanceStatusText}>
-                          {student[dateKey] === true
-                            ? "Present"
-                            : student[dateKey] === false
-                            ? "Absent"
-                            : "Not Recorded"}
-                        </Text>
-                      </View>
-                    </View>
-                  ) : (
-                    <View style={styles.attendanceButtons}>
-                      <TouchableOpacity
-                        style={[
-                          styles.attendanceButton,
-                          {
-                            backgroundColor:
-                              student[dateKey] === false ? "#D32F2F" : "#444",
-                          },
-                        ]}
-                        onPress={() => handleAttendance(student, false)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.attendanceButtonText}>Absent</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.attendanceButton,
-                          {
-                            backgroundColor:
-                              student[dateKey] === true ? "#147efb" : "#444",
-                          },
-                        ]}
-                        onPress={() => handleAttendance(student, true)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.attendanceButtonText}>Present</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-              ))
+              studentsByGrade[grade].map((student) =>
+                renderStudent(student, dateKey, isPastDate)
+              )
             ) : (
               <Text style={styles.noStudentsText}>
                 No students in this grade
@@ -485,7 +550,7 @@ const SundaySchoolAttendance = ({ navigation }) => {
                     style={styles.picker}
                     itemStyle={styles.pickerItem}
                   >
-                    {userData.ssGrades.map((grade) => (
+                    {userData?.ssGrades?.map((grade) => (
                       <Picker.Item
                         key={grade}
                         label={formatGrade(grade)}
@@ -810,6 +875,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#fff",
     textAlign: "center",
+  },
+  navigatingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 
