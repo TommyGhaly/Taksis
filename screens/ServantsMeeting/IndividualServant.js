@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useState, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import BackArrow from "../../components/backArrow";
@@ -14,57 +14,76 @@ const IndividualServant = () => {
   const [profilePicture, setProfilePicture] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchAttendanceAndProfile = async () => {
-    try {
+  useFocusEffect(
+    useCallback(() => {
+      // Reset state when screen is focused
+      setAttendanceData([]);
+      setServantName("");
+      setProfilePicture(null);
       setLoading(true);
 
-      // Fetch servant data and profile picture concurrently
-      const [servantDoc, profileUrl] = await Promise.all([
-        firestore()
+      let servantUnsubscribe = null;
+
+      const fetchAttendanceAndProfile = () => {
+        // Set up real-time listener for servant data
+        servantUnsubscribe = firestore()
           .collection("churches")
           .doc(church)
           .collection("Servants Meeting")
           .doc(servantID)
-          .get(),
-        storage()
-          .ref(`profilePictures/${servantID}.png`)
-          .getDownloadURL()
-          .catch(() => null), // Return null if image fetch fails
-      ]);
+          .onSnapshot(
+            async (servantDoc) => {
+              try {
+                if (servantDoc.exists) {
+                  const servantData = servantDoc.data();
+                  setServantName(servantData.name || "");
 
-      // Process servant data
-      if (servantDoc.exists) {
-        const servantData = servantDoc.data();
-        if (servantName !== servantData.name) {
-          setServantName(servantData.name);
-        }
+                  const attendance = [];
+                  for (const [key, value] of Object.entries(servantData)) {
+                    if (key !== "name" && key !== "uid") {
+                      attendance.push({ date: key, status: value });
+                    }
+                  }
+                  setAttendanceData(attendance);
 
-        const attendance = [];
-        for (const [key, value] of Object.entries(servantData)) {
-          if (key !== "name" && key !== "uid") {
-            attendance.push({ date: key, status: value });
-          }
-        }
-        setAttendanceData(attendance);
-      }
+                  // Fetch profile picture (not real-time, as Storage doesn't support onSnapshot)
+                  try {
+                    const profileUrl = await storage()
+                      .ref(`profilePictures/${servantID}.png`)
+                      .getDownloadURL();
+                    setProfilePicture(profileUrl);
+                  } catch (error) {
+                    setProfilePicture(null);
+                  }
+                } else {
+                  setServantName("");
+                  setAttendanceData([]);
+                  setProfilePicture(null);
+                }
+                setLoading(false);
+              } catch (error) {
+                Alert.alert("Error", "Failed to fetch data. Please try again.");
+                setLoading(false);
+              }
+            },
+            (error) => {
+              Alert.alert("Error", "Failed to fetch data. Please try again.");
+              setLoading(false);
+            }
+          );
+      };
 
-      // Set profile picture
-      if (profileUrl !== profilePicture) {
-        setProfilePicture(profileUrl);
-      }
-    } catch (error) {
-      Alert.alert("Error", "Failed to fetch data. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+      fetchAttendanceAndProfile();
 
-  useEffect(() => {
-    fetchAttendanceAndProfile();
-  }, [fetchAttendanceAndProfile]);
+      // Cleanup listener when screen is unfocused
+      return () => {
+        if (servantUnsubscribe) servantUnsubscribe();
+      };
+    }, [church, servantID])
+  );
 
   // Memoize sorted attendance data
-  const sortedAttendanceData = useMemo(() => {
+  const sortedAttendanceData = React.useMemo(() => {
     return [...attendanceData].sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [attendanceData]);
 
