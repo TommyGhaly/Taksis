@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   Alert,
   TouchableOpacity,
   Modal,
@@ -60,7 +60,7 @@ const IndividualAttendance = () => {
           .doc(grade)
           .collection("students")
           .doc(studentId);
-        
+
         // Fetch profile picture
         try {
           const url = await storage()
@@ -84,29 +84,6 @@ const IndividualAttendance = () => {
                 description: data.description || "",
                 birthday: data.birthday || "",
               });
-
-              const attendance = [];
-              for (const [key, value] of Object.entries(data)) {
-                if (
-                  key !== "name" &&
-                  key !== "uid" &&
-                  key !== "phone" &&
-                  key !== "address" &&
-                  key !== "description" &&
-                  key !== "birthday"
-                ) {
-                  attendance.push({ date: key, status: value });
-                }
-              }
-              attendance.sort((a, b) => {
-                const [aMonth, aDay, aYear] = a.date.split("-").map(Number);
-                const [bMonth, bDay, bYear] = b.date.split("-").map(Number);
-                return (
-                  new Date(bYear, bMonth - 1, bDay) -
-                  new Date(aYear, aMonth - 1, aDay)
-                );
-              });
-              setAttendanceData(attendance);
             } else {
               navigation.goBack();
             }
@@ -134,6 +111,32 @@ const IndividualAttendance = () => {
       isMounted.current = false;
     };
   }, [church, category, grade, studentId, navigation]);
+
+  // Memoize attendance data computation
+  const attendanceDataMemo = useMemo(() => {
+    if (!studentData || Object.keys(studentData).length === 0) return [];
+    const attendance = [];
+    for (const [key, value] of Object.entries(studentData)) {
+      if (
+        key !== "name" &&
+        key !== "uid" &&
+        key !== "phone" &&
+        key !== "address" &&
+        key !== "description" &&
+        key !== "birthday"
+      ) {
+        attendance.push({ date: key, status: value });
+      }
+    }
+    attendance.sort((a, b) => {
+      const [aMonth, aDay, aYear] = a.date.split("-").map(Number);
+      const [bMonth, bDay, bYear] = b.date.split("-").map(Number);
+      return (
+        new Date(bYear, bMonth - 1, bDay) - new Date(aYear, aMonth - 1, aDay)
+      );
+    });
+    return attendance;
+  }, [studentData]);
 
   // Handle photo upload
   const handlePhotoUpload = async (imageUri) => {
@@ -216,7 +219,6 @@ const IndividualAttendance = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              // Delete Firestore record
               await firestore()
                 .collection("churches")
                 .doc(church)
@@ -226,7 +228,6 @@ const IndividualAttendance = () => {
                 .doc(studentId)
                 .delete();
 
-              // Delete profile picture from Storage
               try {
                 await storage().ref(`profilePictures/${studentId}.png`).delete();
               } catch (error) {
@@ -235,11 +236,10 @@ const IndividualAttendance = () => {
                 }
               }
 
-              // Show success alert and navigate back
               Alert.alert(
                 "Success",
                 `${studentData.name || "Student"}'s record has been deleted.`,
-                [{ text: "OK" }]
+                [{ text: "OK", onPress: () => navigation.goBack() }]
               );
             } catch (error) {
               Alert.alert("Error", "Failed to delete student record.");
@@ -308,9 +308,7 @@ const IndividualAttendance = () => {
             <Text style={styles.infoButtonText}>i</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.title}>{`${
-          studentData.name || "Student"
-        }`}</Text>
+        <Text style={styles.title}>{`${studentData.name || "Student"}`}</Text>
         <Image
           style={styles.profilePicture}
           source={
@@ -324,29 +322,26 @@ const IndividualAttendance = () => {
         <Text style={styles.subtitle}>{`Grade: ${formatGrade(
           grade
         )} - Category: ${category}`}</Text>
-        <ScrollView contentContainerStyle={styles.attendanceContainer}
-        showsVerticalScrollIndicator={false}>
-          {attendanceData.length > 0 ? (
-            attendanceData.map((attendance, index) => (
-              <View key={index} style={styles.attendanceItem}>
-                <Text style={styles.dateText}>{attendance.date}</Text>
-                <View
-                  style={[
-                    styles.statusContainer,
-                    getStatusStyle(attendance.status),
-                  ]}
-                >
-                  <Text style={styles.statusText}>
-                    {attendance.status === false
-                      ? "Absent"
-                      : attendance.status === true
-                      ? "Present"
-                      : "No Status"}
-                  </Text>
-                </View>
+        <FlatList
+          data={attendanceDataMemo}
+          keyExtractor={(item, index) => index.toString()}
+          renderItem={({ item }) => (
+            <View style={styles.attendanceItem}>
+              <Text style={styles.dateText}>{item.date}</Text>
+              <View
+                style={[styles.statusContainer, getStatusStyle(item.status)]}
+              >
+                <Text style={styles.statusText}>
+                  {item.status === false
+                    ? "Absent"
+                    : item.status === true
+                    ? "Present"
+                    : "No Status"}
+                </Text>
               </View>
-            ))
-          ) : (
+            </View>
+          )}
+          ListEmptyComponent={
             <View style={styles.noAttendanceContainer}>
               <Text style={styles.noAttendanceText}>
                 No attendance records available.
@@ -355,8 +350,10 @@ const IndividualAttendance = () => {
                 Attendance will appear here once recorded.
               </Text>
             </View>
-          )}
-        </ScrollView>
+          }
+          contentContainerStyle={styles.attendanceContainer}
+          showsVerticalScrollIndicator={false}
+        />
         <TouchableOpacity
           onPress={deleteStudent}
           style={styles.deleteTextContainer}
@@ -506,7 +503,7 @@ const IndividualAttendance = () => {
                       </Text>
                     </View>
                     <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Grade</Text>
+                      <Text style={styles.infoLABEL}>Grade</Text>
                       <Text style={styles.infoValue}>{formatGrade(grade)}</Text>
                     </View>
                     <View style={styles.infoRow}>
