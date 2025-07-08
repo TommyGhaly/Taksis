@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -26,7 +26,6 @@ const IndividualAttendance = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { church, category, grade, studentId } = route.params;
-  const [attendanceData, setAttendanceData] = useState([]);
   const [studentData, setStudentData] = useState({});
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
@@ -42,9 +41,10 @@ const IndividualAttendance = () => {
   });
   const isMounted = useRef(true);
 
-  // Fetch student data, attendance, and profile picture
+  // Fetch student data and profile picture
   useEffect(() => {
     isMounted.current = true;
+
     const fetchData = async () => {
       if (!studentId) {
         Alert.alert("Error", "Student ID is missing.");
@@ -61,18 +61,15 @@ const IndividualAttendance = () => {
           .collection("students")
           .doc(studentId);
 
-        // Fetch profile picture
-        try {
-          const url = await storage()
-            .ref(`profilePictures/${studentId}.png`)
-            .getDownloadURL();
-          if (isMounted.current) setProfilePictureUrl(url);
-        } catch (error) {
-          if (isMounted.current) setProfilePictureUrl(null);
-        }
+        // Fetch profile picture concurrently
+        const profilePicturePromise = storage()
+          .ref(`profilePictures/${studentId}.png`)
+          .getDownloadURL()
+          .catch(() => null); // Return null if image fetch fails
 
+        // Set up real-time listener for student data
         const unsubscribe = studentRef.onSnapshot(
-          (doc) => {
+          async (doc) => {
             if (!isMounted.current) return;
             if (doc.exists) {
               const data = doc.data();
@@ -87,11 +84,17 @@ const IndividualAttendance = () => {
             } else {
               navigation.goBack();
             }
+
+            // Resolve profile picture
+            const url = await profilePicturePromise;
+            setProfilePictureUrl(url);
             setLoading(false);
           },
           (error) => {
-            Alert.alert("Error", "Failed to load student data.");
-            setLoading(false);
+            if (isMounted.current) {
+              Alert.alert("Error", "Failed to load student data.");
+              setLoading(false);
+            }
           }
         );
 
@@ -100,8 +103,10 @@ const IndividualAttendance = () => {
           isMounted.current = false;
         };
       } catch (error) {
-        Alert.alert("Error", "An unexpected error occurred.");
-        setLoading(false);
+        if (isMounted.current) {
+          Alert.alert("Error", "An unexpected error occurred.");
+          setLoading(false);
+        }
       }
     };
 
@@ -112,7 +117,7 @@ const IndividualAttendance = () => {
     };
   }, [church, category, grade, studentId, navigation]);
 
-  // Memoize attendance data computation
+  // Compute attendance data
   const attendanceDataMemo = useMemo(() => {
     if (!studentData || Object.keys(studentData).length === 0) return [];
     const attendance = [];
@@ -128,14 +133,13 @@ const IndividualAttendance = () => {
         attendance.push({ date: key, status: value });
       }
     }
-    attendance.sort((a, b) => {
+    return attendance.sort((a, b) => {
       const [aMonth, aDay, aYear] = a.date.split("-").map(Number);
       const [bMonth, bDay, bYear] = b.date.split("-").map(Number);
       return (
         new Date(bYear, bMonth - 1, bDay) - new Date(aYear, aMonth - 1, aDay)
       );
     });
-    return attendance;
   }, [studentData]);
 
   // Handle photo upload
@@ -160,18 +164,18 @@ const IndividualAttendance = () => {
   };
 
   // Format grade
-  const formatGrade = useCallback((grade) => {
+  const formatGrade = (grade) => {
     const num = parseInt(grade);
     if (isNaN(num)) return grade;
     const suffix =
       num === 1 ? "st" : num === 2 ? "nd" : num === 3 ? "rd" : "th";
     return `${num}${suffix} Grade`;
-  }, []);
+  };
 
   // Get status style
-  const getStatusStyle = useCallback((status) => {
+  const getStatusStyle = (status) => {
     return status === false ? styles.absent : styles.present;
-  }, []);
+  };
 
   // Save edited student data
   const saveEdits = async () => {
@@ -503,7 +507,7 @@ const IndividualAttendance = () => {
                       </Text>
                     </View>
                     <View style={styles.infoRow}>
-                      <Text style={styles.infoLABEL}>Grade</Text>
+                      <Text style={styles.infoLabel}>Grade</Text>
                       <Text style={styles.infoValue}>{formatGrade(grade)}</Text>
                     </View>
                     <View style={styles.infoRow}>

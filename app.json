@@ -54,11 +54,11 @@
       },
       "supportsTablet": false,
       "usesAppleSignIn": true,
-      "buildNumber": "2"},
+      "buildNumber": "3"},
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.tghaly.taksis",
-      "versionCode": 19,
+      "versionCode": 20,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"

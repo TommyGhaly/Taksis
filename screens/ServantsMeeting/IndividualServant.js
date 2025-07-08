@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
@@ -14,7 +14,7 @@ const IndividualServant = () => {
   const [profilePicture, setProfilePicture] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchAttendanceAndProfile = useCallback(async () => {
+  const fetchAttendanceAndProfile = async () => {
     try {
       setLoading(true);
 
@@ -57,7 +57,7 @@ const IndividualServant = () => {
     } finally {
       setLoading(false);
     }
-  }, [church, servantID, servantName, profilePicture]);
+  };
 
   useEffect(() => {
     fetchAttendanceAndProfile();
@@ -72,7 +72,7 @@ const IndividualServant = () => {
     return status === false ? styles.absent : styles.present;
   };
 
-  const handleDeleteServant = useCallback(() => {
+  const handleDeleteServant = () => {
     Alert.alert(
       "Confirm Removal",
       `Are you sure you want to remove ${servantName} from Servants Meeting?`,
@@ -146,7 +146,7 @@ const IndividualServant = () => {
         },
       ]
     );
-  }, [church, servantID, servantName, navigation]);
+  };
 
   if (loading) {
     return (
