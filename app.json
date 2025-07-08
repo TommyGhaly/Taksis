@@ -53,8 +53,8 @@
         "aps-environment": "production"
       },
       "supportsTablet": false,
-      "usesAppleSignIn": true
-    },
+      "usesAppleSignIn": true,
+      "buildNumber": "2"},
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.tghaly.taksis",
