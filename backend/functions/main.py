@@ -334,11 +334,12 @@ async def create_schedule(deacons, church_ref, num_altar_servers, fullDeacons):
     praxis_list = praxis(sorted_deacons)
     gospel_list = gospel(sorted_deacons)
     water_list = water(sorted_deacons)
+    altar_list = altar(sorted_deacons)
     if fullDeacon:
         wine_list = sort_full_deacons(fullDeacons)
+        altar_list.insert(0,wine(sorted_deacons)[0])
     else:
         wine_list = wine(sorted_deacons)
-    altar_list = altar(sorted_deacons)
 
     # makes a list of all the lists besides altar_list
     all_lists = [
