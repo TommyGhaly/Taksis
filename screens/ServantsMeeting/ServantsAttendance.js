@@ -12,6 +12,7 @@ import {
   Platform,
   Modal,
   FlatList,
+  TextInput,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
@@ -45,6 +46,34 @@ const ServantsAttendance = () => {
   const headerHeightRef = useRef(0);
   const sectionListRef = useRef(null);
   const isMounted = useRef(true);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Filtered servants and sections based on search query
+  const filteredSections = useMemo(() => {
+    if (!searchQuery.trim()) return sections;
+    const lower = searchQuery.toLowerCase();
+    // Flatten all servants, filter, then regroup by first letter
+    const filteredServants = servants.filter((servant) =>
+      servant.name.toLowerCase().includes(lower)
+    );
+    const grouped = filteredServants.reduce((acc, servant) => {
+      const firstLetter = servant.name.charAt(0).toUpperCase() || "Other";
+      if (!acc[firstLetter]) acc[firstLetter] = [];
+      acc[firstLetter].push(servant);
+      return acc;
+    }, {});
+    return Object.keys(grouped)
+      .sort()
+      .map((letter) => ({
+        title: letter,
+        data: Array.isArray(grouped[letter]) ? grouped[letter] : [],
+      }));
+  }, [sections, servants, searchQuery]);
+
+  // Dynamically update available letters for AlphabetIndexBar
+  const dynamicAvailableLetters = useMemo(() => {
+    return filteredSections.map((section) => section.title);
+  }, [filteredSections]);
 
   useEffect(() => {
     isMounted.current = true;
@@ -189,7 +218,7 @@ const ServantsAttendance = () => {
   }, [user]);
 
   const scrollToSection = (letter) => {
-    const sectionIndex = sections.findIndex((s) => s.title === letter);
+    const sectionIndex = filteredSections.findIndex((s) => s.title === letter);
     if (sectionIndex < 0 || !sectionListRef.current) return;
 
     sectionListRef.current.scrollToLocation({
@@ -406,6 +435,7 @@ const ServantsAttendance = () => {
           <Text style={styles.loadingText}>Navigating...</Text>
         </View>
       )}
+      {/* Search Bar below date bar, matching AlhanAttendance */}
       <TouchableOpacity
         style={styles.headerContainer}
         onPress={() => setDateModalVisible(true)}
@@ -421,11 +451,21 @@ const ServantsAttendance = () => {
           style={styles.calendarIcon}
         />
       </TouchableOpacity>
-
+      <TextInput
+        style={styles.searchBar}
+        placeholder="Search servants..."
+        placeholderTextColor="#888"
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        autoCorrect={false}
+        autoCapitalize="none"
+        accessible={true}
+        accessibilityLabel="Search servants"
+      />
       <View style={styles.listWrapper}>
         <SectionList
           ref={sectionListRef}
-          sections={sections}
+          sections={filteredSections}
           renderItem={renderServant}
           renderSectionHeader={renderSectionHeader}
           keyExtractor={(item) => item.uid}
@@ -436,10 +476,10 @@ const ServantsAttendance = () => {
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={true}
         />
-        <View style={{ position: 'absolute', top: 85, right: 0, width: 30 }}>
+        <View style={{ position: 'absolute', top: 60, right: 0, width: 30 }}>
           <AlphabetIndexBar 
             onLetterChange={scrollToSection} 
-            availableLetters={availableLetters}
+            availableLetters={filteredSections.map(s => s.title)}
           />
         </View>
       </View>
@@ -688,6 +728,18 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  searchBar: {
+    width: "100%",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: "#232323",
+    color: "#fff",
+    borderRadius: 10,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: "#444",
+    fontSize: 14,
   },
 });
 

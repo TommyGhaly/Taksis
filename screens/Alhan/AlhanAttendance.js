@@ -12,6 +12,7 @@ import {
   Alert,
   StyleSheet,
   FlatList,
+  SectionList,
   ActivityIndicator,
   Image,
   Modal,
@@ -42,9 +43,9 @@ const AlhanAttendance = () => {
   const [dateModalVisible, setDateModalVisible] = useState(false);
   const [previousSaturdays, setPreviousSaturdays] = useState([]);
   const [isNavigating, setIsNavigating] = useState(false);
-  const flatListRef = useRef(null);
-  const gradeRefs = useRef({});
+  const sectionListRef = useRef(null);
   const isMounted = useRef(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     isMounted.current = true;
@@ -274,15 +275,17 @@ const AlhanAttendance = () => {
     }
   };
 
+  // Fix scrollToGrade to use scrollToLocation on SectionList
   const scrollToGrade = (grade) => {
-    if (gradeRefs.current[grade] && flatListRef.current) {
-      gradeRefs.current[grade].measureLayout(
-        flatListRef.current,
-        (x, y) => {
-          flatListRef.current.scrollToOffset({ offset: y, animated: true });
-        },
-        () => {}
-      );
+    if (!sectionListRef.current || !userData?.alhanGrades) return;
+    const sectionIndex = userData.alhanGrades.findIndex((g) => g === grade);
+    if (sectionIndex >= 0) {
+      sectionListRef.current.scrollToLocation({
+        sectionIndex,
+        itemIndex: 1,
+        animated: true,
+        viewPosition: 0,
+      });
     }
   };
 
@@ -430,6 +433,28 @@ const AlhanAttendance = () => {
     </View>
   ));
 
+  // Filtered students by grade based on search query
+  const filteredStudentsByGrade = useMemo(() => {
+    if (!searchQuery.trim()) return studentsByGrade;
+    const lower = searchQuery.toLowerCase();
+    const filtered = {};
+    Object.keys(studentsByGrade).forEach((grade) => {
+      filtered[grade] = (studentsByGrade[grade] || []).filter((student) =>
+        student.name.toLowerCase().includes(lower)
+      );
+    });
+    return filtered;
+  }, [studentsByGrade, searchQuery]);
+
+  // Prepare sections for SectionList
+  const gradeSections = useMemo(() => {
+    if (!userData?.alhanGrades) return [];
+    return userData.alhanGrades.map((grade) => ({
+      title: grade,
+      data: filteredStudentsByGrade[grade] || [],
+    }));
+  }, [userData, filteredStudentsByGrade]);
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -475,6 +500,7 @@ const AlhanAttendance = () => {
           style={styles.calendarIcon}
         />
       </TouchableOpacity>
+
       <View style={styles.gradesContainer}>
         <FlatList
           data={userData.alhanGrades}
@@ -485,36 +511,38 @@ const AlhanAttendance = () => {
           contentContainerStyle={styles.gradesList}
         />
       </View>
-      <FlatList
-        ref={flatListRef}
-        data={userData.alhanGrades}
-        keyExtractor={(item) => item}
-        renderItem={({ item: grade }) => (
-          <View
-            key={grade}
-            ref={(ref) => (gradeRefs.current[grade] = ref)}
-            style={{ paddingTop: grade === userData.alhanGrades[0] ? 0 : 10 }}
-          >
-            <Text style={styles.gradeHeader}>{formatGrade(grade)}</Text>
-            <FlatList
-              data={studentsByGrade[grade] || []}
-              keyExtractor={(student) => student.uid}
-              renderItem={({ item: student }) => (
-                <StudentItem
-                  student={student}
-                  dateKey={dateKey}
-                  isPastDate={isPastDate}
-                />
-              )}
-              ListEmptyComponent={
-                <Text style={styles.noStudentsText}>
-                  No students in this grade
-                </Text>
-              }
-            />
-          </View>
+      {/* Search Bar */}
+      <TextInput
+        style={styles.searchBar}
+        placeholder="Search students..."
+        placeholderTextColor="#888"
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        autoCorrect={false}
+        autoCapitalize="none"
+        accessible={true}
+        accessibilityLabel="Search students"
+      />
+      {/* Grade tags (buttons) */}
+      <SectionList
+        ref={sectionListRef}
+        sections={gradeSections}
+        keyExtractor={(item) => item.uid}
+        renderSectionHeader={({ section: { title } }) => (
+          <Text style={styles.gradeHeader}>{formatGrade(title)}</Text>
         )}
+        renderItem={({ item: student, section }) => (
+          <StudentItem
+            student={student}
+            dateKey={dateKey}
+            isPastDate={isPastDate}
+          />
+        )}
+        ListEmptyComponent={
+          <Text style={styles.noStudentsText}>No students in this grade</Text>
+        }
         showsVerticalScrollIndicator={false}
+        stickySectionHeadersEnabled={true}
       />
       <TouchableOpacity
         style={styles.addButton}
@@ -644,7 +672,7 @@ const styles = StyleSheet.create({
   },
   gradesContainer: {
     height: 48,
-    marginBottom: 20,
+    marginBottom: 10,
     justifyContent: "center",
   },
   gradesList: {
@@ -668,6 +696,10 @@ const styles = StyleSheet.create({
     color: "#ccc",
     marginTop: 0,
     marginBottom: 10,
+    backgroundColor: "#121212",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
   },
   studentContainer: {
     backgroundColor: "#1e1e1e",
@@ -886,6 +918,18 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  searchBar: {
+    width: "100%",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: "#232323",
+    color: "#fff",
+    borderRadius: 10,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: "#444",
+    fontSize: 14,
   },
 });
 
