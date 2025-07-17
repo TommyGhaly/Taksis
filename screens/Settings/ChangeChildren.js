@@ -9,7 +9,7 @@ import {
   Image,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import firestore from "@react-native-firebase/firestore";
+import firestore, { FieldValue } from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
 import BackArrow from "../../components/backArrow";
@@ -143,7 +143,7 @@ const ChangeChildren = () => {
                       .collection("users")
                       .doc(user.uid)
                       .update({
-                        children: firestore.FieldValue.arrayRemove(childToRemove),
+                        children: FieldValue.arrayRemove(childToRemove),
                       });
 
                     // Update local state to remove profile picture

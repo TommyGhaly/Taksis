@@ -13,6 +13,7 @@ import BackArrow from "../../components/backArrow";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
+import ProfileImageExpander from '../../components/ProfileImageExpander';
 
 const ChildAccountInfo = ({ route, navigation }) => {
   const { childUid } = route.params;
@@ -86,15 +87,12 @@ const ChildAccountInfo = ({ route, navigation }) => {
         </View>
 
         <View style={styles.profileImageContainer}>
-          <Image
+          <ProfileImageExpander
+            imageUrl={imageUrl}
+            size={100}
+            finalSize={300}
+            borderRadius={50}
             style={styles.profileImage}
-            source={
-              typeof imageUrl === "string" && imageUrl.trim() !== ""
-                ? { uri: imageUrl }
-                : require("../../assets/default_profile.png")
-            }
-            defaultSource={require("../../assets/default_profile.png")}
-            onError={() => setImageUrl(null)}
           />
         </View>
 

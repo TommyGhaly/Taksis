@@ -20,6 +20,8 @@ import auth from "@react-native-firebase/auth";
 import { Ionicons } from "@expo/vector-icons";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import PhotoInput from "../components/photoInput";
+import ProfileImageExpander from "../components/ProfileImageExpander";
+import AlphabetIndexBar from "../components/AlphabetIndexBar";
 
 // Haptic feedback options
 const hapticOptions = {
@@ -259,7 +261,7 @@ const AlhanAdmin = () => {
 
     sectionListRef.current.scrollToLocation({
       sectionIndex,
-      itemIndex: 1,
+      itemIndex: 0,
       animated: false,
       viewPosition: 0,
       viewOffset: 0,
@@ -352,7 +354,7 @@ const AlhanAdmin = () => {
           No teachers found.
         </Text>
       ) : (
-        <View style={[styles.listWrapper, { paddingRight: indexBarWidth }]}>
+        <View style={styles.listWrapper}>
           <SectionList
             ref={sectionListRef}
             sections={sections}
@@ -376,24 +378,11 @@ const AlhanAdmin = () => {
               }, 500);
             }}
           />
-          <View style={[styles.indexBar, { width: indexBarWidth }]}>
-            {availableLetters.map((letter) => (
-              <View
-                key={letter}
-                style={styles.indexItem}
-                onTouchStart={() => {
-                  scrollToSection(letter);
-                  ReactNativeHapticFeedback.trigger(
-                    "impactLight",
-                    hapticOptions
-                  );
-                }}
-              >
-                <Text style={[styles.indexText, { fontSize: 18 * scale }]}>
-                  {letter}
-                </Text>
-              </View>
-            ))}
+          <View style={{ position: 'absolute', top: 150, right: 0, width: 30 }}>
+            <AlphabetIndexBar 
+              onLetterChange={scrollToSection} 
+              availableLetters={availableLetters}
+            />
           </View>
         </View>
       )}
@@ -404,21 +393,12 @@ const AlhanAdmin = () => {
               <View style={styles.modalHeader}>
                 <View style={styles.headerContent}>
                   <View style={styles.profileImageContainer}>
-                    <Image
+                    <ProfileImageExpander
+                      imageUrl={selectedTeacher.id && profilePictureUrls[selectedTeacher.id] ? profilePictureUrls[selectedTeacher.id] : null}
+                      size={80}
+                      finalSize={300}
+                      borderRadius={40}
                       style={styles.profileImage}
-                      source={
-                        selectedTeacher.id &&
-                        profilePictureUrls[selectedTeacher.id]
-                          ? { uri: profilePictureUrls[selectedTeacher.id] }
-                          : require("../assets/default_profile.png")
-                      }
-                      defaultSource={require("../assets/default_profile.png")}
-                      onError={() => {
-                        setProfilePictureUrls((prev) => ({
-                          ...prev,
-                          [selectedTeacher.id]: null,
-                        }));
-                      }}
                     />
                     <TouchableOpacity
                       style={styles.editProfilePictureButton}
@@ -538,11 +518,12 @@ const styles = StyleSheet.create({
   },
   listWrapper: {
     flex: 1,
-    flexDirection: "row",
+    position: 'relative',
   },
   listContainer: {
     paddingBottom: 0,
     flexGrow: 1,
+    paddingRight: 10 ,
   },
   centered: {
     flex: 1,
@@ -560,6 +541,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16 * scale,
     marginBottom: 12 * scale,
+    marginRight: indexBarWidth + 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
@@ -629,25 +611,6 @@ const styles = StyleSheet.create({
     fontSize: 18 * scale,
     fontWeight: "600",
     color: "#fff",
-  },
-  indexBar: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 20,
-    position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-  },
-  indexItem: {
-    paddingVertical: 2 * scale,
-    backgroundColor: "#121212",
-    borderRadius: 4,
-    marginVertical: 2 * scale,
-  },
-  indexText: {
-    color: "#147efb",
-    fontWeight: "600",
   },
   modalOverlay: {
     flex: 1,

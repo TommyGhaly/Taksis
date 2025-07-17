@@ -6,10 +6,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Modal,
+  Switch,
   Alert,
   Image,
+  FlatList,
   Dimensions,
   Platform,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
@@ -17,6 +21,7 @@ import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import IndividualProfile from "../components/individualProfile";
+import AlphabetIndexBar from "../components/AlphabetIndexBar";
 
 // Haptic feedback options
 const hapticOptions = {
@@ -51,9 +56,6 @@ const DeaconEdits = () => {
   const sectionListRef = useRef(null);
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerHeightRef = useRef(0);
-
-  // Alphabet for index bar (only letters with data)
-  const [availableLetters, setAvailableLetters] = useState([]);
 
   // Fetch user's church with real-time updates
   useEffect(() => {
@@ -165,29 +167,30 @@ const DeaconEdits = () => {
                   "",
               }));
 
-            // Group by first letter
+            // Group by first letter - categorize non-alphabet characters as #
             const grouped = sortedDeacons.reduce((acc, deacon) => {
-              const firstLetter =
-                deacon.name.charAt(0).toUpperCase() || "Other";
+              const firstChar = deacon.name.charAt(0).toUpperCase();
+              const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
               if (!acc[firstLetter]) acc[firstLetter] = [];
               acc[firstLetter].push(deacon);
               return acc;
             }, {});
 
-            // Convert to SectionList format
+            // Convert to SectionList format - put # at the end
             const sectionData = Object.keys(grouped)
-              .sort()
+              .sort((a, b) => {
+                // Put # at the end, sort other letters alphabetically
+                if (a === '#') return 1;
+                if (b === '#') return -1;
+                return a.localeCompare(b);
+              })
               .map((letter) => ({
                 title: letter,
                 data: grouped[letter],
               }));
 
-            // Ensure availableLetters matches sectionData titles
-            const letters = sectionData.map((section) => section.title).sort();
-
             setDeacons(sortedDeacons);
             setSections(sectionData);
-            setAvailableLetters(letters);
           }
         },
         (error) => {
@@ -218,16 +221,28 @@ const DeaconEdits = () => {
 
   // Scroll to section
   const scrollToSection = (letter) => {
+    console.log('Scrolling to letter:', letter); // Debug log
+    console.log('Available sections:', sections.map(s => s.title)); // Debug log
+    
     const sectionIndex = sections.findIndex((s) => s.title === letter);
-    if (sectionIndex < 0 || !sectionListRef.current) return;
+    console.log('Found section index:', sectionIndex); // Debug log
+    
+    if (sectionIndex < 0 || !sectionListRef.current) {
+      console.log('Section not found or ref not available'); // Debug log
+      return;
+    }
 
+    console.log('About to scroll to section:', sectionIndex); // Debug log
     sectionListRef.current.scrollToLocation({
       sectionIndex,
       itemIndex: 1,
       animated: false,
       viewPosition: 0,
+      viewOffset: 0,
     });
   };
+
+
 
   // Measure section header height
   const renderSectionHeader = ({ section: { title } }) => (
@@ -309,7 +324,7 @@ const DeaconEdits = () => {
           No deacons found.
         </Text>
       ) : (
-        <View style={[styles.listWrapper, { paddingRight: indexBarWidth }]}>
+        <View style={styles.listWrapper}>
           <SectionList
             ref={sectionListRef}
             sections={sections}
@@ -333,24 +348,12 @@ const DeaconEdits = () => {
               }, 500);
             }}
           />
-          <View style={[styles.indexBar, { width: indexBarWidth }]}>
-            {availableLetters.map((letter) => (
-              <View
-                key={letter}
-                style={styles.indexItem}
-                onTouchStart={() => {
-                  scrollToSection(letter);
-                  ReactNativeHapticFeedback.trigger(
-                    "impactLight",
-                    hapticOptions
-                  );
-                }}
-              >
-                <Text style={[styles.indexText, { fontSize: 18 * scale }]}>
-                  {letter}
-                </Text>
-              </View>
-            ))}
+          {/* Wrap the AlphabetIndexBar in an absolutely positioned View at top: 200 */}
+          <View style={{ position: 'absolute', top: 150, right: 0, width: 30 }}>
+            <AlphabetIndexBar 
+              onLetterChange={scrollToSection} 
+              availableLetters={sections.map(s => s.title)}
+            />
           </View>
         </View>
       )}
@@ -378,11 +381,12 @@ const styles = StyleSheet.create({
   },
   listWrapper: {
     flex: 1,
-    flexDirection: "row",
+    position: 'relative',
   },
   listContainer: {
     paddingBottom: 20,
     flexGrow: 1,
+    paddingRight: 32, // Add space for index bar
   },
   centered: {
     flex: 1,
@@ -446,26 +450,6 @@ const styles = StyleSheet.create({
     fontSize: 18 * scale,
     fontWeight: "600",
     color: "#fff",
-  },
-  indexBar: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 20,
-    position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-  },
-  indexItem: {
-    paddingVertical: 2 * scale,
-    backgroundColor: "#121212",
-    borderRadius: 4,
-    marginVertical: 2 * scale,
-  },
-  indexText: {
-    color: "#147efb",
-    fontWeight: "600",
-    fontSize: 18 * scale,
   },
 });
 

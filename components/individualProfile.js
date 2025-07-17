@@ -14,10 +14,11 @@ import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import { unavailableToServe } from "./functionCalls";
 import Slider from "@react-native-community/slider";
-import firestore from "@react-native-firebase/firestore";
+import firestore, { FieldValue } from "@react-native-firebase/firestore";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import PhotoInput from "./photoInput";
+import ProfileImageExpander from './ProfileImageExpander';
 
 // Haptic feedback options
 const hapticOptions = {
@@ -355,7 +356,7 @@ const IndividualProfile = ({
                   .collection("users")
                   .doc(userId)
                   .update({
-                    unavailableWeeks: firestore.FieldValue.arrayUnion(userData.nextWeekServe),
+                    unavailableWeeks: FieldValue.arrayUnion(userData.nextWeekServe),
                   });
               }
 
@@ -507,16 +508,12 @@ const IndividualProfile = ({
           </View>
 
           <View style={styles.profileImageContainer}>
-            <Image
+            <ProfileImageExpander
+              imageUrl={imageUrl}
+              size={100}
+              finalSize={300}
+              borderRadius={50}
               style={styles.image}
-              source={
-                typeof imageUrl === "string" && imageUrl.trim() !== ""
-                  ? { uri: imageUrl }
-                  : require("../assets/default_profile.png")
-              }
-              defaultSource={require("../assets/default_profile.png")}
-              onError={() => setImageUrl(null)}
-              key={imageUrl || "default"}
             />
             <TouchableOpacity
               style={styles.editIconContainer}
@@ -524,7 +521,7 @@ const IndividualProfile = ({
               activeOpacity={0.7}
               accessibilityLabel="Edit Profile Picture"
             >
-              <Icon name="pencil" size={16} color="#fff" />
+              <Icon name="pencil" size={18} color="#fff" />
             </TouchableOpacity>
           </View>
 
@@ -694,16 +691,21 @@ const styles = StyleSheet.create({
   },
   editIconContainer: {
     position: "absolute",
-    top: 0,
-    right: 0,
+    top: -5,
+    right: -5,
     backgroundColor: "#147efb",
-    borderRadius: 12,
-    width: 24,
-    height: 24,
+    borderRadius: 16,
+    width: 32,
+    height: 32,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   title: {
     fontSize: 20,

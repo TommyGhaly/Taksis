@@ -4,6 +4,7 @@ import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/nativ
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import BackArrow from "../../components/backArrow";
+import ProfileImageExpander from "../../components/ProfileImageExpander";
 
 const IndividualServant = () => {
   const navigation = useNavigation();
@@ -178,16 +179,23 @@ const IndividualServant = () => {
   return (
     <View style={styles.container}>
       <BackArrow style={styles.backArrow} onPress={() => navigation.goBack()} />
-      <View style={styles.headerContainer}>
+      
+      {/* Header Section */}
+      <View style={styles.headerSection}>
         <Text style={styles.title}>{`${servantName}`}</Text>
-        <Image
-          source={{ uri: profilePicture }}
-          style={styles.profilePicture}
-          defaultSource={require("../../assets/default_profile.png")}
-          onError={() => setProfilePicture(null)}
-        />
+        <View style={styles.profileContainer}>
+          <ProfileImageExpander
+            imageUrl={profilePicture}
+            size={100}
+            finalSize={300}
+            borderRadius={50}
+            style={styles.profilePicture}
+          />
+        </View>
         <Text style={styles.subtitle}>{`Category: Servants Meeting`}</Text>
       </View>
+      
+      {/* Attendance Section */}
       <ScrollView contentContainerStyle={styles.attendanceContainer}>
         {sortedAttendanceData.map((attendance, index) => (
           <View key={index} style={styles.attendanceItem}>
@@ -209,6 +217,8 @@ const IndividualServant = () => {
           </View>
         ))}
       </ScrollView>
+      
+      {/* Action Button */}
       <TouchableOpacity onPress={handleDeleteServant} style={styles.removeButton}>
         <Text style={styles.removeButtonText}>Remove Servant</Text>
       </TouchableOpacity>
@@ -221,17 +231,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#121212",
     padding: 20,
+    paddingBottom: 40, // Add extra bottom padding
     justifyContent: "center", // Center loading indicator
   },
-  headerContainer: {
+  headerSection: {
     alignItems: "center",
     marginBottom: 20,
+    marginTop: 10,
+    width: "100%",
+    paddingHorizontal: 20,
+  },
+  profileContainer: {
+    alignItems: "center",
+    marginVertical: 10,
   },
   profilePicture: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    marginVertical: 15,
     borderWidth: 2,
     borderColor: "#ffffff",
   },
@@ -240,22 +257,26 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#ffffff",
     textAlign: "center",
+    marginBottom: 10,
+    paddingHorizontal: 10,
   },
   subtitle: {
     fontSize: 18,
     color: "#b0b0b0",
     textAlign: "center",
+    marginTop: 5,
+    paddingHorizontal: 10,
   },
   attendanceContainer: {
     flexGrow: 1,
-    paddingBottom: 20,
+    paddingBottom: 15,
   },
   attendanceItem: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 15,
-    marginBottom: 15,
+    paddingVertical: 12,
+    marginBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#444",
   },

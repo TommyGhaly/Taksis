@@ -1,6 +1,19 @@
 import * as React from "react";
-import { useState, useEffect } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator, Image, Modal, TextInput } from "react-native";
+import { useState, useEffect, useRef } from "react";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  Image,
+  Modal,
+  TextInput,
+  Animated,
+  Dimensions,
+  Easing,
+} from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
@@ -9,6 +22,7 @@ import { useUser } from "../UserContext";
 import { callFunction, removeFamilySchedule } from "./functionCalls";
 import { deleteUser } from "@react-native-firebase/auth";
 import messaging from "@react-native-firebase/messaging";
+import ProfileImageExpander from "./ProfileImageExpander";
 
 const SettingsContent = () => {
   const { signUp, setSignUp } = useUser(true);
@@ -18,6 +32,8 @@ const SettingsContent = () => {
   const [imageUrl, setImageUrl] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [suggestion, setSuggestion] = useState("");
+
+  // Remove all animation refs, cached image source logic, and related effects
 
   useEffect(() => {
     const user = auth().currentUser;
@@ -202,15 +218,12 @@ const SettingsContent = () => {
         </View>
       </Modal>
       <View style={styles.profileSection}>
-        <Image
+        <ProfileImageExpander
+          imageUrl={imageUrl}
+          size={60}
+          finalSize={300}
+          borderRadius={30}
           style={styles.profileImage}
-          source={
-            typeof imageUrl === "string" && imageUrl.trim() !== ""
-              ? { uri: imageUrl }
-              : require("../assets/default_profile.png")
-          }
-          defaultSource={require("../assets/default_profile.png")}
-          onError={() => setImageUrl(null)}
         />
         <Text style={styles.userName}>{userRoles.name}</Text>
       </View>
@@ -301,7 +314,6 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -351,6 +363,20 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "bold",
   },
+  overlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  enlargedImage: {
+    width: 60,
+    height: 60,
+    borderWidth: 1,
+    borderColor: "#333333",
+    position: "absolute",
+  },
   profileSection: {
     flexDirection: "row",
     alignItems: "center",
@@ -369,6 +395,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#fff",
     flex: 1,
+    marginLeft: 8,
   },
   section: {
     marginBottom: 20,

@@ -14,6 +14,7 @@ import {
   Dimensions,
   Platform,
   ScrollView,
+  PanResponder,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
@@ -21,6 +22,7 @@ import auth from "@react-native-firebase/auth";
 import { Ionicons } from "@expo/vector-icons";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import PhotoInput from "../components/photoInput";
+import ProfileImageExpander from "../components/ProfileImageExpander";
 
 // Haptic feedback options
 const hapticOptions = {
@@ -70,6 +72,9 @@ const ServantsAdmin = () => {
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerHeightRef = useRef(0);
   const sectionListRef = useRef(null);
+  const indexBarRef = useRef(null);
+  const [indexBarLayout, setIndexBarLayout] = useState(null);
+  const [currentLetter, setCurrentLetter] = useState(null);
 
   // Fetch current user's church with real-time updates
   useEffect(() => {
@@ -254,15 +259,52 @@ const ServantsAdmin = () => {
   const scrollToSection = (letter) => {
     const sectionIndex = sections.findIndex((s) => s.title === letter);
     if (sectionIndex < 0 || !sectionListRef.current) return;
-
     sectionListRef.current.scrollToLocation({
       sectionIndex,
-      itemIndex: 1,
+      itemIndex: 0,
       animated: false,
       viewPosition: 0,
       viewOffset: 0,
     });
   };
+
+  // Handle index bar touch and drag
+  const handleIndexBarTouch = (letter) => {
+    if (letter !== currentLetter) {
+      setCurrentLetter(letter);
+      scrollToSection(letter);
+      ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+    }
+  };
+
+  // Pan responder for sliding through letters
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => {
+        if (!indexBarLayout || availableLetters.length === 0) return;
+        const { pageY } = evt.nativeEvent;
+        const letterHeight = indexBarLayout.height / availableLetters.length;
+        const index = Math.floor((pageY - indexBarLayout.y) / letterHeight);
+        const clampedIndex = Math.max(0, Math.min(index, availableLetters.length - 1));
+        const letter = availableLetters[clampedIndex];
+        handleIndexBarTouch(letter);
+      },
+      onPanResponderMove: (evt) => {
+        if (!indexBarLayout || availableLetters.length === 0) return;
+        const { pageY } = evt.nativeEvent;
+        const letterHeight = indexBarLayout.height / availableLetters.length;
+        const index = Math.floor((pageY - indexBarLayout.y) / letterHeight);
+        const clampedIndex = Math.max(0, Math.min(index, availableLetters.length - 1));
+        const letter = availableLetters[clampedIndex];
+        handleIndexBarTouch(letter);
+      },
+      onPanResponderRelease: () => {
+        setCurrentLetter(null);
+      },
+    })
+  ).current;
 
   // Render section header
   const renderSectionHeader = ({ section: { title } }) => (
@@ -374,20 +416,28 @@ const ServantsAdmin = () => {
               }, 500);
             }}
           />
-          <View style={[styles.indexBar, { width: indexBarWidth }]}>
-            {availableLetters.map((letter) => (
+          <View
+            ref={indexBarRef}
+            style={[styles.indexBar, { width: indexBarWidth }]}
+            onLayout={(event) => {
+              const { x, y, width, height } = event.nativeEvent.layout;
+              setIndexBarLayout({ x, y, width, height });
+            }}
+            {...panResponder.panHandlers}
+          >
+            {availableLetters.map((letter, index) => (
               <View
                 key={letter}
-                style={styles.indexItem}
-                onTouchStart={() => {
-                  scrollToSection(letter);
-                  ReactNativeHapticFeedback.trigger(
-                    "impactLight",
-                    hapticOptions
-                  );
-                }}
+                style={[
+                  styles.indexItem,
+                  currentLetter === letter && styles.indexItemActive
+                ]}
               >
-                <Text style={[styles.indexText, { fontSize: 18 * scale }]}>
+                <Text style={[
+                  styles.indexText, 
+                  { fontSize: 11 * scale },
+                  currentLetter === letter && styles.indexTextActive
+                ]}>
                   {letter}
                 </Text>
               </View>
@@ -402,21 +452,12 @@ const ServantsAdmin = () => {
               <View style={styles.modalHeader}>
                 <View style={styles.headerContent}>
                   <View style={styles.profileImageContainer}>
-                    <Image
+                    <ProfileImageExpander
+                      imageUrl={selectedServant.id && profilePictureUrls[selectedServant.id] ? profilePictureUrls[selectedServant.id] : null}
+                      size={80}
+                      finalSize={300}
+                      borderRadius={40}
                       style={styles.profileImage}
-                      source={
-                        selectedServant.id &&
-                        profilePictureUrls[selectedServant.id]
-                          ? { uri: profilePictureUrls[selectedServant.id] }
-                          : require("../assets/default_profile.png")
-                      }
-                      defaultSource={require("../assets/default_profile.png")}
-                      onError={() => {
-                        setProfilePictureUrls((prev) => ({
-                          ...prev,
-                          [selectedServant.id]: null,
-                        }));
-                      }}
                     />
                     <TouchableOpacity
                       style={styles.editProfilePictureButton}
@@ -642,23 +683,31 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   indexBar: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 20,
     position: "absolute",
     right: 0,
     top: 0,
     bottom: 0,
+    backgroundColor: "transparent",
+    alignItems: "center",
+    justifyContent: "space-evenly",
   },
   indexItem: {
-    paddingVertical: 2 * scale,
-    backgroundColor: "#121212",
-    borderRadius: 4,
-    marginVertical: 2 * scale,
+    width: 20,
+    height: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 10,
+  },
+  indexItemActive: {
+    backgroundColor: "#147efb",
   },
   indexText: {
     color: "#147efb",
-    fontWeight: "600",
+    fontWeight: "500",
+    fontSize: 11,
+  },
+  indexTextActive: {
+    color: "#ffffff",
   },
   modalOverlay: {
     flex: 1,
