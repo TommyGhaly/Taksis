@@ -429,14 +429,14 @@ const ServantsAttendance = () => {
           renderItem={renderServant}
           renderSectionHeader={renderSectionHeader}
           keyExtractor={(item) => item.uid}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={[styles.listContainer, { paddingRight: 30 }]}
           ListEmptyComponent={
             <Text style={styles.noStudentsText}>Church has no servants</Text>
           }
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={true}
         />
-        <View style={{ position: 'absolute', top: 80, right: 0, width: 30 }}>
+        <View style={{ position: 'absolute', top: 85, right: 0, width: 30 }}>
           <AlphabetIndexBar 
             onLetterChange={scrollToSection} 
             availableLetters={availableLetters}
