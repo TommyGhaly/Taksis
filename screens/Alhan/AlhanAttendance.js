@@ -1,4 +1,10 @@
-import React, { useState, useCallback, useRef, useMemo, useEffect } from "react";
+import React, {
+  useState,
+  useCallback,
+  useRef,
+  useMemo,
+  useEffect,
+} from "react";
 import {
   View,
   Text,
@@ -76,6 +82,16 @@ const AlhanAttendance = () => {
         const saturdays = [];
         let currentDate = new Date(today);
 
+        // Adjust to the most recent Saturday
+        const currentDay = currentDate.getDay();
+        const daysSinceSaturday =
+          currentDay === 6
+            ? 0
+            : currentDay < 6
+            ? currentDay + 1
+            : currentDay - 6;
+        currentDate.setDate(currentDate.getDate() - daysSinceSaturday);
+
         const currentAsianYear = today.getFullYear();
         const september11ThisYear = new Date(currentAsianYear, 8, 11);
         const cutoffDate =
@@ -83,12 +99,9 @@ const AlhanAttendance = () => {
             ? new Date(currentAsianYear - 1, 8, 11)
             : september11ThisYear;
 
-        const day = currentDate.getDay();
-        const diffToSaturday = day === 6 ? 0 : day < 6 ? 6 - day : 7 - day + 6;
-        currentDate.setDate(currentDate.getDate() - diffToSaturday);
-
         while (currentDate >= cutoffDate) {
           saturdays.push(formatDate(currentDate));
+          currentDate = new Date(currentDate);
           currentDate.setDate(currentDate.getDate() - 7);
         }
         setPreviousSaturdays(saturdays);
@@ -126,7 +139,10 @@ const AlhanAttendance = () => {
               },
               (error) => {
                 if (isMounted.current) {
-                  Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
+                  Alert.alert(
+                    "Error",
+                    `Failed to load students for ${grade}: ${error.message}`
+                  );
                 }
               }
             )
@@ -157,9 +173,7 @@ const AlhanAttendance = () => {
 
   const fetchProfilePictures = async (students) => {
     const urls = { ...profilePictureUrls };
-    const studentsToFetch = students.filter(
-      (student) => !urls[student.uid]
-    );
+    const studentsToFetch = students.filter((student) => !urls[student.uid]);
 
     await Promise.all(
       studentsToFetch.map(async (student) => {
@@ -167,7 +181,8 @@ const AlhanAttendance = () => {
           const url = await storage()
             .ref(`profilePictures/${student.uid}.png`)
             .getDownloadURL();
-          urls[student.uid] = typeof url === "string" && url.trim() ? url : null;
+          urls[student.uid] =
+            typeof url === "string" && url.trim() ? url : null;
         } catch {
           urls[student.uid] = null;
         }
@@ -283,29 +298,31 @@ const AlhanAttendance = () => {
 
   const renderGrade = useMemo(
     () =>
-      ({ item }) => (
-        <TouchableOpacity
-          style={styles.gradeTag}
-          onPress={() => scrollToGrade(item)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.gradeTagText}>{formatGrade(item)}</Text>
-        </TouchableOpacity>
-      ),
+      ({ item }) =>
+        (
+          <TouchableOpacity
+            style={styles.gradeTag}
+            onPress={() => scrollToGrade(item)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.gradeTagText}>{formatGrade(item)}</Text>
+          </TouchableOpacity>
+        ),
     []
   );
 
   const renderDate = useMemo(
     () =>
-      ({ item }) => (
-        <TouchableOpacity
-          style={styles.dateItem}
-          onPress={() => handleDateSelect(item)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.dateText}>{item}</Text>
-        </TouchableOpacity>
-      ),
+      ({ item }) =>
+        (
+          <TouchableOpacity
+            style={styles.dateItem}
+            onPress={() => handleDateSelect(item)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.dateText}>{item}</Text>
+          </TouchableOpacity>
+        ),
     []
   );
 

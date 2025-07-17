@@ -21,6 +21,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import BackArrow from "../components/backArrow";
 import PhotoInput from "../components/photoInput";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import ProfileImageExpander from "../components/ProfileImageExpander";
 
 const IndividualAttendance = () => {
   const navigation = useNavigation();
@@ -328,16 +329,15 @@ const IndividualAttendance = () => {
           </TouchableOpacity>
         </View>
         <Text style={styles.title}>{`${studentData.name || "Student"}`}</Text>
-        <Image
-          style={styles.profilePicture}
-          source={
-            profilePictureUrl
-              ? { uri: profilePictureUrl }
-              : require("../assets/default_profile.png")
-          }
-          defaultSource={require("../assets/default_profile.png")}
-          onError={() => setProfilePictureUrl(null)}
-        />
+        <View style={styles.profileContainer}>
+          <ProfileImageExpander
+            imageUrl={profilePictureUrl}
+            size={80}
+            finalSize={300}
+            borderRadius={40}
+            style={styles.profilePicture}
+          />
+        </View>
         <Text style={styles.subtitle}>{`Grade: ${formatGrade(
           grade
         )} - Category: ${category}`}</Text>
@@ -399,15 +399,12 @@ const IndividualAttendance = () => {
               {editMode ? (
                 <>
                   <View style={styles.profilePictureContainer}>
-                    <Image
+                    <ProfileImageExpander
+                      imageUrl={profilePictureUrl}
+                      size={100}
+                      finalSize={300}
+                      borderRadius={50}
                       style={styles.modalProfilePicture}
-                      source={
-                        profilePictureUrl
-                          ? { uri: profilePictureUrl }
-                          : require("../assets/default_profile.png")
-                      }
-                      defaultSource={require("../assets/default_profile.png")}
-                      onError={() => setProfilePictureUrl(null)}
                     />
                     <TouchableOpacity
                       style={styles.editPhotoIcon}
@@ -503,15 +500,12 @@ const IndividualAttendance = () => {
               ) : (
                 <>
                   <View style={styles.profilePictureContainer}>
-                    <Image
+                    <ProfileImageExpander
+                      imageUrl={profilePictureUrl}
+                      size={100}
+                      finalSize={300}
+                      borderRadius={50}
                       style={styles.modalProfilePicture}
-                      source={
-                        profilePictureUrl
-                          ? { uri: profilePictureUrl }
-                          : require("../assets/default_profile.png")
-                      }
-                      defaultSource={require("../assets/default_profile.png")}
-                      onError={() => setProfilePictureUrl(null)}
                     />
                   </View>
                   <View style={styles.infoCard}>
@@ -613,14 +607,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: "center",
   },
+  profileContainer: {
+    alignItems: "center",
+    marginBottom: 12,
+  },
   profilePicture: {
     width: 80,
     height: 80,
     borderRadius: 40,
     borderWidth: 2,
     borderColor: "#ffffff",
-    alignSelf: "center",
-    marginBottom: 12,
   },
   subtitle: {
     fontSize: 18,

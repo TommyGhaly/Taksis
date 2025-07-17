@@ -10,6 +10,7 @@ import {
   Alert,
 } from "react-native";
 import BackArrow from "../../components/backArrow";
+import ProfileImageExpander from "../../components/ProfileImageExpander";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
@@ -89,15 +90,12 @@ const AccountInfo = ({ navigation }) => {
           <Text style={[styles.accountInfo, styles.text]}>Account info</Text>
         </View>
         <View style={styles.profileImageContainer}>
-          <Image
+          <ProfileImageExpander
+            imageUrl={imageUrl}
+            size={100}
+            finalSize={300}
+            borderRadius={50}
             style={styles.profileImage}
-            source={
-              typeof imageUrl === "string" && imageUrl.trim() !== ""
-                ? { uri: imageUrl }
-                : require("../../assets/default_profile.png")
-            }
-            defaultSource={require("../../assets/default_profile.png")}
-            onError={() => setImageUrl(null)}
           />
         </View>
         <View style={styles.infoBlock}>

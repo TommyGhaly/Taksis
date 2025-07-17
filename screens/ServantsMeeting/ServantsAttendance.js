@@ -19,6 +19,7 @@ import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
 import * as Haptics from "react-native-haptic-feedback";
 import Icon from "react-native-vector-icons/MaterialIcons";
+import AlphabetIndexBar from "../../components/AlphabetIndexBar";
 
 // Responsive design helper
 const { width, height } = Dimensions.get("window");
@@ -435,19 +436,11 @@ const ServantsAttendance = () => {
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={true}
         />
-        <View style={[styles.indexBar, { width: indexBarWidth }]}>
-          {availableLetters.map((letter) => (
-            <View
-              key={letter}
-              style={styles.indexItem}
-              onTouchStart={() => {
-                scrollToSection(letter);
-                Haptics.trigger("impactLight");
-              }}
-            >
-              <Text style={[styles.indexText, { fontSize: 18 * scale }]}>{letter}</Text>
-            </View>
-          ))}
+        <View style={{ position: 'absolute', top: 80, right: 0, width: 30 }}>
+          <AlphabetIndexBar 
+            onLetterChange={scrollToSection} 
+            availableLetters={availableLetters}
+          />
         </View>
       </View>
 
@@ -507,12 +500,11 @@ const styles = StyleSheet.create({
   },
   listWrapper: {
     flex: 1,
-    flexDirection: "row",
-    paddingRight: 0,
+    position: 'relative',
   },
   listContainer: {
     flexGrow: 1,
-    paddingRight: indexBarWidth,
+    paddingRight: 30,
   },
   servantCard: {
     backgroundColor: "#1E1E1E",
@@ -622,25 +614,6 @@ const styles = StyleSheet.create({
     fontSize: 18 * scale,
     fontWeight: "600",
     color: "#fff",
-  },
-  indexBar: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 20,
-    position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-  },
-  indexItem: {
-    paddingVertical: 2 * scale,
-    backgroundColor: "#121212",
-    borderRadius: 4,
-    marginVertical: 2 * scale,
-  },
-  indexText: {
-    color: "#147efb",
-    fontWeight: "600",
   },
   modalContainer: {
     flex: 1,

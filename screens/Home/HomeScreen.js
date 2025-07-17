@@ -15,8 +15,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import firestore from "@react-native-firebase/firestore";
-import { initializeApp, getApps } from "firebase/app";
+import firestore, { FieldValue } from "@react-native-firebase/firestore";
 import messaging from "@react-native-firebase/messaging";
 import auth from "@react-native-firebase/auth";
 import { deleteUser } from "@react-native-firebase/auth";
@@ -27,15 +26,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import HomeScreenNames from "../../components/homescreenNames";
 import PhotoInput from "../../components/photoInput";
 
-const firebaseConfig = {
-  projectId: "taksis-a8ba7",
-  apiKey: "AIzaSyBWxEgHXcJx19Rklr7P6HhhweT9_I70WkA",
-  authDomain: "taksis-a8ba7.firebaseapp.com",
-};
 
-if (!getApps().length) {
-  initializeApp(firebaseConfig);
-}
 
 async function createNotificationChannel() {
   if (Platform.OS === "android") {
@@ -62,7 +53,7 @@ async function storeFCMToken(userId, fcmToken) {
   try {
     const userRef = firestore().collection("users").doc(userId);
     await userRef.update({
-      fcmTokens: firestore.FieldValue.arrayUnion(fcmToken),
+      fcmTokens: FieldValue.arrayUnion(fcmToken),
     });
     console.log("FCM token added to array successfully");
   } catch (error) {
@@ -444,7 +435,7 @@ const HomeScreen = () => {
       );
 
       await userRef.update({
-        children: firestore.FieldValue.arrayRemove(...userData.children.filter(c => childrenWithoutPfp.includes(c.uid))),
+        children: FieldValue.arrayRemove(...userData.children.filter(c => childrenWithoutPfp.includes(c.uid))),
       });
 
       Alert.alert("Success", "Children without profile pictures have been removed. Please reregister them with profile pictures.");
@@ -523,7 +514,7 @@ const HomeScreen = () => {
                 .collection("users")
                 .doc(user.uid)
                 .update({
-                  unavailableWeeks: firestore.FieldValue.arrayUnion(...selectedWeeks),
+                  unavailableWeeks: FieldValue.arrayUnion(...selectedWeeks),
                 });
 
               setUnavailableWeeks((prev) => [...prev, ...selectedWeeks]);

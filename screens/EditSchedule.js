@@ -9,7 +9,7 @@ import {
   Modal,
   Image,
 } from "react-native";
-import firestore from "@react-native-firebase/firestore";
+import firestore, { FieldValue } from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import {
@@ -250,7 +250,7 @@ const EditSchedule = () => {
       );
       const churchRef = firestore().collection("churches").doc(churchId);
       await churchRef.update({
-        altarServers: firestore.FieldValue.increment(1),
+        altarServers: FieldValue.increment(1),
       });
       scrollViewRef.current?.scrollToEnd({ animated: false });
     } catch (error) {
@@ -288,7 +288,7 @@ const EditSchedule = () => {
       );
       const churchRef = firestore().collection("churches").doc(churchId);
       await churchRef.update({
-        altarServers: firestore.FieldValue.increment(-1),
+        altarServers: FieldValue.increment(-1),
       });
     } catch (error) {
       console.error("Error removing server:", error);

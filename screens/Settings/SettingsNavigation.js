@@ -64,7 +64,10 @@ export default function SettingsNavigation() {
           component={ChildAccountInfo}
         />
         <SettingsNav.Screen name="RequestAdmin" component={RequestAdmin} />
-        <SettingsNav.Screen name="RequestServants" component={RequestServants} />
+        <SettingsNav.Screen
+          name="RequestServants"
+          component={RequestServants}
+        />
         <SettingsNav.Screen
           name="AddChild"
           component={AddChild}

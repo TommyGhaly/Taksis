@@ -13,6 +13,7 @@ import {
   Dimensions,
   Platform,
   FlatList,
+  PanResponder
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
@@ -20,6 +21,8 @@ import auth from "@react-native-firebase/auth";
 import { Ionicons } from "@expo/vector-icons";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import PhotoInput from "../components/photoInput";
+import ProfileImageExpander from "../components/ProfileImageExpander";
+import AlphabetIndexBar from "../components/AlphabetIndexBar";
 
 // Haptic feedback options
 const hapticOptions = {
@@ -59,6 +62,7 @@ const AdminManager = () => {
 
   // Alphabet for index bar (only letters with data)
   const [availableLetters, setAvailableLetters] = useState([]);
+  const [currentLetter, setCurrentLetter] = useState(null);
 
   // Fetch current user's church
   useEffect(() => {
@@ -233,11 +237,50 @@ const AdminManager = () => {
 
     sectionListRef.current.scrollToLocation({
       sectionIndex,
-      itemIndex: 1,
+      itemIndex: 0,
       animated: false,
-      viewOffset: 0, // ensures sticky header doesn't overlap content
+      viewPosition: 0,
+      viewOffset: 0, // ensures sticky header doesnt overlap content
     });
   };
+
+  // Handle index bar touch and drag
+  const handleIndexBarTouch = (letter) => {
+    if (letter !== currentLetter) {
+      setCurrentLetter(letter);
+      scrollToSection(letter);
+      ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+    }
+  };
+
+  // Pan responder for sliding through letters
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => {
+        if (!indexBarLayout || availableLetters.length === 0) return;
+        const { pageY } = evt.nativeEvent;
+        const letterHeight = indexBarLayout.height / availableLetters.length;
+        const index = Math.floor((pageY - indexBarLayout.y) / letterHeight);
+        const clampedIndex = Math.max(0, Math.min(index, availableLetters.length - 1));
+        const letter = availableLetters[clampedIndex];
+        handleIndexBarTouch(letter);
+      },
+      onPanResponderMove: (evt) => {
+        if (!indexBarLayout || availableLetters.length === 0) return;
+        const { pageY } = evt.nativeEvent;
+        const letterHeight = indexBarLayout.height / availableLetters.length;
+        const index = Math.floor((pageY - indexBarLayout.y) / letterHeight);
+        const clampedIndex = Math.max(0, Math.min(index, availableLetters.length - 1));
+        const letter = availableLetters[clampedIndex];
+        handleIndexBarTouch(letter);
+      },
+      onPanResponderRelease: () => {
+        setCurrentLetter(null);
+      },
+    })
+  ).current;
 
   // Measure section header height
   const renderSectionHeader = ({ section: { title } }) => (
@@ -384,22 +427,10 @@ const AdminManager = () => {
           }}
         />
 
-        <View style={[styles.indexBar, { width: indexBarWidth }]}>
-          {availableLetters.map((letter) => (
-            <View
-              key={letter}
-              style={[styles.indexItem, { paddingVertical: 2 * scale }]}
-              onTouchStart={() => {
-                scrollToSection(letter);
-                ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
-              }}
-            >
-              <Text style={[styles.indexText, { fontSize: 18 * scale }]}>
-                {letter}
-              </Text>
-            </View>
-          ))}
-        </View>
+        <AlphabetIndexBar
+          onLetterChange={scrollToSection}
+          availableLetters={sections.map(s => s.title)}
+        />
       </View>
       {selectedUser && (
         <Modal visible={modalVisible} animationType="fade" transparent={true}>
@@ -421,7 +452,11 @@ const AdminManager = () => {
                       { marginBottom: 12 * scale },
                     ]}
                   >
-                    <Image
+                    <ProfileImageExpander
+                      imageUrl={selectedUser.id && profilePictureUrls[selectedUser.id] ? profilePictureUrls[selectedUser.id] : null}
+                      size={80}
+                      finalSize={300}
+                      borderRadius={40}
                       style={[
                         styles.profileImage,
                         {
@@ -430,18 +465,6 @@ const AdminManager = () => {
                           borderRadius: 40 * scale,
                         },
                       ]}
-                      source={
-                        selectedUser.id && profilePictureUrls[selectedUser.id]
-                          ? { uri: profilePictureUrls[selectedUser.id] }
-                          : require("../assets/default_profile.png")
-                      }
-                      defaultSource={require("../assets/default_profile.png")}
-                      onError={() => {
-                        setProfilePictureUrls((prev) => ({
-                          ...prev,
-                          [selectedUser.id]: null,
-                        }));
-                      }}
                     />
                     <TouchableOpacity
                       style={[
@@ -721,24 +744,6 @@ const styles = StyleSheet.create({
   sectionHeaderText: {
     fontWeight: "600",
     color: "#fff",
-  },
-  indexBar: {
-    width: indexBarWidth,
-    alignItems: "center",
-    justifyContent: "flex-start", // Changed from "center" to move letters higher
-    paddingVertical: 0,
-    position: "absolute",
-    right: 0,
-    top: 50 * scale, // Added top padding to shift letters up
-    bottom: 0,
-  },
-  indexItem: {
-    backgroundColor: "#121212",
-    borderRadius: 4,
-  },
-  indexText: {
-    color: "#147efb",
-    fontWeight: "600",
   },
 });
 
