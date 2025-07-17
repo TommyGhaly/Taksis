@@ -23,6 +23,7 @@ import { Ionicons } from "@expo/vector-icons";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import PhotoInput from "../components/photoInput";
 import ProfileImageExpander from "../components/ProfileImageExpander";
+import AlphabetIndexBar from "../components/AlphabetIndexBar";
 
 // Haptic feedback options
 const hapticOptions = {
@@ -145,11 +146,11 @@ const ServantsAdmin = () => {
           const servantList = querySnapshot.docs
             .map((doc) => ({
               id: doc.id,
-              name: (doc.data().name || "").trim().toLowerCase(),
+              name: (doc.data().name || "").trim(),
               ...doc.data(),
             }))
             .sort((a, b) => {
-              const nameComparison = a.name.localeCompare(b.name);
+              const nameComparison = a.name.toLowerCase().localeCompare(b.name.toLowerCase());
               if (nameComparison === 0) {
                 return a.id.localeCompare(b.id);
               }
@@ -158,21 +159,25 @@ const ServantsAdmin = () => {
             .map((servant) => ({
               ...servant,
               name:
-                querySnapshot.docs.find((d) => d.id === servant.id)?.data()
-                  .name || "",
+                querySnapshot.docs.find((d) => d.id === servant.id)?.data().name || "",
             }));
 
-          // Group servants by first letter
+          // Group by first letter (A-Z or #)
           const grouped = servantList.reduce((acc, servant) => {
-            const firstLetter = servant.name.charAt(0).toUpperCase() || "Other";
+            const firstChar = (servant.name || '').charAt(0).toUpperCase();
+            const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
             if (!acc[firstLetter]) acc[firstLetter] = [];
             acc[firstLetter].push(servant);
             return acc;
           }, {});
 
-          // Convert to SectionList format
+          // Convert to SectionList format - put # at the end
           const sectionData = Object.keys(grouped)
-            .sort()
+            .sort((a, b) => {
+              if (a === '#') return 1;
+              if (b === '#') return -1;
+              return a.localeCompare(b);
+            })
             .map((letter) => ({
               title: letter,
               data: grouped[letter],
@@ -257,11 +262,18 @@ const ServantsAdmin = () => {
 
   // Scroll to section
   const scrollToSection = (letter) => {
+    console.log('Scrolling to letter:', letter); // Debug log
+    console.log('Available sections:', sections.map(s => s.title)); // Debug log
     const sectionIndex = sections.findIndex((s) => s.title === letter);
-    if (sectionIndex < 0 || !sectionListRef.current) return;
+    console.log('Found section index:', sectionIndex); // Debug log
+    if (sectionIndex < 0 || !sectionListRef.current) {
+      console.log('Section not found or ref not available'); // Debug log
+      return;
+    }
+    console.log('About to scroll to section:', sectionIndex); // Debug log
     sectionListRef.current.scrollToLocation({
       sectionIndex,
-      itemIndex: 0,
+      itemIndex: 1,
       animated: false,
       viewPosition: 0,
       viewOffset: 0,
@@ -392,7 +404,7 @@ const ServantsAdmin = () => {
           No servants found.
         </Text>
       ) : (
-        <View style={[styles.listWrapper, { paddingRight: indexBarWidth }]}>
+        <View style={styles.listWrapper}>
           <SectionList
             ref={sectionListRef}
             sections={sections}
@@ -416,32 +428,11 @@ const ServantsAdmin = () => {
               }, 500);
             }}
           />
-          <View
-            ref={indexBarRef}
-            style={[styles.indexBar, { width: indexBarWidth }]}
-            onLayout={(event) => {
-              const { x, y, width, height } = event.nativeEvent.layout;
-              setIndexBarLayout({ x, y, width, height });
-            }}
-            {...panResponder.panHandlers}
-          >
-            {availableLetters.map((letter, index) => (
-              <View
-                key={letter}
-                style={[
-                  styles.indexItem,
-                  currentLetter === letter && styles.indexItemActive
-                ]}
-              >
-                <Text style={[
-                  styles.indexText, 
-                  { fontSize: 11 * scale },
-                  currentLetter === letter && styles.indexTextActive
-                ]}>
-                  {letter}
-                </Text>
-              </View>
-            ))}
+          <View style={{ position: 'absolute', top: 100, right: 0, width: 30 }}>
+            <AlphabetIndexBar 
+              onLetterChange={scrollToSection} 
+              availableLetters={sections.map(s => s.title)}
+            />
           </View>
         </View>
       )}
@@ -595,6 +586,7 @@ const styles = StyleSheet.create({
   listContainer: {
     paddingBottom: 0,
     flexGrow: 1,
+    paddingRight: 32, // Match DeaconEdits right padding
   },
   centered: {
     flex: 1,
