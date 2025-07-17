@@ -125,11 +125,11 @@ const AdminManager = () => {
           const userList = querySnapshot.docs
             .map((doc) => ({
               id: doc.id,
-              name: (doc.data().name || "").trim().toLowerCase(),
+              name: (doc.data().name || "").trim(),
               ...doc.data(),
             }))
             .sort((a, b) => {
-              const nameComparison = a.name.localeCompare(b.name);
+              const nameComparison = a.name.toLowerCase().localeCompare(b.name.toLowerCase());
               if (nameComparison === 0) {
                 return a.id.localeCompare(b.id);
               }
@@ -142,17 +142,22 @@ const AdminManager = () => {
                 "",
             }));
 
-          // Group users by first letter
+          // Group users by first letter (A-Z or #)
           const grouped = userList.reduce((acc, user) => {
-            const firstLetter = user.name.charAt(0).toUpperCase() || "Other";
+            const firstChar = (user.name || '').charAt(0).toUpperCase();
+            const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
             if (!acc[firstLetter]) acc[firstLetter] = [];
             acc[firstLetter].push(user);
             return acc;
           }, {});
 
-          // Convert to SectionList format
+          // Convert to SectionList format - put # at the end
           const sectionData = Object.keys(grouped)
-            .sort()
+            .sort((a, b) => {
+              if (a === '#') return 1;
+              if (b === '#') return -1;
+              return a.localeCompare(b);
+            })
             .map((letter) => ({
               title: letter,
               data: grouped[letter],
@@ -232,15 +237,21 @@ const AdminManager = () => {
 
   // Corrected scroll function to match DeaconEdits
   const scrollToSection = (letter) => {
+    console.log('Scrolling to letter:', letter); // Debug log
+    console.log('Available sections:', sections.map(s => s.title)); // Debug log
     const sectionIndex = sections.findIndex((s) => s.title === letter);
-    if (sectionIndex < 0 || !sectionListRef.current) return;
-
+    console.log('Found section index:', sectionIndex); // Debug log
+    if (sectionIndex < 0 || !sectionListRef.current) {
+      console.log('Section not found or ref not available'); // Debug log
+      return;
+    }
+    console.log('About to scroll to section:', sectionIndex); // Debug log
     sectionListRef.current.scrollToLocation({
       sectionIndex,
-      itemIndex: 0,
+      itemIndex: 1,
       animated: false,
       viewPosition: 0,
-      viewOffset: 0, // ensures sticky header doesnt overlap content
+      viewOffset: 0,
     });
   };
 
@@ -397,7 +408,7 @@ const AdminManager = () => {
       <Text style={[styles.header, { fontSize: 24 * scale }]}>
         Manage Admin Privileges
       </Text>
-      <View style={[styles.listWrapper, { paddingRight: indexBarWidth }]}>
+      <View style={styles.listWrapper}>
         <SectionList
           ref={sectionListRef}
           sections={sections}
@@ -406,9 +417,7 @@ const AdminManager = () => {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
           ListEmptyComponent={
-            <Text style={[styles.emptyText, { fontSize: 16 * scale }]}>
-              No users found.
-            </Text>
+            <Text style={[styles.emptyText, { fontSize: 16 * scale }]}>No users found.</Text>
           }
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={true}
@@ -426,11 +435,12 @@ const AdminManager = () => {
             }, 500);
           }}
         />
-
-        <AlphabetIndexBar
-          onLetterChange={scrollToSection}
-          availableLetters={sections.map(s => s.title)}
-        />
+        <View style={{ position: 'absolute', top: 100, right: 0, width: 30 }}>
+          <AlphabetIndexBar 
+            onLetterChange={scrollToSection} 
+            availableLetters={sections.map(s => s.title)}
+          />
+        </View>
       </View>
       {selectedUser && (
         <Modal visible={modalVisible} animationType="fade" transparent={true}>
@@ -592,12 +602,12 @@ const styles = StyleSheet.create({
   listContainer: {
     paddingBottom: 20,
     flexGrow: 1,
+    paddingRight: 32, // Match DeaconEdits right padding
   },
   userCard: {
     backgroundColor: "#1e1e1e",
     borderRadius: 12,
     shadowColor: "#000",
-    marginRight: 10,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
