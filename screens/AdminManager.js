@@ -10,15 +10,15 @@ import {
   Switch,
   Alert,
   Image,
+  FlatList,
   Dimensions,
   Platform,
-  FlatList,
-  PanResponder
+  ScrollView,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
-import { Ionicons } from "@expo/vector-icons";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import PhotoInput from "../components/photoInput";
 import ProfileImageExpander from "../components/ProfileImageExpander";
@@ -56,13 +56,9 @@ const AdminManager = () => {
   const [sections, setSections] = useState([]);
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [photoInputVisible, setPhotoInputVisible] = useState(false);
+  const sectionListRef = useRef(null);
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerHeightRef = useRef(0);
-  const sectionListRef = useRef(null);
-
-  // Alphabet for index bar (only letters with data)
-  const [availableLetters, setAvailableLetters] = useState([]);
-  const [currentLetter, setCurrentLetter] = useState(null);
 
   // Fetch current user's church
   useEffect(() => {
@@ -163,12 +159,8 @@ const AdminManager = () => {
               data: grouped[letter],
             }));
 
-          // Set available letters
-          const letters = sectionData.map((section) => section.title).sort();
-
           setUsers(userList);
           setSections(sectionData);
-          setAvailableLetters(letters);
         },
         (error) => {
           Alert.alert("Error", "Could not fetch users.");
@@ -235,16 +227,19 @@ const AdminManager = () => {
     }
   };
 
-  // Corrected scroll function to match DeaconEdits
+  // Scroll to section
   const scrollToSection = (letter) => {
     console.log('Scrolling to letter:', letter); // Debug log
     console.log('Available sections:', sections.map(s => s.title)); // Debug log
+    
     const sectionIndex = sections.findIndex((s) => s.title === letter);
     console.log('Found section index:', sectionIndex); // Debug log
+    
     if (sectionIndex < 0 || !sectionListRef.current) {
       console.log('Section not found or ref not available'); // Debug log
       return;
     }
+
     console.log('About to scroll to section:', sectionIndex); // Debug log
     sectionListRef.current.scrollToLocation({
       sectionIndex,
@@ -255,43 +250,9 @@ const AdminManager = () => {
     });
   };
 
-  // Handle index bar touch and drag
-  const handleIndexBarTouch = (letter) => {
-    if (letter !== currentLetter) {
-      setCurrentLetter(letter);
-      scrollToSection(letter);
-      ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
-    }
-  };
 
-  // Pan responder for sliding through letters
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (evt) => {
-        if (!indexBarLayout || availableLetters.length === 0) return;
-        const { pageY } = evt.nativeEvent;
-        const letterHeight = indexBarLayout.height / availableLetters.length;
-        const index = Math.floor((pageY - indexBarLayout.y) / letterHeight);
-        const clampedIndex = Math.max(0, Math.min(index, availableLetters.length - 1));
-        const letter = availableLetters[clampedIndex];
-        handleIndexBarTouch(letter);
-      },
-      onPanResponderMove: (evt) => {
-        if (!indexBarLayout || availableLetters.length === 0) return;
-        const { pageY } = evt.nativeEvent;
-        const letterHeight = indexBarLayout.height / availableLetters.length;
-        const index = Math.floor((pageY - indexBarLayout.y) / letterHeight);
-        const clampedIndex = Math.max(0, Math.min(index, availableLetters.length - 1));
-        const letter = availableLetters[clampedIndex];
-        handleIndexBarTouch(letter);
-      },
-      onPanResponderRelease: () => {
-        setCurrentLetter(null);
-      },
-    })
-  ).current;
+
+
 
   // Measure section header height
   const renderSectionHeader = ({ section: { title } }) => (
@@ -435,7 +396,8 @@ const AdminManager = () => {
             }, 500);
           }}
         />
-        <View style={{ position: 'absolute', top: 100, right: 0, width: 30 }}>
+        {/* Wrap the AlphabetIndexBar in an absolutely positioned View at top: 200 */}
+        <View style={{ position: 'absolute', top: 150, right: 0, width: 30 }}>
           <AlphabetIndexBar 
             onLetterChange={scrollToSection} 
             availableLetters={sections.map(s => s.title)}
@@ -597,12 +559,12 @@ const styles = StyleSheet.create({
   },
   listWrapper: {
     flex: 1,
-    flexDirection: "row",
+    position: 'relative',
   },
   listContainer: {
     paddingBottom: 20,
     flexGrow: 1,
-    paddingRight: 32, // Match DeaconEdits right padding
+    paddingRight: 32, // Add space for index bar
   },
   userCard: {
     backgroundColor: "#1e1e1e",

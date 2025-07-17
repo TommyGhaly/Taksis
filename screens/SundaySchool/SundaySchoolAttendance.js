@@ -281,20 +281,27 @@ const SundaySchoolAttendance = () => {
   // Prepare sections for SectionList
   const gradeSections = useMemo(() => {
     if (!userData?.ssGrades) return [];
-    return userData.ssGrades.map((grade) => ({
+    const sections = userData.ssGrades.map((grade) => ({
       title: grade,
       data: filteredStudentsByGrade[grade] || [],
     }));
-  }, [userData, filteredStudentsByGrade]);
+    
+    // When searching, only include sections that have students
+    if (searchQuery.trim()) {
+      return sections.filter(section => section.data.length > 0);
+    }
+    
+    return sections;
+  }, [userData, filteredStudentsByGrade, searchQuery]);
 
   // Scroll to section header for grade
   const scrollToGrade = (grade) => {
-    if (!sectionListRef.current || !userData?.ssGrades) return;
-    const sectionIndex = userData.ssGrades.findIndex((g) => g === grade);
+    if (!sectionListRef.current || !gradeSections.length) return;
+    const sectionIndex = gradeSections.findIndex((section) => section.title === grade);
     if (sectionIndex >= 0) {
       sectionListRef.current.scrollToLocation({
         sectionIndex,
-        itemIndex: 0,
+        itemIndex: 1,
         animated: true,
         viewPosition: 0,
       });
@@ -313,16 +320,25 @@ const SundaySchoolAttendance = () => {
 
   const renderGrade = useMemo(
     () =>
-      ({ item }) => (
-        <TouchableOpacity
-          style={styles.gradeTag}
-          onPress={() => scrollToGrade(item)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.gradeTagText}>{formatGrade(item)}</Text>
-        </TouchableOpacity>
-      ),
-    [userData]
+      ({ item }) => {
+        // Only show grade tag if it has students or if no search is active
+        const hasStudents = searchQuery.trim() 
+          ? gradeSections.some(section => section.title === item && section.data.length > 0)
+          : true;
+        
+        if (!hasStudents) return null;
+        
+        return (
+          <TouchableOpacity
+            style={styles.gradeTag}
+            onPress={() => scrollToGrade(item)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.gradeTagText}>{formatGrade(item)}</Text>
+          </TouchableOpacity>
+        );
+      },
+    [searchQuery, gradeSections]
   );
 
   const renderDate = useMemo(
@@ -504,7 +520,7 @@ const SundaySchoolAttendance = () => {
       </TouchableOpacity>
       <View style={styles.gradesContainer}>
         <FlatList
-          data={userData.ssGrades}
+          data={searchQuery.trim() ? gradeSections.map(section => section.title) : userData.ssGrades}
           renderItem={renderGrade}
           keyExtractor={(item) => item}
           horizontal
@@ -533,7 +549,9 @@ const SundaySchoolAttendance = () => {
         )}
         renderItem={renderStudent}
         ListEmptyComponent={
-          <Text style={styles.noStudentsText}>No students in this grade</Text>
+          <Text style={styles.noStudentsText}>
+            {searchQuery.trim() ? 'No students found matching your search' : 'No students in this grade'}
+          </Text>
         }
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={true}
