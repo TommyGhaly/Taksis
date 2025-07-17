@@ -277,8 +277,8 @@ const AlhanAttendance = () => {
 
   // Fix scrollToGrade to use scrollToLocation on SectionList
   const scrollToGrade = (grade) => {
-    if (!sectionListRef.current || !userData?.alhanGrades) return;
-    const sectionIndex = userData.alhanGrades.findIndex((g) => g === grade);
+    if (!sectionListRef.current || !gradeSections.length) return;
+    const sectionIndex = gradeSections.findIndex((section) => section.title === grade);
     if (sectionIndex >= 0) {
       sectionListRef.current.scrollToLocation({
         sectionIndex,
@@ -301,8 +301,15 @@ const AlhanAttendance = () => {
 
   const renderGrade = useMemo(
     () =>
-      ({ item }) =>
-        (
+      ({ item }) => {
+        // Only show grade tag if it has students or if no search is active
+        const hasStudents = searchQuery.trim() 
+          ? gradeSections.some(section => section.title === item && section.data.length > 0)
+          : true;
+        
+        if (!hasStudents) return null;
+        
+        return (
           <TouchableOpacity
             style={styles.gradeTag}
             onPress={() => scrollToGrade(item)}
@@ -310,8 +317,9 @@ const AlhanAttendance = () => {
           >
             <Text style={styles.gradeTagText}>{formatGrade(item)}</Text>
           </TouchableOpacity>
-        ),
-    []
+        );
+      },
+    [searchQuery, gradeSections]
   );
 
   const renderDate = useMemo(
@@ -449,11 +457,18 @@ const AlhanAttendance = () => {
   // Prepare sections for SectionList
   const gradeSections = useMemo(() => {
     if (!userData?.alhanGrades) return [];
-    return userData.alhanGrades.map((grade) => ({
+    const sections = userData.alhanGrades.map((grade) => ({
       title: grade,
       data: filteredStudentsByGrade[grade] || [],
     }));
-  }, [userData, filteredStudentsByGrade]);
+    
+    // When searching, only include sections that have students
+    if (searchQuery.trim()) {
+      return sections.filter(section => section.data.length > 0);
+    }
+    
+    return sections;
+  }, [userData, filteredStudentsByGrade, searchQuery]);
 
   if (loading) {
     return (
@@ -503,7 +518,7 @@ const AlhanAttendance = () => {
 
       <View style={styles.gradesContainer}>
         <FlatList
-          data={userData.alhanGrades}
+          data={searchQuery.trim() ? gradeSections.map(section => section.title) : userData.alhanGrades}
           renderItem={renderGrade}
           keyExtractor={(item) => item}
           horizontal
@@ -539,7 +554,9 @@ const AlhanAttendance = () => {
           />
         )}
         ListEmptyComponent={
-          <Text style={styles.noStudentsText}>No students in this grade</Text>
+          <Text style={styles.noStudentsText}>
+            {searchQuery.trim() ? 'No students found matching your search' : 'No students in this grade'}
+          </Text>
         }
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={true}
