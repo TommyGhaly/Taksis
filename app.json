@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ⲧⲁⲝⲓⲥ",
     "slug": "taksis",
-    "version": "2.1.00",
+    "version": "2.2.00",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -22,6 +22,11 @@
           "ios": {
             "useFrameworks": "static",
             "usesAppleSignIn": true
+          },
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "minSdkVersion": 21
           }
         }
       ],
@@ -54,11 +59,12 @@
       },
       "supportsTablet": false,
       "usesAppleSignIn": true,
-      "buildNumber": "4"},
+      "buildNumber": "4"
+    },
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.tghaly.taksis",
-      "versionCode": 20,
+      "versionCode": 21,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
