@@ -447,7 +447,7 @@ const ServantsAttendance = () => {
             }, 500);
           }}
         />
-        <View style={{ position: 'absolute', top: 60, right: 0, width: 30 }}>
+        <View style={{ position: 'absolute', top: 85, right: 0, width: 30 }}>
           <AlphabetIndexBar 
             onLetterChange={scrollToSection} 
             availableLetters={sections.map(s => s.title)}
