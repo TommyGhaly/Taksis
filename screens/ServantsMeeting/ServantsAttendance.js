@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo, useEffect } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -222,6 +222,32 @@ const ServantsAttendance = () => {
     Haptics.trigger("impactLight");
     const dateKey = getNextSunday();
 
+    // Store previous state for potential rollback
+    const prevServants = [...servants];
+    const prevSections = [...sections];
+
+    // Optimistic update
+    const updatedServants = servants.map((servant) =>
+      servant.uid === servantID
+        ? { ...servant, attendance: status }
+        : servant
+    );
+
+    // Update sections to reflect the change
+    const updatedSections = sections.map((section) => ({
+      ...section,
+      data: section.data.map((servant) =>
+        servant.uid === servantID
+          ? { ...servant, attendance: status }
+          : servant
+      ),
+    }));
+
+    // Apply optimistic updates
+    setServants(updatedServants);
+    setSections(updatedSections);
+
+    // Update Firestore
     firestore()
       .collection("churches")
       .doc(userData?.church)
@@ -230,14 +256,11 @@ const ServantsAttendance = () => {
       .update({
         [dateKey]: status,
       })
-      .then(() => {
-        setServants((prev) =>
-          prev.map((servant) =>
-            servant.uid === servantID
-              ? { ...servant, attendance: status }
-              : servant
-          )
-        );
+      .catch((error) => {
+        // Revert optimistic update on error
+        setServants(prevServants);
+        setSections(prevSections);
+        Alert.alert("Error", "Failed to update attendance.");
       });
   };
 
@@ -253,102 +276,107 @@ const ServantsAttendance = () => {
 
   const renderServant = useMemo(
     () =>
-      ({ item: servant }) => (
-        <View style={styles.servantCard}>
-          <View style={styles.servantInfo}>
-            <View style={styles.servantImageContainer}>
-              <Image
-                style={styles.servantImage}
-                source={
-                  profilePictureUrls[servant.uid]
-                    ? { uri: profilePictureUrls[servant.uid] }
-                    : require("../../assets/default_profile.png")
-                }
-                defaultSource={require("../../assets/default_profile.png")}
-                resizeMode="cover"
-                onError={() => {
-                  setProfilePictureUrls((prev) => ({
-                    ...prev,
-                    [servant.uid]: null,
-                  }));
-                }}
-              />
-            </View>
-            <View style={styles.servantDetails}>
-              <View style={styles.studentHeader}>
-                <Text style={styles.studentName}>{servant.name}</Text>
-                <TouchableOpacity
-                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                  onPress={() => {
-                    if (!userData) {
-                      Alert.alert("Error", "User data not loaded.");
-                      return;
-                    }
-                    setIsNavigating(true);
-                    navigation.navigate("IndividualServant", {
-                      church: userData.church,
-                      servantID: servant.uid,
-                    });
-                    setTimeout(() => setIsNavigating(false), 1000);
+      ({ item: servant }) => {
+        const dateKey = selectedDate || getNextSunday();
+        const isPastDate = selectedDate && selectedDate !== getNextSunday();
+
+        return (
+          <View style={styles.servantCard}>
+            <View style={styles.servantInfo}>
+              <View style={styles.servantImageContainer}>
+                <Image
+                  style={styles.servantImage}
+                  source={
+                    profilePictureUrls[servant.uid]
+                      ? { uri: profilePictureUrls[servant.uid] }
+                      : require("../../assets/default_profile.png")
+                  }
+                  defaultSource={require("../../assets/default_profile.png")}
+                  resizeMode="cover"
+                  onError={() => {
+                    setProfilePictureUrls((prev) => ({
+                      ...prev,
+                      [servant.uid]: null,
+                    }));
                   }}
-                  disabled={isNavigating}
-                >
-                  <Image
-                    source={require("../../assets/vector.png")}
-                    style={styles.icon}
-                  />
-                </TouchableOpacity>
+                />
               </View>
-              {isPastDate ? (
-                <View style={styles.attendanceStatusContainer}>
-                  <View
-                    style={[
-                      styles.attendanceStatus,
-                      {
-                        backgroundColor:
-                          servant.attendance === true
-                            ? "#147efb"
-                            : servant.attendance === false
-                            ? "#D32F2F"
-                            : "#444",
-                      },
-                    ]}
+              <View style={styles.servantDetails}>
+                <View style={styles.studentHeader}>
+                  <Text style={styles.studentName}>{servant.name}</Text>
+                  <TouchableOpacity
+                    hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                    onPress={() => {
+                      if (!userData) {
+                        Alert.alert("Error", "User data not loaded.");
+                        return;
+                      }
+                      setIsNavigating(true);
+                      navigation.navigate("IndividualServant", {
+                        church: userData.church,
+                        servantID: servant.uid,
+                      });
+                      setTimeout(() => setIsNavigating(false), 1000);
+                    }}
+                    disabled={isNavigating}
                   >
-                    <Text style={styles.attendanceStatusText}>
-                      {servant.attendance === true
-                        ? "Present"
-                        : servant.attendance === false
-                        ? "Absent"
-                        : "Not Recorded"}
-                    </Text>
+                    <Image
+                      source={require("../../assets/vector.png")}
+                      style={styles.icon}
+                    />
+                  </TouchableOpacity>
+                </View>
+                {isPastDate ? (
+                  <View style={styles.attendanceStatusContainer}>
+                    <View
+                      style={[
+                        styles.attendanceStatus,
+                        {
+                          backgroundColor:
+                            servant.attendance === true
+                              ? "#147efb"
+                              : servant.attendance === false
+                              ? "#D32F2F"
+                              : "#444",
+                        },
+                      ]}
+                    >
+                      <Text style={styles.attendanceStatusText}>
+                        {servant.attendance === true
+                          ? "Present"
+                          : servant.attendance === false
+                          ? "Absent"
+                          : "Not Recorded"}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              ) : (
-                <View style={styles.attendanceButtons}>
-                  <TouchableOpacity
-                    style={[
-                      styles.attendanceButton,
-                      servant.attendance === false && styles.absentSelected,
-                    ]}
-                    onPress={() => handleAttendance(servant.uid, false)}
-                  >
-                    <Text style={styles.attendanceButtonText}>Absent</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.attendanceButton,
-                      servant.attendance === true && styles.presentSelected,
-                    ]}
-                    onPress={() => handleAttendance(servant.uid, true)}
-                  >
-                    <Text style={styles.attendanceButtonText}>Present</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+                ) : (
+                  <View style={styles.attendanceButtons}>
+                    <TouchableOpacity
+                      style={[
+                        styles.attendanceButton,
+                        servant.attendance === false && styles.absentSelected,
+                      ]}
+                      onPress={() => handleAttendance(servant.uid, false)}
+                    >
+                      <Text style={styles.attendanceButtonText}>Absent</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.attendanceButton,
+                        servant.attendance === true && styles.presentSelected,
+                      ]}
+                      onPress={() => handleAttendance(servant.uid, true)}
+                    >
+                      <Text style={styles.attendanceButtonText}>Present</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
             </View>
           </View>
-        </View>
-      ),
+        );
+      },
     [profilePictureUrls, userData, selectedDate, isNavigating]
   );
 
@@ -395,7 +423,6 @@ const ServantsAttendance = () => {
   }
 
   const dateKey = selectedDate || getNextSunday();
-  const isPastDate = selectedDate && selectedDate !== getNextSunday();
 
   return (
     <View style={styles.container}>
@@ -447,10 +474,10 @@ const ServantsAttendance = () => {
             }, 500);
           }}
         />
-        <View style={{ position: 'absolute', top: 85 * scale, right: 0, width: 30 }}>
-          <AlphabetIndexBar 
-            onLetterChange={scrollToSection} 
-            availableLetters={sections.map(s => s.title)}
+        <View style={{ position: "absolute", top: 85 * scale, right: 0, width: 30 }}>
+          <AlphabetIndexBar
+            onLetterChange={scrollToSection}
+            availableLetters={sections.map((s) => s.title)}
           />
         </View>
       </View>
@@ -511,7 +538,7 @@ const styles = StyleSheet.create({
   },
   listWrapper: {
     flex: 1,
-    position: 'relative',
+    position: "relative",
   },
   listContainer: {
     flexGrow: 1,
