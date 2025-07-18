@@ -423,7 +423,7 @@ const ServantsAdmin = () => {
               }, 500);
             }}
           />
-          <View style={{ position: 'absolute', top: 100, right: 0, width: 30 }}>
+          <View style={{ position: 'absolute', top: 100 * scale, right: 0, width: 30 }}>
             <AlphabetIndexBar 
               onLetterChange={scrollToSection} 
               availableLetters={sections.map(s => s.title)}

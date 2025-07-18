@@ -808,9 +808,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   icon: {
-    width: 20,
-    height: 20,
-    tintColor: "#147efb",
+    width: 8,
+    height: 15,
   },
   attendanceButtons: {
     flexDirection: "row",
