@@ -342,8 +342,8 @@ const DeaconEdits = () => {
               }, 500);
             }}
           />
-          {/* Wrap the AlphabetIndexBar in an absolutely positioned View at top: 200 */}
-          <View style={{ position: 'absolute', top: 150, right: 0, width: 30 }}>
+          {/* Wrap the AlphabetIndexBar in an absolutely positioned View */}
+          <View style={{ position: 'absolute', top: 150 * scale, right: 0, width: 30 }}>
             <AlphabetIndexBar 
               onLetterChange={scrollToSection} 
               availableLetters={sections.map(s => s.title)}
