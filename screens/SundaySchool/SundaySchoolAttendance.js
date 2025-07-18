@@ -312,7 +312,7 @@ const SundaySchoolAttendance = () => {
     if (sectionIndex >= 0) {
       sectionListRef.current.scrollToLocation({
         sectionIndex,
-        itemIndex: 0,
+        itemIndex: 1,
         animated: true,
         viewPosition: 0,
       });
@@ -566,6 +566,19 @@ const SundaySchoolAttendance = () => {
         }
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={true}
+        onScrollToIndexFailed={(info) => {
+          const wait = new Promise(resolve => setTimeout(resolve, 500));
+          wait.then(() => {
+            if (sectionListRef.current) {
+              sectionListRef.current.scrollToLocation({
+                sectionIndex: info.index,
+                itemIndex: 1,
+                animated: false,
+                viewPosition: 0,
+              });
+            }
+          });
+        }}
       />
 
       <TouchableOpacity
