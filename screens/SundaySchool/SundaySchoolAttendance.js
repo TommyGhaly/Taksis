@@ -296,12 +296,23 @@ const SundaySchoolAttendance = () => {
 
   // Scroll to section header for grade
   const scrollToGrade = (grade) => {
-    if (!sectionListRef.current || !gradeSections.length) return;
-    const sectionIndex = gradeSections.findIndex((section) => section.title === grade);
+    if (!sectionListRef.current) return;
+    
+    // Always try to find the grade in userData.ssGrades first for consistency
+    let sectionIndex = -1;
+    if (userData?.ssGrades) {
+      sectionIndex = userData.ssGrades.findIndex((g) => g === grade);
+    }
+    
+    // If not found in userData, try gradeSections as fallback
+    if (sectionIndex === -1 && gradeSections.length > 0) {
+      sectionIndex = gradeSections.findIndex((section) => section.title === grade);
+    }
+    
     if (sectionIndex >= 0) {
       sectionListRef.current.scrollToLocation({
         sectionIndex,
-        itemIndex: 1,
+        itemIndex: 0,
         animated: true,
         viewPosition: 0,
       });

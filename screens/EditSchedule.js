@@ -76,7 +76,7 @@ const EditSchedule = () => {
           }
         },
         (error) => {
-          console.error("Error fetching user data:", error);
+          // Error handling for user data fetch
         }
       );
     return () => unsubscribeUser();
@@ -204,7 +204,7 @@ const EditSchedule = () => {
         "https://switch-server-hy6oofbihq-uc.a.run.app"
       );
     } catch (error) {
-      console.error("Error assigning reader:", error);
+      // Error handling for reader assignment
     }
     setReaderDropdownIndex(null);
   };
@@ -228,7 +228,7 @@ const EditSchedule = () => {
         "https://switch-server-hy6oofbihq-uc.a.run.app"
       );
     } catch (error) {
-      console.error("Error assigning server:", error);
+      // Error handling for server assignment
     }
     setServerDropdownIndex(null);
   };
@@ -254,7 +254,7 @@ const EditSchedule = () => {
       });
       scrollViewRef.current?.scrollToEnd({ animated: false });
     } catch (error) {
-      console.error("Error adding server:", error);
+      // Error handling for server addition
     }
   };
 
@@ -291,7 +291,7 @@ const EditSchedule = () => {
         altarServers: FieldValue.increment(-1),
       });
     } catch (error) {
-      console.error("Error removing server:", error);
+      // Error handling for server removal
     }
   };
 

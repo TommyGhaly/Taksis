@@ -49,7 +49,7 @@ const SettingsContent = () => {
             }
           },
           (error) => {
-            console.warn("Failed to fetch user data:", error);
+            // Error handling for user data fetch
           }
         );
 
@@ -97,7 +97,7 @@ const SettingsContent = () => {
         }
       }
     } catch (error) {
-      console.warn("Error updating fcmTokens during sign out:", error);
+      // Error handling for FCM tokens update during sign out
     } finally {
       setSignUp(false);
       auth().signOut();
@@ -130,7 +130,7 @@ const SettingsContent = () => {
                 try {
                   await storage().ref(`profilePictures/${user.uid}.png`).delete();
                 } catch (error) {
-                  console.warn("Failed to delete profile picture:", error);
+                  // Error handling for profile picture deletion
                 }
                 setSignUp(false);
                 await firestore().collection("users").doc(user.uid).delete();
@@ -139,7 +139,6 @@ const SettingsContent = () => {
                 Alert.alert("Success", "Your account has been deleted.");
               }
             } catch (error) {
-              console.warn("Account deletion failed:", error);
               await handleSignOut();
             } finally {
               setIsLoading(false);
@@ -169,7 +168,6 @@ const SettingsContent = () => {
         setModalVisible(false);
       }
     } catch (error) {
-      console.warn("Failed to submit suggestion:", error);
       Alert.alert("Error", "Failed to submit suggestion. Please try again.");
     } finally {
       setIsLoading(false);

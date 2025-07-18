@@ -62,11 +62,10 @@ const AddChild = ({ navigation }) => {
       // Attempt to delete the profile picture from cloud storage if it exists
       const storageRef = storage().ref(`profilePictures/${childData.uid}.png`);
       await storageRef.delete();
-      console.log(`Deleted profile picture for UID: ${childData.uid}`);
     } catch (error) {
       // Ignore error if file doesn't exist (error code 'storage/object-not-found')
       if (error.code !== 'storage/object-not-found') {
-        console.error('Error deleting profile picture:', error);
+        // Error handling for profile picture deletion
       }
     }
     // Navigate back

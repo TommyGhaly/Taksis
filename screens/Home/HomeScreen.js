@@ -32,9 +32,8 @@ async function createNotificationChannel() {
   if (Platform.OS === "android") {
     try {
       await messaging().registerDeviceForRemoteMessages();
-      console.log("Device registered for remote messages");
     } catch (error) {
-      console.error("Failed to register device for notifications:", error);
+      // Error handling for device registration
     }
   }
 }
@@ -44,7 +43,6 @@ async function getFCMToken() {
     const fcmToken = await messaging().getToken();
     return fcmToken || null;
   } catch (error) {
-    console.error("Failed to get FCM token:", error);
     return null;
   }
 }
@@ -55,9 +53,8 @@ async function storeFCMToken(userId, fcmToken) {
     await userRef.update({
       fcmTokens: FieldValue.arrayUnion(fcmToken),
     });
-    console.log("FCM token added to array successfully");
   } catch (error) {
-    console.error("Failed to add FCM token:", error);
+    // Error handling for FCM token storage
   }
 }
 
@@ -65,28 +62,20 @@ async function requestUserPermissionAndroid() {
   try {
     if (Platform.OS === "android" && Platform.Version >= 33) {
       if (!PERMISSIONS.ANDROID.POST_NOTIFICATIONS) {
-        console.warn("POST_NOTIFICATIONS permission is not supported in this version of react-native-permissions");
         return false;
       }
       const permissionStatus = await check(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
-      console.log("Permission Status:", permissionStatus);
       if (permissionStatus !== RESULTS.GRANTED) {
         const result = await request(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
-        console.log("Permission Request Result:", result);
         if (result !== RESULTS.GRANTED) {
-          console.log("Notification permission denied");
           return false;
         }
       }
-    } else {
-      console.log("Skipping POST_NOTIFICATIONS check for Android version < 33");
     }
     const authStatus = await messaging().requestPermission();
     const authorized = authStatus === messaging.AuthorizationStatus.AUTHORIZED;
-    console.log("FCM Authorization Status:", authStatus);
     return authorized;
   } catch (error) {
-    console.error("Failed to request Android permission:", error);
     return false;
   }
 }
@@ -103,7 +92,6 @@ async function requestUserPermissionIOS() {
       authStatus === messaging.AuthorizationStatus.PROVISIONAL
     );
   } catch (error) {
-    console.error("Failed to request iOS permission:", error);
     return false;
   }
 }
@@ -117,7 +105,6 @@ async function checkNotificationPermission() {
       authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
     if (isAuthorized) {
-      console.log("Notifications already authorized");
       const fcmToken = await getFCMToken();
       if (fcmToken && auth().currentUser) {
         await storeFCMToken(auth().currentUser.uid, fcmToken);
@@ -127,13 +114,11 @@ async function checkNotificationPermission() {
         ? requestUserPermissionAndroid()
         : requestUserPermissionIOS());
       if (granted) {
-        console.log("Notification permission granted");
         const fcmToken = await getFCMToken();
         if (fcmToken && auth().currentUser) {
           await storeFCMToken(auth().currentUser.uid, fcmToken);
         }
       } else {
-        console.log("Notification permission not granted");
         Alert.alert(
           "Notifications Required",
           "Please enable notifications in your device settings to receive important updates.",
@@ -142,7 +127,7 @@ async function checkNotificationPermission() {
       }
     }
   } catch (error) {
-    console.error("Error handling notifications:", error);
+    // Error handling for notification permissions
   }
 }
 
@@ -216,7 +201,7 @@ const HomeScreen = () => {
   }, []);
 
   messaging().setBackgroundMessageHandler(async (remoteMessage) => {
-    console.log("Background message received:", remoteMessage);
+    // Background message handling
   });
 
   const formatDate = (date) => {
@@ -309,7 +294,6 @@ const HomeScreen = () => {
       setShowDOBModal(false);
       setShowPhoneModal(true);
     } catch (error) {
-      console.error("Error updating DOB:", error);
       Alert.alert("Error", "Failed to update date of birth. Please try again.");
     }
   };
@@ -338,7 +322,6 @@ const HomeScreen = () => {
       setFirstName("");
       setLastName("");
     } catch (error) {
-      console.error("Error updating name:", error);
       Alert.alert("Error", "Failed to update name. Please try again.");
     }
   };
@@ -364,7 +347,6 @@ const HomeScreen = () => {
       setShowPhoneModal(false);
       setPhoneModalShownThisSession(true);
     } catch (error) {
-      console.error("Error updating phone number:", error);
       Alert.alert("Error", "Failed to update phone number. Please try again.");
     }
   };
@@ -403,7 +385,7 @@ const HomeScreen = () => {
         if (error.code === "storage/object-not-found") {
           setShowProfilePicModal(true);
         } else {
-          console.error("Error re-checking user profile picture:", error);
+          // Error handling for profile picture check
         }
       }
     };
@@ -442,7 +424,6 @@ const HomeScreen = () => {
       setShowChildrenProfilePicModal(false);
       setChildrenWithoutPfp([]);
     } catch (error) {
-      console.error("Error removing children:", error);
       Alert.alert("Error", "Failed to remove children. Please try again.");
     }
   };
@@ -534,7 +515,6 @@ const HomeScreen = () => {
               setSelectedWeeks([]);
               setShowWeekModal(false);
             } catch (error) {
-              console.error("Error marking weeks as unavailable:", error);
               Alert.alert("Error", "Failed to mark as unavailable. Please try again.");
             } finally {
               setIsLoading(false);
@@ -567,7 +547,7 @@ const HomeScreen = () => {
             if (error.code === "storage/object-not-found") {
               setShowProfilePicModal(true);
             } else {
-              console.error("Error checking user profile picture:", error);
+              // Error handling for profile picture check
             }
           }
         }
@@ -583,7 +563,7 @@ const HomeScreen = () => {
                 if (error.code === "storage/object-not-found") {
                   missingPfpChildren.push(child.uid);
                 } else {
-                  console.error(`Error checking profile picture for child ${child.uid}:`, error);
+                  // Error handling for child profile picture check
                 }
               }
             }
@@ -594,7 +574,7 @@ const HomeScreen = () => {
           }
         }
       } catch (error) {
-        console.error("Error checking profile pictures:", error);
+        // Error handling for profile pictures check
       }
     };
 
@@ -628,14 +608,16 @@ const HomeScreen = () => {
             setShowPhoneModal(!isNameInvalid && !isDOBInvalid && isPhoneInvalid && !phoneModalShownThisSession);
           } else {
             Alert.alert("Sign up to continue", "Please sign up using this account to continue.");
-            deleteUser(user).catch((error) => console.error("Error deleting user:", error));
+            deleteUser(user).catch((error) => {
+              // Error handling for user deletion
+            });
           }
         } catch (error) {
-          console.error("Error processing user document:", error);
+          // Error handling for user document processing
         }
       },
       (error) => {
-        console.error("Error in user document listener:", error);
+        // Error handling for user document listener
       }
     );
 
@@ -684,11 +666,11 @@ const HomeScreen = () => {
               }
             }
           } catch (error) {
-            console.error("Error processing user data:", error);
+            // Error handling for user data processing
           }
         },
         (error) => {
-          console.error("Error in user document listener:", error);
+          // Error handling for user document listener
         }
       );
     return () => unsubscribeUser();
@@ -732,7 +714,6 @@ const HomeScreen = () => {
           (churchDoc) => {
             try {
               if (!churchDoc.exists) {
-                console.warn("Church document does not exist for churchId:", churchId);
                 return;
               }
 
@@ -790,11 +771,11 @@ const HomeScreen = () => {
                 setSchedule(updatedSchedule);
               }
             } catch (error) {
-              console.error("Error processing church document:", error);
+              // Error handling for church document processing
             }
           },
           (error) => {
-            console.error("Error in church document listener:", error);
+            // Error handling for church document listener
           }
         );
 
@@ -802,10 +783,10 @@ const HomeScreen = () => {
           unsubscribeChurch();
         };
       } catch (error) {
-        console.error("Error loading schedules:", error);
+        // Error handling for schedules loading
       }
     }, (error) => {
-      console.error("Error in schedules listener:", error);
+      // Error handling for schedules listener
     });
 
     return () => unsubscribeSchedules();
@@ -821,7 +802,7 @@ const HomeScreen = () => {
           useNativeDriver: true,
         }).start();
       } catch (error) {
-        console.error("Animation error:", error);
+        // Error handling for animation
       }
     } else {
       scaleValue.setValue(0.9);
@@ -982,7 +963,6 @@ const HomeScreen = () => {
                     />
                   );
                 } catch (error) {
-                  console.error("DateTimePicker error:", error);
                   return <Text>Error rendering date picker</Text>;
                 }
               })()}
