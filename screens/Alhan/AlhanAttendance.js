@@ -304,24 +304,36 @@ const AlhanAttendance = () => {
   const scrollToGrade = (grade) => {
     if (!sectionListRef.current) return;
     
-    // Always try to find the grade in userData.alhanGrades first for consistency
+    // When searching, only use gradeSections since it's filtered
+    // When not searching, use userData.alhanGrades for consistency
     let sectionIndex = -1;
-    if (userData?.alhanGrades) {
-      sectionIndex = userData.alhanGrades.findIndex((g) => g === grade);
-    }
     
-    // If not found in userData, try gradeSections as fallback
-    if (sectionIndex === -1 && gradeSections.length > 0) {
+    if (searchQuery.trim()) {
+      // When searching, only look in filtered gradeSections
       sectionIndex = gradeSections.findIndex((section) => section.title === grade);
+    } else {
+      // When not searching, try userData.alhanGrades first, then gradeSections as fallback
+      if (userData?.alhanGrades) {
+        sectionIndex = userData.alhanGrades.findIndex((g) => g === grade);
+      }
+      
+      if (sectionIndex === -1 && gradeSections.length > 0) {
+        sectionIndex = gradeSections.findIndex((section) => section.title === grade);
+      }
     }
     
     if (sectionIndex >= 0) {
-      sectionListRef.current.scrollToLocation({
-        sectionIndex,
-        itemIndex: 1,
-        animated: true,
-        viewPosition: 0,
-      });
+      // Add a small delay to ensure the SectionList has updated properly
+      setTimeout(() => {
+        if (sectionListRef.current) {
+          sectionListRef.current.scrollToLocation({
+            sectionIndex,
+            itemIndex: 1,
+            animated: true,
+            viewPosition: 0,
+          });
+        }
+      }, 100);
     }
   };
 
@@ -338,12 +350,11 @@ const AlhanAttendance = () => {
   const renderGrade = useMemo(
     () =>
       ({ item }) => {
-        // Only show grade tag if it has students or if no search is active
-        const hasStudents = searchQuery.trim() 
-          ? gradeSections.some(section => section.title === item && section.data.length > 0)
-          : true;
-        
-        if (!hasStudents) return null;
+        // When searching, only show grades that have matching students
+        if (searchQuery.trim()) {
+          const hasStudents = gradeSections.some(section => section.title === item && section.data.length > 0);
+          if (!hasStudents) return null;
+        }
         
         return (
           <TouchableOpacity
@@ -542,6 +553,11 @@ const AlhanAttendance = () => {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.gradesList}
+          getItemLayout={(data, index) => ({
+            length: 50,
+            offset: 50 * index,
+            index,
+          })}
         />
       </View>
       {/* Search Bar */}
@@ -574,7 +590,7 @@ const AlhanAttendance = () => {
         onScrollToIndexFailed={(info) => {
           const wait = new Promise(resolve => setTimeout(resolve, 500));
           wait.then(() => {
-            if (sectionListRef.current) {
+            if (sectionListRef.current && info.index >= 0 && info.index < gradeSections.length) {
               sectionListRef.current.scrollToLocation({
                 sectionIndex: info.index,
                 itemIndex: 1,
