@@ -363,44 +363,44 @@ const AdminManager = () => {
 
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
-      <Text style={[styles.header, { fontSize: 24 * scale }]}>
-        Manage Admin Privileges
-      </Text>
-      <View style={styles.listWrapper}>
-        <SectionList
-          ref={sectionListRef}
-          sections={sections}
-          renderItem={renderUser}
-          renderSectionHeader={renderSectionHeader}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContainer}
-          ListEmptyComponent={
-            <Text style={[styles.emptyText, { fontSize: 16 * scale }]}>No users found.</Text>
-          }
-          showsVerticalScrollIndicator={false}
-          stickySectionHeadersEnabled={true}
-          extraData={profilePictureUrls}
-          onScrollToIndexFailed={(info) => {
-            setTimeout(() => {
-              if (sectionListRef.current) {
-                sectionListRef.current.scrollToLocation({
-                  sectionIndex: 0,
-                  itemIndex: 0,
-                  animated: false,
-                  viewPosition: 0,
-                });
-              }
-            }, 500);
-          }}
-        />
-        {/* Wrap the AlphabetIndexBar in an absolutely positioned View at top: 200 */}
-        <View style={{ position: 'absolute', top: 150, right: 0, width: 30 }}>
-          <AlphabetIndexBar 
-            onLetterChange={scrollToSection} 
-            availableLetters={sections.map(s => s.title)}
+      {sections.length === 0 ? (
+        <Text style={[styles.noData, { fontSize: 16 * scale }]}>
+          No users found.
+        </Text>
+      ) : (
+        <View style={styles.listWrapper}>
+          <SectionList
+            ref={sectionListRef}
+            sections={sections}
+            renderItem={renderUser}
+            renderSectionHeader={renderSectionHeader}
+            keyExtractor={(item) => item.id || Math.random().toString()}
+            contentContainerStyle={styles.listContainer}
+            showsVerticalScrollIndicator={false}
+            stickySectionHeadersEnabled={true}
+            extraData={profilePictureUrls}
+            onScrollToIndexFailed={(info) => {
+              setTimeout(() => {
+                if (sectionListRef.current) {
+                  sectionListRef.current.scrollToLocation({
+                    sectionIndex: 0,
+                    itemIndex: 0,
+                    animated: false,
+                    viewPosition: 0,
+                  });
+                }
+              }, 500);
+            }}
           />
+          {/* Wrap the AlphabetIndexBar in an absolutely positioned View at top: 200 */}
+          <View style={{ position: 'absolute', top: 150, right: 0, width: 30 }}>
+            <AlphabetIndexBar 
+              onLetterChange={scrollToSection} 
+              availableLetters={sections.map(s => s.title)}
+            />
+          </View>
         </View>
-      </View>
+      )}
       {selectedUser && (
         <Modal visible={modalVisible} animationType="fade" transparent={true}>
           <View style={styles.modalOverlay}>
@@ -617,9 +617,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: "#aaa",
   },
-  emptyText: {
-    color: "#aaa",
+  noData: {
     textAlign: "center",
+    color: "#aaa",
     marginTop: 20,
   },
   modalOverlay: {
