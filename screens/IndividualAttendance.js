@@ -252,7 +252,7 @@ const IndividualAttendance = () => {
                 await storage().ref(`profilePictures/${studentId}.png`).delete();
               } catch (error) {
                 if (error.code !== "storage/object-not-found") {
-                  console.warn("Error deleting profile picture:", error);
+                  // Error handling for profile picture deletion
                 }
               }
 

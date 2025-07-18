@@ -229,18 +229,12 @@ const AdminManager = () => {
 
   // Scroll to section
   const scrollToSection = (letter) => {
-    console.log('Scrolling to letter:', letter); // Debug log
-    console.log('Available sections:', sections.map(s => s.title)); // Debug log
-    
     const sectionIndex = sections.findIndex((s) => s.title === letter);
-    console.log('Found section index:', sectionIndex); // Debug log
     
     if (sectionIndex < 0 || !sectionListRef.current) {
-      console.log('Section not found or ref not available'); // Debug log
       return;
     }
 
-    console.log('About to scroll to section:', sectionIndex); // Debug log
     sectionListRef.current.scrollToLocation({
       sectionIndex,
       itemIndex: 1,

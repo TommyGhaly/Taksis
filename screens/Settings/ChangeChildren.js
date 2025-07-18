@@ -74,7 +74,7 @@ const ChangeChildren = () => {
             setProfilePictureUrls(urls);
           }
         } catch (error) {
-          console.warn("Failed to fetch profile picture URLs:", error);
+          // Error handling for profile picture URLs fetch
         }
       };
 
@@ -126,7 +126,6 @@ const ChangeChildren = () => {
                         .ref(`profilePictures/${childId}.png`)
                         .delete();
                     } catch (error) {
-                      console.warn("Failed to delete child profile picture:", error);
                       // Continue with removal even if image deletion fails
                     }
 

@@ -120,17 +120,13 @@ const AlhanAdmin = () => {
                 .getDownloadURL();
               urls[uid] = typeof url === "string" && url.trim() ? url : null;
             } catch (error) {
-              console.warn(
-                `Failed to fetch profile picture for ${uid}:`,
-                error
-              );
               urls[uid] = null;
             }
           })
         );
         setProfilePictureUrls(urls);
       } catch (error) {
-        console.warn("Error fetching profile pictures:", error);
+        // Error handling for profile pictures fetch
       }
     };
 
@@ -260,15 +256,10 @@ const AlhanAdmin = () => {
 
   // Scroll to section
   const scrollToSection = (letter) => {
-    console.log('Scrolling to letter:', letter); // Debug log
-    console.log('Available sections:', sections.map(s => s.title)); // Debug log
     const sectionIndex = sections.findIndex((s) => s.title === letter);
-    console.log('Found section index:', sectionIndex); // Debug log
     if (sectionIndex < 0 || !sectionListRef.current) {
-      console.log('Section not found or ref not available'); // Debug log
       return;
     }
-    console.log('About to scroll to section:', sectionIndex); // Debug log
     sectionListRef.current.scrollToLocation({
       sectionIndex,
       itemIndex: 1,
