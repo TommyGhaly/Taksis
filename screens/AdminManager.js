@@ -13,7 +13,6 @@ import {
   FlatList,
   Dimensions,
   Platform,
-  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
@@ -243,6 +242,8 @@ const AdminManager = () => {
       viewOffset: 0,
     });
   };
+
+
 
 
 
