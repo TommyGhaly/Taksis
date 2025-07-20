@@ -676,7 +676,7 @@ def add_user_to_churches(user_data):
     else:
         remove_user_from_schedules(church_id, user_id, "N/A", "N/A", False)
 
-    # Delete existing servant record, if it exists (deletion is safe even if the document doesn’t exist)
+    # Delete existing servant record, if it exists (deletion is safe even if the document doesn't exist)
     servant_ref = (
         firestore_client.collection("churches")
         .document(church_id)
@@ -2042,14 +2042,31 @@ def third_reminder(event: scheduler_fn.ScheduledEvent) -> None:
 
 def get_next_sunday(base_date: datetime.date) -> datetime.date:
     days_ahead = (6 - base_date.weekday()) % 7
+    # If it's Sunday (weekday = 6), we want next Sunday (7 days ahead)
+    # If it's Saturday (weekday = 5), we want tomorrow (1 day ahead)
+    # For all other days, we want the next Sunday
     days_ahead = 7 if days_ahead == 0 else days_ahead
     return base_date + datetime.timedelta(days=days_ahead)
 
 
 async def liturgy_notification():
-    today = datetime.date.today()
-    next_sunday = get_next_sunday(today)
-    next_sunday_str = next_sunday.strftime("%m-%d-%y")
+    # Use the same logic as generate_schedule to ensure consistency
+    today = datetime.datetime.now()
+    days_until_sunday = (6 - today.weekday()) % 7
+    upcoming_sunday = today + datetime.timedelta(days=days_until_sunday)
+    upcoming_sunday = upcoming_sunday.replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    
+    # Use the same logic as generate_schedule
+    if today.weekday() == 6:  # Sunday
+        target_sunday = upcoming_sunday + datetime.timedelta(weeks=1)
+    else:
+        target_sunday = upcoming_sunday
+    
+    next_sunday_str = target_sunday.strftime("%m-%d-%y")
+
+    print(f"Liturgy notification: Looking for schedule document '{next_sunday_str}' for date {target_sunday}")
 
     firestore_client = firestore.Client()
     churches_ref = firestore_client.collection("churches")
@@ -2061,7 +2078,10 @@ async def liturgy_notification():
         schedule_ref = church_doc.reference.collection("schedule")
         schedule_doc = schedule_ref.document(next_sunday_str).get()
         if not schedule_doc.exists:
+            print(f"Schedule document '{next_sunday_str}' not found for church {church_doc.id}")
             continue
+        else:
+            print(f"Found schedule document '{next_sunday_str}' for church {church_doc.id}")
 
         for key, value in schedule_doc.to_dict().items():
             print(f"Processing key: {key}, value: {value}")
@@ -2078,6 +2098,7 @@ async def liturgy_notification():
                     if server["name"] == "N/A":
                         print(f"Skipping {server['name']} in {key}")
                         continue
+                    print(f"Sending notification to {server['name']}")
                     tasks.append(asyncio.to_thread(
                         update_notification,
                         server["uid"],
@@ -2101,9 +2122,11 @@ async def liturgy_notification():
 @https_fn.on_request()
 def test_liturgy_notification(req: https_fn.Request) -> https_fn.Response:
     try:
+        print("Starting test liturgy notification...")
         asyncio.run(liturgy_notification())
         return https_fn.Response("Liturgy notification sent successfully", status=200)
     except Exception as e:
+        print(f"Error in test liturgy notification: {str(e)}")
         return https_fn.Response(f"Error sending notification: {str(e)}", status=500)
 
 
@@ -2154,13 +2177,15 @@ def search_for_child(uid):
     firestore_client = firestore.Client()
     users_ref = firestore_client.collection("users")
     
-    # Only fetch users that have a `children` field
-    users_with_children = users_ref.where("children", "!=", None).stream()
+    # Fetch all users and filter in Python instead of using Firestore query
+    all_users = users_ref.stream()
 
-    for user in users_with_children:
+    for user in all_users:
         user_data = user.to_dict()
         children = user_data.get("children", [])
-        if isinstance(children, list):
+        
+        # Only process users that have children
+        if children and isinstance(children, list):
             for child in children:
                 if isinstance(child, dict) and child.get("uid") == uid:
                     if (
