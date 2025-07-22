@@ -1,5 +1,5 @@
 firebase-functions==0.1.0
-firebase-admin==6.4.0
+firebase-admin==6.5.0
 google-cloud-firestore==2.13.1
 google-cloud-storage==2.10.0
 google-auth==2.23.4
@@ -7,3 +7,10 @@ google-auth-oauthlib==1.1.0
 google-auth-httplib2==0.1.1
 requests==2.31.0
 flask==3.0.0
+gspread==6.1.0
+google-auth-oauthlib==1.1.0
+google-auth-httplib2==0.1.1
+google-auth-oauthlib==1.1.0
+msal==1.28.0
+requests==2.31.0
+openpyxl==3.1.2

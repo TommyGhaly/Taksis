@@ -67,3 +67,10 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+
+credentials.json
+
+firebase_admin.json
+
+config.json
