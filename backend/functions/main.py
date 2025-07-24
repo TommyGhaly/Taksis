@@ -11,7 +11,38 @@ import requests
 import datetime
 from flask import Request
 import re
+import os
+import sys
 
+# FIX IMPORT PATH BEFORE ATTEMPTING IMPORT
+# Debug information
+print(f"Python version: {sys.version}")
+print(f"Current working directory: {os.getcwd()}")
+
+# Check if we're running from project root (Firebase emulator case)
+if os.path.exists('functions') and os.path.isdir('functions'):
+    # Running from project root
+    functions_dir = os.path.abspath('functions')
+    sys.path.insert(0, functions_dir)
+    print(f"Running from project root, added functions to path: {functions_dir}")
+    print(f"Files in functions directory: {os.listdir('functions')}")
+else:
+    # Running from functions directory
+    print(f"Running from functions directory")
+    print(f"Files in current directory: {os.listdir('.')}")
+
+# NOW try to import attendance_sheets AFTER fixing the path
+try:
+    from attendance_sheets import set_up_sheets
+    print("✅ Successfully imported attendance_sheets")
+    ATTENDANCE_AVAILABLE = True
+except ImportError as e:
+    print(f"❌ Failed to import attendance_sheets: {e}")
+    print(f"Current sys.path: {sys.path}")
+    ATTENDANCE_AVAILABLE = False
+    # Define a dummy function for deployment
+    def set_up_sheets():
+        raise NotImplementedError("attendance_sheets module not available")
 
 initialize_app()
 
@@ -2219,3 +2250,15 @@ def update_notification(uid, message, child_message, title):
             send_notification(child_info[1], child_message, title)
         else:
             print(f"No FCM tokens found for user {uid} or their children.")
+
+
+@scheduler_fn.on_schedule(
+    schedule="0 0 * * 1",  # Every Monday at midnight
+    timezone=scheduler_fn.Timezone("America/New_York"),
+)
+def generate_sunday_school_sheets(event: scheduler_fn.ScheduledEvent) -> None:
+    try: 
+        set_up_sheets()
+        return https_fn.Response("Document generation completed", status=200)
+    except Exception as e:
+        return https_fn.Response(f"Error generating documents: {str(e)}", status=500)
