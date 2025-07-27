@@ -13,6 +13,7 @@ from flask import Request
 import re
 import os
 import sys
+import json
 
 # FIX IMPORT PATH BEFORE ATTEMPTING IMPORT
 # Debug information
@@ -34,6 +35,7 @@ else:
 # NOW try to import attendance_sheets AFTER fixing the path
 try:
     from attendance_sheets import set_up_sheets
+    from servants_attendance_sheets import set_up_sheets_servants
     print("✅ Successfully imported attendance_sheets")
     ATTENDANCE_AVAILABLE = True
 except ImportError as e:
@@ -2256,9 +2258,48 @@ def update_notification(uid, message, child_message, title):
     schedule="0 0 * * 1",  # Every Monday at midnight
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
-def generate_sunday_school_sheets(event: scheduler_fn.ScheduledEvent) -> None:
-    try: 
-        set_up_sheets()
-        return https_fn.Response("Document generation completed", status=200)
+async def generate_sheets(event: scheduler_fn.ScheduledEvent) -> None:
+    try:
+        # Run both functions concurrently
+        await asyncio.gather(
+            asyncio.to_thread(set_up_sheets),
+            asyncio.to_thread(set_up_sheets_servants)
+        )
     except Exception as e:
-        return https_fn.Response(f"Error generating documents: {str(e)}", status=500)
+        raise
+
+
+@https_fn.on_request()
+async def test_generate_sheets_http(req: https_fn.Request) -> https_fn.Response:
+    """HTTP endpoint to manually trigger sheet generation for testing."""
+    try:
+        # Run both functions concurrently
+        await asyncio.gather(
+            asyncio.to_thread(set_up_sheets),
+            asyncio.to_thread(set_up_sheets_servants)
+        )
+        
+        response_data = {
+            "success": True,
+            "message": "Document generation completed successfully",
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        
+        return https_fn.Response(
+            body=json.dumps(response_data),
+            status=200,
+            headers={"Content-Type": "application/json"}
+        )
+        
+    except Exception as e:
+        error_data = {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        
+        return https_fn.Response(
+            body=json.dumps(error_data),
+            status=500,
+            headers={"Content-Type": "application/json"}
+        )

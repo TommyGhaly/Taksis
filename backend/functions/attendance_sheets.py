@@ -1,5 +1,3 @@
-# attendance_sheets.py - Streamlined version
-
 import gspread
 import firebase_admin
 from firebase_admin import credentials as firebase_credentials, firestore
@@ -90,19 +88,64 @@ def get_school_year():
         return f"{current_year}-{current_year + 1}"
 
 def upload_to_sharepoint(file_path, file_name, access_token, drive_id):
-    """Upload file to SharePoint Teams Sunday School folder."""
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    }
+    """Upload file to SharePoint Teams Sunday School folder, overwriting if exists."""
+    import time  # Import here for delay functionality
     
-    school_year = get_school_year()
-    upload_url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:/General/Attendance%20Reports/{school_year}/{file_name}:/content"
-    
-    with open(file_path, "rb") as f:
-        response = requests.put(upload_url, headers=headers, data=f.read())
-    
-    return response.status_code in [200, 201]
+    try:
+        if not os.path.exists(file_path):
+            return False
+        
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        }
+        
+        school_year = get_school_year()
+        file_path_in_sharepoint = f"General/Attendance%20Reports/{school_year}/{file_name}"
+        upload_url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:/{file_path_in_sharepoint}:/content"
+        
+        # Read file content once
+        with open(file_path, "rb") as f:
+            file_content = f.read()
+        
+        # First attempt: Try direct overwrite (works if file is in co-authoring mode)
+        response = requests.put(upload_url, headers=headers, data=file_content)
+        
+        if response.status_code in [200, 201]:
+            return True
+        elif response.status_code == 423:
+            # Check if file exists and try to delete it
+            check_url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:/{file_path_in_sharepoint}"
+            delete_headers = {"Authorization": f"Bearer {access_token}"}
+            
+            # Try to delete with retries
+            max_retries = 3
+            for retry in range(max_retries):
+                delete_response = requests.delete(check_url, headers=delete_headers)
+                
+                if delete_response.status_code == 204:
+                    time.sleep(2)  # Wait for deletion to propagate
+                    
+                    # Try upload again
+                    response = requests.put(upload_url, headers=headers, data=file_content)
+                    if response.status_code in [200, 201]:
+                        return True
+                        
+                elif delete_response.status_code == 423:
+                    if retry < max_retries - 1:
+                        wait_time = 5 * (retry + 1)  # Exponential backoff: 5, 10, 15 seconds
+                        time.sleep(wait_time)
+                    else:
+                        return False
+                else:
+                    break
+        else:
+            return False
+        
+        return False
+            
+    except Exception as e:
+        return False
 
 # === GOOGLE SHEETS FUNCTIONS ===
 def export_google_sheet_to_excel(spreadsheet, church_name, sheet_creds):
@@ -190,20 +233,34 @@ def get_start_date(student_dict):
     """Find the earliest date in the student records."""
     date_format = "%m-%d-%Y"
     start_date = datetime.datetime.max
+    today = datetime.datetime.now()
 
     for records in student_dict.values():
         for date_str, _ in records:
             try:
                 date_obj = datetime.datetime.strptime(date_str, date_format)
-                if date_obj < start_date:
-                    start_date = date_obj
+                # Ignore dates in the future
+                if date_obj <= today:
+                    if date_obj < start_date:
+                        start_date = date_obj
             except ValueError:
                 continue
+
+    if start_date == datetime.datetime.max:
+        # If no valid dates found, start from beginning of school year
+        current_year = today.year
+        september11 = datetime.datetime(current_year, 8, 11)  # September 11
+        
+        # If we're before September 11, use last year's September 11
+        if today < september11:
+            start_date = datetime.datetime(current_year - 1, 8, 11)
+        else:
+            start_date = september11
 
     return start_date
 
 def create_date_array(start_date):
-    """Create an array of Sunday dates from start to most recent past Sunday."""
+    """Create an array of Sunday dates from start to next Sunday (inclusive)."""
     if start_date.weekday() != 6:
         days_to_sunday = (start_date.weekday() + 1) % 7
         start_date = start_date - datetime.timedelta(days=days_to_sunday)
@@ -212,10 +269,20 @@ def create_date_array(start_date):
     current_date = start_date
 
     today = datetime.datetime.now()
-    most_recent_sunday = today - datetime.timedelta(days=(today.weekday() + 1) % 7)
-    most_recent_sunday = most_recent_sunday.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Get the next Sunday (or today if it's Sunday)
+    if today.weekday() == 6:  # Today is Sunday
+        next_sunday = today
+    else:
+        days_until_sunday = (6 - today.weekday()) % 7
+        if days_until_sunday == 0:
+            days_until_sunday = 7
+        next_sunday = today + datetime.timedelta(days=days_until_sunday)
+    
+    next_sunday = next_sunday.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    while current_date <= most_recent_sunday:
+    # Include all Sundays from start_date to next_sunday (inclusive)
+    while current_date <= next_sunday:
         date_array.append(current_date.strftime("%m-%d-%Y"))
         current_date += datetime.timedelta(days=7)
 
@@ -389,8 +456,6 @@ def process_church(church, church_data, church_name, client, sheet_creds):
             # Update Firestore
             school_year = get_school_year()
             church.reference.update({
-                'lastAttendanceSheetUrl': f"https://docs.google.com/spreadsheets/d/{church_sheet.id}",
-                'lastAttendanceUpdate': datetime.datetime.now(),
                 'currentSchoolYear': school_year
             })
         
@@ -410,14 +475,11 @@ def handle_sharepoint_upload(church_sheet, church_name, sheet_creds, church):
     excel_path = export_google_sheet_to_excel(church_sheet, church_name, sheet_creds)
     if excel_path:
         school_year = get_school_year()
-        file_name = f"{church_name}_Attendance.xlsx"
+        file_name = "attendance.xlsx"
         
         if upload_to_sharepoint(excel_path, file_name, ms_access_token, drive_id):
             # Update Firestore
             church.reference.update({
-                'lastAttendanceSheetUrl': f"https://docs.google.com/spreadsheets/d/{church_sheet.id}",
-                'lastAttendanceUpdate': datetime.datetime.now(),
-                'lastSharePointUpload': datetime.datetime.now(),
                 'currentSchoolYear': school_year
             })
         

@@ -144,7 +144,8 @@ const IndividualAttendance = () => {
         key !== "phone" &&
         key !== "address" &&
         key !== "description" &&
-        key !== "birthday"
+        key !== "birthday" &&
+        key !== "grade"
       ) {
         attendance.push({ date: key, status: value });
       }
