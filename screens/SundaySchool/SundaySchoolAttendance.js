@@ -253,7 +253,6 @@ const SundaySchoolAttendance = () => {
         address: "",
         description: "",
         birthday: "",
-        grade: newStudentGrade,
       });
       setModalVisible(false);
       setNewStudentName("");

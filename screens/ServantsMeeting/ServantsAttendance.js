@@ -42,9 +42,61 @@ const ServantsAttendance = () => {
   const [dateModalVisible, setDateModalVisible] = useState(false);
   const [previousSundays, setPreviousSundays] = useState([]);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [rawServantsData, setRawServantsData] = useState([]); // Store raw Firestore data
   const headerHeightRef = useRef(0);
   const sectionListRef = useRef(null);
   const isMounted = useRef(true);
+
+  const getNextSunday = () => {
+    const today = new Date();
+    const currentDay = today.getDay();
+    if (currentDay === 0) return formatDate(today);
+
+    const nextSunday = new Date(today);
+    nextSunday.setDate(today.getDate() + (7 - currentDay));
+    return formatDate(nextSunday);
+  };
+
+  const formatDate = (date) => {
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const year = date.getFullYear();
+    return `${month}-${day}-${year}`;
+  };
+
+  // Process raw data whenever selectedDate or rawServantsData changes
+  useEffect(() => {
+    if (rawServantsData.length === 0) return;
+
+    const dateKey = selectedDate || getNextSunday();
+    
+    // Map attendance based on selected date
+    const processedServants = rawServantsData.map((servant) => ({
+      ...servant,
+      attendance: servant[dateKey] !== undefined ? servant[dateKey] : null,
+    }));
+
+    processedServants.sort((a, b) => a.name.localeCompare(b.name));
+
+    // Group servants by first letter
+    const grouped = processedServants.reduce((acc, servant) => {
+      const firstLetter = servant.name.charAt(0).toUpperCase() || "Other";
+      if (!acc[firstLetter]) acc[firstLetter] = [];
+      acc[firstLetter].push(servant);
+      return acc;
+    }, {});
+
+    const sectionData = Object.keys(grouped)
+      .sort()
+      .map((letter) => ({
+        title: letter,
+        data: grouped[letter],
+      }));
+
+    setServants(processedServants);
+    setSections(sectionData);
+    setAvailableLetters(Object.keys(grouped).sort());
+  }, [selectedDate, rawServantsData]);
 
   useEffect(() => {
     isMounted.current = true;
@@ -112,10 +164,10 @@ const ServantsAttendance = () => {
             const servantsData = snapshot.docs.map((doc) => ({
               uid: doc.id,
               ...doc.data(),
-              attendance: doc.data()[selectedDate || getNextSunday()],
             }));
 
-            servantsData.sort((a, b) => a.name.localeCompare(b.name));
+            // Store raw data
+            setRawServantsData(servantsData);
 
             // Fetch profile pictures only for new servants
             const urls = { ...profilePictureUrls };
@@ -136,26 +188,7 @@ const ServantsAttendance = () => {
               })
             );
 
-            // Group servants by first letter
-            const grouped = servantsData.reduce((acc, servant) => {
-              const firstLetter = servant.name.charAt(0).toUpperCase() || "Other";
-              if (!acc[firstLetter]) acc[firstLetter] = [];
-              acc[firstLetter].push(servant);
-              return acc;
-            }, {});
-
-            const sectionData = Object.keys(grouped)
-              .sort()
-              .map((letter) => ({
-                title: letter,
-                data: grouped[letter],
-              }));
-
-            // Batch state updates to reduce re-renders
             if (isMounted.current) {
-              setServants(servantsData);
-              setSections(sectionData);
-              setAvailableLetters(Object.keys(grouped).sort());
               setProfilePictureUrls(urls);
               setLoading(false);
             }
@@ -200,54 +233,14 @@ const ServantsAttendance = () => {
     });
   };
 
-  const getNextSunday = () => {
-    const today = new Date();
-    const currentDay = today.getDay();
-    if (currentDay === 0) return formatDate(today);
-
-    const nextSunday = new Date(today);
-    nextSunday.setDate(today.getDate() + (7 - currentDay));
-    return formatDate(nextSunday);
-  };
-
-  const formatDate = (date) => {
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const year = date.getFullYear();
-    return `${month}-${day}-${year}`;
-  };
-
   const handleAttendance = (servantID, status) => {
+    const dateKey = selectedDate || getNextSunday();
     if (selectedDate && selectedDate !== getNextSunday()) return;
+    
     Haptics.trigger("impactLight");
-    const dateKey = getNextSunday();
 
-    // Store previous state for potential rollback
-    const prevServants = [...servants];
-    const prevSections = [...sections];
-
-    // Optimistic update
-    const updatedServants = servants.map((servant) =>
-      servant.uid === servantID
-        ? { ...servant, attendance: status }
-        : servant
-    );
-
-    // Update sections to reflect the change
-    const updatedSections = sections.map((section) => ({
-      ...section,
-      data: section.data.map((servant) =>
-        servant.uid === servantID
-          ? { ...servant, attendance: status }
-          : servant
-      ),
-    }));
-
-    // Apply optimistic updates
-    setServants(updatedServants);
-    setSections(updatedSections);
-
-    // Update Firestore
+    // Update Firestore immediately without optimistic update
+    // The real-time listener will handle the UI update
     firestore()
       .collection("churches")
       .doc(userData?.church)
@@ -257,9 +250,6 @@ const ServantsAttendance = () => {
         [dateKey]: status,
       })
       .catch((error) => {
-        // Revert optimistic update on error
-        setServants(prevServants);
-        setSections(prevSections);
         Alert.alert("Error", "Failed to update attendance.");
       });
   };
@@ -270,7 +260,7 @@ const ServantsAttendance = () => {
   };
 
   const handleJumpToCurrentWeek = () => {
-    setSelectedDate(getNextSunday());
+    setSelectedDate(null); // null means current week
     setDateModalVisible(false);
   };
 
@@ -377,7 +367,7 @@ const ServantsAttendance = () => {
           </View>
         );
       },
-    [profilePictureUrls, userData, selectedDate, isNavigating]
+    [profilePictureUrls, userData, selectedDate, isNavigating, servants]
   );
 
   const renderSectionHeader = useMemo(
