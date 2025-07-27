@@ -2270,36 +2270,14 @@ async def generate_sheets(event: scheduler_fn.ScheduledEvent) -> None:
 
 
 @https_fn.on_request()
-async def test_generate_sheets_http(req: https_fn.Request) -> https_fn.Response:
+def test_generate_sheets_http(req: https_fn.Request) -> https_fn.Response:
     """HTTP endpoint to manually trigger sheet generation for testing."""
     try:
-        # Run both functions concurrently
-        await asyncio.gather(
-            asyncio.to_thread(set_up_sheets),
-            asyncio.to_thread(set_up_sheets_servants)
-        )
+        # Run functions synchronously
+        set_up_sheets()
+        set_up_sheets_servants()
         
-        response_data = {
-            "success": True,
-            "message": "Document generation completed successfully",
-            "timestamp": datetime.datetime.now().isoformat()
-        }
-        
-        return https_fn.Response(
-            body=json.dumps(response_data),
-            status=200,
-            headers={"Content-Type": "application/json"}
-        )
+        return https_fn.Response("Document generation completed successfully")
         
     except Exception as e:
-        error_data = {
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.datetime.now().isoformat()
-        }
-        
-        return https_fn.Response(
-            body=json.dumps(error_data),
-            status=500,
-            headers={"Content-Type": "application/json"}
-        )
+        return https_fn.Response(f"Error: {str(e)}", status=500)
