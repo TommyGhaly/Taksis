@@ -93,6 +93,7 @@ const IndividualProfile = ({
   onClose,
   church,
   week,
+  currentEditingWeek,
   family,
   url,
 }) => {
@@ -334,10 +335,97 @@ const IndividualProfile = ({
     }
   };
 
-  const handleUnavailable = () => {
+  const handleUnavailable = async () => {
+    try {
+      if (!church || !userId) {
+        Alert.alert("Error", "Missing required information.");
+        return;
+      }
+
+      // Check if user is serving in multiple weeks
+      const schedulesRef = firestore()
+        .collection("churches")
+        .doc(church)
+        .collection("schedule");
+
+      const snapshot = await schedulesRef.get();
+      const servingWeeks = [];
+
+      snapshot.docs.forEach((doc) => {
+        const scheduleData = doc.data();
+        const weekId = doc.id;
+        
+        // Check if user is serving in this week
+        const isServing = 
+          scheduleData.altar?.some(server => server.uid === userId) ||
+          Object.values(scheduleData).some(reader => 
+            reader && typeof reader === 'object' && reader.uid === userId
+          );
+        
+        if (isServing) {
+          servingWeeks.push(weekId);
+        }
+      });
+
+      // If we're editing a specific week and user is serving in that week, prioritize it
+      if (currentEditingWeek && servingWeeks.includes(currentEditingWeek)) {
+        if (servingWeeks.length === 1) {
+          // User is only serving in the current editing week
+          markUnavailableForWeek(currentEditingWeek);
+        } else {
+          // User is serving in multiple weeks, show selection with current week first
+          const sortedWeeks = [
+            currentEditingWeek,
+            ...servingWeeks.filter(w => w !== currentEditingWeek)
+          ];
+          
+          Alert.alert(
+            "Multiple Weeks Found",
+            "This user is serving in multiple weeks. Which week would you like to mark as unavailable?",
+            [
+              { text: "Cancel", style: "cancel" },
+              ...sortedWeeks.map(weekId => ({
+                text: `${formatWeekDisplay(weekId)}${weekId === currentEditingWeek ? ' (Current Week)' : ''}`,
+                onPress: () => markUnavailableForWeek(weekId)
+              }))
+            ],
+            { cancelable: true }
+          );
+        }
+      } else if (servingWeeks.length > 1) {
+        // User is serving in multiple weeks but not in current editing week
+        Alert.alert(
+          "Multiple Weeks Found",
+          "This user is serving in multiple weeks. Which week would you like to mark as unavailable?",
+          [
+            { text: "Cancel", style: "cancel" },
+            ...servingWeeks.map(weekId => ({
+              text: formatWeekDisplay(weekId),
+              onPress: () => markUnavailableForWeek(weekId)
+            }))
+          ],
+          { cancelable: true }
+        );
+      } else if (servingWeeks.length === 1) {
+        // User is only serving in one week
+        markUnavailableForWeek(servingWeeks[0]);
+      } else {
+        // User is not serving in any week
+        Alert.alert(
+          "No Service Found",
+          "This user is not currently scheduled to serve in any week.",
+          [{ text: "OK" }]
+        );
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to check user's schedule. Please try again.");
+    }
+  };
+
+  const markUnavailableForWeek = (targetWeek) => {
     Alert.alert(
       "Mark Unavailable",
-      "Are you sure you want to mark this user as unavailable to serve?",
+      `Are you sure you want to mark this user as unavailable for ${formatWeekDisplay(targetWeek)}?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -356,7 +444,7 @@ const IndividualProfile = ({
                   .collection("users")
                   .doc(userId)
                   .update({
-                    unavailableWeeks: FieldValue.arrayUnion(userData.nextWeekServe),
+                    unavailableWeeks: FieldValue.arrayUnion(targetWeek),
                   });
               }
 
@@ -364,7 +452,7 @@ const IndividualProfile = ({
                 currentUser,
                 userId,
                 church,
-                userData.nextWeekServe,
+                targetWeek,
                 family,
                 "https://unavailable-for-week-hy6oofbihq-uc.a.run.app"
               );
@@ -377,6 +465,19 @@ const IndividualProfile = ({
       ],
       { cancelable: true }
     );
+  };
+
+  // Helper function to format week display
+  const formatWeekDisplay = (weekStr) => {
+    if (!weekStr) return "Unknown Week";
+    const [month, day, year] = weekStr.split("-").map(Number);
+    const date = new Date(2000 + year, month - 1, day);
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    });
   };
 
   const handleRemoveDeacon = () => {
@@ -527,6 +628,11 @@ const IndividualProfile = ({
 
           <Text style={styles.title}>{userData?.name || "N/A"}</Text>
           {isChild && <Text style={styles.subtitle}>Child Profile</Text>}
+          {currentEditingWeek && (
+            <Text style={styles.currentWeekIndicator}>
+              Editing: {formatWeekDisplay(currentEditingWeek)}
+            </Text>
+          )}
 
           <View style={styles.section}>
             <View style={styles.detailRow}>
@@ -719,6 +825,13 @@ const styles = StyleSheet.create({
     color: "#bbb",
     textAlign: "center",
     marginBottom: 8,
+  },
+  currentWeekIndicator: {
+    fontSize: 12,
+    color: "#147efb",
+    textAlign: "center",
+    marginBottom: 8,
+    fontStyle: "italic",
   },
   section: {
     backgroundColor: "#222",
