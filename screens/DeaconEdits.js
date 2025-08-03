@@ -89,36 +89,6 @@ const DeaconEdits = () => {
   useEffect(() => {
     if (!church) return;
 
-    const fetchProfilePictureUrls = async () => {
-      try {
-        const doc = await firestore().collection("churches").doc(church).get();
-        if (doc.exists) {
-          const deaconList = doc.data().deacons || [];
-          const urls = {};
-          await Promise.all(
-            deaconList.map(async (deacon) => {
-              if (deacon.uid) {
-                try {
-                  const url = await storage()
-                    .ref(`profilePictures/${deacon.uid}.png`)
-                    .getDownloadURL();
-                  urls[deacon.uid] =
-                    typeof url === "string" && url.trim() ? url : null;
-                } catch (error) {
-                  urls[deacon.uid] = null;
-                }
-              }
-            })
-          );
-          setProfilePictureUrls(urls);
-        }
-      } catch (error) {
-        }
-    };
-
-    fetchProfilePictureUrls();
-    const intervalId = setInterval(fetchProfilePictureUrls, 30000);
-
     const unsubscribe = firestore()
       .collection("churches")
       .doc(church)
@@ -146,7 +116,6 @@ const DeaconEdits = () => {
               })
             );
 
-
             // Sort and group deacons
             const sortedDeacons = deaconListWithPhone
               .map((deacon) => ({
@@ -156,7 +125,7 @@ const DeaconEdits = () => {
               .sort((a, b) => {
                 const nameComparison = a.name.localeCompare(b.name);
                 if (nameComparison === 0) {
-                  return a.uid.localeCompare(b.uid); // Fixed typo from uidJones
+                  return a.uid.localeCompare(b.uid);
                 }
                 return nameComparison;
               })
@@ -198,9 +167,49 @@ const DeaconEdits = () => {
         }
       );
 
+    return () => unsubscribe();
+  }, [church]);
+
+  // Fetch profile pictures separately for better performance
+  useEffect(() => {
+    if (!church) return;
+
+    const fetchProfilePictureUrls = async () => {
+      try {
+        // Get all deacons from the church document
+        const doc = await firestore().collection("churches").doc(church).get();
+        if (doc.exists) {
+          const deaconList = doc.data().deacons || [];
+          
+          // Fetch all profile pictures at once
+          const urls = {};
+          await Promise.all(
+            deaconList.map(async (deacon) => {
+              if (deacon.uid) {
+                try {
+                  const url = await storage()
+                    .ref(`profilePictures/${deacon.uid}.png`)
+                    .getDownloadURL();
+                  urls[deacon.uid] =
+                    typeof url === "string" && url.trim() ? url : null;
+                } catch (error) {
+                  urls[deacon.uid] = null;
+                }
+              }
+            })
+          );
+          setProfilePictureUrls(urls);
+        }
+      } catch (error) {
+        // Silent error handling
+      }
+    };
+
+    fetchProfilePictureUrls();
+    const intervalId = setInterval(fetchProfilePictureUrls, 30000);
+
     return () => {
       clearInterval(intervalId);
-      unsubscribe();
     };
   }, [church]);
 
