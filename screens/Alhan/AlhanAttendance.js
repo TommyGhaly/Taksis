@@ -48,7 +48,7 @@ const AlhanAttendance = () => {
       if (!user) {
         Alert.alert("Error", "No user found.");
         setLoading(false);
-        return () => {};
+        return;
       }
 
       try {
@@ -61,7 +61,7 @@ const AlhanAttendance = () => {
         if (!userDoc.exists) {
           Alert.alert("Error", "User not found.");
           setLoading(false);
-          return () => {};
+          return;
         }
         const localUserData = userDoc.data();
         setUserData(localUserData);
@@ -69,64 +69,17 @@ const AlhanAttendance = () => {
 
         if (!localUserData.alhanGrades?.length) {
           setLoading(false);
-          return () => {};
+          return;
         }
 
         // Generate previous Saturdays
         await generatePreviousSaturdays();
-
-        // Set up persistent snapshot listener for all grades
-        const gradeStudents = {};
-        localUserData.alhanGrades.forEach((grade) => {
-          gradeStudents[grade] = [];
-        });
-
-        const unsubscribes = localUserData.alhanGrades.map((grade) =>
-          firestore()
-            .collection("churches")
-            .doc(localUserData.church)
-            .collection("Hymns Class")
-            .doc(grade)
-            .collection("students")
-            .onSnapshot(
-              (snapshot) => {
-                if (!isMounted.current) return;
-                const students = snapshot.docs.map((doc) => ({
-                  uid: doc.id,
-                  grade,
-                  ...doc.data(),
-                }));
-                students.sort((a, b) => a.name.localeCompare(b.name));
-
-                setStudentsByGrade((prev) => ({
-                  ...prev,
-                  [grade]: students,
-                }));
-
-                // Fetch profile pictures for new students
-                fetchProfilePictures(students);
-              },
-              (error) => {
-                if (isMounted.current) {
-                  Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
-                }
-              }
-            )
-        );
-
         setLoading(false);
-
-        // Return cleanup function to unsubscribe listeners
-        return () => {
-          isMounted.current = false;
-          unsubscribes.forEach((unsubscribe) => unsubscribe());
-        };
       } catch (error) {
         if (isMounted.current) {
           Alert.alert("Error", error.message);
           setLoading(false);
         }
-        return () => {};
       }
     };
 
@@ -136,6 +89,95 @@ const AlhanAttendance = () => {
       isMounted.current = false;
     };
   }, [user]);
+
+  // Subscribe to deacons array updates and profile pictures
+  useEffect(() => {
+    if (!userData?.church || !userData?.alhanGrades?.length) return;
+
+    const fetchProfilePictureUrls = async () => {
+      try {
+        // Get all students from all grades at once
+        const allStudents = [];
+        await Promise.all(
+          userData.alhanGrades.map(async (grade) => {
+            const snapshot = await firestore()
+              .collection("churches")
+              .doc(userData.church)
+              .collection("Hymns Class")
+              .doc(grade)
+              .collection("students")
+              .get();
+            
+            const students = snapshot.docs.map((doc) => ({
+              uid: doc.id,
+              grade,
+              ...doc.data(),
+            }));
+            allStudents.push(...students);
+          })
+        );
+
+        // Fetch all profile pictures at once
+        const urls = {};
+        await Promise.all(
+          allStudents.map(async (student) => {
+            if (student.uid) {
+              try {
+                const url = await storage()
+                  .ref(`profilePictures/${student.uid}.png`)
+                  .getDownloadURL();
+                urls[student.uid] =
+                  typeof url === "string" && url.trim() ? url : null;
+              } catch (error) {
+                urls[student.uid] = null;
+              }
+            }
+          })
+        );
+        setProfilePictureUrls(urls);
+      } catch (error) {
+        // Silent error handling
+      }
+    };
+
+    fetchProfilePictureUrls();
+    const intervalId = setInterval(fetchProfilePictureUrls, 30000);
+
+    const unsubscribes = userData.alhanGrades.map((grade) =>
+      firestore()
+        .collection("churches")
+        .doc(userData.church)
+        .collection("Hymns Class")
+        .doc(grade)
+        .collection("students")
+        .onSnapshot(
+          (snapshot) => {
+            if (!isMounted.current) return;
+            const students = snapshot.docs.map((doc) => ({
+              uid: doc.id,
+              grade,
+              ...doc.data(),
+            }));
+            students.sort((a, b) => a.name.localeCompare(b.name));
+
+            setStudentsByGrade((prev) => ({
+              ...prev,
+              [grade]: students,
+            }));
+          },
+          (error) => {
+            if (isMounted.current) {
+              Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
+            }
+          }
+        )
+    );
+
+    return () => {
+      clearInterval(intervalId);
+      unsubscribes.forEach((unsubscribe) => unsubscribe());
+    };
+  }, [userData]);
 
   const generatePreviousSaturdays = async () => {
     const today = new Date();
@@ -167,28 +209,7 @@ const AlhanAttendance = () => {
     setPreviousSaturdays(saturdays);
   };
 
-  const fetchProfilePictures = async (students) => {
-    const urls = { ...profilePictureUrls };
-    const studentsToFetch = students.filter(
-      (student) => !urls[student.uid]
-    );
 
-    await Promise.all(
-      studentsToFetch.map(async (student) => {
-        try {
-          const url = await storage()
-            .ref(`profilePictures/${student.uid}.png`)
-            .getDownloadURL();
-          urls[student.uid] = typeof url === "string" && url.trim() ? url : null;
-        } catch {
-          urls[student.uid] = null;
-        }
-      })
-    );
-    if (isMounted.current) {
-      setProfilePictureUrls(urls);
-    }
-  };
 
   const getNextSaturday = () => {
     const today = new Date();
@@ -586,6 +607,7 @@ const AlhanAttendance = () => {
         }
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={true}
+        extraData={profilePictureUrls}
         onScrollToIndexFailed={(info) => {
           const wait = new Promise(resolve => setTimeout(resolve, 500));
           wait.then(() => {

@@ -48,7 +48,7 @@ const SundaySchoolAttendance = () => {
       if (!user) {
         Alert.alert("Error", "No user found.");
         setLoading(false);
-        return () => {};
+        return;
       }
 
       try {
@@ -61,7 +61,7 @@ const SundaySchoolAttendance = () => {
         if (!userDoc.exists) {
           Alert.alert("Error", "User not found.");
           setLoading(false);
-          return () => {};
+          return;
         }
         const localUserData = userDoc.data();
         setUserData(localUserData);
@@ -69,64 +69,17 @@ const SundaySchoolAttendance = () => {
 
         if (!localUserData.ssGrades?.length) {
           setLoading(false);
-          return () => {};
+          return;
         }
 
         // Generate previous Sundays
         await generatePreviousSundays();
-
-        // Set up persistent snapshot listener for all grades
-        const gradeStudents = {};
-        localUserData.ssGrades.forEach((grade) => {
-          gradeStudents[grade] = [];
-        });
-
-        const unsubscribes = localUserData.ssGrades.map((grade) =>
-          firestore()
-            .collection("churches")
-            .doc(localUserData.church)
-            .collection("Sunday School")
-            .doc(grade)
-            .collection("students")
-            .onSnapshot(
-              (snapshot) => {
-                if (!isMounted.current) return;
-                const students = snapshot.docs.map((doc) => ({
-                  uid: doc.id,
-                  grade,
-                  ...doc.data(),
-                }));
-                students.sort((a, b) => a.name.localeCompare(b.name));
-
-                setStudentsByGrade((prev) => ({
-                  ...prev,
-                  [grade]: students,
-                }));
-
-                // Fetch profile pictures for new students
-                fetchProfilePictures(students);
-              },
-              (error) => {
-                if (isMounted.current) {
-                  Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
-                }
-              }
-            )
-        );
-
         setLoading(false);
-
-        // Return cleanup function to unsubscribe listeners
-        return () => {
-          isMounted.current = false;
-          unsubscribes.forEach((unsubscribe) => unsubscribe());
-        };
       } catch (error) {
         if (isMounted.current) {
           Alert.alert("Error", error.message);
           setLoading(false);
         }
-        return () => {};
       }
     };
 
@@ -136,6 +89,95 @@ const SundaySchoolAttendance = () => {
       isMounted.current = false;
     };
   }, [user]);
+
+  // Subscribe to deacons array updates and profile pictures
+  useEffect(() => {
+    if (!userData?.church || !userData?.ssGrades?.length) return;
+
+    const fetchProfilePictureUrls = async () => {
+      try {
+        // Get all students from all grades at once
+        const allStudents = [];
+        await Promise.all(
+          userData.ssGrades.map(async (grade) => {
+            const snapshot = await firestore()
+              .collection("churches")
+              .doc(userData.church)
+              .collection("Sunday School")
+              .doc(grade)
+              .collection("students")
+              .get();
+            
+            const students = snapshot.docs.map((doc) => ({
+              uid: doc.id,
+              grade,
+              ...doc.data(),
+            }));
+            allStudents.push(...students);
+          })
+        );
+
+        // Fetch all profile pictures at once
+        const urls = {};
+        await Promise.all(
+          allStudents.map(async (student) => {
+            if (student.uid) {
+              try {
+                const url = await storage()
+                  .ref(`profilePictures/${student.uid}.png`)
+                  .getDownloadURL();
+                urls[student.uid] =
+                  typeof url === "string" && url.trim() ? url : null;
+              } catch (error) {
+                urls[student.uid] = null;
+              }
+            }
+          })
+        );
+        setProfilePictureUrls(urls);
+      } catch (error) {
+        // Silent error handling
+      }
+    };
+
+    fetchProfilePictureUrls();
+    const intervalId = setInterval(fetchProfilePictureUrls, 30000);
+
+    const unsubscribes = userData.ssGrades.map((grade) =>
+      firestore()
+        .collection("churches")
+        .doc(userData.church)
+        .collection("Sunday School")
+        .doc(grade)
+        .collection("students")
+        .onSnapshot(
+          (snapshot) => {
+            if (!isMounted.current) return;
+            const students = snapshot.docs.map((doc) => ({
+              uid: doc.id,
+              grade,
+              ...doc.data(),
+            }));
+            students.sort((a, b) => a.name.localeCompare(b.name));
+
+            setStudentsByGrade((prev) => ({
+              ...prev,
+              [grade]: students,
+            }));
+          },
+          (error) => {
+            if (isMounted.current) {
+              Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
+            }
+          }
+        )
+    );
+
+    return () => {
+      clearInterval(intervalId);
+      unsubscribes.forEach((unsubscribe) => unsubscribe());
+    };
+  }, [userData]);
 
   const generatePreviousSundays = async () => {
     const today = new Date();
@@ -161,28 +203,7 @@ const SundaySchoolAttendance = () => {
     setPreviousSundays(sundays);
   };
 
-  const fetchProfilePictures = async (students) => {
-    const urls = { ...profilePictureUrls };
-    const studentsToFetch = students.filter(
-      (student) => !urls[student.uid]
-    );
 
-    await Promise.all(
-      studentsToFetch.map(async (student) => {
-        try {
-          const url = await storage()
-            .ref(`profilePictures/${student.uid}.png`)
-            .getDownloadURL();
-          urls[student.uid] = typeof url === "string" && url.trim() ? url : null;
-        } catch {
-          urls[student.uid] = null;
-        }
-      })
-    );
-    if (isMounted.current) {
-      setProfilePictureUrls(urls);
-    }
-  };
 
   const getNextSunday = () => {
     const today = new Date();
@@ -581,6 +602,7 @@ const SundaySchoolAttendance = () => {
         }
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={true}
+        extraData={profilePictureUrls}
         onScrollToIndexFailed={(info) => {
           const wait = new Promise(resolve => setTimeout(resolve, 500));
           wait.then(() => {
