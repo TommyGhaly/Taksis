@@ -10,7 +10,7 @@ import {
   Image,
 } from 'react-native';
 
-const ProfileImageExpander = ({ 
+const ProfileImageExpander = React.memo(({ 
   imageUrl, 
   size = 60, 
   onPress,
@@ -21,6 +21,7 @@ const ProfileImageExpander = ({
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [profileImageLayout, setProfileImageLayout] = useState(null);
   const [isImageAnimating, setIsImageAnimating] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState(false);
   const profileImageRef = useRef(null);
 
   // Animation refs
@@ -33,11 +34,13 @@ const ProfileImageExpander = ({
 
   // Memoized image source for immediate updates
   const imageSource = useMemo(
-    () =>
-      imageUrl && typeof imageUrl === "string" && imageUrl.trim() !== ""
-        ? { uri: imageUrl }
-        : require("../assets/default_profile.png"),
-    [imageUrl]
+    () => {
+      if (imageLoadError || !imageUrl || typeof imageUrl !== "string" || imageUrl.trim() === "") {
+        return require("../assets/default_profile.png");
+      }
+      return { uri: imageUrl };
+    },
+    [imageUrl, imageLoadError]
   );
 
   useEffect(() => {
@@ -200,8 +203,9 @@ const ProfileImageExpander = ({
               { opacity: imageOpacityAnim },
             ]}
             source={imageSource}
-            onError={() => {}}
+            onError={() => setImageLoadError(true)}
             resizeMode="contain"
+            loadingIndicatorSource={require("../assets/default_profile.png")}
           />
         </TouchableOpacity>
       </Modal>
@@ -226,14 +230,15 @@ const ProfileImageExpander = ({
             ]}
             source={imageSource}
             defaultSource={require('../assets/default_profile.png')}
-            onError={() => {}}
+            onError={() => setImageLoadError(true)}
             onLayout={e => setProfileImageLayout(e.nativeEvent.layout)}
+            loadingIndicatorSource={require("../assets/default_profile.png")}
           />
         </View>
       </TouchableOpacity>
     </>
   );
-};
+});
 
 const styles = StyleSheet.create({
   modalOverlay: {

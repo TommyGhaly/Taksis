@@ -23,6 +23,8 @@ import PhotoInput from "../components/photoInput";
 import ProfileImageExpander from "../components/ProfileImageExpander";
 import AlphabetIndexBar from "../components/AlphabetIndexBar";
 
+const defaultProfileImage = require("../assets/default_profile.png");
+
 // Haptic feedback options
 const hapticOptions = {
   enableVibrateFallback: true,
@@ -413,7 +415,7 @@ const AdminManager = () => {
                     ]}
                   >
                     <ProfileImageExpander
-                      imageUrl={selectedUser.id && profilePictureUrls[selectedUser.id] ? profilePictureUrls[selectedUser.id] : null}
+                      imageUrl={selectedUser.id && profilePictureUrls[selectedUser.id] ? profilePictureUrls[selectedUser.id] : defaultProfileImage}
                       size={80}
                       finalSize={300}
                       borderRadius={40}
