@@ -13,15 +13,8 @@ export default function AlphabetIndexBar({ onLetterChange, availableLetters = []
     const index = Math.floor(locationY / letterHeight);
     if (index < 0 || index >= ALL_LETTERS.length) return null;
     const letter = ALL_LETTERS[index];
-    if (availableLetters.includes(letter)) return letter;
-    // Find nearest available above, then below
-    for (let i = index - 1; i >= 0; i--) {
-      if (availableLetters.includes(ALL_LETTERS[i])) return ALL_LETTERS[i];
-    }
-    for (let i = index + 1; i < ALL_LETTERS.length; i++) {
-      if (availableLetters.includes(ALL_LETTERS[i])) return ALL_LETTERS[i];
-    }
-    return null;
+    // Only return the letter if it's in the available letters array
+    return availableLetters.includes(letter) ? letter : null;
   };
 
   const handleLetter = (letter) => {

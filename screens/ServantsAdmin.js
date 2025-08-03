@@ -411,16 +411,7 @@ const ServantsAdmin = () => {
             stickySectionHeadersEnabled={true}
             extraData={profilePictureUrls}
             onScrollToIndexFailed={(info) => {
-              setTimeout(() => {
-                if (sectionListRef.current) {
-                  sectionListRef.current.scrollToLocation({
-                    sectionIndex: 0,
-                    itemIndex: 0,
-                    animated: false,
-                    viewPosition: 0,
-                  });
-                }
-              }, 500);
+              // Do nothing when scroll fails - stay in current position
             }}
           />
           <View style={{ position: 'absolute', top: 100 * scale, right: 0, width: 30 }}>
