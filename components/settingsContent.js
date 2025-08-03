@@ -24,12 +24,14 @@ import { deleteUser } from "@react-native-firebase/auth";
 import messaging from "@react-native-firebase/messaging";
 import ProfileImageExpander from "./ProfileImageExpander";
 
+const defaultProfileImage = require("../assets/default_profile.png");
+
 const SettingsContent = () => {
   const { signUp, setSignUp } = useUser(true);
   const navigation = useNavigation();
   const [userRoles, setUserRoles] = useState({ name: "" });
   const [isLoading, setIsLoading] = useState(false);
-  const [imageUrl, setImageUrl] = useState(null);
+  const [imageUrl, setImageUrl] = useState(defaultProfileImage);
   const [modalVisible, setModalVisible] = useState(false);
   const [suggestion, setSuggestion] = useState("");
 
@@ -217,7 +219,7 @@ const SettingsContent = () => {
       </Modal>
       <View style={styles.profileSection}>
         <ProfileImageExpander
-          imageUrl={imageUrl}
+          imageUrl={imageUrl || defaultProfileImage}
           size={60}
           finalSize={300}
           borderRadius={30}

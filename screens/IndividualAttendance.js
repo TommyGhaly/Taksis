@@ -23,6 +23,8 @@ import PhotoInput from "../components/photoInput";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import ProfileImageExpander from "../components/ProfileImageExpander";
 
+const defaultProfileImage = require("../assets/default_profile.png");
+
 const IndividualAttendance = () => {
   const navigation = useNavigation();
   const route = useRoute();
@@ -331,12 +333,12 @@ const IndividualAttendance = () => {
         </View>
         <Text style={styles.title}>{`${studentData.name || "Student"}`}</Text>
         <View style={styles.profileContainer}>
-          <ProfileImageExpander
-            imageUrl={profilePictureUrl}
+                    <ProfileImageExpander
+            imageUrl={imageUrl || defaultProfileImage}
             size={80}
             finalSize={300}
             borderRadius={40}
-            style={styles.profilePicture}
+            style={styles.profileImage}
           />
         </View>
         <Text style={styles.subtitle}>{`Grade: ${formatGrade(

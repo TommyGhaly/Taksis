@@ -6,6 +6,8 @@ import storage from "@react-native-firebase/storage";
 import BackArrow from "../../components/backArrow";
 import ProfileImageExpander from "../../components/ProfileImageExpander";
 
+const defaultProfileImage = require("../../assets/default_profile.png");
+
 const IndividualServant = () => {
   const navigation = useNavigation();
   const route = useRoute();
@@ -185,7 +187,7 @@ const IndividualServant = () => {
         <Text style={styles.title}>{`${servantName}`}</Text>
         <View style={styles.profileContainer}>
           <ProfileImageExpander
-            imageUrl={profilePicture}
+            imageUrl={profilePicture || defaultProfileImage}
             size={100}
             finalSize={300}
             borderRadius={50}

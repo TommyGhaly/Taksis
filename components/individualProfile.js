@@ -20,6 +20,8 @@ import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import PhotoInput from "./photoInput";
 import ProfileImageExpander from './ProfileImageExpander';
 
+const defaultProfileImage = require("../assets/default_profile.png");
+
 // Haptic feedback options
 const hapticOptions = {
   enableVibrateFallback: true,
@@ -610,7 +612,7 @@ const IndividualProfile = ({
 
           <View style={styles.profileImageContainer}>
             <ProfileImageExpander
-              imageUrl={imageUrl}
+              imageUrl={imageUrl || defaultProfileImage}
               size={100}
               finalSize={300}
               borderRadius={50}
