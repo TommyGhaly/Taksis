@@ -53,27 +53,6 @@ const formatDate = (date) => {
   return `${month}-${day}-${year}`;
 };
 
-// Helper function to get next 5 weeks
-const getNextFiveWeeks = () => {
-  const weeks = [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  // Find the next Sunday
-  const dayOfWeek = today.getDay();
-  const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
-  const nextSunday = new Date(today);
-  nextSunday.setDate(today.getDate() + daysUntilSunday);
-
-  for (let i = 0; i < 5; i++) {
-    const weekDate = new Date(nextSunday);
-    weekDate.setDate(nextSunday.getDate() + (i * 7));
-    weeks.push(formatDate(weekDate));
-  }
-
-  return weeks;
-};
-
 const EditSchedule = () => {
   const [churchId, setChurchId] = useState(null);
   const [week, setWeek] = useState(null);
@@ -97,10 +76,112 @@ const EditSchedule = () => {
   const user = auth().currentUser;
 
   // Initialize available weeks
+  // Add this helper function to parse date strings
+  const parseScheduleDate = (dateStr) => {
+    const [month, day, year] = dateStr.split("-").map(Number);
+    return new Date(2000 + year, month - 1, day);
+  };
+
+  // Add this helper function to generate weeks from a starting date
+  const generateWeeksFromDate = (startDate, count = 5) => {
+    const weeks = [];
+    for (let i = 0; i < count; i++) {
+      const weekDate = new Date(startDate);
+      weekDate.setDate(startDate.getDate() + i * 7);
+      weeks.push(formatDate(weekDate));
+    }
+    return weeks;
+  };
+
+  // Replace the useEffect that sets availableWeeks with this:
   useEffect(() => {
-    const weeks = getNextFiveWeeks();
-    setAvailableWeeks(weeks);
-  }, []);
+    if (!churchId) return;
+
+    const fetchEarliestSchedule = async () => {
+      try {
+        const schedulesRef = firestore()
+          .collection("churches")
+          .doc(churchId)
+          .collection("schedule");
+
+        const snapshot = await schedulesRef.get();
+
+        if (snapshot.empty) {
+          // No schedules exist, fall back to next 5 Sundays from today
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const dayOfWeek = today.getDay();
+          const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+          const nextSunday = new Date(today);
+          nextSunday.setDate(today.getDate() + daysUntilSunday);
+
+          const weeks = generateWeeksFromDate(nextSunday, 5);
+          setAvailableWeeks(weeks);
+          return;
+        }
+
+        // Parse all schedule dates and find the earliest Sunday
+        const scheduleDates = snapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            date: parseScheduleDate(doc.id),
+          }))
+          .filter((item) => !isNaN(item.date.getTime())) // Filter out invalid dates
+          .sort((a, b) => a.date - b.date); // Sort ascending
+
+        if (scheduleDates.length === 0) {
+          // No valid dates found, fall back to next 5 Sundays
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const dayOfWeek = today.getDay();
+          const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+          const nextSunday = new Date(today);
+          nextSunday.setDate(today.getDate() + daysUntilSunday);
+
+          const weeks = generateWeeksFromDate(nextSunday, 5);
+          setAvailableWeeks(weeks);
+          return;
+        }
+
+        // Find the earliest Sunday
+        let earliestSunday = null;
+        for (const scheduleDate of scheduleDates) {
+          if (scheduleDate.date.getDay() === 0) {
+            // 0 is Sunday
+            earliestSunday = scheduleDate.date;
+            break;
+          }
+        }
+
+        // If no Sunday found, use the earliest date and find its next Sunday
+        if (!earliestSunday) {
+          const earliestDate = scheduleDates[0].date;
+          const dayOfWeek = earliestDate.getDay();
+          const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+          earliestSunday = new Date(earliestDate);
+          earliestSunday.setDate(earliestDate.getDate() + daysUntilSunday);
+        }
+
+        // Generate 5 weeks starting from the earliest Sunday
+        const weeks = generateWeeksFromDate(earliestSunday, 5);
+        setAvailableWeeks(weeks);
+      } catch (error) {
+        console.error("Error fetching schedules:", error);
+        // Fall back to next 5 Sundays on error
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dayOfWeek = today.getDay();
+        const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+        const nextSunday = new Date(today);
+        nextSunday.setDate(today.getDate() + daysUntilSunday);
+
+        const weeks = generateWeeksFromDate(nextSunday, 5);
+        setAvailableWeeks(weeks);
+      }
+    };
+
+    fetchEarliestSchedule();
+  }, [churchId]); // Add churchId as dependency
 
   // Realtime listener for user doc to update churchId
   useEffect(() => {
@@ -153,8 +234,10 @@ const EditSchedule = () => {
         .collection("schedule");
 
       const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
-        const scheduleDoc = snapshot.docs.find(doc => doc.id === selectedWeek);
-        
+        const scheduleDoc = snapshot.docs.find(
+          (doc) => doc.id === selectedWeek
+        );
+
         if (scheduleDoc) {
           setWeek(selectedWeek);
           const scheduleForTheWeek = scheduleDoc.data();
@@ -164,7 +247,8 @@ const EditSchedule = () => {
           readings.forEach((reading) => {
             const reader = scheduleForTheWeek[reading];
             readersObj[reading] = reader;
-            readersDisplay[displayNames[reading]] = reader?.name || "Select Reader";
+            readersDisplay[displayNames[reading]] =
+              reader?.name || "Select Reader";
           });
           setCurrentReaders(readersObj);
           setAssignedReaders(readersDisplay);
@@ -176,7 +260,9 @@ const EditSchedule = () => {
             initialServerAssignments[index] = server.name;
           });
           setAssignedServers(initialServerAssignments);
-          setServers(fetchedAltarServers.map((_, index) => `Altar Server ${index + 1}`));
+          setServers(
+            fetchedAltarServers.map((_, index) => `Altar Server ${index + 1}`)
+          );
 
           // Use the 'extra' array from the schedule for available servers
           const extraServers = scheduleForTheWeek.extra || [];
@@ -243,11 +329,11 @@ const EditSchedule = () => {
     if (!weekStr) return "Select Week";
     const [month, day, year] = weekStr.split("-").map(Number);
     const date = new Date(2000 + year, month - 1, day);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      month: 'short', 
-      day: 'numeric',
-      year: 'numeric'
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     });
   };
 
@@ -478,9 +564,7 @@ const EditSchedule = () => {
                   {assignedServers[index] || "Select Server"}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => removeServerFromSchedule(index)}
-              >
+              <TouchableOpacity onPress={() => removeServerFromSchedule(index)}>
                 <Text style={styles.removeButton}>Remove</Text>
               </TouchableOpacity>
             </View>
@@ -498,15 +582,12 @@ const EditSchedule = () => {
         animationType="fade"
         onRequestClose={() => setServerDropdownIndex(null)}
       >
-        <TouchableOpacity 
-          style={styles.modalOverlay} 
+        <TouchableOpacity
+          style={styles.modalOverlay}
           activeOpacity={1}
           onPress={() => setServerDropdownIndex(null)}
         >
-          <TouchableOpacity 
-            activeOpacity={1}
-            style={styles.modalWrapper}
-          >
+          <TouchableOpacity activeOpacity={1} style={styles.modalWrapper}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select Server</Text>
@@ -530,13 +611,20 @@ const EditSchedule = () => {
                     <View style={styles.modalItemContent}>
                       <Image
                         source={
-                          imageUrls[item.uid] && typeof imageUrls[item.uid] === "string" && imageUrls[item.uid].trim() !== ""
+                          imageUrls[item.uid] &&
+                          typeof imageUrls[item.uid] === "string" &&
+                          imageUrls[item.uid].trim() !== ""
                             ? { uri: imageUrls[item.uid] }
                             : require("../assets/default_profile.png")
                         }
                         style={styles.profilePic}
                         defaultSource={require("../assets/default_profile.png")}
-                        onError={() => setImageUrls((prev) => ({ ...prev, [item.uid]: null }))}
+                        onError={() =>
+                          setImageUrls((prev) => ({
+                            ...prev,
+                            [item.uid]: null,
+                          }))
+                        }
                       />
                       <Text style={styles.modalItem}>{item.name}</Text>
                     </View>
@@ -557,15 +645,12 @@ const EditSchedule = () => {
         animationType="fade"
         onRequestClose={() => setReaderDropdownIndex(null)}
       >
-        <TouchableOpacity 
-          style={styles.modalOverlay} 
+        <TouchableOpacity
+          style={styles.modalOverlay}
           activeOpacity={1}
           onPress={() => setReaderDropdownIndex(null)}
         >
-          <TouchableOpacity 
-            activeOpacity={1}
-            style={styles.modalWrapper}
-          >
+          <TouchableOpacity activeOpacity={1} style={styles.modalWrapper}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select Reader</Text>
@@ -589,13 +674,20 @@ const EditSchedule = () => {
                     <View style={styles.modalItemContent}>
                       <Image
                         source={
-                          imageUrls[item.uid] && typeof imageUrls[item.uid] === "string" && imageUrls[item.uid].trim() !== ""
+                          imageUrls[item.uid] &&
+                          typeof imageUrls[item.uid] === "string" &&
+                          imageUrls[item.uid].trim() !== ""
                             ? { uri: imageUrls[item.uid] }
                             : require("../assets/default_profile.png")
                         }
                         style={styles.profilePic}
                         defaultSource={require("../assets/default_profile.png")}
-                        onError={() => setImageUrls((prev) => ({ ...prev, [item.uid]: null }))}
+                        onError={() =>
+                          setImageUrls((prev) => ({
+                            ...prev,
+                            [item.uid]: null,
+                          }))
+                        }
                       />
                       <Text style={styles.modalItem}>{item.name}</Text>
                     </View>
@@ -616,15 +708,12 @@ const EditSchedule = () => {
         animationType="fade"
         onRequestClose={() => setShowWeekSelector(false)}
       >
-        <TouchableOpacity 
-          style={styles.modalOverlay} 
+        <TouchableOpacity
+          style={styles.modalOverlay}
           activeOpacity={1}
           onPress={() => setShowWeekSelector(false)}
         >
-          <TouchableOpacity 
-            activeOpacity={1}
-            style={styles.modalWrapper}
-          >
+          <TouchableOpacity activeOpacity={1} style={styles.modalWrapper}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select Week</Text>
@@ -643,15 +732,19 @@ const EditSchedule = () => {
                   <TouchableOpacity
                     style={[
                       styles.modalItemContainer,
-                      selectedWeek === item && styles.selectedWeekItem
+                      selectedWeek === item && styles.selectedWeekItem,
                     ]}
                     onPress={() => handleWeekSelect(item)}
                     activeOpacity={0.7}
                   >
-                    <Text style={[
-                      styles.modalItem,
-                      selectedWeek === item && styles.selectedWeekText
-                    ]}>{formatWeekDisplay(item)}</Text>
+                    <Text
+                      style={[
+                        styles.modalItem,
+                        selectedWeek === item && styles.selectedWeekText,
+                      ]}
+                    >
+                      {formatWeekDisplay(item)}
+                    </Text>
                     {selectedWeek === item && (
                       <Text style={styles.checkmark}>✓</Text>
                     )}
@@ -671,15 +764,12 @@ const EditSchedule = () => {
         animationType="fade"
         onRequestClose={() => setShowInfoModal(false)}
       >
-        <TouchableOpacity 
-          style={styles.modalOverlay} 
+        <TouchableOpacity
+          style={styles.modalOverlay}
           activeOpacity={1}
           onPress={() => setShowInfoModal(false)}
         >
-          <TouchableOpacity 
-            activeOpacity={1}
-            style={styles.infoModalWrapper}
-          >
+          <TouchableOpacity activeOpacity={1} style={styles.infoModalWrapper}>
             <View style={styles.infoModalContent}>
               <View style={styles.infoModalHeader}>
                 <Text style={styles.infoModalTitle}>Additional Servers</Text>
@@ -691,9 +781,13 @@ const EditSchedule = () => {
                 </TouchableOpacity>
               </View>
               <Text style={styles.infoModalText}>
-                When you add or remove altar servers, the change automatically applies to all future weeks to maintain consistency across your church's schedule.
+                When you add or remove altar servers, the change automatically
+                applies to all future weeks to maintain consistency across your
+                church's schedule.
                 {"\n\n"}
-                This ensures that the same number of server positions are available each week, making it easier to plan and assign servers for upcoming services.
+                This ensures that the same number of server positions are
+                available each week, making it easier to plan and assign servers
+                for upcoming services.
               </Text>
               <TouchableOpacity
                 style={styles.infoModalButton}
