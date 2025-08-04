@@ -394,7 +394,7 @@ const ServantsAdmin = () => {
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
       <Text style={[styles.header, { fontSize: 24 * scale }]}>
-        Manage Sunday School Servants
+        Manage Servants
       </Text>
       {sections.length === 0 ? (
         <Text style={[styles.noData, { fontSize: 16 * scale }]}>

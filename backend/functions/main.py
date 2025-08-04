@@ -1241,7 +1241,7 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
 
         schedule_ref.update(schedule_data)
         handle_switch_server_notification(
-            first_server, second_server, first_location, second_location
+            first_server, second_server, first_location, second_location, week_id
         )
         # 🔥 Run the slow function in a separate thread
         trigger_async_function(
@@ -1256,21 +1256,21 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
 
 
 def handle_switch_server_notification(
-    first_server, second_server, first_location, second_location
+    first_server, second_server, first_location, second_location, week_id
 ):
     if len(first_location) == 2:
         if first_location[0] == "extra":
             update_notification(
                 second_server["uid"],
-                f"{second_server["name"].split()[0]}! An admin has switched you with another deacon for this Sunday! Check the app for details.",
-                f"An admin has switched your son {second_server["name"].split()[0]} with another deacon for this Sunday! Check the app for details.",
+                f"{second_server["name"].split()[0]}! An admin has switched you with another deacon for the Sunday of {week_id}! Check the app for details.",
+                f"An admin has switched your son {second_server["name"].split()[0]} with another deacon for the Sunday of {week_id}! Check the app for details.",
                 "Schedule Update!",
             )
         elif first_location[0] == "altar":
             update_notification(
                 second_server["uid"],
-                f"{second_server["name"].split()[0]}! You have been switched with another deacon to serve in the altar this Sunday! Check the app for details.",
-                f"Your son {second_server["name"].split()[0]} has been switched with another deacon to serve in the altar this Sunday! Check the app for details.",
+                f"{second_server["name"].split()[0]}! You have been switched with another deacon to serve in the altar the Sunday of {week_id}! Check the app for details.",
+                f"Your son {second_server["name"].split()[0]} has been switched with another deacon to serve in the altar the Sunday of {week_id}! Check the app for details.",
                 "Schedule Update!",
             )
     elif len(second_location) == 2:
