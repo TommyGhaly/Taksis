@@ -393,8 +393,8 @@ const ServantsAdmin = () => {
 
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
-      <Text style={[styles.header, { fontSize: 24 * scale }]}>
-        Manage Servants
+      <Text style={[styles.header, { fontSize: 24  }]}>
+        Manage Sunday School Servants
       </Text>
       {sections.length === 0 ? (
         <Text style={[styles.noData, { fontSize: 16 * scale }]}>
@@ -665,11 +665,13 @@ const styles = StyleSheet.create({
   indexBar: {
     position: "absolute",
     right: 0,
-    top: 0,
-    bottom: 0,
+    top: (Platform.OS === 'ios' ? 140 : 120),
+    height: height - (Platform.OS === 'ios' ? 200 : 180),
+    width: indexBarWidth,
     backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "space-evenly",
+    zIndex: 1,
   },
   indexItem: {
     width: 20,

@@ -274,18 +274,14 @@ const AlhanAdmin = () => {
     <View
       style={styles.sectionHeader}
       onLayout={(event) => {
-        const { height } = event.nativeEvent.layout;
-        if (height > 0 && headerHeightRef.current !== height) {
-          headerHeightRef.current = height;
-          setHeaderHeight(height);
-        }
+        const height = event.nativeEvent.layout.height;
+        headerHeightRef.current = height;
+        setHeaderHeight(height);
       }}
     >
       <Text style={styles.sectionHeaderText}>{title}</Text>
     </View>
-  );
-
-  // Render teacher item
+  );  // Render teacher item
   const renderTeacher = ({ item }) => (
     <TouchableOpacity
       style={styles.teacherCard}
@@ -348,7 +344,7 @@ const AlhanAdmin = () => {
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
       <Text style={[styles.header, { fontSize: 24 * scale }]}>
-        Manage Teachers
+        Manage Alhan Teachers
       </Text>
       {sections.length === 0 ? (
         <Text style={[styles.noData, { fontSize: 16 * scale }]}>
@@ -687,6 +683,17 @@ const styles = StyleSheet.create({
   },
   gradeText: {
     color: "#fff",
+  },
+  indexBar: {
+    position: "absolute",
+    right: 0,
+    top: (Platform.OS === 'ios' ? 140 : 120),
+    height: height - (Platform.OS === 'ios' ? 200 : 180),
+    width: indexBarWidth,
+    backgroundColor: "transparent",
+    alignItems: "center",
+    justifyContent: "space-evenly",
+    zIndex: 1,
   },
   modalButtons: {
     flexDirection: "row",

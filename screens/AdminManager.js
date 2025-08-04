@@ -707,6 +707,17 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#fff",
   },
+  indexBar: {
+    position: "absolute",
+    right: 0,
+    top: (Platform.OS === 'ios' ? 140 : 120),
+    height: height - (Platform.OS === 'ios' ? 200 : 180),
+    width: indexBarWidth,
+    backgroundColor: "transparent",
+    alignItems: "center",
+    justifyContent: "space-evenly",
+    zIndex: 1,
+  },
 });
 
 export default AdminManager;
