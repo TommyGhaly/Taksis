@@ -523,7 +523,18 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     flexGrow: 1,
-    paddingRight: 30,
+    paddingRight: 32,
+  },
+  indexBar: {
+    position: "absolute",
+    right: 0,
+    top: (Platform.OS === 'ios' ? 140 : 120),
+    height: height - (Platform.OS === 'ios' ? 200 : 180),
+    width: indexBarWidth,
+    backgroundColor: "transparent",
+    alignItems: "center",
+    justifyContent: "space-evenly",
+    zIndex: 1,
   },
   servantCard: {
     backgroundColor: "#1E1E1E",
