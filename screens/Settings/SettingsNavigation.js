@@ -22,6 +22,7 @@ import ChildDeaconRank from "./ChildDeaconRank";
 import ChildExperience from "./ChildExperience";
 import ChildAge from "./ChildAge";
 import PasswordReset from "../PasswordReset";
+import HomeScreenSelector from "./HomeScreenSelector";
 import DefaultTheme from "@react-navigation/native";
 import "react-native-gesture-handler";
 const SettingsNav = createNativeStackNavigator();
@@ -96,6 +97,11 @@ export default function SettingsNavigation() {
         <SettingsNav.Screen
           name="ChangePassword"
           component={PasswordReset}
+          options={{ animation: "none" }}
+        />
+        <SettingsNav.Screen
+          name="HomeScreenSelector"
+          component={HomeScreenSelector}
           options={{ animation: "none" }}
         />
       </SettingsNav.Navigator>
