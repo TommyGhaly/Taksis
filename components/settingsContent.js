@@ -280,6 +280,13 @@ const SettingsContent = () => {
         <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("RequestAdmin")}>
           <Text style={styles.optionText}>Apply for admin</Text>
         </TouchableOpacity>
+
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>App Adjustments</Text>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("HomeScreenSelector")}>
+          <Text style={styles.optionText}>Change home screen</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.option} onPress={() => setModalVisible(true)}>
           <Text style={styles.optionText}>App suggestions</Text>
         </TouchableOpacity>

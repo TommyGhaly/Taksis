@@ -406,7 +406,7 @@ const ServantsAttendance = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#fff" />
+        <ActivityIndicator size="large" color="#147efb" />
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
