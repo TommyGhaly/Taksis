@@ -33,9 +33,7 @@ const previewSize = (screenWidth - 60) / 2; // 2 columns with padding
 
 // Wrapper component to disable scrolling in previews
 const PreviewWrapper = ({ children }) => {
-  // This wrapper intercepts and disables any VirtualizedList components
   React.useEffect(() => {
-    // Set a global flag that child components can check
     global.isInPreviewMode = true;
     return () => {
       global.isInPreviewMode = false;
@@ -43,6 +41,36 @@ const PreviewWrapper = ({ children }) => {
   }, []);
 
   return <>{children}</>;
+};
+
+// Component that loads the screen asynchronously
+const AsyncPreview = ({ component: Component, screenId }) => {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate async loading
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <View style={styles.previewWrapper}>
+      {isLoading ? (
+        <View style={styles.previewLoadingContainer}>
+          <ActivityIndicator size="small" color="#666" />
+        </View>
+      ) : (
+        <View style={styles.previewScreen} pointerEvents="none">
+          <PreviewWrapper>
+            <Component isPreview={true} />
+          </PreviewWrapper>
+        </View>
+      )}
+    </View>
+  );
 };
 
 const HomeScreenSelector = () => {
@@ -170,7 +198,6 @@ const HomeScreenSelector = () => {
   const renderScreenPreview = (screen) => {
     if (!screen.available) return null;
 
-    const ScreenComponent = screen.component;
     const isSelected = selectedScreen === screen.id;
 
     return (
@@ -189,13 +216,7 @@ const HomeScreenSelector = () => {
             isSelected && styles.selectedPreviewCard,
           ]}
         >
-          <View style={styles.previewWrapper}>
-            <View style={styles.previewScreen} pointerEvents="none">
-              <PreviewWrapper>
-                <ScreenComponent isPreview={true} />
-              </PreviewWrapper>
-            </View>
-          </View>
+          <AsyncPreview component={screen.component} screenId={screen.id} />
           {isSelected && (
             <View style={styles.selectedOverlay}>
               <View style={styles.checkmark}>
@@ -345,6 +366,13 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     overflow: "hidden",
+  },
+  previewLoadingContainer: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#1E1E1E",
   },
   previewScreen: {
     width: screenWidth,

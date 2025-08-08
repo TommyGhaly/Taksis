@@ -11,7 +11,7 @@ import SundaySchoolNavigator from "./SundaySchool/SundaySchoolNavigator";
 import LearnItNavigation from "./LearnIt/LearnItNavigation";
 import SettingsNavigation from "./Settings/SettingsNavigation";
 import ServantsMeetingNavigator from "./ServantsMeeting/ServantsMeetingNavigator";
-import ServantsAdmin from "./ServantsAdmin"; // New screen import
+import ServantsAdmin from "./ServantsAdmin";
 import AlhanAdmin from "./AlhanAdmin";
 import AdminManager from "./AdminManager";
 import EditSchedule from "./EditSchedule";
@@ -19,6 +19,12 @@ import DeaconEdits from "./DeaconEdits";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import CustomHeader from "../components/customHeader";
+
+// Import individual screen components for dynamic home screen
+import HomeScreen from "./Home/HomeScreen";
+import SundaySchoolAttendance from "./SundaySchool/SundaySchoolAttendance";
+import AlhanAttendance from "./Alhan/AlhanAttendance";
+import ServantsAttendance from "./ServantsMeeting/ServantsAttendance";
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
@@ -33,10 +39,58 @@ const myTheme = {
 };
 
 const consistentHeaderStyle = {
-  backgroundColor: "#252525", // Unified header color
+  backgroundColor: "#252525",
 };
 
-function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
+// Map screen IDs to their components and configurations
+const screenConfigs = {
+  schedule: {
+    component: HomeScreen,
+    name: "Deacon Service Schedule",
+    drawerName: "Deacon Service Schedule",
+  },
+  sundaySchoolAttendance: {
+    component: SundaySchoolAttendance,
+    name: "Sunday School Attendance",
+    drawerName: "Sunday School Attendance",
+  },
+  hymnsClassAttendance: {
+    component: AlhanAttendance,
+    name: "Hymns Class Attendance",
+    drawerName: "Hymns Class Attendance",
+  },
+  servantsMeetingTracker: {
+    component: ServantsAttendance,
+    name: "Servants Meeting Tracker",
+    drawerName: "Servants Meeting Attendance",
+  },
+  editDeacons: {
+    component: DeaconEdits,
+    name: "Edit Deacons",
+    drawerName: "Edit Deacons",
+  },
+  servantsManager: {
+    component: ServantsAdmin,
+    name: "Servants Manager",
+    drawerName: "Servants Management",
+  },
+  alhanManager: {
+    component: AlhanAdmin,
+    name: "Alhan Manager",
+    drawerName: "Alhan Management",
+  },
+  adminManager: {
+    component: AdminManager,
+    name: "Admin Manager",
+    drawerName: "Admin Manager",
+  },
+};
+
+function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId }) {
+  // Get the home screen configuration
+  const homeConfig = screenConfigs[homeScreenId] || screenConfigs.schedule;
+  const HomeComponent = homeConfig.component;
+
   return (
     <Tab.Navigator
       screenOptions={({ route, navigation }) => ({
@@ -55,7 +109,7 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
         tabBarIcon: ({ color, size }) => {
           let iconName;
           switch (route.name) {
-            case "This Week's Services":
+            case "Home":
               iconName = "home";
               break;
             case "Learn to Serve":
@@ -75,9 +129,10 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
       })}
     >
       <Tab.Screen
-        name="This Week's Services"
-        component={HomeScreenNavigation}
-        listeners={{ focus: () => setHomeTitle("This Week's Services") }}
+        name="Home"
+        component={HomeComponent}
+        options={{ headerTitle: homeConfig.name }}
+        listeners={{ focus: () => setHomeTitle(homeConfig.name) }}
       />
       <Tab.Screen
         name="Learn to Serve"
@@ -100,7 +155,38 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer }) {
   );
 }
 
-function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
+function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId }) {
+  // Determine which screens should be in the drawer based on user's home screen selection
+  const shouldShowInDrawer = (screenId) => {
+    // If this screen is the home screen, show "Deacon Service Schedule" instead
+    if (screenId === homeScreenId && homeScreenId !== "schedule") {
+      return false;
+    }
+    // Always show the schedule if it's not the home screen
+    if (screenId === "schedule" && homeScreenId !== "schedule") {
+      return true;
+    }
+    // Check role-based permissions
+    switch (screenId) {
+      case "sundaySchoolAttendance":
+        return userRoles.isSSTeacher;
+      case "hymnsClassAttendance":
+        return userRoles.isAlhan;
+      case "servantsMeetingTracker":
+        return userRoles.isServant;
+      case "editDeacons":
+        return userRoles.admin;
+      case "servantsManager":
+        return userRoles.ssAdmin;
+      case "alhanManager":
+        return userRoles.alhanAdmin;
+      case "adminManager":
+        return userRoles.superAdmin;
+      default:
+        return false;
+    }
+  };
+
   return (
     <Drawer.Navigator
       screenOptions={({ navigation, route }) => ({
@@ -123,38 +209,61 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle }) {
             userRoles={userRoles}
             setHomeTitle={setHomeTitle}
             showDrawer={true}
+            homeScreenId={homeScreenId}
           />
         )}
       </Drawer.Screen>
-      {userRoles.isSSTeacher && (
+      
+      {/* Always show Deacon Service Schedule if it's not the home screen */}
+      {shouldShowInDrawer("schedule") && (
         <Drawer.Screen
-          name="Sunday School Attendance"
+          name="Deacon Service Schedule"
+          component={HomeScreenNavigation}
+        />
+      )}
+      
+      {/* Conditionally show other screens based on roles and home screen selection */}
+      {shouldShowInDrawer("sundaySchoolAttendance") && (
+        <Drawer.Screen
+          name={screenConfigs.sundaySchoolAttendance.drawerName}
           component={SundaySchoolNavigator}
         />
       )}
-      {userRoles.isAlhan && (
+      {shouldShowInDrawer("hymnsClassAttendance") && (
         <Drawer.Screen
-          name="Hymns Class Attendance"
+          name={screenConfigs.hymnsClassAttendance.drawerName}
           component={AlhanNavigator}
         />
       )}
-      {userRoles.isServant && (
+      {shouldShowInDrawer("servantsMeetingTracker") && (
         <Drawer.Screen
-          name="Servants Meeting Attendance"
+          name={screenConfigs.servantsMeetingTracker.drawerName}
           component={ServantsMeetingNavigator}
         />
       )}
-      {userRoles.admin && (
-        <Drawer.Screen name="Edit Deacons" component={DeaconEdits} />
+      {shouldShowInDrawer("editDeacons") && (
+        <Drawer.Screen 
+          name={screenConfigs.editDeacons.drawerName} 
+          component={DeaconEdits} 
+        />
       )}
-      {userRoles.ssAdmin && (
-        <Drawer.Screen name="Servants Management" component={ServantsAdmin} />
+      {shouldShowInDrawer("servantsManager") && (
+        <Drawer.Screen 
+          name={screenConfigs.servantsManager.drawerName} 
+          component={ServantsAdmin} 
+        />
       )}
-      {userRoles.alhanAdmin && (
-        <Drawer.Screen name="Alhan Management" component={AlhanAdmin} />
+      {shouldShowInDrawer("alhanManager") && (
+        <Drawer.Screen 
+          name={screenConfigs.alhanManager.drawerName} 
+          component={AlhanAdmin} 
+        />
       )}
-      {userRoles.superAdmin && (
-        <Drawer.Screen name="Admin Manager" component={AdminManager} />
+      {shouldShowInDrawer("adminManager") && (
+        <Drawer.Screen 
+          name={screenConfigs.adminManager.drawerName} 
+          component={AdminManager} 
+        />
       )}
     </Drawer.Navigator>
   );
@@ -166,9 +275,13 @@ export default function MainContainer() {
     isSSTeacher: false,
     isServant: false,
     admin: false,
-    ssAdmin: false, // Added ssAdmin role
+    ssAdmin: false,
+    alhanAdmin: false,
+    superAdmin: false,
   });
-  const [homeTitle, setHomeTitle] = useState("This Week's Services");
+  const [homeTitle, setHomeTitle] = useState("Deacon Service Schedule");
+  const [homeScreenId, setHomeScreenId] = useState("schedule");
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const user = auth().currentUser;
@@ -179,10 +292,41 @@ export default function MainContainer() {
         .onSnapshot(
           (doc) => {
             if (doc.exists) {
-              setUserRoles(doc.data());
+              const data = doc.data();
+              setUserRoles(data);
+              
+              // Determine home screen based on user preference or default logic
+              let selectedHomeScreen = data.homeScreen;
+              
+              if (!selectedHomeScreen) {
+                // Apply default logic if no preference is set
+                if (data.admin) {
+                  // Deacon (admin) defaults to schedule
+                  selectedHomeScreen = "schedule";
+                } else if (data.isSSTeacher) {
+                  // Sunday School servant defaults to Sunday School Attendance
+                  selectedHomeScreen = "sundaySchoolAttendance";
+                } else if (data.isAlhan) {
+                  // Alhan teacher defaults to Hymns Class Attendance
+                  selectedHomeScreen = "hymnsClassAttendance";
+                } else {
+                  // Everyone else defaults to schedule
+                  selectedHomeScreen = "schedule";
+                }
+              }
+              
+              setHomeScreenId(selectedHomeScreen);
+              const config = screenConfigs[selectedHomeScreen];
+              if (config) {
+                setHomeTitle(config.name);
+              }
+              setIsLoading(false);
             }
           },
-          (error) => {}
+          (error) => {
+            console.error("Error fetching user data:", error);
+            setIsLoading(false);
+          }
         );
 
       return () => unsubscribe();
@@ -198,6 +342,14 @@ export default function MainContainer() {
     userRoles.alhanAdmin ||
     userRoles.superAdmin;
 
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
   return (
     <NavigationContainer independent={true} theme={myTheme}>
       {shouldShowDrawer ? (
@@ -205,12 +357,14 @@ export default function MainContainer() {
           userRoles={userRoles}
           homeTitle={homeTitle}
           setHomeTitle={setHomeTitle}
+          homeScreenId={homeScreenId}
         />
       ) : (
         <TabNavigator
           userRoles={userRoles}
           setHomeTitle={setHomeTitle}
           showDrawer={false}
+          homeScreenId={homeScreenId}
         />
       )}
     </NavigationContainer>
@@ -225,5 +379,15 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: "#1e1e1e",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000",
+  },
+  loadingText: {
+    color: "#fff",
+    fontSize: 16,
   },
 });
