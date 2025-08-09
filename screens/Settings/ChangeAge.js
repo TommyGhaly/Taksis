@@ -125,7 +125,7 @@ const ChangeAge = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0A0A0A",
+    backgroundColor: "#121212",
   },
   innerContainer: {
     flex: 1,

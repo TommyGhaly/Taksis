@@ -283,55 +283,66 @@ export default function MainContainer() {
   const [homeScreenId, setHomeScreenId] = useState("schedule");
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const user = auth().currentUser;
-    if (user) {
-      const unsubscribe = firestore()
-        .collection("users")
-        .doc(user.uid)
-        .onSnapshot(
-          (doc) => {
-            if (doc.exists) {
-              const data = doc.data();
-              setUserRoles(data);
-              
-              // Determine home screen based on user preference or default logic
-              let selectedHomeScreen = data.homeScreen;
-              
-              if (!selectedHomeScreen) {
-                // Apply default logic if no preference is set
-                if (data.admin) {
-                  // Deacon (admin) defaults to schedule
-                  selectedHomeScreen = "schedule";
-                } else if (data.isSSTeacher) {
-                  // Sunday School servant defaults to Sunday School Attendance
-                  selectedHomeScreen = "sundaySchoolAttendance";
-                } else if (data.isAlhan) {
-                  // Alhan teacher defaults to Hymns Class Attendance
-                  selectedHomeScreen = "hymnsClassAttendance";
-                } else {
-                  // Everyone else defaults to schedule
-                  selectedHomeScreen = "schedule";
-                }
+useEffect(() => {
+  const user = auth().currentUser;
+  if (user) {
+    const unsubscribe = firestore()
+      .collection("users")
+      .doc(user.uid)
+      .onSnapshot(
+        async (doc) => {
+          if (doc.exists) {
+            const data = doc.data();
+            setUserRoles(data);
+            
+            // Determine home screen based on user preference or default logic
+            let selectedHomeScreen = data.homeScreen;
+            
+            if (!selectedHomeScreen) {
+              // Apply default logic if no preference is set
+              if (data.isDeacon) {
+                // Deacon (admin) defaults to schedule
+                selectedHomeScreen = "schedule";
+              } else if (data.isSSTeacher) {
+                // Sunday School servant defaults to Sunday School Attendance
+                selectedHomeScreen = "sundaySchoolAttendance";
+              } else if (data.isAlhan) {
+                // Alhan teacher defaults to Hymns Class Attendance
+                selectedHomeScreen = "hymnsClassAttendance";
+              } else {
+                // Everyone else defaults to schedule
+                selectedHomeScreen = "schedule";
               }
               
-              setHomeScreenId(selectedHomeScreen);
-              const config = screenConfigs[selectedHomeScreen];
-              if (config) {
-                setHomeTitle(config.name);
+              // Update the user document with the default home screen
+              try {
+                await firestore()
+                  .collection("users")
+                  .doc(user.uid)
+                  .update({
+                    homeScreen: selectedHomeScreen
+                  });
+              } catch (error) {
               }
-              setIsLoading(false);
             }
-          },
-          (error) => {
-            console.error("Error fetching user data:", error);
+            
+            setHomeScreenId(selectedHomeScreen);
+            const config = screenConfigs[selectedHomeScreen];
+            if (config) {
+              setHomeTitle(config.name);
+            }
             setIsLoading(false);
           }
-        );
+        },
+        (error) => {
+          console.error("Error fetching user data:", error);
+          setIsLoading(false);
+        }
+      );
 
-      return () => unsubscribe();
-    }
-  }, []);
+    return () => unsubscribe();
+  }
+}, []);
 
   const shouldShowDrawer =
     userRoles.isAlhan ||
