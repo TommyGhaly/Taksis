@@ -295,7 +295,8 @@ def find_start_date(servant_dict):
             return september11
 
 def get_dates(start_date):
-    """Create an array of Sunday dates from start to next Sunday (inclusive)."""
+    """Create an array of Sunday dates from start to most recent Sunday (or today if Sunday)."""
+    # Adjust start_date to the nearest Sunday if not already Sunday
     if start_date.weekday() != 6:
         days_to_sunday = (start_date.weekday() + 1) % 7
         start_date = start_date - datetime.timedelta(days=days_to_sunday)
@@ -305,24 +306,24 @@ def get_dates(start_date):
 
     today = datetime.datetime.now()
     
-    # Get the next Sunday (or today if it's Sunday)
+    # Determine the last Sunday to include
     if today.weekday() == 6:  # Today is Sunday
-        next_sunday = today
+        last_sunday = today
     else:
-        days_until_sunday = (6 - today.weekday()) % 7
-        if days_until_sunday == 0:
-            days_until_sunday = 7
-        next_sunday = today + datetime.timedelta(days=days_until_sunday)
+        # Find the most recent Sunday (in the past)
+        days_since_sunday = (today.weekday() + 1) % 7
+        if days_since_sunday == 0:
+            days_since_sunday = 7
+        last_sunday = today - datetime.timedelta(days=days_since_sunday)
     
-    next_sunday = next_sunday.replace(hour=0, minute=0, second=0, microsecond=0)
+    last_sunday = last_sunday.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # Include all Sundays from start_date to next_sunday (inclusive)
-    while current_date <= next_sunday:
+    # Include all Sundays from start_date to last_sunday (inclusive)
+    while current_date <= last_sunday:
         date_array.append(current_date.strftime("%m-%d-%Y"))
         current_date += datetime.timedelta(days=7)
 
     return date_array
-
 def write_to_sheet(sh, servant_dict, date_array, servant_names):
     """Update the servants attendance worksheet with data and formatting."""
     try:

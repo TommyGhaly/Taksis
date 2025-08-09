@@ -2264,10 +2264,8 @@ def update_notification(uid, message, child_message, title):
 async def generate_sheets(event: scheduler_fn.ScheduledEvent) -> None:
     try:
         # Run both functions concurrently
-        await asyncio.gather(
-            asyncio.to_thread(set_up_sheets),
-            asyncio.to_thread(set_up_sheets_servants)
-        )
+        set_up_sheets()
+        set_up_sheets_servants()
     except Exception as e:
         raise
 
