@@ -2261,7 +2261,7 @@ def update_notification(uid, message, child_message, title):
     schedule="0 0 * * 1",  # Every Monday at midnight
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
-async def generate_sheets(event: scheduler_fn.ScheduledEvent) -> None:
+def generate_sheets(event: scheduler_fn.ScheduledEvent) -> None:
     try:
         # Run both functions concurrently
         set_up_sheets()
