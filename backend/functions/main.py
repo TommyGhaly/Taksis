@@ -2070,7 +2070,7 @@ def second_reminder(event: scheduler_fn.ScheduledEvent) -> None:
     asyncio.run(liturgy_notification())
 
 @scheduler_fn.on_schedule(
-    schedule="0 20 * * 6",  # Every Saturday at 8:00 PM
+    schedule="0 9 * * 6",  # Every Saturday at 8:00 PM
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def third_reminder(event: scheduler_fn.ScheduledEvent) -> None:
