@@ -26,6 +26,7 @@ const SundaySchoolAttendance = () => {
   const navigation = useNavigation();
   const user = auth().currentUser;
   const [studentsByGrade, setStudentsByGrade] = useState({});
+  const [servants, setServants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -40,6 +41,7 @@ const SundaySchoolAttendance = () => {
   const sectionListRef = useRef(null);
   const isMounted = useRef(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [userGrades, setUserGrades] = useState([]);
 
   useEffect(() => {
     isMounted.current = true;
@@ -65,7 +67,7 @@ const SundaySchoolAttendance = () => {
         }
         const localUserData = userDoc.data();
         setUserData(localUserData);
-        setNewStudentGrade(localUserData.ssGrades[0] || "");
+        setNewStudentGrade(localUserData.ssGrades?.[0] || "");
 
         if (!localUserData.ssGrades?.length) {
           setLoading(false);
@@ -90,7 +92,7 @@ const SundaySchoolAttendance = () => {
     };
   }, [user]);
 
-  // Subscribe to deacons array updates and profile pictures
+  // Subscribe to students and profile pictures
   useEffect(() => {
     if (!userData?.church || !userData?.ssGrades?.length) return;
 
@@ -117,10 +119,24 @@ const SundaySchoolAttendance = () => {
           })
         );
 
+        // Get all servants
+        const servantsSnapshot = await firestore()
+          .collection("churches")
+          .doc(userData.church)
+          .collection("Sunday School")
+          .doc("Servants")
+          .collection("Servants")
+          .get();
+        
+        const allServants = servantsSnapshot.docs.map(doc => ({
+          uid: doc.id,
+          ...doc.data()
+        }));
+
         // Fetch all profile pictures at once
         const urls = {};
-        await Promise.all(
-          allStudents.map(async (student) => {
+        await Promise.all([
+          ...allStudents.map(async (student) => {
             if (student.uid) {
               try {
                 const url = await storage()
@@ -132,8 +148,21 @@ const SundaySchoolAttendance = () => {
                 urls[student.uid] = null;
               }
             }
+          }),
+          ...allServants.map(async (servant) => {
+            if (servant.uid) {
+              try {
+                const url = await storage()
+                  .ref(`profilePictures/${servant.uid}.png`)
+                  .getDownloadURL();
+                urls[servant.uid] =
+                  typeof url === "string" && url.trim() ? url : null;
+              } catch (error) {
+                urls[servant.uid] = null;
+              }
+            }
           })
-        );
+        ]);
         setProfilePictureUrls(urls);
       } catch (error) {
         // Silent error handling
@@ -179,6 +208,88 @@ const SundaySchoolAttendance = () => {
     };
   }, [userData]);
 
+  // Optimized servants subscription
+  useEffect(() => {
+    if (!userData?.church || !userData?.ssGrades?.length || !user) return;
+
+    const gradeFields = ["preSchoolAge3", "preSchoolAge4", "kindergarten", "college"];
+    for (let i = 1; i <= 12; i++) {
+      gradeFields.push(i.toString());
+    }
+
+    const unsubscribe = firestore()
+      .collection("churches")
+      .doc(userData.church)
+      .collection("Sunday School")
+      .doc("Servants")
+      .collection("Servants")
+      .onSnapshot(
+        (snapshot) => {
+          if (!isMounted.current) return;
+          
+          try {
+            // Find current user's servant document first
+            const currentUserServant = snapshot.docs.find(doc => doc.id === user.uid);
+            if (!currentUserServant) {
+              setServants([]);
+              setUserGrades([]);
+              return;
+            }
+
+            const currentUserData = currentUserServant.data();
+            
+            // Get the grades the current user teaches (optimized)
+            const userGradesList = gradeFields.filter(field => currentUserData[field] === true);
+            setUserGrades(userGradesList);
+
+            if (userGradesList.length === 0) {
+              setServants([]);
+              return;
+            }
+
+            // Create a Set for faster lookup
+            const userGradesSet = new Set(userGradesList);
+
+            // Find all servants who share at least one grade (including current user)
+            const servantsWithSharedGrades = snapshot.docs
+              .filter(doc => {
+                const servantData = doc.data();
+                // Check if this servant shares any grade with the current user
+                return gradeFields.some(field => 
+                  userGradesSet.has(field) && servantData[field] === true
+                );
+              })
+              .map(doc => ({
+                uid: doc.id,
+                isServant: true,
+                isCurrentUser: doc.id === user.uid,
+                ...doc.data()
+              }));
+
+            // Sort servants by name, but put current user first
+            servantsWithSharedGrades.sort((a, b) => {
+              if (a.isCurrentUser) return -1;
+              if (b.isCurrentUser) return 1;
+              return (a.name || '').localeCompare(b.name || '');
+            });
+
+            setServants(servantsWithSharedGrades);
+          } catch (error) {
+            console.error("Error processing servants:", error);
+            setServants([]);
+          }
+        },
+        (error) => {
+          if (isMounted.current) {
+            console.error("Error fetching servants:", error);
+            setServants([]);
+          }
+        }
+      );
+
+    return () => unsubscribe();
+  }, [userData, user]);
+
   const generatePreviousSundays = async () => {
     const today = new Date();
     const sundays = [];
@@ -202,8 +313,6 @@ const SundaySchoolAttendance = () => {
 
     setPreviousSundays(sundays);
   };
-
-
 
   const getNextSunday = () => {
     const today = new Date();
@@ -231,20 +340,36 @@ const SundaySchoolAttendance = () => {
     return `${num}${suffix} Grade`;
   };
 
-  const handleAttendance = (student, status) => {
+  const handleAttendance = (person, status) => {
     if (selectedDate && selectedDate !== getNextSunday()) return;
     Haptics.trigger("impactLight");
     const dateKey = getNextSunday();
-    firestore()
-      .collection("churches")
-      .doc(userData?.church)
-      .collection("Sunday School")
-      .doc(student.grade)
-      .collection("students")
-      .doc(student.uid)
-      .update({
-        [dateKey]: status,
-      });
+    
+    if (person.isServant) {
+      // Update servant attendance
+      firestore()
+        .collection("churches")
+        .doc(userData?.church)
+        .collection("Sunday School")
+        .doc("Servants")
+        .collection("Servants")
+        .doc(person.uid)
+        .update({
+          [dateKey]: status,
+        });
+    } else {
+      // Update student attendance
+      firestore()
+        .collection("churches")
+        .doc(userData?.church)
+        .collection("Sunday School")
+        .doc(person.grade)
+        .collection("students")
+        .doc(person.uid)
+        .update({
+          [dateKey]: status,
+        });
+    }
   };
 
   const addStudent = async () => {
@@ -298,58 +423,67 @@ const SundaySchoolAttendance = () => {
     return filtered;
   }, [studentsByGrade, searchQuery]);
 
+  // Filtered servants based on search query
+  const filteredServants = useMemo(() => {
+    if (!searchQuery.trim()) return servants;
+    const lower = searchQuery.toLowerCase();
+    return servants.filter((servant) =>
+      (servant.name || '').toLowerCase().includes(lower)
+    );
+  }, [servants, searchQuery]);
+
   // Prepare sections for SectionList
   const gradeSections = useMemo(() => {
     if (!userData?.ssGrades) return [];
+    
     const sections = userData.ssGrades.map((grade) => ({
       title: grade,
       data: filteredStudentsByGrade[grade] || [],
     }));
     
-    // When searching, only include sections that have students
+    // Add servants section at the end if there are any
+    if (filteredServants.length > 0) {
+      sections.push({
+        title: "Servants",
+        data: filteredServants,
+      });
+    }
+    
+    // When searching, only include sections that have data
     if (searchQuery.trim()) {
       return sections.filter(section => section.data.length > 0);
     }
     
     return sections;
-  }, [userData, filteredStudentsByGrade, searchQuery]);
+  }, [userData, filteredStudentsByGrade, filteredServants, searchQuery]);
 
-  // Scroll to section header for grade
-  const scrollToGrade = (grade) => {
+  // Fixed scroll to section to handle servants properly
+  const scrollToSection = useCallback((sectionTitle) => {
     if (!sectionListRef.current) return;
     
-    // When searching, only use gradeSections since it's filtered
-    // When not searching, use userData.ssGrades for consistency
-    let sectionIndex = -1;
-    
-    if (searchQuery.trim()) {
-      // When searching, only look in filtered gradeSections
-      sectionIndex = gradeSections.findIndex((section) => section.title === grade);
-    } else {
-      // When not searching, try userData.ssGrades first, then gradeSections as fallback
-      if (userData?.ssGrades) {
-        sectionIndex = userData.ssGrades.findIndex((g) => g === grade);
-      }
-      
-      if (sectionIndex === -1 && gradeSections.length > 0) {
-        sectionIndex = gradeSections.findIndex((section) => section.title === grade);
-      }
-    }
+    // Find the section index in the actual rendered sections
+    const sectionIndex = gradeSections.findIndex((section) => section.title === sectionTitle);
     
     if (sectionIndex >= 0) {
-      // Add a small delay to ensure the SectionList has updated properly
+      // Use a small timeout to ensure the list has rendered
       setTimeout(() => {
-        if (sectionListRef.current) {
-          sectionListRef.current.scrollToLocation({
-            sectionIndex,
-            itemIndex: 1,
-            animated: true,
-            viewPosition: 0,
-          });
+        if (sectionListRef.current && isMounted.current) {
+          try {
+            sectionListRef.current.scrollToLocation({
+              sectionIndex,
+              itemIndex: 1, // Changed from 1 to 0 to scroll to header
+              animated: true,
+              viewPosition: 0,
+              viewOffset: 0,
+            });
+          } catch (error) {
+            // Fallback: try scrolling to the beginning of the section
+            console.log("Scroll to location failed, trying fallback");
+          }
         }
-      }, 100);
+      }, 150);
     }
-  };
+  }, [gradeSections]);
 
   const handleDateSelect = (date) => {
     setSelectedDate(date);
@@ -365,22 +499,27 @@ const SundaySchoolAttendance = () => {
     () =>
       ({ item }) => {
         // When searching, only show grades that have matching students
-        if (searchQuery.trim()) {
+        if (searchQuery.trim() && item !== "Servants") {
           const hasStudents = gradeSections.some(section => section.title === item && section.data.length > 0);
           if (!hasStudents) return null;
         }
         
+        // For servants, only show if there are servants
+        if (item === "Servants" && filteredServants.length === 0) return null;
+        
         return (
           <TouchableOpacity
             style={styles.gradeTag}
-            onPress={() => scrollToGrade(item)}
+            onPress={() => scrollToSection(item)}
             activeOpacity={0.7}
           >
-            <Text style={styles.gradeTagText}>{formatGrade(item)}</Text>
+            <Text style={styles.gradeTagText}>
+              {item === "Servants" ? "Servants" : formatGrade(item)}
+            </Text>
           </TouchableOpacity>
         );
       },
-    [searchQuery, gradeSections]
+    [searchQuery, gradeSections, filteredServants, scrollToSection]
   );
 
   const renderDate = useMemo(
@@ -398,17 +537,19 @@ const SundaySchoolAttendance = () => {
   );
 
   const renderStudent = useCallback(
-    ({ item: student, section }) => {
+    ({ item: person, section }) => {
       const dateKey = selectedDate || getNextSunday();
       const isPastDate = selectedDate && selectedDate !== getNextSunday();
+      const isServant = person.isServant || false;
+      
       return (
-        <View key={student.uid} style={styles.studentContainer}>
+        <View key={person.uid} style={styles.studentContainer}>
           <View style={styles.studentHeader}>
             <Image
               style={styles.profilePicture}
               source={
-                profilePictureUrls[student.uid]
-                  ? { uri: profilePictureUrls[student.uid] }
+                profilePictureUrls[person.uid]
+                  ? { uri: profilePictureUrls[person.uid] }
                   : require("../../assets/default_profile.png")
               }
               defaultSource={require("../../assets/default_profile.png")}
@@ -416,13 +557,13 @@ const SundaySchoolAttendance = () => {
               onError={() =>
                 setProfilePictureUrls((prev) => ({
                   ...prev,
-                  [student.uid]: null,
+                  [person.uid]: null,
                 }))
               }
             />
             <View style={styles.studentInfo}>
               <Text style={styles.studentName}>
-                {student.name} - {formatGrade(student.grade)}
+                {person.name} {isServant ? (person.isCurrentUser ? "(You)" : "") : `- ${formatGrade(person.grade)}`}
               </Text>
               <TouchableOpacity
                 hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
@@ -432,12 +573,21 @@ const SundaySchoolAttendance = () => {
                     return;
                   }
                   setIsNavigating(true);
-                  navigation.navigate("IndividualAttendance", {
-                    church: userData.church,
-                    category: "Sunday School",
-                    grade: student.grade,
-                    studentId: student.uid,
-                  });
+                  
+                  if (isServant) {
+                    navigation.navigate("ServantAttendance", {
+                      church: userData.church,
+                      servantId: person.uid,
+                    });
+                  } else {
+                    navigation.navigate("IndividualAttendance", {
+                      church: userData.church,
+                      category: "Sunday School",
+                      grade: person.grade,
+                      studentId: person.uid,
+                    });
+                  }
+                  
                   setTimeout(() => setIsNavigating(false), 1000);
                 }}
                 disabled={isNavigating}
@@ -456,18 +606,18 @@ const SundaySchoolAttendance = () => {
                   styles.attendanceStatus,
                   {
                     backgroundColor:
-                      student[dateKey] === true
+                      person[dateKey] === true
                         ? "#147efb"
-                        : student[dateKey] === false
+                        : person[dateKey] === false
                         ? "#D32F2F"
                         : "#444",
                   },
                 ]}
               >
                 <Text style={styles.attendanceStatusText}>
-                  {student[dateKey] === true
+                  {person[dateKey] === true
                     ? "Present"
-                    : student[dateKey] === false
+                    : person[dateKey] === false
                     ? "Absent"
                     : "Not Recorded"}
                 </Text>
@@ -480,10 +630,10 @@ const SundaySchoolAttendance = () => {
                   styles.attendanceButton,
                   {
                     backgroundColor:
-                      student[dateKey] === false ? "#D32F2F" : "#444",
+                      person[dateKey] === false ? "#D32F2F" : "#444",
                   },
                 ]}
-                onPress={() => handleAttendance(student, false)}
+                onPress={() => handleAttendance(person, false)}
                 activeOpacity={0.7}
               >
                 <Text style={styles.attendanceButtonText}>Absent</Text>
@@ -493,10 +643,10 @@ const SundaySchoolAttendance = () => {
                   styles.attendanceButton,
                   {
                     backgroundColor:
-                      student[dateKey] === true ? "#147efb" : "#444",
+                      person[dateKey] === true ? "#147efb" : "#444",
                   },
                 ]}
-                onPress={() => handleAttendance(student, true)}
+                onPress={() => handleAttendance(person, true)}
                 activeOpacity={0.7}
               >
                 <Text style={styles.attendanceButtonText}>Present</Text>
@@ -537,6 +687,11 @@ const SundaySchoolAttendance = () => {
   const dateKey = selectedDate || getNextSunday();
   const isPastDate = selectedDate && selectedDate !== getNextSunday();
 
+  // Create grades list with servants at the end
+  const allSections = searchQuery.trim() 
+    ? gradeSections.map(section => section.title)
+    : [...(userData.ssGrades || []), ...(servants.length > 0 ? ["Servants"] : [])];
+
   return (
     <View style={styles.container}>
       {isNavigating && (
@@ -562,7 +717,7 @@ const SundaySchoolAttendance = () => {
       </TouchableOpacity>
       <View style={styles.gradesContainer}>
         <FlatList
-          data={searchQuery.trim() ? gradeSections.map(section => section.title) : userData.ssGrades}
+          data={allSections}
           renderItem={renderGrade}
           keyExtractor={(item) => item}
           horizontal
@@ -578,26 +733,28 @@ const SundaySchoolAttendance = () => {
       {/* Thinner Search Bar below grade tags, matching AlhanAttendance */}
       <TextInput
         style={styles.searchBar}
-        placeholder="Search students..."
+        placeholder="Search students & servants..."
         placeholderTextColor="#888"
         value={searchQuery}
         onChangeText={setSearchQuery}
         autoCorrect={false}
         autoCapitalize="none"
         accessible={true}
-        accessibilityLabel="Search students"
+        accessibilityLabel="Search students and servants"
       />
       <SectionList
         ref={sectionListRef}
         sections={gradeSections}
         keyExtractor={(item) => item.uid}
         renderSectionHeader={({ section: { title } }) => (
-          <Text style={styles.gradeHeader}>{formatGrade(title)}</Text>
+          <Text style={styles.gradeHeader}>
+            {title === "Servants" ? "Servants" : formatGrade(title)}
+          </Text>
         )}
         renderItem={renderStudent}
         ListEmptyComponent={
           <Text style={styles.noStudentsText}>
-            {searchQuery.trim() ? 'No students found matching your search' : 'No students in this grade'}
+            {searchQuery.trim() ? 'No students or servants found matching your search' : 'No students in this grade'}
           </Text>
         }
         showsVerticalScrollIndicator={false}
@@ -609,7 +766,7 @@ const SundaySchoolAttendance = () => {
             if (sectionListRef.current && info.index >= 0 && info.index < gradeSections.length) {
               sectionListRef.current.scrollToLocation({
                 sectionIndex: info.index,
-                itemIndex: 1,
+                itemIndex: 0,
                 animated: false,
                 viewPosition: 0,
               });

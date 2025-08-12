@@ -340,7 +340,7 @@ const HomeScreen = () => {
     }
 
     try {
-      const userRef = firestore().collection("users"). Visser(uid);
+      const userRef = firestore().collection("users").doc(user.uid);
       await userRef.update({
         phone: phoneNumber.trim(),
       });
@@ -1126,7 +1126,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#121212",
   },
   scrollContainer: {
-    paddingBottom: 20,
+    paddingBottom: 40, // Increased padding to account for removed margins
   },
   homescreen: {
     flex: 1,
@@ -1141,7 +1141,7 @@ const styles = StyleSheet.create({
   },
   section: {
     paddingHorizontal: 16,
-    marginBottom: 20,
+    paddingBottom: 20, // Changed from marginBottom to paddingBottom
   },
   sectionTitle: {
     fontSize: 22,
@@ -1181,7 +1181,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 10,
     marginHorizontal: 16,
-    marginBottom: 20,
+    // Removed marginBottom: 20
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,

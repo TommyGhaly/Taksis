@@ -20,12 +20,6 @@ import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import CustomHeader from "../components/customHeader";
 
-// Import individual screen components for dynamic home screen
-import HomeScreen from "./Home/HomeScreen";
-import SundaySchoolAttendance from "./SundaySchool/SundaySchoolAttendance";
-import AlhanAttendance from "./Alhan/AlhanAttendance";
-import ServantsAttendance from "./ServantsMeeting/ServantsAttendance";
-
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
 
@@ -45,22 +39,22 @@ const consistentHeaderStyle = {
 // Map screen IDs to their components and configurations
 const screenConfigs = {
   schedule: {
-    component: HomeScreen,
+    component: HomeScreenNavigation,
     name: "Deacon Service Schedule",
     drawerName: "Deacon Service Schedule",
   },
   sundaySchoolAttendance: {
-    component: SundaySchoolAttendance,
+    component: SundaySchoolNavigator,
     name: "Sunday School Attendance",
     drawerName: "Sunday School Attendance",
   },
   hymnsClassAttendance: {
-    component: AlhanAttendance,
+    component: AlhanNavigator,
     name: "Hymns Class Attendance",
     drawerName: "Hymns Class Attendance",
   },
   servantsMeetingTracker: {
-    component: ServantsAttendance,
+    component: ServantsMeetingNavigator,
     name: "Servants Meeting Tracker",
     drawerName: "Servants Meeting Attendance",
   },
