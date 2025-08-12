@@ -25,8 +25,7 @@ import { callFunction, callDeleteUser, unavailableToServe } from "../../componen
 import DateTimePicker from "@react-native-community/datetimepicker";
 import HomeScreenNames from "../../components/homescreenNames";
 import PhotoInput from "../../components/photoInput";
-
-
+import { BlurView } from 'expo-blur';
 
 async function createNotificationChannel() {
   if (Platform.OS === "android") {
@@ -158,6 +157,7 @@ const HomeScreen = () => {
   const [showChildrenProfilePicModal, setShowChildrenProfilePicModal] = useState(false);
   const [childrenWithoutPfp, setChildrenWithoutPfp] = useState([]);
   const [showPhotoInputModal, setShowPhotoInputModal] = useState(false);
+  const [isSelectingPhoto, setIsSelectingPhoto] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -371,25 +371,28 @@ const HomeScreen = () => {
   };
 
   const handleOpenPhotoInput = () => {
+    setIsSelectingPhoto(true);
     setShowProfilePicModal(false);
-    setShowPhotoInputModal(true);
+    setTimeout(() => {
+      setShowPhotoInputModal(true);
+    }, 50);
   };
 
-  const handleClosePhotoInput = () => {
+  const handleClosePhotoInput = async () => {
     setShowPhotoInputModal(false);
-    const checkUserProfilePicture = async () => {
-      try {
-        await storage().ref(`profilePictures/${auth().currentUser.uid}.png`).getDownloadURL();
-        setShowProfilePicModal(false);
-      } catch (error) {
-        if (error.code === "storage/object-not-found") {
+    
+    try {
+      await storage().ref(`profilePictures/${auth().currentUser.uid}.png`).getDownloadURL();
+      setShowProfilePicModal(false);
+      setIsSelectingPhoto(false);
+    } catch (error) {
+      if (error.code === "storage/object-not-found") {
+        if (!isSelectingPhoto) {
           setShowProfilePicModal(true);
-        } else {
-          // Error handling for profile picture check
         }
       }
-    };
-    checkUserProfilePicture();
+      setIsSelectingPhoto(false);
+    }
   };
 
   const handleRemoveChildren = async () => {
@@ -527,7 +530,7 @@ const HomeScreen = () => {
 
   useEffect(() => {
     const user = auth().currentUser;
-    if (!user) return;
+    if (!user || isSelectingPhoto) return;
 
     const checkProfilePictures = async () => {
       try {
@@ -544,7 +547,7 @@ const HomeScreen = () => {
           try {
             await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
           } catch (error) {
-            if (error.code === "storage/object-not-found") {
+            if (error.code === "storage/object-not-found" && !isSelectingPhoto) {
               setShowProfilePicModal(true);
             } else {
               // Error handling for profile picture check
@@ -579,7 +582,7 @@ const HomeScreen = () => {
     };
 
     checkProfilePictures();
-  }, []);
+  }, [isSelectingPhoto]);
 
   useEffect(() => {
     const user = auth().currentUser;
@@ -826,6 +829,13 @@ const HomeScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* PhotoInput Component - Placed first, outside of any Modal */}
+      <PhotoInput
+        visible={showPhotoInputModal}
+        onClose={handleClosePhotoInput}
+        userId={auth().currentUser?.uid || ""}
+      />
+
       <Modal
         animationType="slide"
         transparent={true}
@@ -1025,25 +1035,31 @@ const HomeScreen = () => {
         onRequestClose={() => {}}
       >
         <View style={styles.modalOverlay}>
+          <BlurView intensity={20} style={StyleSheet.absoluteFillObject} />
           <Animated.View
-            style={[styles.modalDOBContainer, { transform: [{ scale: scaleValue }] }]}
+            style={[styles.enhancedModalContainer, { transform: [{ scale: scaleValue }] }]}
           >
+            <View style={styles.modalGradientHeader} />
+            <View style={styles.modalIconContainer}>
+              <Ionicons name="camera" size={48} color="#147EFB" />
+            </View>
             <Text style={styles.modalTitle}>Profile Picture Required</Text>
             <Text style={styles.modalSubtitle}>
-              As a {isDeacon ? "deacon" : "Sunday school servant"}, you must upload a profile picture to continue.
+              As a {isDeacon ? "deacon" : "Sunday school servant"}, you need a profile picture to help identify you in the church community.
             </Text>
-            <Pressable style={styles.submitButton} onPress={handleOpenPhotoInput}>
-              <Text style={styles.buttonText}>Add Profile Picture</Text>
+            <Pressable 
+              style={({ pressed }) => [
+                styles.enhancedSubmitButton,
+                pressed && styles.enhancedButtonPressed
+              ]} 
+              onPress={handleOpenPhotoInput}
+            >
+              <Ionicons name="add-circle-outline" size={24} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.enhancedButtonText}>Add Profile Picture</Text>
             </Pressable>
           </Animated.View>
         </View>
       </Modal>
-
-      <PhotoInput
-        visible={showPhotoInputModal}
-        onClose={handleClosePhotoInput}
-        userId={auth().currentUser?.uid || ""}
-      />
 
       <Modal
         animationType="none"
@@ -1126,7 +1142,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#121212",
   },
   scrollContainer: {
-    paddingBottom: 40, // Increased padding to account for removed margins
+    paddingBottom: 40,
   },
   homescreen: {
     flex: 1,
@@ -1141,7 +1157,7 @@ const styles = StyleSheet.create({
   },
   section: {
     paddingHorizontal: 16,
-    paddingBottom: 20, // Changed from marginBottom to paddingBottom
+    paddingBottom: 20,
   },
   sectionTitle: {
     fontSize: 22,
@@ -1181,7 +1197,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 10,
     marginHorizontal: 16,
-    // Removed marginBottom: 20
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
@@ -1345,6 +1360,62 @@ const styles = StyleSheet.create({
     width: "100%",
     marginTop: 20,
   },
+  enhancedModalContainer: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 28,
+    padding: 32,
+    alignItems: 'center',
+    marginHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  modalGradientHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 100,
+    backgroundColor: '#147EFB',
+    opacity: 0.1,
+  },
+  modalIconContainer: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: 'rgba(20, 126, 251, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  enhancedSubmitButton: {
+    flexDirection: 'row',
+    backgroundColor: '#147EFB',
+    paddingVertical: 16,
+    paddingHorizontal: 28,
+    borderRadius: 14,
+    marginTop: 20,
+    alignItems: 'center',
+    shadowColor: '#147EFB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  enhancedButtonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
+  },
+  enhancedButtonText: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  }
 });
 
 export default HomeScreen;

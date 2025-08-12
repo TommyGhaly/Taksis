@@ -168,7 +168,7 @@ const ServantAttendance = () => {
     return status === false ? styles.absent : styles.present;
   };
 
-  // Delete servant and profile picture
+  // Delete servant record only (preserves profile picture)
   const deleteServant = async () => {
     Alert.alert(
       "Delete Servant",
@@ -190,14 +190,6 @@ const ServantAttendance = () => {
                 .collection("Servants")
                 .doc(servantId)
                 .delete();
-
-              try {
-                await storage().ref(`profilePictures/${servantId}.png`).delete();
-              } catch (error) {
-                if (error.code !== "storage/object-not-found") {
-                  // Error handling for profile picture deletion
-                }
-              }
 
               Alert.alert(
                 "Success",
