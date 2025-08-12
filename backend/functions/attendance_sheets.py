@@ -13,6 +13,13 @@ from msal import ConfidentialClientApplication
 import json
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import partial
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # === CONFIGURATION ===
 GRADES = [
@@ -41,6 +48,13 @@ GOOGLE_SCOPES = [
     'https://www.googleapis.com/auth/drive'
 ]
 
+# Performance tuning
+MAX_WORKERS = 4  # Parallel processing workers
+BATCH_SIZE = 500  # Max cells per batch update
+RATE_LIMIT_DELAY = 0.5  # Seconds between API calls
+MAX_RETRIES = 3
+CHUNK_SIZE = 50  # Students/servants per chunk
+
 # === HELPER FUNCTIONS ===
 def get_script_dir():
     """Get the directory where this script is located."""
@@ -49,6 +63,18 @@ def get_script_dir():
 def get_file_path(filename):
     """Get absolute path for a file in the same directory as this script."""
     return os.path.join(get_script_dir(), filename)
+
+def retry_with_backoff(func, max_retries=MAX_RETRIES):
+    """Retry function with exponential backoff."""
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            wait_time = (2 ** attempt) * RATE_LIMIT_DELAY
+            logger.warning(f"Retry {attempt + 1}/{max_retries} after {wait_time}s: {e}")
+            time.sleep(wait_time)
 
 # === MICROSOFT GRAPH FUNCTIONS ===
 def get_microsoft_access_token():
@@ -104,49 +130,116 @@ def upload_to_sharepoint(file_path, file_name, access_token, drive_id):
         file_path_in_sharepoint = f"General/Attendance%20Reports/{school_year}/{file_name}"
         upload_url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:/{file_path_in_sharepoint}:/content"
         
-        # Read file content once
         with open(file_path, "rb") as f:
             file_content = f.read()
         
-        # First attempt: Try direct overwrite (works if file is in co-authoring mode)
         response = requests.put(upload_url, headers=headers, data=file_content)
         
         if response.status_code in [200, 201]:
             return True
         elif response.status_code == 423:
-            # Check if file exists and try to delete it
+            # File locked, try delete and re-upload
             check_url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:/{file_path_in_sharepoint}"
             delete_headers = {"Authorization": f"Bearer {access_token}"}
             
-            # Try to delete with retries
-            max_retries = 3
-            for retry in range(max_retries):
+            for retry in range(MAX_RETRIES):
                 delete_response = requests.delete(check_url, headers=delete_headers)
                 
                 if delete_response.status_code == 204:
-                    time.sleep(2)  # Wait for deletion to propagate
-                    
-                    # Try upload again
+                    time.sleep(2)
                     response = requests.put(upload_url, headers=headers, data=file_content)
                     if response.status_code in [200, 201]:
                         return True
                         
-                elif delete_response.status_code == 423:
-                    if retry < max_retries - 1:
-                        wait_time = 5 * (retry + 1)  # Exponential backoff: 5, 10, 15 seconds
-                        time.sleep(wait_time)
-                    else:
-                        return False
+                elif delete_response.status_code == 423 and retry < MAX_RETRIES - 1:
+                    time.sleep(5 * (retry + 1))
                 else:
                     break
-        else:
-            return False
         
         return False
             
     except Exception as e:
-        print(f"Error uploading to SharePoint: {e}")
+        logger.error(f"Error uploading to SharePoint: {e}")
         return False
+
+# === OPTIMIZED DATA FETCHING ===
+class AttendanceDataCache:
+    """Cache for attendance data to minimize Firestore reads."""
+    def __init__(self):
+        self.student_cache = {}
+        self.servant_cache = {}
+        self.all_servants = None
+    
+    def get_all_attendance_data(self, sunday_school_ref):
+        """Fetch all attendance data in batch operations."""
+        # Fetch all servants once
+        if self.all_servants is None:
+            self.all_servants = self._fetch_all_servants(sunday_school_ref)
+        
+        # Fetch all students by grade in parallel
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = {
+                executor.submit(self._fetch_grade_students, sunday_school_ref, grade): grade 
+                for grade in GRADES
+            }
+            
+            for future in as_completed(futures):
+                grade = futures[future]
+                try:
+                    self.student_cache[grade] = future.result()
+                except Exception as e:
+                    logger.error(f"Error fetching students for {grade}: {e}")
+                    self.student_cache[grade] = {}
+    
+    def _fetch_all_servants(self, sunday_school_ref):
+        """Fetch all servant data at once."""
+        servant_data = {}
+        try:
+            servants_docs = sunday_school_ref.document('Servants').collection('Servants').get()
+            for doc in servants_docs:
+                data = doc.to_dict()
+                if data:
+                    servant_data[doc.id] = data
+        except Exception as e:
+            logger.error(f"Error fetching servants: {e}")
+        return servant_data
+    
+    def _fetch_grade_students(self, sunday_school_ref, grade):
+        """Fetch all students for a grade."""
+        student_dict = {}
+        try:
+            students_docs = sunday_school_ref.document(grade).collection("students").get()
+            for student_doc in students_docs:
+                student_data = student_doc.to_dict()
+                if student_data and "name" in student_data:
+                    student_dict[student_data["name"]] = interpret_dates(student_data)
+        except Exception as e:
+            logger.error(f"Error getting students for grade {grade}: {e}")
+        return student_dict
+    
+    def get_students_for_grade(self, grade):
+        """Get cached students for a grade."""
+        return self.student_cache.get(grade, {})
+    
+    def get_servants_for_grade(self, grade):
+        """Get servants who teach a specific grade from cache."""
+        if not self.all_servants:
+            return {}
+        
+        servant_dict = {}
+        grade_key = get_grade_key(grade)
+        
+        if grade_key is None:
+            return servant_dict
+        
+        for servant_id, servant_data in self.all_servants.items():
+            servant_name = servant_data.get('name', servant_id)
+            
+            if grade_key in servant_data and servant_data[grade_key] == True:
+                servant_dates = interpret_dates(servant_data)
+                servant_dict[servant_name] = servant_dates
+        
+        return servant_dict
 
 # === GOOGLE SHEETS FUNCTIONS ===
 def export_google_sheet_to_excel(spreadsheet, church_name, sheet_creds):
@@ -168,21 +261,8 @@ def export_google_sheet_to_excel(spreadsheet, church_name, sheet_creds):
             return tmp.name
             
     except Exception as e:
-        print(f"Error exporting to Excel (trying fallback): {e}")
-        # Fallback to direct URL method
-        try:
-            export_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet.id}/export?format=xlsx"
-            
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
-                response = requests.get(export_url)
-                if response.status_code == 200:
-                    tmp.write(response.content)
-                    return tmp.name
-                else:
-                    return None
-        except Exception as e2:
-            print(f"Fallback export also failed: {e2}")
-            return None
+        logger.error(f"Error exporting to Excel: {e}")
+        return None
 
 def sheet_set_up_properly(sh, grades):
     """Check if the sheet has a worksheet for each grade."""
@@ -200,21 +280,21 @@ def set_up_sheet_pages(sh, grades):
     worksheet_list = sh.worksheets()
     num_worksheets = len(worksheet_list)
     
-    # Rename existing worksheets
+    # Batch rename existing worksheets
     for i in range(num_worksheets):
         try:
             worksheet_list[i].update_title(grades[i])
-            time.sleep(0.5)  # Small delay to avoid rate limits
+            time.sleep(RATE_LIMIT_DELAY)
         except Exception as e:
-            print(f"Error renaming worksheet {i} to {grades[i]}: {e}")
+            logger.error(f"Error renaming worksheet {i} to {grades[i]}: {e}")
     
     # Add missing worksheets
     for i in range(num_worksheets, len(grades)):
         try:
             sh.add_worksheet(title=grades[i], rows="1000", cols="26")
-            time.sleep(0.5)  # Small delay to avoid rate limits
+            time.sleep(RATE_LIMIT_DELAY)
         except Exception as e:
-            print(f"Error adding worksheet {grades[i]}: {e}")
+            logger.error(f"Error adding worksheet {grades[i]}: {e}")
 
 def interpret_dates(student_data):
     """Extract date entries from student data."""
@@ -226,19 +306,6 @@ def interpret_dates(student_data):
         except ValueError:
             continue
     return dates
-
-def get_student_names(sunday_school_reference, grade):
-    """Get the students from the sunday school data."""
-    student_dict = {}
-    try:
-        students_docs = sunday_school_reference.document(grade).collection("students").get()
-        for student_doc in students_docs:
-            student_data = student_doc.to_dict()
-            if student_data and "name" in student_data:
-                student_dict[student_data["name"]] = interpret_dates(student_data)
-    except Exception as e:
-        print(f"Error getting students for grade {grade}: {e}")
-    return student_dict
 
 def get_grade_key(grade):
     """Convert grade name to the key used in servant documents."""
@@ -262,33 +329,6 @@ def get_grade_key(grade):
     }
     return grade_key_mapping.get(grade, None)
 
-def get_servants_for_grade(sunday_school_reference, grade):
-    """Get servants who teach a specific grade."""
-    servant_dict = {}
-    grade_key = get_grade_key(grade)
-    
-    if grade_key is None:
-        return servant_dict
-    
-    try:
-        servants_docs = sunday_school_reference.document('Servants').collection('Servants').get()
-        
-        for servant_doc in servants_docs:
-            servant_data = servant_doc.to_dict()
-            if servant_data:
-                servant_name = servant_data.get('name', servant_doc.id)
-                
-                # Check if this servant teaches this specific grade
-                if grade_key in servant_data and servant_data[grade_key] == True:
-                    # Get attendance dates for this servant
-                    servant_dates = interpret_dates(servant_data)
-                    servant_dict[servant_name] = servant_dates
-    except Exception as e:
-        print(f"Error getting servants for grade {grade}: {e}")
-        traceback.print_exc()
-    
-    return servant_dict
-
 def organize_names(name_dict):
     """Alphabetize the names."""
     names = list(name_dict.keys())
@@ -305,19 +345,15 @@ def get_start_date(attendance_dict):
         for date_str, _ in records:
             try:
                 date_obj = datetime.datetime.strptime(date_str, date_format)
-                # Ignore dates in the future
-                if date_obj <= today:
-                    if date_obj < start_date:
-                        start_date = date_obj
+                if date_obj <= today and date_obj < start_date:
+                    start_date = date_obj
             except ValueError:
                 continue
 
     if start_date == datetime.datetime.max:
-        # If no valid dates found, start from beginning of school year
         current_year = today.year
-        september11 = datetime.datetime(current_year, 9, 11)  # September 11
+        september11 = datetime.datetime(current_year, 9, 11)
         
-        # If we're before September 11, use last year's September 11
         if today < september11:
             start_date = datetime.datetime(current_year - 1, 9, 11)
         else:
@@ -326,10 +362,8 @@ def get_start_date(attendance_dict):
     return start_date
 
 def create_date_array(start_date):
-    """Create an array of Sunday dates from start to most recent Sunday (or today if Sunday)."""
-    # Adjust start_date to the nearest Sunday if not already Sunday
-    if start_date.weekday() != 6:  # 6 is Sunday
-        # Calculate days until next Sunday
+    """Create an array of Sunday dates from start to most recent Sunday."""
+    if start_date.weekday() != 6:
         days_until_sunday = (6 - start_date.weekday()) % 7
         if days_until_sunday == 0:
             days_until_sunday = 7
@@ -337,14 +371,11 @@ def create_date_array(start_date):
 
     date_array = []
     current_date = start_date
-
     today = datetime.datetime.now()
     
-    # Determine the last Sunday to include
-    if today.weekday() == 6:  # Today is Sunday
+    if today.weekday() == 6:
         last_sunday = today
     else:
-        # Find the most recent Sunday (in the past)
         days_since_sunday = (today.weekday() + 1) % 7
         if days_since_sunday == 0:
             days_since_sunday = 7
@@ -352,15 +383,87 @@ def create_date_array(start_date):
     
     last_sunday = last_sunday.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # Include all Sundays from start_date to last_sunday (inclusive)
     while current_date <= last_sunday:
         date_array.append(current_date.strftime("%m-%d-%Y"))
         current_date += datetime.timedelta(days=7)
 
     return date_array
 
-def update_sheet_batch(worksheet, student_dict, servant_dict, date_array, student_names, servant_names):
-    """Update worksheet using batch update to minimize API calls."""
+def create_chunked_batch_requests(worksheet, all_values, num_cols):
+    """Create batch requests in chunks to avoid timeouts."""
+    requests_chunks = []
+    current_chunk = []
+    
+    # Clear and resize request
+    current_chunk.append({
+        "updateSheetProperties": {
+            "properties": {
+                "sheetId": worksheet.id,
+                "gridProperties": {
+                    "rowCount": max(len(all_values) + 10, 1000),
+                    "columnCount": max(num_cols + 5, 26)
+                }
+            },
+            "fields": "gridProperties"
+        }
+    })
+    
+    # Clear content request
+    current_chunk.append({
+        "repeatCell": {
+            "range": {
+                "sheetId": worksheet.id,
+                "startRowIndex": 0,
+                "endRowIndex": len(all_values) + 10,
+                "startColumnIndex": 0,
+                "endColumnIndex": num_cols + 5
+            },
+            "cell": {
+                "userEnteredValue": {"stringValue": ""},
+                "userEnteredFormat": {
+                    "backgroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0},
+                    "textFormat": {"bold": False}
+                }
+            },
+            "fields": "userEnteredValue,userEnteredFormat.backgroundColor,userEnteredFormat.textFormat.bold"
+        }
+    })
+    
+    # Update values in chunks
+    for i in range(0, len(all_values), CHUNK_SIZE):
+        chunk_end = min(i + CHUNK_SIZE, len(all_values))
+        current_chunk.append({
+            "updateCells": {
+                "range": {
+                    "sheetId": worksheet.id,
+                    "startRowIndex": i,
+                    "endRowIndex": chunk_end,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": num_cols
+                },
+                "rows": [
+                    {
+                        "values": [
+                            {"userEnteredValue": {"stringValue": str(cell)}} for cell in row
+                        ]
+                    } for row in all_values[i:chunk_end]
+                ],
+                "fields": "userEnteredValue"
+            }
+        })
+        
+        # If chunk is getting large, start a new one
+        if len(current_chunk) > 10:
+            requests_chunks.append(current_chunk)
+            current_chunk = []
+    
+    if current_chunk:
+        requests_chunks.append(current_chunk)
+    
+    return requests_chunks
+
+def update_sheet_batch_optimized(worksheet, student_dict, servant_dict, date_array, student_names, servant_names):
+    """Update worksheet using optimized batch updates."""
     try:
         # Prepare all data
         all_values = []
@@ -382,15 +485,11 @@ def update_sheet_batch(worksheet, student_dict, servant_dict, date_array, studen
                     row.append("")
             all_values.append(row)
         
-        # Add empty rows for separation
+        # Add servant data if exists
         if servant_names:
-            all_values.append([])  # Empty row
-            all_values.append([])  # Empty row
-            
-            # Servant header
+            all_values.extend([[], []])  # Empty rows
             all_values.append(["Servant Name"] + date_array)
             
-            # Servant data
             for servant in servant_names:
                 attendance_dict = dict(servant_dict.get(servant, []))
                 row = [servant]
@@ -404,81 +503,82 @@ def update_sheet_batch(worksheet, student_dict, servant_dict, date_array, studen
                         row.append("")
                 all_values.append(row)
         
-        # Calculate the range needed
-        num_rows = len(all_values)
         num_cols = len(date_array) + 1
         
-        # Build batch update request
-        requests = []
+        # Create chunked requests
+        request_chunks = create_chunked_batch_requests(worksheet, all_values, num_cols)
         
-        # Clear and resize the sheet
-        requests.append({
-            "updateSheetProperties": {
-                "properties": {
-                    "sheetId": worksheet.id,
-                    "gridProperties": {
-                        "rowCount": max(num_rows + 10, 1000),
-                        "columnCount": max(num_cols + 5, 26)
-                    }
-                },
-                "fields": "gridProperties"
-            }
-        })
+        # Execute chunks with rate limiting
+        for chunk in request_chunks:
+            retry_with_backoff(lambda: worksheet.spreadsheet.batch_update({"requests": chunk}))
+            time.sleep(RATE_LIMIT_DELAY)
         
-        # Clear all content and formatting
-        requests.append({
+        # Apply formatting in a separate batch
+        formatting_requests = create_formatting_requests(
+            worksheet, len(student_names), len(servant_names), 
+            num_cols, student_dict, servant_dict, date_array
+        )
+        
+        for i in range(0, len(formatting_requests), 50):
+            chunk = formatting_requests[i:i+50]
+            retry_with_backoff(lambda: worksheet.spreadsheet.batch_update({"requests": chunk}))
+            time.sleep(RATE_LIMIT_DELAY)
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error in batch update: {e}")
+        traceback.print_exc()
+        return False
+
+def create_formatting_requests(worksheet, num_students, num_servants, num_cols, student_dict, servant_dict, date_array):
+    """Create formatting requests separately to avoid large batches."""
+    requests = []
+    servant_start_row = num_students + 3 if num_servants > 0 else -1
+    
+    # Bold headers
+    requests.extend([
+        {
             "repeatCell": {
                 "range": {
                     "sheetId": worksheet.id,
                     "startRowIndex": 0,
-                    "endRowIndex": num_rows + 10,
-                    "startColumnIndex": 0,
-                    "endColumnIndex": num_cols + 5
-                },
-                "cell": {
-                    "userEnteredValue": {"stringValue": ""},
-                    "userEnteredFormat": {
-                        "backgroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0},
-                        "textFormat": {"bold": False}
-                    }
-                },
-                "fields": "userEnteredValue,userEnteredFormat.backgroundColor,userEnteredFormat.textFormat.bold"
-            }
-        })
-        
-        # Update all values at once
-        requests.append({
-            "updateCells": {
-                "range": {
-                    "sheetId": worksheet.id,
-                    "startRowIndex": 0,
-                    "endRowIndex": num_rows,
+                    "endRowIndex": 1,
                     "startColumnIndex": 0,
                     "endColumnIndex": num_cols
                 },
-                "rows": [
-                    {
-                        "values": [
-                            {"userEnteredValue": {"stringValue": str(cell)}} for cell in row
-                        ]
-                    } for row in all_values
-                ],
-                "fields": "userEnteredValue"
+                "cell": {
+                    "userEnteredFormat": {"textFormat": {"bold": True}}
+                },
+                "fields": "userEnteredFormat.textFormat.bold"
             }
-        })
-        
-        # Apply formatting
-        servant_start_row = len(student_names) + 3 if servant_names else -1
-        
-        # Bold headers
+        },
+        {
+            "repeatCell": {
+                "range": {
+                    "sheetId": worksheet.id,
+                    "startRowIndex": 0,
+                    "endRowIndex": num_students + 1,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": 1
+                },
+                "cell": {
+                    "userEnteredFormat": {"textFormat": {"bold": True}}
+                },
+                "fields": "userEnteredFormat.textFormat.bold"
+            }
+        }
+    ])
+    
+    # Servant headers if present
+    if num_servants > 0:
         requests.extend([
-            # Student header row
             {
                 "repeatCell": {
                     "range": {
                         "sheetId": worksheet.id,
-                        "startRowIndex": 0,
-                        "endRowIndex": 1,
+                        "startRowIndex": servant_start_row,
+                        "endRowIndex": servant_start_row + 1,
                         "startColumnIndex": 0,
                         "endColumnIndex": num_cols
                     },
@@ -488,13 +588,12 @@ def update_sheet_batch(worksheet, student_dict, servant_dict, date_array, studen
                     "fields": "userEnteredFormat.textFormat.bold"
                 }
             },
-            # Student name column
             {
                 "repeatCell": {
                     "range": {
                         "sheetId": worksheet.id,
-                        "startRowIndex": 0,
-                        "endRowIndex": len(student_names) + 1,
+                        "startRowIndex": servant_start_row,
+                        "endRowIndex": servant_start_row + num_servants + 1,
                         "startColumnIndex": 0,
                         "endColumnIndex": 1
                     },
@@ -505,47 +604,36 @@ def update_sheet_batch(worksheet, student_dict, servant_dict, date_array, studen
                 }
             }
         ])
-        
-        # Bold servant headers if present
-        if servant_names:
-            requests.extend([
-                # Servant header row
-                {
+    
+    # Color coding for attendance - batch by rows to reduce request count
+    student_names = organize_names(student_dict)
+    for row_idx, student in enumerate(student_names):
+        attendance_dict = dict(student_dict.get(student, []))
+        for col_idx, date in enumerate(date_array):
+            value = attendance_dict.get(date, None)
+            if value is not None:
+                color = {"red": 0.0, "green": 1.0, "blue": 0.0} if value else {"red": 1.0, "green": 0.0, "blue": 0.0}
+                requests.append({
                     "repeatCell": {
                         "range": {
                             "sheetId": worksheet.id,
-                            "startRowIndex": servant_start_row,
-                            "endRowIndex": servant_start_row + 1,
-                            "startColumnIndex": 0,
-                            "endColumnIndex": num_cols
+                            "startRowIndex": row_idx + 1,
+                            "endRowIndex": row_idx + 2,
+                            "startColumnIndex": col_idx + 1,
+                            "endColumnIndex": col_idx + 2
                         },
                         "cell": {
-                            "userEnteredFormat": {"textFormat": {"bold": True}}
+                            "userEnteredFormat": {"backgroundColor": color}
                         },
-                        "fields": "userEnteredFormat.textFormat.bold"
+                        "fields": "userEnteredFormat.backgroundColor"
                     }
-                },
-                # Servant name column
-                {
-                    "repeatCell": {
-                        "range": {
-                            "sheetId": worksheet.id,
-                            "startRowIndex": servant_start_row,
-                            "endRowIndex": servant_start_row + len(servant_names) + 1,
-                            "startColumnIndex": 0,
-                            "endColumnIndex": 1
-                        },
-                        "cell": {
-                            "userEnteredFormat": {"textFormat": {"bold": True}}
-                        },
-                        "fields": "userEnteredFormat.textFormat.bold"
-                    }
-                }
-            ])
-        
-        # Color attendance cells for students
-        for row_idx, student in enumerate(student_names):
-            attendance_dict = dict(student_dict.get(student, []))
+                })
+    
+    # Servant attendance colors
+    if num_servants > 0:
+        servant_names = organize_names(servant_dict)
+        for row_idx, servant in enumerate(servant_names):
+            attendance_dict = dict(servant_dict.get(servant, []))
             for col_idx, date in enumerate(date_array):
                 value = attendance_dict.get(date, None)
                 if value is not None:
@@ -554,8 +642,8 @@ def update_sheet_batch(worksheet, student_dict, servant_dict, date_array, studen
                         "repeatCell": {
                             "range": {
                                 "sheetId": worksheet.id,
-                                "startRowIndex": row_idx + 1,
-                                "endRowIndex": row_idx + 2,
+                                "startRowIndex": servant_start_row + row_idx + 1,
+                                "endRowIndex": servant_start_row + row_idx + 2,
                                 "startColumnIndex": col_idx + 1,
                                 "endColumnIndex": col_idx + 2
                             },
@@ -565,43 +653,8 @@ def update_sheet_batch(worksheet, student_dict, servant_dict, date_array, studen
                             "fields": "userEnteredFormat.backgroundColor"
                         }
                     })
-        
-        # Color attendance cells for servants
-        if servant_names:
-            for row_idx, servant in enumerate(servant_names):
-                attendance_dict = dict(servant_dict.get(servant, []))
-                for col_idx, date in enumerate(date_array):
-                    value = attendance_dict.get(date, None)
-                    if value is not None:
-                        color = {"red": 0.0, "green": 1.0, "blue": 0.0} if value else {"red": 1.0, "green": 0.0, "blue": 0.0}
-                        requests.append({
-                            "repeatCell": {
-                                "range": {
-                                    "sheetId": worksheet.id,
-                                    "startRowIndex": servant_start_row + row_idx + 1,
-                                    "endRowIndex": servant_start_row + row_idx + 2,
-                                    "startColumnIndex": col_idx + 1,
-                                    "endColumnIndex": col_idx + 2
-                                },
-                                "cell": {
-                                    "userEnteredFormat": {"backgroundColor": color}
-                                },
-                                "fields": "userEnteredFormat.backgroundColor"
-                            }
-                        })
-        
-        # Execute batch update
-        worksheet.spreadsheet.batch_update({"requests": requests})
-        
-        # Add a small delay after batch update
-        time.sleep(1)
-        
-        return True
-        
-    except Exception as e:
-        print(f"Error in batch update: {e}")
-        traceback.print_exc()
-        return False
+    
+    return requests
 
 # === INITIALIZATION FUNCTIONS ===
 def initialize_firebase():
@@ -624,8 +677,59 @@ def initialize_google_sheets():
     client = gspread.authorize(sheet_creds)
     return client, sheet_creds
 
-def process_church(church, church_data, church_name, client, sheet_creds):
-    """Process a single church's attendance sheets including servants."""
+def process_grades_parallel(church_sheet, data_cache, grades_to_process):
+    """Process multiple grades in parallel."""
+    results = {}
+    
+    with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(grades_to_process))) as executor:
+        futures = {}
+        
+        for grade in grades_to_process:
+            # Get data from cache
+            student_dict = data_cache.get_students_for_grade(grade)
+            servant_dict = data_cache.get_servants_for_grade(grade)
+            
+            if len(student_dict) > 0 or len(servant_dict) > 0:
+                future = executor.submit(
+                    process_single_grade,
+                    church_sheet, grade, student_dict, servant_dict
+                )
+                futures[future] = grade
+        
+        # Collect results
+        for future in as_completed(futures):
+            grade = futures[future]
+            try:
+                results[grade] = future.result()
+            except Exception as e:
+                logger.error(f"Error processing grade {grade}: {e}")
+                results[grade] = False
+    
+    return results
+
+def process_single_grade(church_sheet, grade, student_dict, servant_dict):
+    """Process a single grade's attendance."""
+    try:
+        # Determine date array
+        all_attendance = {**student_dict, **servant_dict}
+        date_array = create_date_array(get_start_date(all_attendance))
+        
+        # Sort names
+        student_names = organize_names(student_dict)
+        servant_names = organize_names(servant_dict)
+        
+        # Update the sheet
+        worksheet = church_sheet.worksheet(grade)
+        return update_sheet_batch_optimized(
+            worksheet, student_dict, servant_dict, 
+            date_array, student_names, servant_names
+        )
+    except Exception as e:
+        logger.error(f"Error in process_single_grade for {grade}: {e}")
+        return False
+
+def process_church_optimized(church, church_data, church_name, client, sheet_creds):
+    """Process a single church's attendance sheets with optimization."""
     if 'sundaySchoolSheets' not in church_data:
         return
         
@@ -633,48 +737,31 @@ def process_church(church, church_data, church_name, client, sheet_creds):
         church_sheet = client.open_by_key(church_data["sundaySchoolSheets"])
         sunday_school_reference = church.reference.collection("Sunday School")
         
-        # Set up Google Sheets
+        # Set up Google Sheets if needed
         if not sheet_set_up_properly(church_sheet, GRADES):
             set_up_sheet_pages(church_sheet, GRADES)
+        
+        # Create data cache and fetch all data at once
+        logger.info(f"Fetching all data for {church_name}")
+        data_cache = AttendanceDataCache()
+        data_cache.get_all_attendance_data(sunday_school_reference)
+        
+        # Process grades in parallel batches
+        logger.info(f"Processing grades for {church_name}")
+        for i in range(0, len(GRADES), MAX_WORKERS):
+            batch = GRADES[i:i+MAX_WORKERS]
+            results = process_grades_parallel(church_sheet, data_cache, batch)
             
-        # Process each grade with rate limiting
-        for idx, grade in enumerate(GRADES):
-            try:
-                
-                # Add delay between grades to avoid rate limits
-                if idx > 0:
-                    time.sleep(2)  # 2 second delay between grades
-                
-                # Get students
-                student_dict = get_student_names(sunday_school_reference, grade)
-                
-                # Get servants for this grade
-                servant_dict = get_servants_for_grade(sunday_school_reference, grade)
-                
-                # Process if there are students or servants
-                if len(student_dict) > 0 or len(servant_dict) > 0:
-                    # Determine date array based on all attendance records
-                    all_attendance = {**student_dict, **servant_dict}
-                    date_array = create_date_array(get_start_date(all_attendance))
-                    
-                    # Sort names
-                    student_names = organize_names(student_dict)
-                    servant_names = organize_names(servant_dict)
-                    
-                    # Update the sheet using batch update
-                    worksheet = church_sheet.worksheet(grade)
-                    if update_sheet_batch(worksheet, student_dict, servant_dict, date_array, student_names, servant_names):
-                        pass
-                    else:
-                        print(f"Failed to update {grade}")
+            # Log results
+            for grade, success in results.items():
+                if success:
+                    logger.info(f"Successfully updated {grade}")
                 else:
-                    print(f"No data found for {grade}")
-                    
-            except Exception as e:
-                print(f"Error processing grade {grade}: {e}")
-                traceback.print_exc()
-                # Continue with next grade even if this one fails
-                continue
+                    logger.error(f"Failed to update {grade}")
+            
+            # Rate limit between batches
+            if i + MAX_WORKERS < len(GRADES):
+                time.sleep(RATE_LIMIT_DELAY * 2)
         
         # Handle SharePoint upload for target church
         if church_name == TARGET_CHURCH_NAME:
@@ -686,8 +773,10 @@ def process_church(church, church_data, church_name, client, sheet_creds):
                 'currentSchoolYear': school_year
             })
         
+        logger.info(f"Completed processing {church_name}")
+        
     except Exception as e:
-        print(f"Error processing church {church_name}: {e}")
+        logger.error(f"Error processing church {church_name}: {e}")
         traceback.print_exc()
 
 def handle_sharepoint_upload(church_sheet, church_name, sheet_creds, church):
@@ -701,18 +790,21 @@ def handle_sharepoint_upload(church_sheet, church_name, sheet_creds, church):
         drive_id = ms_config["sharepoint_drive_id"]
         
         # Export to Excel and upload to SharePoint
-        excel_path = export_google_sheet_to_excel(church_sheet, church_name, sheet_creds)
+        excel_path = retry_with_backoff(
+            lambda: export_google_sheet_to_excel(church_sheet, church_name, sheet_creds)
+        )
+        
         if excel_path:
             school_year = get_school_year()
             file_name = "attendance.xlsx"
             
             if upload_to_sharepoint(excel_path, file_name, ms_access_token, drive_id):
-                # Update Firestore
+                logger.info(f"Successfully uploaded to SharePoint for {church_name}")
                 church.reference.update({
                     'currentSchoolYear': school_year
                 })
             else:
-                print(f"Failed to upload to SharePoint for {church_name}")
+                logger.error(f"Failed to upload to SharePoint for {church_name}")
             
             # Clean up temp file
             try:
@@ -720,27 +812,32 @@ def handle_sharepoint_upload(church_sheet, church_name, sheet_creds, church):
             except:
                 pass
     except Exception as e:
+        logger.error(f"SharePoint upload error: {e}")
         traceback.print_exc()
 
 # === MAIN FUNCTION ===
 def set_up_sheets():
     """Main function to process all churches' attendance sheets."""
-
+    start_time = time.time()
+    logger.info("Starting attendance sheet processing")
     
     # Initialize services
     db = initialize_firebase()
     client, sheet_creds = initialize_google_sheets()
     
-    # Fetch data
+    # Fetch all churches
     churches = db.collection("churches").get()
     
-    # Process each church
+    # Process churches (could be parallelized if needed)
     for church in churches:
         church_data = church.to_dict()
         church_name = church.id
         
-        process_church(church, church_data, church_name, client, sheet_creds)
+        logger.info(f"Processing church: {church_name}")
+        process_church_optimized(church, church_data, church_name, client, sheet_creds)
     
+    elapsed_time = time.time() - start_time
+    logger.info(f"Completed all processing in {elapsed_time:.2f} seconds")
 
 if __name__ == "__main__":
     set_up_sheets()
