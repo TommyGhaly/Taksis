@@ -268,7 +268,6 @@ def get_servants_for_grade(sunday_school_reference, grade):
     grade_key = get_grade_key(grade)
     
     if grade_key is None:
-        print(f"No grade key mapping for: {grade}")
         return servant_dict
     
     try:
@@ -284,7 +283,6 @@ def get_servants_for_grade(sunday_school_reference, grade):
                     # Get attendance dates for this servant
                     servant_dates = interpret_dates(servant_data)
                     servant_dict[servant_name] = servant_dates
-                    print(f"Found servant {servant_name} for grade {grade}")
     except Exception as e:
         print(f"Error getting servants for grade {grade}: {e}")
         traceback.print_exc()
@@ -629,7 +627,6 @@ def initialize_google_sheets():
 def process_church(church, church_data, church_name, client, sheet_creds):
     """Process a single church's attendance sheets including servants."""
     if 'sundaySchoolSheets' not in church_data:
-        print(f"No sundaySchoolSheets for {church_name}")
         return
         
     try:
@@ -638,13 +635,11 @@ def process_church(church, church_data, church_name, client, sheet_creds):
         
         # Set up Google Sheets
         if not sheet_set_up_properly(church_sheet, GRADES):
-            print(f"Setting up sheet pages for {church_name}")
             set_up_sheet_pages(church_sheet, GRADES)
             
         # Process each grade with rate limiting
         for idx, grade in enumerate(GRADES):
             try:
-                print(f"Processing grade: {grade}")
                 
                 # Add delay between grades to avoid rate limits
                 if idx > 0:
@@ -652,18 +647,15 @@ def process_church(church, church_data, church_name, client, sheet_creds):
                 
                 # Get students
                 student_dict = get_student_names(sunday_school_reference, grade)
-                print(f"Found {len(student_dict)} students for {grade}")
                 
                 # Get servants for this grade
                 servant_dict = get_servants_for_grade(sunday_school_reference, grade)
-                print(f"Found {len(servant_dict)} servants for {grade}")
                 
                 # Process if there are students or servants
                 if len(student_dict) > 0 or len(servant_dict) > 0:
                     # Determine date array based on all attendance records
                     all_attendance = {**student_dict, **servant_dict}
                     date_array = create_date_array(get_start_date(all_attendance))
-                    print(f"Date array has {len(date_array)} dates")
                     
                     # Sort names
                     student_names = organize_names(student_dict)
@@ -672,7 +664,7 @@ def process_church(church, church_data, church_name, client, sheet_creds):
                     # Update the sheet using batch update
                     worksheet = church_sheet.worksheet(grade)
                     if update_sheet_batch(worksheet, student_dict, servant_dict, date_array, student_names, servant_names):
-                        print(f"Successfully updated {grade}")
+                        pass
                     else:
                         print(f"Failed to update {grade}")
                 else:
@@ -719,7 +711,6 @@ def handle_sharepoint_upload(church_sheet, church_name, sheet_creds, church):
                 church.reference.update({
                     'currentSchoolYear': school_year
                 })
-                print(f"Successfully uploaded to SharePoint for {church_name}")
             else:
                 print(f"Failed to upload to SharePoint for {church_name}")
             
@@ -729,14 +720,12 @@ def handle_sharepoint_upload(church_sheet, church_name, sheet_creds, church):
             except:
                 pass
     except Exception as e:
-        print(f"Error handling SharePoint upload: {e}")
         traceback.print_exc()
 
 # === MAIN FUNCTION ===
 def set_up_sheets():
     """Main function to process all churches' attendance sheets."""
-    print(f"Starting Sunday School Attendance Processing - {datetime.datetime.now()}")
-    print(f"School Year: {get_school_year()}")
+
     
     # Initialize services
     db = initialize_firebase()
@@ -750,10 +739,8 @@ def set_up_sheets():
         church_data = church.to_dict()
         church_name = church.id
         
-        print(f"\nProcessing: {church_name}")
         process_church(church, church_data, church_name, client, sheet_creds)
     
-    print("\nProcessing complete!")
 
 if __name__ == "__main__":
     set_up_sheets()
