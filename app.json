@@ -59,7 +59,7 @@
       },
       "supportsTablet": false,
       "usesAppleSignIn": true,
-      "buildNumber": "4"
+      "buildNumber": "1"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
