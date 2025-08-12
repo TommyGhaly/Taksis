@@ -277,6 +277,7 @@ def sheet_set_up_properly(sh, grades):
 
 def set_up_sheet_pages(sh, grades):
     """Replace the worksheets with the right names then add the remaining manually."""
+    logger.info("Setting up sheet pages with proper grade names")
     worksheet_list = sh.worksheets()
     num_worksheets = len(worksheet_list)
     
@@ -295,6 +296,8 @@ def set_up_sheet_pages(sh, grades):
             time.sleep(RATE_LIMIT_DELAY)
         except Exception as e:
             logger.error(f"Error adding worksheet {grades[i]}: {e}")
+    
+    logger.info("Completed setting up sheet pages")
 
 def interpret_dates(student_data):
     """Extract date entries from student data."""
@@ -389,6 +392,58 @@ def create_date_array(start_date):
 
     return date_array
 
+def create_chunked_batch_requests_data_only(worksheet, all_values, num_cols):
+    """Create batch requests for data updates only (no clearing)."""
+    requests_chunks = []
+    current_chunk = []
+    
+    # Resize sheet if needed
+    current_chunk.append({
+        "updateSheetProperties": {
+            "properties": {
+                "sheetId": worksheet.id,
+                "gridProperties": {
+                    "rowCount": max(len(all_values) + 10, 1000),
+                    "columnCount": max(num_cols + 5, 26)
+                }
+            },
+            "fields": "gridProperties"
+        }
+    })
+    
+    # Update values in chunks
+    for i in range(0, len(all_values), CHUNK_SIZE):
+        chunk_end = min(i + CHUNK_SIZE, len(all_values))
+        current_chunk.append({
+            "updateCells": {
+                "range": {
+                    "sheetId": worksheet.id,
+                    "startRowIndex": i,
+                    "endRowIndex": chunk_end,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": num_cols
+                },
+                "rows": [
+                    {
+                        "values": [
+                            {"userEnteredValue": {"stringValue": str(cell)}} for cell in row
+                        ]
+                    } for row in all_values[i:chunk_end]
+                ],
+                "fields": "userEnteredValue"
+            }
+        })
+        
+        # If chunk is getting large, start a new one
+        if len(current_chunk) > 10:
+            requests_chunks.append(current_chunk)
+            current_chunk = []
+    
+    if current_chunk:
+        requests_chunks.append(current_chunk)
+    
+    return requests_chunks
+
 def create_chunked_batch_requests(worksheet, all_values, num_cols):
     """Create batch requests in chunks to avoid timeouts."""
     requests_chunks = []
@@ -462,9 +517,65 @@ def create_chunked_batch_requests(worksheet, all_values, num_cols):
     
     return requests_chunks
 
+def clear_worksheet(worksheet):
+    """Clear all content and formatting from a worksheet."""
+    try:
+        # First, clear all content and formatting in one batch
+        clear_requests = [
+            {
+                "updateSheetProperties": {
+                    "properties": {
+                        "sheetId": worksheet.id,
+                        "gridProperties": {
+                            "rowCount": 1000,
+                            "columnCount": 100
+                        }
+                    },
+                    "fields": "gridProperties"
+                }
+            },
+            {
+                "repeatCell": {
+                    "range": {
+                        "sheetId": worksheet.id,
+                        "startRowIndex": 0,
+                        "endRowIndex": 1000,
+                        "startColumnIndex": 0,
+                        "endColumnIndex": 100
+                    },
+                    "cell": {
+                        "userEnteredValue": {"stringValue": ""},
+                        "userEnteredFormat": {
+                            "backgroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0},
+                            "borders": {},
+                            "textFormat": {
+                                "bold": False,
+                                "italic": False,
+                                "strikethrough": False,
+                                "underline": False
+                            }
+                        }
+                    },
+                    "fields": "*"
+                }
+            }
+        ]
+        
+        retry_with_backoff(lambda: worksheet.spreadsheet.batch_update({"requests": clear_requests}))
+        time.sleep(RATE_LIMIT_DELAY)
+        logger.info(f"Cleared worksheet: {worksheet.title}")
+        return True
+    except Exception as e:
+        logger.error(f"Error clearing worksheet: {e}")
+        return False
+
 def update_sheet_batch_optimized(worksheet, student_dict, servant_dict, date_array, student_names, servant_names):
     """Update worksheet using optimized batch updates."""
     try:
+        # FIRST: Clear the entire worksheet
+        if not clear_worksheet(worksheet):
+            logger.warning(f"Failed to clear worksheet {worksheet.title}, continuing anyway")
+        
         # Prepare all data
         all_values = []
         
@@ -505,8 +616,8 @@ def update_sheet_batch_optimized(worksheet, student_dict, servant_dict, date_arr
         
         num_cols = len(date_array) + 1
         
-        # Create chunked requests
-        request_chunks = create_chunked_batch_requests(worksheet, all_values, num_cols)
+        # Create chunked requests for data update only (no need to clear again)
+        request_chunks = create_chunked_batch_requests_data_only(worksheet, all_values, num_cols)
         
         # Execute chunks with rate limiting
         for chunk in request_chunks:
@@ -710,6 +821,8 @@ def process_grades_parallel(church_sheet, data_cache, grades_to_process):
 def process_single_grade(church_sheet, grade, student_dict, servant_dict):
     """Process a single grade's attendance."""
     try:
+        logger.info(f"Processing grade: {grade}")
+        
         # Determine date array
         all_attendance = {**student_dict, **servant_dict}
         date_array = create_date_array(get_start_date(all_attendance))
