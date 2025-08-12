@@ -1,6 +1,7 @@
 import { createStackNavigator } from '@react-navigation/stack';
 import SundaySchoolAttendance from './SundaySchoolAttendance';
 import IndividualAttendance from '../IndividualAttendance';
+import ServantAttendance from './ServantsAttendance';
 
 const Stack = createStackNavigator();
 
@@ -15,6 +16,11 @@ const SundaySchoolNavigator = () => {
       <Stack.Screen 
         name="IndividualAttendance" 
         component={IndividualAttendance} 
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="ServantAttendance" 
+        component={ServantAttendance} 
         options={{ headerShown: false }}
       />
     </Stack.Navigator>

@@ -333,8 +333,8 @@ const IndividualAttendance = () => {
         </View>
         <Text style={styles.title}>{`${studentData.name || "Student"}`}</Text>
         <View style={styles.profileContainer}>
-                    <ProfileImageExpander
-            imageUrl={imageUrl || defaultProfileImage}
+            <ProfileImageExpander
+            imageUrl={profilePictureUrl || defaultProfileImage}
             size={80}
             finalSize={300}
             borderRadius={40}

@@ -344,7 +344,7 @@ const AlhanAdmin = () => {
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
       <Text style={[styles.header, { fontSize: 24 * scale }]}>
-        Manage Alhan Teachers
+        Manage Alhan
       </Text>
       {sections.length === 0 ? (
         <Text style={[styles.noData, { fontSize: 16 * scale }]}>

@@ -53,6 +53,30 @@ const gradesList = [
   "College",
 ];
 
+// Helper function to clean field names
+const cleanFieldName = (grade) => {
+  // Convert grade names to clean field names
+  const fieldMap = {
+    "Pre-School - Age 3": "preSchoolAge3",
+    "Pre-School - Age 4": "preSchoolAge4",
+    "Kindergarten": "kindergarten",
+    "1st Grade": "1",
+    "2nd Grade": "2",
+    "3rd Grade": "3",
+    "4th Grade": "4",
+    "5th Grade": "5",
+    "6th Grade": "6",
+    "7th Grade": "7",
+    "8th Grade": "8",
+    "9th Grade": "9",
+    "10th Grade": "10",
+    "11th Grade": "11",
+    "12th Grade": "12",
+    "College": "college"
+  };
+  return fieldMap[grade] || grade.toLowerCase().replace(/\s+/g, '');
+};
+
 // Responsive design helper
 const { width, height } = Dimensions.get("window");
 const isTablet = Platform.isPad || (width >= 768 && height >= 768);
@@ -236,28 +260,68 @@ const ServantsAdmin = () => {
 
   // Save classes
   const saveClasses = async () => {
-    if (!selectedServant) return;
+    if (!selectedServant || !church) return;
 
     try {
+      // 1. Update the user document (existing functionality)
       await firestore().collection("users").doc(selectedServant.id).update({
         ssGrades: selectedGrades,
         isServant: isServantMeeting,
       });
+
+      // 2. Create/Update the servant document in the church's Sunday School collection
+      const servantData = {
+        name: selectedServant.name,
+        uid: selectedServant.id,
+      };
+
+      // Add all grades as boolean fields
+      gradesList.forEach((grade) => {
+        const fieldName = cleanFieldName(grade);
+        servantData[fieldName] = selectedGrades.includes(grade);
+      });
+
+      // Create or update the document
+      await firestore()
+        .collection("churches")
+        .doc(church)
+        .collection("Sunday School")
+        .doc("Servants")
+        .collection("Servants")
+        .doc(selectedServant.id)
+        .set(servantData, { merge: true });
+
       closeEditModal();
     } catch (error) {
+      console.error("Error saving classes:", error);
       Alert.alert("Error", "Could not save classes. Please try again.");
     }
   };
 
   // Remove servant
   const removeServant = async (servantId) => {
+    if (!church) return;
+
     try {
+      // 1. Update the user document (existing functionality)
       await firestore().collection("users").doc(servantId).update({
         isSSTeacher: false,
         ssGrades: [],
         isServant: false,
       });
+
+      // 2. Delete the servant document from the church's Sunday School collection
+      await firestore()
+        .collection("churches")
+        .doc(church)
+        .collection("Sunday School")
+        .doc("Servants")
+        .collection("Servants")
+        .doc(servantId)
+        .delete();
+        
     } catch (error) {
+      console.error("Error removing servant:", error);
       Alert.alert("Error", "Could not remove servant. Please try again.");
     }
   };
@@ -394,7 +458,7 @@ const ServantsAdmin = () => {
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
       <Text style={[styles.header, { fontSize: 24  }]}>
-        Manage Sunday School Servants
+        Manage Sunday School
       </Text>
       {sections.length === 0 ? (
         <Text style={[styles.noData, { fontSize: 16 * scale }]}>
