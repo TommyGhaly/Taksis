@@ -27,10 +27,6 @@ const ChangePhoto = () => {
       await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
       setPreviewUri(photoUrl); // Update preview after successful upload
     } catch (error) {
-      Alert.alert(
-        "Error",
-        "Could not update profile picture information. Please try again."
-      );
     }
   };
 

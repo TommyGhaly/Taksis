@@ -14,7 +14,6 @@ import {
   Dimensions,
   Platform,
   ScrollView,
-  PanResponder,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
@@ -99,9 +98,6 @@ const ServantsAdmin = () => {
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerHeightRef = useRef(0);
   const sectionListRef = useRef(null);
-  const indexBarRef = useRef(null);
-  const [indexBarLayout, setIndexBarLayout] = useState(null);
-  const [currentLetter, setCurrentLetter] = useState(null);
 
   // Fetch current user's church with real-time updates
   useEffect(() => {
@@ -329,9 +325,7 @@ const ServantsAdmin = () => {
   // Scroll to section
   const scrollToSection = (letter) => {
     const sectionIndex = sections.findIndex((s) => s.title === letter);
-    if (sectionIndex < 0 || !sectionListRef.current) {
-      return;
-    }
+    if (sectionIndex < 0 || !sectionListRef.current) return;
     sectionListRef.current.scrollToLocation({
       sectionIndex,
       itemIndex: 1,
@@ -340,44 +334,6 @@ const ServantsAdmin = () => {
       viewOffset: 0,
     });
   };
-
-  // Handle index bar touch and drag
-  const handleIndexBarTouch = (letter) => {
-    if (letter !== currentLetter) {
-      setCurrentLetter(letter);
-      scrollToSection(letter);
-      ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
-    }
-  };
-
-  // Pan responder for sliding through letters
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (evt) => {
-        if (!indexBarLayout || availableLetters.length === 0) return;
-        const { pageY } = evt.nativeEvent;
-        const letterHeight = indexBarLayout.height / availableLetters.length;
-        const index = Math.floor((pageY - indexBarLayout.y) / letterHeight);
-        const clampedIndex = Math.max(0, Math.min(index, availableLetters.length - 1));
-        const letter = availableLetters[clampedIndex];
-        handleIndexBarTouch(letter);
-      },
-      onPanResponderMove: (evt) => {
-        if (!indexBarLayout || availableLetters.length === 0) return;
-        const { pageY } = evt.nativeEvent;
-        const letterHeight = indexBarLayout.height / availableLetters.length;
-        const index = Math.floor((pageY - indexBarLayout.y) / letterHeight);
-        const clampedIndex = Math.max(0, Math.min(index, availableLetters.length - 1));
-        const letter = availableLetters[clampedIndex];
-        handleIndexBarTouch(letter);
-      },
-      onPanResponderRelease: () => {
-        setCurrentLetter(null);
-      },
-    })
-  ).current;
 
   // Render section header
   const renderSectionHeader = ({ section: { title } }) => (
@@ -472,7 +428,7 @@ const ServantsAdmin = () => {
             renderItem={renderServant}
             renderSectionHeader={renderSectionHeader}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listContainer}
+            contentContainerStyle={[styles.listContainer, { paddingRight: 30 }]}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
             extraData={profilePictureUrls}
@@ -480,7 +436,7 @@ const ServantsAdmin = () => {
               // Do nothing when scroll fails - stay in current position
             }}
           />
-          <View style={{ position: 'absolute', top: 100 * scale, right: 0, width: 30 }}>
+          <View style={{ position: 'absolute', top: 85 * scale, right: 0, width: 30 }}>
             <AlphabetIndexBar 
               onLetterChange={scrollToSection} 
               availableLetters={sections.map(s => s.title)}
@@ -633,12 +589,11 @@ const styles = StyleSheet.create({
   },
   listWrapper: {
     flex: 1,
-    flexDirection: "row",
+    position: "relative",
   },
   listContainer: {
-    paddingBottom: 0,
     flexGrow: 1,
-    paddingRight: 32, // Match DeaconEdits right padding
+    paddingBottom: 0,
   },
   centered: {
     flex: 1,
@@ -656,6 +611,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16 * scale,
     marginBottom: 12 * scale,
+    marginRight: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
@@ -725,35 +681,6 @@ const styles = StyleSheet.create({
     fontSize: 18 * scale,
     fontWeight: "600",
     color: "#fff",
-  },
-  indexBar: {
-    position: "absolute",
-    right: 0,
-    top: (Platform.OS === 'ios' ? 140 : 120),
-    height: height - (Platform.OS === 'ios' ? 200 : 180),
-    width: indexBarWidth,
-    backgroundColor: "transparent",
-    alignItems: "center",
-    justifyContent: "space-evenly",
-    zIndex: 1,
-  },
-  indexItem: {
-    width: 20,
-    height: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 10,
-  },
-  indexItemActive: {
-    backgroundColor: "#147efb",
-  },
-  indexText: {
-    color: "#147efb",
-    fontWeight: "500",
-    fontSize: 11,
-  },
-  indexTextActive: {
-    color: "#ffffff",
   },
   modalOverlay: {
     flex: 1,
@@ -873,6 +800,12 @@ const styles = StyleSheet.create({
   modalButtonText: {
     color: "#fff",
     fontWeight: "500",
+  },
+  closeButton: {
+    position: "absolute",
+    top: 16 * scale,
+    right: 16 * scale,
+    padding: 8 * scale,
   },
 });
 
