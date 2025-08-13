@@ -257,7 +257,9 @@ const AlhanAdmin = () => {
   // Scroll to section
   const scrollToSection = (letter) => {
     const sectionIndex = sections.findIndex((s) => s.title === letter);
-    if (sectionIndex < 0 || !sectionListRef.current) return;
+    if (sectionIndex < 0 || !sectionListRef.current) {
+      return;
+    }
     sectionListRef.current.scrollToLocation({
       sectionIndex,
       itemIndex: 1,
@@ -272,18 +274,14 @@ const AlhanAdmin = () => {
     <View
       style={styles.sectionHeader}
       onLayout={(event) => {
-        const { height } = event.nativeEvent.layout;
-        if (height > 0 && headerHeightRef.current !== height) {
-          headerHeightRef.current = height;
-          setHeaderHeight(height);
-        }
+        const height = event.nativeEvent.layout.height;
+        headerHeightRef.current = height;
+        setHeaderHeight(height);
       }}
     >
       <Text style={styles.sectionHeaderText}>{title}</Text>
     </View>
-  );
-
-  // Render teacher item
+  );  // Render teacher item
   const renderTeacher = ({ item }) => (
     <TouchableOpacity
       style={styles.teacherCard}
@@ -360,7 +358,7 @@ const AlhanAdmin = () => {
             renderItem={renderTeacher}
             renderSectionHeader={renderSectionHeader}
             keyExtractor={(item) => item.id || Math.random().toString()}
-            contentContainerStyle={[styles.listContainer, { paddingRight: 30 }]}
+            contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
             extraData={profilePictureUrls}
@@ -368,7 +366,7 @@ const AlhanAdmin = () => {
               // Do nothing when scroll fails - stay in current position
             }}
           />
-          <View style={{ position: 'absolute', top: 85 * scale, right: 0, width: 30 }}>
+          <View style={{ position: 'absolute', top: 100 * scale, right: 0, width: 30 }}>
             <AlphabetIndexBar 
               onLetterChange={scrollToSection} 
               availableLetters={sections.map(s => s.title)}
@@ -511,8 +509,9 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   listContainer: {
-    flexGrow: 1,
     paddingBottom: 0,
+    flexGrow: 1,
+    paddingRight: 32, // Match DeaconEdits right padding
   },
   centered: {
     flex: 1,
@@ -530,7 +529,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16 * scale,
     marginBottom: 12 * scale,
-    marginRight: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
@@ -665,10 +663,7 @@ const styles = StyleSheet.create({
     padding: 16 * scale,
   },
   closeButton: {
-    position: "absolute",
-    top: 16 * scale,
-    right: 16 * scale,
-    padding: 8 * scale,
+    padding: 4 * scale,
   },
   gradesList: {
     paddingHorizontal: 16 * scale,
@@ -688,6 +683,17 @@ const styles = StyleSheet.create({
   },
   gradeText: {
     color: "#fff",
+  },
+  indexBar: {
+    position: "absolute",
+    right: 0,
+    top: (Platform.OS === 'ios' ? 140 : 120),
+    height: height - (Platform.OS === 'ios' ? 200 : 180),
+    width: indexBarWidth,
+    backgroundColor: "transparent",
+    alignItems: "center",
+    justifyContent: "space-evenly",
+    zIndex: 1,
   },
   modalButtons: {
     flexDirection: "row",
