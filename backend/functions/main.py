@@ -1157,23 +1157,23 @@ def find_server(schedule_data, target_uid):
 
 def determine_role(location):
     if location == "gospel":
-        return "Gospel Server"
+        return "the Gospel reader"
     elif location == "wine":
-        return "Wine Server"
+        return "a wine server"
     elif location == "water":
-        return "Water Server"
+        return "a water server"
     elif location == "praxis":
-        return "Praxis Server"
+        return "the Praxis reader"
     elif location == "catholic":
-        return "Catholic Server"
+        return "the Catholic Epistle reader"
     elif location == "pauline":
-        return "Pauline Server"
+        return "the Pauline Epistle reader"
     elif location == "sixth":
-        return "Sixth Server"
+        return "the Sixth Hour Gospel reader"
     elif location == "third":
-        return "Third Server"
+        return "the Third Hour Gospel reader"
     elif location == "matins":
-        return "Matins Server"
+        return "the Matins Gospel reader"
     else:
         return None
     
@@ -1274,7 +1274,7 @@ def handle_switch_server_notification(
                 f"Your son {second_server["name"].split()[0]} has been switched with another deacon to serve in the altar this Sunday! Check the app for details.",
                 "Schedule Update!",
             )
-    elif len(second_location) == 2:
+    if len(second_location) == 2:
         if second_location[0] == "extra":
             update_notification(
                 first_server["uid"],
@@ -1289,22 +1289,22 @@ def handle_switch_server_notification(
                 f"Your son {first_server["name"].split()[0]} has been switched with another deacon to serve in the altar this Sunday! Check the app for details.",
                 "Schedule Update!",
             )
-    else:
-        first_server_role = determine_role(second_location[0])
-        second_server_role = determine_role(first_location[0])
-        update_notification(
-            first_server["uid"],
-            f"{first_server["name"].split()[0]}! You have been switched with another deacon to serve as a {second_server_role} this Sunday! Check the app for details.",
-            f"Your son {first_server["name"].split()[0]} has been switched with another deacon to serve as a {second_server_role} this Sunday! Check the app for details.",
-            "Schedule Update!",
-        )
+    if len(first_location) == 1:
+        second_server_role = determine_role(first_location[0])  # ✓ Correct
         update_notification(
             second_server["uid"],
-            f"{second_server["name"].split()[0]}! You have been switched with another deacon to serve as a {first_server_role} this Sunday! Check the app for details.",
-            f"Your son {second_server["name"].split()[0]} has been switched with another deacon to serve as a {first_server_role} this Sunday! Check the app for details.",
+            f"{second_server["name"].split()[0]}! You have been switched with another deacon to serve as {second_server_role} this Sunday! Check the app for details.",  # ✓ Fixed
+            f"Your son {second_server["name"].split()[0]} has been switched with another deacon to serve as {second_server_role} this Sunday! Check the app for details.",  # ✓ Fixed
             "Schedule Update!",
         )
-
+    if len(second_location) == 1:
+        first_server_role = determine_role(second_location[0])  # ✓ Correct
+        update_notification(
+            first_server["uid"],
+            f"{first_server["name"].split()[0]}! You have been switched with another deacon to serve as {first_server_role} this Sunday! Check the app for details.",  # ✓ Fixed
+            f"Your son {first_server["name"].split()[0]} has been switched with another deacon to serve as {first_server_role} this Sunday! Check the app for details.",  # ✓ Fixed
+            "Schedule Update!",
+        )
 
 @https_fn.on_request()
 def remove_server(req: https_fn.Request) -> https_fn.Response:
@@ -1641,17 +1641,24 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
 
 def is_today_or_upcoming_sunday(week_id_str):
     try:
-        week_id_date = datetime.datetime.strptime(week_id_str, "%d-%m-%y").date()
+        week_id_date = datetime.datetime.strptime(week_id_str, "%m-%d-%y").date()
     except ValueError:
         return False
 
     today = datetime.datetime.today().date()
-    weekday = today.weekday()  # Monday = 0, Sunday = 6
-    days_until_sunday = (6 - weekday) % 7
+    weekday = today.weekday()  # Monday=0, Sunday=6
+    days_until_sunday = (6 - weekday)
+
+    # If today is Sunday, set next_sunday to 7 days later (upcoming Sunday)
+    if days_until_sunday == 0:
+        days_until_sunday = 7
+
     next_sunday = today + datetime.timedelta(days=days_until_sunday)
 
-    return week_id_date == today or week_id_date == next_sunday
+    result = (week_id_date == today or week_id_date == next_sunday)
 
+
+    return result
 
 def handle_unavailable_notification(user_id, week_id, role, name):
     if is_today_or_upcoming_sunday(week_id):
