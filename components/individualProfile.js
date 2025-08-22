@@ -130,7 +130,7 @@ const IndividualProfile = ({
     const fetchImage = async (childStatus) => {
       try {
         const storagePath = childStatus
-          ? `childProfilePictures/${userId}.png`
+          ? `profilePictures/${userId}.png`
           : `profilePictures/${userId}.png`;
         const url = await storage().ref(storagePath).getDownloadURL();
         if (typeof url === "string" && url.trim() !== "") {

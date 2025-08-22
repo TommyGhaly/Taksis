@@ -16,8 +16,6 @@ import * as ImagePicker from 'expo-image-picker';
 import storage from '@react-native-firebase/storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -26,7 +24,7 @@ const PhotoInput = ({ visible, onClose, userId }) => {
   const [previewUri, setPreviewUri] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   
-  // Minimal animation values
+  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -38,7 +36,6 @@ const PhotoInput = ({ visible, onClose, userId }) => {
 
   useEffect(() => {
     if (visible) {
-      // Simple entrance animation
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -52,7 +49,6 @@ const PhotoInput = ({ visible, onClose, userId }) => {
         }),
       ]).start();
     } else {
-      // Reset animations
       fadeAnim.setValue(0);
       scaleAnim.setValue(0.95);
       progressAnim.setValue(0);
@@ -199,22 +195,12 @@ const PhotoInput = ({ visible, onClose, userId }) => {
       onRequestClose={handleClose}
     >
       <Animated.View style={[styles.modalOverlay, { opacity: fadeAnim }]}>
-        <BlurView intensity={Platform.OS === 'ios' ? 25 : 20} style={StyleSheet.absoluteFillObject} />
-        
         <Animated.View 
           style={[
             styles.card,
             { transform: [{ scale: scaleAnim }] }
           ]}
         >
-          {/* Gradient Background */}
-          <LinearGradient
-            colors={['rgba(20, 126, 251, 0.08)', 'transparent']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.gradientBackground}
-          />
-          
           {/* Close Button */}
           <Pressable
             style={({ pressed }) => [
@@ -224,16 +210,16 @@ const PhotoInput = ({ visible, onClose, userId }) => {
             onPress={handleClose}
             disabled={loading}
           >
-            <Icon name="close" size={24} color="#8E8E93" />
+            <Icon name="close" size={24} color="#888" />
           </Pressable>
           
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>
-              {previewUri ? 'Looking Good!' : 'Profile Picture'}
+              {previewUri ? 'Looking Good!' : 'Add Profile Picture'}
             </Text>
             <Text style={styles.subtitle}>
-              {previewUri ? 'Your photo looks great!' : 'Add a photo to personalize your profile'}
+              {previewUri ? 'Your photo looks great!' : 'Choose how you want to add your photo'}
             </Text>
           </View>
 
@@ -294,24 +280,17 @@ const PhotoInput = ({ visible, onClose, userId }) => {
                   onPress={handleConfirmUpload}
                   disabled={loading}
                 >
-                  <LinearGradient
-                    colors={loading ? ['#666', '#555'] : ['#147EFB', '#0F6FEB']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.gradientButton}
-                  >
-                    {loading ? (
-                      <>
-                        <ActivityIndicator color="#fff" size="small" />
-                        <Text style={styles.buttonText}>Uploading...</Text>
-                      </>
-                    ) : (
-                      <>
-                        <Icon name="cloud-upload" size={24} color="#fff" />
-                        <Text style={styles.buttonText}>Upload Photo</Text>
-                      </>
-                    )}
-                  </LinearGradient>
+                  {loading ? (
+                    <>
+                      <ActivityIndicator color="#fff" size="small" />
+                      <Text style={styles.buttonText}>Uploading...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="cloud-upload" size={24} color="#fff" />
+                      <Text style={styles.buttonText}>Upload Photo</Text>
+                    </>
+                  )}
                 </Pressable>
 
                 {!loading && (
@@ -322,7 +301,7 @@ const PhotoInput = ({ visible, onClose, userId }) => {
                     ]}
                     onPress={handleCancelPreview}
                   >
-                    <Icon name="camera-retake" size={22} color="#147EFB" />
+                    <Icon name="camera-retake" size={22} color="#e0e0e0" />
                     <Text style={[styles.buttonText, styles.secondaryButtonText]}>Choose Another</Text>
                   </Pressable>
                 )}
@@ -339,10 +318,6 @@ const PhotoInput = ({ visible, onClose, userId }) => {
                   ]}
                   onPress={handlePickPhoto}
                 >
-                  <LinearGradient
-                    colors={['rgba(20, 126, 251, 0.1)', 'rgba(20, 126, 251, 0.05)']}
-                    style={styles.optionGradient}
-                  />
                   <View style={styles.iconContainer}>
                     <Icon name="image-multiple" size={36} color="#147EFB" />
                   </View>
@@ -357,12 +332,8 @@ const PhotoInput = ({ visible, onClose, userId }) => {
                   ]}
                   onPress={handleTakePhoto}
                 >
-                  <LinearGradient
-                    colors={['rgba(76, 175, 80, 0.1)', 'rgba(76, 175, 80, 0.05)']}
-                    style={styles.optionGradient}
-                  />
                   <View style={[styles.iconContainer, styles.cameraIconContainer]}>
-                    <Icon name="camera" size={36} color="#4CAF50" />
+                    <Icon name="camera" size={36} color="#4d9cff" />
                   </View>
                   <Text style={styles.optionTitle}>Camera</Text>
                   <Text style={styles.optionDescription}>Take new photo</Text>
@@ -371,7 +342,6 @@ const PhotoInput = ({ visible, onClose, userId }) => {
 
               {/* Bottom Hint */}
               <View style={styles.hintContainer}>
-                <Icon name="information-outline" size={16} color="#8E8E93" />
                 <Text style={styles.hintText}>Your photo will be visible to other members</Text>
               </View>
             </>
@@ -387,28 +357,19 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   card: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 28,
+    backgroundColor: '#1e1e1e',
+    borderRadius: 10,
     width: '90%',
     maxWidth: 400,
-    padding: 24,
+    padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  gradientBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    shadowRadius: 4,
+    elevation: 5,
   },
   closeIconButton: {
     position: 'absolute',
@@ -418,42 +379,42 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(142, 142, 147, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   closeIconPressed: {
-    backgroundColor: 'rgba(142, 142, 147, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
     marginTop: 8,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#e0e0e0',
     marginBottom: 8,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   subtitle: {
     fontSize: 16,
-    color: '#8E8E93',
+    color: '#888',
     textAlign: 'center',
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
     lineHeight: 22,
   },
   previewSection: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   previewContainer: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     overflow: 'hidden',
-    backgroundColor: '#2C2C2E',
+    backgroundColor: '#2a2a2a',
     borderWidth: 3,
     borderColor: '#147EFB',
     position: 'relative',
@@ -473,7 +434,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
-    borderColor: '#1C1C1E',
+    borderColor: '#1e1e1e',
   },
   uploadingOverlay: {
     position: 'absolute',
@@ -484,19 +445,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 80,
   },
   progressContainer: {
-    marginBottom: 24,
+    marginBottom: 20,
     paddingHorizontal: 8,
   },
   progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   progressLabel: {
-    color: '#8E8E93',
+    color: '#888',
     fontSize: 14,
     fontWeight: '500',
   },
@@ -506,97 +466,83 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   progressBar: {
-    height: 6,
-    backgroundColor: 'rgba(142, 142, 147, 0.2)',
-    borderRadius: 3,
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 2,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
     backgroundColor: '#147EFB',
-    borderRadius: 3,
+    borderRadius: 2,
   },
   buttonContainer: {
     gap: 12,
   },
   primaryButton: {
-    borderRadius: 14,
-    overflow: 'hidden',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-  },
-  gradientButton: {
     flexDirection: 'row',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    backgroundColor: '#147EFB',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   secondaryButton: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(20, 126, 251, 0.08)',
-    borderRadius: 14,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    backgroundColor: '#333',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(20, 126, 251, 0.2)',
     gap: 10,
   },
   optionsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 16,
-    marginBottom: 28,
+    marginBottom: 20,
   },
   optionCard: {
     flex: 1,
-    backgroundColor: 'rgba(44, 44, 46, 0.6)',
-    borderRadius: 20,
-    padding: 24,
+    backgroundColor: '#2a2a2a',
+    borderRadius: 10,
+    padding: 20,
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    position: 'relative',
-    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#333',
   },
   optionCardPressed: {
-    backgroundColor: 'rgba(44, 44, 46, 0.9)',
-    borderColor: 'rgba(20, 126, 251, 0.3)',
-  },
-  optionGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    backgroundColor: '#333',
   },
   iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(20, 126, 251, 0.15)',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(20, 126, 251, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
   },
   cameraIconContainer: {
-    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+    backgroundColor: 'rgba(77, 156, 255, 0.1)',
   },
   optionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#e0e0e0',
     marginBottom: 4,
   },
   optionDescription: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: '#888',
   },
   hintContainer: {
     flexDirection: 'row',
@@ -607,10 +553,10 @@ const styles = StyleSheet.create({
   },
   hintText: {
     fontSize: 13,
-    color: '#8E8E93',
+    color: '#888',
   },
   disabledButton: {
-    opacity: 0.7,
+    backgroundColor: '#555',
   },
   buttonPressed: {
     opacity: 0.8,
@@ -623,7 +569,7 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   secondaryButtonText: {
-    color: '#147EFB',
+    color: '#e0e0e0',
   },
 });
 
