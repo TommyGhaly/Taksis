@@ -2289,3 +2289,63 @@ def test_generate_sheets_http(req: https_fn.Request) -> https_fn.Response:
         
     except Exception as e:
         return https_fn.Response(f"Error: {str(e)}", status=500)
+    
+    
+    
+@https_fn.on_request()
+def test_last_serve(req: https_fn.Request) -> https_fn.Response:
+    firestore_client = firestore.Client()
+    churches_ref = firestore_client.collection("churches")
+    churches_docs = churches_ref.stream()
+    for church_doc in churches_docs:
+        schedules = firestore_client.collection("churches").document(church_doc.id).collection("schedule").stream()
+        for schedule in schedules:
+            print(f"Checking schedule {schedule.id} for church {church_doc.id}")
+            if schedule.id == "08-31-25":
+                print(f"Updating last serve for schedule {schedule.id} of church {church_doc.id}")
+                update_last_serve(schedule.to_dict(), schedule.id)
+    return https_fn.Response("Last serve update completed", status=200)
+                
+def update_last_serve(schedule_data, schedule_id=None):
+    firestore_client = firestore.Client()
+    for key, value in schedule_data.items():
+        if key == "extra":
+            continue
+
+        if isinstance(value, list):
+            for individual in value:
+                for indvidual_key, individual_value in individual.items():
+                    if indvidual_key == "name" and individual_value != "N/A":
+                        print(f"Processing individual: {individual}")
+                        user_ref = firestore_client.collection("users").document(individual["uid"])
+                        if user_ref.get().exists:
+                            user_ref.update({"lastServe": schedule_id, "lastRole": interpret_role(key)})
+                            print(f"Updated lastServe and lastRole for user {individual['uid']}")
+                            print(f"last week serve: {user_ref.get().to_dict().get('lastServe')}, last role: {user_ref.get().to_dict().get('lastRole')}")
+        else:
+            for individual_key, individual_value in value.items():
+                if individual_key == "name" and individual_value != "N/A":
+                    print(f"Processing individual: {value}")
+                    user_ref = firestore_client.collection("users").document(value["uid"])
+                    if user_ref.get().exists:
+                        user_ref.update({"lastServe": schedule_id, "lastRole": interpret_role(key)})
+                        print(f"Updated lastServe and lastRole for user {value['uid']}")
+                        print(f"last week serve: {user_ref.get().to_dict().get('lastServe')}, last role: {user_ref.get().to_dict().get('lastRole')}")        
+    return
+
+@scheduler_fn.on_schedule(
+    schedule="0 3 * * 0",  # Every Sunday at 3:00 AM
+    timezone=scheduler_fn.Timezone("America/New_York"),
+)
+def update_last_week_serve(event: scheduler_fn.ScheduledEvent) -> None:
+    firestore_client = firestore.Client()
+    churches_ref = firestore_client.collection("churches")
+    churches_docs = churches_ref.stream()
+    for church_doc in churches_docs:
+        schedules = firestore_client.collection("churches").document(church_doc.id).collection("schedule").stream()
+        for schedule in schedules:
+            print(f"Checking schedule {schedule.id} for church {church_doc.id}")
+            if schedule.id == datetime.datetime.now().strftime("%m-%d-%y"):
+                print(f"Updating last serve for schedule {schedule.id} of church {church_doc.id}")
+                update_last_serve(schedule.to_dict(), schedule.id)
+    return
