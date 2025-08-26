@@ -18,7 +18,7 @@ import firestore, { FieldValue } from "@react-native-firebase/firestore";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import PhotoInput from "./photoInput";
-import ProfileImageExpander from './ProfileImageExpander';
+import ProfileImageExpander from "./ProfileImageExpander";
 
 const defaultProfileImage = require("../assets/default_profile.png");
 
@@ -54,11 +54,11 @@ const formatLastServeDate = (dateStr) => {
     const [month, day, year] = dateStr.split("-").map(Number);
     if (!month || !day || !year) return null;
     const date = new Date(2000 + year, month - 1, day);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric',
-      year: 'numeric'
+    return date.toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     });
   } catch (error) {
     return null;
@@ -66,7 +66,14 @@ const formatLastServeDate = (dateStr) => {
 };
 
 // Syncs only the frequency for parent and children in user doc and deacons array
-const syncChildren = async (parentId, frequency, church, batch, churchData, churchRef) => {
+const syncChildren = async (
+  parentId,
+  frequency,
+  church,
+  batch,
+  churchData,
+  churchRef
+) => {
   if (!parentId) return;
 
   const parentRef = firestore().collection("users").doc(parentId);
@@ -86,7 +93,10 @@ const syncChildren = async (parentId, frequency, church, batch, churchData, chur
 
   const deacons = churchData.deacons || [];
   const updatedDeacons = deacons.map((deacon) => {
-    if (deacon.uid === parentId || updatedChildren.some((child) => child.uid === deacon.uid)) {
+    if (
+      deacon.uid === parentId ||
+      updatedChildren.some((child) => child.uid === deacon.uid)
+    ) {
       return { ...deacon, frequency: frequency ?? 0 };
     }
     return deacon;
@@ -102,7 +112,10 @@ const syncDeaconFrequency = (uid, frequency, churchData, churchRef, batch) => {
   const deacons = churchData.deacons || [];
   const deaconIndex = deacons.findIndex((deacon) => deacon.uid === uid);
   if (deaconIndex !== -1) {
-    deacons[deaconIndex] = { ...deacons[deaconIndex], frequency: frequency ?? 0 };
+    deacons[deaconIndex] = {
+      ...deacons[deaconIndex],
+      frequency: frequency ?? 0,
+    };
     batch.update(churchRef, { deacons });
   }
 };
@@ -203,7 +216,8 @@ const IndividualProfile = ({
                       if (child) {
                         childData = child;
                         parentId = doc.id;
-                        parentPhone = userData.phone || userData.number || "Not provided";
+                        parentPhone =
+                          userData.phone || userData.number || "Not provided";
                         break;
                       }
                     }
@@ -274,7 +288,9 @@ const IndividualProfile = ({
 
       if (isChild) {
         // Handle child user
-        const parentRef = firestore().collection("users").doc(userData.parentId);
+        const parentRef = firestore()
+          .collection("users")
+          .doc(userData.parentId);
         const parentDoc = await parentRef.get();
         if (!parentDoc.exists) {
           throw new Error("Parent document not found");
@@ -284,7 +300,11 @@ const IndividualProfile = ({
         // Update the child's data in the parent's children array
         const updatedChildren = (parentData.children || []).map((child) =>
           child.uid === userId
-            ? { ...child, experience: tempExperience ?? 0, frequency: tempFrequency ?? 0 }
+            ? {
+                ...child,
+                experience: tempExperience ?? 0,
+                frequency: tempFrequency ?? 0,
+              }
             : child
         );
 
@@ -302,7 +322,9 @@ const IndividualProfile = ({
 
           // Sync parent and siblings in deacons array
           syncDeacon(userData.parentId, syncedFrequency);
-          syncedChildren.forEach((child) => syncDeacon(child.uid, syncedFrequency));
+          syncedChildren.forEach((child) =>
+            syncDeacon(child.uid, syncedFrequency)
+          );
         } else {
           // Only update the child's data
           batch.update(parentRef, { children: updatedChildren });
@@ -323,7 +345,10 @@ const IndividualProfile = ({
         });
 
         // If the user has children and frequency changed, sync with children
-        if (userData.children?.length > 0 && userData.frequency !== tempFrequency) {
+        if (
+          userData.children?.length > 0 &&
+          userData.frequency !== tempFrequency
+        ) {
           const syncedFrequency = tempFrequency ?? 0;
           const updatedChildren = userData.children.map((child) => ({
             ...child,
@@ -332,7 +357,9 @@ const IndividualProfile = ({
           batch.update(userRef, { children: updatedChildren });
 
           // Sync each child in the deacons array
-          updatedChildren.forEach((child) => syncDeacon(child.uid, syncedFrequency));
+          updatedChildren.forEach((child) =>
+            syncDeacon(child.uid, syncedFrequency)
+          );
         }
 
         // Update the parent's deacon entry
@@ -378,14 +405,15 @@ const IndividualProfile = ({
       snapshot.docs.forEach((doc) => {
         const scheduleData = doc.data();
         const weekId = doc.id;
-        
+
         // Check if user is serving in this week
-        const isServing = 
-          scheduleData.altar?.some(server => server.uid === userId) ||
-          Object.values(scheduleData).some(reader => 
-            reader && typeof reader === 'object' && reader.uid === userId
+        const isServing =
+          scheduleData.altar?.some((server) => server.uid === userId) ||
+          Object.values(scheduleData).some(
+            (reader) =>
+              reader && typeof reader === "object" && reader.uid === userId
           );
-        
+
         if (isServing) {
           servingWeeks.push(weekId);
         }
@@ -400,18 +428,20 @@ const IndividualProfile = ({
           // User is serving in multiple weeks, show selection with current week first
           const sortedWeeks = [
             currentEditingWeek,
-            ...servingWeeks.filter(w => w !== currentEditingWeek)
+            ...servingWeeks.filter((w) => w !== currentEditingWeek),
           ];
-          
+
           Alert.alert(
             "Multiple Weeks Found",
             "This user is serving in multiple weeks. Which week would you like to mark as unavailable?",
             [
               { text: "Cancel", style: "cancel" },
-              ...sortedWeeks.map(weekId => ({
-                text: `${formatWeekDisplay(weekId)}${weekId === currentEditingWeek ? ' (Current Week)' : ''}`,
-                onPress: () => markUnavailableForWeek(weekId)
-              }))
+              ...sortedWeeks.map((weekId) => ({
+                text: `${formatWeekDisplay(weekId)}${
+                  weekId === currentEditingWeek ? " (Current Week)" : ""
+                }`,
+                onPress: () => markUnavailableForWeek(weekId),
+              })),
             ],
             { cancelable: true }
           );
@@ -423,10 +453,10 @@ const IndividualProfile = ({
           "This user is serving in multiple weeks. Which week would you like to mark as unavailable?",
           [
             { text: "Cancel", style: "cancel" },
-            ...servingWeeks.map(weekId => ({
+            ...servingWeeks.map((weekId) => ({
               text: formatWeekDisplay(weekId),
-              onPress: () => markUnavailableForWeek(weekId)
-            }))
+              onPress: () => markUnavailableForWeek(weekId),
+            })),
           ],
           { cancelable: true }
         );
@@ -442,14 +472,19 @@ const IndividualProfile = ({
         );
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to check user's schedule. Please try again.");
+      Alert.alert(
+        "Error",
+        "Failed to check user's schedule. Please try again."
+      );
     }
   };
 
   const markUnavailableForWeek = (targetWeek) => {
     Alert.alert(
       "Mark Unavailable",
-      `Are you sure you want to mark this user as unavailable for ${formatWeekDisplay(targetWeek)}?`,
+      `Are you sure you want to mark this user as unavailable for ${formatWeekDisplay(
+        targetWeek
+      )}?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -482,7 +517,10 @@ const IndividualProfile = ({
               );
               onClose();
             } catch (error) {
-              Alert.alert("Error", "Failed to mark as unavailable. Please try again.");
+              Alert.alert(
+                "Error",
+                "Failed to mark as unavailable. Please try again."
+              );
             }
           },
         },
@@ -496,11 +534,11 @@ const IndividualProfile = ({
     if (!weekStr) return "Unknown Week";
     const [month, day, year] = weekStr.split("-").map(Number);
     const date = new Date(2000 + year, month - 1, day);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      month: 'short', 
-      day: 'numeric',
-      year: 'numeric'
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     });
   };
 
@@ -521,23 +559,33 @@ const IndividualProfile = ({
                 throw new Error("No authenticated user found");
               }
 
-              const churchDocRef = firestore().collection("churches").doc(church);
+              const churchDocRef = firestore()
+                .collection("churches")
+                .doc(church);
               const churchDoc = await churchDocRef.get();
               if (!churchDoc.exists) {
                 throw new Error("Church document not found");
               }
 
               const churchData = churchDoc.data();
-              const updatedDeacons = (churchData.deacons || []).filter((deacon) => deacon.uid !== userId);
+              const updatedDeacons = (churchData.deacons || []).filter(
+                (deacon) => deacon.uid !== userId
+              );
 
               await churchDocRef.update({ deacons: updatedDeacons });
-              await firestore().collection("users").doc(userId).update({ isDeacon: false });
+              await firestore()
+                .collection("users")
+                .doc(userId)
+                .update({ isDeacon: false });
 
               setIsDeacon(false);
               Alert.alert("Success", "The user has been removed as a deacon.");
               onClose();
             } catch (error) {
-              Alert.alert("Error", "Failed to remove deacon. Please try again.");
+              Alert.alert(
+                "Error",
+                "Failed to remove deacon. Please try again."
+              );
             }
           },
         },
@@ -565,7 +613,7 @@ const IndividualProfile = ({
 
   const handleEditPhoto = () => {
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
-    
+
     Alert.alert(
       "Edit Profile Picture",
       "Choose an option",
@@ -591,20 +639,23 @@ const IndividualProfile = ({
       const storagePath = isChild
         ? `childProfilePictures/${userId}.png`
         : `profilePictures/${userId}.png`;
-      
+
       // Delete from storage
       await storage().ref(storagePath).delete();
-      
+
       // Update local state
       setImageUrl(null);
-      
+
       Alert.alert("Success", "Profile picture removed successfully.");
     } catch (error) {
       // If the file doesn't exist, that's okay
-      if (error.code === 'storage/object-not-found') {
+      if (error.code === "storage/object-not-found") {
         setImageUrl(null);
       } else {
-        Alert.alert("Error", "Failed to remove profile picture. Please try again.");
+        Alert.alert(
+          "Error",
+          "Failed to remove profile picture. Please try again."
+        );
       }
     }
   };
@@ -713,7 +764,9 @@ const IndividualProfile = ({
                   <Text style={styles.phoneText}>{userData.phone}</Text>
                 </TouchableOpacity>
               ) : (
-                <Text style={styles.detail}>{userData?.phone || "Not provided"}</Text>
+                <Text style={styles.detail}>
+                  {userData?.phone || "Not provided"}
+                </Text>
               )}
             </View>
             <View style={styles.detailRow}>
@@ -722,7 +775,9 @@ const IndividualProfile = ({
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Next Week Serve:</Text>
-              <Text style={styles.detail}>{userData?.nextWeekServe || "N/A"}</Text>
+              <Text style={styles.detail}>
+                {userData?.nextWeekServe || "N/A"}
+              </Text>
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Next Role:</Text>
@@ -731,7 +786,8 @@ const IndividualProfile = ({
             {userData?.lastServe && userData?.lastRole && (
               <View style={styles.lastServeRow}>
                 <Text style={styles.lastServeText}>
-                  Last served on {formatLastServeDate(userData.lastServe)} as {userData.lastRole}
+                  Last served on {formatLastServeDate(userData.lastServe)} as{" "}
+                  {userData.lastRole}
                 </Text>
               </View>
             )}
@@ -855,15 +911,20 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#147efb",
   },
+
   profileImageContainer: {
     marginBottom: 8,
     alignItems: "center",
+    justifyContent: "center",
     position: "relative",
+    width: 120, // Set explicit width to match the ProfileImageExpander size
+    height: 120, // Set explicit height to match the ProfileImageExpander size
+    alignSelf: "center", // Ensure the container itself is centered
   },
   image: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 120, // Changed from 100 to match ProfileImageExpander size
+    height: 120, // Changed from 100 to match ProfileImageExpander size
+    borderRadius: 60, // Half of width/height
     borderWidth: 2,
     borderColor: "#147efb",
   },
