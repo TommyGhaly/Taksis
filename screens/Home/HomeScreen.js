@@ -21,11 +21,15 @@ import auth from "@react-native-firebase/auth";
 import { deleteUser } from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
 import { check, request, PERMISSIONS, RESULTS } from "react-native-permissions";
-import { callFunction, callDeleteUser, unavailableToServe } from "../../components/functionCalls";
+import {
+  callFunction,
+  callDeleteUser,
+  unavailableToServe,
+} from "../../components/functionCalls";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import HomeScreenNames from "../../components/homescreenNames";
 import PhotoInput from "../../components/photoInput";
-import { BlurView } from 'expo-blur';
+import { BlurView } from "expo-blur";
 
 async function createNotificationChannel() {
   if (Platform.OS === "android") {
@@ -63,7 +67,9 @@ async function requestUserPermissionAndroid() {
       if (!PERMISSIONS.ANDROID.POST_NOTIFICATIONS) {
         return false;
       }
-      const permissionStatus = await check(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
+      const permissionStatus = await check(
+        PERMISSIONS.ANDROID.POST_NOTIFICATIONS
+      );
       if (permissionStatus !== RESULTS.GRANTED) {
         const result = await request(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
         if (result !== RESULTS.GRANTED) {
@@ -152,9 +158,11 @@ const HomeScreen = () => {
   const [showNameModal, setShowNameModal] = useState(false);
   const [showDOBModal, setShowDOBModal] = useState(false);
   const [showPhoneModal, setShowPhoneModal] = useState(false);
-  const [phoneModalShownThisSession, setPhoneModalShownThisSession] = useState(false);
+  const [phoneModalShownThisSession, setPhoneModalShownThisSession] =
+    useState(false);
   const [showProfilePicModal, setShowProfilePicModal] = useState(false);
-  const [showChildrenProfilePicModal, setShowChildrenProfilePicModal] = useState(false);
+  const [showChildrenProfilePicModal, setShowChildrenProfilePicModal] =
+    useState(false);
   const [childrenWithoutPfp, setChildrenWithoutPfp] = useState([]);
   const [showPhotoInputModal, setShowPhotoInputModal] = useState(false);
   const [isSelectingPhoto, setIsSelectingPhoto] = useState(false);
@@ -170,6 +178,8 @@ const HomeScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showWeekModal, setShowWeekModal] = useState(false);
   const scaleValue = useRef(new Animated.Value(0.9)).current;
+  const [lastServe, setLastServe] = useState(null);
+  const [lastRole, setLastRole] = useState(null);
 
   useEffect(() => {
     setIsDeacon(true);
@@ -188,7 +198,10 @@ const HomeScreen = () => {
       }
     };
 
-    const subscription = AppState.addEventListener("change", handleAppStateChange);
+    const subscription = AppState.addEventListener(
+      "change",
+      handleAppStateChange
+    );
 
     if (auth().currentUser) {
       checkNotificationPermission();
@@ -230,7 +243,7 @@ const HomeScreen = () => {
 
     for (let i = 0; i < 5; i++) {
       const weekDate = new Date(baseDate);
-      weekDate.setDate(baseDate.getDate() + (i * 7));
+      weekDate.setDate(baseDate.getDate() + i * 7);
       weeks.push(formatDate(weekDate));
     }
 
@@ -329,7 +342,10 @@ const HomeScreen = () => {
   const handlePhoneSubmit = async () => {
     const phoneRegex = /^\+?[1-9]\d{1,14}$/;
     if (!phoneNumber.trim() || !phoneRegex.test(phoneNumber.trim())) {
-      Alert.alert("Error", "Please enter a valid phone number (e.g., +1234567890).");
+      Alert.alert(
+        "Error",
+        "Please enter a valid phone number (e.g., +1234567890)."
+      );
       return;
     }
 
@@ -380,9 +396,11 @@ const HomeScreen = () => {
 
   const handleClosePhotoInput = async () => {
     setShowPhotoInputModal(false);
-    
+
     try {
-      await storage().ref(`profilePictures/${auth().currentUser.uid}.png`).getDownloadURL();
+      await storage()
+        .ref(`profilePictures/${auth().currentUser.uid}.png`)
+        .getDownloadURL();
       setShowProfilePicModal(false);
       setIsSelectingPhoto(false);
     } catch (error) {
@@ -420,10 +438,15 @@ const HomeScreen = () => {
       );
 
       await userRef.update({
-        children: FieldValue.arrayRemove(...userData.children.filter(c => childrenWithoutPfp.includes(c.uid))),
+        children: FieldValue.arrayRemove(
+          ...userData.children.filter((c) => childrenWithoutPfp.includes(c.uid))
+        ),
       });
 
-      Alert.alert("Success", "Children without profile pictures have been removed. Please reregister them with profile pictures.");
+      Alert.alert(
+        "Success",
+        "Children without profile pictures have been removed. Please reregister them with profile pictures."
+      );
       setShowChildrenProfilePicModal(false);
       setChildrenWithoutPfp([]);
     } catch (error) {
@@ -446,7 +469,10 @@ const HomeScreen = () => {
 
   const handleWeekSelection = async (week) => {
     if (unavailableWeeks.includes(week)) {
-      Alert.alert("Cannot Undo", "This week is already marked as unavailable and cannot be changed.");
+      Alert.alert(
+        "Cannot Undo",
+        "This week is already marked as unavailable and cannot be changed."
+      );
       return;
     }
 
@@ -514,11 +540,17 @@ const HomeScreen = () => {
                 );
               }
 
-              Alert.alert("Request Sent", `You have been marked as unavailable for the selected weeks.`);
+              Alert.alert(
+                "Request Sent",
+                `You have been marked as unavailable for the selected weeks.`
+              );
               setSelectedWeeks([]);
               setShowWeekModal(false);
             } catch (error) {
-              Alert.alert("Error", "Failed to mark as unavailable. Please try again.");
+              Alert.alert(
+                "Error",
+                "Failed to mark as unavailable. Please try again."
+              );
             } finally {
               setIsLoading(false);
             }
@@ -545,9 +577,14 @@ const HomeScreen = () => {
 
         if (isDeaconUser || isSSTeacherUser) {
           try {
-            await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
+            await storage()
+              .ref(`profilePictures/${user.uid}.png`)
+              .getDownloadURL();
           } catch (error) {
-            if (error.code === "storage/object-not-found" && !isSelectingPhoto) {
+            if (
+              error.code === "storage/object-not-found" &&
+              !isSelectingPhoto
+            ) {
               setShowProfilePicModal(true);
             } else {
               // Error handling for profile picture check
@@ -561,7 +598,9 @@ const HomeScreen = () => {
           for (const child of children) {
             if (child?.uid) {
               try {
-                await storage().ref(`profilePictures/${child.uid}.png`).getDownloadURL();
+                await storage()
+                  .ref(`profilePictures/${child.uid}.png`)
+                  .getDownloadURL();
               } catch (error) {
                 if (error.code === "storage/object-not-found") {
                   missingPfpChildren.push(child.uid);
@@ -605,12 +644,21 @@ const HomeScreen = () => {
               name.trim() === "" ||
               !name.includes(" ");
             const isDOBInvalid = !userData?.DOB || userData.DOB.trim() === "";
-            const isPhoneInvalid = !userData?.phone || userData.phone.trim() === "";
+            const isPhoneInvalid =
+              !userData?.phone || userData.phone.trim() === "";
             setShowNameModal(isNameInvalid);
             setShowDOBModal(!isNameInvalid && isDOBInvalid);
-            setShowPhoneModal(!isNameInvalid && !isDOBInvalid && isPhoneInvalid && !phoneModalShownThisSession);
+            setShowPhoneModal(
+              !isNameInvalid &&
+                !isDOBInvalid &&
+                isPhoneInvalid &&
+                !phoneModalShownThisSession
+            );
           } else {
-            Alert.alert("Sign up to continue", "Please sign up using this account to continue.");
+            Alert.alert(
+              "Sign up to continue",
+              "Please sign up using this account to continue."
+            );
             deleteUser(user).catch((error) => {
               // Error handling for user deletion
             });
@@ -643,10 +691,16 @@ const HomeScreen = () => {
               setIsDeacon(userData.isDeacon || false);
               setNextWeek(userData.nextWeekServe || null);
               setNextRole(userData.nextRole || "N/A");
+              setLastServe(userData.lastServe || null);
+              setLastRole(userData.lastRole || null);
               if (userData.church && userData.church !== churchId) {
                 setChurchId(userData.church);
               }
-              setUnavailableWeeks(Array.isArray(userData.unavailableWeeks) ? userData.unavailableWeeks : []);
+              setUnavailableWeeks(
+                Array.isArray(userData.unavailableWeeks)
+                  ? userData.unavailableWeeks
+                  : []
+              );
               if (
                 userData.alhanGrades &&
                 !(
@@ -689,114 +743,141 @@ const HomeScreen = () => {
       .doc(churchId)
       .collection("schedule");
 
-    const unsubscribeSchedules = schedulesRef.onSnapshot((snapshot) => {
-      try {
-        if (!snapshot || snapshot.empty) {
-          setSchedule({
-            matins: { name: "N/A" },
-            third: { name: "N/A" },
-            sixth: { name: "N/A" },
-            pauline: { name: "N/A" },
-            catholic: { name: "N/A" },
-            praxis: { name: "N/A" },
-            gospel: { name: "N/A" },
-            water: { name: "N/A" },
-            wine: { name: "N/A" },
-            altar: [],
-          });
-          return;
-        }
-
-        let closestSchedule = null;
-        let closestDate = null;
-        let chosenDocId = "";
-        const today = new Date().setHours(0, 0, 0, 0);
-
-        const churchRef = firestore().collection("churches").doc(churchId);
-        const unsubscribeChurch = churchRef.onSnapshot(
-          (churchDoc) => {
-            try {
-              if (!churchDoc.exists) {
-                return;
-              }
-
-              const fullDeacon = churchDoc.data()?.fullDeacon || false;
-
-              snapshot.docs.forEach((doc) => {
-                const scheduleData = doc.data();
-                const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
-                const [month, day, year] = scheduleDateStr.split("-").map(Number);
-                const scheduleDate = new Date(2000 + year, month - 1, day).setHours(0, 0, 0, 0);
-
-                if (!closestDate || Math.abs(scheduleDate - today) < Math.abs(closestDate - today)) {
-                  closestDate = scheduleDate;
-                  closestSchedule = scheduleData;
-                  chosenDocId = doc.id;
-                }
-              });
-
-              if (closestSchedule) {
-                setCurrentWeek(chosenDocId);
-                const defaultSchedule = {
-                  matins: { name: "N/A" },
-                  third: { name: "N/A" },
-                  sixth: { name: "N/A" },
-                  pauline: { name: "N/A" },
-                  catholic: { name: "N/A" },
-                  praxis: { name: "N/A" },
-                  gospel: { name: "N/A" },
-                  water: { name: "N/A" },
-                  wine: { name: "N/A" },
-                  altar: [],
-                };
-
-                const updatedSchedule = {
-                  ...defaultSchedule,
-                  ...closestSchedule,
-                };
-
-                if (!Array.isArray(updatedSchedule.altar)) {
-                  updatedSchedule.altar = [];
-                }
-
-                const altarServers = [];
-                if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
-                  altarServers.push(updatedSchedule.water);
-                }
-                if (!fullDeacon && updatedSchedule.wine && typeof updatedSchedule.wine === "object") {
-                  altarServers.push(updatedSchedule.wine);
-                }
-
-                altarServers.push(
-                  ...(updatedSchedule.altar || []).filter((server) => server && typeof server === "object")
-                );
-                updatedSchedule.altar = altarServers;
-                setSchedule(updatedSchedule);
-              }
-            } catch (error) {
-              // Error handling for church document processing
-            }
-          },
-          (error) => {
-            // Error handling for church document listener
+    const unsubscribeSchedules = schedulesRef.onSnapshot(
+      (snapshot) => {
+        try {
+          if (!snapshot || snapshot.empty) {
+            setSchedule({
+              matins: { name: "N/A" },
+              third: { name: "N/A" },
+              sixth: { name: "N/A" },
+              pauline: { name: "N/A" },
+              catholic: { name: "N/A" },
+              praxis: { name: "N/A" },
+              gospel: { name: "N/A" },
+              water: { name: "N/A" },
+              wine: { name: "N/A" },
+              altar: [],
+            });
+            return;
           }
-        );
 
-        return () => {
-          unsubscribeChurch();
-        };
-      } catch (error) {
-        // Error handling for schedules loading
+          let closestSchedule = null;
+          let closestDate = null;
+          let chosenDocId = "";
+          const today = new Date().setHours(0, 0, 0, 0);
+
+          const churchRef = firestore().collection("churches").doc(churchId);
+          const unsubscribeChurch = churchRef.onSnapshot(
+            (churchDoc) => {
+              try {
+                if (!churchDoc.exists) {
+                  return;
+                }
+
+                const fullDeacon = churchDoc.data()?.fullDeacon || false;
+
+                snapshot.docs.forEach((doc) => {
+                  const scheduleData = doc.data();
+                  const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
+                  const [month, day, year] = scheduleDateStr
+                    .split("-")
+                    .map(Number);
+                  const scheduleDate = new Date(
+                    2000 + year,
+                    month - 1,
+                    day
+                  ).setHours(0, 0, 0, 0);
+
+                  if (
+                    !closestDate ||
+                    Math.abs(scheduleDate - today) <
+                      Math.abs(closestDate - today)
+                  ) {
+                    closestDate = scheduleDate;
+                    closestSchedule = scheduleData;
+                    chosenDocId = doc.id;
+                  }
+                });
+
+                if (closestSchedule) {
+                  setCurrentWeek(chosenDocId);
+                  const defaultSchedule = {
+                    matins: { name: "N/A" },
+                    third: { name: "N/A" },
+                    sixth: { name: "N/A" },
+                    pauline: { name: "N/A" },
+                    catholic: { name: "N/A" },
+                    praxis: { name: "N/A" },
+                    gospel: { name: "N/A" },
+                    water: { name: "N/A" },
+                    wine: { name: "N/A" },
+                    altar: [],
+                  };
+
+                  const updatedSchedule = {
+                    ...defaultSchedule,
+                    ...closestSchedule,
+                  };
+
+                  if (!Array.isArray(updatedSchedule.altar)) {
+                    updatedSchedule.altar = [];
+                  }
+
+                  const altarServers = [];
+                  if (
+                    updatedSchedule.water &&
+                    typeof updatedSchedule.water === "object"
+                  ) {
+                    altarServers.push(updatedSchedule.water);
+                  }
+                  if (
+                    !fullDeacon &&
+                    updatedSchedule.wine &&
+                    typeof updatedSchedule.wine === "object"
+                  ) {
+                    altarServers.push(updatedSchedule.wine);
+                  }
+
+                  altarServers.push(
+                    ...(updatedSchedule.altar || []).filter(
+                      (server) => server && typeof server === "object"
+                    )
+                  );
+                  updatedSchedule.altar = altarServers;
+                  setSchedule(updatedSchedule);
+                }
+              } catch (error) {
+                // Error handling for church document processing
+              }
+            },
+            (error) => {
+              // Error handling for church document listener
+            }
+          );
+
+          return () => {
+            unsubscribeChurch();
+          };
+        } catch (error) {
+          // Error handling for schedules loading
+        }
+      },
+      (error) => {
+        // Error handling for schedules listener
       }
-    }, (error) => {
-      // Error handling for schedules listener
-    });
+    );
 
     return () => unsubscribeSchedules();
   }, [churchId]);
 
   useEffect(() => {
-    if (showDOBModal || showPhoneModal || showProfilePicModal || showChildrenProfilePicModal) {
+    if (
+      showDOBModal ||
+      showPhoneModal ||
+      showProfilePicModal ||
+      showChildrenProfilePicModal
+    ) {
       try {
         Animated.spring(scaleValue, {
           toValue: 1,
@@ -810,7 +891,12 @@ const HomeScreen = () => {
     } else {
       scaleValue.setValue(0.9);
     }
-  }, [showDOBModal, showPhoneModal, showProfilePicModal, showChildrenProfilePicModal]);
+  }, [
+    showDOBModal,
+    showPhoneModal,
+    showProfilePicModal,
+    showChildrenProfilePicModal,
+  ]);
 
   const readings = [
     { role: "Matins Gospel", user: schedule.matins || { name: "N/A" } },
@@ -864,7 +950,10 @@ const HomeScreen = () => {
               onChangeText={setLastName}
               autoCapitalize="words"
             />
-            <TouchableOpacity style={styles.submitButton} onPress={handleNameSubmit}>
+            <TouchableOpacity
+              style={styles.submitButton}
+              onPress={handleNameSubmit}
+            >
               <Text style={styles.buttonText}>Submit</Text>
             </TouchableOpacity>
           </View>
@@ -879,7 +968,10 @@ const HomeScreen = () => {
       >
         <View style={styles.modalOverlay}>
           <Animated.View
-            style={[styles.modalDOBContainer, { transform: [{ scale: scaleValue }] }]}
+            style={[
+              styles.modalDOBContainer,
+              { transform: [{ scale: scaleValue }] },
+            ]}
           >
             <Text style={styles.modalTitle}>We Need Your Date of Birth</Text>
             <Text style={styles.modalSubtitle}>
@@ -921,11 +1013,17 @@ const HomeScreen = () => {
       >
         <View style={styles.modalOverlay}>
           <Animated.View
-            style={[styles.modalDOBContainer, { transform: [{ scale: scaleValue }] }]}
+            style={[
+              styles.modalDOBContainer,
+              { transform: [{ scale: scaleValue }] },
+            ]}
           >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>We Need Your Phone Number</Text>
-              <TouchableOpacity onPress={handlePhoneModalClose} style={styles.closeButton}>
+              <TouchableOpacity
+                onPress={handlePhoneModalClose}
+                style={styles.closeButton}
+              >
                 <Ionicons name="close" size={24} color="#fff" />
               </TouchableOpacity>
             </View>
@@ -958,7 +1056,10 @@ const HomeScreen = () => {
         >
           <View style={styles.modalOverlay}>
             <Animated.View
-              style={[styles.modalDOBContainer, { transform: [{ scale: scaleValue }] }]}
+              style={[
+                styles.modalDOBContainer,
+                { transform: [{ scale: scaleValue }] },
+              ]}
             >
               {(() => {
                 try {
@@ -998,7 +1099,9 @@ const HomeScreen = () => {
                 key={index}
                 style={[
                   styles.weekButton,
-                  (selectedWeeks.includes(week) || unavailableWeeks.includes(week)) && styles.weekButtonSelected,
+                  (selectedWeeks.includes(week) ||
+                    unavailableWeeks.includes(week)) &&
+                    styles.weekButtonSelected,
                 ]}
                 onPress={() => handleWeekSelection(week)}
                 disabled={unavailableWeeks.includes(week)}
@@ -1021,7 +1124,9 @@ const HomeScreen = () => {
                 onPress={confirmWeekSelection}
                 disabled={isLoading}
               >
-                <Text style={styles.buttonText}>{isLoading ? "Processing..." : "Confirm"}</Text>
+                <Text style={styles.buttonText}>
+                  {isLoading ? "Processing..." : "Confirm"}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1037,7 +1142,10 @@ const HomeScreen = () => {
         <View style={styles.modalOverlay}>
           <BlurView intensity={20} style={StyleSheet.absoluteFillObject} />
           <Animated.View
-            style={[styles.enhancedModalContainer, { transform: [{ scale: scaleValue }] }]}
+            style={[
+              styles.enhancedModalContainer,
+              { transform: [{ scale: scaleValue }] },
+            ]}
           >
             <View style={styles.modalGradientHeader} />
             <View style={styles.modalIconContainer}>
@@ -1045,16 +1153,22 @@ const HomeScreen = () => {
             </View>
             <Text style={styles.modalTitle}>Profile Picture Required</Text>
             <Text style={styles.modalSubtitle}>
-              As a {isDeacon ? "deacon" : "Sunday school servant"}, you need a profile picture to help identify you in the church community.
+              As a {isDeacon ? "deacon" : "Sunday school servant"}, you need a
+              profile picture to help identify you in the church community.
             </Text>
-            <Pressable 
+            <Pressable
               style={({ pressed }) => [
                 styles.enhancedSubmitButton,
-                pressed && styles.enhancedButtonPressed
-              ]} 
+                pressed && styles.enhancedButtonPressed,
+              ]}
               onPress={handleOpenPhotoInput}
             >
-              <Ionicons name="add-circle-outline" size={24} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Ionicons
+                name="add-circle-outline"
+                size={24}
+                color="#FFFFFF"
+                style={{ marginRight: 8 }}
+              />
               <Text style={styles.enhancedButtonText}>Add Profile Picture</Text>
             </Pressable>
           </Animated.View>
@@ -1069,18 +1183,30 @@ const HomeScreen = () => {
       >
         <View style={styles.modalOverlay}>
           <Animated.View
-            style={[styles.modalDOBContainer, { transform: [{ scale: scaleValue }] }]}
+            style={[
+              styles.modalDOBContainer,
+              { transform: [{ scale: scaleValue }] },
+            ]}
           >
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Children Profile Pictures Required</Text>
-              <TouchableOpacity onPress={handleCloseChildrenModal} style={styles.closeButton}>
+              <Text style={styles.modalTitle}>
+                Children Profile Pictures Required
+              </Text>
+              <TouchableOpacity
+                onPress={handleCloseChildrenModal}
+                style={styles.closeButton}
+              >
                 <Ionicons name="close" size={24} color="#fff" />
               </TouchableOpacity>
             </View>
             <Text style={styles.modalSubtitle}>
-              Some of your children are missing profile pictures. Please remove them and reregister with profile pictures.
+              Some of your children are missing profile pictures. Please remove
+              them and reregister with profile pictures.
             </Text>
-            <Pressable style={styles.submitButton} onPress={handleRemoveChildren}>
+            <Pressable
+              style={styles.submitButton}
+              onPress={handleRemoveChildren}
+            >
               <Text style={styles.buttonText}>Remove Children</Text>
             </Pressable>
           </Animated.View>
@@ -1125,9 +1251,19 @@ const HomeScreen = () => {
               Your next service is on: {nextWeek || "N/A"}
             </Text>
             <Text style={styles.nextRoleText}>{nextRole}</Text>
-            <TouchableOpacity style={styles.unavailableButton} onPress={handleUnavailableToServe}>
-              <Text style={styles.requestButtonText}>Select Unavailable Weeks</Text>
+            <TouchableOpacity
+              style={styles.unavailableButton}
+              onPress={handleUnavailableToServe}
+            >
+              <Text style={styles.requestButtonText}>
+                Select Unavailable Weeks
+              </Text>
             </TouchableOpacity>
+            {lastServe && lastRole && (
+              <Text style={styles.lastServeText}>
+                Last served on {lastServe} as {lastRole}
+              </Text>
+            )}
           </View>
         )}
       </ScrollView>
@@ -1361,46 +1497,46 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   enhancedModalContainer: {
-    backgroundColor: '#1C1C1E',
+    backgroundColor: "#1C1C1E",
     borderRadius: 28,
     padding: 32,
-    alignItems: 'center',
+    alignItems: "center",
     marginHorizontal: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 20,
     elevation: 10,
-    position: 'relative',
-    overflow: 'hidden',
+    position: "relative",
+    overflow: "hidden",
   },
   modalGradientHeader: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     height: 100,
-    backgroundColor: '#147EFB',
+    backgroundColor: "#147EFB",
     opacity: 0.1,
   },
   modalIconContainer: {
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: 'rgba(20, 126, 251, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(20, 126, 251, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 20,
   },
   enhancedSubmitButton: {
-    flexDirection: 'row',
-    backgroundColor: '#147EFB',
+    flexDirection: "row",
+    backgroundColor: "#147EFB",
     paddingVertical: 16,
     paddingHorizontal: 28,
     borderRadius: 14,
     marginTop: 20,
-    alignItems: 'center',
-    shadowColor: '#147EFB',
+    alignItems: "center",
+    shadowColor: "#147EFB",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -1412,10 +1548,17 @@ const styles = StyleSheet.create({
   },
   enhancedButtonText: {
     fontSize: 18,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  }
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  lastServeText: {
+    fontSize: 14,
+    color: "#888888",
+    textAlign: "center",
+    marginTop: 8,
+    fontStyle: "italic",
+  },
 });
 
 export default HomeScreen;

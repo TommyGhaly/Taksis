@@ -47,6 +47,24 @@ const formatDate = (date) => {
   return `${month}-${day}-${year}`;
 };
 
+// Function to parse and format lastServe date
+const formatLastServeDate = (dateStr) => {
+  if (!dateStr) return null;
+  try {
+    const [month, day, year] = dateStr.split("-").map(Number);
+    if (!month || !day || !year) return null;
+    const date = new Date(2000 + year, month - 1, day);
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    });
+  } catch (error) {
+    return null;
+  }
+};
+
 // Syncs only the frequency for parent and children in user doc and deacons array
 const syncChildren = async (parentId, frequency, church, batch, churchData, churchRef) => {
   if (!parentId) return;
@@ -160,6 +178,8 @@ const IndividualProfile = ({
                 experience: data.experience ?? 0,
                 frequency: data.frequency ?? 0,
                 children: data.children || [],
+                lastServe: data.lastServe || null,
+                lastRole: data.lastRole || null,
               });
               setTempExperience(data.experience ?? 0);
               setTempFrequency(data.frequency ?? 0);
@@ -198,6 +218,8 @@ const IndividualProfile = ({
                         experience: childData.experience ?? 0,
                         frequency: childData.frequency ?? 0,
                         parentId,
+                        lastServe: childData.lastServe || null,
+                        lastRole: childData.lastRole || null,
                       });
                       setTempExperience(childData.experience ?? 0);
                       setTempFrequency(childData.frequency ?? 0);
@@ -543,7 +565,48 @@ const IndividualProfile = ({
 
   const handleEditPhoto = () => {
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
-    setShowPhotoModal(true);
+    
+    Alert.alert(
+      "Edit Profile Picture",
+      "Choose an option",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Change Photo",
+          onPress: () => setShowPhotoModal(true),
+        },
+        {
+          text: "Remove Photo",
+          style: "destructive",
+          onPress: handleRemovePhoto,
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleRemovePhoto = async () => {
+    ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
+    try {
+      const storagePath = isChild
+        ? `childProfilePictures/${userId}.png`
+        : `profilePictures/${userId}.png`;
+      
+      // Delete from storage
+      await storage().ref(storagePath).delete();
+      
+      // Update local state
+      setImageUrl(null);
+      
+      Alert.alert("Success", "Profile picture removed successfully.");
+    } catch (error) {
+      // If the file doesn't exist, that's okay
+      if (error.code === 'storage/object-not-found') {
+        setImageUrl(null);
+      } else {
+        Alert.alert("Error", "Failed to remove profile picture. Please try again.");
+      }
+    }
   };
 
   const handleCancel = () => {
@@ -613,9 +676,9 @@ const IndividualProfile = ({
           <View style={styles.profileImageContainer}>
             <ProfileImageExpander
               imageUrl={imageUrl || defaultProfileImage}
-              size={100}
+              size={120}
               finalSize={300}
-              borderRadius={50}
+              borderRadius={60}
               style={styles.image}
             />
             <TouchableOpacity
@@ -665,6 +728,13 @@ const IndividualProfile = ({
               <Text style={styles.detailLabel}>Next Role:</Text>
               <Text style={styles.detail}>{userData?.nextRole || "N/A"}</Text>
             </View>
+            {userData?.lastServe && userData?.lastRole && (
+              <View style={styles.lastServeRow}>
+                <Text style={styles.lastServeText}>
+                  Last served on {formatLastServeDate(userData.lastServe)} as {userData.lastRole}
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.section}>
@@ -791,9 +861,9 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   image: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     borderWidth: 2,
     borderColor: "#147efb",
   },
@@ -865,6 +935,18 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: "left",
     textDecorationLine: "underline",
+  },
+  lastServeRow: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#333",
+  },
+  lastServeText: {
+    fontSize: 13,
+    color: "#999",
+    fontStyle: "italic",
+    textAlign: "center",
   },
   button: {
     flex: 1,

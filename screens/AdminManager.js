@@ -57,6 +57,7 @@ const AdminManager = () => {
   const [sections, setSections] = useState([]);
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [photoInputVisible, setPhotoInputVisible] = useState(false);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
   const sectionListRef = useRef(null);
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerHeightRef = useRef(0);
@@ -174,6 +175,59 @@ const AdminManager = () => {
     };
   }, [church]);
 
+  // Handle remove photo
+  const handleRemovePhoto = async () => {
+    if (!selectedUser?.id) return;
+
+    setDeletingPhoto(true);
+    try {
+      // Delete from Firebase Storage
+      const storageRef = storage().ref(`profilePictures/${selectedUser.id}.png`);
+      await storageRef.delete();
+
+      // Update local state
+      setProfilePictureUrls(prev => ({
+        ...prev,
+        [selectedUser.id]: null
+      }));
+
+      Alert.alert("Success", "Profile picture deleted successfully");
+    } catch (error) {
+      // If the file doesn't exist, that's okay - just update local state
+      if (error.code === 'storage/object-not-found') {
+        setProfilePictureUrls(prev => ({
+          ...prev,
+          [selectedUser.id]: null
+        }));
+      } else {
+        Alert.alert("Error", "Could not delete profile picture. Please try again.");
+      }
+    } finally {
+      setDeletingPhoto(false);
+    }
+  };
+
+  // Handle edit profile picture
+  const handleEditProfilePicture = () => {
+    Alert.alert(
+      "Edit Profile Picture",
+      "Choose an option",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Change Photo",
+          onPress: () => setPhotoInputVisible(true),
+        },
+        {
+          text: "Remove Photo",
+          style: "destructive",
+          onPress: handleRemovePhoto,
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   const openEditModal = (user) => {
     if (!user?.id) return;
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
@@ -200,6 +254,21 @@ const AdminManager = () => {
   const closePhotoInputModal = () => {
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setPhotoInputVisible(false);
+    // Refresh profile picture after upload
+    if (selectedUser?.id) {
+      storage()
+        .ref(`profilePictures/${selectedUser.id}.png`)
+        .getDownloadURL()
+        .then(url => {
+          setProfilePictureUrls(prev => ({
+            ...prev,
+            [selectedUser.id]: url
+          }));
+        })
+        .catch(() => {
+          // Keep existing or null
+        });
+    }
   };
 
   const toggleRole = (roleKey) => {
@@ -244,14 +313,6 @@ const AdminManager = () => {
       viewOffset: 0,
     });
   };
-
-
-
-
-
-
-
-
 
   // Measure section header height
   const renderSectionHeader = ({ section: { title } }) => (
@@ -433,7 +494,8 @@ const AdminManager = () => {
                         styles.editProfilePictureButton,
                         { padding: 6 * scale },
                       ]}
-                      onPress={openPhotoInputModal}
+                      onPress={handleEditProfilePicture}
+                      disabled={deletingPhoto}
                     >
                       <Ionicons
                         name="pencil"

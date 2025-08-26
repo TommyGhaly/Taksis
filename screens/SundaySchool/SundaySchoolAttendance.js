@@ -42,11 +42,13 @@ const SundaySchoolAttendance = () => {
   const isMounted = useRef(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [userGrades, setUserGrades] = useState([]);
+  const studentUnsubscribes = useRef([]);
+  const userUnsubscribe = useRef(null);
 
   useEffect(() => {
     isMounted.current = true;
 
-    const fetchData = async () => {
+    const initializeData = async () => {
       if (!user) {
         Alert.alert("Error", "No user found.");
         setLoading(false);
@@ -54,29 +56,49 @@ const SundaySchoolAttendance = () => {
       }
 
       try {
-        // Fetch user data once
-        const userDoc = await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .get();
-        if (!isMounted.current) return;
-        if (!userDoc.exists) {
-          Alert.alert("Error", "User not found.");
-          setLoading(false);
-          return;
-        }
-        const localUserData = userDoc.data();
-        setUserData(localUserData);
-        setNewStudentGrade(localUserData.ssGrades?.[0] || "");
-
-        if (!localUserData.ssGrades?.length) {
-          setLoading(false);
-          return;
-        }
-
         // Generate previous Sundays
         await generatePreviousSundays();
-        setLoading(false);
+        
+        // Set up real-time listener for user data
+        userUnsubscribe.current = firestore()
+          .collection("users")
+          .doc(user.uid)
+          .onSnapshot(
+            (doc) => {
+              if (!isMounted.current) return;
+              
+              if (!doc.exists) {
+                Alert.alert("Error", "User not found.");
+                setLoading(false);
+                return;
+              }
+              
+              const newUserData = doc.data();
+              setUserData(newUserData);
+              
+              // Update new student grade default
+              if (newUserData.ssGrades?.length > 0) {
+                setNewStudentGrade(prevGrade => {
+                  // If the previous grade is still in the list, keep it
+                  if (newUserData.ssGrades.includes(prevGrade)) {
+                    return prevGrade;
+                  }
+                  // Otherwise, use the first grade
+                  return newUserData.ssGrades[0];
+                });
+              } else {
+                setNewStudentGrade("");
+              }
+              
+              setLoading(false);
+            },
+            (error) => {
+              if (isMounted.current) {
+                Alert.alert("Error", error.message);
+                setLoading(false);
+              }
+            }
+          );
       } catch (error) {
         if (isMounted.current) {
           Alert.alert("Error", error.message);
@@ -85,94 +107,44 @@ const SundaySchoolAttendance = () => {
       }
     };
 
-    fetchData();
+    initializeData();
 
     return () => {
       isMounted.current = false;
+      if (userUnsubscribe.current) {
+        userUnsubscribe.current();
+      }
     };
   }, [user]);
 
-  // Subscribe to students and profile pictures
+  // Subscribe to students based on current ssGrades
   useEffect(() => {
-    if (!userData?.church || !userData?.ssGrades?.length) return;
+    if (!userData?.church || !userData?.ssGrades?.length) {
+      // Clear students if no grades assigned
+      setStudentsByGrade({});
+      // Unsubscribe from all student listeners
+      studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
+      studentUnsubscribes.current = [];
+      return;
+    }
 
-    const fetchProfilePictureUrls = async () => {
-      try {
-        // Get all students from all grades at once
-        const allStudents = [];
-        await Promise.all(
-          userData.ssGrades.map(async (grade) => {
-            const snapshot = await firestore()
-              .collection("churches")
-              .doc(userData.church)
-              .collection("Sunday School")
-              .doc(grade)
-              .collection("students")
-              .get();
-            
-            const students = snapshot.docs.map((doc) => ({
-              uid: doc.id,
-              grade,
-              ...doc.data(),
-            }));
-            allStudents.push(...students);
-          })
-        );
+    // Clean up removed grades
+    setStudentsByGrade(prevStudents => {
+      const updatedStudents = {};
+      userData.ssGrades.forEach(grade => {
+        if (prevStudents[grade]) {
+          updatedStudents[grade] = prevStudents[grade];
+        }
+      });
+      return updatedStudents;
+    });
 
-        // Get all servants
-        const servantsSnapshot = await firestore()
-          .collection("churches")
-          .doc(userData.church)
-          .collection("Sunday School")
-          .doc("Servants")
-          .collection("Servants")
-          .get();
-        
-        const allServants = servantsSnapshot.docs.map(doc => ({
-          uid: doc.id,
-          ...doc.data()
-        }));
+    // Unsubscribe from previous listeners
+    studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
+    studentUnsubscribes.current = [];
 
-        // Fetch all profile pictures at once
-        const urls = {};
-        await Promise.all([
-          ...allStudents.map(async (student) => {
-            if (student.uid) {
-              try {
-                const url = await storage()
-                  .ref(`profilePictures/${student.uid}.png`)
-                  .getDownloadURL();
-                urls[student.uid] =
-                  typeof url === "string" && url.trim() ? url : null;
-              } catch (error) {
-                urls[student.uid] = null;
-              }
-            }
-          }),
-          ...allServants.map(async (servant) => {
-            if (servant.uid) {
-              try {
-                const url = await storage()
-                  .ref(`profilePictures/${servant.uid}.png`)
-                  .getDownloadURL();
-                urls[servant.uid] =
-                  typeof url === "string" && url.trim() ? url : null;
-              } catch (error) {
-                urls[servant.uid] = null;
-              }
-            }
-          })
-        ]);
-        setProfilePictureUrls(urls);
-      } catch (error) {
-        // Silent error handling
-      }
-    };
-
-    fetchProfilePictureUrls();
-    const intervalId = setInterval(fetchProfilePictureUrls, 30000);
-
-    const unsubscribes = userData.ssGrades.map((grade) =>
+    // Set up new listeners for current grades
+    const newUnsubscribes = userData.ssGrades.map((grade) =>
       firestore()
         .collection("churches")
         .doc(userData.church)
@@ -202,15 +174,114 @@ const SundaySchoolAttendance = () => {
         )
     );
 
+    studentUnsubscribes.current = newUnsubscribes;
+
+    // Fetch profile pictures
+    fetchProfilePictureUrls();
+
+    return () => {
+      studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
+      studentUnsubscribes.current = [];
+    };
+  }, [userData?.church, userData?.ssGrades?.join(",")]); // Use join to ensure effect runs when array changes
+
+  // Fetch profile pictures
+  const fetchProfilePictureUrls = async () => {
+    if (!userData?.church || !userData?.ssGrades?.length) return;
+    
+    try {
+      // Get all students from current grades
+      const allStudents = [];
+      await Promise.all(
+        userData.ssGrades.map(async (grade) => {
+          const snapshot = await firestore()
+            .collection("churches")
+            .doc(userData.church)
+            .collection("Sunday School")
+            .doc(grade)
+            .collection("students")
+            .get();
+          
+          const students = snapshot.docs.map((doc) => ({
+            uid: doc.id,
+            grade,
+            ...doc.data(),
+          }));
+          allStudents.push(...students);
+        })
+      );
+
+      // Get all servants
+      const servantsSnapshot = await firestore()
+        .collection("churches")
+        .doc(userData.church)
+        .collection("Sunday School")
+        .doc("Servants")
+        .collection("Servants")
+        .get();
+      
+      const allServants = servantsSnapshot.docs.map(doc => ({
+        uid: doc.id,
+        ...doc.data()
+      }));
+
+      // Fetch all profile pictures at once
+      const urls = {};
+      await Promise.all([
+        ...allStudents.map(async (student) => {
+          if (student.uid) {
+            try {
+              const url = await storage()
+                .ref(`profilePictures/${student.uid}.png`)
+                .getDownloadURL();
+              urls[student.uid] =
+                typeof url === "string" && url.trim() ? url : null;
+            } catch (error) {
+              urls[student.uid] = null;
+            }
+          }
+        }),
+        ...allServants.map(async (servant) => {
+          if (servant.uid) {
+            try {
+              const url = await storage()
+                .ref(`profilePictures/${servant.uid}.png`)
+                .getDownloadURL();
+              urls[servant.uid] =
+                typeof url === "string" && url.trim() ? url : null;
+            } catch (error) {
+              urls[servant.uid] = null;
+            }
+          }
+        })
+      ]);
+      
+      if (isMounted.current) {
+        setProfilePictureUrls(urls);
+      }
+    } catch (error) {
+      console.error("Error fetching profile pictures:", error);
+    }
+  };
+
+  // Set up interval for profile picture updates
+  useEffect(() => {
+    if (!userData?.church || !userData?.ssGrades?.length) return;
+
+    const intervalId = setInterval(fetchProfilePictureUrls, 30000);
+
     return () => {
       clearInterval(intervalId);
-      unsubscribes.forEach((unsubscribe) => unsubscribe());
     };
-  }, [userData]);
+  }, [userData?.church, userData?.ssGrades?.join(",")]);
 
   // Optimized servants subscription
   useEffect(() => {
-    if (!userData?.church || !userData?.ssGrades?.length || !user) return;
+    if (!userData?.church || !userData?.ssGrades?.length || !user) {
+      setServants([]);
+      setUserGrades([]);
+      return;
+    }
 
     const gradeFields = ["preSchoolAge3", "preSchoolAge4", "kindergarten", "college"];
     for (let i = 1; i <= 12; i++) {
@@ -238,11 +309,12 @@ const SundaySchoolAttendance = () => {
 
             const currentUserData = currentUserServant.data();
             
-            // Get the grades the current user teaches (optimized)
+            // Get the grades the current user teaches
             const userGradesList = gradeFields.filter(field => currentUserData[field] === true);
             setUserGrades(userGradesList);
 
-            if (userGradesList.length === 0) {
+            // Only show servants if user has assigned grades
+            if (!userData.ssGrades?.length || userGradesList.length === 0) {
               setServants([]);
               return;
             }
@@ -288,7 +360,7 @@ const SundaySchoolAttendance = () => {
       );
 
     return () => unsubscribe();
-  }, [userData, user]);
+  }, [userData?.church, userData?.ssGrades?.join(","), user]);
 
   const generatePreviousSundays = async () => {
     const today = new Date();
@@ -381,6 +453,13 @@ const SundaySchoolAttendance = () => {
       Alert.alert("Error", "Please select a grade");
       return;
     }
+    
+    // Verify the grade is still assigned to the user
+    if (!userData?.ssGrades?.includes(newStudentGrade)) {
+      Alert.alert("Error", "You are no longer assigned to this grade");
+      setNewStudentGrade(userData?.ssGrades?.[0] || "");
+      return;
+    }
 
     setSubmitting(true);
     const newStudentRef = firestore()
@@ -415,13 +494,18 @@ const SundaySchoolAttendance = () => {
     if (!searchQuery.trim()) return studentsByGrade;
     const lower = searchQuery.toLowerCase();
     const filtered = {};
-    Object.keys(studentsByGrade).forEach((grade) => {
-      filtered[grade] = (studentsByGrade[grade] || []).filter((student) =>
-        student.name.toLowerCase().includes(lower)
-      );
-    });
+    
+    // Only include grades that the user is currently assigned to
+    if (userData?.ssGrades) {
+      userData.ssGrades.forEach((grade) => {
+        filtered[grade] = (studentsByGrade[grade] || []).filter((student) =>
+          student.name.toLowerCase().includes(lower)
+        );
+      });
+    }
+    
     return filtered;
-  }, [studentsByGrade, searchQuery]);
+  }, [studentsByGrade, searchQuery, userData?.ssGrades]);
 
   // Filtered servants based on search query
   const filteredServants = useMemo(() => {
@@ -455,7 +539,7 @@ const SundaySchoolAttendance = () => {
     }
     
     return sections;
-  }, [userData, filteredStudentsByGrade, filteredServants, searchQuery]);
+  }, [userData?.ssGrades, filteredStudentsByGrade, filteredServants, searchQuery]);
 
   // Fixed scroll to section to handle servants properly
   const scrollToSection = useCallback((sectionTitle) => {
@@ -471,7 +555,7 @@ const SundaySchoolAttendance = () => {
           try {
             sectionListRef.current.scrollToLocation({
               sectionIndex,
-              itemIndex: 1, // Changed from 1 to 0 to scroll to header
+              itemIndex: 0,
               animated: true,
               viewPosition: 0,
               viewOffset: 0,

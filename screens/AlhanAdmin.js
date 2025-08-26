@@ -68,6 +68,7 @@ const AlhanAdmin = () => {
   const [photoInputVisible, setPhotoInputVisible] = useState(false);
   const [availableLetters, setAvailableLetters] = useState([]);
   const [headerHeight, setHeaderHeight] = useState(0);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
   const headerHeightRef = useRef(0);
   const sectionListRef = useRef(null);
 
@@ -197,6 +198,59 @@ const AlhanAdmin = () => {
     };
   }, [church]);
 
+  // Handle remove photo
+  const handleRemovePhoto = async () => {
+    if (!selectedTeacher?.id) return;
+
+    setDeletingPhoto(true);
+    try {
+      // Delete from Firebase Storage
+      const storageRef = storage().ref(`profilePictures/${selectedTeacher.id}.png`);
+      await storageRef.delete();
+
+      // Update local state
+      setProfilePictureUrls(prev => ({
+        ...prev,
+        [selectedTeacher.id]: null
+      }));
+
+      Alert.alert("Success", "Profile picture deleted successfully");
+    } catch (error) {
+      // If the file doesn't exist, that's okay - just update local state
+      if (error.code === 'storage/object-not-found') {
+        setProfilePictureUrls(prev => ({
+          ...prev,
+          [selectedTeacher.id]: null
+        }));
+      } else {
+        Alert.alert("Error", "Could not delete profile picture. Please try again.");
+      }
+    } finally {
+      setDeletingPhoto(false);
+    }
+  };
+
+  // Handle edit profile picture
+  const handleEditProfilePicture = () => {
+    Alert.alert(
+      "Edit Profile Picture",
+      "Choose an option",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Change Photo",
+          onPress: () => setPhotoInputVisible(true),
+        },
+        {
+          text: "Remove Photo",
+          style: "destructive",
+          onPress: handleRemovePhoto,
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   // Open edit modal
   const openEditModal = (teacher) => {
     if (!teacher?.id) return;
@@ -226,6 +280,21 @@ const AlhanAdmin = () => {
   const closePhotoInputModal = () => {
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setPhotoInputVisible(false);
+    // Refresh profile picture after upload
+    if (selectedTeacher?.id) {
+      storage()
+        .ref(`profilePictures/${selectedTeacher.id}.png`)
+        .getDownloadURL()
+        .then(url => {
+          setProfilePictureUrls(prev => ({
+            ...prev,
+            [selectedTeacher.id]: url
+          }));
+        })
+        .catch(() => {
+          // Keep existing or null
+        });
+    }
   };
 
   // Save classes
@@ -281,7 +350,9 @@ const AlhanAdmin = () => {
     >
       <Text style={styles.sectionHeaderText}>{title}</Text>
     </View>
-  );  // Render teacher item
+  );  
+  
+  // Render teacher item
   const renderTeacher = ({ item }) => (
     <TouchableOpacity
       style={styles.teacherCard}
@@ -390,7 +461,8 @@ const AlhanAdmin = () => {
                     />
                     <TouchableOpacity
                       style={styles.editProfilePictureButton}
-                      onPress={openPhotoInputModal}
+                      onPress={handleEditProfilePicture}
+                      disabled={deletingPhoto}
                     >
                       <Ionicons
                         name="pencil"

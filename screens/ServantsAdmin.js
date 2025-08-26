@@ -97,6 +97,7 @@ const ServantsAdmin = () => {
   const [sections, setSections] = useState([]);
   const [availableLetters, setAvailableLetters] = useState([]);
   const [headerHeight, setHeaderHeight] = useState(0);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
   const headerHeightRef = useRef(0);
   const sectionListRef = useRef(null);
   const indexBarRef = useRef(null);
@@ -227,6 +228,59 @@ const ServantsAdmin = () => {
     };
   }, [church]);
 
+  // Handle remove photo
+  const handleRemovePhoto = async () => {
+    if (!selectedServant?.id) return;
+
+    setDeletingPhoto(true);
+    try {
+      // Delete from Firebase Storage
+      const storageRef = storage().ref(`profilePictures/${selectedServant.id}.png`);
+      await storageRef.delete();
+
+      // Update local state
+      setProfilePictureUrls(prev => ({
+        ...prev,
+        [selectedServant.id]: null
+      }));
+
+      Alert.alert("Success", "Profile picture deleted successfully");
+    } catch (error) {
+      // If the file doesn't exist, that's okay - just update local state
+      if (error.code === 'storage/object-not-found') {
+        setProfilePictureUrls(prev => ({
+          ...prev,
+          [selectedServant.id]: null
+        }));
+      } else {
+        Alert.alert("Error", "Could not delete profile picture. Please try again.");
+      }
+    } finally {
+      setDeletingPhoto(false);
+    }
+  };
+
+  // Handle edit profile picture
+  const handleEditProfilePicture = () => {
+    Alert.alert(
+      "Edit Profile Picture",
+      "Choose an option",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Change Photo",
+          onPress: () => setPhotoInputVisible(true),
+        },
+        {
+          text: "Remove Photo",
+          style: "destructive",
+          onPress: handleRemovePhoto,
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   // Open edit modal
   const openEditModal = (servant) => {
     if (!servant?.id) return;
@@ -256,6 +310,21 @@ const ServantsAdmin = () => {
   const closePhotoInputModal = () => {
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setPhotoInputVisible(false);
+    // Refresh profile picture after upload
+    if (selectedServant?.id) {
+      storage()
+        .ref(`profilePictures/${selectedServant.id}.png`)
+        .getDownloadURL()
+        .then(url => {
+          setProfilePictureUrls(prev => ({
+            ...prev,
+            [selectedServant.id]: url
+          }));
+        })
+        .catch(() => {
+          // Keep existing or null
+        });
+    }
   };
 
   // Save classes
@@ -504,7 +573,8 @@ const ServantsAdmin = () => {
                     />
                     <TouchableOpacity
                       style={styles.editProfilePictureButton}
-                      onPress={openPhotoInputModal}
+                      onPress={handleEditProfilePicture}
+                      disabled={deletingPhoto}
                     >
                       <Ionicons
                         name="pencil"
