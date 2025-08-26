@@ -14,11 +14,21 @@ import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
 import ProfileImageExpander from '../../components/ProfileImageExpander';
+import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import PhotoInput from "../../components/photoInput";
+import ReactNativeHapticFeedback from "react-native-haptic-feedback";
+
+// Haptic feedback options
+const hapticOptions = {
+  enableVibrateFallback: true,
+  ignoreAndroidSystemSettings: false,
+};
 
 const ChildAccountInfo = ({ route, navigation }) => {
   const { childUid } = route.params;
   const [childData, setChildData] = useState(null);
   const [imageUrl, setImageUrl] = useState(null);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
 
   useEffect(() => {
     // Fetch child data
@@ -70,6 +80,26 @@ const ChildAccountInfo = ({ route, navigation }) => {
     return () => clearInterval(intervalId);
   }, [childUid]);
 
+  const handleEditPhoto = () => {
+    ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+    setShowPhotoModal(true);
+  };
+
+  const handlePhotoUpload = async () => {
+    setShowPhotoModal(false);
+    try {
+      const storagePath = `profilePictures/${childUid}.png`;
+      const newUrl = await storage().ref(storagePath).getDownloadURL();
+      if (typeof newUrl === "string" && newUrl.trim() !== "") {
+        setImageUrl(newUrl);
+      } else {
+        setImageUrl(null);
+      }
+    } catch (error) {
+      setImageUrl(null);
+    }
+  };
+
   if (!childData) {
     return (
       <View style={styles.centered}>
@@ -94,6 +124,14 @@ const ChildAccountInfo = ({ route, navigation }) => {
             borderRadius={50}
             style={styles.profileImage}
           />
+          <TouchableOpacity
+            style={styles.editIconContainer}
+            onPress={handleEditPhoto}
+            activeOpacity={0.7}
+            accessibilityLabel="Edit Profile Picture"
+          >
+            <Icon name="pencil" size={18} color="#fff" />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.infoBlock}>
@@ -113,6 +151,12 @@ const ChildAccountInfo = ({ route, navigation }) => {
           To change any child information, please remove the child and add them again.
         </Text>
       </ScrollView>
+
+      <PhotoInput
+        visible={showPhotoModal}
+        onClose={handlePhotoUpload}
+        userId={childUid}
+      />
     </View>
   );
 };
@@ -141,13 +185,33 @@ const styles = StyleSheet.create({
   profileImageContainer: {
     alignItems: "center",
     marginBottom: 20,
+    position: "relative",
   },
   profileImage: {
-    width: 100, // Increased from 80
-    height: 100, // Increased from 80
-    borderRadius: 50, // Adjusted to maintain circular shape (half of width/height)
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     borderWidth: 1,
     borderColor: "#8e8e93",
+  },
+  editIconContainer: {
+    position: "absolute",
+    top: -5,
+    right: "50%",
+    marginRight: -55,
+    backgroundColor: "#147efb",
+    borderRadius: 16,
+    width: 32,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   infoBlock: {
     backgroundColor: "#2e2e2e",
