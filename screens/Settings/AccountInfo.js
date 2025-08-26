@@ -14,10 +14,20 @@ import ProfileImageExpander from "../../components/ProfileImageExpander";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
+import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import PhotoInput from "../../components/photoInput";
+import ReactNativeHapticFeedback from "react-native-haptic-feedback";
+
+// Haptic feedback options
+const hapticOptions = {
+  enableVibrateFallback: true,
+  ignoreAndroidSystemSettings: false,
+};
 
 const AccountInfo = ({ navigation }) => {
   const [userData, setUserData] = useState(null); // Initialize as null
   const [imageUrl, setImageUrl] = useState(null); // Initialize as null for consistency
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
   const user = auth().currentUser;
 
   useEffect(() => {
@@ -71,6 +81,26 @@ const AccountInfo = ({ navigation }) => {
     }
   }, [user]);
 
+  const handleEditPhoto = () => {
+    ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+    setShowPhotoModal(true);
+  };
+
+  const handlePhotoUpload = async () => {
+    setShowPhotoModal(false);
+    try {
+      const storagePath = `profilePictures/${user.uid}.png`;
+      const newUrl = await storage().ref(storagePath).getDownloadURL();
+      if (typeof newUrl === "string" && newUrl.trim() !== "") {
+        setImageUrl(newUrl);
+      } else {
+        setImageUrl(null);
+      }
+    } catch (error) {
+      setImageUrl(null);
+    }
+  };
+
   if (!userData) {
     return (
       <View style={styles.centered}>
@@ -97,6 +127,14 @@ const AccountInfo = ({ navigation }) => {
             borderRadius={50}
             style={styles.profileImage}
           />
+          <TouchableOpacity
+            style={styles.editIconContainer}
+            onPress={handleEditPhoto}
+            activeOpacity={0.7}
+            accessibilityLabel="Edit Profile Picture"
+          >
+            <Icon name="pencil" size={18} color="#fff" />
+          </TouchableOpacity>
         </View>
         <View style={styles.infoBlock}>
           <Text style={styles.infoText}>{userData.name || "First Last"}</Text>
@@ -148,6 +186,12 @@ const AccountInfo = ({ navigation }) => {
           </>
         )}
       </ScrollView>
+
+      <PhotoInput
+        visible={showPhotoModal}
+        onClose={handlePhotoUpload}
+        userId={user?.uid}
+      />
     </View>
   );
 };
@@ -214,6 +258,26 @@ const styles = StyleSheet.create({
   profileImageContainer: {
     alignItems: "center",
     marginBottom: 30,
+    position: "relative",
+  },
+  editIconContainer: {
+    position: "absolute",
+    top: -5,
+    right: "50%",
+    marginRight: -55,
+    backgroundColor: "#147efb",
+    borderRadius: 16,
+    width: 32,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   centered: {
     flex: 1,
