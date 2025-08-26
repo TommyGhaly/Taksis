@@ -19,7 +19,13 @@ import {
 } from "../components/functionCalls";
 import IndividualProfile from "../components/individualProfile";
 
-// Sample readings list and display names mapping
+// Date format constants
+const DATE_FORMATS = {
+  SCHEDULE: 'MM-DD-YY',  // Format used for schedule IDs
+  LAST_SERVE: 'MM-DD-YY', // Format stored in user's lastServe field
+};
+
+// Readings configuration
 const readings = [
   "matins",
   "third",
@@ -44,16 +50,203 @@ const displayNames = {
   wine: "Wine",
 };
 
-// Helper function to format date
-const formatDate = (date) => {
-  if (!date) return "N/A";
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const year = String(date.getFullYear()).slice(-2);
-  return `${month}-${day}-${year}`;
+// ===== Date Utility Functions =====
+
+/**
+ * Parse a date string in the specified format
+ * @param {string} dateStr - Date string to parse
+ * @param {string} format - Format of the date string ('MM-DD-YY' or 'DD-MM-YY')
+ * @returns {Date|null} - Parsed date or null if invalid
+ */
+const parseDate = (dateStr, format) => {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return null;
+  
+  let day, month, year;
+  
+  if (format === DATE_FORMATS.SCHEDULE) {
+    // MM-DD-YY format
+    month = parseInt(parts[0], 10);
+    day = parseInt(parts[1], 10);
+    year = parseInt(parts[2], 10);
+  } else if (format === DATE_FORMATS.LAST_SERVE) {
+    // DD-MM-YY format
+    day = parseInt(parts[0], 10);
+    month = parseInt(parts[1], 10);
+    year = parseInt(parts[2], 10);
+  } else {
+    return null;
+  }
+  
+  // Validate parsed values
+  if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > 31) return null;
+  
+  // Convert 2-digit year to 4-digit year (assume 2000s)
+  const fullYear = year < 100 ? 2000 + year : year;
+  
+  // Create and validate date
+  const date = new Date(fullYear, month - 1, day);
+  
+  // Check if date is valid (handles cases like Feb 31)
+  if (date.getFullYear() !== fullYear || 
+      date.getMonth() !== month - 1 || 
+      date.getDate() !== day) {
+    return null;
+  }
+  
+  return date;
 };
 
+/**
+ * Format a Date object to the specified string format
+ * @param {Date} date - Date to format
+ * @param {string} format - Target format ('MM-DD-YY' or 'DD-MM-YY')
+ * @returns {string} - Formatted date string
+ */
+const formatDate = (date, format = DATE_FORMATS.SCHEDULE) => {
+  if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+    return '';
+  }
+  
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const year = String(date.getFullYear()).slice(-2);
+  
+  if (format === DATE_FORMATS.SCHEDULE) {
+    return `${month}-${day}-${year}`;
+  } else if (format === DATE_FORMATS.LAST_SERVE) {
+    return `${day}-${month}-${year}`;
+  }
+  
+  return '';
+};
+
+/**
+ * Get the start of the week (Sunday) for a given date
+ * @param {Date} date - Input date
+ * @returns {Date} - Sunday of that week
+ */
+const getWeekStart = (date) => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day;
+  return new Date(d.setDate(diff));
+};
+
+/**
+ * Generate an array of week dates starting from a given date
+ * @param {Date} startDate - Starting date
+ * @param {number} count - Number of weeks to generate
+ * @returns {string[]} - Array of formatted week dates
+ */
+const generateWeeks = (startDate, count = 5) => {
+  const weeks = [];
+  const weekStart = getWeekStart(startDate);
+  
+  for (let i = 0; i < count; i++) {
+    const weekDate = new Date(weekStart);
+    weekDate.setDate(weekStart.getDate() + (i * 7));
+    weeks.push(formatDate(weekDate, DATE_FORMATS.SCHEDULE));
+  }
+  
+  return weeks;
+};
+
+/**
+ * Calculate the number of weeks between two dates
+ * @param {string} lastServeStr - Last serve date in DD-MM-YY format
+ * @param {string} targetWeekStr - Target week date in MM-DD-YY format
+ * @returns {number|null} - Number of weeks between dates
+ */
+const calculateWeeksBetween = (lastServeStr, targetWeekStr) => {
+  if (!lastServeStr || !targetWeekStr) return null;
+  
+  const lastServeDate = parseDate(lastServeStr, DATE_FORMATS.LAST_SERVE);
+  const targetDate = parseDate(targetWeekStr, DATE_FORMATS.SCHEDULE);
+  
+  if (!lastServeDate || !targetDate) return null;
+  
+  // Calculate difference in milliseconds
+  const diffMs = targetDate.getTime() - lastServeDate.getTime();
+  
+  // Convert to days and then weeks
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffWeeks = Math.floor(diffDays / 7);
+  
+  return diffWeeks;
+};
+
+/**
+ * Get display color based on weeks since last served
+ * @param {number|null} weeks - Number of weeks
+ * @returns {string} - Hex color code
+ */
+const getColorForWeeks = (weeks) => {
+  if (weeks === null || weeks === undefined) return '#666';
+  
+  // Future service (negative weeks)
+  if (weeks < 0) return '#666';
+  
+  // Color gradient from red (recent) to green (long ago)
+  const colorStops = [
+    { weeks: 0, color: '#ff3b30' },  // Red - serving this week
+    { weeks: 1, color: '#ff3b30' },  // Red - very recent
+    { weeks: 2, color: '#ff6b30' },  // Orange-red
+    { weeks: 3, color: '#ff9500' },  // Orange
+    { weeks: 4, color: '#ffcc00' },  // Yellow-orange
+    { weeks: 6, color: '#c7dc00' },  // Yellow-green
+    { weeks: 8, color: '#76d600' },  // Light green
+    { weeks: Infinity, color: '#34c759' } // Green - 9+ weeks
+  ];
+  
+  for (const stop of colorStops) {
+    if (weeks <= stop.weeks) {
+      return stop.color;
+    }
+  }
+  
+  return '#34c759'; // Default green
+};
+
+/**
+ * Get human-readable text for weeks since last served
+ * @param {number|null} weeks - Number of weeks
+ * @returns {string} - Display text
+ */
+const getWeeksDisplayText = (weeks) => {
+  if (weeks === null) return 'No data';
+  if (weeks < 0) return `Will serve in ${Math.abs(weeks)} week${Math.abs(weeks) === 1 ? '' : 's'}`;
+  if (weeks === 0) return 'Serving this week';
+  if (weeks === 1) return 'Served 1 week ago';
+  return `Served ${weeks} weeks ago`;
+};
+
+/**
+ * Format week display for UI
+ * @param {string} weekStr - Week string in MM-DD-YY format
+ * @returns {string} - Formatted display string
+ */
+const formatWeekDisplay = (weekStr) => {
+  if (!weekStr) return "Select Week";
+  const date = parseDate(weekStr, DATE_FORMATS.SCHEDULE);
+  if (!date) return "Invalid Date";
+  
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+// ===== Main Component =====
+
 const EditSchedule = () => {
+  // State
   const [churchId, setChurchId] = useState(null);
   const [week, setWeek] = useState(null);
   const [selectedWeek, setSelectedWeek] = useState(null);
@@ -69,121 +262,18 @@ const EditSchedule = () => {
   const [readerDropdownIndex, setReaderDropdownIndex] = useState(null);
   const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState(null);
-  const [imageUrls, setImageUrls] = useState({}); // Store image URLs for deacons
+  const [imageUrls, setImageUrls] = useState({});
   const [altarServersCount, setAltarServersCount] = useState(0);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [lastServeData, setLastServeData] = useState({});
+  const [userListeners, setUserListeners] = useState([]);
+  
   const scrollViewRef = useRef(null);
   const user = auth().currentUser;
 
-  // Initialize available weeks
-  // Add this helper function to parse date strings
-  const parseScheduleDate = (dateStr) => {
-    const [month, day, year] = dateStr.split("-").map(Number);
-    return new Date(2000 + year, month - 1, day);
-  };
+  // ===== Effects =====
 
-  // Add this helper function to generate weeks from a starting date
-  const generateWeeksFromDate = (startDate, count = 5) => {
-    const weeks = [];
-    for (let i = 0; i < count; i++) {
-      const weekDate = new Date(startDate);
-      weekDate.setDate(startDate.getDate() + i * 7);
-      weeks.push(formatDate(weekDate));
-    }
-    return weeks;
-  };
-
-  // Replace the useEffect that sets availableWeeks with this:
-  useEffect(() => {
-    if (!churchId) return;
-
-    const fetchEarliestSchedule = async () => {
-      try {
-        const schedulesRef = firestore()
-          .collection("churches")
-          .doc(churchId)
-          .collection("schedule");
-
-        const snapshot = await schedulesRef.get();
-
-        if (snapshot.empty) {
-          // No schedules exist, fall back to next 5 Sundays from today
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const dayOfWeek = today.getDay();
-          const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
-          const nextSunday = new Date(today);
-          nextSunday.setDate(today.getDate() + daysUntilSunday);
-
-          const weeks = generateWeeksFromDate(nextSunday, 5);
-          setAvailableWeeks(weeks);
-          return;
-        }
-
-        // Parse all schedule dates and find the earliest Sunday
-        const scheduleDates = snapshot.docs
-          .map((doc) => ({
-            id: doc.id,
-            date: parseScheduleDate(doc.id),
-          }))
-          .filter((item) => !isNaN(item.date.getTime())) // Filter out invalid dates
-          .sort((a, b) => a.date - b.date); // Sort ascending
-
-        if (scheduleDates.length === 0) {
-          // No valid dates found, fall back to next 5 Sundays
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const dayOfWeek = today.getDay();
-          const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
-          const nextSunday = new Date(today);
-          nextSunday.setDate(today.getDate() + daysUntilSunday);
-
-          const weeks = generateWeeksFromDate(nextSunday, 5);
-          setAvailableWeeks(weeks);
-          return;
-        }
-
-        // Find the earliest Sunday
-        let earliestSunday = null;
-        for (const scheduleDate of scheduleDates) {
-          if (scheduleDate.date.getDay() === 0) {
-            // 0 is Sunday
-            earliestSunday = scheduleDate.date;
-            break;
-          }
-        }
-
-        // If no Sunday found, use the earliest date and find its next Sunday
-        if (!earliestSunday) {
-          const earliestDate = scheduleDates[0].date;
-          const dayOfWeek = earliestDate.getDay();
-          const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
-          earliestSunday = new Date(earliestDate);
-          earliestSunday.setDate(earliestDate.getDate() + daysUntilSunday);
-        }
-
-        // Generate 5 weeks starting from the earliest Sunday
-        const weeks = generateWeeksFromDate(earliestSunday, 5);
-        setAvailableWeeks(weeks);
-      } catch (error) {
-        console.error("Error fetching schedules:", error);
-        // Fall back to next 5 Sundays on error
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const dayOfWeek = today.getDay();
-        const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
-        const nextSunday = new Date(today);
-        nextSunday.setDate(today.getDate() + daysUntilSunday);
-
-        const weeks = generateWeeksFromDate(nextSunday, 5);
-        setAvailableWeeks(weeks);
-      }
-    };
-
-    fetchEarliestSchedule();
-  }, [churchId]); // Add churchId as dependency
-
-  // Realtime listener for user doc to update churchId
+  // Fetch user's church ID
   useEffect(() => {
     const unsubscribeUser = firestore()
       .collection("users")
@@ -198,13 +288,13 @@ const EditSchedule = () => {
           }
         },
         (error) => {
-          // Error handling for user data fetch
+          console.error("Error fetching user data:", error);
         }
       );
     return () => unsubscribeUser();
   }, [user.uid, churchId]);
 
-  // Listener for church document to get altarServers count
+  // Fetch church data (altar servers count)
   useEffect(() => {
     if (churchId) {
       const unsubscribeChurch = firestore()
@@ -218,150 +308,271 @@ const EditSchedule = () => {
             }
           },
           (error) => {
-            // Error handling for church data fetch
+            console.error("Error fetching church data:", error);
           }
         );
       return () => unsubscribeChurch();
     }
   }, [churchId]);
 
-  // Query schedule subcollection for selected week and fetch image URLs
+  // Fetch earliest schedule and generate weeks
   useEffect(() => {
-    if (churchId && selectedWeek) {
-      const schedulesRef = firestore()
-        .collection("churches")
-        .doc(churchId)
-        .collection("schedule");
+    if (!churchId) return;
 
-      const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
-        const scheduleDoc = snapshot.docs.find(
-          (doc) => doc.id === selectedWeek
-        );
+    const fetchEarliestSchedule = async () => {
+      try {
+        const schedulesRef = firestore()
+          .collection("churches")
+          .doc(churchId)
+          .collection("schedule");
 
-        if (scheduleDoc) {
-          setWeek(selectedWeek);
-          const scheduleForTheWeek = scheduleDoc.data();
+        const snapshot = await schedulesRef.get();
 
-          const readersObj = {};
-          const readersDisplay = {};
-          readings.forEach((reading) => {
-            const reader = scheduleForTheWeek[reading];
-            readersObj[reading] = reader;
-            readersDisplay[displayNames[reading]] =
-              reader?.name || "Select Reader";
-          });
-          setCurrentReaders(readersObj);
-          setAssignedReaders(readersDisplay);
-
-          const fetchedAltarServers = scheduleForTheWeek.altar || [];
-          setAltarServers(fetchedAltarServers);
-          const initialServerAssignments = {};
-          fetchedAltarServers.forEach((server, index) => {
-            initialServerAssignments[index] = server.name;
-          });
-          setAssignedServers(initialServerAssignments);
-          setServers(
-            fetchedAltarServers.map((_, index) => `Altar Server ${index + 1}`)
-          );
-
-          // Use the 'extra' array from the schedule for available servers
-          const extraServers = scheduleForTheWeek.extra || [];
-          const filteredExtraServers = extraServers
-            .filter((server) => server.name !== "N/A" && server.uid)
-            .sort((a, b) => {
-              const nameA = a.name.split(" ")[0].toLowerCase();
-              const nameB = b.name.split(" ")[0].toLowerCase();
-              return nameA.localeCompare(nameB);
-            });
-          setAvailableServers(filteredExtraServers);
-
-          // Fetch image URLs for extra servers
-          const fetchImages = async () => {
-            const newImageUrls = {};
-            for (const server of filteredExtraServers) {
-              try {
-                const storagePath = `profilePictures/${server.uid}.png`;
-                const url = await storage().ref(storagePath).getDownloadURL();
-                if (typeof url === "string" && url.trim() !== "") {
-                  newImageUrls[server.uid] = url;
-                } else {
-                  newImageUrls[server.uid] = null;
-                }
-              } catch (error) {
-                newImageUrls[server.uid] = null;
-              }
-            }
-            setImageUrls(newImageUrls);
-          };
-          fetchImages();
-        } else {
-          // If no schedule exists for this week, create empty state
-          setWeek(selectedWeek);
-          setCurrentReaders({});
-          setAssignedReaders({});
-          setAltarServers([]);
-          setAssignedServers({});
-          setServers([]);
-          setAvailableServers([]);
-          setImageUrls({});
+        if (snapshot.empty) {
+          // No schedules exist, start from next Sunday
+          const today = new Date();
+          const nextSunday = getWeekStart(today);
+          if (nextSunday <= today) {
+            nextSunday.setDate(nextSunday.getDate() + 7);
+          }
+          
+          const weeks = generateWeeks(nextSunday, 5);
+          setAvailableWeeks(weeks);
+          return;
         }
-      });
 
-      return () => unsubscribe();
-    }
-  }, [churchId, selectedWeek]);
+        // Find the earliest Sunday from existing schedules
+        const scheduleDates = snapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            date: parseDate(doc.id, DATE_FORMATS.SCHEDULE)
+          }))
+          .filter((item) => item.date !== null)
+          .sort((a, b) => a.date - b.date);
 
-  // Set initial week when available weeks are loaded
+        if (scheduleDates.length === 0) {
+          // Invalid schedule dates, fallback to next Sunday
+          const today = new Date();
+          const nextSunday = getWeekStart(today);
+          if (nextSunday <= today) {
+            nextSunday.setDate(nextSunday.getDate() + 7);
+          }
+          
+          const weeks = generateWeeks(nextSunday, 5);
+          setAvailableWeeks(weeks);
+          return;
+        }
+
+        // Find the first Sunday or generate from the earliest date
+        let earliestSunday = scheduleDates.find(d => d.date.getDay() === 0)?.date;
+        
+        if (!earliestSunday) {
+          // No Sunday found, get the Sunday of the week containing the earliest date
+          earliestSunday = getWeekStart(scheduleDates[0].date);
+        }
+
+        const weeks = generateWeeks(earliestSunday, 5);
+        setAvailableWeeks(weeks);
+      } catch (error) {
+        console.error("Error fetching schedules:", error);
+        // Fallback to next Sunday
+        const today = new Date();
+        const nextSunday = getWeekStart(today);
+        if (nextSunday <= today) {
+          nextSunday.setDate(nextSunday.getDate() + 7);
+        }
+        
+        const weeks = generateWeeks(nextSunday, 5);
+        setAvailableWeeks(weeks);
+      }
+    };
+
+    fetchEarliestSchedule();
+  }, [churchId]);
+
+  // Set initial week
   useEffect(() => {
     if (availableWeeks.length > 0 && !selectedWeek) {
       setSelectedWeek(availableWeeks[0]);
     }
   }, [availableWeeks, selectedWeek]);
 
-  // Handle week selection
+  // Query schedule and set up user listeners
+  useEffect(() => {
+    if (!churchId || !selectedWeek) return;
+
+    const schedulesRef = firestore()
+      .collection("churches")
+      .doc(churchId)
+      .collection("schedule");
+
+    const unsubscribe = schedulesRef.onSnapshot((snapshot) => {
+      const scheduleDoc = snapshot.docs.find(
+        (doc) => doc.id === selectedWeek
+      );
+
+      if (scheduleDoc) {
+        setWeek(selectedWeek);
+        const scheduleData = scheduleDoc.data();
+
+        // Process readers
+        const readersObj = {};
+        const readersDisplay = {};
+        readings.forEach((reading) => {
+          const reader = scheduleData[reading];
+          readersObj[reading] = reader;
+          readersDisplay[displayNames[reading]] =
+            reader?.name || "Select Reader";
+        });
+        setCurrentReaders(readersObj);
+        setAssignedReaders(readersDisplay);
+
+        // Process altar servers
+        const fetchedAltarServers = scheduleData.altar || [];
+        setAltarServers(fetchedAltarServers);
+        const initialServerAssignments = {};
+        fetchedAltarServers.forEach((server, index) => {
+          initialServerAssignments[index] = server.name;
+        });
+        setAssignedServers(initialServerAssignments);
+        setServers(
+          fetchedAltarServers.map((_, index) => `Altar Server ${index + 1}`)
+        );
+
+        // Process available servers
+        const extraServers = scheduleData.extra || [];
+        const filteredExtraServers = extraServers
+          .filter((server) => server.name !== "N/A" && server.uid)
+          .sort((a, b) => {
+            const nameA = a.name.split(" ")[0].toLowerCase();
+            const nameB = b.name.split(" ")[0].toLowerCase();
+            return nameA.localeCompare(nameB);
+          });
+        setAvailableServers(filteredExtraServers);
+
+        // Set up realtime listeners for user data
+        setupUserListeners(filteredExtraServers);
+      } else {
+        // No schedule exists for this week
+        resetScheduleData();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      cleanupUserListeners();
+    };
+  }, [churchId, selectedWeek]);
+
+  // Cleanup listeners on unmount
+  useEffect(() => {
+    return () => {
+      cleanupUserListeners();
+    };
+  }, []);
+
+  // ===== Helper Functions =====
+
+  const setupUserListeners = (servers) => {
+    // Clean up any existing listeners
+    cleanupUserListeners();
+    
+    const newListeners = [];
+    
+    servers.forEach((server) => {
+      // Fetch profile picture
+      const storagePath = `profilePictures/${server.uid}.png`;
+      storage()
+        .ref(storagePath)
+        .getDownloadURL()
+        .then((url) => {
+          setImageUrls((prev) => ({ ...prev, [server.uid]: url }));
+        })
+        .catch(() => {
+          // Silent fail - use default image
+        });
+      
+      // Set up realtime listener for user's lastServe
+      const unsubscribe = firestore()
+        .collection("users")
+        .doc(server.uid)
+        .onSnapshot(
+          (doc) => {
+            if (doc.exists) {
+              const userData = doc.data();
+              if (userData.lastServe) {
+                setLastServeData((prev) => ({
+                  ...prev,
+                  [server.uid]: userData.lastServe,
+                }));
+              } else {
+                // Remove from lastServeData if no longer has lastServe
+                setLastServeData((prev) => {
+                  const newData = { ...prev };
+                  delete newData[server.uid];
+                  return newData;
+                });
+              }
+            }
+          },
+          (error) => {
+            console.error("Error listening to user:", server.uid, error);
+          }
+        );
+      
+      newListeners.push(unsubscribe);
+    });
+    
+    setUserListeners(newListeners);
+  };
+
+  const cleanupUserListeners = () => {
+    userListeners.forEach((unsubscribe) => {
+      if (typeof unsubscribe === "function") {
+        unsubscribe();
+      }
+    });
+    setUserListeners([]);
+  };
+
+  const resetScheduleData = () => {
+    setWeek(selectedWeek);
+    setCurrentReaders({});
+    setAssignedReaders({});
+    setAltarServers([]);
+    setAssignedServers({});
+    setServers([]);
+    setAvailableServers([]);
+    setImageUrls({});
+    setLastServeData({});
+    cleanupUserListeners();
+  };
+
+  // ===== Event Handlers =====
+
   const handleWeekSelect = (week) => {
     setSelectedWeek(week);
     setShowWeekSelector(false);
   };
 
-  // Format week display
-  const formatWeekDisplay = (weekStr) => {
-    if (!weekStr) return "Select Week";
-    const [month, day, year] = weekStr.split("-").map(Number);
-    const date = new Date(2000 + year, month - 1, day);
-    return date.toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
-
-  // Open profile modal
   const openProfile = (userId) => {
-    if (!userId) {
-      return;
-    }
+    if (!userId) return;
     setSelectedUserId(userId);
     setProfileModalVisible(true);
   };
 
-  // Close profile modal
   const closeProfile = () => {
     setSelectedUserId(null);
     setProfileModalVisible(false);
   };
 
-  // Assign reader
   const assignReader = async (index, newReader) => {
-    if (!week) {
-      return;
-    }
+    if (!week) return;
+    
     const readingKey = readings[index];
     const oldReader = currentReaders[readingKey];
-    if (!oldReader || !oldReader.uid) {
-      return;
-    }
+    if (!oldReader || !oldReader.uid) return;
+    
     try {
       await switchServersAPI(
         user,
@@ -372,20 +583,17 @@ const EditSchedule = () => {
         "https://switch-server-hy6oofbihq-uc.a.run.app"
       );
     } catch (error) {
-      // Error handling for reader assignment
+      console.error("Error assigning reader:", error);
     }
     setReaderDropdownIndex(null);
   };
 
-  // Assign server
   const assignServer = async (index, newServer) => {
-    if (!week) {
-      return;
-    }
+    if (!week) return;
+    
     const oldServer = altarServers[index];
-    if (!oldServer || !oldServer.uid) {
-      return;
-    }
+    if (!oldServer || !oldServer.uid) return;
+    
     try {
       await switchServersAPI(
         user,
@@ -396,19 +604,14 @@ const EditSchedule = () => {
         "https://switch-server-hy6oofbihq-uc.a.run.app"
       );
     } catch (error) {
-      // Error handling for server assignment
+      console.error("Error assigning server:", error);
     }
     setServerDropdownIndex(null);
   };
 
-  // Add server
   const handleAddServer = async () => {
-    if (!churchId || !week) {
-      return;
-    }
-    if (servers.length >= 6) {
-      return;
-    }
+    if (!churchId || !week || servers.length >= 6) return;
+    
     try {
       await addServerAPI(
         user,
@@ -416,37 +619,25 @@ const EditSchedule = () => {
         week,
         "https://add-server-hy6oofbihq-uc.a.run.app"
       );
+      
       const churchRef = firestore().collection("churches").doc(churchId);
       await churchRef.update({
         altarServers: FieldValue.increment(1),
       });
+      
       scrollViewRef.current?.scrollToEnd({ animated: false });
     } catch (error) {
-      // Error handling for server addition
+      console.error("Error adding server:", error);
     }
   };
 
-  // Remove server
   const removeServerFromSchedule = async (index) => {
-    if (!churchId || !week) {
-      return;
-    }
-    const schedulesRef = firestore()
-      .collection("churches")
-      .doc(churchId)
-      .collection("schedule")
-      .doc(week);
+    if (!churchId || !week) return;
+    
+    const serverToRemove = altarServers[index];
+    if (!serverToRemove || !serverToRemove.uid) return;
+    
     try {
-      const scheduleDoc = await schedulesRef.get();
-      if (!scheduleDoc.exists) {
-        return;
-      }
-      const scheduleData = scheduleDoc.data();
-      const altarServers = scheduleData?.altar || [];
-      const serverToRemove = altarServers[index];
-      if (!serverToRemove || !serverToRemove.uid) {
-        return;
-      }
       await removeServerAPI(
         user,
         churchId,
@@ -454,14 +645,89 @@ const EditSchedule = () => {
         serverToRemove.uid,
         "https://remove-server-hy6oofbihq-uc.a.run.app"
       );
+      
       const churchRef = firestore().collection("churches").doc(churchId);
       await churchRef.update({
         altarServers: FieldValue.increment(-1),
       });
     } catch (error) {
-      // Error handling for server removal
+      console.error("Error removing server:", error);
     }
   };
+
+  // ===== Render Functions =====
+
+  const renderServerItem = ({ item }) => {
+    const weeksSince = calculateWeeksBetween(lastServeData[item.uid], selectedWeek);
+    const indicatorColor = getColorForWeeks(weeksSince);
+    const displayText = getWeeksDisplayText(weeksSince);
+    
+    return (
+      <TouchableOpacity
+        style={styles.modalItemContainer}
+        onPress={() => assignServer(serverDropdownIndex, item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.modalItemContent}>
+          <View style={styles.profilePicContainer}>
+            <Image
+              source={
+                imageUrls[item.uid]
+                  ? { uri: imageUrls[item.uid] }
+                  : require("../assets/default_profile.png")
+              }
+              style={styles.profilePic}
+              defaultSource={require("../assets/default_profile.png")}
+            />
+            <View style={[styles.statusIndicator, { backgroundColor: indicatorColor }]} />
+          </View>
+          <View style={styles.serverInfo}>
+            <Text style={styles.modalItem}>{item.name}</Text>
+            <Text style={[styles.lastServeText, { color: indicatorColor }]}>
+              {displayText}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderReaderItem = ({ item }) => {
+    const weeksSince = calculateWeeksBetween(lastServeData[item.uid], selectedWeek);
+    const indicatorColor = getColorForWeeks(weeksSince);
+    const displayText = getWeeksDisplayText(weeksSince);
+    
+    return (
+      <TouchableOpacity
+        style={styles.modalItemContainer}
+        onPress={() => assignReader(readerDropdownIndex, item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.modalItemContent}>
+          <View style={styles.profilePicContainer}>
+            <Image
+              source={
+                imageUrls[item.uid]
+                  ? { uri: imageUrls[item.uid] }
+                  : require("../assets/default_profile.png")
+              }
+              style={styles.profilePic}
+              defaultSource={require("../assets/default_profile.png")}
+            />
+            <View style={[styles.statusIndicator, { backgroundColor: indicatorColor }]} />
+          </View>
+          <View style={styles.serverInfo}>
+            <Text style={styles.modalItem}>{item.name}</Text>
+            <Text style={[styles.lastServeText, { color: indicatorColor }]}>
+              {displayText}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // ===== Main Render =====
 
   return (
     <View style={styles.container}>
@@ -492,6 +758,7 @@ const EditSchedule = () => {
         ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
       >
+        {/* Readers Section */}
         <View style={{ marginBottom: 10, marginTop: 10 }}>
           <Text style={styles.sectionHeader}>Assign Readers</Text>
         </View>
@@ -526,6 +793,7 @@ const EditSchedule = () => {
           </TouchableOpacity>
         ))}
 
+        {/* Altar Servers Section */}
         <View style={styles.sectionHeaderContainer}>
           <View style={{ flexDirection: "row", alignItems: "baseline" }}>
             <Text style={styles.sectionHeader}>Altar Servers</Text>
@@ -571,11 +839,13 @@ const EditSchedule = () => {
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {/* Add Server Button */}
       <TouchableOpacity style={styles.addButton} onPress={handleAddServer}>
         <Text style={styles.addButtonText}>Add Server</Text>
       </TouchableOpacity>
 
-      {/* Server selection modal */}
+      {/* Server Selection Modal */}
       <Modal
         visible={serverDropdownIndex !== null}
         transparent
@@ -602,35 +872,7 @@ const EditSchedule = () => {
                 data={availableServers}
                 keyExtractor={(item) => item.uid}
                 showsVerticalScrollIndicator={false}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.modalItemContainer}
-                    onPress={() => assignServer(serverDropdownIndex, item)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.modalItemContent}>
-                      <Image
-                        source={
-                          imageUrls[item.uid] &&
-                          typeof imageUrls[item.uid] === "string" &&
-                          imageUrls[item.uid].trim() !== ""
-                            ? { uri: imageUrls[item.uid] }
-                            : require("../assets/default_profile.png")
-                        }
-                        style={styles.profilePic}
-                        defaultSource={require("../assets/default_profile.png")}
-                        onError={() =>
-                          setImageUrls((prev) => ({
-                            ...prev,
-                            [item.uid]: null,
-                          }))
-                        }
-                      />
-                      <Text style={styles.modalItem}>{item.name}</Text>
-                    </View>
-                    <Text style={styles.selectIcon}>›</Text>
-                  </TouchableOpacity>
-                )}
+                renderItem={renderServerItem}
                 ItemSeparatorComponent={() => <View style={styles.separator} />}
               />
             </View>
@@ -638,7 +880,7 @@ const EditSchedule = () => {
         </TouchableOpacity>
       </Modal>
 
-      {/* Reader selection modal */}
+      {/* Reader Selection Modal */}
       <Modal
         visible={readerDropdownIndex !== null}
         transparent
@@ -665,35 +907,7 @@ const EditSchedule = () => {
                 data={availableServers}
                 keyExtractor={(item) => item.uid}
                 showsVerticalScrollIndicator={false}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.modalItemContainer}
-                    onPress={() => assignReader(readerDropdownIndex, item)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.modalItemContent}>
-                      <Image
-                        source={
-                          imageUrls[item.uid] &&
-                          typeof imageUrls[item.uid] === "string" &&
-                          imageUrls[item.uid].trim() !== ""
-                            ? { uri: imageUrls[item.uid] }
-                            : require("../assets/default_profile.png")
-                        }
-                        style={styles.profilePic}
-                        defaultSource={require("../assets/default_profile.png")}
-                        onError={() =>
-                          setImageUrls((prev) => ({
-                            ...prev,
-                            [item.uid]: null,
-                          }))
-                        }
-                      />
-                      <Text style={styles.modalItem}>{item.name}</Text>
-                    </View>
-                    <Text style={styles.selectIcon}>›</Text>
-                  </TouchableOpacity>
-                )}
+                renderItem={renderReaderItem}
                 ItemSeparatorComponent={() => <View style={styles.separator} />}
               />
             </View>
@@ -800,7 +1014,7 @@ const EditSchedule = () => {
         </TouchableOpacity>
       </Modal>
 
-      {/* Individual Profile modal */}
+      {/* Individual Profile Modal */}
       <IndividualProfile
         userId={selectedUserId}
         show={profileModalVisible}
@@ -1016,37 +1230,53 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
   },
   modalItemContent: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
   },
+  profilePicContainer: {
+    position: "relative",
+  },
+  profilePic: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: "#2a2a2a",
+    backgroundColor: "#2a2a2a",
+  },
+  statusIndicator: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "#1e1e1e",
+  },
+  serverInfo: {
+    marginLeft: 14,
+    flex: 1,
+  },
   modalItem: {
     color: "#fff",
     fontSize: 17,
-    marginLeft: 12,
-    flex: 1,
+    fontWeight: "600",
   },
-  profilePic: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: "#147efb",
-    backgroundColor: "#2a2a2a",
+  lastServeText: {
+    fontSize: 13,
+    marginTop: 3,
+    fontWeight: "500",
   },
   separator: {
     height: 1,
     backgroundColor: "#2a2a2a",
     marginHorizontal: 20,
-  },
-  selectIcon: {
-    color: "#666",
-    fontSize: 20,
-    marginLeft: 10,
   },
   checkmark: {
     color: "#147efb",

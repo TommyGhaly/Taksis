@@ -22,6 +22,7 @@ const ChangeChurch = ({ navigation }) => {
     await firestore().collection("users").doc(user.uid).update({
       church: selectedChurch,
     });
+    navigation.goBack();
 
     // Call external functions
     await callFunction(
@@ -31,7 +32,7 @@ const ChangeChurch = ({ navigation }) => {
     Alert.alert("Success", "Church has been updated.");
 
     // Navigate back to the previous screen
-    navigation.goBack();
+
 
     await new Promise((resolve) => setTimeout(resolve, 2000));
     // Call twice to ensure nothing gets left behind by accident

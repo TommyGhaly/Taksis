@@ -35,6 +35,7 @@ const IndividualAttendance = () => {
   const [editMode, setEditMode] = useState(false);
   const [photoInputVisible, setPhotoInputVisible] = useState(false);
   const [profilePictureUrl, setProfilePictureUrl] = useState(null);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [editData, setEditData] = useState({
     name: "",
     phone: "",
@@ -55,6 +56,7 @@ const IndividualAttendance = () => {
       setEditMode(false);
       setPhotoInputVisible(false);
       setProfilePictureUrl(null);
+      setDeletingPhoto(false);
       setEditData({
         name: "",
         phone: "",
@@ -161,6 +163,53 @@ const IndividualAttendance = () => {
     });
   }, [studentData]);
 
+  // Handle remove photo
+  const handleRemovePhoto = async () => {
+    if (!studentId) return;
+
+    setDeletingPhoto(true);
+    try {
+      // Delete from Firebase Storage
+      const storageRef = storage().ref(`profilePictures/${studentId}.png`);
+      await storageRef.delete();
+
+      // Update local state
+      setProfilePictureUrl(null);
+
+      Alert.alert("Success", "Profile picture deleted successfully");
+    } catch (error) {
+      // If the file doesn't exist, that's okay - just update local state
+      if (error.code === 'storage/object-not-found') {
+        setProfilePictureUrl(null);
+      } else {
+        Alert.alert("Error", "Could not delete profile picture. Please try again.");
+      }
+    } finally {
+      setDeletingPhoto(false);
+    }
+  };
+
+  // Handle edit profile picture
+  const handleEditProfilePicture = () => {
+    Alert.alert(
+      "Edit Profile Picture",
+      "Choose an option",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Change Photo",
+          onPress: () => setPhotoInputVisible(true),
+        },
+        {
+          text: "Remove Photo",
+          style: "destructive",
+          onPress: handleRemovePhoto,
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   // Handle photo upload
   const handlePhotoUpload = async (imageUri) => {
     if (!studentId || studentId === "undefined") {
@@ -179,6 +228,23 @@ const IndividualAttendance = () => {
       Alert.alert("Error", "Failed to upload profile picture.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Close photo input modal and refresh picture
+  const closePhotoInputModal = () => {
+    setPhotoInputVisible(false);
+    // Refresh profile picture after upload
+    if (studentId) {
+      storage()
+        .ref(`profilePictures/${studentId}.png`)
+        .getDownloadURL()
+        .then(url => {
+          setProfilePictureUrl(url);
+        })
+        .catch(() => {
+          // Keep existing or null
+        });
     }
   };
 
@@ -411,7 +477,8 @@ const IndividualAttendance = () => {
                     />
                     <TouchableOpacity
                       style={styles.editPhotoIcon}
-                      onPress={() => setPhotoInputVisible(true)}
+                      onPress={handleEditProfilePicture}
+                      disabled={deletingPhoto}
                       accessible={true}
                       accessibilityLabel="Edit profile picture"
                     >
@@ -579,7 +646,7 @@ const IndividualAttendance = () => {
       <Modal visible={photoInputVisible} transparent animationType="fade">
         <PhotoInput
           visible={photoInputVisible}
-          onClose={() => setPhotoInputVisible(false)}
+          onClose={closePhotoInputModal}
           onSave={handlePhotoUpload}
           userId={studentId}
         />

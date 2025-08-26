@@ -40,11 +40,13 @@ const AlhanAttendance = () => {
   const sectionListRef = useRef(null);
   const isMounted = useRef(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const studentUnsubscribes = useRef([]);
+  const userUnsubscribe = useRef(null);
 
   useEffect(() => {
     isMounted.current = true;
 
-    const fetchData = async () => {
+    const initializeData = async () => {
       if (!user) {
         Alert.alert("Error", "No user found.");
         setLoading(false);
@@ -52,29 +54,49 @@ const AlhanAttendance = () => {
       }
 
       try {
-        // Fetch user data once
-        const userDoc = await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .get();
-        if (!isMounted.current) return;
-        if (!userDoc.exists) {
-          Alert.alert("Error", "User not found.");
-          setLoading(false);
-          return;
-        }
-        const localUserData = userDoc.data();
-        setUserData(localUserData);
-        setNewStudentGrade(localUserData.alhanGrades[0] || "");
-
-        if (!localUserData.alhanGrades?.length) {
-          setLoading(false);
-          return;
-        }
-
         // Generate previous Saturdays
         await generatePreviousSaturdays();
-        setLoading(false);
+        
+        // Set up real-time listener for user data
+        userUnsubscribe.current = firestore()
+          .collection("users")
+          .doc(user.uid)
+          .onSnapshot(
+            (doc) => {
+              if (!isMounted.current) return;
+              
+              if (!doc.exists) {
+                Alert.alert("Error", "User not found.");
+                setLoading(false);
+                return;
+              }
+              
+              const newUserData = doc.data();
+              setUserData(newUserData);
+              
+              // Update new student grade default
+              if (newUserData.alhanGrades?.length > 0) {
+                setNewStudentGrade(prevGrade => {
+                  // If the previous grade is still in the list, keep it
+                  if (newUserData.alhanGrades.includes(prevGrade)) {
+                    return prevGrade;
+                  }
+                  // Otherwise, use the first grade
+                  return newUserData.alhanGrades[0];
+                });
+              } else {
+                setNewStudentGrade("");
+              }
+              
+              setLoading(false);
+            },
+            (error) => {
+              if (isMounted.current) {
+                Alert.alert("Error", error.message);
+                setLoading(false);
+              }
+            }
+          );
       } catch (error) {
         if (isMounted.current) {
           Alert.alert("Error", error.message);
@@ -83,67 +105,44 @@ const AlhanAttendance = () => {
       }
     };
 
-    fetchData();
+    initializeData();
 
     return () => {
       isMounted.current = false;
+      if (userUnsubscribe.current) {
+        userUnsubscribe.current();
+      }
     };
   }, [user]);
 
-  // Subscribe to deacons array updates and profile pictures
+  // Subscribe to students based on current alhanGrades
   useEffect(() => {
-    if (!userData?.church || !userData?.alhanGrades?.length) return;
+    if (!userData?.church || !userData?.alhanGrades?.length) {
+      // Clear students if no grades assigned
+      setStudentsByGrade({});
+      // Unsubscribe from all student listeners
+      studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
+      studentUnsubscribes.current = [];
+      return;
+    }
 
-    const fetchProfilePictureUrls = async () => {
-      try {
-        // Get all students from all grades at once
-        const allStudents = [];
-        await Promise.all(
-          userData.alhanGrades.map(async (grade) => {
-            const snapshot = await firestore()
-              .collection("churches")
-              .doc(userData.church)
-              .collection("Hymns Class")
-              .doc(grade)
-              .collection("students")
-              .get();
-            
-            const students = snapshot.docs.map((doc) => ({
-              uid: doc.id,
-              grade,
-              ...doc.data(),
-            }));
-            allStudents.push(...students);
-          })
-        );
+    // Clean up removed grades
+    setStudentsByGrade(prevStudents => {
+      const updatedStudents = {};
+      userData.alhanGrades.forEach(grade => {
+        if (prevStudents[grade]) {
+          updatedStudents[grade] = prevStudents[grade];
+        }
+      });
+      return updatedStudents;
+    });
 
-        // Fetch all profile pictures at once
-        const urls = {};
-        await Promise.all(
-          allStudents.map(async (student) => {
-            if (student.uid) {
-              try {
-                const url = await storage()
-                  .ref(`profilePictures/${student.uid}.png`)
-                  .getDownloadURL();
-                urls[student.uid] =
-                  typeof url === "string" && url.trim() ? url : null;
-              } catch (error) {
-                urls[student.uid] = null;
-              }
-            }
-          })
-        );
-        setProfilePictureUrls(urls);
-      } catch (error) {
-        // Silent error handling
-      }
-    };
+    // Unsubscribe from previous listeners
+    studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
+    studentUnsubscribes.current = [];
 
-    fetchProfilePictureUrls();
-    const intervalId = setInterval(fetchProfilePictureUrls, 30000);
-
-    const unsubscribes = userData.alhanGrades.map((grade) =>
+    // Set up new listeners for current grades
+    const newUnsubscribes = userData.alhanGrades.map((grade) =>
       firestore()
         .collection("churches")
         .doc(userData.church)
@@ -173,11 +172,79 @@ const AlhanAttendance = () => {
         )
     );
 
+    studentUnsubscribes.current = newUnsubscribes;
+
+    // Fetch profile pictures
+    fetchProfilePictureUrls();
+
+    return () => {
+      studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
+      studentUnsubscribes.current = [];
+    };
+  }, [userData?.church, userData?.alhanGrades?.join(",")]); // Use join to ensure effect runs when array changes
+
+  // Fetch profile pictures
+  const fetchProfilePictureUrls = async () => {
+    if (!userData?.church || !userData?.alhanGrades?.length) return;
+    
+    try {
+      // Get all students from current grades
+      const allStudents = [];
+      await Promise.all(
+        userData.alhanGrades.map(async (grade) => {
+          const snapshot = await firestore()
+            .collection("churches")
+            .doc(userData.church)
+            .collection("Hymns Class")
+            .doc(grade)
+            .collection("students")
+            .get();
+          
+          const students = snapshot.docs.map((doc) => ({
+            uid: doc.id,
+            grade,
+            ...doc.data(),
+          }));
+          allStudents.push(...students);
+        })
+      );
+
+      // Fetch all profile pictures at once
+      const urls = {};
+      await Promise.all(
+        allStudents.map(async (student) => {
+          if (student.uid) {
+            try {
+              const url = await storage()
+                .ref(`profilePictures/${student.uid}.png`)
+                .getDownloadURL();
+              urls[student.uid] =
+                typeof url === "string" && url.trim() ? url : null;
+            } catch (error) {
+              urls[student.uid] = null;
+            }
+          }
+        })
+      );
+      
+      if (isMounted.current) {
+        setProfilePictureUrls(urls);
+      }
+    } catch (error) {
+      console.error("Error fetching profile pictures:", error);
+    }
+  };
+
+  // Set up interval for profile picture updates
+  useEffect(() => {
+    if (!userData?.church || !userData?.alhanGrades?.length) return;
+
+    const intervalId = setInterval(fetchProfilePictureUrls, 30000);
+
     return () => {
       clearInterval(intervalId);
-      unsubscribes.forEach((unsubscribe) => unsubscribe());
     };
-  }, [userData]);
+  }, [userData?.church, userData?.alhanGrades?.join(",")]);
 
   const generatePreviousSaturdays = async () => {
     const today = new Date();
@@ -208,8 +275,6 @@ const AlhanAttendance = () => {
 
     setPreviousSaturdays(saturdays);
   };
-
-
 
   const getNextSaturday = () => {
     const today = new Date();
@@ -262,6 +327,13 @@ const AlhanAttendance = () => {
       Alert.alert("Error", "Please select a grade");
       return;
     }
+    
+    // Verify the grade is still assigned to the user
+    if (!userData?.alhanGrades?.includes(newStudentGrade)) {
+      Alert.alert("Error", "You are no longer assigned to this grade");
+      setNewStudentGrade(userData?.alhanGrades?.[0] || "");
+      return;
+    }
 
     setSubmitting(true);
     const newStudentRef = firestore()
@@ -296,13 +368,18 @@ const AlhanAttendance = () => {
     if (!searchQuery.trim()) return studentsByGrade;
     const lower = searchQuery.toLowerCase();
     const filtered = {};
-    Object.keys(studentsByGrade).forEach((grade) => {
-      filtered[grade] = (studentsByGrade[grade] || []).filter((student) =>
-        student.name.toLowerCase().includes(lower)
-      );
-    });
+    
+    // Only include grades that the user is currently assigned to
+    if (userData?.alhanGrades) {
+      userData.alhanGrades.forEach((grade) => {
+        filtered[grade] = (studentsByGrade[grade] || []).filter((student) =>
+          student.name.toLowerCase().includes(lower)
+        );
+      });
+    }
+    
     return filtered;
-  }, [studentsByGrade, searchQuery]);
+  }, [studentsByGrade, searchQuery, userData?.alhanGrades]);
 
   // Prepare sections for SectionList
   const gradeSections = useMemo(() => {
@@ -318,44 +395,35 @@ const AlhanAttendance = () => {
     }
     
     return sections;
-  }, [userData, filteredStudentsByGrade, searchQuery]);
+  }, [userData?.alhanGrades, filteredStudentsByGrade, searchQuery]);
 
   // Scroll to section header for grade
-  const scrollToGrade = (grade) => {
+  const scrollToGrade = useCallback((grade) => {
     if (!sectionListRef.current) return;
     
-    // When searching, only use gradeSections since it's filtered
-    // When not searching, use userData.alhanGrades for consistency
-    let sectionIndex = -1;
-    
-    if (searchQuery.trim()) {
-      // When searching, only look in filtered gradeSections
-      sectionIndex = gradeSections.findIndex((section) => section.title === grade);
-    } else {
-      // When not searching, try userData.alhanGrades first, then gradeSections as fallback
-      if (userData?.alhanGrades) {
-        sectionIndex = userData.alhanGrades.findIndex((g) => g === grade);
-      }
-      
-      if (sectionIndex === -1 && gradeSections.length > 0) {
-        sectionIndex = gradeSections.findIndex((section) => section.title === grade);
-      }
-    }
+    // Find the section index in the actual rendered sections
+    const sectionIndex = gradeSections.findIndex((section) => section.title === grade);
     
     if (sectionIndex >= 0) {
-      // Add a small delay to ensure the SectionList has updated properly
+      // Use a small timeout to ensure the list has rendered
       setTimeout(() => {
-        if (sectionListRef.current) {
-          sectionListRef.current.scrollToLocation({
-            sectionIndex,
-            itemIndex: 1,
-            animated: true,
-            viewPosition: 0,
-          });
+        if (sectionListRef.current && isMounted.current) {
+          try {
+            sectionListRef.current.scrollToLocation({
+              sectionIndex,
+              itemIndex: 0,
+              animated: true,
+              viewPosition: 0,
+              viewOffset: 0,
+            });
+          } catch (error) {
+            // Fallback: try scrolling to the beginning of the section
+            console.log("Scroll to location failed, trying fallback");
+          }
         }
-      }, 100);
+      }, 150);
     }
-  };
+  }, [gradeSections]);
 
   const handleDateSelect = (date) => {
     setSelectedDate(date);
@@ -386,7 +454,7 @@ const AlhanAttendance = () => {
           </TouchableOpacity>
         );
       },
-    [searchQuery, gradeSections]
+    [searchQuery, gradeSections, scrollToGrade]
   );
 
   const renderDate = useMemo(
@@ -614,7 +682,7 @@ const AlhanAttendance = () => {
             if (sectionListRef.current && info.index >= 0 && info.index < gradeSections.length) {
               sectionListRef.current.scrollToLocation({
                 sectionIndex: info.index,
-                itemIndex: 1,
+                itemIndex: 0,
                 animated: false,
                 viewPosition: 0,
               });
