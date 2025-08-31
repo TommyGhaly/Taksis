@@ -555,7 +555,7 @@ const SundaySchoolAttendance = () => {
           try {
             sectionListRef.current.scrollToLocation({
               sectionIndex,
-              itemIndex: 0,
+              itemIndex: 1,
               animated: true,
               viewPosition: 0,
               viewOffset: 0,
@@ -850,7 +850,7 @@ const SundaySchoolAttendance = () => {
             if (sectionListRef.current && info.index >= 0 && info.index < gradeSections.length) {
               sectionListRef.current.scrollToLocation({
                 sectionIndex: info.index,
-                itemIndex: 0,
+                itemIndex: 1,
                 animated: false,
                 viewPosition: 0,
               });
