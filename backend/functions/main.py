@@ -2334,7 +2334,7 @@ def update_last_serve(schedule_data, schedule_id=None):
     return
 
 @scheduler_fn.on_schedule(
-    schedule="0 3 * * 0",  # Every Sunday at 3:00 AM
+    schedule="45 15 * * 0",  # Every Sunday at 3:45 PM
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def update_last_week_serve(event: scheduler_fn.ScheduledEvent) -> None:
