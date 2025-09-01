@@ -779,6 +779,13 @@ const SundaySchoolAttendance = () => {
                     Alert.alert("Error", "User data not loaded.");
                     return;
                   }
+                  
+                  if (!userData.ssGrades) {
+                    console.log('userData structure:', userData);
+                    Alert.alert("Error", "Sunday School grades not loaded. Check console for userData structure.");
+                    return;
+                  }
+                  
                   setIsNavigating(true);
                   
                   if (isServant) {
@@ -792,6 +799,7 @@ const SundaySchoolAttendance = () => {
                       category: "Sunday School",
                       grade: person.grade,
                       studentId: person.uid,
+                      userGrades: userData?.ssGrades || [], // Pass grades the user teaches with fallback
                     });
                   }
                   
