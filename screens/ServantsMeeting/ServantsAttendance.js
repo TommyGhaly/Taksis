@@ -20,6 +20,45 @@ import storage from "@react-native-firebase/storage";
 import * as Haptics from "react-native-haptic-feedback";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import AlphabetIndexBar from "../../components/AlphabetIndexBar";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Simple cache utilities
+const CacheUtils = {
+  async get(key) {
+    try {
+      const cached = await AsyncStorage.getItem(key);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Check if cache is still valid (24 hours)
+        if (Date.now() - parsed.timestamp < 72 * 60 * 60 * 1000) {
+          return parsed.data;
+        }
+      }
+    } catch (error) {
+      console.log('Cache read error:', error);
+    }
+    return null;
+  },
+
+  async set(key, data) {
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.log('Cache write error:', error);
+    }
+  },
+
+  async remove(key) {
+    try {
+      await AsyncStorage.removeItem(key);
+    } catch (error) {
+      console.log('Cache remove error:', error);
+    }
+  }
+};
 
 // Responsive design helper
 const { width, height } = Dimensions.get("window");
@@ -31,21 +70,104 @@ const indexBarWidth = isTablet ? 32 : 24;
 const ServantsAttendance = () => {
   const navigation = useNavigation();
   const user = auth().currentUser;
-  const [servants, setServants] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Core state
   const [userData, setUserData] = useState(null);
+  const [servants, setServants] = useState([]);
+  const [rawServantsData, setRawServantsData] = useState([]); // Store raw Firestore data
+  const [profilePictureUrls, setProfilePictureUrls] = useState({});
+  
+  // UI state
+  const [loading, setLoading] = useState(true);
   const [sections, setSections] = useState([]);
   const [availableLetters, setAvailableLetters] = useState([]);
-  const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [headerHeight, setHeaderHeight] = useState(0);
   const [selectedDate, setSelectedDate] = useState(null);
   const [dateModalVisible, setDateModalVisible] = useState(false);
   const [previousSundays, setPreviousSundays] = useState([]);
   const [isNavigating, setIsNavigating] = useState(false);
-  const [rawServantsData, setRawServantsData] = useState([]); // Store raw Firestore data
+  
+  // Refs
   const headerHeightRef = useRef(0);
   const sectionListRef = useRef(null);
   const isMounted = useRef(true);
+  const servantsUnsubscribe = useRef(null);
+  const cacheKeys = useRef({
+    user: null,
+    servants: null,
+    profilePics: null
+  });
+
+  // Initialize and load cached data immediately
+  useEffect(() => {
+    isMounted.current = true;
+    
+    const initializeApp = async () => {
+      if (!user) {
+        Alert.alert("Error", "No user found.");
+        setLoading(false);
+        return;
+      }
+
+      // Set cache keys
+      cacheKeys.current = {
+        user: `servants_user_${user.uid}`,
+        servants: `servants_data_${user.uid}`,
+        profilePics: `servants_profile_pics_${user.uid}`
+      };
+
+      // Load cached data immediately (non-blocking)
+      loadCachedData();
+      
+      // Generate previous Sundays
+      await generatePreviousSundays();
+      
+      // Set up real-time listeners
+      await setupUserAndServantsListeners();
+      
+      // Mark loading as complete after a short delay
+      setTimeout(() => {
+        if (isMounted.current) {
+          setLoading(false);
+        }
+      }, 300);
+    };
+
+    initializeApp();
+
+    return () => {
+      isMounted.current = false;
+      if (servantsUnsubscribe.current) {
+        servantsUnsubscribe.current();
+      }
+    };
+  }, [user]);
+
+  // Load cached data without blocking
+  const loadCachedData = async () => {
+    try {
+      // Load all cached data in parallel
+      const [cachedUser, cachedServants, cachedProfilePics] = await Promise.all([
+        CacheUtils.get(cacheKeys.current.user),
+        CacheUtils.get(cacheKeys.current.servants),
+        CacheUtils.get(cacheKeys.current.profilePics)
+      ]);
+
+      if (cachedUser && isMounted.current) {
+        setUserData(cachedUser);
+      }
+
+      if (cachedServants && isMounted.current) {
+        setRawServantsData(cachedServants);
+      }
+
+      if (cachedProfilePics && isMounted.current) {
+        setProfilePictureUrls(cachedProfilePics);
+      }
+    } catch (error) {
+      console.log('Error loading cached data:', error);
+    }
+  };
 
   const getNextSunday = () => {
     const today = new Date();
@@ -62,6 +184,124 @@ const ServantsAttendance = () => {
     const day = String(date.getDate()).padStart(2, "0");
     const year = date.getFullYear();
     return `${month}-${day}-${year}`;
+  };
+
+  const generatePreviousSundays = async () => {
+    const today = new Date();
+    const sundays = [];
+    let currentDate = new Date(today);
+
+    const currentYear = today.getFullYear();
+    const september11ThisYear = new Date(currentYear, 8, 11);
+    const cutoffDate =
+      today < september11ThisYear
+        ? new Date(currentYear - 1, 8, 11)
+        : september11ThisYear;
+
+    const day = currentDate.getDay();
+    const diffToSunday = day === 0 ? 0 : day;
+    currentDate.setDate(currentDate.getDate() - diffToSunday);
+
+    while (currentDate >= cutoffDate) {
+      sundays.push(formatDate(currentDate));
+      currentDate.setDate(currentDate.getDate() - 7);
+    }
+    setPreviousSundays(sundays);
+  };
+
+  // Set up user and servants listeners
+  const setupUserAndServantsListeners = async () => {
+    try {
+      // First get user data (one-time fetch for faster initial load)
+      const userDoc = await firestore()
+        .collection("users")
+        .doc(user.uid)
+        .get();
+      
+      if (!isMounted.current) return;
+      
+      if (!userDoc.exists) {
+        Alert.alert("Error", "User not found.");
+        return;
+      }
+      
+      const localUserData = userDoc.data();
+      setUserData(localUserData);
+      
+      // Cache user data
+      await CacheUtils.set(cacheKeys.current.user, localUserData);
+
+      if (!localUserData.church) {
+        Alert.alert("Error", "No church assigned to user.");
+        return;
+      }
+
+      // Set up persistent snapshot listener for Servants Meeting
+      const servantsMeetingRef = firestore()
+        .collection("churches")
+        .doc(localUserData.church)
+        .collection("Servants Meeting");
+
+      servantsUnsubscribe.current = servantsMeetingRef.onSnapshot(
+        async (snapshot) => {
+          if (!isMounted.current) return;
+
+          const servantsData = snapshot.docs.map((doc) => ({
+            uid: doc.id,
+            ...doc.data(),
+          }));
+
+          // Store raw data
+          setRawServantsData(servantsData);
+          
+          // Cache servants data
+          await CacheUtils.set(cacheKeys.current.servants, servantsData);
+
+          // Fetch profile pictures only for new servants
+          fetchProfilePictureUrls(servantsData);
+        },
+        (error) => {
+          if (isMounted.current) {
+            Alert.alert("Error", "Failed to load servants.");
+          }
+        }
+      );
+    } catch (error) {
+      if (isMounted.current) {
+        Alert.alert("Error", error.message);
+      }
+    }
+  };
+
+  // Fetch profile pictures with caching
+  const fetchProfilePictureUrls = async (servantsData) => {
+    try {
+      const urls = { ...profilePictureUrls };
+      const servantsToFetch = servantsData.filter(
+        (servant) => !urls[servant.uid]
+      );
+
+      await Promise.all(
+        servantsToFetch.map(async (servant) => {
+          try {
+            const url = await storage()
+              .ref(`profilePictures/${servant.uid}.png`)
+              .getDownloadURL();
+            urls[servant.uid] = typeof url === "string" && url.trim() ? url : null;
+          } catch {
+            urls[servant.uid] = null;
+          }
+        })
+      );
+
+      if (isMounted.current) {
+        setProfilePictureUrls(urls);
+        // Cache profile picture URLs
+        await CacheUtils.set(cacheKeys.current.profilePics, urls);
+      }
+    } catch (error) {
+      console.error("Error fetching profile pictures:", error);
+    }
   };
 
   // Process raw data whenever selectedDate or rawServantsData changes
@@ -97,129 +337,6 @@ const ServantsAttendance = () => {
     setSections(sectionData);
     setAvailableLetters(Object.keys(grouped).sort());
   }, [selectedDate, rawServantsData]);
-
-  useEffect(() => {
-    isMounted.current = true;
-
-    const fetchData = async () => {
-      if (!user) {
-        Alert.alert("Error", "No user found.");
-        setLoading(false);
-        return () => {};
-      }
-
-      try {
-        // Fetch user data once
-        const userDoc = await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .get();
-        if (!isMounted.current) return;
-        if (!userDoc.exists) {
-          Alert.alert("Error", "User not found.");
-          setLoading(false);
-          return () => {};
-        }
-        const localUserData = userDoc.data();
-        setUserData(localUserData);
-
-        if (!localUserData.church) {
-          Alert.alert("Error", "No church assigned to user.");
-          setLoading(false);
-          return () => {};
-        }
-
-        // Generate previous Sundays
-        const today = new Date();
-        const sundays = [];
-        let currentDate = new Date(today);
-
-        const currentYear = today.getFullYear();
-        const september11ThisYear = new Date(currentYear, 8, 11);
-        const cutoffDate =
-          today < september11ThisYear
-            ? new Date(currentYear - 1, 8, 11)
-            : september11ThisYear;
-
-        const day = currentDate.getDay();
-        const diffToSunday = day === 0 ? 0 : day;
-        currentDate.setDate(currentDate.getDate() - diffToSunday);
-
-        while (currentDate >= cutoffDate) {
-          sundays.push(formatDate(currentDate));
-          currentDate.setDate(currentDate.getDate() - 7);
-        }
-        setPreviousSundays(sundays);
-
-        // Set up persistent snapshot listener for Servants Meeting
-        const servantsMeetingRef = firestore()
-          .collection("churches")
-          .doc(localUserData.church)
-          .collection("Servants Meeting");
-
-        const unsubscribe = servantsMeetingRef.onSnapshot(
-          async (snapshot) => {
-            if (!isMounted.current) return;
-
-            const servantsData = snapshot.docs.map((doc) => ({
-              uid: doc.id,
-              ...doc.data(),
-            }));
-
-            // Store raw data
-            setRawServantsData(servantsData);
-
-            // Fetch profile pictures only for new servants
-            const urls = { ...profilePictureUrls };
-            const servantsToFetch = servantsData.filter(
-              (servant) => !urls[servant.uid]
-            );
-
-            await Promise.all(
-              servantsToFetch.map(async (servant) => {
-                try {
-                  const url = await storage()
-                    .ref(`profilePictures/${servant.uid}.png`)
-                    .getDownloadURL();
-                  urls[servant.uid] = typeof url === "string" && url.trim() ? url : null;
-                } catch {
-                  urls[servant.uid] = null;
-                }
-              })
-            );
-
-            if (isMounted.current) {
-              setProfilePictureUrls(urls);
-              setLoading(false);
-            }
-          },
-          (error) => {
-            if (isMounted.current) {
-              Alert.alert("Error", "Failed to load servants.");
-              setLoading(false);
-            }
-          }
-        );
-
-        return () => {
-          isMounted.current = false;
-          unsubscribe();
-        };
-      } catch (error) {
-        if (isMounted.current) {
-          Alert.alert("Error", error.message);
-          setLoading(false);
-        }
-        return () => {};
-      }
-    };
-
-    fetchData();
-
-    return () => {
-      isMounted.current = false;
-    };
-  }, [user]);
 
   const scrollToSection = (letter) => {
     const sectionIndex = sections.findIndex((s) => s.title === letter);
@@ -367,7 +484,7 @@ const ServantsAttendance = () => {
           </View>
         );
       },
-    [profilePictureUrls, userData, selectedDate, isNavigating, servants]
+    [profilePictureUrls, userData, selectedDate, isNavigating, rawServantsData]
   );
 
   const renderSectionHeader = useMemo(
@@ -403,7 +520,8 @@ const ServantsAttendance = () => {
     []
   );
 
-  if (loading) {
+  // Show minimal loading only on first load
+  if (loading && !userData && rawServantsData.length === 0) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#147efb" />
@@ -455,12 +573,14 @@ const ServantsAttendance = () => {
             // Do nothing when scroll fails - stay in current position
           }}
         />
-        <View style={{ position: "absolute", top: 85 * scale, right: 0, width: 30 }}>
-          <AlphabetIndexBar
-            onLetterChange={scrollToSection}
-            availableLetters={sections.map((s) => s.title)}
-          />
-        </View>
+        {sections.length > 0 && (
+          <View style={{ position: "absolute", top: 85 * scale, right: 0, width: 30 }}>
+            <AlphabetIndexBar
+              onLetterChange={scrollToSection}
+              availableLetters={sections.map((s) => s.title)}
+            />
+          </View>
+        )}
       </View>
 
       <Modal visible={dateModalVisible} transparent animationType="fade">

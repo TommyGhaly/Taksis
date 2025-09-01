@@ -22,6 +22,7 @@ import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import PhotoInput from "../components/photoInput";
 import ProfileImageExpander from "../components/ProfileImageExpander";
 import AlphabetIndexBar from "../components/AlphabetIndexBar";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const defaultProfileImage = require("../assets/default_profile.png");
 
@@ -29,6 +30,44 @@ const defaultProfileImage = require("../assets/default_profile.png");
 const hapticOptions = {
   enableVibrateFallback: true,
   ignoreAndroidSystemSettings: false,
+};
+
+// Simple cache utilities
+const CacheUtils = {
+  async get(key) {
+    try {
+      const cached = await AsyncStorage.getItem(key);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Check if cache is still valid (72 hours)
+        if (Date.now() - parsed.timestamp < 72 * 60 * 60 * 1000) {
+          return parsed.data;
+        }
+      }
+    } catch (error) {
+      console.log('Cache read error:', error);
+    }
+    return null;
+  },
+
+  async set(key, data) {
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.log('Cache write error:', error);
+    }
+  },
+
+  async remove(key) {
+    try {
+      await AsyncStorage.removeItem(key);
+    } catch (error) {
+      console.log('Cache remove error:', error);
+    }
+  }
 };
 
 // Responsive design helper
@@ -48,53 +87,153 @@ const adminRoles = [
 ];
 
 const AdminManager = () => {
-  const [users, setUsers] = useState([]);
+  // Core state
   const [church, setChurch] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [profilePictureUrls, setProfilePictureUrls] = useState({});
+
+  // UI state
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedRoles, setSelectedRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sections, setSections] = useState([]);
-  const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [photoInputVisible, setPhotoInputVisible] = useState(false);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
-  const sectionListRef = useRef(null);
   const [headerHeight, setHeaderHeight] = useState(0);
-  const headerHeightRef = useRef(0);
 
-  // Fetch current user's church
+  // Refs
+  const headerHeightRef = useRef(0);
+  const sectionListRef = useRef(null);
+  const isMounted = useRef(true);
+  const userUnsubscribe = useRef(null);
+  const usersUnsubscribe = useRef(null);
+  const cacheKeys = useRef({
+    church: null,
+    users: null,
+    profilePics: null
+  });
+
+  // Initialize and load cached data immediately
   useEffect(() => {
-    const user = auth().currentUser;
-    if (user) {
-      const unsubscribe = firestore()
-        .collection("users")
-        .doc(user.uid)
-        .onSnapshot(
-          (doc) => {
-            if (doc.exists) {
-              setChurch(doc.data().church || null);
-            }
-            setLoading(false);
-          },
-          (error) => {
-            setLoading(false);
-            Alert.alert("Error", "Failed to fetch church data.");
-          }
-        );
-      return () => unsubscribe();
-    } else {
-      setLoading(false);
-      Alert.alert("Error", "No user authenticated.");
-    }
+    isMounted.current = true;
+
+    const initializeApp = async () => {
+      const user = auth().currentUser;
+      if (!user) {
+        setLoading(false);
+        Alert.alert("Error", "No user authenticated.");
+        return;
+      }
+
+      // Set cache keys
+      cacheKeys.current = {
+        church: `admin_manager_church_${user.uid}`,
+        users: `admin_manager_users_${user.uid}`,
+        profilePics: `admin_manager_profile_pics_${user.uid}`
+      };
+
+      // Load cached data immediately (non-blocking)
+      loadCachedData();
+
+      // Set up real-time listeners
+      setupUserChurchListener();
+
+      // Mark loading as complete after a short delay
+      setTimeout(() => {
+        if (isMounted.current) {
+          setLoading(false);
+        }
+      }, 300);
+    };
+
+    initializeApp();
+
+    return () => {
+      isMounted.current = false;
+      if (userUnsubscribe.current) {
+        userUnsubscribe.current();
+      }
+      if (usersUnsubscribe.current) {
+        usersUnsubscribe.current();
+      }
+    };
   }, []);
 
-  // Fetch users and profile pictures
-  useEffect(() => {
-    if (!church) return;
+  // Load cached data without blocking
+  const loadCachedData = async () => {
+    try {
+      // Load all cached data in parallel
+      const [cachedChurch, cachedUsers, cachedProfilePics] = await Promise.all([
+        CacheUtils.get(cacheKeys.current.church),
+        CacheUtils.get(cacheKeys.current.users),
+        CacheUtils.get(cacheKeys.current.profilePics)
+      ]);
 
+      if (cachedChurch && isMounted.current) {
+        setChurch(cachedChurch);
+      }
+
+      if (cachedUsers && isMounted.current) {
+        setUsers(cachedUsers);
+        // Process sections from cached users
+        processSections(cachedUsers);
+      }
+
+      if (cachedProfilePics && isMounted.current) {
+        setProfilePictureUrls(cachedProfilePics);
+      }
+    } catch (error) {
+      console.log('Error loading cached data:', error);
+    }
+  };
+
+  // Set up user church listener
+  const setupUserChurchListener = () => {
+    const user = auth().currentUser;
+
+    userUnsubscribe.current = firestore()
+      .collection("users")
+      .doc(user.uid)
+      .onSnapshot(
+        async (doc) => {
+          if (!isMounted.current) return;
+
+          if (doc.exists) {
+            const userChurch = doc.data().church || null;
+            setChurch(userChurch);
+
+            // Cache church data
+            await CacheUtils.set(cacheKeys.current.church, userChurch);
+
+            // Set up users listener when church is available
+            if (userChurch) {
+              setupUsersListener(userChurch);
+            }
+          }
+        },
+        (error) => {
+          if (isMounted.current) {
+            Alert.alert("Error", "Failed to fetch church data.");
+          }
+        }
+      );
+  };
+
+  // Set up users listener
+  const setupUsersListener = (churchId) => {
+    // Clear previous listener if exists
+    if (usersUnsubscribe.current) {
+      usersUnsubscribe.current();
+    }
+
+    // Fetch profile pictures periodically
     const fetchProfilePictureUrls = async () => {
+      if (!isMounted.current) return;
+
       try {
         const querySnapshot = await firestore().collection("users").get();
+
         const urls = {};
         await Promise.all(
           querySnapshot.docs.map(async (doc) => {
@@ -109,17 +248,24 @@ const AdminManager = () => {
             }
           })
         );
-        setProfilePictureUrls(urls);
+
+        if (isMounted.current) {
+          setProfilePictureUrls(urls);
+          // Cache profile picture URLs
+          await CacheUtils.set(cacheKeys.current.profilePics, urls);
+        }
       } catch (error) {}
     };
 
     fetchProfilePictureUrls();
     const intervalId = setInterval(fetchProfilePictureUrls, 30000);
 
-    const unsubscribe = firestore()
+    usersUnsubscribe.current = firestore()
       .collection("users")
       .onSnapshot(
-        (querySnapshot) => {
+        async (querySnapshot) => {
+          if (!isMounted.current) return;
+
           const userList = querySnapshot.docs
             .map((doc) => ({
               id: doc.id,
@@ -140,40 +286,50 @@ const AdminManager = () => {
                 "",
             }));
 
-          // Group users by first letter (A-Z or #)
-          const grouped = userList.reduce((acc, user) => {
-            const firstChar = (user.name || '').charAt(0).toUpperCase();
-            const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
-            if (!acc[firstLetter]) acc[firstLetter] = [];
-            acc[firstLetter].push(user);
-            return acc;
-          }, {});
-
-          // Convert to SectionList format - put # at the end
-          const sectionData = Object.keys(grouped)
-            .sort((a, b) => {
-              if (a === '#') return 1;
-              if (b === '#') return -1;
-              return a.localeCompare(b);
-            })
-            .map((letter) => ({
-              title: letter,
-              data: grouped[letter],
-            }));
-
           setUsers(userList);
-          setSections(sectionData);
+          processSections(userList);
+
+          // Cache users data
+          await CacheUtils.set(cacheKeys.current.users, userList);
         },
         (error) => {
-          Alert.alert("Error", "Could not fetch users.");
+          if (isMounted.current) {
+            Alert.alert("Error", "Could not fetch users.");
+          }
         }
       );
 
+    // Store interval cleanup
     return () => {
       clearInterval(intervalId);
-      unsubscribe();
     };
-  }, [church]);
+  };
+
+  // Process sections from users list
+  const processSections = (userList) => {
+    // Group users by first letter (A-Z or #)
+    const grouped = userList.reduce((acc, user) => {
+      const firstChar = (user.name || '').charAt(0).toUpperCase();
+      const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
+      if (!acc[firstLetter]) acc[firstLetter] = [];
+      acc[firstLetter].push(user);
+      return acc;
+    }, {});
+
+    // Convert to SectionList format - put # at the end
+    const sectionData = Object.keys(grouped)
+      .sort((a, b) => {
+        if (a === '#') return 1;
+        if (b === '#') return -1;
+        return a.localeCompare(b);
+      })
+      .map((letter) => ({
+        title: letter,
+        data: grouped[letter],
+      }));
+
+    setSections(sectionData);
+  };
 
   // Handle remove photo
   const handleRemovePhoto = async () => {
@@ -190,6 +346,9 @@ const AdminManager = () => {
         ...prev,
         [selectedUser.id]: null
       }));
+
+      // Clear cache for profile pics
+      await CacheUtils.remove(cacheKeys.current.profilePics);
 
       Alert.alert("Success", "Profile picture deleted successfully");
     } catch (error) {
@@ -259,11 +418,13 @@ const AdminManager = () => {
       storage()
         .ref(`profilePictures/${selectedUser.id}.png`)
         .getDownloadURL()
-        .then(url => {
+        .then(async url => {
           setProfilePictureUrls(prev => ({
             ...prev,
             [selectedUser.id]: url
           }));
+          // Clear cache to force refresh
+          await CacheUtils.remove(cacheKeys.current.profilePics);
         })
         .catch(() => {
           // Keep existing or null
@@ -291,6 +452,10 @@ const AdminManager = () => {
         .collection("users")
         .doc(selectedUser.id)
         .update(roleUpdates);
+
+      // Clear users cache to force refresh
+      await CacheUtils.remove(cacheKeys.current.users);
+
       setModalVisible(false);
     } catch (error) {
       Alert.alert("Error", "Could not update roles. Please try again.");
@@ -410,7 +575,8 @@ const AdminManager = () => {
     );
   };
 
-  if (loading) {
+  // Show minimal loading only on first load
+  if (loading && !church && users.length === 0) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator
