@@ -21,108 +21,219 @@ import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
 import * as Haptics from "react-native-haptic-feedback";
 import Icon from "react-native-vector-icons/MaterialIcons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Simple cache utilities
+const CacheUtils = {
+  async get(key) {
+    try {
+      const cached = await AsyncStorage.getItem(key);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Check if cache is still valid (24 hours)
+        if (Date.now() - parsed.timestamp < 72 * 60 * 60 * 1000) {
+          return parsed.data;
+        }
+      }
+    } catch (error) {
+      console.log('Cache read error:', error);
+    }
+    return null;
+  },
+
+  async set(key, data) {
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.log('Cache write error:', error);
+    }
+  },
+
+  async remove(key) {
+    try {
+      await AsyncStorage.removeItem(key);
+    } catch (error) {
+      console.log('Cache remove error:', error);
+    }
+  }
+};
 
 const SundaySchoolAttendance = () => {
   const navigation = useNavigation();
   const user = auth().currentUser;
+  
+  // Core state
+  const [userData, setUserData] = useState(null);
   const [studentsByGrade, setStudentsByGrade] = useState({});
   const [servants, setServants] = useState([]);
+  const [profilePictureUrls, setProfilePictureUrls] = useState({});
+  
+  // UI state
   const [loading, setLoading] = useState(true);
-  const [userData, setUserData] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [newStudentName, setNewStudentName] = useState("");
   const [newStudentGrade, setNewStudentGrade] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [selectedDate, setSelectedDate] = useState(null);
   const [dateModalVisible, setDateModalVisible] = useState(false);
   const [previousSundays, setPreviousSundays] = useState([]);
   const [isNavigating, setIsNavigating] = useState(false);
-  const sectionListRef = useRef(null);
-  const isMounted = useRef(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [userGrades, setUserGrades] = useState([]);
+  
+  // Refs
+  const sectionListRef = useRef(null);
+  const isMounted = useRef(true);
   const studentUnsubscribes = useRef([]);
   const userUnsubscribe = useRef(null);
+  const cacheKeys = useRef({
+    user: null,
+    students: {},
+    servants: null,
+    profilePics: null
+  });
 
+  // Initialize and load cached data immediately
   useEffect(() => {
     isMounted.current = true;
-
-    const initializeData = async () => {
+    
+    const initializeApp = async () => {
       if (!user) {
         Alert.alert("Error", "No user found.");
         setLoading(false);
         return;
       }
 
-      try {
-        // Generate previous Sundays
-        await generatePreviousSundays();
-        
-        // Set up real-time listener for user data
-        userUnsubscribe.current = firestore()
-          .collection("users")
-          .doc(user.uid)
-          .onSnapshot(
-            (doc) => {
-              if (!isMounted.current) return;
-              
-              if (!doc.exists) {
-                Alert.alert("Error", "User not found.");
-                setLoading(false);
-                return;
-              }
-              
-              const newUserData = doc.data();
-              setUserData(newUserData);
-              
-              // Update new student grade default
-              if (newUserData.ssGrades?.length > 0) {
-                setNewStudentGrade(prevGrade => {
-                  // If the previous grade is still in the list, keep it
-                  if (newUserData.ssGrades.includes(prevGrade)) {
-                    return prevGrade;
-                  }
-                  // Otherwise, use the first grade
-                  return newUserData.ssGrades[0];
-                });
-              } else {
-                setNewStudentGrade("");
-              }
-              
-              setLoading(false);
-            },
-            (error) => {
-              if (isMounted.current) {
-                Alert.alert("Error", error.message);
-                setLoading(false);
-              }
-            }
-          );
-      } catch (error) {
+      // Set cache keys
+      cacheKeys.current = {
+        user: `user_${user.uid}`,
+        students: {},
+        servants: `servants_${user.uid}`,
+        profilePics: `profile_pics_${user.uid}`
+      };
+
+      // Load cached data immediately (non-blocking)
+      loadCachedData();
+      
+      // Generate previous Sundays
+      await generatePreviousSundays();
+      
+      // Set up real-time listeners
+      setupUserListener();
+      
+      // Mark loading as complete after a short delay
+      setTimeout(() => {
         if (isMounted.current) {
-          Alert.alert("Error", error.message);
           setLoading(false);
         }
-      }
+      }, 300);
     };
 
-    initializeData();
+    initializeApp();
 
     return () => {
       isMounted.current = false;
       if (userUnsubscribe.current) {
         userUnsubscribe.current();
       }
+      studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
+      studentUnsubscribes.current = [];
     };
   }, [user]);
+
+  // Load cached data without blocking
+  const loadCachedData = async () => {
+    try {
+      // Load all cached data in parallel
+      const [cachedUser, cachedServants, cachedProfilePics] = await Promise.all([
+        CacheUtils.get(cacheKeys.current.user),
+        CacheUtils.get(cacheKeys.current.servants),
+        CacheUtils.get(cacheKeys.current.profilePics)
+      ]);
+
+      if (cachedUser && isMounted.current) {
+        setUserData(cachedUser);
+        if (cachedUser.ssGrades?.length > 0) {
+          setNewStudentGrade(cachedUser.ssGrades[0]);
+          
+          // Load cached students for each grade
+          const cachedStudents = {};
+          await Promise.all(
+            cachedUser.ssGrades.map(async (grade) => {
+              const cacheKey = `students_${user.uid}_${grade}`;
+              cacheKeys.current.students[grade] = cacheKey;
+              const cached = await CacheUtils.get(cacheKey);
+              if (cached) {
+                cachedStudents[grade] = cached;
+              }
+            })
+          );
+          
+          if (Object.keys(cachedStudents).length > 0 && isMounted.current) {
+            setStudentsByGrade(cachedStudents);
+          }
+        }
+      }
+
+      if (cachedServants && isMounted.current) {
+        setServants(cachedServants);
+      }
+
+      if (cachedProfilePics && isMounted.current) {
+        setProfilePictureUrls(cachedProfilePics);
+      }
+    } catch (error) {
+      console.log('Error loading cached data:', error);
+    }
+  };
+
+  // Set up user listener
+  const setupUserListener = () => {
+    userUnsubscribe.current = firestore()
+      .collection("users")
+      .doc(user.uid)
+      .onSnapshot(
+        async (doc) => {
+          if (!isMounted.current) return;
+          
+          if (!doc.exists) {
+            Alert.alert("Error", "User not found.");
+            return;
+          }
+          
+          const newUserData = doc.data();
+          setUserData(newUserData);
+          
+          // Cache user data
+          await CacheUtils.set(cacheKeys.current.user, newUserData);
+          
+          // Update new student grade default
+          if (newUserData.ssGrades?.length > 0) {
+            setNewStudentGrade(prevGrade => {
+              if (newUserData.ssGrades.includes(prevGrade)) {
+                return prevGrade;
+              }
+              return newUserData.ssGrades[0];
+            });
+          } else {
+            setNewStudentGrade("");
+          }
+        },
+        (error) => {
+          if (isMounted.current) {
+            Alert.alert("Error", error.message);
+          }
+        }
+      );
+  };
 
   // Subscribe to students based on current ssGrades
   useEffect(() => {
     if (!userData?.church || !userData?.ssGrades?.length) {
-      // Clear students if no grades assigned
       setStudentsByGrade({});
-      // Unsubscribe from all student listeners
       studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
       studentUnsubscribes.current = [];
       return;
@@ -144,15 +255,18 @@ const SundaySchoolAttendance = () => {
     studentUnsubscribes.current = [];
 
     // Set up new listeners for current grades
-    const newUnsubscribes = userData.ssGrades.map((grade) =>
-      firestore()
+    const newUnsubscribes = userData.ssGrades.map((grade) => {
+      const cacheKey = `students_${user.uid}_${grade}`;
+      cacheKeys.current.students[grade] = cacheKey;
+      
+      return firestore()
         .collection("churches")
         .doc(userData.church)
         .collection("Sunday School")
         .doc(grade)
         .collection("students")
         .onSnapshot(
-          (snapshot) => {
+          async (snapshot) => {
             if (!isMounted.current) return;
             const students = snapshot.docs.map((doc) => ({
               uid: doc.id,
@@ -165,14 +279,17 @@ const SundaySchoolAttendance = () => {
               ...prev,
               [grade]: students,
             }));
+            
+            // Cache the students data
+            await CacheUtils.set(cacheKey, students);
           },
           (error) => {
             if (isMounted.current) {
               Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
             }
           }
-        )
-    );
+        );
+    });
 
     studentUnsubscribes.current = newUnsubscribes;
 
@@ -183,9 +300,9 @@ const SundaySchoolAttendance = () => {
       studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
       studentUnsubscribes.current = [];
     };
-  }, [userData?.church, userData?.ssGrades?.join(",")]); // Use join to ensure effect runs when array changes
+  }, [userData?.church, userData?.ssGrades?.join(",")]);
 
-  // Fetch profile pictures
+  // Fetch profile pictures with caching
   const fetchProfilePictureUrls = async () => {
     if (!userData?.church || !userData?.ssGrades?.length) return;
     
@@ -234,8 +351,7 @@ const SundaySchoolAttendance = () => {
               const url = await storage()
                 .ref(`profilePictures/${student.uid}.png`)
                 .getDownloadURL();
-              urls[student.uid] =
-                typeof url === "string" && url.trim() ? url : null;
+              urls[student.uid] = typeof url === "string" && url.trim() ? url : null;
             } catch (error) {
               urls[student.uid] = null;
             }
@@ -247,8 +363,7 @@ const SundaySchoolAttendance = () => {
               const url = await storage()
                 .ref(`profilePictures/${servant.uid}.png`)
                 .getDownloadURL();
-              urls[servant.uid] =
-                typeof url === "string" && url.trim() ? url : null;
+              urls[servant.uid] = typeof url === "string" && url.trim() ? url : null;
             } catch (error) {
               urls[servant.uid] = null;
             }
@@ -258,6 +373,8 @@ const SundaySchoolAttendance = () => {
       
       if (isMounted.current) {
         setProfilePictureUrls(urls);
+        // Cache profile picture URLs
+        await CacheUtils.set(cacheKeys.current.profilePics, urls);
       }
     } catch (error) {
       console.error("Error fetching profile pictures:", error);
@@ -275,7 +392,7 @@ const SundaySchoolAttendance = () => {
     };
   }, [userData?.church, userData?.ssGrades?.join(",")]);
 
-  // Optimized servants subscription
+  // Optimized servants subscription with caching
   useEffect(() => {
     if (!userData?.church || !userData?.ssGrades?.length || !user) {
       setServants([]);
@@ -295,7 +412,7 @@ const SundaySchoolAttendance = () => {
       .doc("Servants")
       .collection("Servants")
       .onSnapshot(
-        (snapshot) => {
+        async (snapshot) => {
           if (!isMounted.current) return;
           
           try {
@@ -346,6 +463,9 @@ const SundaySchoolAttendance = () => {
             });
 
             setServants(servantsWithSharedGrades);
+            
+            // Cache servants data
+            await CacheUtils.set(cacheKeys.current.servants, servantsWithSharedGrades);
           } catch (error) {
             console.error("Error processing servants:", error);
             setServants([]);
@@ -482,6 +602,9 @@ const SundaySchoolAttendance = () => {
       setModalVisible(false);
       setNewStudentName("");
       setNewStudentGrade(userData?.ssGrades[0] || "");
+      
+      // Clear cache for this grade to force refresh
+      await CacheUtils.remove(cacheKeys.current.students[newStudentGrade]);
     } catch (error) {
       Alert.alert("Error", "Failed to add student");
     } finally {
@@ -748,7 +871,8 @@ const SundaySchoolAttendance = () => {
     [profilePictureUrls]
   );
 
-  if (loading) {
+  // Show minimal loading only on first load
+  if (loading && !userData && Object.keys(studentsByGrade).length === 0) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#147efb" />

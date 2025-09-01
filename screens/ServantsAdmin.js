@@ -24,6 +24,45 @@ import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import PhotoInput from "../components/photoInput";
 import ProfileImageExpander from "../components/ProfileImageExpander";
 import AlphabetIndexBar from "../components/AlphabetIndexBar";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Simple cache utilities
+const CacheUtils = {
+  async get(key) {
+    try {
+      const cached = await AsyncStorage.getItem(key);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Check if cache is still valid (24 hours)
+        if (Date.now() - parsed.timestamp < 72 * 60 * 60 * 1000) {
+          return parsed.data;
+        }
+      }
+    } catch (error) {
+      console.log('Cache read error:', error);
+    }
+    return null;
+  },
+
+  async set(key, data) {
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.log('Cache write error:', error);
+    }
+  },
+
+  async remove(key) {
+    try {
+      await AsyncStorage.removeItem(key);
+    } catch (error) {
+      console.log('Cache remove error:', error);
+    }
+  }
+};
 
 const defaultProfileImage = require("../assets/default_profile.png");
 
@@ -85,64 +124,162 @@ const paddingHorizontal = isTablet ? 32 : 16;
 const indexBarWidth = isTablet ? 32 : 24;
 
 const ServantsAdmin = () => {
-  const [servants, setServants] = useState([]);
+  // Core state
   const [church, setChurch] = useState(null);
+  const [servants, setServants] = useState([]);
+  const [profilePictureUrls, setProfilePictureUrls] = useState({});
+  
+  // UI state
+  const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedServant, setSelectedServant] = useState(null);
   const [selectedGrades, setSelectedGrades] = useState([]);
   const [isServantMeeting, setIsServantMeeting] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [photoInputVisible, setPhotoInputVisible] = useState(false);
   const [sections, setSections] = useState([]);
   const [availableLetters, setAvailableLetters] = useState([]);
   const [headerHeight, setHeaderHeight] = useState(0);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
+  const [currentLetter, setCurrentLetter] = useState(null);
+  const [indexBarLayout, setIndexBarLayout] = useState(null);
+  
+  // Refs
   const headerHeightRef = useRef(0);
   const sectionListRef = useRef(null);
   const indexBarRef = useRef(null);
-  const [indexBarLayout, setIndexBarLayout] = useState(null);
-  const [currentLetter, setCurrentLetter] = useState(null);
+  const isMounted = useRef(true);
+  const userUnsubscribe = useRef(null);
+  const servantsUnsubscribe = useRef(null);
+  const cacheKeys = useRef({
+    church: null,
+    servants: null,
+    profilePics: null
+  });
 
-  // Fetch current user's church with real-time updates
+  // Initialize and load cached data immediately
   useEffect(() => {
-    const user = auth().currentUser;
-    if (!user) {
-      setLoading(false);
-      Alert.alert("Error", "No user authenticated.");
-      return;
-    }
+    isMounted.current = true;
+    
+    const initializeApp = async () => {
+      const user = auth().currentUser;
+      if (!user) {
+        setLoading(false);
+        Alert.alert("Error", "No user authenticated.");
+        return;
+      }
 
-    const unsubscribe = firestore()
+      // Set cache keys
+      cacheKeys.current = {
+        church: `servants_admin_church_${user.uid}`,
+        servants: `servants_admin_list_${user.uid}`,
+        profilePics: `servants_admin_profile_pics_${user.uid}`
+      };
+
+      // Load cached data immediately (non-blocking)
+      loadCachedData();
+      
+      // Set up real-time listeners
+      setupUserChurchListener();
+      
+      // Mark loading as complete after a short delay
+      setTimeout(() => {
+        if (isMounted.current) {
+          setLoading(false);
+        }
+      }, 300);
+    };
+
+    initializeApp();
+
+    return () => {
+      isMounted.current = false;
+      if (userUnsubscribe.current) {
+        userUnsubscribe.current();
+      }
+      if (servantsUnsubscribe.current) {
+        servantsUnsubscribe.current();
+      }
+    };
+  }, []);
+
+  // Load cached data without blocking
+  const loadCachedData = async () => {
+    try {
+      // Load all cached data in parallel
+      const [cachedChurch, cachedServants, cachedProfilePics] = await Promise.all([
+        CacheUtils.get(cacheKeys.current.church),
+        CacheUtils.get(cacheKeys.current.servants),
+        CacheUtils.get(cacheKeys.current.profilePics)
+      ]);
+
+      if (cachedChurch && isMounted.current) {
+        setChurch(cachedChurch);
+      }
+
+      if (cachedServants && isMounted.current) {
+        setServants(cachedServants);
+        // Process sections from cached servants
+        processSections(cachedServants);
+      }
+
+      if (cachedProfilePics && isMounted.current) {
+        setProfilePictureUrls(cachedProfilePics);
+      }
+    } catch (error) {
+      console.log('Error loading cached data:', error);
+    }
+  };
+
+  // Set up user church listener
+  const setupUserChurchListener = () => {
+    const user = auth().currentUser;
+    
+    userUnsubscribe.current = firestore()
       .collection("users")
       .doc(user.uid)
       .onSnapshot(
-        (doc) => {
+        async (doc) => {
+          if (!isMounted.current) return;
+          
           if (doc.exists) {
-            setChurch(doc.data().church || null);
+            const userChurch = doc.data().church || null;
+            setChurch(userChurch);
+            
+            // Cache church data
+            await CacheUtils.set(cacheKeys.current.church, userChurch);
+            
+            // Set up servants listener when church is available
+            if (userChurch) {
+              setupServantsListener(userChurch);
+            }
           }
-          setLoading(false);
         },
         (error) => {
-          setLoading(false);
-          Alert.alert("Error", "Failed to fetch church data.");
+          if (isMounted.current) {
+            Alert.alert("Error", "Failed to fetch church data.");
+          }
         }
       );
+  };
 
-    return () => unsubscribe();
-  }, []);
+  // Set up servants listener
+  const setupServantsListener = (churchId) => {
+    // Clear previous listener if exists
+    if (servantsUnsubscribe.current) {
+      servantsUnsubscribe.current();
+    }
 
-  // Fetch servants and profile pictures
-  useEffect(() => {
-    if (!church) return;
-
+    // Fetch profile pictures periodically
     const fetchProfilePictureUrls = async () => {
+      if (!isMounted.current) return;
+      
       try {
         const querySnapshot = await firestore()
           .collection("users")
-          .where("church", "==", church)
+          .where("church", "==", churchId)
           .where("isSSTeacher", "==", true)
           .get();
+        
         const urls = {};
         await Promise.all(
           querySnapshot.docs.map(async (doc) => {
@@ -157,19 +294,26 @@ const ServantsAdmin = () => {
             }
           })
         );
-        setProfilePictureUrls(urls);
+        
+        if (isMounted.current) {
+          setProfilePictureUrls(urls);
+          // Cache profile picture URLs
+          await CacheUtils.set(cacheKeys.current.profilePics, urls);
+        }
       } catch (error) {}
     };
 
     fetchProfilePictureUrls();
     const intervalId = setInterval(fetchProfilePictureUrls, 30000);
 
-    const unsubscribe = firestore()
+    servantsUnsubscribe.current = firestore()
       .collection("users")
-      .where("church", "==", church)
+      .where("church", "==", churchId)
       .where("isSSTeacher", "==", true)
       .onSnapshot(
-        (querySnapshot) => {
+        async (querySnapshot) => {
+          if (!isMounted.current) return;
+          
           const servantList = querySnapshot.docs
             .map((doc) => ({
               id: doc.id,
@@ -189,44 +333,54 @@ const ServantsAdmin = () => {
                 querySnapshot.docs.find((d) => d.id === servant.id)?.data().name || "",
             }));
 
-          // Group by first letter (A-Z or #)
-          const grouped = servantList.reduce((acc, servant) => {
-            const firstChar = (servant.name || '').charAt(0).toUpperCase();
-            const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
-            if (!acc[firstLetter]) acc[firstLetter] = [];
-            acc[firstLetter].push(servant);
-            return acc;
-          }, {});
-
-          // Convert to SectionList format - put # at the end
-          const sectionData = Object.keys(grouped)
-            .sort((a, b) => {
-              if (a === '#') return 1;
-              if (b === '#') return -1;
-              return a.localeCompare(b);
-            })
-            .map((letter) => ({
-              title: letter,
-              data: grouped[letter],
-            }));
-
-          // Set available letters
-          const letters = sectionData.map((section) => section.title).sort();
-
           setServants(servantList);
-          setSections(sectionData);
-          setAvailableLetters(letters);
+          processSections(servantList);
+          
+          // Cache servants data
+          await CacheUtils.set(cacheKeys.current.servants, servantList);
         },
         (error) => {
-          Alert.alert("Error", "Could not fetch servants.");
+          if (isMounted.current) {
+            Alert.alert("Error", "Could not fetch servants.");
+          }
         }
       );
 
+    // Store interval cleanup
     return () => {
       clearInterval(intervalId);
-      unsubscribe();
     };
-  }, [church]);
+  };
+
+  // Process sections from servants list
+  const processSections = (servantList) => {
+    // Group by first letter (A-Z or #)
+    const grouped = servantList.reduce((acc, servant) => {
+      const firstChar = (servant.name || '').charAt(0).toUpperCase();
+      const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
+      if (!acc[firstLetter]) acc[firstLetter] = [];
+      acc[firstLetter].push(servant);
+      return acc;
+    }, {});
+
+    // Convert to SectionList format - put # at the end
+    const sectionData = Object.keys(grouped)
+      .sort((a, b) => {
+        if (a === '#') return 1;
+        if (b === '#') return -1;
+        return a.localeCompare(b);
+      })
+      .map((letter) => ({
+        title: letter,
+        data: grouped[letter],
+      }));
+
+    // Set available letters
+    const letters = sectionData.map((section) => section.title).sort();
+
+    setSections(sectionData);
+    setAvailableLetters(letters);
+  };
 
   // Handle remove photo
   const handleRemovePhoto = async () => {
@@ -243,6 +397,9 @@ const ServantsAdmin = () => {
         ...prev,
         [selectedServant.id]: null
       }));
+
+      // Clear cache for profile pics
+      await CacheUtils.remove(cacheKeys.current.profilePics);
 
       Alert.alert("Success", "Profile picture deleted successfully");
     } catch (error) {
@@ -315,11 +472,13 @@ const ServantsAdmin = () => {
       storage()
         .ref(`profilePictures/${selectedServant.id}.png`)
         .getDownloadURL()
-        .then(url => {
+        .then(async url => {
           setProfilePictureUrls(prev => ({
             ...prev,
             [selectedServant.id]: url
           }));
+          // Clear cache to force refresh
+          await CacheUtils.remove(cacheKeys.current.profilePics);
         })
         .catch(() => {
           // Keep existing or null
@@ -360,6 +519,9 @@ const ServantsAdmin = () => {
         .doc(selectedServant.id)
         .set(servantData, { merge: true });
 
+      // Clear servants cache to force refresh
+      await CacheUtils.remove(cacheKeys.current.servants);
+      
       closeEditModal();
     } catch (error) {
       console.error("Error saving classes:", error);
@@ -388,6 +550,9 @@ const ServantsAdmin = () => {
         .collection("Servants")
         .doc(servantId)
         .delete();
+      
+      // Clear servants cache to force refresh
+      await CacheUtils.remove(cacheKeys.current.servants);
         
     } catch (error) {
       console.error("Error removing servant:", error);
@@ -510,7 +675,8 @@ const ServantsAdmin = () => {
     </TouchableOpacity>
   );
 
-  if (loading) {
+  // Show minimal loading only on first load
+  if (loading && !church && servants.length === 0) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator
@@ -549,12 +715,14 @@ const ServantsAdmin = () => {
               // Do nothing when scroll fails - stay in current position
             }}
           />
-          <View style={{ position: 'absolute', top: 100 * scale, right: 0, width: 30 }}>
-            <AlphabetIndexBar 
-              onLetterChange={scrollToSection} 
-              availableLetters={sections.map(s => s.title)}
-            />
-          </View>
+          {sections.length > 0 && (
+            <View style={{ position: 'absolute', top: 100 * scale, right: 0, width: 30 }}>
+              <AlphabetIndexBar 
+                onLetterChange={scrollToSection} 
+                availableLetters={sections.map(s => s.title)}
+              />
+            </View>
+          )}
         </View>
       )}
       {selectedServant && (

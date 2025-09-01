@@ -22,6 +22,45 @@ import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import PhotoInput from "../components/photoInput";
 import ProfileImageExpander from "../components/ProfileImageExpander";
 import AlphabetIndexBar from "../components/AlphabetIndexBar";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Simple cache utilities
+const CacheUtils = {
+  async get(key) {
+    try {
+      const cached = await AsyncStorage.getItem(key);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Check if cache is still valid (24 hours)
+        if (Date.now() - parsed.timestamp < 72 * 60 * 60 * 1000) {
+          return parsed.data;
+        }
+      }
+    } catch (error) {
+      console.log('Cache read error:', error);
+    }
+    return null;
+  },
+
+  async set(key, data) {
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.log('Cache write error:', error);
+    }
+  },
+
+  async remove(key) {
+    try {
+      await AsyncStorage.removeItem(key);
+    } catch (error) {
+      console.log('Cache remove error:', error);
+    }
+  }
+};
 
 // Haptic feedback options
 const hapticOptions = {
@@ -57,60 +96,158 @@ const paddingHorizontal = isTablet ? 32 : 16;
 const indexBarWidth = isTablet ? 32 : 24;
 
 const AlhanAdmin = () => {
-  const [teachers, setTeachers] = useState([]);
+  // Core state
   const [church, setChurch] = useState(null);
+  const [teachers, setTeachers] = useState([]);
+  const [profilePictureUrls, setProfilePictureUrls] = useState({});
+  
+  // UI state
+  const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [selectedGrades, setSelectedGrades] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [sections, setSections] = useState([]);
-  const [profilePictureUrls, setProfilePictureUrls] = useState({});
-  const [photoInputVisible, setPhotoInputVisible] = useState(false);
   const [availableLetters, setAvailableLetters] = useState([]);
+  const [photoInputVisible, setPhotoInputVisible] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(0);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
+  
+  // Refs
   const headerHeightRef = useRef(0);
   const sectionListRef = useRef(null);
+  const isMounted = useRef(true);
+  const userUnsubscribe = useRef(null);
+  const teachersUnsubscribe = useRef(null);
+  const cacheKeys = useRef({
+    church: null,
+    teachers: null,
+    profilePics: null
+  });
 
-  // Fetch user's church with real-time updates
+  // Initialize and load cached data immediately
   useEffect(() => {
-    const user = auth().currentUser;
-    if (!user) {
-      setLoading(false);
-      Alert.alert("Error", "No user authenticated.");
-      return;
-    }
+    isMounted.current = true;
+    
+    const initializeApp = async () => {
+      const user = auth().currentUser;
+      if (!user) {
+        setLoading(false);
+        Alert.alert("Error", "No user authenticated.");
+        return;
+      }
 
-    const unsubscribe = firestore()
+      // Set cache keys
+      cacheKeys.current = {
+        church: `alhan_admin_church_${user.uid}`,
+        teachers: `alhan_admin_teachers_${user.uid}`,
+        profilePics: `alhan_admin_profile_pics_${user.uid}`
+      };
+
+      // Load cached data immediately (non-blocking)
+      loadCachedData();
+      
+      // Set up real-time listeners
+      setupUserChurchListener();
+      
+      // Mark loading as complete after a short delay
+      setTimeout(() => {
+        if (isMounted.current) {
+          setLoading(false);
+        }
+      }, 300);
+    };
+
+    initializeApp();
+
+    return () => {
+      isMounted.current = false;
+      if (userUnsubscribe.current) {
+        userUnsubscribe.current();
+      }
+      if (teachersUnsubscribe.current) {
+        teachersUnsubscribe.current();
+      }
+    };
+  }, []);
+
+  // Load cached data without blocking
+  const loadCachedData = async () => {
+    try {
+      // Load all cached data in parallel
+      const [cachedChurch, cachedTeachers, cachedProfilePics] = await Promise.all([
+        CacheUtils.get(cacheKeys.current.church),
+        CacheUtils.get(cacheKeys.current.teachers),
+        CacheUtils.get(cacheKeys.current.profilePics)
+      ]);
+
+      if (cachedChurch && isMounted.current) {
+        setChurch(cachedChurch);
+      }
+
+      if (cachedTeachers && isMounted.current) {
+        setTeachers(cachedTeachers);
+        // Process sections from cached teachers
+        processSections(cachedTeachers);
+      }
+
+      if (cachedProfilePics && isMounted.current) {
+        setProfilePictureUrls(cachedProfilePics);
+      }
+    } catch (error) {
+      console.log('Error loading cached data:', error);
+    }
+  };
+
+  // Set up user church listener
+  const setupUserChurchListener = () => {
+    const user = auth().currentUser;
+    
+    userUnsubscribe.current = firestore()
       .collection("users")
       .doc(user.uid)
       .onSnapshot(
-        (doc) => {
+        async (doc) => {
+          if (!isMounted.current) return;
+          
           if (doc.exists) {
-            setChurch(doc.data().church || null);
+            const userChurch = doc.data().church || null;
+            setChurch(userChurch);
+            
+            // Cache church data
+            await CacheUtils.set(cacheKeys.current.church, userChurch);
+            
+            // Set up teachers listener when church is available
+            if (userChurch) {
+              setupTeachersListener(userChurch);
+            }
           }
-          setLoading(false);
         },
         (error) => {
-          setLoading(false);
-          Alert.alert("Error", "Failed to fetch church data.");
+          if (isMounted.current) {
+            Alert.alert("Error", "Failed to fetch church data.");
+          }
         }
       );
+  };
 
-    return () => unsubscribe();
-  }, []);
+  // Set up teachers listener
+  const setupTeachersListener = (churchId) => {
+    // Clear previous listener if exists
+    if (teachersUnsubscribe.current) {
+      teachersUnsubscribe.current();
+    }
 
-  // Fetch teachers and profile pictures
-  useEffect(() => {
-    if (!church) return;
-
+    // Fetch profile pictures periodically
     const fetchProfilePictureUrls = async () => {
+      if (!isMounted.current) return;
+      
       try {
         const querySnapshot = await firestore()
           .collection("users")
-          .where("church", "==", church)
+          .where("church", "==", churchId)
           .where("isAlhan", "==", true)
           .get();
+        
         const urls = {};
         await Promise.all(
           querySnapshot.docs.map(async (doc) => {
@@ -125,7 +262,12 @@ const AlhanAdmin = () => {
             }
           })
         );
-        setProfilePictureUrls(urls);
+        
+        if (isMounted.current) {
+          setProfilePictureUrls(urls);
+          // Cache profile picture URLs
+          await CacheUtils.set(cacheKeys.current.profilePics, urls);
+        }
       } catch (error) {
         // Error handling for profile pictures fetch
       }
@@ -134,12 +276,14 @@ const AlhanAdmin = () => {
     fetchProfilePictureUrls();
     const intervalId = setInterval(fetchProfilePictureUrls, 30000);
 
-    const unsubscribe = firestore()
+    teachersUnsubscribe.current = firestore()
       .collection("users")
-      .where("church", "==", church)
+      .where("church", "==", churchId)
       .where("isAlhan", "==", true)
       .onSnapshot(
-        (querySnapshot) => {
+        async (querySnapshot) => {
+          if (!isMounted.current) return;
+          
           const teacherList = querySnapshot.docs
             .map((doc) => ({
               id: doc.id,
@@ -159,44 +303,54 @@ const AlhanAdmin = () => {
                 querySnapshot.docs.find((d) => d.id === teacher.id)?.data().name || "",
             }));
 
-          // Group by first letter (A-Z or #)
-          const grouped = teacherList.reduce((acc, teacher) => {
-            const firstChar = (teacher.name || '').charAt(0).toUpperCase();
-            const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
-            if (!acc[firstLetter]) acc[firstLetter] = [];
-            acc[firstLetter].push(teacher);
-            return acc;
-          }, {});
-
-          // Convert to SectionList format - put # at the end
-          const sectionData = Object.keys(grouped)
-            .sort((a, b) => {
-              if (a === '#') return 1;
-              if (b === '#') return -1;
-              return a.localeCompare(b);
-            })
-            .map((letter) => ({
-              title: letter,
-              data: grouped[letter],
-            }));
-
-          // Set available letters
-          const letters = sectionData.map((section) => section.title).sort();
-
           setTeachers(teacherList);
-          setSections(sectionData);
-          setAvailableLetters(letters);
+          processSections(teacherList);
+          
+          // Cache teachers data
+          await CacheUtils.set(cacheKeys.current.teachers, teacherList);
         },
         (error) => {
-          Alert.alert("Error", "Could not fetch teachers.");
+          if (isMounted.current) {
+            Alert.alert("Error", "Could not fetch teachers.");
+          }
         }
       );
 
+    // Store interval cleanup
     return () => {
       clearInterval(intervalId);
-      unsubscribe();
     };
-  }, [church]);
+  };
+
+  // Process sections from teachers list
+  const processSections = (teacherList) => {
+    // Group by first letter (A-Z or #)
+    const grouped = teacherList.reduce((acc, teacher) => {
+      const firstChar = (teacher.name || '').charAt(0).toUpperCase();
+      const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
+      if (!acc[firstLetter]) acc[firstLetter] = [];
+      acc[firstLetter].push(teacher);
+      return acc;
+    }, {});
+
+    // Convert to SectionList format - put # at the end
+    const sectionData = Object.keys(grouped)
+      .sort((a, b) => {
+        if (a === '#') return 1;
+        if (b === '#') return -1;
+        return a.localeCompare(b);
+      })
+      .map((letter) => ({
+        title: letter,
+        data: grouped[letter],
+      }));
+
+    // Set available letters
+    const letters = sectionData.map((section) => section.title).sort();
+
+    setSections(sectionData);
+    setAvailableLetters(letters);
+  };
 
   // Handle remove photo
   const handleRemovePhoto = async () => {
@@ -213,6 +367,9 @@ const AlhanAdmin = () => {
         ...prev,
         [selectedTeacher.id]: null
       }));
+
+      // Clear cache for profile pics
+      await CacheUtils.remove(cacheKeys.current.profilePics);
 
       Alert.alert("Success", "Profile picture deleted successfully");
     } catch (error) {
@@ -285,11 +442,13 @@ const AlhanAdmin = () => {
       storage()
         .ref(`profilePictures/${selectedTeacher.id}.png`)
         .getDownloadURL()
-        .then(url => {
+        .then(async url => {
           setProfilePictureUrls(prev => ({
             ...prev,
             [selectedTeacher.id]: url
           }));
+          // Clear cache to force refresh
+          await CacheUtils.remove(cacheKeys.current.profilePics);
         })
         .catch(() => {
           // Keep existing or null
@@ -305,6 +464,8 @@ const AlhanAdmin = () => {
       await firestore().collection("users").doc(selectedTeacher.id).update({
         alhanGrades: selectedGrades,
       });
+      // Clear teachers cache to force refresh
+      await CacheUtils.remove(cacheKeys.current.teachers);
       closeEditModal();
     } catch (error) {
       Alert.alert("Error", "Could not save classes. Please try again.");
@@ -318,6 +479,8 @@ const AlhanAdmin = () => {
         isAlhan: false,
         alhanGrades: [],
       });
+      // Clear teachers cache to force refresh
+      await CacheUtils.remove(cacheKeys.current.teachers);
     } catch (error) {
       Alert.alert("Error", "Could not remove teacher. Please try again.");
     }
@@ -398,7 +561,8 @@ const AlhanAdmin = () => {
     </TouchableOpacity>
   );
 
-  if (loading) {
+  // Show minimal loading only on first load
+  if (loading && !church && teachers.length === 0) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator
@@ -437,12 +601,14 @@ const AlhanAdmin = () => {
               // Do nothing when scroll fails - stay in current position
             }}
           />
-          <View style={{ position: 'absolute', top: 100 * scale, right: 0, width: 30 }}>
-            <AlphabetIndexBar 
-              onLetterChange={scrollToSection} 
-              availableLetters={sections.map(s => s.title)}
-            />
-          </View>
+          {sections.length > 0 && (
+            <View style={{ position: 'absolute', top: 100 * scale, right: 0, width: 30 }}>
+              <AlphabetIndexBar 
+                onLetterChange={scrollToSection} 
+                availableLetters={sections.map(s => s.title)}
+              />
+            </View>
+          )}
         </View>
       )}
       {selectedTeacher && (
