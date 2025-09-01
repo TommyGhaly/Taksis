@@ -23,6 +23,10 @@ import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import IndividualProfile from "../components/individualProfile";
 import AlphabetIndexBar from "../components/AlphabetIndexBar";
 
+// Import caching system
+import { useFirestoreDocument } from "../hooks/useFirebaseCache";
+import { FirestoreCache, StorageCache } from "../utils/cacheManager";
+
 // Haptic feedback options
 const hapticOptions = {
   enableVibrateFallback: true,
@@ -46,167 +50,256 @@ const paddingHorizontal = isTablet ? 32 : 16;
 const indexBarWidth = isTablet ? 32 : 24;
 
 const DeaconEdits = () => {
-  const [church, setChurch] = useState(null);
+  const user = auth().currentUser;
+  
+  // Use cached Firebase hooks for user data
+  const { 
+    data: userDoc, 
+    loading: userLoading, 
+    error: userError, 
+    refresh: refreshUser 
+  } = useFirestoreDocument('users', user?.uid);
+
+  // Use cached hook for church data when churchId is available
+  const { 
+    data: churchDoc, 
+    loading: churchLoading, 
+    refresh: refreshChurch 
+  } = useFirestoreDocument('churches', userDoc?.church);
+
   const [deacons, setDeacons] = useState([]);
   const [sections, setSections] = useState([]);
   const [selectedDeacon, setSelectedDeacon] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const sectionListRef = useRef(null);
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerHeightRef = useRef(0);
 
-  // Fetch user's church with real-time updates
-  useEffect(() => {
-    const user = auth().currentUser;
-    if (!user) {
-      setLoading(false);
-      Alert.alert("Error", "No user authenticated.");
-      return;
-    }
+  // Derive church from cached data
+  const church = userDoc?.church || null;
 
-    const unsubscribe = firestore()
-      .collection("users")
-      .doc(user.uid)
-      .onSnapshot(
-        (doc) => {
-          if (doc.exists) {
-            setChurch(doc.data().church || null);
-          }
-          setLoading(false);
-        },
-        (error) => {
-          setLoading(false);
-          Alert.alert("Error", "Failed to fetch church data.");
-        }
-      );
-
-    return () => unsubscribe();
-  }, []);
-
-  // Subscribe to deacons array updates and profile pictures
+  // Subscribe to deacons array updates with lazy caching
   useEffect(() => {
     if (!church) return;
 
-    const unsubscribe = firestore()
-      .collection("churches")
-      .doc(church)
-      .onSnapshot(
-        async (doc) => {
-          if (doc.exists) {
-            const deaconList = doc.data().deacons || [];
+    const fetchDeaconsWithLazyCache = async () => {
+      try {
+        // First, try to get from cache for instant loading
+        let cachedChurchDoc = null;
+        
+        try {
+          // Attempt to get cached church data (non-blocking)
+          cachedChurchDoc = await FirestoreCache.getDocument(
+            'churches', 
+            church, 
+            { forceRefresh: false }
+          );
+        } catch (cacheError) {
+          // Cache failed, continue with direct fetch
+        }
 
-            // Fetch phone numbers from users collection
-            const deaconListWithPhone = await Promise.all(
-              deaconList.map(async (deacon) => {
-                if (deacon.uid) {
+        // If we have cached data, use it immediately for UI
+        if (cachedChurchDoc?.deacons) {
+          await processDeaconList(cachedChurchDoc.deacons, cachedChurchDoc);
+        }
+
+        // Always set up real-time listener for updates (parallel to cache)
+        const unsubscribe = firestore()
+          .collection("churches")
+          .doc(church)
+          .onSnapshot(
+            async (doc) => {
+              if (doc.exists) {
+                await processDeaconList(doc.data().deacons || [], doc.data());
+                
+                // Background caching: Update cache with fresh data (non-blocking)
+                setTimeout(async () => {
+                  try {
+                    await FirestoreCache.getDocument(
+                      'churches',
+                      church,
+                      { forceRefresh: true }
+                    );
+                  } catch (error) {
+                    // Ignore cache errors - don't affect UI
+                  }
+                }, 100);
+              }
+            },
+            (error) => {
+              Alert.alert("Error", "Failed to fetch deacons.");
+            }
+          );
+
+        return unsubscribe;
+      } catch (error) {
+        Alert.alert("Error", "Failed to load deacons data.");
+      }
+    };
+
+    const processDeaconList = async (deaconList, churchData) => {
+      try {
+        // Fetch phone numbers from users collection with lazy caching
+        const deaconListWithPhone = await Promise.all(
+          deaconList.map(async (deacon) => {
+            if (deacon.uid) {
+              try {
+                // Try cache first for user data
+                let userData = null;
+                try {
+                  userData = await FirestoreCache.getDocument(
+                    'users', 
+                    deacon.uid, 
+                    { forceRefresh: false }
+                  );
+                } catch (cacheError) {
+                  // Fallback to direct fetch
                   const userDoc = await firestore()
                     .collection("users")
                     .doc(deacon.uid)
                     .get();
-                  return {
-                    ...deacon,
-                    phone: userDoc.exists
-                      ? userDoc.data().phone || userDoc.data().number || "Not provided"
-                      : "Not provided",
-                  };
+                  userData = userDoc.exists ? userDoc.data() : null;
                 }
+
+                return {
+                  ...deacon,
+                  phone: userData
+                    ? userData.phone || userData.number || "Not provided"
+                    : "Not provided",
+                };
+              } catch (error) {
                 return { ...deacon, phone: "Not provided" };
-              })
-            );
+              }
+            }
+            return { ...deacon, phone: "Not provided" };
+          })
+        );
 
-            // Sort and group deacons
-            const sortedDeacons = deaconListWithPhone
-              .map((deacon) => ({
-                ...deacon,
-                name: (deacon.name || "").trim().toLowerCase(),
-              }))
-              .sort((a, b) => {
-                const nameComparison = a.name.localeCompare(b.name);
-                if (nameComparison === 0) {
-                  return a.uid.localeCompare(b.uid);
-                }
-                return nameComparison;
-              })
-              .map((deacon) => ({
-                ...deacon,
-                name:
-                  doc.data().deacons.find((d) => d.uid === deacon.uid)?.name ||
-                  "",
-              }));
+        // Sort and group deacons
+        const sortedDeacons = deaconListWithPhone
+          .map((deacon) => ({
+            ...deacon,
+            name: (deacon.name || "").trim().toLowerCase(),
+          }))
+          .sort((a, b) => {
+            const nameComparison = a.name.localeCompare(b.name);
+            if (nameComparison === 0) {
+              return a.uid.localeCompare(b.uid);
+            }
+            return nameComparison;
+          })
+          .map((deacon) => ({
+            ...deacon,
+            name:
+              deaconList.find((d) => d.uid === deacon.uid)?.name || "",
+          }));
 
-            // Group by first letter - categorize non-alphabet characters as #
-            const grouped = sortedDeacons.reduce((acc, deacon) => {
-              const firstChar = deacon.name.charAt(0).toUpperCase();
-              const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
-              if (!acc[firstLetter]) acc[firstLetter] = [];
-              acc[firstLetter].push(deacon);
-              return acc;
-            }, {});
+        // Group by first letter - categorize non-alphabet characters as #
+        const grouped = sortedDeacons.reduce((acc, deacon) => {
+          const firstChar = deacon.name.charAt(0).toUpperCase();
+          const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
+          if (!acc[firstLetter]) acc[firstLetter] = [];
+          acc[firstLetter].push(deacon);
+          return acc;
+        }, {});
 
-            // Convert to SectionList format - put # at the end
-            const sectionData = Object.keys(grouped)
-              .sort((a, b) => {
-                // Put # at the end, sort other letters alphabetically
-                if (a === '#') return 1;
-                if (b === '#') return -1;
-                return a.localeCompare(b);
-              })
-              .map((letter) => ({
-                title: letter,
-                data: grouped[letter],
-              }));
+        // Convert to SectionList format - put # at the end
+        const sectionData = Object.keys(grouped)
+          .sort((a, b) => {
+            // Put # at the end, sort other letters alphabetically
+            if (a === '#') return 1;
+            if (b === '#') return -1;
+            return a.localeCompare(b);
+          })
+          .map((letter) => ({
+            title: letter,
+            data: grouped[letter],
+          }));
 
-            setDeacons(sortedDeacons);
-            setSections(sectionData);
-          }
-        },
-        (error) => {
-          Alert.alert("Error", "Failed to fetch deacons.");
+        setDeacons(sortedDeacons);
+        setSections(sectionData);
+      } catch (error) {
+        // Error handling for deacon processing
+      }
+    };
+
+    let unsubscribePromise = fetchDeaconsWithLazyCache();
+    
+    return () => {
+      unsubscribePromise.then(unsubscribe => {
+        if (unsubscribe && typeof unsubscribe === 'function') {
+          unsubscribe();
         }
-      );
-
-    return () => unsubscribe();
+      }).catch(() => {
+        // Handle cleanup error
+      });
+    };
   }, [church]);
 
-  // Fetch profile pictures separately for better performance
+  // Fetch profile pictures with lazy caching
   useEffect(() => {
     if (!church) return;
 
-    const fetchProfilePictureUrls = async () => {
+    const fetchProfilePictureUrlsWithCache = async () => {
       try {
-        // Get all deacons from the church document
-        const doc = await firestore().collection("churches").doc(church).get();
-        if (doc.exists) {
-          const deaconList = doc.data().deacons || [];
+        // Get all deacons from the church document (use cache if available)
+        let churchData = null;
+        try {
+          churchData = await FirestoreCache.getDocument(
+            'churches', 
+            church, 
+            { forceRefresh: false }
+          );
+        } catch (cacheError) {
+          // Fallback to direct fetch
+          const doc = await firestore().collection("churches").doc(church).get();
+          churchData = doc.exists ? doc.data() : null;
+        }
+        
+        if (churchData) {
+          const deaconList = churchData.deacons || [];
           
-          // Fetch all profile pictures at once
+          // Fetch profile pictures with caching, immediate loading
           const urls = {};
-          await Promise.all(
-            deaconList.map(async (deacon) => {
-              if (deacon.uid) {
+          const profilePromises = deaconList.map(async (deacon) => {
+            if (deacon.uid) {
+              try {
+                const storagePath = `profilePictures/${deacon.uid}.png`;
+                const cachedUrl = await StorageCache.getDownloadURL(storagePath);
+                urls[deacon.uid] = typeof cachedUrl === "string" && cachedUrl.trim() ? cachedUrl : null;
+                setProfilePictureUrls(prev => ({ ...prev, [deacon.uid]: urls[deacon.uid] }));
+              } catch (error) {
+                // Cache failed, try direct fetch immediately
                 try {
                   const url = await storage()
                     .ref(`profilePictures/${deacon.uid}.png`)
                     .getDownloadURL();
-                  urls[deacon.uid] =
-                    typeof url === "string" && url.trim() ? url : null;
-                } catch (error) {
+                  urls[deacon.uid] = typeof url === "string" && url.trim() ? url : null;
+                  setProfilePictureUrls(prev => ({ ...prev, [deacon.uid]: urls[deacon.uid] }));
+                  
+                  // Store in cache for next time (background)
+                  setTimeout(() => {
+                    StorageCache.getDownloadURL(`profilePictures/${deacon.uid}.png`, { forceRefresh: true }).catch(() => {});
+                  }, 50);
+                } catch (storageError) {
                   urls[deacon.uid] = null;
+                  setProfilePictureUrls(prev => ({ ...prev, [deacon.uid]: null }));
                 }
               }
-            })
-          );
-          setProfilePictureUrls(urls);
+            }
+          });
+          
+          // Wait for all profile pictures to load
+          await Promise.all(profilePromises);
         }
       } catch (error) {
         // Silent error handling
       }
     };
 
-    fetchProfilePictureUrls();
-    const intervalId = setInterval(fetchProfilePictureUrls, 30000);
+    fetchProfilePictureUrlsWithCache();
+    const intervalId = setInterval(fetchProfilePictureUrlsWithCache, 30000);
 
     return () => {
       clearInterval(intervalId);
@@ -306,7 +399,8 @@ const DeaconEdits = () => {
     );
   };
 
-  if (loading) {
+  // Show loading state while user data is loading
+  if (userLoading) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator
@@ -316,6 +410,27 @@ const DeaconEdits = () => {
         <Text style={[styles.loadingText, { fontSize: 16 * scale }]}>
           Loading...
         </Text>
+        <Text style={[styles.loadingSubtext, { fontSize: 14 * scale }]}>
+          Getting your data ready
+        </Text>
+      </View>
+    );
+  }
+
+  // Show error state if user data failed to load
+  if (userError && !userDoc) {
+    return (
+      <View style={styles.centered}>
+        <Text style={[styles.errorText, { fontSize: 18 * scale }]}>Connection Error</Text>
+        <Text style={[styles.errorSubtext, { fontSize: 14 * scale }]}>
+          Unable to load your data. Check your internet connection.
+        </Text>
+        <TouchableOpacity 
+          onPress={refreshUser} 
+          style={[styles.retryButton, { marginTop: 20 }]}
+        >
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -338,7 +453,7 @@ const DeaconEdits = () => {
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
             extraData={profilePictureUrls}
-            onScrollToIndexFailed={(info) => {
+            onScrollToIndexFailed={() => {
               // Do nothing when scroll fails - stay in current position
             }}
           />
@@ -391,6 +506,32 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     color: "#aaa",
+  },
+  loadingSubtext: {
+    marginTop: 5,
+    color: "#666",
+    textAlign: "center",
+  },
+  errorText: {
+    color: "#ff6b6b",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  errorSubtext: {
+    color: "#888",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: "#007AFF",
+    padding: 12,
+    borderRadius: 8,
+    minWidth: 120,
+  },
+  retryButtonText: {
+    color: "white",
+    textAlign: "center",
+    fontWeight: "600",
   },
   deaconItem: {
     flexDirection: "row",

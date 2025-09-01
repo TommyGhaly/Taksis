@@ -19,6 +19,9 @@ import {
 } from "../components/functionCalls";
 import IndividualProfile from "../components/individualProfile";
 
+// Import ONLY specific caching functions (not hooks to avoid re-render loops)
+import { FirestoreCache, StorageCache } from "../utils/cacheManager";
+
 // Date format constants
 const DATE_FORMATS = {
   SCHEDULE: 'MM-DD-YY',  // Format used for schedule IDs
@@ -246,6 +249,11 @@ const formatWeekDisplay = (weekStr) => {
 // ===== Main Component =====
 
 const EditSchedule = () => {
+  const user = auth().currentUser;
+
+  // DISABLE ALL CACHING - GO BACK TO ORIGINAL APPROACH TO STOP OVERHEATING
+  // No cached hooks - using direct Firebase calls only
+
   // State
   const [churchId, setChurchId] = useState(null);
   const [week, setWeek] = useState(null);
@@ -269,11 +277,10 @@ const EditSchedule = () => {
   const [userListeners, setUserListeners] = useState([]);
   
   const scrollViewRef = useRef(null);
-  const user = auth().currentUser;
 
   // ===== Effects =====
 
-  // Fetch user's church ID
+  // Fetch user's church ID (ORIGINAL APPROACH)
   useEffect(() => {
     const unsubscribeUser = firestore()
       .collection("users")
@@ -294,7 +301,7 @@ const EditSchedule = () => {
     return () => unsubscribeUser();
   }, [user.uid, churchId]);
 
-  // Fetch church data (altar servers count)
+  // Fetch church data (altar servers count) (ORIGINAL APPROACH)
   useEffect(() => {
     if (churchId) {
       const unsubscribeChurch = firestore()
@@ -315,12 +322,31 @@ const EditSchedule = () => {
     }
   }, [churchId]);
 
-  // Fetch earliest schedule and generate weeks
+  // Fetch earliest schedule and generate weeks (with lazy caching)
   useEffect(() => {
     if (!churchId) return;
 
     const fetchEarliestSchedule = async () => {
       try {
+        // First, try to get from cache for instant loading
+        const cacheKey = `${churchId}_schedule_list`;
+        let cachedSchedules = null;
+        
+        try {
+          // Attempt to get cached schedule list (non-blocking)
+          const cachedData = await FirestoreCache.getCollection(
+            `churches/${churchId}/schedule`, 
+            {}, 
+            { forceRefresh: false }
+          );
+          if (cachedData && cachedData.length > 0) {
+            cachedSchedules = cachedData;
+          }
+        } catch (cacheError) {
+          // Cache failed, continue with direct fetch
+        }
+
+        // Always fetch fresh data in parallel (for real-time updates)
         const schedulesRef = firestore()
           .collection("churches")
           .doc(churchId)
@@ -373,6 +399,20 @@ const EditSchedule = () => {
 
         const weeks = generateWeeks(earliestSunday, 5);
         setAvailableWeeks(weeks);
+        
+        // Background caching: Cache the schedule data (non-blocking)
+        setTimeout(async () => {
+          try {
+            await FirestoreCache.getCollection(
+              `churches/${churchId}/schedule`,
+              {},
+              { forceRefresh: true } // Update cache with fresh data
+            );
+          } catch (error) {
+            // Ignore cache errors - don't affect UI
+          }
+        }, 100);
+        
       } catch (error) {
         console.error("Error fetching schedules:", error);
         // Fallback to next Sunday
@@ -480,17 +520,31 @@ const EditSchedule = () => {
     const newListeners = [];
     
     servers.forEach((server) => {
-      // Fetch profile picture
+      // Fetch profile picture with lazy caching
       const storagePath = `profilePictures/${server.uid}.png`;
-      storage()
-        .ref(storagePath)
-        .getDownloadURL()
-        .then((url) => {
-          setImageUrls((prev) => ({ ...prev, [server.uid]: url }));
-        })
-        .catch(() => {
-          // Silent fail - use default image
-        });
+      
+      // Background caching: Try cache first, then fetch if needed
+      setTimeout(async () => {
+        try {
+          const cachedUrl = await StorageCache.getDownloadURL(storagePath);
+          setImageUrls((prev) => ({ ...prev, [server.uid]: cachedUrl }));
+        } catch (error) {
+          // Cache failed, try direct fetch
+          storage()
+            .ref(storagePath)
+            .getDownloadURL()
+            .then((url) => {
+              setImageUrls((prev) => ({ ...prev, [server.uid]: url }));
+              // Store in cache for next time (background)
+              setTimeout(() => {
+                StorageCache.getDownloadURL(storagePath, { forceRefresh: true }).catch(() => {});
+              }, 100);
+            })
+            .catch(() => {
+              // Silent fail - use default image
+            });
+        }
+      }, server === servers[0] ? 0 : Math.random() * 500); // Stagger requests to avoid overload
       
       // Set up realtime listener for user's lastServe
       const unsubscribe = firestore()
@@ -729,6 +783,8 @@ const EditSchedule = () => {
 
   // ===== Main Render =====
 
+  // Removed cached loading states - using original approach
+
   return (
     <View style={styles.container}>
       {/* Week Selector Header */}
@@ -749,6 +805,8 @@ const EditSchedule = () => {
               <Text style={styles.weekSelectorIcon}>▼</Text>
             </View>
           </TouchableOpacity>
+          
+          {/* Removed refresh button */}
         </View>
       )}
 

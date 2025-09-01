@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import auth from "@react-native-firebase/auth";
 import NetInfo from "@react-native-community/netinfo";
 import { UserProvider, useUser } from "./UserContext";
+import { initializeCacheManager } from "./utils/cacheManager";
 import "react-native-gesture-handler";
 
 import Welcome from "./screens/Welcome";
@@ -155,6 +156,11 @@ function AppNavigator() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Initialize cache manager on app startup
+    initializeCacheManager();
+  }, []);
+
   return (
     <UserProvider>
       <NetworkWrapper>
