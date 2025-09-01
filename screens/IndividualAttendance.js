@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Image,
+  ScrollView,
 } from "react-native";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
@@ -28,7 +29,7 @@ const defaultProfileImage = require("../assets/default_profile.png");
 const IndividualAttendance = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { church, category, grade, studentId } = route.params;
+  const { church, category, grade, studentId, userGrades } = route.params;
   const [studentData, setStudentData] = useState({});
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
@@ -43,7 +44,23 @@ const IndividualAttendance = () => {
     description: "",
     birthday: "",
   });
+  const [gradeChangeModalVisible, setGradeChangeModalVisible] = useState(false);
+  const [selectedNewGrade, setSelectedNewGrade] = useState("");
+  const [transferringStudent, setTransferringStudent] = useState(false);
   const isMounted = useRef(true);
+
+  // Get available grades for transfer (exclude current grade)
+  const availableGrades = userGrades ? userGrades.filter(g => g !== grade) : [];
+  
+  // Temporary debug logging
+  console.log('Grade Change Debug:', {
+    userGrades,
+    currentGrade: grade,
+    availableGrades,
+    userGradesType: typeof userGrades,
+    gradeType: typeof grade
+  });
+  
 
   useFocusEffect(
     useCallback(() => {
@@ -255,6 +272,76 @@ const IndividualAttendance = () => {
     const suffix =
       num === 1 ? "st" : num === 2 ? "nd" : num === 3 ? "rd" : "th";
     return `${num}${suffix} Grade`;
+  };
+
+  // Transfer student to new grade
+  const transferStudent = async () => {
+    if (!selectedNewGrade || selectedNewGrade === grade) {
+      Alert.alert("Error", "Please select a different grade.");
+      return;
+    }
+
+    setTransferringStudent(true);
+    try {
+      // Get the complete student document from current grade
+      const currentDoc = await firestore()
+        .collection("churches")
+        .doc(church)
+        .collection(category)
+        .doc(grade)
+        .collection("students")
+        .doc(studentId)
+        .get();
+
+      if (!currentDoc.exists) {
+        throw new Error("Student document not found");
+      }
+
+      const studentData = currentDoc.data();
+
+      // Add the student to the new grade with all data
+      await firestore()
+        .collection("churches")
+        .doc(church)
+        .collection(category)
+        .doc(selectedNewGrade)
+        .collection("students")
+        .doc(studentId)
+        .set({
+          ...studentData,
+          grade: selectedNewGrade // Update the grade field
+        });
+
+      // Delete the student from the old grade
+      await firestore()
+        .collection("churches")
+        .doc(church)
+        .collection(category)
+        .doc(grade)
+        .collection("students")
+        .doc(studentId)
+        .delete();
+
+      Alert.alert(
+        "Success", 
+        `Student moved from ${formatGrade(grade)} to ${formatGrade(selectedNewGrade)}`,
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              setGradeChangeModalVisible(false);
+              setModalVisible(false);
+              // Navigate back since the student is no longer in this grade view
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error("Error transferring student:", error);
+      Alert.alert("Error", "Failed to transfer student. Please try again.");
+    } finally {
+      setTransferringStudent(false);
+    }
   };
 
   // Get status style
@@ -544,6 +631,21 @@ const IndividualAttendance = () => {
                     accessible={true}
                     accessibilityLabel="Edit student description"
                   />
+                  
+                  {/* Grade Change Button - only show if there are available grades to move to */}
+                  {availableGrades && availableGrades.length > 0 && (
+                    <TouchableOpacity
+                      style={styles.gradeChangeButton}
+                      onPress={() => setGradeChangeModalVisible(true)}
+                      accessible={true}
+                      accessibilityLabel="Change student grade"
+                    >
+                      <Text style={styles.gradeChangeButtonText}>
+                        Change Grade (Currently: {formatGrade(grade)})
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  
                   <LinearGradient
                     colors={["#147efb", "#0f64d2"]}
                     style={styles.modalButton}
@@ -650,6 +752,102 @@ const IndividualAttendance = () => {
           onSave={handlePhotoUpload}
           userId={studentId}
         />
+      </Modal>
+
+      {/* Grade Change Modal */}
+      <Modal visible={gradeChangeModalVisible} transparent animationType="fade">
+        <TouchableOpacity 
+          style={styles.modalContainer} 
+          activeOpacity={1}
+          onPress={() => {
+            setGradeChangeModalVisible(false);
+            setSelectedNewGrade("");
+          }}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.gradeChangeModalWrapper}
+          >
+            <TouchableOpacity activeOpacity={1}>
+              <LinearGradient
+                colors={["#1e1e1e", "#2a2a2a"]}
+                style={[styles.gradeChangeModalContent]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+            <Text style={styles.modalTitle}>Change Grade</Text>
+            <Text style={styles.gradeChangeSubtitle}>
+              Move {studentData.name} from {formatGrade(grade)} to:
+            </Text>
+            
+            <ScrollView 
+              style={styles.gradeOptionsScrollView}
+              contentContainerStyle={styles.gradeOptionsContainer}
+              showsVerticalScrollIndicator={false}
+            >
+              {availableGrades.map((availableGrade) => (
+                <TouchableOpacity
+                  key={availableGrade}
+                  style={[
+                    styles.gradeOption,
+                    selectedNewGrade === availableGrade && styles.selectedGradeOption
+                  ]}
+                  onPress={() => setSelectedNewGrade(availableGrade)}
+                  accessible={true}
+                  accessibilityLabel={`Select ${formatGrade(availableGrade)}`}
+                >
+                  <Text style={[
+                    styles.gradeOptionText,
+                    selectedNewGrade === availableGrade && styles.selectedGradeOptionText
+                  ]}>
+                    {formatGrade(availableGrade)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <Text style={styles.warningText}>
+              ⚠️ This will move all attendance data to the new grade
+            </Text>
+
+            <View style={styles.gradeChangeButtonsContainer}>
+              <LinearGradient
+                colors={["#147efb", "#0f64d2"]}
+                style={[styles.modalButton, { opacity: transferringStudent ? 0.6 : 1 }]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <TouchableOpacity
+                  onPress={transferStudent}
+                  style={styles.buttonInner}
+                  disabled={transferringStudent || !selectedNewGrade}
+                  accessible={true}
+                  accessibilityLabel="Confirm grade change"
+                >
+                  {transferringStudent ? (
+                    <Text style={styles.modalButtonText}>Moving...</Text>
+                  ) : (
+                    <Text style={styles.modalButtonText}>Move Student</Text>
+                  )}
+                </TouchableOpacity>
+              </LinearGradient>
+              
+              <TouchableOpacity
+                onPress={() => {
+                  setGradeChangeModalVisible(false);
+                  setSelectedNewGrade("");
+                }}
+                disabled={transferringStudent}
+                accessible={true}
+                accessibilityLabel="Cancel grade change"
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
+        </TouchableOpacity>
       </Modal>
     </View>
   );
@@ -883,6 +1081,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 25
   },
   modalButtonText: {
     fontSize: 18,
@@ -924,6 +1123,84 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#888",
     textAlign: "center",
+  },
+  gradeChangeButton: {
+    backgroundColor: "#2a2a2a",
+    borderWidth: 1,
+    borderColor: "#444",
+    borderRadius: 10,
+    padding: 12,
+    marginVertical: 10,
+    alignItems: "center",
+  },
+  gradeChangeButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  gradeChangeModalWrapper: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  gradeChangeModalContent: {
+    width: "85%",
+    maxWidth: 400,
+    maxHeight: "80%",
+    padding: 25,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#333",
+    alignItems: "center",
+  },
+  gradeOptionsScrollView: {
+    maxHeight: 300,
+    width: "100%",
+  },
+  gradeChangeSubtitle: {
+    color: "#ccc",
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  gradeOptionsContainer: {
+    width: "100%",
+    paddingBottom: 20,
+  },
+  gradeOption: {
+    backgroundColor: "#2a2a2a",
+    borderWidth: 1,
+    borderColor: "#444",
+    borderRadius: 10,
+    padding: 15,
+    marginVertical: 5,
+    alignItems: "center",
+  },
+  selectedGradeOption: {
+    backgroundColor: "#147efb",
+    borderColor: "#147efb",
+  },
+  gradeOptionText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  selectedGradeOptionText: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+  warningText: {
+    color: "#ffa500",
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 20,
+    fontStyle: "italic",
+  },
+  gradeChangeButtonsContainer: {
+    width: "100%",
+    alignItems: "center",
   },
 });
 

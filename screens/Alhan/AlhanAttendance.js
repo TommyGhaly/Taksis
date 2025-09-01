@@ -21,106 +21,210 @@ import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
 import * as Haptics from "react-native-haptic-feedback";
 import Icon from "react-native-vector-icons/MaterialIcons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Simple cache utilities
+const CacheUtils = {
+  async get(key) {
+    try {
+      const cached = await AsyncStorage.getItem(key);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Check if cache is still valid (24 hours)
+        if (Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
+          return parsed.data;
+        }
+      }
+    } catch (error) {
+      console.log('Cache read error:', error);
+    }
+    return null;
+  },
+
+  async set(key, data) {
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.log('Cache write error:', error);
+    }
+  },
+
+  async remove(key) {
+    try {
+      await AsyncStorage.removeItem(key);
+    } catch (error) {
+      console.log('Cache remove error:', error);
+    }
+  }
+};
 
 const AlhanAttendance = () => {
   const navigation = useNavigation();
   const user = auth().currentUser;
-  const [studentsByGrade, setStudentsByGrade] = useState({});
-  const [loading, setLoading] = useState(true);
+  
+  // Core state
   const [userData, setUserData] = useState(null);
+  const [studentsByGrade, setStudentsByGrade] = useState({});
+  const [profilePictureUrls, setProfilePictureUrls] = useState({});
+  
+  // UI state
+  const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [newStudentName, setNewStudentName] = useState("");
   const [newStudentGrade, setNewStudentGrade] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [selectedDate, setSelectedDate] = useState(null);
   const [dateModalVisible, setDateModalVisible] = useState(false);
   const [previousSaturdays, setPreviousSaturdays] = useState([]);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  
+  // Refs
   const sectionListRef = useRef(null);
   const isMounted = useRef(true);
-  const [searchQuery, setSearchQuery] = useState("");
   const studentUnsubscribes = useRef([]);
   const userUnsubscribe = useRef(null);
+  const cacheKeys = useRef({
+    user: null,
+    students: {},
+    profilePics: null
+  });
 
+  // Initialize and load cached data immediately
   useEffect(() => {
     isMounted.current = true;
-
-    const initializeData = async () => {
+    
+    const initializeApp = async () => {
       if (!user) {
         Alert.alert("Error", "No user found.");
         setLoading(false);
         return;
       }
 
-      try {
-        // Generate previous Saturdays
-        await generatePreviousSaturdays();
-        
-        // Set up real-time listener for user data
-        userUnsubscribe.current = firestore()
-          .collection("users")
-          .doc(user.uid)
-          .onSnapshot(
-            (doc) => {
-              if (!isMounted.current) return;
-              
-              if (!doc.exists) {
-                Alert.alert("Error", "User not found.");
-                setLoading(false);
-                return;
-              }
-              
-              const newUserData = doc.data();
-              setUserData(newUserData);
-              
-              // Update new student grade default
-              if (newUserData.alhanGrades?.length > 0) {
-                setNewStudentGrade(prevGrade => {
-                  // If the previous grade is still in the list, keep it
-                  if (newUserData.alhanGrades.includes(prevGrade)) {
-                    return prevGrade;
-                  }
-                  // Otherwise, use the first grade
-                  return newUserData.alhanGrades[0];
-                });
-              } else {
-                setNewStudentGrade("");
-              }
-              
-              setLoading(false);
-            },
-            (error) => {
-              if (isMounted.current) {
-                Alert.alert("Error", error.message);
-                setLoading(false);
-              }
-            }
-          );
-      } catch (error) {
+      // Set cache keys
+      cacheKeys.current = {
+        user: `alhan_user_${user.uid}`,
+        students: {},
+        profilePics: `alhan_profile_pics_${user.uid}`
+      };
+
+      // Load cached data immediately (non-blocking)
+      loadCachedData();
+      
+      // Generate previous Saturdays
+      await generatePreviousSaturdays();
+      
+      // Set up real-time listeners
+      setupUserListener();
+      
+      // Mark loading as complete after a short delay
+      setTimeout(() => {
         if (isMounted.current) {
-          Alert.alert("Error", error.message);
           setLoading(false);
         }
-      }
+      }, 300);
     };
 
-    initializeData();
+    initializeApp();
 
     return () => {
       isMounted.current = false;
       if (userUnsubscribe.current) {
         userUnsubscribe.current();
       }
+      studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
+      studentUnsubscribes.current = [];
     };
   }, [user]);
+
+  // Load cached data without blocking
+  const loadCachedData = async () => {
+    try {
+      // Load all cached data in parallel
+      const [cachedUser, cachedProfilePics] = await Promise.all([
+        CacheUtils.get(cacheKeys.current.user),
+        CacheUtils.get(cacheKeys.current.profilePics)
+      ]);
+
+      if (cachedUser && isMounted.current) {
+        setUserData(cachedUser);
+        if (cachedUser.alhanGrades?.length > 0) {
+          setNewStudentGrade(cachedUser.alhanGrades[0]);
+          
+          // Load cached students for each grade
+          const cachedStudents = {};
+          await Promise.all(
+            cachedUser.alhanGrades.map(async (grade) => {
+              const cacheKey = `alhan_students_${user.uid}_${grade}`;
+              cacheKeys.current.students[grade] = cacheKey;
+              const cached = await CacheUtils.get(cacheKey);
+              if (cached) {
+                cachedStudents[grade] = cached;
+              }
+            })
+          );
+          
+          if (Object.keys(cachedStudents).length > 0 && isMounted.current) {
+            setStudentsByGrade(cachedStudents);
+          }
+        }
+      }
+
+      if (cachedProfilePics && isMounted.current) {
+        setProfilePictureUrls(cachedProfilePics);
+      }
+    } catch (error) {
+      console.log('Error loading cached data:', error);
+    }
+  };
+
+  // Set up user listener
+  const setupUserListener = () => {
+    userUnsubscribe.current = firestore()
+      .collection("users")
+      .doc(user.uid)
+      .onSnapshot(
+        async (doc) => {
+          if (!isMounted.current) return;
+          
+          if (!doc.exists) {
+            Alert.alert("Error", "User not found.");
+            return;
+          }
+          
+          const newUserData = doc.data();
+          setUserData(newUserData);
+          
+          // Cache user data
+          await CacheUtils.set(cacheKeys.current.user, newUserData);
+          
+          // Update new student grade default
+          if (newUserData.alhanGrades?.length > 0) {
+            setNewStudentGrade(prevGrade => {
+              if (newUserData.alhanGrades.includes(prevGrade)) {
+                return prevGrade;
+              }
+              return newUserData.alhanGrades[0];
+            });
+          } else {
+            setNewStudentGrade("");
+          }
+        },
+        (error) => {
+          if (isMounted.current) {
+            Alert.alert("Error", error.message);
+          }
+        }
+      );
+  };
 
   // Subscribe to students based on current alhanGrades
   useEffect(() => {
     if (!userData?.church || !userData?.alhanGrades?.length) {
-      // Clear students if no grades assigned
       setStudentsByGrade({});
-      // Unsubscribe from all student listeners
       studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
       studentUnsubscribes.current = [];
       return;
@@ -142,15 +246,18 @@ const AlhanAttendance = () => {
     studentUnsubscribes.current = [];
 
     // Set up new listeners for current grades
-    const newUnsubscribes = userData.alhanGrades.map((grade) =>
-      firestore()
+    const newUnsubscribes = userData.alhanGrades.map((grade) => {
+      const cacheKey = `alhan_students_${user.uid}_${grade}`;
+      cacheKeys.current.students[grade] = cacheKey;
+      
+      return firestore()
         .collection("churches")
         .doc(userData.church)
         .collection("Hymns Class")
         .doc(grade)
         .collection("students")
         .onSnapshot(
-          (snapshot) => {
+          async (snapshot) => {
             if (!isMounted.current) return;
             const students = snapshot.docs.map((doc) => ({
               uid: doc.id,
@@ -163,14 +270,17 @@ const AlhanAttendance = () => {
               ...prev,
               [grade]: students,
             }));
+            
+            // Cache the students data
+            await CacheUtils.set(cacheKey, students);
           },
           (error) => {
             if (isMounted.current) {
               Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
             }
           }
-        )
-    );
+        );
+    });
 
     studentUnsubscribes.current = newUnsubscribes;
 
@@ -181,9 +291,9 @@ const AlhanAttendance = () => {
       studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
       studentUnsubscribes.current = [];
     };
-  }, [userData?.church, userData?.alhanGrades?.join(",")]); // Use join to ensure effect runs when array changes
+  }, [userData?.church, userData?.alhanGrades?.join(",")]);
 
-  // Fetch profile pictures
+  // Fetch profile pictures with caching
   const fetchProfilePictureUrls = async () => {
     if (!userData?.church || !userData?.alhanGrades?.length) return;
     
@@ -218,8 +328,7 @@ const AlhanAttendance = () => {
               const url = await storage()
                 .ref(`profilePictures/${student.uid}.png`)
                 .getDownloadURL();
-              urls[student.uid] =
-                typeof url === "string" && url.trim() ? url : null;
+              urls[student.uid] = typeof url === "string" && url.trim() ? url : null;
             } catch (error) {
               urls[student.uid] = null;
             }
@@ -229,6 +338,8 @@ const AlhanAttendance = () => {
       
       if (isMounted.current) {
         setProfilePictureUrls(urls);
+        // Cache profile picture URLs
+        await CacheUtils.set(cacheKeys.current.profilePics, urls);
       }
     } catch (error) {
       console.error("Error fetching profile pictures:", error);
@@ -356,6 +467,9 @@ const AlhanAttendance = () => {
       setModalVisible(false);
       setNewStudentName("");
       setNewStudentGrade(userData?.alhanGrades[0] || "");
+      
+      // Clear cache for this grade to force refresh
+      await CacheUtils.remove(cacheKeys.current.students[newStudentGrade]);
     } catch (error) {
       Alert.alert("Error", "Failed to add student");
     } finally {
@@ -505,12 +619,19 @@ const AlhanAttendance = () => {
                     Alert.alert("Error", "User data not loaded.");
                     return;
                   }
+                  
+                  if (!userData.alhanGrades) {
+                    Alert.alert("Error", "Alhan grades not loaded.");
+                    return;
+                  }
+                  
                   setIsNavigating(true);
                   navigation.navigate("IndividualAttendance", {
                     church: userData.church,
                     category: "Hymns Class",
                     grade: student.grade,
                     studentId: student.uid,
+                    userGrades: userData?.alhanGrades || [], // Pass grades the user teaches with fallback
                   });
                   setTimeout(() => setIsNavigating(false), 1000);
                 }}
@@ -588,7 +709,8 @@ const AlhanAttendance = () => {
     [profilePictureUrls]
   );
 
-  if (loading) {
+  // Show minimal loading only on first load
+  if (loading && !userData && Object.keys(studentsByGrade).length === 0) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#147efb" />
