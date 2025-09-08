@@ -11,6 +11,7 @@ import {
 
 const ChangeChurch = ({ navigation }) => {
   const [selectedChurch, setSelectedChurch] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
   const user = auth().currentUser;
 
   const handleChurchSelection = (church) => {
@@ -18,26 +19,31 @@ const ChangeChurch = ({ navigation }) => {
   };
 
   const updateChurchAndFunctions = async () => {
-    // Update the user's church information in Firestore
-    await firestore().collection("users").doc(user.uid).update({
-      church: selectedChurch,
-    });
-    navigation.goBack();
+    try {
+      // Update the user's church information in Firestore
+      await firestore().collection("users").doc(user.uid).update({
+        church: selectedChurch,
+      });
 
-    // Call external functions
-    await callFunction(
-      user,
-      "https://sync-child-params-hy6oofbihq-uc.a.run.app"
-    );
-    Alert.alert("Success", "Church has been updated.");
+      // Call external functions
+      await callFunction(
+        user,
+        "https://sync-child-params-hy6oofbihq-uc.a.run.app"
+      );
 
-    // Navigate back to the previous screen
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
 
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Call twice to ensure nothing gets left behind by accident
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    // Call twice to ensure nothing gets left behind by accident
-    await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
-    await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
+      Alert.alert("Success", "Church has been updated.", [
+        { text: "OK", onPress: () => navigation.goBack() }
+      ]);
+    } catch (error) {
+      console.error("Error updating church:", error);
+      throw error;
+    }
   };
 
   const handleContinue = async () => {
@@ -53,14 +59,18 @@ const ChangeChurch = ({ navigation }) => {
       return;
     }
 
+    setIsLoading(true);
+
     try {
       // Retrieve the current church from the user's document
       const userDoc = await firestore().collection("users").doc(user.uid).get();
-      const currentChurch = userDoc.data()?.church;
+      const userData = userDoc.data();
+      const currentChurch = userData?.church;
 
       // Check if the selected church is the same as the current church
       if (selectedChurch === currentChurch) {
         Alert.alert("No Change", "You have selected the same church.");
+        setIsLoading(false);
         return;
       }
 
@@ -72,32 +82,42 @@ const ChangeChurch = ({ navigation }) => {
           {
             text: "Cancel",
             style: "cancel",
+            onPress: () => setIsLoading(false),
           },
           {
             text: "Yes",
             onPress: async () => {
-              const payload = {
-                uid: user.uid, // Make sure this is just a string
-                church: currentChurch.id || currentChurch, // Only simple values
-                children: userDoc.children,
-              };
-              await removeFamilySchedule(
-                user,
-                currentChurch,
-                "https://remove-family-schedules-hy6oofbihq-uc.a.run.app"
-              );
+              try {
+                // Only call removeFamilySchedule if there's a current church
+                if (currentChurch) {
+                  await removeFamilySchedule(
+                    user,
+                    currentChurch,
+                    "https://remove-family-schedules-hy6oofbihq-uc.a.run.app"
+                  );
+                }
 
-              await updateChurchAndFunctions();
-              // Run the remove schedules function if the church is different
+                await updateChurchAndFunctions();
+              } catch (error) {
+                console.error("Error in church change process:", error);
+                Alert.alert(
+                  "Error",
+                  "Could not complete the church change. Please try again."
+                );
+              } finally {
+                setIsLoading(false);
+              }
             },
           },
         ]
       );
     } catch (error) {
+      console.error("Error handling continue:", error);
       Alert.alert(
         "Error",
         "Could not update church information. Please try again."
       );
+      setIsLoading(false);
     }
   };
 
@@ -110,8 +130,17 @@ const ChangeChurch = ({ navigation }) => {
       <View style={styles.churchesContainer}>
         <Churches onSelectChurch={handleChurchSelection} />
       </View>
-      <Pressable style={styles.continueButton} onPress={handleContinue}>
-        <Text style={styles.continueText}>Confirm</Text>
+      <Pressable 
+        style={[
+          styles.continueButton, 
+          isLoading && styles.continueButtonDisabled
+        ]} 
+        onPress={handleContinue}
+        disabled={isLoading}
+      >
+        <Text style={styles.continueText}>
+          {isLoading ? "Processing..." : "Confirm"}
+        </Text>
       </Pressable>
     </View>
   );
@@ -146,6 +175,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 30,
     marginTop: 5,
+  },
+  continueButtonDisabled: {
+    backgroundColor: "#1a1a1a",
+    opacity: 0.6,
   },
   continueText: {
     fontSize: 17,
