@@ -9,6 +9,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
+  ScrollView,
+  Keyboard,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
@@ -57,56 +59,66 @@ const InputPhoto = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.progressBar}>
-            <ProgressBar startPercentage={1} endPercentage={17} />
-          </View>
-          <Text style={styles.titleText}>Set Up Your Profile</Text>
-        </View>
-        <View style={styles.content}>
-          {/* Photo Input Section */}
-          <View style={styles.card}>
-            <Text style={styles.questionText}>Upload your profile picture (optional)</Text>
-            <Pressable style={styles.uploadButton} onPress={handlePhotoPress}>
-              <Text style={styles.uploadButtonText}>Choose Profile Picture</Text>
-            </Pressable>
-          </View>
-
-          {/* Phone Input Section */}
-          <KeyboardAvoidingView
-            style={styles.phoneContainer}
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
-            enabled
-          >
-            <View style={[styles.card, { marginTop: 20 }]}>
-              <Text style={styles.questionText}>What's your phone number (Optional)?</Text>
-              <TextInput
-                style={styles.input}
-                value={phoneNumber}
-                onChangeText={setPhoneNumber}
-                placeholder="Enter phone number"
-                placeholderTextColor="#8E8E93"
-                keyboardType="phone-pad"
-                autoCapitalize="none"
-                onPressIn={handleTextInputPress}
-              />
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingContainer}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <View style={styles.header}>
+              <View style={styles.progressBar}>
+                <ProgressBar startPercentage={1} endPercentage={17} />
+              </View>
+              <Text style={styles.titleText}>Set Up Your Profile</Text>
             </View>
-          </KeyboardAvoidingView>
-        </View>
-        <View style={styles.footer}>
-          <Pressable style={styles.continueButton} onPress={handleContinue}>
-            <Text style={styles.continueText}>Continue</Text>
-          </Pressable>
-        </View>
+            
+            <View style={styles.content}>
+              {/* Photo Input Section */}
+              <View style={styles.card}>
+                <Text style={styles.questionText}>Upload your profile picture (optional)</Text>
+                <Pressable style={styles.uploadButton} onPress={handlePhotoPress}>
+                  <Text style={styles.uploadButtonText}>Choose Profile Picture</Text>
+                </Pressable>
+              </View>
+
+              {/* Phone Input Section */}
+              <View style={[styles.card, { marginTop: 20 }]}>
+                <Text style={styles.questionText}>What's your phone number (Optional)?</Text>
+                <TextInput
+                  style={styles.input}
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                  placeholder="Enter phone number"
+                  placeholderTextColor="#8E8E93"
+                  keyboardType="phone-pad"
+                  autoCapitalize="none"
+                  onPressIn={handleTextInputPress}
+                  returnKeyType="done"
+                  onSubmitEditing={Keyboard.dismiss}
+                />
+              </View>
+            </View>
+            
+            <View style={styles.footer}>
+              <Pressable style={styles.continueButton} onPress={handleContinue}>
+                <Text style={styles.continueText}>Continue</Text>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
 
         <PhotoInput
           visible={showPhotoModal}
           onClose={() => setShowPhotoModal(false)}
           userId={user?.uid || "default"}
         />
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -116,12 +128,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#121212",
   },
+  keyboardAvoidingContainer: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: "#121212",
     paddingHorizontal: 16,
     paddingTop: 120,
     paddingBottom: 40,
+    minHeight: '100%',
   },
   header: {
     marginBottom: 32,
@@ -159,9 +181,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 5,
     alignItems: "center",
-  },
-  phoneContainer: {
-    width: "100%",
   },
   questionText: {
     fontSize: 24,
