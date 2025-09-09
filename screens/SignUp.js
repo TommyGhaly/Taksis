@@ -42,7 +42,7 @@ const SignUp = ({ navigation }) => {
 
   useEffect(() => {
     setSignUp(true);
-  }, [setSignUp]);
+  }, []);
 
   GoogleSignin.configure({
     webClientId:

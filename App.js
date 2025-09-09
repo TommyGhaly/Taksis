@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, ScrollView, RefreshControl } from "react-native
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import auth from "@react-native-firebase/auth";
+import firestore from "@react-native-firebase/firestore";
 import NetInfo from "@react-native-community/netinfo";
 import { UserProvider, useUser } from "./UserContext";
 import { initializeCacheManager } from "./utils/cacheManager";
@@ -75,11 +76,35 @@ function AppNavigator() {
   const [cacheInitialized, setCacheInitialized] = useState(false);
 
   useEffect(() => {
-    const subscriber = auth().onAuthStateChanged((user) => {
+    const subscriber = auth().onAuthStateChanged(async (user) => {
       setUser(user);
+      
+      // Check if user needs to complete sign up
       if (!user) {
+        // No user logged in, needs sign up
         setSignUp(true);
+      } else {
+        try {
+          // User is logged in, check if user document exists and has DOB
+          const userDoc = await firestore()
+            .collection('users')
+            .doc(user.uid)
+            .get();
+          
+          if (!userDoc.exists || !userDoc.data()?.DOB) {
+            // User document doesn't exist or DOB is missing
+            setSignUp(true);
+          } else {
+            // User document exists with DOB
+            setSignUp(false);
+          }
+        } catch (error) {
+          console.error("Error checking user document:", error);
+          // On error, assume user needs to complete sign up
+          setSignUp(true);
+        }
       }
+      
       setInitializing(false);
     });
     return subscriber;
