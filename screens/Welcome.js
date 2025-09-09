@@ -7,6 +7,7 @@ import {
   Dimensions,
   TouchableOpacity,
 } from "react-native";
+import { useUser } from "../UserContext";
 
 const { width, height } = Dimensions.get("window");
 
@@ -17,6 +18,19 @@ const CRUCIFIXION_WIDTH = 1027;
 const CRUCIFIXION_HEIGHT = 711;
 
 const Welcome = ({ navigation }) => {
+  // Move useUser inside the component
+  const { signUp, setSignUp } = useUser();
+
+  const handleSignUp = async () => {
+    setSignUp(true);
+    navigation.navigate("SignUp");
+  };
+
+  const handleSignIn = async () => {
+    setSignUp(false);
+    navigation.navigate("SignIn");
+  };
+
   return (
     <View style={styles.container}>
       {/* Spacer to push images lower */}
@@ -35,13 +49,13 @@ const Welcome = ({ navigation }) => {
       </View>
       <View style={styles.buttonsContainer}>
         <TouchableOpacity
-          onPress={() => navigation.navigate("SignIn")}
+          onPress={handleSignIn}
           style={styles.signInButton}
         >
           <Text style={styles.signInButtonText}>Sign In</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => navigation.navigate("SignUp")}
+          onPress={handleSignUp}
           style={styles.signUpButton}
         >
           <Text style={styles.buttonText}>Sign Up</Text>

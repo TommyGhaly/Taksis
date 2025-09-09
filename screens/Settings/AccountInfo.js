@@ -9,6 +9,7 @@ import {
   Image,
   Alert,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import BackArrow from "../../components/backArrow";
 import ProfileImageExpander from "../../components/ProfileImageExpander";
 import firestore from "@react-native-firebase/firestore";
@@ -24,25 +25,112 @@ const hapticOptions = {
   ignoreAndroidSystemSettings: false,
 };
 
+// Cache keys
+const CACHE_KEYS = {
+  USER_DATA: 'user_data_',
+  IMAGE_URL: 'image_url_',
+  CACHE_TIMESTAMP: '_timestamp'
+};
+
+// Cache duration (3 days in milliseconds)
+const CACHE_DURATION = 3 * 24 * 60 * 60 * 1000;
+
 const AccountInfo = ({ navigation }) => {
-  const [userData, setUserData] = useState(null); // Initialize as null
-  const [imageUrl, setImageUrl] = useState(null); // Initialize as null for consistency
+  const [userData, setUserData] = useState(null);
+  const [imageUrl, setImageUrl] = useState(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [isLoadingFromCache, setIsLoadingFromCache] = useState(true);
   const user = auth().currentUser;
+
+  // Helper function to check if cache is valid
+  const isCacheValid = async (key) => {
+    try {
+      const timestampKey = key + CACHE_KEYS.CACHE_TIMESTAMP;
+      const timestamp = await AsyncStorage.getItem(timestampKey);
+      if (!timestamp) return false;
+      
+      const cacheTime = parseInt(timestamp);
+      const currentTime = Date.now();
+      return (currentTime - cacheTime) < CACHE_DURATION;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  // Helper function to save to cache
+  const saveToCache = async (key, data) => {
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify(data));
+      await AsyncStorage.setItem(key + CACHE_KEYS.CACHE_TIMESTAMP, Date.now().toString());
+    } catch (error) {
+      console.error('Error saving to cache:', error);
+    }
+  };
+
+  // Helper function to get from cache
+  const getFromCache = async (key) => {
+    try {
+      const isValid = await isCacheValid(key);
+      if (!isValid) return null;
+      
+      const cachedData = await AsyncStorage.getItem(key);
+      return cachedData ? JSON.parse(cachedData) : null;
+    } catch (error) {
+      console.error('Error getting from cache:', error);
+      return null;
+    }
+  };
+
+  // Helper function to clear cache for a specific key
+  const clearCache = async (key) => {
+    try {
+      await AsyncStorage.removeItem(key);
+      await AsyncStorage.removeItem(key + CACHE_KEYS.CACHE_TIMESTAMP);
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+    }
+  };
 
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         if (user) {
-          const userDoc = await firestore()
-            .collection("users")
-            .doc(user.uid)
-            .get();
-          if (userDoc.exists) {
-            setUserData(userDoc.data());
+          const cacheKey = CACHE_KEYS.USER_DATA + user.uid;
+          
+          // Try to get from cache first
+          const cachedData = await getFromCache(cacheKey);
+          if (cachedData) {
+            setUserData(cachedData);
+            setIsLoadingFromCache(false);
+            
+            // Fetch fresh data in background
+            firestore()
+              .collection("users")
+              .doc(user.uid)
+              .get()
+              .then(userDoc => {
+                if (userDoc.exists) {
+                  const freshData = userDoc.data();
+                  setUserData(freshData);
+                  saveToCache(cacheKey, freshData);
+                }
+              });
+          } else {
+            // No cache, fetch from Firestore
+            const userDoc = await firestore()
+              .collection("users")
+              .doc(user.uid)
+              .get();
+            if (userDoc.exists) {
+              const freshData = userDoc.data();
+              setUserData(freshData);
+              saveToCache(cacheKey, freshData);
+            }
+            setIsLoadingFromCache(false);
           }
         }
       } catch (error) {
+        setIsLoadingFromCache(false);
         Alert.alert("Error", "Failed to fetch user data. Please try again.");
       }
     };
@@ -54,17 +142,40 @@ const AccountInfo = ({ navigation }) => {
     if (user?.uid) {
       const fetchImage = async () => {
         try {
-          const url = await storage()
-            .ref(`profilePictures/${user.uid}.png`)
-            .getDownloadURL();
-          // Ensure the URL is a non-empty string before setting it
-          if (typeof url === "string" && url.trim() !== "") {
-            setImageUrl(url);
+          const cacheKey = CACHE_KEYS.IMAGE_URL + user.uid;
+          
+          // Try to get from cache first
+          const cachedUrl = await getFromCache(cacheKey);
+          if (cachedUrl && typeof cachedUrl === "string" && cachedUrl.trim() !== "") {
+            setImageUrl(cachedUrl);
+            
+            // Verify the cached URL is still valid in background
+            storage()
+              .ref(`profilePictures/${user.uid}.png`)
+              .getDownloadURL()
+              .then(url => {
+                if (typeof url === "string" && url.trim() !== "") {
+                  setImageUrl(url);
+                  saveToCache(cacheKey, url);
+                }
+              })
+              .catch(() => {
+                clearCache(cacheKey);
+              });
           } else {
-            setImageUrl(null);
+            // No cache, fetch from Storage
+            const url = await storage()
+              .ref(`profilePictures/${user.uid}.png`)
+              .getDownloadURL();
+            if (typeof url === "string" && url.trim() !== "") {
+              setImageUrl(url);
+              saveToCache(cacheKey, url);
+            } else {
+              setImageUrl(null);
+            }
           }
         } catch (error) {
-          setImageUrl(null); // Fallback to default image on error
+          setImageUrl(null);
         }
       };
 
@@ -72,7 +183,7 @@ const AccountInfo = ({ navigation }) => {
       fetchImage();
 
       // Set up interval to check for updates every 30 seconds
-      const intervalId = setInterval(fetchImage, 10000);
+      const intervalId = setInterval(fetchImage, 30000);
 
       // Cleanup interval on component unmount or user change
       return () => clearInterval(intervalId);
@@ -89,10 +200,15 @@ const AccountInfo = ({ navigation }) => {
   const handlePhotoUpload = async () => {
     setShowPhotoModal(false);
     try {
+      // Clear the image cache when uploading new photo
+      const cacheKey = CACHE_KEYS.IMAGE_URL + user.uid;
+      await clearCache(cacheKey);
+      
       const storagePath = `profilePictures/${user.uid}.png`;
       const newUrl = await storage().ref(storagePath).getDownloadURL();
       if (typeof newUrl === "string" && newUrl.trim() !== "") {
         setImageUrl(newUrl);
+        saveToCache(cacheKey, newUrl);
       } else {
         setImageUrl(null);
       }
@@ -104,7 +220,9 @@ const AccountInfo = ({ navigation }) => {
   if (!userData) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.loadingText}>Loading...</Text>
+        <Text style={styles.loadingText}>
+          {isLoadingFromCache ? "Loading..." : "Loading..."}
+        </Text>
       </View>
     );
   }

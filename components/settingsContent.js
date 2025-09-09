@@ -23,6 +23,7 @@ import { callFunction, removeFamilySchedule } from "./functionCalls";
 import { deleteUser } from "@react-native-firebase/auth";
 import messaging from "@react-native-firebase/messaging";
 import ProfileImageExpander from "./ProfileImageExpander";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const defaultProfileImage = require("../assets/default_profile.png");
 
@@ -35,7 +36,49 @@ const SettingsContent = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [suggestion, setSuggestion] = useState("");
 
-  // Remove all animation refs, cached image source logic, and related effects
+  // Profile picture cache management
+  const CACHE_DURATION = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
+  const CACHE_KEY_PREFIX = 'profilePicture_';
+  const CACHE_TIMESTAMP_PREFIX = 'profilePictureTimestamp_';
+
+  const getCacheKey = (userId) => `${CACHE_KEY_PREFIX}${userId}`;
+  const getTimestampKey = (userId) => `${CACHE_TIMESTAMP_PREFIX}${userId}`;
+
+  const saveToCache = async (userId, url) => {
+    try {
+      await AsyncStorage.setItem(getCacheKey(userId), url);
+      await AsyncStorage.setItem(getTimestampKey(userId), Date.now().toString());
+    } catch (error) {
+      console.error('Error saving to cache:', error);
+    }
+  };
+
+  const getFromCache = async (userId) => {
+    try {
+      const cachedUrl = await AsyncStorage.getItem(getCacheKey(userId));
+      const timestamp = await AsyncStorage.getItem(getTimestampKey(userId));
+      
+      if (cachedUrl && timestamp) {
+        const age = Date.now() - parseInt(timestamp);
+        if (age < CACHE_DURATION) {
+          return cachedUrl;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Error reading from cache:', error);
+      return null;
+    }
+  };
+
+  const clearCache = async (userId) => {
+    try {
+      await AsyncStorage.removeItem(getCacheKey(userId));
+      await AsyncStorage.removeItem(getTimestampKey(userId));
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+    }
+  };
 
   useEffect(() => {
     const user = auth().currentUser;
@@ -55,22 +98,64 @@ const SettingsContent = () => {
           }
         );
 
-      // Fetch profile picture
-      const fetchImage = async () => {
+      // Fetch profile picture with caching
+      const fetchImage = async (forceRefresh = false) => {
         try {
-          const url = await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
-          if (typeof url === "string" && url.trim() !== "") {
-            setImageUrl(url);
-          } else {
-            setImageUrl(null);
+          // First, try to get from cache if not forcing refresh
+          if (!forceRefresh) {
+            const cachedUrl = await getFromCache(user.uid);
+            if (cachedUrl) {
+              setImageUrl(cachedUrl);
+              // Still fetch from storage to check for updates
+              fetchFromStorage(false);
+              return;
+            }
           }
+
+          // If no cache or force refresh, fetch from storage
+          await fetchFromStorage(true);
         } catch (error) {
           setImageUrl(null);
         }
       };
 
+      const fetchFromStorage = async (updateUI = true) => {
+        try {
+          const url = await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
+          if (typeof url === "string" && url.trim() !== "") {
+            // Check if URL has changed
+            const cachedUrl = await getFromCache(user.uid);
+            if (url !== cachedUrl) {
+              await saveToCache(user.uid, url);
+              if (updateUI) {
+                setImageUrl(url);
+              }
+            }
+          } else {
+            await clearCache(user.uid);
+            if (updateUI) {
+              setImageUrl(null);
+            }
+          }
+        } catch (error) {
+          // Profile picture doesn't exist
+          await clearCache(user.uid);
+          if (updateUI) {
+            setImageUrl(null);
+          }
+        }
+      };
+
+      // Initial fetch
       fetchImage();
-      const intervalId = setInterval(fetchImage, 10000);
+
+      // Set up real-time listener for profile picture changes
+      const storageRef = storage().ref(`profilePictures/${user.uid}.png`);
+      
+      // Poll for changes every 10 seconds
+      const intervalId = setInterval(() => {
+        fetchImage(false);
+      }, 10000);
 
       return () => {
         clearInterval(intervalId);
@@ -97,6 +182,8 @@ const SettingsContent = () => {
             });
           }
         }
+        // Clear cache on sign out
+        await clearCache(user.uid);
       }
     } catch (error) {
       // Error handling for FCM tokens update during sign out
@@ -134,6 +221,8 @@ const SettingsContent = () => {
                 } catch (error) {
                   // Error handling for profile picture deletion
                 }
+                // Clear cache on account deletion
+                await clearCache(user.uid);
                 setSignUp(false);
                 await firestore().collection("users").doc(user.uid).delete();
                 await wait(2);
@@ -369,20 +458,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#fff",
     fontWeight: "bold",
-  },
-  overlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  enlargedImage: {
-    width: 60,
-    height: 60,
-    borderWidth: 1,
-    borderColor: "#333333",
-    position: "absolute",
   },
   profileSection: {
     flexDirection: "row",
