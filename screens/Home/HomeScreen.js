@@ -36,8 +36,6 @@ import Churches from "../../components/churches";
 import { useFirestoreDocument, useFirestoreCollection } from "../../hooks/useFirebaseCache";
 import { FirestoreCache } from "../../utils/cacheManager";
 
-// ... (keeping all the async functions at the top as they were)
-
 async function createNotificationChannel() {
   if (Platform.OS === "android") {
     try {
@@ -206,19 +204,57 @@ const HomeScreen = () => {
   const [unavailableWeeks, setUnavailableWeeks] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showWeekModal, setShowWeekModal] = useState(false);
+  const [showChurchModal, setShowChurchModal] = useState(false);
+  const [selectedChurch, setSelectedChurch] = useState(null);
+  const [isSubmittingChurch, setIsSubmittingChurch] = useState(false);
   const scaleValue = useRef(new Animated.Value(0.9)).current;
   const [lastServe, setLastServe] = useState(null);
   const [lastRole, setLastRole] = useState(null);
-  
-  // New states for church selection
-  const [showChurchModal, setShowChurchModal] = useState(false);
-  const [selectedChurch, setSelectedChurch] = useState(null);
-  const [isChurchLoading, setIsChurchLoading] = useState(false);
+
+  // Real-time listener for church parameter specifically
+  const userRealtimeListenerRef = useRef(null);
 
   // Derive state from cached data
   const derivedUserName = userDoc?.name || userName;
   const derivedIsDeacon = userDoc?.isDeacon || isDeacon;
   const derivedIsSSTeacher = userDoc?.isSSTeacher || isSSTeacher;
+
+  // Set up real-time listener for church parameter
+  useEffect(() => {
+    if (!user) return;
+
+    // Set up real-time listener specifically for church parameter
+    userRealtimeListenerRef.current = firestore()
+      .collection("users")
+      .doc(user.uid)
+      .onSnapshot(
+        (doc) => {
+          if (doc.exists) {
+            const userData = doc.data();
+            const hasChurch = userData?.church && userData.church.trim() !== "";
+            
+            console.log("Church realtime check - hasChurch:", hasChurch, "church value:", userData?.church);
+            
+            // Update church modal visibility based on real-time data
+            setShowChurchModal(!hasChurch);
+            
+            // If church was just set, update the cached data
+            if (hasChurch && showChurchModal) {
+              refreshUser();
+            }
+          }
+        },
+        (error) => {
+          console.error("Error in church realtime listener:", error);
+        }
+      );
+
+    return () => {
+      if (userRealtimeListenerRef.current) {
+        userRealtimeListenerRef.current();
+      }
+    };
+  }, [user, showChurchModal, refreshUser]);
 
   useEffect(() => {
     setIsDeacon(true);
@@ -406,6 +442,53 @@ const HomeScreen = () => {
       setPhoneModalShownThisSession(true);
     } catch (error) {
       Alert.alert("Error", "Failed to update phone number. Please try again.");
+    }
+  };
+
+  const handleChurchSelection = async (churchTitle) => {
+    setSelectedChurch(churchTitle);
+  };
+
+  const handleChurchSubmit = async () => {
+    if (!selectedChurch) {
+      Alert.alert("Error", "Please select a church to continue.");
+      return;
+    }
+
+    const user = auth().currentUser;
+    if (!user) {
+      Alert.alert("Error", "User not authenticated.");
+      return;
+    }
+
+    setIsSubmittingChurch(true);
+    try {
+      // Map church title to church ID
+
+
+      const churchId = selectedChurch;
+      
+      if (!churchId) {
+        Alert.alert("Error", "Invalid church selection.");
+        return;
+      }
+
+      // Update using cached system for immediate UI updates
+      await updateUserDoc({
+        church: churchId,
+      });
+
+      // Call the update function to ensure backend is synchronized
+      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
+
+      // Refresh cache to get any server-side changes
+      await refreshUser();
+      
+      setShowChurchModal(false);
+    } catch (error) {
+      Alert.alert("Error", "Failed to update church. Please try again.");
+    } finally {
+      setIsSubmittingChurch(false);
     }
   };
 
@@ -602,45 +685,6 @@ const HomeScreen = () => {
     );
   };
 
-  // Handle church selection
-  const handleChurchSelection = (church) => {
-    setSelectedChurch(church);
-  };
-
-  const handleChurchSubmit = async () => {
-    if (!selectedChurch) {
-      Alert.alert("Error", "Please select a church.");
-      return;
-    }
-
-    const user = auth().currentUser;
-    if (!user) {
-      Alert.alert("Error", "User not authenticated.");
-      return;
-    }
-
-    setIsChurchLoading(true);
-    try {
-      // Update using cached system for immediate UI updates
-      await updateUserDoc({
-        church: selectedChurch,
-      });
-
-      // Call the update function
-      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
-
-      // Refresh user data to get the updated church info
-      await refreshUser();
-
-      setShowChurchModal(false);
-      setChurchId(selectedChurch);
-    } catch (error) {
-      Alert.alert("Error", "Failed to update church. Please try again.");
-    } finally {
-      setIsChurchLoading(false);
-    }
-  };
-
   useEffect(() => {
     const user = auth().currentUser;
     if (!user || isSelectingPhoto) return;
@@ -715,9 +759,6 @@ const HomeScreen = () => {
       const name = userDoc?.name || null;
       setUserName(name);
       
-      // Check if church is missing
-      const hasChurch = userDoc?.church && userDoc.church.trim() !== "";
-      
       // Check for required fields and show modals accordingly
       const isNameInvalid =
         !name ||
@@ -726,24 +767,18 @@ const HomeScreen = () => {
         !name.includes(" ");
       const isDOBInvalid = !userDoc?.DOB || userDoc.DOB.trim() === "";
       const isPhoneInvalid = !userDoc?.phone || userDoc.phone.trim() === "";
+      const hasChurch = userDoc?.church && userDoc.church.trim() !== "";
       
-      // Show church modal first if no church
-      if (!hasChurch) {
-        setShowChurchModal(true);
-        setShowNameModal(false);
-        setShowDOBModal(false);
-        setShowPhoneModal(false);
-      } else {
-        setShowChurchModal(false);
-        setShowNameModal(isNameInvalid);
-        setShowDOBModal(!isNameInvalid && isDOBInvalid);
-        setShowPhoneModal(
-          !isNameInvalid &&
-            !isDOBInvalid &&
-            isPhoneInvalid &&
-            !phoneModalShownThisSession
-        );
-      }
+      setShowNameModal(isNameInvalid);
+      setShowDOBModal(!isNameInvalid && isDOBInvalid);
+      setShowPhoneModal(
+        !isNameInvalid &&
+          !isDOBInvalid &&
+          isPhoneInvalid &&
+          !phoneModalShownThisSession
+      );
+      
+      // Church modal is controlled by real-time listener
     } else if (userError) {
       // Handle case where user document doesn't exist
       Alert.alert(
@@ -1125,37 +1160,45 @@ const HomeScreen = () => {
 
       {/* Church Selection Modal */}
       <Modal
-        animationType="slide"
+        animationType="none"
         transparent={true}
         visible={showChurchModal}
         onRequestClose={() => {}}
       >
         <View style={styles.modalOverlay}>
+          <BlurView intensity={20} style={StyleSheet.absoluteFillObject} />
           <Animated.View
             style={[
               styles.churchModalContainer,
               { transform: [{ scale: scaleValue }] },
             ]}
           >
+            <View style={styles.modalGradientHeader} />
+            <View style={styles.modalIconContainer}>
+              <Ionicons name="business" size={48} color="#147EFB" />
+            </View>
             <Text style={styles.modalTitle}>Select Your Church</Text>
             <Text style={styles.modalSubtitle}>
-              Please select the church you regularly attend to continue.
+              Please select your church to continue with the app.
             </Text>
-            <View style={styles.churchesContainer}>
+            
+            <View style={styles.churchListContainer}>
               <Churches onSelectChurch={handleChurchSelection} />
             </View>
-            <TouchableOpacity
-              style={[
-                styles.submitButton,
-                isChurchLoading && styles.submitButtonDisabled,
+            
+            <Pressable
+              style={({ pressed }) => [
+                styles.enhancedSubmitButton,
+                pressed && styles.enhancedButtonPressed,
+                { opacity: selectedChurch && !isSubmittingChurch ? 1 : 0.6 },
               ]}
               onPress={handleChurchSubmit}
-              disabled={isChurchLoading}
+              disabled={!selectedChurch || isSubmittingChurch}
             >
-              <Text style={styles.buttonText}>
-                {isChurchLoading ? "Processing..." : "Confirm"}
+              <Text style={styles.enhancedButtonText}>
+                {isSubmittingChurch ? "Setting up..." : "Continue"}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           </Animated.View>
         </View>
       </Modal>
@@ -1641,27 +1684,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#333",
   },
-  churchModalContainer: {
-    backgroundColor: "#252525",
-    borderRadius: 20,
-    padding: 24,
-    alignItems: "center",
-    marginHorizontal: 20,
-    width: "90%",
-    maxHeight: "80%",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 10,
-    borderWidth: 1,
-    borderColor: "#333",
-  },
-  churchesContainer: {
-    width: "100%",
-    flex: 1,
-    marginVertical: 20,
-  },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1718,10 +1740,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginTop: 10,
   },
-  submitButtonDisabled: {
-    backgroundColor: "#1a1a1a",
-    opacity: 0.6,
-  },
   closeButton: {
     padding: 5,
   },
@@ -1773,6 +1791,26 @@ const styles = StyleSheet.create({
     position: "relative",
     overflow: "hidden",
   },
+  churchModalContainer: {
+    backgroundColor: "#1C1C1E",
+    borderRadius: 28,
+    padding: 32,
+    alignItems: "center",
+    marginHorizontal: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+    position: "relative",
+    overflow: "hidden",
+    width: "90%",
+    maxHeight: "80%",
+  },
+  churchListContainer: {
+    maxHeight: 300,
+    marginVertical: 20,
+  },
   modalGradientHeader: {
     position: "absolute",
     top: 0,
@@ -1821,6 +1859,29 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 8,
     fontStyle: "italic",
+  },
+  churchItem: {
+    backgroundColor: "#2A2A2A",
+    padding: 16,
+    marginVertical: 8,
+    marginHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  selectedChurchItem: {
+    backgroundColor: "#147EFB",
+    borderColor: "#147EFB",
+  },
+  churchItemText: {
+    fontSize: 16,
+    color: "#E0E0E0",
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  selectedChurchItemText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
 });
 

@@ -8,9 +8,9 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
-  ScrollView,
   Keyboard,
+  TouchableWithoutFeedback,
+  ScrollView,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
@@ -44,7 +44,10 @@ const InputPhoto = ({ route, navigation }) => {
       setSignUp(true);
       navigation.navigate("SelectChurch");
     } catch (error) {
-      Alert.alert("Error", "Could not update profile information. Please try again.");
+      Alert.alert(
+        "Error",
+        "Could not update profile information. Please try again."
+      );
     }
   }, [phoneNumber, user, setSignUp, navigation]);
 
@@ -57,43 +60,48 @@ const InputPhoto = ({ route, navigation }) => {
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
   }, []);
 
+  const handlePhoneNumberChange = useCallback((text) => {
+    setPhoneNumber(text);
+
+    // Auto-dismiss keyboard when phone number reaches typical length (10 digits for US)
+    // Adjust this logic based on your region's phone number format
+    const digitsOnly = text.replace(/\D/g, "");
+    if (digitsOnly.length >= 10) {
+      Keyboard.dismiss();
+    }
+  }, []);
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.progressBar}>
+          <ProgressBar startPercentage={1} endPercentage={17} />
+        </View>
+      </View>
+
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingContainer}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
       >
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.container}>
-            <View style={styles.header}>
-              <View style={styles.progressBar}>
-                <ProgressBar startPercentage={1} endPercentage={17} />
-              </View>
-              <Text style={styles.titleText}>Set Up Your Profile</Text>
-            </View>
-            
-            <View style={styles.content}>
-              {/* Photo Input Section */}
-              <View style={styles.card}>
-                <Text style={styles.questionText}>Upload your profile picture (optional)</Text>
-                <Pressable style={styles.uploadButton} onPress={handlePhotoPress}>
-                  <Text style={styles.uploadButtonText}>Choose Profile Picture</Text>
-                </Pressable>
-              </View>
+        <Text style={styles.titleText}>Set Up Your Profile</Text>
 
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.content}>
               {/* Phone Input Section */}
-              <View style={[styles.card, { marginTop: 20 }]}>
-                <Text style={styles.questionText}>What's your phone number (Optional)?</Text>
+              <View style={styles.card}>
+                <Text style={styles.questionText}>
+                  What's your phone number (Optional)?
+                </Text>
                 <TextInput
                   style={styles.input}
                   value={phoneNumber}
-                  onChangeText={setPhoneNumber}
+                  onChangeText={handlePhoneNumberChange}
                   placeholder="Enter phone number"
                   placeholderTextColor="#8E8E93"
                   keyboardType="phone-pad"
@@ -103,56 +111,63 @@ const InputPhoto = ({ route, navigation }) => {
                   onSubmitEditing={Keyboard.dismiss}
                 />
               </View>
-            </View>
-            
-            <View style={styles.footer}>
-              <Pressable style={styles.continueButton} onPress={handleContinue}>
-                <Text style={styles.continueText}>Continue</Text>
-              </Pressable>
-            </View>
-          </View>
-        </ScrollView>
 
-        <PhotoInput
-          visible={showPhotoModal}
-          onClose={() => setShowPhotoModal(false)}
-          userId={user?.uid || "default"}
-        />
+              {/* Photo Input Section */}
+              <View style={[styles.card, { marginTop: 20 }]}>
+                <Text style={styles.questionText}>
+                  Upload your profile picture (optional)
+                </Text>
+                <Pressable
+                  style={styles.uploadButton}
+                  onPress={handlePhotoPress}
+                >
+                  <Text style={styles.uploadButtonText}>
+                    Choose Profile Picture
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+        <View style={styles.footer}>
+          <Pressable style={styles.continueButton} onPress={handleContinue}>
+            <Text style={styles.continueText}>Continue</Text>
+          </Pressable>
+        </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+
+      <PhotoInput
+        visible={showPhotoModal}
+        onClose={() => setShowPhotoModal(false)}
+        userId={user?.uid || "default"}
+      />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#121212",
-  },
-  keyboardAvoidingContainer: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
   container: {
     flex: 1,
     backgroundColor: "#121212",
     paddingHorizontal: 16,
     paddingTop: 120,
     paddingBottom: 40,
-    minHeight: '100%',
   },
   header: {
-    marginBottom: 32,
+    marginBottom: 0,
   },
   progressBar: {
     height: 6,
-    marginBottom: 12,
+    width: "100%",
     backgroundColor: "#2A2A2A",
     borderRadius: 3,
+    marginBottom: 12,
+  },
+  keyboardAvoidingContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   titleText: {
     fontSize: 36,
@@ -161,14 +176,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#E0E0E0",
     lineHeight: 42,
-    maxWidth: "90%",
     marginTop: 30,
+    marginBottom: 10,
   },
   content: {
     flex: 1,
-    marginBottom: 24,
     justifyContent: "center",
-    alignItems: "center",
+    marginBottom: 54,
   },
   card: {
     backgroundColor: "#1A1A1A",
@@ -192,15 +206,17 @@ const styles = StyleSheet.create({
   },
   uploadButton: {
     backgroundColor: "#147EFB",
-    padding: 10,
-    borderRadius: 5,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
     width: "100%",
     alignItems: "center",
-    marginVertical: 10,
+    marginTop: 10,
   },
   uploadButtonText: {
     color: "#FFF",
     fontSize: 16,
+    fontWeight: "600",
     fontFamily: "Roboto-Medium",
   },
   input: {
@@ -215,7 +231,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   footer: {
-    paddingBottom: 32,
     alignItems: "center",
   },
   continueButton: {
@@ -225,7 +240,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 67,
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
