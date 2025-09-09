@@ -188,7 +188,7 @@ const SettingsContent = () => {
     } catch (error) {
       // Error handling for FCM tokens update during sign out
     } finally {
-      setSignUp(false);
+      setSignUp(true);
       auth().signOut();
     }
   };
