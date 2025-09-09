@@ -71,7 +71,8 @@ function NetworkWrapper({ children }) {
 
 function AppNavigator() {
   const { user, setUser, signUp, setSignUp } = useUser();
-  const [initializing, setInitializing] = useState();
+  const [initializing, setInitializing] = useState(true);
+  const [cacheInitialized, setCacheInitialized] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -83,6 +84,15 @@ function AppNavigator() {
     });
     return subscriber;
   }, []);
+
+  // Initialize cache only when user setup is complete
+  useEffect(() => {
+    if (user && !signUp && !cacheInitialized) {
+      // User is authenticated and setup is complete
+      initializeCacheManager();
+      setCacheInitialized(true);
+    }
+  }, [user, signUp, cacheInitialized]);
 
   if (initializing) return null;
 
@@ -131,7 +141,19 @@ function AppNavigator() {
             />
           </>
         ) : !signUp ? (
-          <Stack.Screen name="MainContainer" component={MainContainer} />
+          <Stack.Screen 
+            name="MainContainer" 
+            component={MainContainer}
+            listeners={{
+              focus: () => {
+                // Ensure cache is initialized when returning to MainContainer
+                if (!cacheInitialized) {
+                  initializeCacheManager();
+                  setCacheInitialized(true);
+                }
+              },
+            }}
+          />
         ) : (
           <>
             <Stack.Screen name="InputPhoto" component={InputPhoto} />
@@ -147,7 +169,19 @@ function AppNavigator() {
             <Stack.Screen name="DeaconRank" component={DeaconRank} />
             <Stack.Screen name="Experience" component={Experience} />
             <Stack.Screen name="Frequency" component={Frequency} />
-            <Stack.Screen name="MainContainer" component={MainContainer} />
+            <Stack.Screen 
+              name="MainContainer" 
+              component={MainContainer}
+              listeners={{
+                focus: () => {
+                  // Initialize cache when setup is complete and user reaches MainContainer
+                  if (!cacheInitialized) {
+                    initializeCacheManager();
+                    setCacheInitialized(true);
+                  }
+                },
+              }}
+            />
           </>
         )}
       </Stack.Navigator>
@@ -156,11 +190,7 @@ function AppNavigator() {
 }
 
 export default function App() {
-  useEffect(() => {
-    // Initialize cache manager on app startup
-    initializeCacheManager();
-  }, []);
-
+  // Removed cache initialization from here
   return (
     <UserProvider>
       <NetworkWrapper>
