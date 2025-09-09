@@ -75,11 +75,11 @@ function AppNavigator() {
   const [cacheInitialized, setCacheInitialized] = useState(false);
 
   useEffect(() => {
-    if (!user) {
-      setSignUp(false);
-    }
     const subscriber = auth().onAuthStateChanged((user) => {
       setUser(user);
+      if (!user) {
+        setSignUp(false);
+      }
       setInitializing(false);
     });
     return subscriber;

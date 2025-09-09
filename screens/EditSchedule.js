@@ -274,6 +274,7 @@ const EditSchedule = () => {
   const [altarServersCount, setAltarServersCount] = useState(0);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [lastServeData, setLastServeData] = useState({});
+  const [nextServeData, setNextServeData] = useState({});
   const [userListeners, setUserListeners] = useState([]);
   
   const scrollViewRef = useRef(null);
@@ -546,7 +547,7 @@ const EditSchedule = () => {
         }
       }, server === servers[0] ? 0 : Math.random() * 500); // Stagger requests to avoid overload
       
-      // Set up realtime listener for user's lastServe
+      // Set up realtime listener for user's lastServe and nextWeekServe
       const unsubscribe = firestore()
         .collection("users")
         .doc(server.uid)
@@ -562,6 +563,20 @@ const EditSchedule = () => {
               } else {
                 // Remove from lastServeData if no longer has lastServe
                 setLastServeData((prev) => {
+                  const newData = { ...prev };
+                  delete newData[server.uid];
+                  return newData;
+                });
+              }
+              
+              // Also track nextWeekServe
+              if (userData.nextWeekServe) {
+                setNextServeData((prev) => ({
+                  ...prev,
+                  [server.uid]: userData.nextWeekServe,
+                }));
+              } else {
+                setNextServeData((prev) => {
                   const newData = { ...prev };
                   delete newData[server.uid];
                   return newData;
@@ -599,6 +614,7 @@ const EditSchedule = () => {
     setAvailableServers([]);
     setImageUrls({});
     setLastServeData({});
+    setNextServeData({});
     cleanupUserListeners();
   };
 
@@ -747,9 +763,24 @@ const EditSchedule = () => {
   };
 
   const renderReaderItem = ({ item }) => {
-    const weeksSince = calculateWeeksBetween(lastServeData[item.uid], selectedWeek);
-    const indicatorColor = getColorForWeeks(weeksSince);
-    const displayText = getWeeksDisplayText(weeksSince);
+    const weeksSinceLastServe = calculateWeeksBetween(lastServeData[item.uid], selectedWeek);
+    const weeksUntilNextServe = calculateWeeksBetween(selectedWeek, nextServeData[item.uid]);
+    
+    // Always prioritize last serve information
+    let primaryIndicatorColor = getColorForWeeks(weeksSinceLastServe);
+    let primaryDisplayText = getWeeksDisplayText(weeksSinceLastServe);
+    let secondaryInfo = null;
+    
+    // Add future serving info as secondary information
+    if (weeksUntilNextServe !== null && weeksUntilNextServe >= 0) {
+      if (weeksUntilNextServe === 0) {
+        secondaryInfo = 'Serving next week';
+      } else if (weeksUntilNextServe === 1) {
+        secondaryInfo = 'Serving in 1 week';
+      } else if (weeksUntilNextServe <= 8) {
+        secondaryInfo = `Serving in ${weeksUntilNextServe} weeks`;
+      }
+    }
     
     return (
       <TouchableOpacity
@@ -768,13 +799,20 @@ const EditSchedule = () => {
               style={styles.profilePic}
               defaultSource={require("../assets/default_profile.png")}
             />
-            <View style={[styles.statusIndicator, { backgroundColor: indicatorColor }]} />
+            <View style={[styles.statusIndicator, { backgroundColor: primaryIndicatorColor }]} />
           </View>
           <View style={styles.serverInfo}>
             <Text style={styles.modalItem}>{item.name}</Text>
-            <Text style={[styles.lastServeText, { color: indicatorColor }]}>
-              {displayText}
-            </Text>
+            <View style={styles.serveInfoContainer}>
+              <Text style={[styles.primaryServeText, { color: primaryIndicatorColor }]}>
+                {primaryDisplayText}
+              </Text>
+              {secondaryInfo && (
+                <Text style={styles.secondaryServeText}>
+                  {secondaryInfo}
+                </Text>
+              )}
+            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -1330,6 +1368,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 3,
     fontWeight: "500",
+  },
+  serveInfoContainer: {
+    marginTop: 2,
+  },
+  primaryServeText: {
+    fontSize: 13,
+    marginTop: 2,
+    fontWeight: "600",
+  },
+  secondaryServeText: {
+    fontSize: 11,
+    marginTop: 1,
+    color: "#888",
+    fontWeight: "400",
   },
   separator: {
     height: 1,

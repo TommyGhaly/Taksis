@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { StyleSheet, View, Text } from "react-native";
+import React, { useEffect, useState, useCallback } from "react";
+import { StyleSheet, View, Text, ScrollView, RefreshControl } from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createDrawerNavigator } from "@react-navigation/drawer";
@@ -81,7 +81,6 @@ const screenConfigs = {
 };
 
 function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId }) {
-  // Get the home screen configuration
   const homeConfig = screenConfigs[homeScreenId] || screenConfigs.schedule;
   const HomeComponent = homeConfig.component;
 
@@ -150,17 +149,13 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId }) {
 }
 
 function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId }) {
-  // Determine which screens should be in the drawer based on user's home screen selection
   const shouldShowInDrawer = (screenId) => {
-    // If this screen is the home screen, show "Deacon Service Schedule" instead
     if (screenId === homeScreenId && homeScreenId !== "schedule") {
       return false;
     }
-    // Always show the schedule if it's not the home screen
     if (screenId === "schedule" && homeScreenId !== "schedule") {
       return true;
     }
-    // Check role-based permissions
     switch (screenId) {
       case "sundaySchoolAttendance":
         return userRoles.isSSTeacher;
@@ -208,7 +203,6 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId }) {
         )}
       </Drawer.Screen>
       
-      {/* Always show Deacon Service Schedule if it's not the home screen */}
       {shouldShowInDrawer("schedule") && (
         <Drawer.Screen
           name="Deacon Service Schedule"
@@ -216,7 +210,6 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId }) {
         />
       )}
       
-      {/* Conditionally show other screens based on roles and home screen selection */}
       {shouldShowInDrawer("sundaySchoolAttendance") && (
         <Drawer.Screen
           name={screenConfigs.sundaySchoolAttendance.drawerName}
@@ -276,67 +269,111 @@ export default function MainContainer() {
   const [homeTitle, setHomeTitle] = useState("Deacon Service Schedule");
   const [homeScreenId, setHomeScreenId] = useState("schedule");
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-useEffect(() => {
-  const user = auth().currentUser;
-  if (user) {
-    const unsubscribe = firestore()
-      .collection("users")
-      .doc(user.uid)
-      .onSnapshot(
-        async (doc) => {
-          if (doc.exists) {
-            const data = doc.data();
-            setUserRoles(data);
-            
-            // Determine home screen based on user preference or default logic
-            let selectedHomeScreen = data.homeScreen;
-            
-            if (!selectedHomeScreen) {
-              // Apply default logic if no preference is set
-              if (data.isDeacon) {
-                // Deacon (admin) defaults to schedule
-                selectedHomeScreen = "schedule";
-              } else if (data.isSSTeacher) {
-                // Sunday School servant defaults to Sunday School Attendance
-                selectedHomeScreen = "sundaySchoolAttendance";
-              } else if (data.isAlhan) {
-                // Alhan teacher defaults to Hymns Class Attendance
-                selectedHomeScreen = "hymnsClassAttendance";
-              } else {
-                // Everyone else defaults to schedule
-                selectedHomeScreen = "schedule";
-              }
-              
-              // Update the user document with the default home screen
-              try {
-                await firestore()
-                  .collection("users")
-                  .doc(user.uid)
-                  .update({
-                    homeScreen: selectedHomeScreen
-                  });
-              } catch (error) {
-              }
-            }
-            
-            setHomeScreenId(selectedHomeScreen);
-            const config = screenConfigs[selectedHomeScreen];
-            if (config) {
-              setHomeTitle(config.name);
-            }
-            setIsLoading(false);
+  // Function to fetch user data
+  const fetchUserData = useCallback(async (isRefresh = false) => {
+    const user = auth().currentUser;
+    if (!user) {
+      setIsLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
+    if (isRefresh) {
+      setRefreshing(true);
+    }
+
+    try {
+      const doc = await firestore()
+        .collection("users")
+        .doc(user.uid)
+        .get();
+
+      if (doc.exists) {
+        const data = doc.data();
+        setUserRoles(data);
+        
+        let selectedHomeScreen = data.homeScreen;
+        
+        if (!selectedHomeScreen) {
+          if (data.isDeacon) {
+            selectedHomeScreen = "schedule";
+          } else if (data.isSSTeacher) {
+            selectedHomeScreen = "sundaySchoolAttendance";
+          } else if (data.isAlhan) {
+            selectedHomeScreen = "hymnsClassAttendance";
+          } else {
+            selectedHomeScreen = "schedule";
           }
-        },
-        (error) => {
-          console.error("Error fetching user data:", error);
-          setIsLoading(false);
+          
+          firestore()
+            .collection("users")
+            .doc(user.uid)
+            .update({ homeScreen: selectedHomeScreen })
+            .catch(() => {});
         }
-      );
+        
+        setHomeScreenId(selectedHomeScreen);
+        const config = screenConfigs[selectedHomeScreen];
+        if (config) {
+          setHomeTitle(config.name);
+        }
+      }
+    } catch (error) {
+      // Silent error handling
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
-    return () => unsubscribe();
-  }
-}, []);
+  useEffect(() => {
+    const user = auth().currentUser;
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
+    let unsubscribe;
+    
+    // Initial fetch
+    fetchUserData();
+    
+    // Set up realtime listener after a short delay
+    setTimeout(() => {
+      unsubscribe = firestore()
+        .collection("users")
+        .doc(user.uid)
+        .onSnapshot(
+          (snapshot) => {
+            if (snapshot.exists && !isLoading && !refreshing) {
+              const data = snapshot.data();
+              setUserRoles(data);
+              
+              if (data.homeScreen && data.homeScreen !== homeScreenId) {
+                setHomeScreenId(data.homeScreen);
+                const config = screenConfigs[data.homeScreen];
+                if (config) {
+                  setHomeTitle(config.name);
+                }
+              }
+            }
+          },
+          () => {}
+        );
+    }, 1000);
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, []);
+
+  const onRefresh = useCallback(() => {
+    fetchUserData(true);
+  }, [fetchUserData]);
 
   const shouldShowDrawer =
     userRoles.isAlhan ||
@@ -349,9 +386,19 @@ useEffect(() => {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <ScrollView
+        contentContainerStyle={styles.loadingContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#147efb"
+            colors={["#147efb"]}
+          />
+        }
+      >
         <Text style={styles.loadingText}>Loading...</Text>
-      </View>
+      </ScrollView>
     );
   }
 
