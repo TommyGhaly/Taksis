@@ -37,6 +37,19 @@ const Frequency = ({ route, navigation }) => {
       .padStart(2, "0")}-${date.getDate().toString().padStart(2, "0")}-${date.getFullYear()}`;
   };
 
+  const calculateAge = (birthDate) => {
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    // Adjust age if birthday hasn't occurred this year
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age;
+  };
+
   const formatSliderValue = (value) => {
     const rounded = Number(value.toFixed(2));
     if (rounded % 1 === 0) {
@@ -70,9 +83,12 @@ const Frequency = ({ route, navigation }) => {
     }
 
     try {
+      const userAge = calculateAge(date);
+      
       await firestore().collection("users").doc(user.uid).update({
         frequency: frequency,
         DOB: formatDate(date),
+        age: userAge,
       });
       setSignUp(false);
       navigation.navigate("MainContainer");
