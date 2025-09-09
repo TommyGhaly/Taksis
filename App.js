@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, Text, View, ScrollView, RefreshControl, ActivityIndicator } from "react-native";
+import { StyleSheet, Text, View, ScrollView, RefreshControl } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import auth from "@react-native-firebase/auth";
@@ -71,92 +71,20 @@ function NetworkWrapper({ children }) {
 
 function AppNavigator() {
   const { user, setUser, signUp, setSignUp } = useUser();
-  const [initializing, setInitializing] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [authSubscriber, setAuthSubscriber] = useState(null);
+  const [initializing, setInitializing] = useState();
 
   useEffect(() => {
     if (!user) {
       setSignUp(false);
     }
-    
-    // Subscribe to auth state changes
     const subscriber = auth().onAuthStateChanged((user) => {
       setUser(user);
       setInitializing(false);
     });
-    
-    setAuthSubscriber(() => subscriber);
-    
-    // Set a timeout to force initialization to false if it takes too long
-    const timeout = setTimeout(() => {
-      if (initializing) {
-        setInitializing(false);
-      }
-    }, 10000); // 10 seconds timeout
-    
-    return () => {
-      subscriber();
-      clearTimeout(timeout);
-    };
+    return subscriber;
   }, []);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    setInitializing(true);
-    
-    try {
-      // Re-initialize auth listener
-      if (authSubscriber) {
-        authSubscriber();
-      }
-      
-      // Force a re-check of current auth state
-      const currentUser = auth().currentUser;
-      setUser(currentUser);
-      
-      // Re-subscribe to auth changes
-      const newSubscriber = auth().onAuthStateChanged((user) => {
-        setUser(user);
-        setInitializing(false);
-        setRefreshing(false);
-      });
-      
-      setAuthSubscriber(() => newSubscriber);
-      
-      // Set timeout for refresh
-      setTimeout(() => {
-        setInitializing(false);
-        setRefreshing(false);
-      }, 5000);
-      
-    } catch (error) {
-      console.error("Error refreshing auth state:", error);
-      setInitializing(false);
-      setRefreshing(false);
-    }
-  };
-
-  if (initializing) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ScrollView
-          contentContainerStyle={styles.scrollViewContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#8e8e93"
-            />
-          }
-        >
-          <ActivityIndicator size="large" color="#8e8e93" />
-          <Text style={styles.loadingText}>Loading...</Text>
-          <Text style={styles.pullDownText}>Pull down to refresh if stuck</Text>
-        </ScrollView>
-      </View>
-    );
-  }
+  if (initializing) return null;
 
   return (
     <NavigationContainer style={styles.container}>
@@ -250,10 +178,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#121212",
   },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: "#121212",
-  },
   scrollViewContent: {
     flexGrow: 1,
     justifyContent: "center",
@@ -264,17 +188,5 @@ const styles = StyleSheet.create({
     fontSize: 18,
     textAlign: "center",
     color: "#8e8e93",
-  },
-  loadingText: {
-    fontSize: 18,
-    textAlign: "center",
-    color: "#8e8e93",
-    marginTop: 20,
-  },
-  pullDownText: {
-    fontSize: 14,
-    textAlign: "center",
-    color: "#6e6e73",
-    marginTop: 10,
   },
 });

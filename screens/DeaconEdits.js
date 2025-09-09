@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   Dimensions,
   Platform,
   ScrollView,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
@@ -52,259 +53,326 @@ const indexBarWidth = isTablet ? 32 : 24;
 const DeaconEdits = () => {
   const user = auth().currentUser;
   
-  // Use cached Firebase hooks for user data
-  const { 
-    data: userDoc, 
-    loading: userLoading, 
-    error: userError, 
-    refresh: refreshUser 
-  } = useFirestoreDocument('users', user?.uid);
-
-  // Use cached hook for church data when churchId is available
-  const { 
-    data: churchDoc, 
-    loading: churchLoading, 
-    refresh: refreshChurch 
-  } = useFirestoreDocument('churches', userDoc?.church);
-
+  // State for managing church and user data
+  const [currentChurch, setCurrentChurch] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [deacons, setDeacons] = useState([]);
   const [sections, setSections] = useState([]);
   const [selectedDeacon, setSelectedDeacon] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
+  const [isLoadingDeacons, setIsLoadingDeacons] = useState(true);
+  const [userDataLoading, setUserDataLoading] = useState(true);
+  
   const sectionListRef = useRef(null);
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerHeightRef = useRef(0);
+  const deaconsListenerRef = useRef(null);
+  const userListenerRef = useRef(null);
 
-  // Derive church from cached data
-  const church = userDoc?.church || null;
-
-  // Subscribe to deacons array updates with lazy caching
+  // Set up real-time listener for user document to detect church changes
   useEffect(() => {
-    if (!church) return;
+    if (!user?.uid) {
+      setUserDataLoading(false);
+      return;
+    }
 
-    const fetchDeaconsWithLazyCache = async () => {
-      try {
-        // First, try to get from cache for instant loading
-        let cachedChurchDoc = null;
-        
-        try {
-          // Attempt to get cached church data (non-blocking)
-          cachedChurchDoc = await FirestoreCache.getDocument(
-            'churches', 
-            church, 
-            { forceRefresh: false }
-          );
-        } catch (cacheError) {
-          // Cache failed, continue with direct fetch
-        }
-
-        // If we have cached data, use it immediately for UI
-        if (cachedChurchDoc?.deacons) {
-          await processDeaconList(cachedChurchDoc.deacons, cachedChurchDoc);
-        }
-
-        // Always set up real-time listener for updates (parallel to cache)
-        const unsubscribe = firestore()
-          .collection("churches")
-          .doc(church)
-          .onSnapshot(
-            async (doc) => {
-              if (doc.exists) {
-                await processDeaconList(doc.data().deacons || [], doc.data());
-                
-                // Background caching: Update cache with fresh data (non-blocking)
-                setTimeout(async () => {
-                  try {
-                    await FirestoreCache.getDocument(
-                      'churches',
-                      church,
-                      { forceRefresh: true }
-                    );
-                  } catch (error) {
-                    // Ignore cache errors - don't affect UI
-                  }
-                }, 100);
-              }
-            },
-            (error) => {
-              Alert.alert("Error", "Failed to fetch deacons.");
-            }
-          );
-
-        return unsubscribe;
-      } catch (error) {
-        Alert.alert("Error", "Failed to load deacons data.");
-      }
-    };
-
-    const processDeaconList = async (deaconList, churchData) => {
-      try {
-        // Fetch phone numbers from users collection with lazy caching
-        const deaconListWithPhone = await Promise.all(
-          deaconList.map(async (deacon) => {
-            if (deacon.uid) {
-              try {
-                // Try cache first for user data
-                let userData = null;
-                try {
-                  userData = await FirestoreCache.getDocument(
-                    'users', 
-                    deacon.uid, 
-                    { forceRefresh: false }
-                  );
-                } catch (cacheError) {
-                  // Fallback to direct fetch
-                  const userDoc = await firestore()
-                    .collection("users")
-                    .doc(deacon.uid)
-                    .get();
-                  userData = userDoc.exists ? userDoc.data() : null;
-                }
-
-                return {
-                  ...deacon,
-                  phone: userData
-                    ? userData.phone || userData.number || "Not provided"
-                    : "Not provided",
-                };
-              } catch (error) {
-                return { ...deacon, phone: "Not provided" };
-              }
-            }
-            return { ...deacon, phone: "Not provided" };
-          })
-        );
-
-        // Sort and group deacons
-        const sortedDeacons = deaconListWithPhone
-          .map((deacon) => ({
-            ...deacon,
-            name: (deacon.name || "").trim().toLowerCase(),
-          }))
-          .sort((a, b) => {
-            const nameComparison = a.name.localeCompare(b.name);
-            if (nameComparison === 0) {
-              return a.uid.localeCompare(b.uid);
-            }
-            return nameComparison;
-          })
-          .map((deacon) => ({
-            ...deacon,
-            name:
-              deaconList.find((d) => d.uid === deacon.uid)?.name || "",
-          }));
-
-        // Group by first letter - categorize non-alphabet characters as #
-        const grouped = sortedDeacons.reduce((acc, deacon) => {
-          const firstChar = deacon.name.charAt(0).toUpperCase();
-          const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
-          if (!acc[firstLetter]) acc[firstLetter] = [];
-          acc[firstLetter].push(deacon);
-          return acc;
-        }, {});
-
-        // Convert to SectionList format - put # at the end
-        const sectionData = Object.keys(grouped)
-          .sort((a, b) => {
-            // Put # at the end, sort other letters alphabetically
-            if (a === '#') return 1;
-            if (b === '#') return -1;
-            return a.localeCompare(b);
-          })
-          .map((letter) => ({
-            title: letter,
-            data: grouped[letter],
-          }));
-
-        setDeacons(sortedDeacons);
-        setSections(sectionData);
-      } catch (error) {
-        // Error handling for deacon processing
-      }
-    };
-
-    let unsubscribePromise = fetchDeaconsWithLazyCache();
+    console.log('Setting up user listener for:', user.uid);
     
-    return () => {
-      unsubscribePromise.then(unsubscribe => {
-        if (unsubscribe && typeof unsubscribe === 'function') {
-          unsubscribe();
-        }
-      }).catch(() => {
-        // Handle cleanup error
-      });
-    };
-  }, [church]);
+    // Clean up any existing listener
+    if (userListenerRef.current) {
+      userListenerRef.current();
+      userListenerRef.current = null;
+    }
 
-  // Fetch profile pictures with lazy caching
-  useEffect(() => {
-    if (!church) return;
-
-    const fetchProfilePictureUrlsWithCache = async () => {
-      try {
-        // Get all deacons from the church document (use cache if available)
-        let churchData = null;
-        try {
-          churchData = await FirestoreCache.getDocument(
-            'churches', 
-            church, 
-            { forceRefresh: false }
-          );
-        } catch (cacheError) {
-          // Fallback to direct fetch
-          const doc = await firestore().collection("churches").doc(church).get();
-          churchData = doc.exists ? doc.data() : null;
-        }
-        
-        if (churchData) {
-          const deaconList = churchData.deacons || [];
-          
-          // Fetch profile pictures with caching, immediate loading
-          const urls = {};
-          const profilePromises = deaconList.map(async (deacon) => {
-            if (deacon.uid) {
-              try {
-                const storagePath = `profilePictures/${deacon.uid}.png`;
-                const cachedUrl = await StorageCache.getDownloadURL(storagePath);
-                urls[deacon.uid] = typeof cachedUrl === "string" && cachedUrl.trim() ? cachedUrl : null;
-                setProfilePictureUrls(prev => ({ ...prev, [deacon.uid]: urls[deacon.uid] }));
-              } catch (error) {
-                // Cache failed, try direct fetch immediately
-                try {
-                  const url = await storage()
-                    .ref(`profilePictures/${deacon.uid}.png`)
-                    .getDownloadURL();
-                  urls[deacon.uid] = typeof url === "string" && url.trim() ? url : null;
-                  setProfilePictureUrls(prev => ({ ...prev, [deacon.uid]: urls[deacon.uid] }));
-                  
-                  // Store in cache for next time (background)
-                  setTimeout(() => {
-                    StorageCache.getDownloadURL(`profilePictures/${deacon.uid}.png`, { forceRefresh: true }).catch(() => {});
-                  }, 50);
-                } catch (storageError) {
-                  urls[deacon.uid] = null;
-                  setProfilePictureUrls(prev => ({ ...prev, [deacon.uid]: null }));
-                }
-              }
+    // Set up real-time listener for user document
+    userListenerRef.current = firestore()
+      .collection('users')
+      .doc(user.uid)
+      .onSnapshot(
+        (doc) => {
+          console.log('User document updated');
+          if (doc.exists) {
+            const userData = doc.data();
+            const newChurch = userData?.church || null;
+            console.log('User church:', newChurch, 'Current church:', currentChurch);
+            
+            // Update church if it changed
+            if (newChurch !== currentChurch) {
+              console.log('Church changed from', currentChurch, 'to', newChurch);
+              setCurrentChurch(newChurch);
             }
-          });
-          
-          // Wait for all profile pictures to load
-          await Promise.all(profilePromises);
+          }
+          setUserDataLoading(false);
+        },
+        (error) => {
+          console.error('Error listening to user document:', error);
+          setUserDataLoading(false);
         }
-      } catch (error) {
-        // Silent error handling
+      );
+
+    return () => {
+      if (userListenerRef.current) {
+        userListenerRef.current();
+        userListenerRef.current = null;
       }
     };
+  }, [user?.uid]);
 
-    fetchProfilePictureUrlsWithCache();
-    const intervalId = setInterval(fetchProfilePictureUrlsWithCache, 30000);
+  // Process deacon list
+  const processDeaconList = useCallback(async (deaconList, churchData) => {
+    try {
+      console.log('Processing', deaconList.length, 'deacons');
+      
+      // Fetch phone numbers from users collection with lazy caching
+      const deaconListWithPhone = await Promise.all(
+        deaconList.map(async (deacon) => {
+          if (deacon.uid) {
+            try {
+              // Try cache first for user data
+              let userData = null;
+              try {
+                userData = await FirestoreCache.getDocument(
+                  'users', 
+                  deacon.uid, 
+                  { forceRefresh: false }
+                );
+              } catch (cacheError) {
+                // Fallback to direct fetch
+                const userDoc = await firestore()
+                  .collection("users")
+                  .doc(deacon.uid)
+                  .get();
+                userData = userDoc.exists ? userDoc.data() : null;
+                
+                // Cache the fetched data
+                if (userData) {
+                  setTimeout(() => {
+                    FirestoreCache.setDocument('users', deacon.uid, userData).catch(() => {});
+                  }, 50);
+                }
+              }
+
+              return {
+                ...deacon,
+                phone: userData
+                  ? userData.phone || userData.number || "Not provided"
+                  : "Not provided",
+              };
+            } catch (error) {
+              return { ...deacon, phone: "Not provided" };
+            }
+          }
+          return { ...deacon, phone: "Not provided" };
+        })
+      );
+
+      // Sort and group deacons
+      const sortedDeacons = deaconListWithPhone
+        .map((deacon) => ({
+          ...deacon,
+          name: (deacon.name || "").trim().toLowerCase(),
+        }))
+        .sort((a, b) => {
+          const nameComparison = a.name.localeCompare(b.name);
+          if (nameComparison === 0) {
+            return a.uid.localeCompare(b.uid);
+          }
+          return nameComparison;
+        })
+        .map((deacon) => ({
+          ...deacon,
+          name:
+            deaconList.find((d) => d.uid === deacon.uid)?.name || "",
+        }));
+
+      // Group by first letter - categorize non-alphabet characters as #
+      const grouped = sortedDeacons.reduce((acc, deacon) => {
+        const firstChar = deacon.name.charAt(0).toUpperCase();
+        const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
+        if (!acc[firstLetter]) acc[firstLetter] = [];
+        acc[firstLetter].push(deacon);
+        return acc;
+      }, {});
+
+      // Convert to SectionList format - put # at the end
+      const sectionData = Object.keys(grouped)
+        .sort((a, b) => {
+          // Put # at the end, sort other letters alphabetically
+          if (a === '#') return 1;
+          if (b === '#') return -1;
+          return a.localeCompare(b);
+        })
+        .map((letter) => ({
+          title: letter,
+          data: grouped[letter],
+        }));
+
+      setDeacons(sortedDeacons);
+      setSections(sectionData);
+    } catch (error) {
+      console.error('Error processing deacon list:', error);
+    }
+  }, []);
+
+  // Subscribe to deacons when church changes
+  useEffect(() => {
+    // Clean up previous listener
+    if (deaconsListenerRef.current) {
+      console.log('Cleaning up previous deacons listener');
+      deaconsListenerRef.current();
+      deaconsListenerRef.current = null;
+    }
+
+    if (!currentChurch) {
+      console.log('No church set, clearing deacons');
+      setDeacons([]);
+      setSections([]);
+      setProfilePictureUrls({});
+      setIsLoadingDeacons(false);
+      return;
+    }
+
+    console.log('Setting up deacons listener for church:', currentChurch);
+    setIsLoadingDeacons(true);
+
+    // Set up real-time listener for church deacons
+    deaconsListenerRef.current = firestore()
+      .collection("churches")
+      .doc(currentChurch)
+      .onSnapshot(
+        async (doc) => {
+          console.log('Church document updated, exists:', doc.exists);
+          if (doc.exists) {
+            const churchData = doc.data();
+            const deaconData = churchData.deacons || [];
+            console.log('Found', deaconData.length, 'deacons');
+            
+            await processDeaconList(deaconData, churchData);
+            
+            // Lazy cache update after processing
+            setTimeout(async () => {
+              try {
+                await FirestoreCache.setDocument('churches', currentChurch, churchData);
+              } catch (error) {
+                console.log('Cache update error (non-critical):', error);
+              }
+            }, 100);
+          } else {
+            console.log('Church document does not exist');
+            setDeacons([]);
+            setSections([]);
+          }
+          setIsLoadingDeacons(false);
+        },
+        (error) => {
+          console.error('Firestore listener error:', error);
+          Alert.alert("Error", "Failed to fetch deacons.");
+          setIsLoadingDeacons(false);
+        }
+      );
 
     return () => {
-      clearInterval(intervalId);
+      if (deaconsListenerRef.current) {
+        deaconsListenerRef.current();
+        deaconsListenerRef.current = null;
+      }
     };
-  }, [church]);
+  }, [currentChurch, processDeaconList]);
+
+  // Fetch profile pictures
+  useEffect(() => {
+    if (!currentChurch || deacons.length === 0) {
+      setProfilePictureUrls({});
+      return;
+    }
+
+    const fetchProfilePictureUrls = async () => {
+      const urls = {};
+      const profilePromises = deacons.map(async (deacon) => {
+        if (deacon.uid) {
+          try {
+            const storagePath = `profilePictures/${deacon.uid}.png`;
+            // Try cache first
+            const cachedUrl = await StorageCache.getDownloadURL(storagePath);
+            urls[deacon.uid] = typeof cachedUrl === "string" && cachedUrl.trim() ? cachedUrl : null;
+            setProfilePictureUrls(prev => ({ ...prev, [deacon.uid]: urls[deacon.uid] }));
+          } catch (error) {
+            // Cache failed, try direct fetch
+            try {
+              const url = await storage()
+                .ref(`profilePictures/${deacon.uid}.png`)
+                .getDownloadURL();
+              urls[deacon.uid] = typeof url === "string" && url.trim() ? url : null;
+              setProfilePictureUrls(prev => ({ ...prev, [deacon.uid]: urls[deacon.uid] }));
+              
+              // Store in cache for next time
+              setTimeout(() => {
+                StorageCache.getDownloadURL(`profilePictures/${deacon.uid}.png`, { forceRefresh: true }).catch(() => {});
+              }, 50);
+            } catch (storageError) {
+              urls[deacon.uid] = null;
+              setProfilePictureUrls(prev => ({ ...prev, [deacon.uid]: null }));
+            }
+          }
+        }
+      });
+      
+      await Promise.all(profilePromises);
+    };
+
+    fetchProfilePictureUrls();
+  }, [currentChurch, deacons]);
+
+  // Pull to refresh handler
+  const onRefresh = useCallback(async () => {
+    console.log('Pull to refresh triggered');
+    setIsRefreshing(true);
+    
+    try {
+      // Force refresh user data to get latest church
+      if (user?.uid) {
+        const userDoc = await firestore()
+          .collection('users')
+          .doc(user.uid)
+          .get();
+        
+        if (userDoc.exists) {
+          const userData = userDoc.data();
+          const latestChurch = userData?.church || null;
+          console.log('Refreshed church:', latestChurch);
+          
+          // Update church if different
+          if (latestChurch !== currentChurch) {
+            setCurrentChurch(latestChurch);
+          } else if (latestChurch) {
+            // If church is same, force refresh the deacons data
+            const churchDoc = await firestore()
+              .collection('churches')
+              .doc(latestChurch)
+              .get();
+              
+            if (churchDoc.exists) {
+              const churchData = churchDoc.data();
+              const deaconData = churchData.deacons || [];
+              await processDeaconList(deaconData, churchData);
+            }
+          }
+          
+          // Clear caches to ensure fresh data
+          if (latestChurch) {
+            await FirestoreCache.clearDocument('churches', latestChurch);
+            await FirestoreCache.clearDocument('users', user.uid);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      Alert.alert("Error", "Failed to refresh data. Please try again.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [user?.uid, currentChurch, processDeaconList]);
 
   // Open edit modal
   const openEditModal = (deacon) => {
@@ -338,9 +406,7 @@ const DeaconEdits = () => {
     });
   };
 
-
-
-  // Measure section header height
+  // Render section header
   const renderSectionHeader = ({ section: { title } }) => (
     <View
       style={styles.sectionHeader}
@@ -399,8 +465,8 @@ const DeaconEdits = () => {
     );
   };
 
-  // Show loading state while user data is loading
-  if (userLoading) {
+  // Show loading state
+  if (userDataLoading || isLoadingDeacons) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator
@@ -411,26 +477,20 @@ const DeaconEdits = () => {
           Loading...
         </Text>
         <Text style={[styles.loadingSubtext, { fontSize: 14 * scale }]}>
-          Getting your data ready
+          {userDataLoading ? "Getting your data ready" : "Loading deacons..."}
         </Text>
       </View>
     );
   }
 
-  // Show error state if user data failed to load
-  if (userError && !userDoc) {
+  // Show no church state
+  if (!currentChurch) {
     return (
       <View style={styles.centered}>
-        <Text style={[styles.errorText, { fontSize: 18 * scale }]}>Connection Error</Text>
+        <Text style={[styles.errorText, { fontSize: 18 * scale }]}>No Church Selected</Text>
         <Text style={[styles.errorSubtext, { fontSize: 14 * scale }]}>
-          Unable to load your data. Check your internet connection.
+          Please select a church in your profile settings.
         </Text>
-        <TouchableOpacity 
-          onPress={refreshUser} 
-          style={[styles.retryButton, { marginTop: 20 }]}
-        >
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
       </View>
     );
   }
@@ -438,9 +498,24 @@ const DeaconEdits = () => {
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
       {sections.length === 0 ? (
-        <Text style={[styles.noData, { fontSize: 16 * scale }]}>
-          No deacons found.
-        </Text>
+        <ScrollView
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              tintColor="#147efb"
+              colors={["#147efb"]}
+            />
+          }
+          contentContainerStyle={styles.centered}
+        >
+          <Text style={[styles.noData, { fontSize: 16 * scale }]}>
+            No deacons found.
+          </Text>
+          <Text style={[styles.noDataSubtext, { fontSize: 14 * scale }]}>
+            Pull down to refresh
+          </Text>
+        </ScrollView>
       ) : (
         <View style={styles.listWrapper}>
           <SectionList
@@ -456,6 +531,14 @@ const DeaconEdits = () => {
             onScrollToIndexFailed={() => {
               // Do nothing when scroll fails - stay in current position
             }}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={onRefresh}
+                tintColor="#147efb"
+                colors={["#147efb"]}
+              />
+            }
           />
           {/* Wrap the AlphabetIndexBar in an absolutely positioned View */}
           <View style={{ position: 'absolute', top: 150 * scale, right: 0, width: 30 }}>
@@ -472,7 +555,7 @@ const DeaconEdits = () => {
           userId={selectedDeacon.uid}
           show={modalVisible}
           onClose={handleCancel}
-          church={church}
+          church={currentChurch}
           week=""
           family=""
           url=""
@@ -575,6 +658,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#aaa",
     marginTop: 20,
+  },
+  noDataSubtext: {
+    textAlign: "center",
+    color: "#666",
+    marginTop: 10,
+    fontSize: 14,
   },
   sectionHeader: {
     backgroundColor: "transparent",
