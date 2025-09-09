@@ -78,7 +78,7 @@ function AppNavigator() {
     const subscriber = auth().onAuthStateChanged((user) => {
       setUser(user);
       if (!user) {
-        setSignUp(false);
+        setSignUp(true);
       }
       setInitializing(false);
     });
