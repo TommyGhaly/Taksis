@@ -1,29 +1,87 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Text, StyleSheet, View, TouchableOpacity } from "react-native";
 import { CheckBox } from "@rneui/themed";
 import * as Haptics from "react-native-haptic-feedback";
+import firestore from "@react-native-firebase/firestore";
+import auth from "@react-native-firebase/auth";
 
 const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
   const [deacon, setDeacon] = useState(false);
   const [alhan, setAlhan] = useState(false);
   const [ssTeach, setSSTeach] = useState(false);
   const [none, setNone] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUserRoles = async () => {
+      try {
+        const user = auth().currentUser;
+        if (!user) {
+          setLoading(false);
+          return;
+        }
+
+        const userDoc = await firestore()
+          .collection("users")
+          .doc(user.uid)
+          .get();
+          
+        if (userDoc.exists) {
+          const data = userDoc.data();
+          
+          // Get values from database, default to false if not present
+          const isDeacon = data.isDeacon || false;
+          const isAlhan = data.isAlhan || false;
+          const isSSTeacher = data.isSSTeacher || false;
+          
+          // Set states based on database values
+          setDeacon(isDeacon);
+          setAlhan(isAlhan);
+          setSSTeach(isSSTeacher);
+          
+          // If all three are false (either not initialized or explicitly false), set none to true
+          if (!isDeacon && !isAlhan && !isSSTeacher) {
+            setNone(true);
+          }
+          
+          // Notify parent of initial values
+          onDeaconChange(isDeacon);
+          onAlhanChange(isAlhan);
+          onSSTeachChange(isSSTeacher);
+        } else {
+          // No document exists, everything is false, none is true
+          setNone(true);
+        }
+      } catch (error) {
+        console.error("Error fetching user roles:", error);
+        // On error, default to none selected
+        setNone(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserRoles();
+  }, []);
 
   const handleDeacon = (checked) => {
     setDeacon(checked);
     if (checked && none) setNone(false);
     onDeaconChange(checked);
   };
+  
   const handleAlhan = (checked) => {
     setAlhan(checked);
     if (checked && none) setNone(false);
     onAlhanChange(checked);
   };
+  
   const handleSSTeach = (checked) => {
     setSSTeach(checked);
     if (checked && none) setNone(false);
     onSSTeachChange(checked);
   };
+  
   const handleNone = (checked) => {
     setNone(checked);
     if (checked) {
@@ -35,6 +93,11 @@ const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
       onSSTeachChange(false);
     }
   };
+
+  if (loading) {
+    // You can return a loading indicator here if desired
+    return <View style={styles.container} />;
+  }
 
   return (
     <View style={styles.container}>
@@ -146,7 +209,7 @@ const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#121212", // Match screen background
+    backgroundColor: "#121212",
     borderRadius: 12,
     padding: 25,
     elevation: 3,
@@ -158,7 +221,7 @@ const styles = StyleSheet.create({
   option: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12, // Corrected from HygieaService12
+    paddingVertical: 12,
   },
   checkbox: {
     backgroundColor: "transparent",
@@ -168,8 +231,8 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 20,
     fontFamily: "Roboto-Regular",
-    fontWeight: "400", // Lighter weight to look less clickable
-    color: "#B0BEC5", // Muted color to indicate non-interactivity
+    fontWeight: "400",
+    color: "#B0BEC5",
     flexShrink: 1,
   },
   divider: {
