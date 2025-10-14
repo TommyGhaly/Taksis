@@ -76,12 +76,12 @@ const ProfileImageExpander = React.memo(({
       runOnUI(() => {
         'worklet';
         animationProgress.value = withTiming(1, {
-          duration: 650,
-          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+          duration: 1000,
+          easing: Easing.out(Easing.cubic),
         });
         overlayOpacity.value = withTiming(0.8, {
-          duration: 500,
-          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+          duration: 1200,
+          easing: Easing.out(Easing.cubic),
         });
       })();
     });
@@ -97,7 +97,7 @@ const ProfileImageExpander = React.memo(({
     })();
   }, [animationProgress, overlayOpacity]);
 
-  // Two-phase animation: center first (0→0.45), then expand (0.45→1)
+  // Overlapping animation: start expanding halfway through centering, both end together
   const animatedImageStyle = useAnimatedStyle(() => {
     'worklet';
     const progress = animationProgress.value;
@@ -105,41 +105,37 @@ const ProfileImageExpander = React.memo(({
     return {
       transform: [
         { 
-          // Phase 1: Stay same size
-          // Phase 2: Expand to final size
+          // Start expanding at 50% and finish at 100% (same time as translation)
           scale: interpolate(
             progress,
-            [0, 0.45, 1],
+            [0, 0.5, 1],
             [1, 1, finalSize / size],
             'clamp'
           )
         },
         { 
-          // Phase 1: Move to center X
-          // Phase 2: Stay centered
+          // Move to center from 0% to 100%
           translateX: interpolate(
             progress,
-            [0, 0.45, 1],
-            [initialPosition.value.x, 0, 0],
+            [0, 1],
+            [initialPosition.value.x, 0],
             'clamp'
           )
         },
         { 
-          // Phase 1: Move to center Y
-          // Phase 2: Stay centered (slight adjustment)
+          // Move to center from 0% to 100%
           translateY: interpolate(
             progress,
-            [0, 0.45, 1],
-            [initialPosition.value.y, -30, -30],
+            [0, 1],
+            [initialPosition.value.y, -30],
             'clamp'
           )
         },
       ],
-      // Phase 1: Stay circular
-      // Phase 2: Transition to square
+      // Start transitioning to square at 50% and finish at 100%
       borderRadius: interpolate(
         progress,
-        [0, 0.45, 1],
+        [0, 0.5, 1],
         [size / 2, size / 2, 8],
         'clamp'
       ),
