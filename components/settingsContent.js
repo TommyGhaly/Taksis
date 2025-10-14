@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -7,12 +7,9 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  Image,
   Modal,
   TextInput,
-  Animated,
-  Dimensions,
-  Easing,
+  ScrollView,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
@@ -32,7 +29,7 @@ const SettingsContent = () => {
   const navigation = useNavigation();
   const [userRoles, setUserRoles] = useState({ name: "" });
   const [isLoading, setIsLoading] = useState(false);
-  const [imageUrl, setImageUrl] = useState(defaultProfileImage);
+  const [imageUrl, setImageUrl] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [suggestion, setSuggestion] = useState("");
 
@@ -94,7 +91,7 @@ const SettingsContent = () => {
             }
           },
           (error) => {
-            // Error handling for user data fetch
+            console.error('Error fetching user data:', error);
           }
         );
 
@@ -149,9 +146,6 @@ const SettingsContent = () => {
       // Initial fetch
       fetchImage();
 
-      // Set up real-time listener for profile picture changes
-      const storageRef = storage().ref(`profilePictures/${user.uid}.png`);
-      
       // Poll for changes every 10 seconds
       const intervalId = setInterval(() => {
         fetchImage(false);
@@ -186,7 +180,7 @@ const SettingsContent = () => {
         await clearCache(user.uid);
       }
     } catch (error) {
-      // Error handling for FCM tokens update during sign out
+      console.error('Error during sign out:', error);
     } finally {
       setSignUp(true);
       auth().signOut();
@@ -219,7 +213,7 @@ const SettingsContent = () => {
                 try {
                   await storage().ref(`profilePictures/${user.uid}.png`).delete();
                 } catch (error) {
-                  // Error handling for profile picture deletion
+                  console.error('Error deleting profile picture:', error);
                 }
                 // Clear cache on account deletion
                 await clearCache(user.uid);
@@ -230,6 +224,7 @@ const SettingsContent = () => {
                 Alert.alert("Success", "Your account has been deleted.");
               }
             } catch (error) {
+              console.error('Error deleting account:', error);
               await handleSignOut();
             } finally {
               setIsLoading(false);
@@ -259,6 +254,7 @@ const SettingsContent = () => {
         setModalVisible(false);
       }
     } catch (error) {
+      console.error('Error submitting suggestion:', error);
       Alert.alert("Error", "Failed to submit suggestion. Please try again.");
     } finally {
       setIsLoading(false);
@@ -266,12 +262,13 @@ const SettingsContent = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#fff" />
         </View>
       )}
+      
       <Modal
         animationType="slide"
         transparent={true}
@@ -306,9 +303,11 @@ const SettingsContent = () => {
           </View>
         </View>
       </Modal>
+
       <View style={styles.profileSection}>
         <ProfileImageExpander
-          imageUrl={imageUrl || defaultProfileImage}
+          imageUrl={imageUrl}
+          defaultImage={defaultProfileImage}
           size={60}
           finalSize={300}
           borderRadius={30}
@@ -316,77 +315,133 @@ const SettingsContent = () => {
         />
         <Text style={styles.userName}>{userRoles.name}</Text>
       </View>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("AccountInfo")}>
+        <TouchableOpacity 
+          style={styles.option} 
+          onPress={() => navigation.navigate("AccountInfo")}
+        >
           <Text style={styles.optionText}>Account info</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeName")}>
+        <TouchableOpacity 
+          style={styles.option} 
+          onPress={() => navigation.navigate("ChangeName")}
+        >
           <Text style={styles.optionText}>Change name</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeEmail")}>
+        <TouchableOpacity 
+          style={styles.option} 
+          onPress={() => navigation.navigate("ChangeEmail")}
+        >
           <Text style={styles.optionText}>Change email</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeNumber")}>
+        <TouchableOpacity 
+          style={styles.option} 
+          onPress={() => navigation.navigate("ChangeNumber")}
+        >
           <Text style={styles.optionText}>Change phone number</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeAge")}>
+        <TouchableOpacity 
+          style={styles.option} 
+          onPress={() => navigation.navigate("ChangeAge")}
+        >
           <Text style={styles.optionText}>Change date of birth</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangePhoto")}>
+        <TouchableOpacity 
+          style={styles.option} 
+          onPress={() => navigation.navigate("ChangePhoto")}
+        >
           <Text style={styles.optionText}>Change profile picture</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangePassword")}>
+        <TouchableOpacity 
+          style={styles.option} 
+          onPress={() => navigation.navigate("ChangePassword")}
+        >
           <Text style={styles.optionText}>Change password</Text>
         </TouchableOpacity>
       </View>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Role</Text>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeRank")}>
+        <TouchableOpacity 
+          style={styles.option} 
+          onPress={() => navigation.navigate("ChangeRank")}
+        >
           <Text style={styles.optionText}>Change deacon rank</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeRoles")}>
+        <TouchableOpacity 
+          style={styles.option} 
+          onPress={() => navigation.navigate("ChangeRoles")}
+        >
           <Text style={styles.optionText}>Change church services that apply to you</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("RequestServants")}>
+        <TouchableOpacity 
+          style={styles.option} 
+          onPress={() => navigation.navigate("RequestServants")}
+        >
           <Text style={styles.optionText}>Apply to be a servants meeting tracker</Text>
         </TouchableOpacity>
       </View>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Children</Text>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeChildren")}>
+        <TouchableOpacity 
+          style={styles.option} 
+          onPress={() => navigation.navigate("ChangeChildren")}
+        >
           <Text style={styles.optionText}>Change your children</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("AddChild")}>
+        <TouchableOpacity 
+          style={styles.option} 
+          onPress={() => navigation.navigate("AddChild")}
+        >
           <Text style={styles.optionText}>Add child</Text>
         </TouchableOpacity>
       </View>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Church Adjustments</Text>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("ChangeChurch")}>
+        <TouchableOpacity 
+          style={styles.option} 
+          onPress={() => navigation.navigate("ChangeChurch")}
+        >
           <Text style={styles.optionText}>Change church</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("RequestAdmin")}>
+        <TouchableOpacity 
+          style={styles.option} 
+          onPress={() => navigation.navigate("RequestAdmin")}
+        >
           <Text style={styles.optionText}>Apply for admin</Text>
         </TouchableOpacity>
-
       </View>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>App Adjustments</Text>
-        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate("HomeScreenSelector")}>
+        <TouchableOpacity 
+          style={styles.option} 
+          onPress={() => navigation.navigate("HomeScreenSelector")}
+        >
           <Text style={styles.optionText}>Change home screen</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.option} onPress={() => setModalVisible(true)}>
+        <TouchableOpacity 
+          style={styles.option} 
+          onPress={() => setModalVisible(true)}
+        >
           <Text style={styles.optionText}>App suggestions</Text>
         </TouchableOpacity>
       </View>
+
       <TouchableOpacity style={styles.signOut} onPress={handleSignOut}>
         <Text style={styles.signOutText}>Log out</Text>
       </TouchableOpacity>
+
       <TouchableOpacity style={styles.deleteAccount} onPress={handleDeleteAccount}>
         <Text style={styles.deleteAccountText}>Delete Account</Text>
       </TouchableOpacity>
-    </View>
+
+      <View style={styles.bottomPadding} />
+    </ScrollView>
   );
 };
 
@@ -395,7 +450,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#121212",
     paddingHorizontal: 16,
-    paddingVertical: 20,
   },
   loadingOverlay: {
     position: "absolute",
@@ -406,12 +460,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 1,
+    zIndex: 1000,
   },
   modalOverlay: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.7)",
   },
   modalContent: {
     backgroundColor: "#2e2e2e",
@@ -463,6 +518,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 20,
+    marginTop: 20,
   },
   profileImage: {
     width: 60,
@@ -506,6 +562,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 10,
     alignItems: "center",
+    marginTop: 10,
   },
   signOutText: {
     fontSize: 18,
@@ -523,6 +580,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#ffffff",
     fontWeight: "bold",
+  },
+  bottomPadding: {
+    height: 40,
   },
 });
 
