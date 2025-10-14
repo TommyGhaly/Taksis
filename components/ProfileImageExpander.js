@@ -11,9 +11,8 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  interpolate,
+  withDelay,
   Easing,
-  runOnUI,
 } from 'react-native-reanimated';
 
 const AnimatedExpoImage = Animated.createAnimatedComponent(Image);
@@ -29,12 +28,17 @@ const ProfileImageExpander = React.memo(({
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [isImageAnimating, setIsImageAnimating] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [layoutReady, setLayoutReady] = useState(false);
   const profileImageRef = useRef(null);
 
-  // Single animation progress value
-  const animationProgress = useSharedValue(0);
-  const initialPosition = useSharedValue({ x: 0, y: 0 });
+  const scale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const borderRadiusAnim = useSharedValue(size / 2);
+  const opacity = useSharedValue(0);
   const overlayOpacity = useSharedValue(0);
+
+  const initialPosition = useRef({ x: 0, y: 0 });
 
   const imageSource = useMemo(
     () => {
@@ -66,91 +70,89 @@ const ProfileImageExpander = React.memo(({
       const initialX = profileCenterX - windowWidth / 2;
       const initialY = profileCenterY - windowHeight / 2;
 
-      // Store initial position
-      initialPosition.value = { x: initialX, y: initialY };
+      initialPosition.current = { x: initialX, y: initialY };
+      
+      scale.value = 1;
+      translateX.value = initialX;
+      translateY.value = initialY;
+      borderRadiusAnim.value = size / 2;
+      opacity.value = 0;
+      overlayOpacity.value = 0;
       
       setImageModalVisible(true);
       setIsImageAnimating(true);
+      setLayoutReady(true);
 
-      // Single animation trigger on UI thread
-      runOnUI(() => {
-        'worklet';
-        animationProgress.value = withTiming(1, {
-          duration: 1000,
+      const totalDuration = 300;
+      const halfDuration = totalDuration / 1.95;
+      
+      const config = {
+        duration: totalDuration,
+        easing: Easing.out(Easing.cubic),
+      };
+
+      const scaleConfig = {
+        duration: halfDuration,
+        easing: Easing.out(Easing.cubic),
+      };
+
+      // Immediate opacity
+      opacity.value = withTiming(1, { duration: 100 });
+      
+      // Overlay with slight delay
+      setTimeout(() => {
+        overlayOpacity.value = withTiming(0.9, { 
+          duration: totalDuration * 1.5,
           easing: Easing.out(Easing.cubic),
         });
-        overlayOpacity.value = withTiming(0.8, {
-          duration: 1200,
-          easing: Easing.out(Easing.cubic),
-        });
-      })();
+      }, 50);
+
+      // Translation: 0% to 100% of total duration
+      translateX.value = withTiming(0, config);
+      translateY.value = withTiming(-30, config);
+      
+      // Scale: Start at 50% (delayed by half), finish at 100%
+      scale.value = withDelay(
+        halfDuration,
+        withTiming(finalSize / size, scaleConfig)
+      );
+      
+      // BorderRadius: Start at 50% (delayed by half), finish at 100%
+      borderRadiusAnim.value = withDelay(
+        halfDuration,
+        withTiming(8, scaleConfig)
+      );
     });
-  }, [onPress, size, finalSize, animationProgress, initialPosition, overlayOpacity]);
+  }, [onPress, size, finalSize]);
 
   const closeModal = useCallback(() => {
     setImageModalVisible(false);
     setIsImageAnimating(false);
-    runOnUI(() => {
-      'worklet';
-      animationProgress.value = 0;
-      overlayOpacity.value = 0;
-    })();
-  }, [animationProgress, overlayOpacity]);
-
-  // Overlapping animation: start expanding halfway through centering, both end together
-  const animatedImageStyle = useAnimatedStyle(() => {
-    'worklet';
-    const progress = animationProgress.value;
+    setLayoutReady(false);
     
+    scale.value = 1;
+    translateX.value = 0;
+    translateY.value = 0;
+    borderRadiusAnim.value = size / 2;
+    opacity.value = 0;
+    overlayOpacity.value = 0;
+  }, [size]);
+
+  const animatedImageStyle = useAnimatedStyle(() => {
     return {
       transform: [
-        { 
-          // Start expanding at 50% and finish at 100% (same time as translation)
-          scale: interpolate(
-            progress,
-            [0, 0.5, 1],
-            [1, 1, finalSize / size],
-            'clamp'
-          )
-        },
-        { 
-          // Move to center from 0% to 100%
-          translateX: interpolate(
-            progress,
-            [0, 1],
-            [initialPosition.value.x, 0],
-            'clamp'
-          )
-        },
-        { 
-          // Move to center from 0% to 100%
-          translateY: interpolate(
-            progress,
-            [0, 1],
-            [initialPosition.value.y, -30],
-            'clamp'
-          )
-        },
+        { scale: scale.value },
+        { translateX: translateX.value },
+        { translateY: translateY.value },
       ],
-      // Start transitioning to square at 50% and finish at 100%
-      borderRadius: interpolate(
-        progress,
-        [0, 0.5, 1],
-        [size / 2, size / 2, 8],
-        'clamp'
-      ),
-      opacity: interpolate(
-        progress,
-        [0, 0.1],
-        [0, 1],
-        'clamp'
-      ),
+      borderRadius: borderRadiusAnim.value,
+      opacity: opacity.value,
     };
-  }, [size, finalSize]);
+  }, []);
 
   const animatedOverlayStyle = useAnimatedStyle(() => ({
     opacity: overlayOpacity.value,
-  }));
+  }), []);
 
   return (
     <>
@@ -168,35 +170,30 @@ const ProfileImageExpander = React.memo(({
           onPress={closeModal}
         >
           <Animated.View
-            style={[
-              styles.overlay,
-              { backgroundColor: 'rgba(0, 0, 0, 0.9)' },
-              animatedOverlayStyle,
-            ]}
+            style={[styles.overlay, animatedOverlayStyle]}
             pointerEvents="none"
-            needsOffscreenAlphaCompositing={false}
           />
-          <AnimatedExpoImage
-            style={[
-              styles.enlargedImage,
-              { width: size, height: size },
-              animatedImageStyle,
-            ]}
-            source={imageSource}
-            contentFit="contain"
-            cachePolicy="memory-disk"
-            placeholder={require("../assets/default_profile.png")}
-            placeholderContentFit="contain"
-            shouldRasterizeIOS={true}
-            renderingMode="auto"
-          />
+          {layoutReady && (
+            <AnimatedExpoImage
+              style={[
+                styles.enlargedImage,
+                { width: size, height: size },
+                animatedImageStyle,
+              ]}
+              source={imageSource}
+              contentFit="contain"
+              cachePolicy="memory-disk"
+              recyclingKey={imageUrl}
+              priority="high"
+            />
+          )}
         </TouchableOpacity>
       </Modal>
       
       <TouchableOpacity onPress={openModal} activeOpacity={0.8}>
         <View 
           ref={profileImageRef}
-          style={{ position: 'relative', width: size, height: size }}
+          style={{ width: size, height: size }}
           collapsable={false}
         >
           <Image
@@ -218,6 +215,7 @@ const ProfileImageExpander = React.memo(({
             placeholderContentFit="contain"
             transition={200}
             onLoad={() => setImageLoaded(true)}
+            recyclingKey={imageUrl}
           />
         </View>
       </TouchableOpacity>
@@ -229,10 +227,12 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center', 
+    alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
   },
   enlargedImage: {
     borderWidth: 1,
