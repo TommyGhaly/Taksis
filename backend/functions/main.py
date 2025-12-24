@@ -1,3 +1,30 @@
+"""
+main.py - Firebase Cloud Functions Entry Point for Taksis
+
+This is the main entry point for all Firebase Cloud Functions. It exposes:
+- HTTP endpoints for the mobile app to call
+- Scheduled functions for automated tasks (schedule generation, notifications, etc.)
+- Firestore triggers for reactive updates
+
+Function Categories:
+1. Schedule Management - Generate, modify, and query deacon schedules
+2. User Management - CRUD operations for users and children
+3. Notifications - Liturgy reminders, schedule updates, servants meetings
+4. Attendance Sheets - Google Sheets/Excel generation
+5. Maintenance - Age updates, yearly cleanup, test utilities
+
+Scheduled Jobs Summary (all times Eastern):
+- Sunday 12:00 AM: Update user ages
+- Sunday 12:30 PM: Servants meeting reminder
+- Sunday 3:45 PM: Update lastServe for today's servers
+- Sunday 4:00 PM: Generate next week's schedule
+- Sunday 4:15 PM: First liturgy reminder (for next Sunday)
+- Friday 8:00 PM: Second liturgy reminder
+- Saturday 9:00 AM: Third liturgy reminder
+- Monday 12:00 AM: Generate attendance sheets
+- September 11 12:00 AM: New school year cleanup
+"""
+
 from typing import Any, List, Dict
 import random
 import uuid
@@ -14,903 +41,178 @@ import re
 import os
 import sys
 import json
+import logging
 
-# FIX IMPORT PATH BEFORE ATTEMPTING IMPORT
-# Debug information
-print(f"Python version: {sys.version}")
-print(f"Current working directory: {os.getcwd()}")
 
-# Check if we're running from project root (Firebase emulator case)
+# ============================================================================
+# MODULE IMPORTS WITH PATH FIXING
+# Firebase emulator runs from project root, deployed functions run from /functions
+# This handles both cases to ensure imports work correctly
+# ============================================================================
+
+logging.info(f"Python version: {sys.version}")
+logging.info(f"Current working directory: {os.getcwd()}")
+
+# Detect environment and fix import path
 if os.path.exists('functions') and os.path.isdir('functions'):
-    # Running from project root
+    # Running from project root (Firebase emulator)
     functions_dir = os.path.abspath('functions')
     sys.path.insert(0, functions_dir)
-    print(f"Running from project root, added functions to path: {functions_dir}")
-    print(f"Files in functions directory: {os.listdir('functions')}")
+    logging.info(f"Running from project root, added functions to path: {functions_dir}")
+    logging.info(f"Files in functions directory: {os.listdir('functions')}")
 else:
-    # Running from functions directory
-    print(f"Running from functions directory")
-    print(f"Files in current directory: {os.listdir('.')}")
+    # Running from functions directory (deployed)
+    logging.info(f"Running from functions directory")
+    logging.info(f"Files in current directory: {os.listdir('.')}")
 
-# NOW try to import attendance_sheets AFTER fixing the path
+# Import attendance sheet modules (optional - may not be available in all environments)
 try:
     from attendance_sheets import set_up_sheets
     from servants_attendance_sheets import set_up_sheets_servants
-    print("✅ Successfully imported attendance_sheets")
+    logging.info("✅ Successfully imported attendance_sheets")
     ATTENDANCE_AVAILABLE = True
 except ImportError as e:
-    print(f"❌ Failed to import attendance_sheets: {e}")
-    print(f"Current sys.path: {sys.path}")
+    logging.info(f"❌ Failed to import attendance_sheets: {e}")
+    logging.info(f"Current sys.path: {sys.path}")
     ATTENDANCE_AVAILABLE = False
-    # Define a dummy function for deployment
     def set_up_sheets():
         raise NotImplementedError("attendance_sheets module not available")
+    
+# Import core modules with availability flags for graceful degradation
+try:
+    from files.schedule_generation import *
+    SCHEDULE_AVSAILABLE = True
+    logging.info("✅ Successfully imported schedule_generation")
+except ImportError as e:
+    SCHEDULE_AVSAILABLE = False
+    logging.info(f"❌ Failed to import schedule_generation: {e}")    
 
+try:
+    from files.user_updates import *
+    USER_UPDATES_AVAILABLE = True
+    logging.info("✅ Successfully imported user_updates")
+except ImportError as e:
+    USER_UPDATES_AVAILABLE = False
+    logging.info(f"❌ Failed to import user_updates: {e}")
+
+try:
+    from files.notification_manager import *
+    NOTIFICATION_MANAGER_AVAILABLE = True
+    logging.info("✅ Successfully imported notification_manager")
+except ImportError as e:
+    NOTIFICATION_MANAGER_AVAILABLE = False
+    logging.info(f"❌ Failed to import notification_manager: {e}")
+
+try:
+    from files.utility import *
+    UTILITY_AVAILABLE = True
+    logging.info("✅ Successfully imported utility")
+except ImportError as e:
+    UTILITY_AVAILABLE = False
+    logging.info(f"❌ Failed to import utility: {e}")
+
+try:
+    from files.new_years import *
+    NEW_YEARS_AVAILABLE = True
+    logging.info("✅ Successfully imported new_years")
+except ImportError as e:
+    NEW_YEARS_AVAILABLE = False
+    logging.info(f"❌ Failed to import new_years: {e}")
+
+# Initialize Firebase Admin SDK
 initialize_app()
 
 
-# takes in the 30 deacons and scores them based off best fit
-
-
-# add like 5 extra deacons to the list for bakcups
-def sort_values(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    return sorted(deacons, key=lambda deacon: deacon["value"], reverse=True)
-
-
-def matins(deacons):
-
-    for deacon in deacons:
-        value = 0
-        value += deacon["weeksSince"] * 4
-
-        if int(deacon["age"]) > 12 and int(deacon["age"]) < 25:
-            value += 30
-
-        value += (deacon["frequency"] - 3) * 0.4
-        value += (deacon["experience"] - 4) * 0.12
-
-        deacon["value"] = value
-    return sort_values(deacons)
-
-
-def third(deacons):
-
-    for deacon in deacons:
-        value = 0
-        value += deacon["weeksSince"] * 4
-
-        if int(deacon["age"]) > 8 and int(deacon["age"]) < 18:
-            value += 30
-
-        value += (deacon["frequency"] - 3) * 0.4
-
-        if deacon["rank"] == "Chanter (Epsaltos)":
-            value += 12
-
-        deacon["value"] = value
-    return sort_values(deacons)
-
-
-def sixth(deacons):
-
-    for deacon in deacons:
-        value = 0
-        value += deacon["weeksSince"] * 4
-
-        if int(deacon["age"]) > 8 and int(deacon["age"]) < 18:
-            value += 30
-
-        value += (deacon["frequency"] - 3) * 0.4
-
-        if deacon["rank"] == "Chanter (Epsaltos)":
-            value += 12
-
-        deacon["value"] = value
-    return sort_values(deacons)
-
-
-def pauline(deacons):
-
-    for deacon in deacons:
-
-        value = 0
-        value += deacon["weeksSince"] * 4
-
-        if int(deacon["age"]) > 13 and int(deacon["age"]) < 45:
-
-            value += 30
-
-        value += (deacon["frequency"] - 3) * 0.4
-
-        if deacon["rank"] == "Chanter (Epsaltos)":
-
-            pass
-
-        else:
-
-            value += 2.4
-
-        if int(deacon["age"]) < 12:
-            value = -40
-
-        deacon["value"] = value
-    return sort_values(deacons)
-
-
-def catholic(deacons):
-
-    for deacon in deacons:
-
-        value = 0
-        value += deacon["weeksSince"] * 4
-
-        if int(deacon["age"]) > 13 and int(deacon["age"]) < 45:
-
-            value += 30
-
-        value += (deacon["frequency"] - 3) * 0.4
-
-        if deacon["rank"] == "Chanter (Epsaltos)":
-
-            pass
-
-        else:
-
-            value += 2.4
-
-        if int(deacon["age"]) < 12:
-            value = -40
-
-        deacon["value"] = value
-    return sort_values(deacons)
-
-
-def praxis(deacons):
-    for deacon in deacons:
-
-        value = 0
-        value += deacon["weeksSince"] * 4
-
-        if int(deacon["age"]) > 15 and int(deacon["age"]) < 45:
-
-            value += 30
-
-        value += (deacon["frequency"] - 3) * 0.4
-
-        if deacon["rank"] == "Chanter (Epsaltos)":
-
-            pass
-
-        else:
-
-            value += 2.4
-
-        if int(deacon["age"]) < 12:
-            value = -40
-
-        deacon["value"] = value
-    return sort_values(deacons)
-
-
-def gospel(deacons):
-
-    for deacon in deacons:
-
-        value = 0
-        value += deacon["weeksSince"] * 4
-
-        if int(deacon["age"]) > 18 and int(deacon["age"]) < 55:
-
-            value += 30
-
-        value += (deacon["frequency"] - 5) * 0.4
-
-        value += (deacon["experience"] - 5) * 0.3
-
-        if deacon["rank"] == "Chanter (Epsaltos)":
-
-            pass
-
-        else:
-
-            value += 5
-
-        if int(deacon["age"]) < 16:
-            value = -40
-
-        deacon["value"] = value
-    return sort_values(deacons)
-
-
-def water(deacons):
-
-    for deacon in deacons:
-
-        value = 0
-        value += deacon["weeksSince"] * 4
-
-        if int(deacon["age"]) > 15 and int(deacon["age"]) < 40:
-
-            value += 30
-
-        value += (deacon["frequency"] - 6) * 0.4
-
-        value += (deacon["experience"] - 7) * 0.23
-
-        if int(deacon["age"]) < 10:
-            value = -40
-
-        deacon["value"] = value
-    return sort_values(deacons)
-
-
-def wine(deacons):
-
-    for deacon in deacons:
-
-        value = 0
-        value += deacon["weeksSince"] * 4
-
-        if int(deacon["age"]) > 25 and int(deacon["age"]) < 60:
-
-            value += 30
-
-        value += (deacon["frequency"] - 7) * 0.4
-
-        value += (deacon["experience"] - 8.4) * 0.23
-
-        if int(deacon["age"]) < 18:
-            value = -40
-
-        deacon["value"] = value
-    return sort_values(deacons)
-
-
-def altar(deacons):
-
-    for deacon in deacons:
-
-        value = 0
-        value += deacon["weeksSince"] * 4
-
-        if int(deacon["age"]) > 10 and int(deacon["age"]) < 25:
-
-            value += 30
-
-        value += (deacon["frequency"] - 4) * 0.4
-
-        deacon["value"] = value
-    return sort_values(deacons)
-
-
-def sort_deacons(deacons: List[Dict]) -> List[Dict]:
-    if len(deacons) < 25:
-        return sorted(deacons, key=lambda deacon: deacon["weeksSince"], reverse=True)
-    return sorted(deacons, key=lambda deacon: deacon["weeksSince"], reverse=True)[:25]
-
-
-async def update_weeks(schedule_dict, deacons, doc_ref):
-    # Create a list for deacons who did not serve
-    unused_deacons = []
-    served_uids = []
-
-    # Build a list of served uids
-    for key, value in schedule_dict.items():
-        if key == "altar":
-            for server in schedule_dict["altar"]:
-                if "uid" in server:
-                    served_uids.append(server["uid"])
-        if isinstance(value, dict):
-            for individual_key, individual_value in value.items():
-                if individual_key == "uid" and individual_value != "N/A":
-                    served_uids.append(individual_value)
-
-    # Update deacons information based on served status
-    for deacon in deacons:
-        if deacon["uid"] in served_uids:
-            # Reset for those who served
-            deacon["lastWeeksSince"] = deacon["weeksSince"]
-            deacon["weeksSince"] = 0
-        else:
-            # Increment for those who did not serve
-            deacon["weeksSince"] += 1
-            unused_deacons.append(deacon)
-
-    # Wrap the Firestore update in asyncio.to_thread to run it asynchronously
-    await asyncio.to_thread(doc_ref.update, {"deacons": deacons})
-
-    extras = []
-    for deacon in unused_deacons:
-        extras.append({"name": deacon["name"], "uid": deacon["uid"]})
-    schedule_dict["extra"] = extras
-
-    return schedule_dict
-
-
-# ensures the person added to the schedule isn't on there multiple times
-def add_person(schedule_list, deacon_list):
-    uids = []  # Collect UIDs
-    for deacon in schedule_list:
-        if "uid" in deacon:
-            uids.append(deacon["uid"])
-    added = False
-    while not added:
-        if len(deacon_list) == 0:  # Check if deacon_list is empty
-            schedule_list.append("N/A")
-            added = True
-            break  # Exit the loop
-
-        if deacon_list[0]["uid"] in uids:
-            deacon_list = deacon_list[1:]  # Remove the first element
-        else:
-            schedule_list.append(deacon_list[0])
-            added = True
-    return schedule_list
-
-
-def sort_full_deacons(deacons):
-    return sorted(deacons, key=lambda x: x.get("weeksSince", 0), reverse=True)
-
-
-# takes in all the deacons for a church (one at a time) sorts them based off how long it has been since they served and passes them into the other functions
-async def create_schedule(deacons, church_ref, num_altar_servers, fullDeacons):
-    fullDeacon = not isinstance(fullDeacons, type(None))
-    fullDeacon = fullDeacon and len(fullDeacons) > 0
-    sorted_deacons = sort_deacons(deacons)
-    schedule = []
-
-    matins_list = matins(sorted_deacons)
-    third_list = third(sorted_deacons)
-    sixth_list = sixth(sorted_deacons)
-    pauline_list = pauline(sorted_deacons)
-    catholic_list = catholic(sorted_deacons)
-    praxis_list = praxis(sorted_deacons)
-    gospel_list = gospel(sorted_deacons)
-    water_list = water(sorted_deacons)
-    altar_list = altar(sorted_deacons)
-    if fullDeacon:
-        wine_list = sort_full_deacons(fullDeacons)
-        altar_list.insert(0,wine(sorted_deacons)[0])
-    else:
-        wine_list = wine(sorted_deacons)
-
-    # makes a list of all the lists besides altar_list
-    all_lists = [
-        wine_list,
-        gospel_list,
-        water_list,
-        praxis_list,
-        catholic_list,
-        pauline_list,
-        sixth_list,
-        third_list,
-        matins_list,
-    ]
-    # adds one person that is not already in the schedule for each roll
-    for list in all_lists:
-        schedule = add_person(schedule, list)
-
-    # adds the number of altar servers minus two because blood and wine are in the altar
-    for i in range(9):
-        schedule = add_person(schedule, altar_list)
-
-    schedule_dict = {
-        "gospel": (
-            {"name": schedule[1]["name"], "uid": schedule[1]["uid"]}
-            if schedule[1] != "N/A"
-            else {"name": "N/A", "uid": str(uuid.uuid4())}
-        ),
-        "wine": (
-            {"name": schedule[0]["name"], "uid": schedule[0]["uid"]}
-            if schedule[0] != "N/A"
-            else {"name": "N/A", "uid": str(uuid.uuid4())}
-        ),
-        "water": (
-            {"name": schedule[2]["name"], "uid": schedule[2]["uid"]}
-            if schedule[2] != "N/A"
-            else {"name": "N/A", "uid": str(uuid.uuid4())}
-        ),
-        "praxis": (
-            {"name": schedule[3]["name"], "uid": schedule[3]["uid"]}
-            if schedule[3] != "N/A"
-            else {"name": "N/A", "uid": str(uuid.uuid4())}
-        ),
-        "catholic": (
-            {"name": schedule[4]["name"], "uid": schedule[4]["uid"]}
-            if schedule[4] != "N/A"
-            else {"name": "N/A", "uid": str(uuid.uuid4())}
-        ),
-        "pauline": (
-            {"name": schedule[5]["name"], "uid": schedule[5]["uid"]}
-            if schedule[5] != "N/A"
-            else {"name": "N/A", "uid": str(uuid.uuid4())}
-        ),
-        "sixth": (
-            {"name": schedule[6]["name"], "uid": schedule[6]["uid"]}
-            if schedule[6] != "N/A"
-            else {"name": "N/A", "uid": str(uuid.uuid4())}
-        ),
-        "third": (
-            {"name": schedule[7]["name"], "uid": schedule[7]["uid"]}
-            if schedule[7] != "N/A"
-            else {"name": "N/A", "uid": str(uuid.uuid4())}
-        ),
-        "matins": (
-            {"name": schedule[8]["name"], "uid": schedule[8]["uid"]}
-            if schedule[8] != "N/A"
-            else {"name": "N/A", "uid": str(uuid.uuid4())}
-        ),
-        "altar": (
-            [
-                (
-                    {"name": item["name"], "uid": item["uid"]}
-                    if item != "N/A"
-                    else {"name": "N/A", "uid": str(uuid.uuid4())}
-                )
-                for item in schedule[9 : 9 + num_altar_servers]
-            ]
-            if len(schedule) > 7
-            else [
-                {"name": "N/A", "uid": str(uuid.uuid4())}
-                for _ in range(num_altar_servers)
-            ]
-        ),
-    }
-
-    schedule_dict = await update_weeks(schedule_dict, deacons, church_ref)
-    return schedule_dict
-
-
-async def get_deacons(church):
-    firestore_client = firestore.Client()
-    collection_ref = firestore_client.collection("churches")
-    doc_ref = collection_ref.document(church)
-
-    # Wrap the synchronous get() call in asyncio.to_thread
-    doc_snapshot = await asyncio.to_thread(doc_ref.get)
-
-    if doc_snapshot.exists:
-        doc_data = doc_snapshot.to_dict()
-        return doc_data.get("deacons", [])
-    else:
-        return "Document does not exist"
-
+# ============================================================================
+# SCHEDULE GENERATION ENDPOINTS
+# ============================================================================
 
 @https_fn.on_request()
 def force_generate_schedule(req: https_fn.Request) -> https_fn.Response:
+    """HTTP endpoint to manually trigger schedule generation (for testing/admin use)."""
     return asyncio.run(my_async_scheduled_function())
 
 
 @scheduler_fn.on_schedule(
-    schedule="0 16 * * 0",  # Every Sunday at 4:00 PM
+    schedule="0 16 * * 0",  # Every Sunday at 4:00 PM Eastern
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def generate_schedule(event: scheduler_fn.ScheduledEvent):
+    """
+    Weekly scheduled job: Generates next week's schedule for all churches.
+    Runs Sunday 4PM after services conclude.
+    """
     return asyncio.run(my_async_scheduled_function())
 
 
-async def my_async_scheduled_function():
-    firestore_client = firestore.Client()
-    churches_ref = firestore_client.collection("churches")
-    churches_docs = list(churches_ref.stream())
-
-    for church_doc in churches_docs:
-        church_data = church_doc.to_dict()
-        num_altar_servers = int(church_data.get("altarServers", 0))
-        full_deacon_enabled = church_data.get("fullDeacon", None)
-
-        full_deacons = (
-            [
-                d
-                for d in church_data.get("deacons", [])
-                if d.get("rank") == "Deacon (Full Deacon)"
-            ]
-            if full_deacon_enabled
-            else None
-        )
-
-        schedule_ref = church_doc.reference.collection("schedule")
-        schedules = list(schedule_ref.stream())
-
-        # Determine the upcoming Sunday
-        today = datetime.datetime.now()
-        days_until_sunday = (6 - today.weekday()) % 7
-        upcoming_sunday = today + datetime.timedelta(days=days_until_sunday)
-        upcoming_sunday = upcoming_sunday.replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-
-        # If today *is* Sunday, then skip to next week
-        if today.weekday() == 6:  # Sunday
-            first_schedule_date = upcoming_sunday + datetime.timedelta(weeks=1)
-        else:
-            first_schedule_date = upcoming_sunday
-
-        if len(schedules) < 5:
-            for i in range(5):
-                schedule_date = first_schedule_date + datetime.timedelta(weeks=i)
-                schedule_id = schedule_date.strftime("%m-%d-%y")
-
-                deacons = await get_deacons(church_doc.id)
-                schedule = await create_schedule(
-                    deacons, church_doc.reference, num_altar_servers, full_deacons
-                )
-
-                schedule_ref.document(schedule_id).set(schedule)
-        else:
-            # Delete current Sunday (which was today at 12am)
-            to_delete = upcoming_sunday.strftime("%m-%d-%y")
-            schedule_ref.document(to_delete).delete()
-
-            # Add 6-weeks-ahead schedule
-            new_schedule_date = upcoming_sunday + datetime.timedelta(weeks=5)
-            new_schedule_id = new_schedule_date.strftime("%m-%d-%y")
-
-            deacons = await get_deacons(church_doc.id)
-            new_schedule = await create_schedule(
-                deacons, church_doc.reference, num_altar_servers, full_deacons
-            )
-
-            schedule_ref.document(new_schedule_id).set(new_schedule)
-
-        set_next_week_serve(church_doc.id)
-
-
-def generate_test_data(num_people):
-    ranks = ["Chanter (Epsaltos)", "Reader", "Subdeacon", "Full Deacon"]
-    test_data = []
-
-    for _ in range(num_people):
-        person = {
-            "age": str(random.randint(5, 60)),  # Random age between 10 and 60
-            "experience": random.uniform(0, 10),  # Random experience between 0 and 10
-            "frequency": random.uniform(0, 10),  # Random frequency between 0 and 10
-            "name": f"Person {random.randint(1, 1000)}",  # Unique name based on random number
-            "rank": random.choice(ranks),  # Randomly select a rank from the list
-            "uid": str(uuid.uuid4()),  # Generate a unique user ID
-            "weeksSince": random.randint(
-                0, 5
-            ),  # Random weeks since served between 0 and 52
-        }
-        test_data.append(person)
-
-    return test_data
-
-
-def next_week_all_servants():
-    firestore_client = firestore.Client()
-    church_docs = firestore_client.collection("churches").stream()
-    for church_doc in church_docs:
-        church_id = church_doc.id
-        set_next_week_serve(church_id)
-
-
-def handle_children(children):
-    for child in children:
-        remove_user_from_churches(child.get("uid"))
-        add_user_to_churches(child)
-    return
-
-
-def remove_user_from_churches(user_id):
-
-    # Fetch all church documents
-    firestore_client = firestore.Client()
-    church_ref = firestore_client.collection("churches")
-    church_docs = church_ref.stream()
-
-    for doc in church_docs:
-        church_id = doc.id  # Get document ID
-        church_data = doc.to_dict()  # Convert document to dictionary
-        updated_data = False  # Track if updates are needed
-        filtered_deacons = []
-
-        # Remove entire dictionary from "deacons" if it contains user_id
-        for deacon in church_data.get("deacons", []):
-            if deacon["uid"] == user_id:
-                updated_data = True
-            else:
-                filtered_deacons.append(deacon)
-
-        # Query only servants with the matching uid
-        servants_ref = doc.reference.collection("Servants Meeting")
-        servants_docs = servants_ref.where("uid", "==", user_id).stream()
-        for servant in servants_docs:
-            servant.reference.delete()
-            updated_data = True
-
-        church_data["deacons"] = filtered_deacons
-
-        # Update Firestore only if changes were made
-        if updated_data:
-            church_ref.document(church_id).update(church_data)
-
-
-def filter_data(user_data):
-    filtered_data = {
-        "name": user_data.get("name"),
-        "uid": user_data.get("uid"),
-        "age": user_data.get("age"),
-        "church": user_data.get("church"),
-        "isDeacon": user_data.get("isDeacon"),
-        "experience": user_data.get("experience"),
-        "frequency": user_data.get("frequency"),
-        "rank": user_data.get("rank"),
-        "weeksSince": user_data.get("weeksSince"),
-        "isSSTeacher": user_data.get("isSSTeacher"),
-    }
-    return filtered_data
-
-
-def add_user_to_churches(user_data):
-    firestore_client = firestore.Client()
-
-    user_id = user_data["uid"]
-
-    # Handle children if present
-    if "children" in user_data:
-        handle_children(user_data["children"])
-    # Ensure user_data is properly filtered
-    user_data = filter_data(user_data)
-
-    # Check if age is present; if not, calculate it from DOB if available
-    if "age" not in user_data and "DOB" not in user_data:
-        return https_fn.Response("User does not have age or DOB")
-    elif not (isinstance(user_data.get("DOB"), type(None))) and isinstance(
-        user_data.get("age"), type(None)
-    ):
-        user_data["age"] = calc_age(user_data["DOB"])
-    elif not isinstance(user_data.get("age"), type(None)):
-        pass
-    else:
-        return f"user: {user_data['name']} does not have age or DOB"
-    # Retrieve the specific church document based on the user's church ID
-    church_id = user_data.get("church")
-    if not church_id:
-        return https_fn.Response("User has no associated church ID")
-
-    church_doc_ref = firestore_client.collection("churches").document(church_id)
-    church_doc = church_doc_ref.get()
-
-    if not church_doc.exists:
-        return https_fn.Response(
-            f"Church document not found for church id: {church_id}", status=404
-        )
-
-    church_data = church_doc.to_dict() or {}  # Ensure church_data is a dictionary
-
-    # Initialize lists if missing
-    church_data.setdefault("deacons", [])
-
-    # Add user to deacons list if applicable
-    if user_data.get("isDeacon"):
-        user_ref = firestore_client.collection("users").document(user_data["uid"])
-        if not any(
-            deacon.get("uid") == user_data["uid"] for deacon in church_data["deacons"]
-        ):
-            if "experience" not in user_data:
-                user_data["experience"] = 2
-                user_ref.update({"experience": 2})
-            if "frequency" not in user_data:
-                user_data["frequency"] = 2
-                user_ref.update({"frequency": 2})
-            new_deacon = {
-                "uid": user_data["uid"],
-                "name": user_data["name"],
-                "age": int(user_data["age"]),
-                "experience": float(user_data["experience"]),
-                "frequency": float(user_data["frequency"]),
-                "rank": user_data["rank"],
-                "weeksSince": 4,
-                "lastWeeksSince": 4,
-            }
-            church_data["deacons"].append(new_deacon)
-        add_user_to_extra_servers(church_id, user_data["name"], user_id)
-    else:
-        remove_user_from_schedules(church_id, user_id, "N/A", "N/A", False)
-
-    # Delete existing servant record, if it exists (deletion is safe even if the document doesn't exist)
-    servant_ref = (
-        firestore_client.collection("churches")
-        .document(church_id)
-        .collection("Servants Meeting")
-        .document(user_data["uid"])
-    )
-    servant_ref.delete()
-
-    # Conditionally add the user back if they are an SSTeacher
-    if user_data.get("isSSTeacher"):
-        new_servant = {
-            "uid": user_data["uid"],
-            "name": user_data["name"],
-        }
-        servant_doc_ref = church_doc_ref.collection("Servants Meeting").document(
-            new_servant["uid"]
-        )
-        servant_doc_ref.set(new_servant, merge=True)
-        # Write the updated data back to Firestore
-
-    try:
-        church_doc_ref.set(church_data, merge=True)
-    except Exception as e:
-        return https_fn.Response(f"Error updating church data: {str(e)}", status=500)
-
-    return https_fn.Response("User successfully added to the church", status=200)
-
-
-def add_user_to_extra_servers(church, name, uid):
-    firestore_client = firestore.Client()
-    schedules_ref = (
-        firestore_client.collection("churches").document(church).collection("schedule")
-    )
-    schedules_docs = schedules_ref.stream()
-
-    # Iterate over each schedule
-    for schedule in schedules_docs:
-        schedule_data = schedule.to_dict()
-        add_user = True  # Assume the user should be added unless found
-
-        # Check all fields to see if the user already exists (in any field)
-        for key, value in schedule_data.items():
-            if isinstance(
-                value, list
-            ):  # Check list fields (e.g., 'extra', 'altar', etc.)
-                for deacon in value:
-                    if isinstance(deacon, dict):
-                        if deacon.get("uid") == uid:
-                            add_user = False
-                            break  # Stop checking if user is found
-
-            if isinstance(value, dict):  # Check dict fields (if any)
-                if value.get("uid") == uid:
-                    add_user = False
-                    break  # Stop checking if user is found
-
-            if not add_user:
-                break  # Stop checking other fields if user is found
-
-        # If user not found, append the user to the 'extra' field
-        if add_user:
-            extras = schedule_data.get(
-                "extra", []
-            )  # Get the existing 'extra' list, or an empty list
-            extras.append({"name": name, "uid": uid})  # Add the new user
-            schedule.reference.update(
-                {"extra": extras}
-            )  # Update the 'extra' field in Firestore
-
-
-def get_weeks(church):
-    firestore_client = firestore.Client()
-    weeks = []
-    schedule_docs = (
-        firestore_client.collection("churches")
-        .document(church)
-        .collection("schedule")
-        .stream()
-    )
-    for schedule in schedule_docs:
-        weeks.append(str(schedule.id))
-    return weeks
-
-
-def remove_user_from_schedules(church, uid, alhan_class, sunday_school_class, family):
-    firestore_client = firestore.Client()
-    church_ref = firestore_client.collection("churches").document(church)
-    user_ref = firestore_client.collection("users").document(uid)
-    if user_ref.get().exists:
-        user_data = user_ref.get().to_dict()
-
-        if family:
-            user_data["isServant"] = False
-            user_ref.update(user_data)
-
-    # Remove user from all schedules
-    for week in get_weeks(church):
-        mock_request = Request.from_values(
-            headers={"Authorization": ""},
-            json={"church": church, "week": week, "uid": uid, "family": family},
-        )
-        unavailable_for_week(mock_request)
-
-    # Remove user from Alhan Class
-    if not alhan_class == "N/A":
-        alhan_class_doc = church_ref.collection("Hymns Class").document(alhan_class)
-        alhan_class_data = alhan_class_doc.get().to_dict()
-        servants = alhan_class_data.get("servants", [])
-        updated_servants = [
-            servant for servant in servants if servant.get("uid") != uid
-        ]
-        alhan_class_doc.update({"servants": updated_servants})
-        user_data["alhanSetUp"] = False
-        user_data["alhanGrades"] = None
-        user_ref.update(user_data)
-
-    # Remove user from Sunday School Class
-    if not sunday_school_class == "N/A":
-        sunday_school_class_doc = church_ref.collection("Sunday School").document(
-            sunday_school_class
-        )
-        sunday_school_class_data = sunday_school_class_doc.get().to_dict()
-        servants = sunday_school_class_data.get("servants", [])
-        updated_servants = [
-            servant for servant in servants if servant.get("uid") != uid
-        ]
-        sunday_school_class_doc.update({"servants": updated_servants})
-        user_data["ssSetUp"] = False
-        user_data["ssGrades"] = None
-        user_ref.update(user_data)
-
-    # Simulate an internal request to call check_classes
-    mock_request = Request.from_values(headers={"Authorization": ""})
-
-    check_classes(mock_request)
-    return
-
-
-def update_names(user_id, name, church):
-    firestore_client = firestore.Client()
-    schedules_docs = (
-        firestore_client.collection("churches")
-        .document(church)
-        .collection("schedule")
-        .stream()
-    )
-    for schedule in schedules_docs:
-        schedule_data = schedule.to_dict()
-        for key, value in schedule_data.items():
-            if isinstance(value, list):
-                for deacon in value:
-                    if isinstance(deacon, dict) and deacon.get("uid") == user_id:
-                        deacon["name"] = name
-            elif isinstance(value, dict):
-                if value.get("uid") == user_id:
-                    value["name"] = name
-        schedule.reference.update(schedule_data)
-
+# ============================================================================
+# USER MANAGEMENT ENDPOINTS
+# ============================================================================
 
 @https_fn.on_request()
 def update_user(req: https_fn.Request) -> https_fn.Response:
+    """
+    Updates a user's church membership and syncs data across the system.
+    
+    Called when user profile changes. Handles:
+    - Removing from old church
+    - Calculating age from DOB
+    - Adding to new church's deacon/servant lists
+    - Updating children's ages
+    - Syncing name across all schedules
+    """
     try:
         request_data = req.get_json()
         if request_data is None:
             return https_fn.Response("Missing JSON body", status=400)
     except Exception as e:
         return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
-    # Extract the user_id from the payload
+
     user_id = request_data.get("uid")
     if not user_id:
         return https_fn.Response("Missing 'uid' parameter", status=400)
 
-    # Optional: Verify Firebase Auth token if provided
+    # Optional auth verification
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
             decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
-            # You can now use decoded_token to get user details if needed
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+
+    # Remove from all churches first (clean slate)
     remove_user_from_churches(user_id)
+    
     firestore_client = firestore.Client()
 
-    # Retrieve the user document from Firestore
+    # Fetch and update user data
     try:
         doc_ref = firestore_client.collection("users").document(user_id)
         doc = doc_ref.get()
         if not doc.exists:
             return https_fn.Response("User document not found", status=404)
+        
         user_data = doc.to_dict()
+        
+        # Calculate age from DOB if needed
         if "DOB" in user_data:
             user_data["age"] = calc_age(user_data["DOB"])
             doc_ref.update({"age": user_data["age"]})
+        
+        # Update children's ages
         if "children" in user_data:
             for child in user_data["children"]:
                 if "DOB" in child:
                     child["age"] = calc_age(child["DOB"])
             doc_ref.update({"children": user_data["children"]})
+            
     except Exception as e:
         return https_fn.Response(f"Error retrieving user data: {str(e)}", status=500)
+
+    # Add to appropriate church lists
     add_user_to_churches(user_data)
+    
+    # Sync name across all schedule documents
     update_names(user_id, user_data["name"], user_data["church"])
 
     return https_fn.Response("User update completed successfully", status=200)
@@ -918,76 +220,58 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
 
 @https_fn.on_request()
 def update_user_frequency(req: https_fn.Request) -> https_fn.Response:
+    """
+    Decays frequency score for all users (batch operation).
+    Frequency affects scheduling priority - higher = more likely to be scheduled.
+    """
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
             decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
-            # You can now use decoded_token to get user details if needed
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+
     firestore_client = firestore.Client()
     users_docs = firestore_client.collection("users").stream()
+    
     for user in users_docs:
         user_data = user.reference.get().to_dict()
-        church_ref = firestore_client.collection("churches").document(
-            user_data["church"]
-        )
+        church_ref = firestore_client.collection("churches").document(user_data["church"])
         church_data = church_ref.get().to_dict()
         frequency = user_data["frequency"]
         church_location = church_data["location"]
         user_location = user_data["location"]
+        
         if not user_location:
             return https_fn.Response(f"No location found for user", status=500)
-        if at_church(user_location, church_location):
-            frequency *= 1.1
-            if frequency > 10:
-                frequency = 10
         else:
+            # Decay by 10%, floor at 0.5
             frequency *= 0.9
             if frequency < 0.1:
                 frequency = 0.5
 
         user_data["frequency"] = frequency
         user.reference.update(user_data)
+        
+        # Sync to children
         mock_request = Request.from_values(
             headers={"Authorization": ""},
             json={"uid": user_data["uid"]},
         )
         sync_child_params(mock_request)
         update_user(mock_request)
+        
     return https_fn.Response(
         f"Successfully updated user' frequency and synced with chidlren", status=200
     )
 
 
-def at_church(user_location, church_location):
-    return (haversine_formula(user_location, church_location)) < 6000
-
-
-def haversine_formula(user, church):
-    user_lat = math.radians(user["latitude"])
-    user_long = math.radians(user["longitude"])
-    church_lat = math.radians(church[0])
-    church_long = math.radians(church[1])
-    lat_dif = user_lat - church_lat
-    long_dif = user_long - church_long
-
-    # Haversine formula components
-    a = (
-        math.sin(lat_dif / 2) ** 2
-        + math.cos(church_lat) * math.cos(user_lat) * math.sin(long_dif / 2) ** 2
-    )
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-    # Earth radius in feet (approximately 20,902,260 feet)
-    R_feet = 20902260
-    distance_feet = R_feet * c
-    return distance_feet
-
-
-# call this function with the parameter of the uid update the children then call update user on the original user
 @https_fn.on_request()
 def sync_child_params(req: https_fn.Request) -> https_fn.Response:
+    """
+    Syncs parent's frequency and church to all their children.
+    Called when parent settings change to keep family in sync.
+    """
     try:
         request_data = req.get_json()
         if request_data is None:
@@ -995,41 +279,18 @@ def sync_child_params(req: https_fn.Request) -> https_fn.Response:
     except Exception as e:
         return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
 
-    # Extract the user_id from the payload
     user_id = request_data.get("uid")
     if not user_id:
         return https_fn.Response("Missing 'uid' parameter", status=400)
 
-    # Optional: Verify Firebase Auth token if provided
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
             decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
-            # You can now use decoded_token to get user details if needed
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
 
-    firestore_client = firestore.Client()
-    user_doc_ref = firestore_client.collection("users").document(user_id)
-    user_doc = user_doc_ref.get()
-    updated_children = []
-
-    if user_doc.exists:
-        user_data = user_doc.to_dict()
-    church_ref = firestore_client.collection("churches").document(user_data["church"])
-    church_data = church_ref.get().to_dict()
-    deacons = church_data.get("deacons", [])
-    if "children" in user_data:
-        for child in user_data["children"]:
-            child["church"] = user_data["church"]
-            child["frequency"] = user_data["frequency"]
-            updated_children.append(child)
-            for deacon in deacons:
-                if deacon.get("uid") == child.get("uid"):
-                    deacon["frequency"] = child.get("frequency", 0)
-    church_ref.update({"deacons": deacons})
-    user_data["children"] = updated_children
-    user_doc_ref.update(user_data)
+    sync_child(user_id)
 
     return https_fn.Response(
         "Children frequency and church synced properly", status=200
@@ -1038,6 +299,7 @@ def sync_child_params(req: https_fn.Request) -> https_fn.Response:
 
 @https_fn.on_request()
 def delete_child(req: https_fn.Request) -> https_fn.Response:
+    """Removes a child from church rosters and all future schedules."""
     try:
         request_data = req.get_json()
         if request_data is None:
@@ -1045,21 +307,21 @@ def delete_child(req: https_fn.Request) -> https_fn.Response:
     except Exception as e:
         return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
 
-    # Extract the user_id from the payload
     user_id = request_data.get("uid")
     church_id = request_data.get("church")
     if not user_id or not church_id:
         return https_fn.Response("Missing 'uid' or 'church' parameter", status=400)
 
-    # Optional: Verify Firebase Auth token if provided
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
             decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
-            # You can now use decoded_token to get user details if needed
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+
     remove_user_from_churches(user_id)
+    
+    # Remove from all scheduled weeks
     for week in get_weeks(church_id):
         mock_request = Request.from_values(
             headers={"Authorization": ""},
@@ -1072,6 +334,10 @@ def delete_child(req: https_fn.Request) -> https_fn.Response:
 
 @https_fn.on_request()
 def delete_user(req: https_fn.Request) -> https_fn.Response:
+    """
+    Deletes a user and all their children from the system.
+    Removes from church rosters, servants meetings, and schedules.
+    """
     try:
         request_data = req.get_json()
         if request_data is None:
@@ -1079,107 +345,54 @@ def delete_user(req: https_fn.Request) -> https_fn.Response:
     except Exception as e:
         return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
 
-    # Extract the user_id from the payload
     user_id = request_data.get("uid")
     if not user_id:
         return https_fn.Response("Missing 'uid' parameter", status=400)
 
-    # Optional: Verify Firebase Auth token if provided
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
             decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
-            # You can now use decoded_token to get user details if needed
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+
     firestore_client = firestore.Client()
     user_doc_ref = firestore_client.collection("users").document(user_id)
     user_doc = user_doc_ref.get()
 
     if user_doc.exists:
         user_data = user_doc.to_dict()
+        
+        # Remove from servants meeting if applicable
         if user_data.get("isSSTeacher"):
             if user_data.get("church"):
                 church_ref = firestore_client.collection("churches").document(
                     user_data["church"]
                 )
                 church_ref.collection("Servants Meeting").document(user_id).delete()
+        
+        # Remove all children first
         if "children" in user_data:
             for child in user_data["children"]:
                 remove_user_from_churches(child.get("uid"))
+        
+        # Remove the user
         remove_user_from_churches(user_id)
+        
     return https_fn.Response("user and children deleted", status=200)
 
 
-@https_fn.on_request()
-def check_classes(req: https_fn.Request) -> https_fn.Response:
-    # Verify Firebase Auth token if provided
-    id_token = req.headers.get("Authorization")
-    if id_token:
-        try:
-            decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
-        except Exception as e:
-            return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+# ============================================================================
+# SCHEDULE MODIFICATION ENDPOINTS
+# ============================================================================
 
-    firestore_client = firestore.Client()
-    church_docs = firestore_client.collection("churches").stream()
-
-    for church_doc in church_docs:
-        delete_empty_classes(church_doc.reference, "Hymns Class")
-        delete_empty_classes(church_doc.reference, "Sunday School")
-
-    return https_fn.Response("Cleanup completed successfully", status=200)
-
-
-def delete_empty_classes(church_ref, collection_name):
-    """Deletes documents from the specified collection if they have no servants."""
-    collection_ref = church_ref.collection(collection_name)
-    docs = collection_ref.stream()
-
-    for doc in docs:
-        data = doc.to_dict()
-        if not data.get("servants"):  # Checks if "servants" key is missing or empty
-            doc.reference.delete()
-
-
-def find_server(schedule_data, target_uid):
-
-    for key, value in schedule_data.items():
-        if isinstance(value, list):
-            for i in range(len(value)):
-                if isinstance(value[i], dict) and value[i].get("uid") == target_uid:
-                    return ((key, i), value[i])
-        elif isinstance(value, dict):
-            if value.get("uid") == target_uid:
-                return ((key,), value)
-    return (None, None)
-
-
-def determine_role(location):
-    if location == "gospel":
-        return "the Gospel reader"
-    elif location == "wine":
-        return "a wine server"
-    elif location == "water":
-        return "a water server"
-    elif location == "praxis":
-        return "the Praxis reader"
-    elif location == "catholic":
-        return "the Catholic Epistle reader"
-    elif location == "pauline":
-        return "the Pauline Epistle reader"
-    elif location == "sixth":
-        return "the Sixth Hour Gospel reader"
-    elif location == "third":
-        return "the Third Hour Gospel reader"
-    elif location == "matins":
-        return "the Matins Gospel reader"
-    else:
-        return None
-    
-    
 @https_fn.on_request()
 def switch_server(req: https_fn.Request) -> https_fn.Response:
+    """
+    Swaps two servers' positions in a schedule.
+    Used by admins to manually adjust assignments.
+    Sends notifications if swap affects upcoming Sunday.
+    """
     try:
         request_data = req.get_json()
         if not request_data:
@@ -1187,15 +400,14 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
     except Exception as e:
         return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
 
-    # Extract required parameters
     church_id = request_data.get("church")
     week_id = request_data.get("week")
     first_server_uid = request_data.get("firstServer")
     second_server_uid = request_data.get("secondServer")
+    
     if not all([church_id, week_id, first_server_uid, second_server_uid]):
         return https_fn.Response("Missing required parameters", status=400)
 
-    # Optional: Verify Firebase Auth token
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
@@ -1204,7 +416,6 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
 
     try:
-        # Reference to the week's schedule
         firestore_client = firestore.Client()
         schedule_ref = (
             firestore_client.collection("churches")
@@ -1213,38 +424,39 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
             .document(week_id)
         )
         schedule_doc = schedule_ref.get()
+        
         if not schedule_doc.exists:
             return https_fn.Response("Schedule not found", status=404)
 
         schedule_data = schedule_doc.to_dict()
 
-        # Locate the two servers
+        # Find both servers in the schedule
         first_location, first_server = find_server(schedule_data, first_server_uid)
         second_location, second_server = find_server(schedule_data, second_server_uid)
+        
         if not first_location or not second_location:
             return https_fn.Response("One or both servers not found", status=404)
 
-        # Swap the server objects in schedule_data
+        # Perform the swap
         if len(first_location) == 2:
-            schedule_data[str(first_location[0])][
-                int(first_location[1])
-            ] = second_server
+            schedule_data[str(first_location[0])][int(first_location[1])] = second_server
         else:
             schedule_data[str(first_location[0])] = second_server
 
         if len(second_location) == 2:
-            schedule_data[str(second_location[0])][
-                int(second_location[1])
-            ] = first_server
+            schedule_data[str(second_location[0])][int(second_location[1])] = first_server
         else:
             schedule_data[str(second_location[0])] = first_server
 
         schedule_ref.update(schedule_data)
+        
+        # Notify if this affects upcoming Sunday
         if is_today_or_upcoming_sunday(week_id):
             handle_switch_server_notification(
                 first_server, second_server, first_location, second_location
             )
-        # 🔥 Run the slow function in a separate thread
+
+        # Update nextWeekServe fields in background
         trigger_async_function(
             "https://set-next-week-serve-async-hy6oofbihq-uc.a.run.app",
             {"church": church_id},
@@ -1256,58 +468,12 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response(f"Error: {str(e)}", status=500)
 
 
-def handle_switch_server_notification(
-    first_server, second_server, first_location, second_location
-):
-    if len(first_location) == 2:
-        if first_location[0] == "extra":
-            update_notification(
-                second_server["uid"],
-                f"{second_server["name"].split()[0]}! An admin has switched you with another deacon for this Sunday! Check the app for details.",
-                f"An admin has switched your son {second_server["name"].split()[0]} with another deacon for this Sunday! Check the app for details.",
-                "Schedule Update!",
-            )
-        elif first_location[0] == "altar":
-            update_notification(
-                second_server["uid"],
-                f"{second_server["name"].split()[0]}! You have been switched with another deacon to serve in the altar this Sunday! Check the app for details.",
-                f"Your son {second_server["name"].split()[0]} has been switched with another deacon to serve in the altar this Sunday! Check the app for details.",
-                "Schedule Update!",
-            )
-    if len(second_location) == 2:
-        if second_location[0] == "extra":
-            update_notification(
-                first_server["uid"],
-                f"{first_server["name"].split()[0]}! An admin has switched you with another deacon for this Sunday! Check the app for details.",
-                f"An admin has switched your son {first_server["name"].split()[0]} with another deacon for this Sunday! Check the app for details.",
-                "Schedule Update!",
-            )
-        elif second_location[0] == "altar":
-            update_notification(
-                first_server["uid"],
-                f"{first_server["name"].split()[0]}! You have been switched with another deacon to serve in the altar this Sunday! Check the app for details.",
-                f"Your son {first_server["name"].split()[0]} has been switched with another deacon to serve in the altar this Sunday! Check the app for details.",
-                "Schedule Update!",
-            )
-    if len(first_location) == 1:
-        second_server_role = determine_role(first_location[0])  # ✓ Correct
-        update_notification(
-            second_server["uid"],
-            f"{second_server["name"].split()[0]}! You have been switched with another deacon to serve as {second_server_role} this Sunday! Check the app for details.",  # ✓ Fixed
-            f"Your son {second_server["name"].split()[0]} has been switched with another deacon to serve as {second_server_role} this Sunday! Check the app for details.",  # ✓ Fixed
-            "Schedule Update!",
-        )
-    if len(second_location) == 1:
-        first_server_role = determine_role(second_location[0])  # ✓ Correct
-        update_notification(
-            first_server["uid"],
-            f"{first_server["name"].split()[0]}! You have been switched with another deacon to serve as {first_server_role} this Sunday! Check the app for details.",  # ✓ Fixed
-            f"Your son {first_server["name"].split()[0]} has been switched with another deacon to serve as {first_server_role} this Sunday! Check the app for details.",  # ✓ Fixed
-            "Schedule Update!",
-        )
-
 @https_fn.on_request()
 def remove_server(req: https_fn.Request) -> https_fn.Response:
+    """
+    Removes a server from altar and moves them to extras list.
+    Used by admins to reduce altar server count for a week.
+    """
     try:
         request_data = req.get_json()
         if not request_data:
@@ -1315,7 +481,6 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
     except Exception as e:
         return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
 
-    # Extract required parameters
     church_id = request_data.get("church")
     week_id = request_data.get("week")
     server_uid = request_data.get("server")
@@ -1323,7 +488,6 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
     if not all([church_id, week_id, server_uid]):
         return https_fn.Response("Missing required parameters", status=400)
 
-    # Optional: Verify Firebase Auth token
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
@@ -1331,7 +495,6 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
 
-    # Firestore setup
     firestore_client = firestore.Client()
     schedule_ref = (
         firestore_client.collection("churches")
@@ -1350,17 +513,20 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
 
     altar_servers = schedule_data.get("altar", [])
     extra_servers = schedule_data.get("extra", [])
+    
+    # Filter out the server and track who was removed
     updated_altar_servers = [s for s in altar_servers if s["uid"] != server_uid]
     removed_servers = [s for s in altar_servers if s["uid"] == server_uid]
 
     if not removed_servers:
         return https_fn.Response("Server not found in 'altar' list", status=404)
 
-    # Insert the server at the first index of the extra list
+    # Move to front of extras list
     extra_servers.insert(0, removed_servers[0])
 
-    # Update Firestore
     schedule_ref.update({"altar": updated_altar_servers, "extra": extra_servers})
+    
+    # Notify if upcoming
     if is_today_or_upcoming_sunday(week_id):
         update_notification(
             server_uid,
@@ -1368,10 +534,10 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
             "Your son has been removed from serving in the altar this Sunday. Check the app for details.",
             "Schedule Update!",
         )
-    # 🔁 Synchronously run update_future_schedules
+
+    # Propagate changes to future schedules
     update_future_schedules(church_id)
 
-    # 🧵 Still run this in background if needed
     trigger_async_function(
         "https://set-next-week-serve-async-hy6oofbihq-uc.a.run.app",
         {"church": church_id},
@@ -1382,6 +548,10 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
 
 @https_fn.on_request()
 def add_server(req: https_fn.Request) -> https_fn.Response:
+    """
+    Moves first available extra to altar servers.
+    Used by admins to add more altar servers for a week.
+    """
     try:
         request_data = req.get_json()
         if not request_data:
@@ -1389,14 +559,12 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
     except Exception as e:
         return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
 
-    # Extract required parameters
     church_id = request_data.get("church")
     week_id = request_data.get("week")
 
     if not all([church_id, week_id]):
         return https_fn.Response("Missing required parameters", status=400)
 
-    # Optional: Verify Firebase Auth token
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
@@ -1404,7 +572,6 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
 
-    # Firestore setup
     firestore_client = firestore.Client()
     schedule_ref = (
         firestore_client.collection("churches")
@@ -1425,24 +592,22 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
     extra_servers = schedule_data.get("extra", [])
 
     if extra_servers:
-        # Move first extra server to altar
+        # Move first extra to altar
         altar_servers.append(extra_servers[0])
+        
         if is_today_or_upcoming_sunday(week_id):
             update_notification(
                 extra_servers[0]["uid"],
-                f"{extra_servers[0]["name"].split()[0]}! You have been moved to serve in the altar this Sunday! Check the app for details.",
-                f"Your son {extra_servers[0]["name"].split()[0]} has been moved to serve in the altarr this Sunday! Check the app for details.",
+                f"{extra_servers[0]['name'].split()[0]}! You have been moved to serve in the altar this Sunday! Check the app for details.",
+                f"Your son {extra_servers[0]['name'].split()[0]} has been moved to serve in the altarr this Sunday! Check the app for details.",
                 "Schedule Update!",
             )
+        
         updated_extra_servers = extra_servers[1:]
-
-        # Update Firestore
         schedule_ref.update({"altar": altar_servers, "extra": updated_extra_servers})
 
-        # Run update_future_schedules synchronously
         update_future_schedules(church_id)
 
-        # Run set_next_week_serve in background
         trigger_async_function(
             "https://set-next-week-serve-async-hy6oofbihq-uc.a.run.app",
             {"church": church_id},
@@ -1450,68 +615,12 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
 
         return https_fn.Response("User moved from extra to altar", status=200)
     else:
-        # Add placeholder when no extras are available
+        # No extras available - add placeholder
         altar_servers.append({"name": "N/A", "uid": str(uuid.uuid4())})
         schedule_ref.update({"altar": altar_servers})
-
-        # Run update_future_schedules synchronously
         update_future_schedules(church_id)
 
         return https_fn.Response("No extra servers available to move", status=400)
-
-
-def update_future_schedules(church):
-    firestore_client = firestore.Client()
-    church_ref = firestore_client.collection("churches").document(church)
-    church_doc = church_ref.get()
-
-    # Check if the church document exists
-    if not church_doc.exists:
-        return
-
-    church_data = church_doc.to_dict()
-    num_altar_servers = int(
-        church_data.get("altarServers", 0)
-    )  # Ensure it's an integer, defaulting to 0
-
-    schedule_ref = (
-        firestore_client.collection("churches").document(church).collection("schedule")
-    )
-
-    docs = schedule_ref.stream()
-    for doc in docs:
-        schedule_data = doc.to_dict()
-        # Ensure default values if keys are missing
-        altar_list = schedule_data.get("altar", [])
-        extra_list = schedule_data.get("extra", [])
-
-        servers = []
-        for server in altar_list:
-            servers.append(server)
-        for extra in extra_list:
-            servers.append(extra)
-
-        updated_altar_servers = servers[:num_altar_servers]
-        updated_extra_servers = servers[num_altar_servers:]
-
-        doc.reference.update(
-            {"altar": updated_altar_servers, "extra": updated_extra_servers}
-        )
-
-    return
-
-
-def create_extra_deacons(church_id, extra_deacons):
-    firestore_client = firestore.Client()
-    church_ref = firestore_client.collection("churches").document(church_id)
-    church_doc = church_ref.get()
-    church_data = church_doc.to_dict()
-    deacons = []
-    for deacon in church_data["deacons"]:
-        for extra_deacon in extra_deacons:
-            if deacon["uid"] == extra_deacon["uid"]:
-                deacons.append(deacon)
-    return deacons
 
 
 @https_fn.on_request()
@@ -1526,7 +635,7 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
     church_id = request_data.get("church")
     week_id = request_data.get("week")
     user_id = request_data.get("uid")
-    family = request_data.get("family")
+    
     if not all([church_id, week_id, user_id]):
         return https_fn.Response("Missing required parameters", status=400)
 
@@ -1536,20 +645,40 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
             decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+        
+    unavailable(request_data)
 
+    return https_fn.Response("User removed and replacement scheduled", status=200)
+
+
+@https_fn.on_request()
+def handle_unavailable_requests(req: https_fn.Request) -> https_fn.Response:
+    
+    try:
+        request_data = req.get_json()
+        if not request_data:
+            return https_fn.Response("Missing JSON body", status=400)
+    except Exception as e:
+        return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
+    church_id = request_data.get("church")
+    week_id = request_data.get("week")
+    name = request_data.get("name")
+    uid = request_data.get("uid")
+    role = request_data.get("role")
+    unavailable_uid = request_data.get("unavailableUid")
+    
+
+    if not all([church_id, week_id, name, uid, role]):
+        return https_fn.Response("Missing required parameters", status=400)
+    
+    id_token = req.headers.get("Authorization")
+    if id_token:
+        try:
+            decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
+        except Exception as e:
+            return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+        
     firestore_client = firestore.Client()
-    user_ref = firestore_client.collection("users").document(user_id)
-    user_doc = user_ref.get()
-    all_uids = [user_id]
-    if user_doc.exists:
-        user_data = user_doc.to_dict()
-        if "children" in user_data and family:
-            for child in user_data["children"]:
-                all_uids.append(child["uid"])
-
-        # Run update_attendance synchronously
-        update_attendance(user_ref)
-
     schedule_ref = (
         firestore_client.collection("churches")
         .document(church_id)
@@ -1557,248 +686,35 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
         .document(week_id)
     )
     schedule_doc = schedule_ref.get()
+    
     if not schedule_doc.exists:
         return https_fn.Response("Schedule not found", status=404)
-
+    
     schedule_data = schedule_doc.to_dict()
-    for uid in all_uids:
-        key, _ = find_server(schedule_data, uid)
-        if key is None:
-            continue
-
-        if len(key) == 1:
-            key = str(key[0])
-        else:
-            key = (str(key[0]), key[1])
-
-        new_deacon = []
-        extra_deacons = create_extra_deacons(church_id, schedule_data["extra"])
-
-        if len(extra_deacons) == 0:
-            replacement = {"name": "N/A", "uid": str(uuid.uuid4())}
-            if isinstance(key, tuple) and len(key) > 1:
-                schedule_data[key[0]][key[1]] = replacement
-            else:
-                schedule_data[key] = replacement
-            continue
-
-        def get_and_replace(func, target_key):
-            nonlocal schedule_data, extra_deacons
-            new_deacon = func(extra_deacons)[0]
-            replacement = {"name": new_deacon["name"], "uid": new_deacon["uid"]}
-            new_key, _ = find_server(schedule_data, new_deacon["uid"])
-            schedule_data[target_key] = replacement
-            handle_unavailable_notification(
-                replacement["uid"],
-                week_id,
-                target_key,
-                replacement["name"]
-            )
-            del schedule_data["extra"][new_key[1]]
-
-        if not isinstance(key, tuple):
-            replace_map = {
-                "matins": matins,
-                "third": third,
-                "sixth": sixth,
-                "pauline": pauline,
-                "catholic": catholic,
-                "praxis": praxis,
-                "gospel": gospel,
-                "water": water,
-                "wine": wine,
-            }
-            if key in replace_map:
-                get_and_replace(replace_map[key], key)
-        else:
-            if key[0] == "altar":
-                new_deacon = altar(extra_deacons)[0]
-                replacement = {"name": new_deacon["name"], "uid": new_deacon["uid"]}
-                new_key, _ = find_server(schedule_data, new_deacon["uid"])
-                schedule_data["altar"][key[1]] = replacement
-                handle_unavailable_notification(
-                    replacement["uid"],
-                    week_id,
-                    "altar",
-                    replacement["name"]
-                )
-                del schedule_data["extra"][new_key[1]]
-            elif key[0] == "extra":
-                print(f"Removing extra server: {key[1]}")
-                del schedule_data["extra"][key[1]]
-
-    # Final Firestore update
-    schedule_ref.update(schedule_data)
-
-    # Run set_next_week_serve in background
-    trigger_async_function(
-        "https://set-next-week-serve-async-hy6oofbihq-uc.a.run.app",
-        {"church": church_id},
-    )
-
-    return https_fn.Response("User removed and replacement scheduled", status=200)
-
-
-def is_today_or_upcoming_sunday(week_id_str):
-    try:
-        week_id_date = datetime.datetime.strptime(week_id_str, "%m-%d-%y").date()
-    except ValueError:
-        return False
-
-    today = datetime.datetime.today().date()
-    weekday = today.weekday()  # Monday=0, Sunday=6
-    days_until_sunday = (6 - weekday)
-
-    # If today is Sunday, set next_sunday to 7 days later (upcoming Sunday)
-    if days_until_sunday == 0:
-        days_until_sunday = 7
-
-    next_sunday = today + datetime.timedelta(days=days_until_sunday)
-
-    result = (week_id_date == today or week_id_date == next_sunday)
-
-
-    return result
-
-def handle_unavailable_notification(user_id, week_id, role, name):
-    if is_today_or_upcoming_sunday(week_id):
-        update_notification(
-            user_id,
-            f"{name.split()[0]}! You have been rescheduled to serve as {interpret_role(role)} this Sunday! Check the app for details.",
-            f"Your son {name.split()[0]} has been rescheduled to serve as {interpret_role(role)} this Sunday! Check the app for details.",
-            "Schedule Update!",
-        )
-    return
-
-
-def update_attendance(user_ref):
-    firestore_client = firestore.Client()
-    user_doc = user_ref.get()
-    user_data = user_doc.to_dict()
-    church_ref = firestore_client.collection("churches").document(user_data["church"])
-    church_data = church_ref.get().to_dict()
-    deacons = church_data.get("deacons", [])
-    if "frequency" in user_data:
-        user_data["frequency"] *= 0.95
-        if user_data["frequency"] < 0.1:
-            user_data["frequency"] = 0.5
-    for deacon in deacons:
-        if deacon["uid"] == user_data["uid"]:
-            deacon["frequency"] = user_data["frequency"]
+    for deacon in schedule_data.get('extra', []):
+        if deacon['uid'] == unavailable_uid:
+            schedule_data['extra'].remove(deacon)
             break
-    church_ref.update({"deacons": deacons})
-    user_ref.update(user_data)
-    sync_child_params(user_data["uid"])
-    return
-
-
-def reset_next_dates(church_id):
-    firestore_client = firestore.Client()
-    users_ref = firestore_client.collection("users")
-    users_docs = users_ref.stream()
-    for user in users_docs:
-        user_data = user.to_dict()
-        if user_data.get("church") == church_id:
-            user.reference.update({"nextWeekServe": "Not Yet Scheduled", "nextRole": "Not Yet Scheduled"})
-    return
-
-
-def interpret_role(role):
-    if role == "N/A":
-        return "Not Yet Scheduled"
-    elif role == "matins":
-        return "Matins Gospel Reader"
-    elif role == "third":
-        return "Third Hour Gospel Reader"
-    elif role == "sixth":
-        return "Sixth Hour Gospel Reader"
-    elif role == "pauline":
-        return "Pauline Epistle Reader"
-    elif role == "catholic":
-        return "Catholic Epistle Reader"
-    elif role == "praxis":
-        return "Praxis Reader"
-    elif role == "gospel":
-        return "Gospel Reader"
-    elif role == "water":
-        return "Water Bearer"
-    elif role == "wine":
-        return "Wine Bearer"
-    elif role == "altar":
-        return "Altar Server"
-
-
-def set_user_next_week(user_id, week, role):
-    firestore_client = firestore.Client()
-    user_ref = firestore_client.collection("users").document(user_id)
-    role = interpret_role(role)
-    # Run the get() method in a separate thread
-    user_data = user_ref.get()
-    if user_data.exists:
-        user_info = user_data.to_dict()
-        next_week_serve = user_info.get("nextWeekServe")  # May be None
-        if next_week_serve == "N/A" or next_week_serve == "Not Yet Scheduled" or not next_week_serve:
-            user_info["nextWeekServe"] = week
-            user_info["nextRole"] = role
-            user_ref.set(user_info)
-            return
-
-        if not week:
-            return
-
-        try:
-            new_date = datetime.datetime.strptime(week, "%m-%d-%y")  # Correct format
-            existing_date = datetime.datetime.strptime(
-                next_week_serve, "%m-%d-%y"
-            )  # Correct format
-            # Update only if the new date is earlier
-            if new_date < existing_date:
-                user_info["nextWeekServe"] = week
-                user_info["nextRole"] = role
-                user_ref.set(user_info)
-        except ValueError as e:
-            return https_fn.Response(f"Invalid date format: {str(e)}", status=400)
+        
+    if isinstance(role, list):
+        schedule_data[role[0]][role[1]] = {'name': name, 'uid': uid}
+        handle_unavailable_notification(uid, week_id, role[0], name)
     else:
-        return
-
-
-def set_next_week_serve(church_id):
-    # Run reset_next_dates in a separate thread
-    reset_next_dates(church_id)
-
-    firestore_client = firestore.Client()
-    schedules_ref = (
-        firestore_client.collection("churches")
-        .document(church_id)
-        .collection("schedule")
-    )
-    # Convert stream generator to a list asynchronously
-    schedules = list(schedules_ref.stream())
-
-    for schedule in schedules:
-        schedule_id = schedule.id
-        schedule_data = schedule.to_dict()
-
-        for key, value in schedule_data.items():
-            if key == "extra":
-                continue
-
-            if key == "altar":
-                for altar_server in value:
-                    for individual_key, individual_value in altar_server.items():
-                        if individual_key == "uid" and individual_value != "N/A":
-                            set_user_next_week(individual_value, str(schedule_id), key)
-
-            if isinstance(value, dict):
-                for individual_key, individual_value in value.items():
-                    if individual_key == "uid" and individual_value != "N/A":
-                        set_user_next_week(individual_value, str(schedule_id), key)
-
-    return
-
-
+        schedule_data[role] = {'name': name, 'uid': uid}
+    
+    schedule_ref.update(schedule_data)
+    
+    
+    return https_fn.Response("Unavailable request handled", status=200)   
+        
+        
+        
 @https_fn.on_request()
 def set_next_week_serve_async(req: https_fn.Request) -> https_fn.Response:
+    """
+    Async endpoint for updating nextWeekServe fields.
+    Called as fire-and-forget from other endpoints to avoid blocking.
+    """
     try:
         request_data = req.get_json()
         church_id = request_data.get("church")
@@ -1813,15 +729,12 @@ def set_next_week_serve_async(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response(f"Error: {str(e)}", status=500)
 
 
-def trigger_async_function(endpoint_url: str, payload: dict):
-    try:
-        requests.post(endpoint_url, json=payload, timeout=1)
-    except requests.exceptions.ReadTimeout:
-        pass  # Let main function return immediately
-
-
 @https_fn.on_request()
 def remove_family_schedules(req: https_fn.Request) -> https_fn.Response:
+    """
+    Removes entire family from all schedules and teaching assignments.
+    Used when family leaves the church or goes on extended leave.
+    """
     try:
         request_data = req.get_json()
         if not request_data:
@@ -1829,22 +742,24 @@ def remove_family_schedules(req: https_fn.Request) -> https_fn.Response:
     except Exception as e:
         return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
 
-    # Extract required parameters
     church_id = request_data.get("church")
     user_id = request_data.get("uid")
+    
     if not all([church_id, user_id]):
         return https_fn.Response("Missing required parameters", status=400)
 
-    # Optional: Verify Firebase Auth token
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
             decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+
     firestore_client = firestore.Client()
     user_ref = firestore_client.collection("users").document(user_id)
     user_data = user_ref.get().to_dict()
+    
+    # Determine teaching assignments to remove
     alhan = "N/A"
     sunday_school = "N/A"
     if user_data["frequency"]:
@@ -1853,15 +768,22 @@ def remove_family_schedules(req: https_fn.Request) -> https_fn.Response:
         alhan = user_data["alhanGrades"]
     if user_data["isSSTeacher"] and user_data["ssSetUp"]:
         sunday_school = user_data["ssGrades"]
+    
     remove_user_from_schedules(church_id, user_id, alhan, sunday_school, True)
+    
     if user_ref.get().exists:
         user_ref.update({"nextWeekServe": "N/A", "frequency": frequency})
 
     return https_fn.Response("Family schedules removed", status=200)
 
 
+# ============================================================================
+# TEST/ADMIN UTILITIES
+# ============================================================================
+
 @https_fn.on_request()
 def create_test_data(req: https_fn.Request) -> https_fn.Response:
+    """Creates random test deacon data for development."""
     firestore_client = firestore.Client()
     church_ref = firestore_client.collection("churches").document("Test Data")
     test_data = generate_test_data(150)
@@ -1869,69 +791,19 @@ def create_test_data(req: https_fn.Request) -> https_fn.Response:
     return https_fn.Response("Test data created", status=200)
 
 
-grades_list = [
-    "Pre-School - Age 3",
-    "Pre-School - Age 4",
-    "Kindergarten",
-    "1st Grade",
-    "2nd Grade",
-    "3rd Grade",
-    "4th Grade",
-    "5th Grade",
-    "6th Grade",
-    "7th Grade",
-    "8th Grade",
-    "9th Grade",
-    "10th Grade",
-    "11th Grade",
-    "12th Grade",
-    "College",
-]
-
-
-def clean_student_data(student_data):
-    current_year = datetime.datetime.now().year
-    cleaned = {}
-    for key, val in student_data.items():
-        if key.lower() == "birthday":
-            cleaned[key] = val
-        elif re.fullmatch(r"\d{2}-\d{2}-\d{4}", key):
-            year = int(key.split("-")[2])
-            if year == current_year:
-                cleaned[key] = val
-        else:
-            cleaned[key] = val
-
-    grade = cleaned.get("grade")
-    if grade in grades_list and grade != "College":
-        cleaned["grade"] = grades_list[grades_list.index(grade) + 1]
-    return cleaned
-
-
-def move_and_clean_students(church_ref, class_name):
-    cls = church_ref.collection(class_name)
-    # Walk backwards through grades, skipping 'College'
-    for i in reversed(range(1, len(grades_list))):
-        current, prev = grades_list[i], grades_list[i - 1]
-        if current != "College" or current != "5:00-5:30" or current != "5:30-6:00":
-            # 1) wipe out existing
-            for s in cls.document(current).collection("students").stream():
-                s.reference.delete()
-            # 2) copy + clean from prev
-            for s in cls.document(prev).collection("students").stream():
-                cls.document(current).collection("students").document(s.id).set(
-                    clean_student_data(s.to_dict())
-                )
-
-    # finally, clear Pre-School - Age 3
-    for s in cls.document(grades_list[0]).collection("students").stream():
-        s.reference.delete()
-
+# ============================================================================
+# SCHEDULED MAINTENANCE JOBS
+# ============================================================================
 
 @scheduler_fn.on_schedule(
-    schedule="0 0 11 9 *", timezone=scheduler_fn.Timezone("America/New_York")
+    schedule="0 0 11 9 *",  # September 11 at midnight (new school year)
+    timezone=scheduler_fn.Timezone("America/New_York")
 )
 def new_years_cleanup(event: scheduler_fn.ScheduledEvent) -> None:
+    """
+    Annual job: Promotes students to next grade level.
+    Runs September 11 to align with Coptic new year.
+    """
     db = firestore.Client()
     church_count = 0
 
@@ -1941,27 +813,12 @@ def new_years_cleanup(event: scheduler_fn.ScheduledEvent) -> None:
         church_count += 1
 
 
-def calc_age(dob_str):
-    if dob_str:
-        try:
-            dob = datetime.datetime.strptime(dob_str, "%m-%d-%Y")
-            today = datetime.datetime.now()
-            age = (
-                today.year
-                - dob.year
-                - ((today.month, today.day) < (dob.month, dob.day))
-            )
-            return age
-        except Exception as e:
-            return None
-    return None
-
-
 @scheduler_fn.on_schedule(
     schedule="0 0 * * 0",  # Every Sunday at midnight
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 async def scheduled_update_ages():
+    """Weekly job: Recalculates ages from DOB for all users."""
     firestore_client = firestore.Client()
     users_ref = firestore_client.collection("users")
     users_docs = users_ref.stream()
@@ -1971,11 +828,11 @@ async def scheduled_update_ages():
         tasks.append(asyncio.to_thread(update_user_sync, user_doc))
 
     await asyncio.gather(*tasks)
-
     return https_fn.Response("Scheduled age update completed", status=200)
 
 
 def update_user_sync(user_doc):
+    """Helper: Updates a single user's age if it has changed."""
     user_data = user_doc.to_dict()
     if "DOB" in user_data:
         current_age = calc_age(user_data["DOB"])
@@ -1992,6 +849,7 @@ def update_user_sync(user_doc):
 
 
 async def update_all_users():
+    """Batch updates all user ages (used by test endpoint)."""
     firestore_client = firestore.Client()
     users_ref = firestore_client.collection("users")
     users_docs = users_ref.stream()
@@ -2005,19 +863,18 @@ async def update_all_users():
 
 @https_fn.on_request()
 def test_update_ages(req: https_fn.Request) -> https_fn.Response:
+    """HTTP endpoint to manually trigger age updates."""
     asyncio.run(update_all_users())
     return https_fn.Response("Manual age update completed", status=200)
 
 
-def deacon_present(uid, deacons):
-    for deacon in deacons:
-        if deacon["uid"] == uid:
-            return True
-    return False
-
+# ============================================================================
+# NOTIFICATION ENDPOINTS
+# ============================================================================
 
 @https_fn.on_request()
 def testing_notifcations(req: https_fn.Request) -> https_fn.Response:
+    """Test endpoint for debugging FCM notifications."""
     message = messaging.Message(
         token="fUdnk8uvSU4_mfpQihxUFu:APA91bH2SVMsjz8mhWAJtG3m2lEmmIskXBticQcvayhcNg0m-uyh2e3B3sRY84n-HeIjzL3WnD4K8IG0GjirF52jA204xpT9fakec0DO25ZoMJ1F6AJ9Ajw",
         notification=messaging.Notification(
@@ -2041,129 +898,37 @@ def testing_notifcations(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response(f"Error sending notification: {str(e)}", status=500)
 
 
-def send_notification(fcm_tokens, body, title):
-    for token in fcm_tokens:
-        message = messaging.Message(
-            token=token,
-            notification=messaging.Notification(
-                title=title,
-                body=body,
-            ),
-            android=messaging.AndroidConfig(priority="high"),
-            apns=messaging.APNSConfig(
-                payload=messaging.APNSPayload(
-                    aps=messaging.Aps(sound="default", content_available=True)
-                )
-            ),
-        )
-        try:
-            messaging.send(message)
-        except Exception:
-            pass  # Silently ignore errors
-
-
+# Liturgy reminder schedule: Sunday 4:15 PM, Friday 8 PM, Saturday 9 AM
 @scheduler_fn.on_schedule(
-    schedule="15 16 * * 0",  # Every Sunday at 4:15 PM
+    schedule="15 16 * * 0",  # Sunday 4:15 PM
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def first_reminder(event: scheduler_fn.ScheduledEvent) -> None:
+    """First liturgy reminder - sent right after schedule generation."""
     asyncio.run(liturgy_notification())
 
+
 @scheduler_fn.on_schedule(
-    schedule="0 20 * * 5",  # Every Friday at 8:00 PM
+    schedule="0 20 * * 5",  # Friday 8:00 PM
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def second_reminder(event: scheduler_fn.ScheduledEvent) -> None:
+    """Second liturgy reminder - Friday evening."""
     asyncio.run(liturgy_notification())
 
+
 @scheduler_fn.on_schedule(
-    schedule="0 9 * * 6",  # Every Saturday at 8:00 PM
+    schedule="0 9 * * 6",  # Saturday 9:00 AM
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def third_reminder(event: scheduler_fn.ScheduledEvent) -> None:
+    """Third liturgy reminder - Saturday morning."""
     asyncio.run(liturgy_notification())
 
-def get_next_sunday(base_date: datetime.date) -> datetime.date:
-    days_ahead = (6 - base_date.weekday()) % 7
-    # If it's Sunday (weekday = 6), we want next Sunday (7 days ahead)
-    # If it's Saturday (weekday = 5), we want tomorrow (1 day ahead)
-    # For all other days, we want the next Sunday
-    days_ahead = 7 if days_ahead == 0 else days_ahead
-    return base_date + datetime.timedelta(days=days_ahead)
-
-
-async def liturgy_notification():
-    # Use the same logic as generate_schedule to ensure consistency
-    today = datetime.datetime.now()
-    days_until_sunday = (6 - today.weekday()) % 7
-    upcoming_sunday = today + datetime.timedelta(days=days_until_sunday)
-    upcoming_sunday = upcoming_sunday.replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
-    
-    # Use the same logic as generate_schedule
-    if today.weekday() == 6:  # Sunday
-        target_sunday = upcoming_sunday + datetime.timedelta(weeks=1)
-    else:
-        target_sunday = upcoming_sunday
-    
-    next_sunday_str = target_sunday.strftime("%m-%d-%y")
-
-    print(f"Liturgy notification: Looking for schedule document '{next_sunday_str}' for date {target_sunday}")
-
-    firestore_client = firestore.Client()
-    churches_ref = firestore_client.collection("churches")
-    churches_docs = churches_ref.stream()
-
-    tasks = []
-
-    for church_doc in churches_docs:
-        schedule_ref = church_doc.reference.collection("schedule")
-        schedule_doc = schedule_ref.document(next_sunday_str).get()
-        if not schedule_doc.exists:
-            print(f"Schedule document '{next_sunday_str}' not found for church {church_doc.id}")
-            continue
-        else:
-            print(f"Found schedule document '{next_sunday_str}' for church {church_doc.id}")
-
-        for key, value in schedule_doc.to_dict().items():
-            print(f"Processing key: {key}, value: {value}")
-
-            if isinstance(value, dict):
-                if value["name"] == "N/A":
-                    continue
-
-            if key == "extra":
-                continue
-
-            if isinstance(value, list):
-                for server in value:
-                    if server["name"] == "N/A":
-                        print(f"Skipping {server['name']} in {key}")
-                        continue
-                    print(f"Sending notification to {server['name']}")
-                    tasks.append(asyncio.to_thread(
-                        update_notification,
-                        server["uid"],
-                        f"Great News {server['name'].split()[0]}! You are scheduled to serve this Sunday, {next_sunday_str} as an altar server. Please check the app for details.",
-                        f"Great News! Your son {server['name'].split()[0]} is scheduled to serve this Sunday, {next_sunday_str} as an altar server. Please check the app for details.",
-                        "Liturgy Reminder"
-                    ))
-            else:
-                if "uid" in value and value["uid"] != "N/A":
-                    print(f"Sending notification to {value['name']}")
-                    tasks.append(asyncio.to_thread(
-                        update_notification,
-                        value["uid"],
-                        f"Great News {value['name'].split()[0]}! You are scheduled to serve this Sunday, {next_sunday_str} as a {interpret_role(key)}. Please check the app for details.",
-                        f"Great News! Your son {value['name'].split()[0]} is scheduled to serve this Sunday, {next_sunday_str} as a {interpret_role(key)}. Please check the app for details.",
-                        "Liturgy Reminder"
-                    ))
-
-    await asyncio.gather(*tasks)
 
 @https_fn.on_request()
 def test_liturgy_notification(req: https_fn.Request) -> https_fn.Response:
+    """HTTP endpoint to manually trigger liturgy notifications."""
     try:
         print("Starting test liturgy notification...")
         asyncio.run(liturgy_notification())
@@ -2174,103 +939,28 @@ def test_liturgy_notification(req: https_fn.Request) -> https_fn.Response:
 
 
 @scheduler_fn.on_schedule(
-    schedule="30 12 * * 0",  # Every Sunday at 12:30 AM
+    schedule="30 12 * * 0",  # Sunday 12:30 PM
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def servants_meeting_notification(event: scheduler_fn.ScheduledEvent) -> None:
+    """Reminder for servants meeting (sent just before typical meeting time)."""
     asyncio.run(process_servant_notifications())
 
 
-async def process_servant_notifications():
-    firestore_client = firestore.Client()
-    users_ref = firestore_client.collection("users")
-    users_docs = list(users_ref.stream())
-
-    # Run all notification tasks concurrently
-    await asyncio.gather(
-        *[notify_servant(firestore_client, user) for user in users_docs]
-    )
-
-
-async def notify_servant(firestore_client, user_doc):
-    user_data = user_doc.to_dict()
-    if not user_data.get("isServant") or not user_data.get("fcmTokens"):
-        return
-
-    # Offload the blocking get() call
-    church_id = user_data.get("church")
-    if not church_id:
-        return
-
-    church_doc = await asyncio.to_thread(
-        lambda: firestore_client.collection("churches").document(church_id).get()
-    )
-    church_data = church_doc.to_dict() or {}
-
-    # Send notification (non-blocking if implemented with async)
-    await asyncio.to_thread(
-        send_notification,
-        user_data["fcmTokens"],
-        f"Reminder: Servants Meeting is starting soon at {church_data.get('servantsMeetingTime', '12:30 PM')}! Please be on time.",
-        "Servants Meeting Reminder",
-    )
-
-
-def search_for_child(uid):
-    firestore_client = firestore.Client()
-    users_ref = firestore_client.collection("users")
-    
-    # Fetch all users and filter in Python instead of using Firestore query
-    all_users = users_ref.stream()
-
-    for user in all_users:
-        user_data = user.to_dict()
-        children = user_data.get("children", [])
-        
-        # Only process users that have children
-        if children and isinstance(children, list):
-            for child in children:
-                if isinstance(child, dict) and child.get("uid") == uid:
-                    if (
-                        "fcmTokens" in user_data
-                        and isinstance(user_data["fcmTokens"], list)
-                        and len(user_data["fcmTokens"]) > 0
-                    ):
-                        return (True, user_data["fcmTokens"])
-                    else:
-                        return (False, None)
-
-    return (False, None)
-
-
-def update_notification(uid, message, child_message, title):
-    firestore_client = firestore.Client()
-    user_ref = firestore_client.collection("users").document(uid)
-    user_doc = user_ref.get()
-    if user_doc.exists:
-        user_data = user_doc.to_dict()
-        if (
-            "fcmTokens" in user_data
-            and isinstance(user_data["fcmTokens"], list)
-            and len(user_data["fcmTokens"]) > 0
-        ):
-            fcm_tokens = user_data["fcmTokens"]
-            send_notification(fcm_tokens, message, title)
-    else:
-        child_info = search_for_child(uid)
-        if child_info[0]:
-            send_notification(child_info[1], child_message, title)
-        else:
-            print(f"No FCM tokens found for user {uid} or their children.")
-
+# ============================================================================
+# ATTENDANCE SHEET GENERATION
+# ============================================================================
 
 @scheduler_fn.on_schedule(
-    schedule="0 0 * * 1",  # Every Monday at midnight
+    schedule="0 0 * * 1",  # Monday midnight
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def generate_sheets(event: scheduler_fn.ScheduledEvent) -> None:
+    """
+    Weekly job: Generates Google Sheets/Excel attendance reports.
+    Runs Monday after Sunday attendance is recorded.
+    """
     try:
-        # Run both functions concurrently
         set_up_sheets()
         set_up_sheets_servants()
     except Exception as e:
@@ -2279,24 +969,26 @@ def generate_sheets(event: scheduler_fn.ScheduledEvent) -> None:
 
 @https_fn.on_request()
 def test_generate_sheets_http(req: https_fn.Request) -> https_fn.Response:
-    """HTTP endpoint to manually trigger sheet generation for testing."""
+    """HTTP endpoint to manually trigger sheet generation."""
     try:
-        # Run functions synchronously
         set_up_sheets()
         set_up_sheets_servants()
-        
         return https_fn.Response("Document generation completed successfully")
-        
     except Exception as e:
         return https_fn.Response(f"Error: {str(e)}", status=500)
-    
-    
-    
+
+
+# ============================================================================
+# LAST SERVE TRACKING
+# ============================================================================
+
 @https_fn.on_request()
 def test_last_serve(req: https_fn.Request) -> https_fn.Response:
+    """Test endpoint for updating lastServe fields."""
     firestore_client = firestore.Client()
     churches_ref = firestore_client.collection("churches")
     churches_docs = churches_ref.stream()
+    
     for church_doc in churches_docs:
         schedules = firestore_client.collection("churches").document(church_doc.id).collection("schedule").stream()
         for schedule in schedules:
@@ -2304,47 +996,28 @@ def test_last_serve(req: https_fn.Request) -> https_fn.Response:
             if schedule.id == "08-31-25":
                 print(f"Updating last serve for schedule {schedule.id} of church {church_doc.id}")
                 update_last_serve(schedule.to_dict(), schedule.id)
-    return https_fn.Response("Last serve update completed", status=200)
                 
-def update_last_serve(schedule_data, schedule_id=None):
-    firestore_client = firestore.Client()
-    for key, value in schedule_data.items():
-        if key == "extra":
-            continue
+    return https_fn.Response("Last serve update completed", status=200)
 
-        if isinstance(value, list):
-            for individual in value:
-                for indvidual_key, individual_value in individual.items():
-                    if indvidual_key == "name" and individual_value != "N/A":
-                        print(f"Processing individual: {individual}")
-                        user_ref = firestore_client.collection("users").document(individual["uid"])
-                        if user_ref.get().exists:
-                            user_ref.update({"lastServe": schedule_id, "lastRole": interpret_role(key)})
-                            print(f"Updated lastServe and lastRole for user {individual['uid']}")
-                            print(f"last week serve: {user_ref.get().to_dict().get('lastServe')}, last role: {user_ref.get().to_dict().get('lastRole')}")
-        else:
-            for individual_key, individual_value in value.items():
-                if individual_key == "name" and individual_value != "N/A":
-                    print(f"Processing individual: {value}")
-                    user_ref = firestore_client.collection("users").document(value["uid"])
-                    if user_ref.get().exists:
-                        user_ref.update({"lastServe": schedule_id, "lastRole": interpret_role(key)})
-                        print(f"Updated lastServe and lastRole for user {value['uid']}")
-                        print(f"last week serve: {user_ref.get().to_dict().get('lastServe')}, last role: {user_ref.get().to_dict().get('lastRole')}")        
-    return
 
 @scheduler_fn.on_schedule(
-    schedule="45 15 * * 0",  # Every Sunday at 3:45 PM
+    schedule="45 15 * * 0",  # Sunday 3:45 PM (before schedule generation)
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
 def update_last_week_serve(event: scheduler_fn.ScheduledEvent) -> None:
+    """
+    Weekly job: Records lastServe/lastRole for today's servers.
+    Runs before schedule generation to capture current week's service.
+    """
     firestore_client = firestore.Client()
     churches_ref = firestore_client.collection("churches")
     churches_docs = churches_ref.stream()
+    
     for church_doc in churches_docs:
         schedules = firestore_client.collection("churches").document(church_doc.id).collection("schedule").stream()
         for schedule in schedules:
             print(f"Checking schedule {schedule.id} for church {church_doc.id}")
+            # Only process today's schedule
             if schedule.id == datetime.datetime.now().strftime("%m-%d-%y"):
                 print(f"Updating last serve for schedule {schedule.id} of church {church_doc.id}")
                 update_last_serve(schedule.to_dict(), schedule.id)
