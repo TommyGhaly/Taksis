@@ -40,15 +40,12 @@ const ProfileImageExpander = React.memo(({
 
   const initialPosition = useRef({ x: 0, y: 0 });
 
-  const imageSource = useMemo(
-    () => {
-      if (!imageUrl || typeof imageUrl !== "string" || imageUrl.trim() === "") {
-        return require("../assets/default_profile.png");
-      }
-      return imageUrl;
-    },
-    [imageUrl]
-  );
+  const imageSource = useMemo(() => {
+    if (!imageUrl || typeof imageUrl !== "string" || imageUrl.trim() === "") {
+      return require("../assets/default_profile.png");
+    }
+    return imageUrl;
+  }, [imageUrl]);
 
   const isDefaultImage = useMemo(
     () => !imageUrl || typeof imageUrl !== "string" || imageUrl.trim() === "",
@@ -72,55 +69,57 @@ const ProfileImageExpander = React.memo(({
 
       initialPosition.current = { x: initialX, y: initialY };
       
+      // Set initial values before showing modal
       scale.value = 1;
       translateX.value = initialX;
       translateY.value = initialY;
       borderRadiusAnim.value = size / 2;
-      opacity.value = 0;
+      opacity.value = 1;
       overlayOpacity.value = 0;
       
       setImageModalVisible(true);
       setIsImageAnimating(true);
       setLayoutReady(true);
 
-      const totalDuration = 300;
-      const halfDuration = totalDuration / 1.95;
-      
-      const config = {
-        duration: totalDuration,
-        easing: Easing.out(Easing.cubic),
-      };
+      const moveDuration = 350;
+      const scaleDuration = 200;
+      const scaleDelay = 180;
 
-      const scaleConfig = {
-        duration: halfDuration,
-        easing: Easing.out(Easing.cubic),
-      };
+      const moveEasing = Easing.out(Easing.cubic);
+      const scaleEasing = Easing.out(Easing.cubic);
 
-      // Immediate opacity
-      opacity.value = withTiming(1, { duration: 100 });
-      
-      // Overlay with slight delay
-      setTimeout(() => {
-        overlayOpacity.value = withTiming(0.9, { 
-          duration: totalDuration * 1.5,
-          easing: Easing.out(Easing.cubic),
-        });
-      }, 50);
+      // Overlay fades in
+      overlayOpacity.value = withTiming(0.9, { 
+        duration: moveDuration,
+        easing: moveEasing,
+      });
 
-      // Translation: 0% to 100% of total duration
-      translateX.value = withTiming(0, config);
-      translateY.value = withTiming(-30, config);
+      // Translation to center
+      translateX.value = withTiming(0, {
+        duration: moveDuration,
+        easing: moveEasing,
+      });
+      translateY.value = withTiming(-30, {
+        duration: moveDuration,
+        easing: moveEasing,
+      });
       
-      // Scale: Start at 50% (delayed by half), finish at 100%
+      // Scale starts slightly after movement begins
       scale.value = withDelay(
-        halfDuration,
-        withTiming(finalSize / size, scaleConfig)
+        scaleDelay,
+        withTiming(finalSize / size, {
+          duration: scaleDuration,
+          easing: scaleEasing,
+        })
       );
       
-      // BorderRadius: Start at 50% (delayed by half), finish at 100%
+      // Border radius follows scale timing
       borderRadiusAnim.value = withDelay(
-        halfDuration,
-        withTiming(8, scaleConfig)
+        scaleDelay,
+        withTiming(8, {
+          duration: scaleDuration,
+          easing: scaleEasing,
+        })
       );
     });
   }, [onPress, size, finalSize]);
@@ -138,21 +137,19 @@ const ProfileImageExpander = React.memo(({
     overlayOpacity.value = 0;
   }, [size]);
 
-  const animatedImageStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { scale: scale.value },
-        { translateX: translateX.value },
-        { translateY: translateY.value },
-      ],
-      borderRadius: borderRadiusAnim.value,
-      opacity: opacity.value,
-    };
-  }, []);
+  const animatedImageStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+    borderRadius: borderRadiusAnim.value,
+    opacity: opacity.value,
+  }));
 
   const animatedOverlayStyle = useAnimatedStyle(() => ({
     opacity: overlayOpacity.value,
-  }), []);
+  }));
 
   return (
     <>
