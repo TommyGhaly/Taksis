@@ -17,6 +17,7 @@ import AdminManager from "./AdminManager";
 import EditSchedule from "./EditSchedule";
 import DeaconEdits from "./DeaconEdits";
 import UnavailableRequestModal from "../components/unavailableRequestModal";
+import CustomDrawerContent from "../components/customDrawer";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import CustomHeader from "../components/customHeader";
@@ -80,7 +81,6 @@ const screenConfigs = {
   },
 };
 
-// Helper to parse week string (MM-DD-YY) to Date
 const parseWeekDate = (weekStr) => {
   if (!weekStr) return null;
   const parts = weekStr.split("-");
@@ -89,7 +89,6 @@ const parseWeekDate = (weekStr) => {
   return new Date(2000 + year, month - 1, day);
 };
 
-// Helper to check if week is in the past
 const isWeekPast = (weekStr) => {
   const weekDate = parseWeekDate(weekStr);
   if (!weekDate) return false;
@@ -98,17 +97,13 @@ const isWeekPast = (weekStr) => {
   return weekDate < today;
 };
 
-// Flatten unavailable documents into a queue of requests
 const flattenUnavailableRequests = (docs) => {
   const requests = [];
-
   docs.forEach((doc) => {
     const weekId = doc.id;
     const data = doc.data();
-
     Object.entries(data).forEach(([key, value]) => {
       if (key === "altar" && typeof value === "object") {
-        // Handle altar servers (nested structure)
         Object.entries(value).forEach(([index, entry]) => {
           if (entry.original && entry.replacement) {
             requests.push({
@@ -120,7 +115,6 @@ const flattenUnavailableRequests = (docs) => {
           }
         });
       } else if (value.original && value.replacement) {
-        // Handle single roles
         requests.push({
           weekId,
           role: key,
@@ -130,15 +124,12 @@ const flattenUnavailableRequests = (docs) => {
       }
     });
   });
-
-  // Sort by week date (earliest first)
   requests.sort((a, b) => {
     const dateA = parseWeekDate(a.weekId);
     const dateB = parseWeekDate(b.weekId);
     if (!dateA || !dateB) return 0;
     return dateA - dateB;
   });
-
   return requests;
 };
 
@@ -164,20 +155,11 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId }) {
         tabBarIcon: ({ color, size }) => {
           let iconName;
           switch (route.name) {
-            case "Home":
-              iconName = "home";
-              break;
-            case "Learn to Serve":
-              iconName = "book";
-              break;
-            case "Edit Schedule":
-              iconName = "pencil";
-              break;
-            case "Settings":
-              iconName = "gear";
-              break;
-            default:
-              iconName = "question";
+            case "Home": iconName = "home"; break;
+            case "Learn to Serve": iconName = "book"; break;
+            case "Edit Schedule": iconName = "pencil"; break;
+            case "Settings": iconName = "gear"; break;
+            default: iconName = "question";
           }
           return <Icon name={iconName} size={size} color={color} />;
         },
@@ -211,51 +193,44 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId }) {
 }
 
 function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId }) {
-  const shouldShowInDrawer = (screenId) => {
-    if (screenId === homeScreenId && homeScreenId !== "schedule") {
-      return false;
-    }
-    if (screenId === "schedule" && homeScreenId !== "schedule") {
-      return true;
-    }
+  const shouldShowInDrawer = useCallback((screenId) => {
+    if (screenId === homeScreenId && homeScreenId !== "schedule") return false;
+    if (screenId === "schedule" && homeScreenId !== "schedule") return true;
     switch (screenId) {
-      case "sundaySchoolAttendance":
-        return userRoles.isSSTeacher;
-      case "hymnsClassAttendance":
-        return userRoles.isAlhan;
-      case "servantsMeetingTracker":
-        return userRoles.isServant;
-      case "editDeacons":
-        return userRoles.admin;
-      case "servantsManager":
-        return userRoles.ssAdmin;
-      case "alhanManager":
-        return userRoles.alhanAdmin;
-      case "adminManager":
-        return userRoles.superAdmin;
-      default:
-        return false;
+      case "sundaySchoolAttendance": return userRoles.isSSTeacher;
+      case "hymnsClassAttendance": return userRoles.isAlhan;
+      case "servantsMeetingTracker": return userRoles.isServant;
+      case "editDeacons": return userRoles.admin;
+      case "servantsManager": return userRoles.ssAdmin;
+      case "alhanManager": return userRoles.alhanAdmin;
+      case "adminManager": return userRoles.superAdmin;
+      default: return false;
     }
-  };
+  }, [userRoles, homeScreenId]);
 
   return (
     <Drawer.Navigator
+      drawerContent={(props) => (
+        <CustomDrawerContent
+          {...props}
+          userRoles={userRoles}
+          shouldShowInDrawer={shouldShowInDrawer}
+        />
+      )}
       screenOptions={({ navigation, route }) => ({
         drawerStyle: {
-          backgroundColor: "#1e1e1e",
-          width: 270,
+          backgroundColor: "transparent",
+          width: 280,
         },
         headerShown: true,
         headerTitle: route.name === "Home" ? homeTitle : route.name,
         headerLeft: () => <CustomHeader navigation={navigation} />,
-        drawerActiveTintColor: "#147efb",
-        drawerInactiveTintColor: "#8e8e93",
         headerStyle: consistentHeaderStyle,
         headerTintColor: "#fff",
       })}
     >
       <Drawer.Screen name="Home" options={{ headerShown: false }}>
-        {({ navigation }) => (
+        {() => (
           <TabNavigator
             userRoles={userRoles}
             setHomeTitle={setHomeTitle}
@@ -266,53 +241,28 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId }) {
       </Drawer.Screen>
 
       {shouldShowInDrawer("schedule") && (
-        <Drawer.Screen
-          name="Deacon Service Schedule"
-          component={HomeScreenNavigation}
-        />
+        <Drawer.Screen name="Deacon Service Schedule" component={HomeScreenNavigation} />
       )}
-
       {shouldShowInDrawer("sundaySchoolAttendance") && (
-        <Drawer.Screen
-          name={screenConfigs.sundaySchoolAttendance.drawerName}
-          component={SundaySchoolNavigator}
-        />
+        <Drawer.Screen name="Sunday School Attendance" component={SundaySchoolNavigator} />
       )}
       {shouldShowInDrawer("hymnsClassAttendance") && (
-        <Drawer.Screen
-          name={screenConfigs.hymnsClassAttendance.drawerName}
-          component={AlhanNavigator}
-        />
+        <Drawer.Screen name="Hymns Class Attendance" component={AlhanNavigator} />
       )}
       {shouldShowInDrawer("servantsMeetingTracker") && (
-        <Drawer.Screen
-          name={screenConfigs.servantsMeetingTracker.drawerName}
-          component={ServantsMeetingNavigator}
-        />
+        <Drawer.Screen name="Servants Meeting Attendance" component={ServantsMeetingNavigator} />
       )}
       {shouldShowInDrawer("editDeacons") && (
-        <Drawer.Screen
-          name={screenConfigs.editDeacons.drawerName}
-          component={DeaconEdits}
-        />
+        <Drawer.Screen name="Edit Deacons" component={DeaconEdits} />
       )}
       {shouldShowInDrawer("servantsManager") && (
-        <Drawer.Screen
-          name={screenConfigs.servantsManager.drawerName}
-          component={ServantsAdmin}
-        />
+        <Drawer.Screen name="Servants Management" component={ServantsAdmin} />
       )}
       {shouldShowInDrawer("alhanManager") && (
-        <Drawer.Screen
-          name={screenConfigs.alhanManager.drawerName}
-          component={AlhanAdmin}
-        />
+        <Drawer.Screen name="Alhan Management" component={AlhanAdmin} />
       )}
       {shouldShowInDrawer("adminManager") && (
-        <Drawer.Screen
-          name={screenConfigs.adminManager.drawerName}
-          component={AdminManager}
-        />
+        <Drawer.Screen name="Admin Manager" component={AdminManager} />
       )}
     </Drawer.Navigator>
   );
@@ -334,26 +284,22 @@ export default function MainContainer() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Unavailable request queue state
   const [unavailableQueue, setUnavailableQueue] = useState([]);
   const [currentRequestId, setCurrentRequestId] = useState(null);
   const [showUnavailableModal, setShowUnavailableModal] = useState(false);
   const [skippedAll, setSkippedAll] = useState(false);
-  const skippedRequestsRef = useRef(new Set()); // Track skipped requests for this session
-  const processedInitialRef = useRef(false); // Track if we've processed initial queue
+  const skippedRequestsRef = useRef(new Set());
+  const processedInitialRef = useRef(false);
 
-  // Helper to generate unique request ID
   const getRequestId = (request) => {
     if (!request) return null;
     return `${request.weekId}-${JSON.stringify(request.role)}-${request.original.uid}`;
   };
 
-  // Get current request by ID
   const currentRequest = unavailableQueue.find((r) => getRequestId(r) === currentRequestId);
   const currentIndex = unavailableQueue.findIndex((r) => getRequestId(r) === currentRequestId);
   const remainingCount = currentIndex >= 0 ? unavailableQueue.length - currentIndex : 0;
 
-  // Function to fetch user data
   const fetchUserData = useCallback(async (isRefresh = false) => {
     const user = auth().currentUser;
     if (!user) {
@@ -361,44 +307,28 @@ export default function MainContainer() {
       setRefreshing(false);
       return;
     }
-
-    if (isRefresh) {
-      setRefreshing(true);
-    }
+    if (isRefresh) setRefreshing(true);
 
     try {
       const doc = await firestore().collection("users").doc(user.uid).get();
-
       if (doc.exists) {
         const data = doc.data();
         setUserRoles(data);
         setChurchId(data.church || null);
 
         let selectedHomeScreen = data.homeScreen;
-
         if (!selectedHomeScreen) {
-          if (data.isDeacon) {
-            selectedHomeScreen = "schedule";
-          } else if (data.isSSTeacher) {
-            selectedHomeScreen = "sundaySchoolAttendance";
-          } else if (data.isAlhan) {
-            selectedHomeScreen = "hymnsClassAttendance";
-          } else {
-            selectedHomeScreen = "schedule";
-          }
+          if (data.isDeacon) selectedHomeScreen = "schedule";
+          else if (data.isSSTeacher) selectedHomeScreen = "sundaySchoolAttendance";
+          else if (data.isAlhan) selectedHomeScreen = "hymnsClassAttendance";
+          else selectedHomeScreen = "schedule";
 
-          firestore()
-            .collection("users")
-            .doc(user.uid)
-            .update({ homeScreen: selectedHomeScreen })
-            .catch(() => {});
+          firestore().collection("users").doc(user.uid)
+            .update({ homeScreen: selectedHomeScreen }).catch(() => {});
         }
-
         setHomeScreenId(selectedHomeScreen);
         const config = screenConfigs[selectedHomeScreen];
-        if (config) {
-          setHomeTitle(config.name);
-        }
+        if (config) setHomeTitle(config.name);
       }
     } catch (error) {
       // Silent error handling
@@ -408,32 +338,22 @@ export default function MainContainer() {
     }
   }, []);
 
-  // Listen to unavailable requests (admin only)
   useEffect(() => {
     if (!userRoles.admin || !churchId) return;
 
     const unsubscribe = firestore()
-      .collection("churches")
-      .doc(churchId)
-      .collection("unavailable")
+      .collection("churches").doc(churchId).collection("unavailable")
       .onSnapshot(
         async (snapshot) => {
-          // Delete past week documents
           const deletePromises = [];
           snapshot.docs.forEach((doc) => {
-            if (isWeekPast(doc.id)) {
-              deletePromises.push(doc.ref.delete());
-            }
+            if (isWeekPast(doc.id)) deletePromises.push(doc.ref.delete());
           });
           await Promise.all(deletePromises);
 
-          // Filter to only upcoming weeks
           const upcomingDocs = snapshot.docs.filter((doc) => !isWeekPast(doc.id));
-
-          // Flatten into request queue
           const requests = flattenUnavailableRequests(upcomingDocs);
 
-          // Get IDs of new requests
           const previousIds = new Set(unavailableQueue.map(getRequestId));
           const newRequests = requests.filter((r) => {
             const id = getRequestId(r);
@@ -442,23 +362,19 @@ export default function MainContainer() {
 
           setUnavailableQueue(requests);
 
-          // If there are genuinely new requests, reset skippedAll and show modal
           if (newRequests.length > 0 && processedInitialRef.current) {
             setSkippedAll(false);
             setCurrentRequestId(getRequestId(newRequests[0]));
             setShowUnavailableModal(true);
           }
 
-          // Initial load - show modal if there are requests
           if (!processedInitialRef.current && requests.length > 0) {
             processedInitialRef.current = true;
             setCurrentRequestId(getRequestId(requests[0]));
             setShowUnavailableModal(true);
           }
         },
-        (error) => {
-          console.error("Error listening to unavailable requests:", error);
-        }
+        (error) => console.error("Error listening to unavailable requests:", error)
       );
 
     return () => unsubscribe();
@@ -471,52 +387,39 @@ export default function MainContainer() {
       return;
     }
 
-    let unsubscribe;
-
-    // Initial fetch
     fetchUserData();
 
-    // Set up realtime listener after a short delay
-    setTimeout(() => {
-      unsubscribe = firestore()
-        .collection("users")
-        .doc(user.uid)
-        .onSnapshot(
-          (snapshot) => {
-            if (snapshot.exists && !isLoading && !refreshing) {
-              const data = snapshot.data();
-              setUserRoles(data);
-              setChurchId(data.church || null);
+    // Set up realtime listener for user data changes
+    const unsubscribe = firestore().collection("users").doc(user.uid)
+      .onSnapshot(
+        (snapshot) => {
+          if (snapshot.exists) {
+            const data = snapshot.data();
+            setUserRoles(data);
+            setChurchId(data.church || null);
 
-              if (data.homeScreen && data.homeScreen !== homeScreenId) {
-                setHomeScreenId(data.homeScreen);
-                const config = screenConfigs[data.homeScreen];
-                if (config) {
-                  setHomeTitle(config.name);
+            if (data.homeScreen) {
+              setHomeScreenId((prev) => {
+                if (data.homeScreen !== prev) {
+                  const config = screenConfigs[data.homeScreen];
+                  if (config) setHomeTitle(config.name);
+                  return data.homeScreen;
                 }
-              }
+                return prev;
+              });
             }
-          },
-          () => {}
-        );
-    }, 1000);
+          }
+        },
+        (error) => console.error("Error listening to user data:", error)
+      );
 
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, []);
-
-  const onRefresh = useCallback(() => {
-    fetchUserData(true);
+    return () => unsubscribe();
   }, [fetchUserData]);
 
-  // Helper to move to next request
+  const onRefresh = useCallback(() => fetchUserData(true), [fetchUserData]);
+
   const moveToNextRequest = useCallback(() => {
-    // Find next non-skipped request after current
     const currentIdx = unavailableQueue.findIndex((r) => getRequestId(r) === currentRequestId);
-    
     for (let i = currentIdx + 1; i < unavailableQueue.length; i++) {
       const nextRequest = unavailableQueue[i];
       const nextId = getRequestId(nextRequest);
@@ -525,63 +428,39 @@ export default function MainContainer() {
         return true;
       }
     }
-    
-    // No more requests
     setShowUnavailableModal(false);
     setCurrentRequestId(null);
     return false;
   }, [unavailableQueue, currentRequestId]);
 
-  // Handle request completion (Accept or Choose Someone Else)
-  const handleRequestComplete = useCallback(() => {
-    // The request will be removed from Firestore, which triggers onSnapshot
-    // We need to move to next before the queue updates
-    moveToNextRequest();
-  }, [moveToNextRequest]);
+  const handleRequestComplete = useCallback(() => moveToNextRequest(), [moveToNextRequest]);
 
-  // Handle skip (just this one)
   const handleSkip = useCallback(() => {
-    if (currentRequestId) {
-      skippedRequestsRef.current.add(currentRequestId);
-    }
+    if (currentRequestId) skippedRequestsRef.current.add(currentRequestId);
     moveToNextRequest();
   }, [currentRequestId, moveToNextRequest]);
 
-  // Handle skip all
   const handleSkipAll = useCallback(() => {
-    // Mark all remaining as skipped
     const currentIdx = unavailableQueue.findIndex((r) => getRequestId(r) === currentRequestId);
-    
     for (let i = currentIdx; i < unavailableQueue.length; i++) {
-      const id = getRequestId(unavailableQueue[i]);
-      skippedRequestsRef.current.add(id);
+      skippedRequestsRef.current.add(getRequestId(unavailableQueue[i]));
     }
-
     setSkippedAll(true);
     setShowUnavailableModal(false);
     setCurrentRequestId(null);
   }, [unavailableQueue, currentRequestId]);
 
   const shouldShowDrawer =
-    userRoles.isAlhan ||
-    userRoles.isSSTeacher ||
-    userRoles.isServant ||
-    userRoles.ssAdmin ||
-    userRoles.admin ||
-    userRoles.alhanAdmin ||
-    userRoles.superAdmin;
+    userRoles.isAlhan || userRoles.isSSTeacher || userRoles.isServant ||
+    userRoles.ssAdmin || userRoles.admin || userRoles.alhanAdmin || userRoles.superAdmin;
 
   if (isLoading) {
     return (
       <ScrollView
         contentContainerStyle={styles.loadingContainer}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#147efb"
-            colors={["#147efb"]}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh}
+            tintColor="#147efb" colors={["#147efb"]} />
         }
       >
         <Text style={styles.loadingText}>Loading...</Text>
@@ -609,7 +488,6 @@ export default function MainContainer() {
         )}
       </NavigationContainer>
 
-      {/* Unavailable Request Modal */}
       {showUnavailableModal && currentRequest && (
         <UnavailableRequestModal
           visible={showUnavailableModal}
