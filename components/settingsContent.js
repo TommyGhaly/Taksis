@@ -16,7 +16,7 @@ import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
 import { useUser } from "../UserContext";
-import { callFunction, removeFamilySchedule } from "./functionCalls";
+import { callFunction } from "./functionCalls";
 import { deleteUser } from "@react-native-firebase/auth";
 import messaging from "@react-native-firebase/messaging";
 import ProfileImageExpander from "./ProfileImageExpander";
@@ -201,10 +201,11 @@ const SettingsContent = () => {
             try {
               const user = auth().currentUser;
               if (user) {
-                await removeFamilySchedule(
+                await callFunction(
                   user,
-                  userRoles.church,
-                  "https://remove-family-schedules-hy6oofbihq-uc.a.run.app"
+                  "https://remove-family-schedules-hy6oofbihq-uc.a.run.app",
+                  {uid: user.uid, church: userRoles.church},
+                  "Failed to remove family from schedules. Please try again."
                 );
                 await callFunction(
                   user,

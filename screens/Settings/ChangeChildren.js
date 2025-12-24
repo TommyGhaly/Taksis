@@ -13,7 +13,7 @@ import firestore, { FieldValue } from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
 import BackArrow from "../../components/backArrow";
-import { callDeleteUser } from "../../components/functionCalls";
+import { callFunction } from "../../components/functionCalls";
 
 const ChangeChildren = () => {
   const navigation = useNavigation();
@@ -130,11 +130,11 @@ const ChangeChildren = () => {
                     }
 
                     // Call custom delete function
-                    await callDeleteUser(
+                    await callFunction(
                       user,
-                      userData.church,
-                      childId,
-                      "https://delete-child-hy6oofbihq-uc.a.run.app"
+                      "https://delete-child-hy6oofbihq-uc.a.run.app",
+                      {church: userData.church, uid: childId},
+                      "Failed to remove child. Please try again."
                     );
 
                     // Remove child from Firestore

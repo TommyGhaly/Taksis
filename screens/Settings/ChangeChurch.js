@@ -6,7 +6,6 @@ import BackArrow from "../../components/backArrow";
 import Churches from "../../components/churches"; // Assuming you have a Churches component for displaying church options
 import {
   callFunction,
-  removeFamilySchedule,
 } from "../../components/functionCalls";
 
 const ChangeChurch = ({ navigation }) => {
@@ -90,10 +89,11 @@ const ChangeChurch = ({ navigation }) => {
               try {
                 // Only call removeFamilySchedule if there's a current church
                 if (currentChurch) {
-                  await removeFamilySchedule(
+                  await callFunction(
                     user,
-                    currentChurch,
-                    "https://remove-family-schedules-hy6oofbihq-uc.a.run.app"
+                    "https://remove-family-schedules-hy6oofbihq-uc.a.run.app",
+                    {uid: user.uid, church: currentChurch},
+                    "Failed to remove family from schedules. Please try again."
                   );
                 }
 
