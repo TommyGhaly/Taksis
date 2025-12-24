@@ -11,11 +11,12 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withDelay,
   Easing,
 } from 'react-native-reanimated';
 
 const AnimatedExpoImage = Animated.createAnimatedComponent(Image);
+
+const { width: WINDOW_WIDTH, height: WINDOW_HEIGHT } = Dimensions.get('window');
 
 const ProfileImageExpander = React.memo(({ 
   imageUrl, 
@@ -59,13 +60,10 @@ const ProfileImageExpander = React.memo(({
     }
 
     profileImageRef.current?.measure((x, y, width, height, pageX, pageY) => {
-      const windowWidth = Dimensions.get('window').width;
-      const windowHeight = Dimensions.get('window').height;
-      
       const profileCenterX = pageX + width / 2;
       const profileCenterY = pageY + height / 2;
-      const initialX = profileCenterX - windowWidth / 2;
-      const initialY = profileCenterY - windowHeight / 2;
+      const initialX = profileCenterX - WINDOW_WIDTH / 2;
+      const initialY = profileCenterY - WINDOW_HEIGHT / 2;
 
       initialPosition.current = { x: initialX, y: initialY };
       
@@ -81,46 +79,17 @@ const ProfileImageExpander = React.memo(({
       setIsImageAnimating(true);
       setLayoutReady(true);
 
-      const moveDuration = 350;
-      const scaleDuration = 200;
-      const scaleDelay = 180;
+      const duration = 400;
+      const easing = Easing.out(Easing.cubic);
 
-      const moveEasing = Easing.out(Easing.cubic);
-      const scaleEasing = Easing.out(Easing.cubic);
-
-      // Overlay fades in
-      overlayOpacity.value = withTiming(0.9, { 
-        duration: moveDuration,
-        easing: moveEasing,
+      // All animations run together with same timing
+      requestAnimationFrame(() => {
+        overlayOpacity.value = withTiming(0.85, { duration, easing });
+        translateX.value = withTiming(0, { duration, easing });
+        translateY.value = withTiming(-30, { duration, easing });
+        scale.value = withTiming(finalSize / size, { duration, easing });
+        borderRadiusAnim.value = withTiming(8, { duration, easing });
       });
-
-      // Translation to center
-      translateX.value = withTiming(0, {
-        duration: moveDuration,
-        easing: moveEasing,
-      });
-      translateY.value = withTiming(-30, {
-        duration: moveDuration,
-        easing: moveEasing,
-      });
-      
-      // Scale starts slightly after movement begins
-      scale.value = withDelay(
-        scaleDelay,
-        withTiming(finalSize / size, {
-          duration: scaleDuration,
-          easing: scaleEasing,
-        })
-      );
-      
-      // Border radius follows scale timing
-      borderRadiusAnim.value = withDelay(
-        scaleDelay,
-        withTiming(8, {
-          duration: scaleDuration,
-          easing: scaleEasing,
-        })
-      );
     });
   }, [onPress, size, finalSize]);
 
@@ -159,7 +128,7 @@ const ProfileImageExpander = React.memo(({
         visible={imageModalVisible}
         onRequestClose={closeModal}
         statusBarTranslucent
-        hardwareAccelerated={true}
+        hardwareAccelerated
       >
         <TouchableOpacity
           style={styles.modalOverlay}
@@ -178,7 +147,7 @@ const ProfileImageExpander = React.memo(({
                 animatedImageStyle,
               ]}
               source={imageSource}
-              contentFit="contain"
+              contentFit="cover"
               cachePolicy="memory-disk"
               recyclingKey={imageUrl}
               priority="high"
