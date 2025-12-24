@@ -53,12 +53,18 @@ const UnavailableRequestModal = ({
   onClose,
   churchId,
   week,
-  role, // string like "gospel" or array like ["altar", 0]
-  original, // { name, uid }
-  replacement, // { name, uid }
-  onSkip, // callback for skipping this one
-  onSkipAll, // callback for skipping all (only rendered if provided)
-  showSkipAll = false, // whether to show "Skip All" button
+  role,
+  original,
+  replacement,
+  onSkip,
+  onSkipAll,
+  showSkipAll = false,
+  // New props from MainContainer for server selection
+  availableServers: propAvailableServers,
+  imageUrls: propImageUrls,
+  lastServeData: propLastServeData,
+  nextServeData: propNextServeData,
+  selectedWeek: propSelectedWeek,
 }) => {
   const user = auth().currentUser;
 
@@ -71,11 +77,18 @@ const UnavailableRequestModal = ({
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedProfileUid, setSelectedProfileUid] = useState(null);
 
-  // Data for ServerSelectionModal
-  const [availableServers, setAvailableServers] = useState([]);
-  const [imageUrls, setImageUrls] = useState({});
-  const [lastServeData, setLastServeData] = useState({});
-  const [nextServeData, setNextServeData] = useState({});
+  // Local state for ServerSelectionModal (fallback if props not provided)
+  const [localAvailableServers, setLocalAvailableServers] = useState([]);
+  const [localImageUrls, setLocalImageUrls] = useState({});
+  const [localLastServeData, setLocalLastServeData] = useState({});
+  const [localNextServeData, setLocalNextServeData] = useState({});
+
+  // Use props if available, otherwise use local state
+  const availableServers = propAvailableServers?.length > 0 ? propAvailableServers : localAvailableServers;
+  const imageUrls = propImageUrls && Object.keys(propImageUrls).length > 0 ? propImageUrls : localImageUrls;
+  const lastServeData = propLastServeData && Object.keys(propLastServeData).length > 0 ? propLastServeData : localLastServeData;
+  const nextServeData = propNextServeData && Object.keys(propNextServeData).length > 0 ? propNextServeData : localNextServeData;
+  const selectedWeek = propSelectedWeek || week;
 
   // Fetch profile images for original and replacement
   useEffect(() => {
@@ -103,8 +116,10 @@ const UnavailableRequestModal = ({
     fetchImages();
   }, [visible, original?.uid, replacement?.uid]);
 
-  // Fetch available servers when "Choose Someone Else" is pressed
+  // Fetch available servers only if props not provided
   useEffect(() => {
+    // Skip if props are already provided
+    if (propAvailableServers?.length > 0) return;
     if (!showServerModal || !churchId || !week) return;
 
     const fetchServers = async () => {
@@ -125,7 +140,7 @@ const UnavailableRequestModal = ({
             a.name.split(" ")[0].toLowerCase().localeCompare(b.name.split(" ")[0].toLowerCase())
           );
 
-        setAvailableServers(extraServers);
+        setLocalAvailableServers(extraServers);
 
         // Fetch images and serve data for each server
         const urls = {};
@@ -152,16 +167,16 @@ const UnavailableRequestModal = ({
           })
         );
 
-        setImageUrls(urls);
-        setLastServeData(lastServe);
-        setNextServeData(nextServe);
+        setLocalImageUrls(urls);
+        setLocalLastServeData(lastServe);
+        setLocalNextServeData(nextServe);
       } catch (err) {
         console.error("Error fetching servers:", err);
       }
     };
 
     fetchServers();
-  }, [showServerModal, churchId, week]);
+  }, [showServerModal, churchId, week, propAvailableServers]);
 
   const deleteUnavailableEntry = async () => {
     const unavailableRef = firestore()
@@ -171,13 +186,11 @@ const UnavailableRequestModal = ({
       .doc(week);
 
     if (Array.isArray(role)) {
-      // Altar server - delete the specific index
       const [roleType, index] = role;
       await unavailableRef.update({
         [`${roleType}.${index}`]: FieldValue.delete(),
       });
 
-      // Check if altar object is now empty and delete it too
       let doc = await unavailableRef.get();
       if (doc.exists) {
         const data = doc.data();
@@ -186,7 +199,6 @@ const UnavailableRequestModal = ({
             [roleType]: FieldValue.delete(),
           });
 
-          // Re-fetch to check if document is now empty
           doc = await unavailableRef.get();
           if (doc.exists) {
             const updatedData = doc.data();
@@ -197,12 +209,10 @@ const UnavailableRequestModal = ({
         }
       }
     } else {
-      // Single role - delete the entire role key
       await unavailableRef.update({
         [role]: FieldValue.delete(),
       });
 
-      // Check if document is now empty and delete it
       const doc = await unavailableRef.get();
       if (doc.exists) {
         const data = doc.data();
@@ -450,9 +460,9 @@ const UnavailableRequestModal = ({
         imageUrls={imageUrls}
         lastServeData={lastServeData}
         nextServeData={nextServeData}
-        selectedWeek={week}
+        selectedWeek={selectedWeek}
         title="Choose Replacement"
-        showNextServe={!Array.isArray(role)}
+        showNextServe={true}
       />
 
       {/* Individual Profile Modal */}

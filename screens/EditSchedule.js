@@ -403,7 +403,7 @@ const EditSchedule = () => {
     const oldReader = currentReaders[readingKey];
     if (!oldReader?.uid) return;
     try {
-      await callFunction;(
+      await callFunction(
         user,
         "https://switch-server-hy6oofbihq-uc.a.run.app",
         {church: churchId, week: week, firstServer: oldReader.uid, secondServer: newReader.uid},
@@ -589,7 +589,7 @@ const EditSchedule = () => {
         <Text style={styles.addButtonText}>Add Server</Text>
       </TouchableOpacity>
 
-      {/* Server Selection Modal */}
+      {/* Server Selection Modal - NOW WITH nextServeData */}
       <ServerSelectionModal
         visible={serverDropdownIndex !== null}
         onClose={() => setServerDropdownIndex(null)}
@@ -597,8 +597,10 @@ const EditSchedule = () => {
         servers={availableServers}
         imageUrls={imageUrls}
         lastServeData={lastServeData}
+        nextServeData={nextServeData}
         selectedWeek={selectedWeek}
         title="Select Server"
+        showNextServe={true}
       />
 
       {/* Reader Selection Modal */}
