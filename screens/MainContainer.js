@@ -20,7 +20,9 @@ import UnavailableRequestModal from "../components/unavailableRequestModal";
 import CustomDrawerContent from "../components/customDrawer";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import storage from "@react-native-firebase/storage";
 import CustomHeader from "../components/customHeader";
+import { StorageCache } from "../utils/cacheManager";
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
@@ -291,6 +293,13 @@ export default function MainContainer() {
   const skippedRequestsRef = useRef(new Set());
   const processedInitialRef = useRef(false);
 
+  // New state for server data (matching EditSchedule pattern)
+  const [availableServers, setAvailableServers] = useState([]);
+  const [imageUrls, setImageUrls] = useState({});
+  const [lastServeData, setLastServeData] = useState({});
+  const [nextServeData, setNextServeData] = useState({});
+  const userListenersRef = useRef([]);
+
   const getRequestId = (request) => {
     if (!request) return null;
     return `${request.weekId}-${JSON.stringify(request.role)}-${request.original.uid}`;
@@ -299,6 +308,67 @@ export default function MainContainer() {
   const currentRequest = unavailableQueue.find((r) => getRequestId(r) === currentRequestId);
   const currentIndex = unavailableQueue.findIndex((r) => getRequestId(r) === currentRequestId);
   const remainingCount = currentIndex >= 0 ? unavailableQueue.length - currentIndex : 0;
+
+  const cleanupUserListeners = useCallback(() => {
+    userListenersRef.current.forEach((unsub) => {
+      if (typeof unsub === "function") unsub();
+    });
+    userListenersRef.current = [];
+  }, []);
+
+  const setupUserListeners = useCallback((servers) => {
+    cleanupUserListeners();
+    const newListeners = [];
+
+    servers.forEach((server, idx) => {
+      // Fetch profile picture
+      const storagePath = `profilePictures/${server.uid}.png`;
+      setTimeout(
+        async () => {
+          try {
+            const url = await StorageCache.getDownloadURL(storagePath);
+            setImageUrls((prev) => ({ ...prev, [server.uid]: url }));
+          } catch {
+            storage()
+              .ref(storagePath)
+              .getDownloadURL()
+              .then((url) =>
+                setImageUrls((prev) => ({ ...prev, [server.uid]: url }))
+              )
+              .catch(() => {});
+          }
+        },
+        idx === 0 ? 0 : Math.random() * 500
+      );
+
+      // Listen to user data for lastServe and nextWeekServe
+      const unsub = firestore()
+        .collection("users")
+        .doc(server.uid)
+        .onSnapshot(
+          (doc) => {
+            if (doc.exists) {
+              const userData = doc.data();
+              setLastServeData((prev) =>
+                userData.lastServe
+                  ? { ...prev, [server.uid]: userData.lastServe }
+                  : (({ [server.uid]: _, ...rest }) => rest)(prev)
+              );
+              setNextServeData((prev) =>
+                userData.nextWeekServe
+                  ? { ...prev, [server.uid]: userData.nextWeekServe }
+                  : (({ [server.uid]: _, ...rest }) => rest)(prev)
+              );
+            }
+          },
+          (err) => console.error("Error listening to user:", server.uid, err)
+        );
+
+      newListeners.push(unsub);
+    });
+
+    userListenersRef.current = newListeners;
+  }, [cleanupUserListeners]);
 
   const fetchUserData = useCallback(async (isRefresh = false) => {
     const user = auth().currentUser;
@@ -337,6 +407,50 @@ export default function MainContainer() {
       setRefreshing(false);
     }
   }, []);
+
+  // Fetch schedule data for the current request's week to get available servers
+  useEffect(() => {
+    if (!churchId || !currentRequest?.weekId) {
+      setAvailableServers([]);
+      cleanupUserListeners();
+      return;
+    }
+
+    const unsubscribe = firestore()
+      .collection("churches")
+      .doc(churchId)
+      .collection("schedule")
+      .doc(currentRequest.weekId)
+      .onSnapshot(
+        (doc) => {
+          if (doc.exists) {
+            const data = doc.data();
+            const extraServers = (data.extra || [])
+              .filter((s) => s.name !== "N/A" && s.uid)
+              .sort((a, b) =>
+                a.name
+                  .split(" ")[0]
+                  .toLowerCase()
+                  .localeCompare(b.name.split(" ")[0].toLowerCase())
+              );
+            setAvailableServers(extraServers);
+            setupUserListeners(extraServers);
+          } else {
+            setAvailableServers([]);
+            cleanupUserListeners();
+          }
+        },
+        (error) => {
+          console.error("Error fetching schedule for modal:", error);
+          setAvailableServers([]);
+        }
+      );
+
+    return () => {
+      unsubscribe();
+      cleanupUserListeners();
+    };
+  }, [churchId, currentRequest?.weekId, setupUserListeners, cleanupUserListeners]);
 
   useEffect(() => {
     if (!userRoles.admin || !churchId) return;
@@ -415,6 +529,11 @@ export default function MainContainer() {
 
     return () => unsubscribe();
   }, [fetchUserData]);
+
+  // Cleanup user listeners on unmount
+  useEffect(() => {
+    return () => cleanupUserListeners();
+  }, [cleanupUserListeners]);
 
   const onRefresh = useCallback(() => fetchUserData(true), [fetchUserData]);
 
@@ -500,6 +619,12 @@ export default function MainContainer() {
           onSkip={handleSkip}
           onSkipAll={handleSkipAll}
           showSkipAll={remainingCount > 1}
+          // New props for server selection with weeks until serve
+          availableServers={availableServers}
+          imageUrls={imageUrls}
+          lastServeData={lastServeData}
+          nextServeData={nextServeData}
+          selectedWeek={currentRequest.weekId}
         />
       )}
     </>
