@@ -75,6 +75,48 @@ def retry_with_backoff(func, max_retries=MAX_RETRIES):
                 raise
             time.sleep(0.1 * (attempt + 1))  # Minimal backoff
 
+
+def ensure_worksheet_size(worksheet, required_rows, required_cols):
+    """
+    Expand worksheet if it doesn't have enough rows or columns.
+    
+    This fixes the issue where worksheets created with only 26 columns (A-Z)
+    cannot accommodate more than 26 date columns. This function checks the
+    current dimensions and expands the worksheet if necessary.
+    
+    Args:
+        worksheet: The gspread worksheet object to resize
+        required_rows: Minimum number of rows needed
+        required_cols: Minimum number of columns needed
+    """
+    try:
+        current_rows = worksheet.row_count
+        current_cols = worksheet.col_count
+        
+        needs_resize = False
+        new_rows = current_rows
+        new_cols = current_cols
+        
+        # Check if we need more columns (this was the main bug - sheets had only 26 cols)
+        if current_cols < required_cols:
+            new_cols = required_cols
+            needs_resize = True
+        
+        # Check if we need more rows
+        if current_rows < required_rows:
+            new_rows = required_rows
+            needs_resize = True
+        
+        # Only make API call if resize is actually needed
+        if needs_resize:
+            worksheet.resize(rows=new_rows, cols=new_cols)
+            time.sleep(RATE_LIMIT_DELAY)
+            
+    except Exception as e:
+        # Log error but don't fail the whole process
+        print(f"Error resizing worksheet: {e}")
+
+
 # === OPTIMIZED DATA STRUCTURES ===
 class OptimizedAttendanceCache:
     """Optimized cache with pre-computed data structures."""
@@ -467,7 +509,15 @@ def create_color_formatting_requests(worksheet, all_values, num_students, num_se
 
 # === OPTIMIZED PROCESSING ===
 def process_church_ultra_optimized(church_doc, client, sheet_creds, data_cache):
-    """Process a church with maximum optimization - FIXED GRADE MAPPING."""
+    """
+    Process a church with maximum optimization - FIXED GRADE MAPPING.
+    
+    This function handles the main processing loop for each church, including:
+    - Setting up worksheets in correct order
+    - Fetching and organizing attendance data
+    - Writing data to Google Sheets with proper formatting
+    - Uploading to SharePoint for the target church
+    """
     church_data = church_doc.to_dict()
     church_name = church_doc.id
     
@@ -519,6 +569,14 @@ def process_church_ultra_optimized(church_doc, client, sheet_creds, data_cache):
                         except:
                             continue
                     
+                    # FIX: Ensure worksheet has enough columns for all date data
+                    # This is the critical fix - worksheets were created with only 26 columns (A-Z)
+                    # but we need enough columns for: 1 name column + all date columns
+                    # Adding buffer of 10 rows and 5 columns for safety
+                    required_rows = len(all_values) + 10
+                    required_cols = len(all_values[0]) + 5 if all_values else MAX_EXPECTED_COLS
+                    ensure_worksheet_size(worksheet, required_rows, required_cols)
+                    
                     # Update the sheet
                     if update_sheet_ultra_fast(worksheet, all_values, num_students, num_servants):
                         success_count += 1
@@ -544,7 +602,13 @@ def process_church_ultra_optimized(church_doc, client, sheet_creds, data_cache):
         return church_name, False
 
 def ensure_worksheets_correct_order(sh, grades):
-    """Ensure worksheets exist and are in the correct order."""
+    """
+    Ensure worksheets exist and are in the correct order.
+    
+    This function checks if the spreadsheet has the correct worksheets
+    in the correct order. If not, it recreates them to ensure proper
+    grade-to-worksheet mapping.
+    """
     worksheet_list = sh.worksheets()
     current_titles = [ws.title for ws in worksheet_list]
     
@@ -564,13 +628,19 @@ def ensure_worksheets_correct_order(sh, grades):
         worksheet_list[0].update_title(grades[0])
         time.sleep(RATE_LIMIT_DELAY)
         
-        # Add the rest in order
+        # Add the rest in order with proper dimensions
+        # FIX: Use MAX_EXPECTED_COLS (60) instead of hardcoded 26
         for i in range(1, len(grades)):
             sh.add_worksheet(title=grades[i], rows=MAX_EXPECTED_ROWS, cols=MAX_EXPECTED_COLS)
             time.sleep(RATE_LIMIT_DELAY)
 
 def set_up_sheet_pages_fast(sh, grades):
-    """Fast sheet setup with batch operations - ensures correct order."""
+    """
+    Fast sheet setup with batch operations - ensures correct order.
+    
+    This function uses batch operations to rename existing worksheets
+    and creates new ones as needed with proper dimensions.
+    """
     worksheet_list = sh.worksheets()
     num_worksheets = len(worksheet_list)
     
@@ -593,8 +663,9 @@ def set_up_sheet_pages_fast(sh, grades):
         time.sleep(RATE_LIMIT_DELAY)
     
     # Add missing worksheets IN ORDER
+    # FIX: Use MAX_EXPECTED_COLS instead of 26 to allow more than 26 date columns
     for i in range(num_worksheets, len(grades)):
-        sh.add_worksheet(title=grades[i], rows=100, cols=26)
+        sh.add_worksheet(title=grades[i], rows=MAX_EXPECTED_ROWS, cols=MAX_EXPECTED_COLS)
         time.sleep(RATE_LIMIT_DELAY)
 
 def get_start_date_optimized(attendance_dict):
