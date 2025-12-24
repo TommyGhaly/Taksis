@@ -11,11 +11,7 @@ import {
 import firestore, { FieldValue } from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
-import {
-  removeServer as removeServerAPI,
-  addServer as addServerAPI,
-  switchServers as switchServersAPI,
-} from "../components/functionCalls";
+import callFunction from "../components/functionCalls";
 import IndividualProfile from "../components/individualProfile";
 import ServerSelectionModal from "../components/ServerSelectionModal";
 import { FirestoreCache, StorageCache } from "../utils/cacheManager";
@@ -407,13 +403,11 @@ const EditSchedule = () => {
     const oldReader = currentReaders[readingKey];
     if (!oldReader?.uid) return;
     try {
-      await switchServersAPI(
+      await callFunction;(
         user,
-        churchId,
-        week,
-        oldReader.uid,
-        newReader.uid,
-        "https://switch-server-hy6oofbihq-uc.a.run.app"
+        "https://switch-server-hy6oofbihq-uc.a.run.app",
+        {church: churchId, week: week, firstServer: oldReader.uid, secondServer: newReader.uid},
+        "Failed to assign reader. Please try again."
       );
     } catch (err) {
       console.error("Error assigning reader:", err);
@@ -426,13 +420,11 @@ const EditSchedule = () => {
     const oldServer = altarServers[index];
     if (!oldServer?.uid) return;
     try {
-      await switchServersAPI(
+      await callFunction(
         user,
-        churchId,
-        week,
-        oldServer.uid,
-        newServer.uid,
-        "https://switch-server-hy6oofbihq-uc.a.run.app"
+        "https://switch-server-hy6oofbihq-uc.a.run.app",
+        {church: churchId, week: week, firstServer: oldServer.uid, secondServer: newServer.uid},
+        "Failed to assign server. Please try again."
       );
     } catch (err) {
       console.error("Error assigning server:", err);
@@ -443,11 +435,11 @@ const EditSchedule = () => {
   const handleAddServer = async () => {
     if (!churchId || !week || servers.length >= 6) return;
     try {
-      await addServerAPI(
+      await callFunction(
         user,
-        churchId,
-        week,
-        "https://add-server-hy6oofbihq-uc.a.run.app"
+        "https://add-server-hy6oofbihq-uc.a.run.app",
+        { church: churchId, week: week },
+        "Failed to add server. Please try again."
       );
       await firestore()
         .collection("churches")
@@ -464,12 +456,11 @@ const EditSchedule = () => {
     const serverToRemove = altarServers[index];
     if (!serverToRemove?.uid) return;
     try {
-      await removeServerAPI(
+      await callFunction(
         user,
-        churchId,
-        week,
-        serverToRemove.uid,
-        "https://remove-server-hy6oofbihq-uc.a.run.app"
+        "https://remove-server-hy6oofbihq-uc.a.run.app",
+        { church: churchId, week: week, server: serverToRemove.uid },
+        "Failed to remove server. Please try again."
       );
       await firestore()
         .collection("churches")

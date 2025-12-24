@@ -21,11 +21,7 @@ import auth from "@react-native-firebase/auth";
 import { deleteUser } from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
 import { check, request, PERMISSIONS, RESULTS } from "react-native-permissions";
-import {
-  callFunction,
-  callDeleteUser,
-  unavailableToServe,
-} from "../../components/functionCalls";
+import {callFunction} from "../../components/functionCalls";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import HomeScreenNames from "../../components/homescreenNames";
 import PhotoInput from "../../components/photoInput";
@@ -367,11 +363,15 @@ const HomeScreen = () => {
         await Promise.all(
           userData.children.map(async (child) => {
             if (child?.uid) {
-              await callDeleteUser(
+              const payload = {
+                church: church, 
+                uid: child.uid
+              }
+              await callFunction(
                 user,
-                church,
-                child.uid,
-                "https://delete-child-hy6oofbihq-uc.a.run.app"
+                "https://delete-child-hy6oofbihq-uc.a.run.app",
+                payload,
+                "Failed to delete child"
               );
             }
           })
@@ -553,11 +553,15 @@ const HomeScreen = () => {
 
       await Promise.all(
         childrenWithoutPfp.map(async (childId) => {
-          await callDeleteUser(
+          const payload = {
+            church: church, 
+            uid: childId
+          }
+          await callFunction(
             user,
-            church,
-            childId,
-            "https://delete-child-hy6oofbihq-uc.a.run.app"
+            "https://delete-child-hy6oofbihq-uc.a.run.app",
+            payload,
+            "Failed to delete child"
           );
         })
       );
@@ -655,13 +659,11 @@ const HomeScreen = () => {
               setUnavailableWeeks((prev) => [...prev, ...selectedWeeks]);
 
               for (const week of selectedWeeks) {
-                await unavailableToServe(
+                await callFunction(
                   user,
-                  user.uid,
-                  churchIdFromData,
-                  week,
-                  true,
-                  "https://unavailable-for-week-hy6oofbihq-uc.a.run.app"
+                  "https://unavailable-for-week-hy6oofbihq-uc.a.run.app",
+                  { church: churchIdFromData, week: week, uid: user.uid, family: true },
+                  "Failed to mark as unavailable. Please try again."
                 );
               }
 

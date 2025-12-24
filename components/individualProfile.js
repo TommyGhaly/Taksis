@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
-import { unavailableToServe } from "./functionCalls";
+import { callFunction } from "./functionCalls";
 import Slider from "@react-native-community/slider";
 import firestore, { FieldValue } from "@react-native-firebase/firestore";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
@@ -507,13 +507,11 @@ const IndividualProfile = ({
                   });
               }
 
-              await unavailableToServe(
+              await callFunction(
                 currentUser,
-                userId,
-                church,
-                targetWeek,
-                family,
-                "https://unavailable-for-week-hy6oofbihq-uc.a.run.app"
+                "https://unavailable-for-week-hy6oofbihq-uc.a.run.app",
+                { church: church, week: targetWeek, uid: userId, family: family },
+                "Failed to mark as unavailable. Please try again."
               );
               onClose();
             } catch (error) {
