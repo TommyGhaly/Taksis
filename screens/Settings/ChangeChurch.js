@@ -4,9 +4,7 @@ import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import BackArrow from "../../components/backArrow";
 import Churches from "../../components/churches"; // Assuming you have a Churches component for displaying church options
-import {
-  callFunction,
-} from "../../components/functionCalls";
+import { callFunction } from "../../components/functionCalls";
 
 const ChangeChurch = ({ navigation }) => {
   const [selectedChurch, setSelectedChurch] = useState(null);
@@ -18,26 +16,44 @@ const ChangeChurch = ({ navigation }) => {
   };
 
   const updateChurchAndFunctions = async () => {
+    const user = auth().currentUser;
+    if (!user) {
+      throw new Error("User not authenticated");
+    }
+
     try {
       // Update the user's church information in Firestore
       await firestore().collection("users").doc(user.uid).update({
         church: selectedChurch,
       });
 
-      // Call external functions
+      // Call external functions with proper parameters
       await callFunction(
         user,
-        "https://sync-child-params-hy6oofbihq-uc.a.run.app"
+        "https://sync-child-params-hy6oofbihq-uc.a.run.app",
+        {},
+        "Failed to sync child parameters."
       );
 
-      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
+      await callFunction(
+        user,
+        "https://update-user-hy6oofbihq-uc.a.run.app",
+        {},
+        "Failed to update user."
+      );
 
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      // Call twice to ensure nothing gets left behind by accident
-      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
+
+      // Call again to ensure nothing gets left behind
+      await callFunction(
+        user,
+        "https://update-user-hy6oofbihq-uc.a.run.app",
+        {},
+        "Failed to update user."
+      );
 
       Alert.alert("Success", "Church has been updated.", [
-        { text: "OK", onPress: () => navigation.goBack() }
+        { text: "OK", onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
       console.error("Error updating church:", error);
@@ -46,8 +62,9 @@ const ChangeChurch = ({ navigation }) => {
   };
 
   const handleContinue = async () => {
+    const user = auth().currentUser;
     if (!user) {
-      Alert.alert("Error", "User information is not available.");
+      Alert.alert("Error", "User not authenticated. Please sign in again.");
       return;
     }
     if (!selectedChurch) {
@@ -61,19 +78,16 @@ const ChangeChurch = ({ navigation }) => {
     setIsLoading(true);
 
     try {
-      // Retrieve the current church from the user's document
       const userDoc = await firestore().collection("users").doc(user.uid).get();
       const userData = userDoc.data();
       const currentChurch = userData?.church;
 
-      // Check if the selected church is the same as the current church
       if (selectedChurch === currentChurch) {
         Alert.alert("No Change", "You have selected the same church.");
         setIsLoading(false);
         return;
       }
 
-      // Alert the user about schedule removals and ask for confirmation before proceeding
       Alert.alert(
         "Warning",
         "Changing your church will remove you from all future schedules including hymns class and Sunday school. Do you want to proceed?",
@@ -87,12 +101,11 @@ const ChangeChurch = ({ navigation }) => {
             text: "Yes",
             onPress: async () => {
               try {
-                // Only call removeFamilySchedule if there's a current church
                 if (currentChurch) {
                   await callFunction(
                     user,
                     "https://remove-family-schedules-hy6oofbihq-uc.a.run.app",
-                    {uid: user.uid, church: currentChurch},
+                    { uid: user.uid, church: currentChurch },
                     "Failed to remove family from schedules. Please try again."
                   );
                 }
@@ -130,11 +143,11 @@ const ChangeChurch = ({ navigation }) => {
       <View style={styles.churchesContainer}>
         <Churches onSelectChurch={handleChurchSelection} />
       </View>
-      <Pressable 
+      <Pressable
         style={[
-          styles.continueButton, 
-          isLoading && styles.continueButtonDisabled
-        ]} 
+          styles.continueButton,
+          isLoading && styles.continueButtonDisabled,
+        ]}
         onPress={handleContinue}
         disabled={isLoading}
       >

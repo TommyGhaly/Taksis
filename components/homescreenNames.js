@@ -15,24 +15,18 @@ const HomeScreenNames = ({ role, user }) => {
       const fetchImage = async () => {
         try {
           const url = await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
-          // Ensure the URL is a non-empty string before setting it
           if (typeof url === "string" && url.trim() !== "") {
             setImageUrl(url);
           } else {
             setImageUrl(null);
           }
         } catch (error) {
-          setImageUrl(null); // Set to null on any error, including object-not-found
+          setImageUrl(null);
         }
       };
 
-      // Fetch image immediately
       fetchImage();
-
-      // Set up interval to check for updates every 30 seconds
       const intervalId = setInterval(fetchImage, 10000);
-
-      // Cleanup interval on component unmount or user change
       return () => clearInterval(intervalId);
     } else {
       setImageUrl(null);
@@ -99,7 +93,7 @@ const HomeScreenNames = ({ role, user }) => {
             },
           ]}
         >
-          <Ionicons name={getIconName()} size={24} color="#fff" style={styles.icon} />
+          <Ionicons name={getIconName()} size={24} color="rgba(255,255,255,0.7)" style={styles.icon} />
           <Text style={styles.name}>
             {role}: {user?.name || "N/A"}
           </Text>
@@ -111,15 +105,12 @@ const HomeScreenNames = ({ role, user }) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#2c2c2c",
+    backgroundColor: "#1a1a1a",
     padding: 16,
-    borderRadius: 10,
+    borderRadius: 14,
     marginBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
   },
   contentContainer: {
     flexDirection: "column",
@@ -133,7 +124,8 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 18,
-    color: "#e0e0e0",
+    color: "#fff",
+    fontWeight: "600",
   },
   expandedContent: {
     alignItems: "center",
@@ -145,7 +137,7 @@ const styles = StyleSheet.create({
     borderRadius: 65,
     marginTop: 0,
     borderWidth: 2,
-    borderColor: '#808080',
+    borderColor: "rgba(255,255,255,0.2)",
   },
   imagePlaceholder: {
     width: 100,

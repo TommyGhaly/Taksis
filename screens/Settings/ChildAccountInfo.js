@@ -1,38 +1,36 @@
 import * as React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Text,
   StyleSheet,
   View,
   ScrollView,
   TouchableOpacity,
-  Image,
+  Pressable,
   Alert,
+  Animated,
+  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import BackArrow from "../../components/backArrow";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
-import ProfileImageExpander from '../../components/ProfileImageExpander';
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import ProfileImageExpander from "../../components/ProfileImageExpander";
+import { Ionicons } from "@expo/vector-icons";
 import PhotoInput from "../../components/photoInput";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 
-// Haptic feedback options
 const hapticOptions = {
   enableVibrateFallback: true,
   ignoreAndroidSystemSettings: false,
 };
 
-// Cache keys
 const CACHE_KEYS = {
   CHILD_DATA: 'child_data_',
   CHILD_IMAGE_URL: 'child_image_url_',
   CACHE_TIMESTAMP: '_timestamp'
 };
 
-// Cache duration (3 days in milliseconds)
 const CACHE_DURATION = 3 * 24 * 60 * 60 * 1000;
 
 const ChildAccountInfo = ({ route, navigation }) => {
@@ -42,13 +40,21 @@ const ChildAccountInfo = ({ route, navigation }) => {
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [isLoadingFromCache, setIsLoadingFromCache] = useState(true);
 
-  // Helper function to check if cache is valid
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  const contentAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.stagger(100, [
+      Animated.spring(headerAnim, { toValue: 1, useNativeDriver: true, tension: 50, friction: 8 }),
+      Animated.spring(contentAnim, { toValue: 1, useNativeDriver: true, tension: 50, friction: 8 }),
+    ]).start();
+  }, []);
+
   const isCacheValid = async (key) => {
     try {
       const timestampKey = key + CACHE_KEYS.CACHE_TIMESTAMP;
       const timestamp = await AsyncStorage.getItem(timestampKey);
       if (!timestamp) return false;
-      
       const cacheTime = parseInt(timestamp);
       const currentTime = Date.now();
       return (currentTime - cacheTime) < CACHE_DURATION;
@@ -57,7 +63,6 @@ const ChildAccountInfo = ({ route, navigation }) => {
     }
   };
 
-  // Helper function to save to cache
   const saveToCache = async (key, data) => {
     try {
       await AsyncStorage.setItem(key, JSON.stringify(data));
@@ -67,12 +72,10 @@ const ChildAccountInfo = ({ route, navigation }) => {
     }
   };
 
-  // Helper function to get from cache
   const getFromCache = async (key) => {
     try {
       const isValid = await isCacheValid(key);
       if (!isValid) return null;
-      
       const cachedData = await AsyncStorage.getItem(key);
       return cachedData ? JSON.parse(cachedData) : null;
     } catch (error) {
@@ -81,7 +84,6 @@ const ChildAccountInfo = ({ route, navigation }) => {
     }
   };
 
-  // Helper function to clear cache for a specific key
   const clearCache = async (key) => {
     try {
       await AsyncStorage.removeItem(key);
@@ -92,20 +94,15 @@ const ChildAccountInfo = ({ route, navigation }) => {
   };
 
   useEffect(() => {
-    // Fetch child data
     const fetchChildData = async () => {
       try {
         const user = auth().currentUser;
         if (user) {
           const cacheKey = CACHE_KEYS.CHILD_DATA + childUid;
-          
-          // Try to get from cache first
           const cachedData = await getFromCache(cacheKey);
           if (cachedData) {
             setChildData(cachedData);
             setIsLoadingFromCache(false);
-            
-            // Fetch fresh data in background
             firestore().collection("users").doc(user.uid).get()
               .then(userDoc => {
                 if (userDoc.exists) {
@@ -118,7 +115,6 @@ const ChildAccountInfo = ({ route, navigation }) => {
                 }
               });
           } else {
-            // No cache, fetch from Firestore
             const userDoc = await firestore().collection("users").doc(user.uid).get();
             if (userDoc.exists) {
               const userData = userDoc.data();
@@ -139,17 +135,12 @@ const ChildAccountInfo = ({ route, navigation }) => {
       }
     };
 
-    // Fetch profile image
     const fetchImage = async () => {
       try {
         const cacheKey = CACHE_KEYS.CHILD_IMAGE_URL + childUid;
-        
-        // Try to get from cache first
         const cachedUrl = await getFromCache(cacheKey);
         if (cachedUrl && typeof cachedUrl === "string" && cachedUrl.trim() !== "") {
           setImageUrl(cachedUrl);
-          
-          // Verify the cached URL is still valid in background
           storage()
             .ref(`profilePictures/${childUid}.png`)
             .getDownloadURL()
@@ -159,14 +150,9 @@ const ChildAccountInfo = ({ route, navigation }) => {
                 saveToCache(cacheKey, url);
               }
             })
-            .catch(() => {
-              clearCache(cacheKey);
-            });
+            .catch(() => clearCache(cacheKey));
         } else {
-          // No cache, fetch from Storage
-          const url = await storage()
-            .ref(`profilePictures/${childUid}.png`)
-            .getDownloadURL();
+          const url = await storage().ref(`profilePictures/${childUid}.png`).getDownloadURL();
           if (typeof url === "string" && url.trim() !== "") {
             setImageUrl(url);
             saveToCache(cacheKey, url);
@@ -179,14 +165,9 @@ const ChildAccountInfo = ({ route, navigation }) => {
       }
     };
 
-    // Fetch data and image immediately
     fetchChildData();
     fetchImage();
-
-    // Set up interval to check for image updates every 30 seconds
     const intervalId = setInterval(fetchImage, 30000);
-
-    // Cleanup interval on component unmount or childUid change
     return () => clearInterval(intervalId);
   }, [childUid]);
 
@@ -198,10 +179,8 @@ const ChildAccountInfo = ({ route, navigation }) => {
   const handlePhotoUpload = async () => {
     setShowPhotoModal(false);
     try {
-      // Clear the image cache when uploading new photo
       const cacheKey = CACHE_KEYS.CHILD_IMAGE_URL + childUid;
       await clearCache(cacheKey);
-      
       const storagePath = `profilePictures/${childUid}.png`;
       const newUrl = await storage().ref(storagePath).getDownloadURL();
       if (typeof newUrl === "string" && newUrl.trim() !== "") {
@@ -218,62 +197,85 @@ const ChildAccountInfo = ({ route, navigation }) => {
   if (!childData) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.loadingText}>
-          {isLoadingFromCache ? "Loading..." : "Loading..."}
-        </Text>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
+  const InfoCard = ({ label, value }) => (
+    <View style={styles.infoCard}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollViewContent}>
-        <View style={styles.header}>
-          <BackArrow onPress={() => navigation.goBack()} />
-          <Text style={[styles.accountInfo, styles.text]}>Child Account Info</Text>
+      <Animated.View
+        style={[
+          styles.headerContainer,
+          {
+            transform: [{ translateY: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
+            opacity: headerAnim,
+          },
+        ]}
+      >
+        <Pressable
+          style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1 }]}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="chevron-back" size={22} color="#fff" />
+        </Pressable>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerSubtext}>CHILD</Text>
+          <Text style={styles.headerTitle}>Account Info</Text>
         </View>
+      </Animated.View>
 
-        <View style={styles.profileImageContainer}>
-          <ProfileImageExpander
-            imageUrl={imageUrl}
-            size={100}
-            finalSize={300}
-            borderRadius={50}
-            style={styles.profileImage}
-          />
-          <TouchableOpacity
-            style={styles.editIconContainer}
-            onPress={handleEditPhoto}
-            activeOpacity={0.7}
-            accessibilityLabel="Edit Profile Picture"
-          >
-            <Icon name="pencil" size={18} color="#fff" />
-          </TouchableOpacity>
-        </View>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <Animated.View
+          style={{
+            transform: [{ translateY: contentAnim.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }],
+            opacity: contentAnim,
+          }}
+        >
+          <View style={styles.profileSection}>
+            <View style={styles.profileImageWrapper}>
+              <ProfileImageExpander
+                imageUrl={imageUrl}
+                size={100}
+                finalSize={300}
+                borderRadius={50}
+                style={styles.profileImage}
+              />
+              <TouchableOpacity
+                style={styles.editIconContainer}
+                onPress={handleEditPhoto}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="pencil" size={16} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.profileName}>{childData.name || "Child"}</Text>
+          </View>
 
-        <View style={styles.infoBlock}>
-          <Text style={styles.infoText}>{childData.name || "First Last"}</Text>
-        </View>
-        <View style={styles.infoBlock}>
-          <Text style={styles.infoText}>{childData.DOB || "Date of Birth"}</Text>
-        </View>
-        <View style={styles.infoBlock}>
-          <Text style={styles.infoText}>{childData.rank || "Rank"}</Text>
-        </View>
-        <View style={styles.infoBlock}>
-          <Text style={styles.infoText}>{childData.church || "Church 1"}</Text>
-        </View>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Personal Information</Text>
+            <InfoCard label="Date of Birth" value={childData.DOB || "Not set"} />
+            <InfoCard label="Rank" value={childData.rank || "Not set"} />
+            <InfoCard label="Church" value={childData.church || "Not set"} />
+          </View>
 
-        <Text style={styles.disclaimer}>
-          To change any child information, please remove the child and add them again.
-        </Text>
+          <View style={styles.disclaimerCard}>
+            <Ionicons name="information-circle" size={20} color="#ff9500" style={{ marginRight: 10 }} />
+            <Text style={styles.disclaimerText}>
+              To change any child information, please remove the child and add them again.
+            </Text>
+          </View>
+        </Animated.View>
       </ScrollView>
 
-      <PhotoInput
-        visible={showPhotoModal}
-        onClose={handlePhotoUpload}
-        userId={childUid}
-      />
+      <PhotoInput visible={showPhotoModal} onClose={handlePhotoUpload} userId={childUid} />
     </View>
   );
 };
@@ -283,70 +285,116 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#121212",
   },
-  scrollViewContent: {
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-  },
-  text: {
-    color: "#fff",
-  },
-  header: {
+  headerContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
+    paddingTop: Platform.OS === "ios" ? 50 : 30,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
   },
-  accountInfo: {
-    fontSize: 24,
-    marginLeft: 16,
-  },
-  profileImageContainer: {
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: "center",
+    marginRight: 36,
+  },
+  headerSubtext: {
+    fontSize: 10,
+    color: "#555",
+    letterSpacing: 2,
+    marginBottom: 4,
+  },
+  headerTitle: {
+    fontSize: 24,
+    color: "#fff",
+    fontWeight: "300",
+    letterSpacing: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  profileSection: {
+    alignItems: "center",
+    marginBottom: 30,
+  },
+  profileImageWrapper: {
     position: "relative",
+    marginBottom: 16,
   },
   profileImage: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    borderWidth: 1,
-    borderColor: "#8e8e93",
   },
   editIconContainer: {
     position: "absolute",
-    top: -5,
-    right: "50%",
-    marginRight: -55,
-    backgroundColor: "#147efb",
-    borderRadius: 16,
-    width: 32,
-    height: 32,
+    bottom: 0,
+    right: 0,
+    backgroundColor: "#147EFB",
+    borderRadius: 14,
+    width: 28,
+    height: 28,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    borderColor: "#121212",
   },
-  infoBlock: {
-    backgroundColor: "#2e2e2e",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  infoText: {
-    fontSize: 16,
+  profileName: {
+    fontSize: 24,
     color: "#fff",
+    fontWeight: "600",
   },
-  disclaimer: {
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    color: "#4d9cff",
+    marginBottom: 14,
+    fontWeight: "600",
+  },
+  infoCard: {
+    backgroundColor: "#1a1a1a",
+    padding: 16,
+    borderRadius: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+  },
+  infoLabel: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.5)",
+    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  infoValue: {
+    fontSize: 17,
+    color: "#fff",
+    fontWeight: "600",
+  },
+  disclaimerCard: {
+    backgroundColor: "rgba(255, 149, 0, 0.1)",
+    padding: 16,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 149, 0, 0.2)",
+  },
+  disclaimerText: {
     fontSize: 14,
-    color: "#ff6347",
-    textAlign: "center",
-    marginTop: 20,
-    paddingHorizontal: 16,
+    color: "#ff9500",
+    flex: 1,
+    lineHeight: 20,
   },
   centered: {
     flex: 1,
@@ -356,8 +404,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: "#fff",
-    textAlign: "center",
+    color: "rgba(255,255,255,0.5)",
   },
 });
 

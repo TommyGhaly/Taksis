@@ -97,68 +97,72 @@ const ChangeChildren = () => {
       "Remove Child",
       "Are you sure you want to remove this child? This action cannot be undone.",
       [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
+        { text: "Cancel", style: "cancel" },
         {
           text: "Remove",
           style: "destructive",
           onPress: async () => {
+            const user = auth().currentUser;
+            if (!user) {
+              Alert.alert(
+                "Error",
+                "User not authenticated. Please sign in again."
+              );
+              return;
+            }
+
             try {
-              const user = auth().currentUser;
-              if (user) {
-                const userDoc = await firestore()
-                  .collection("users")
-                  .doc(user.uid)
-                  .get();
-                const userData = userDoc.data();
+              const userDoc = await firestore()
+                .collection("users")
+                .doc(user.uid)
+                .get();
+              const userData = userDoc.data();
 
-                if (userData && userData.children) {
-                  const childToRemove = userData.children.find(
-                    (child) => child.uid === childId
-                  );
-
-                  if (childToRemove) {
-                    // Delete profile picture from storage
-                    try {
-                      await storage()
-                        .ref(`profilePictures/${childId}.png`)
-                        .delete();
-                    } catch (error) {
-                      // Continue with removal even if image deletion fails
-                    }
-
-                    // Call custom delete function
-                    await callFunction(
-                      user,
-                      "https://delete-child-hy6oofbihq-uc.a.run.app",
-                      {church: userData.church, uid: childId},
-                      "Failed to remove child. Please try again."
-                    );
-
-                    // Remove child from Firestore
-                    await firestore()
-                      .collection("users")
-                      .doc(user.uid)
-                      .update({
-                        children: FieldValue.arrayRemove(childToRemove),
-                      });
-
-                    // Update local state to remove profile picture
-                    setProfilePictureUrls((prev) => {
-                      const updated = { ...prev };
-                      delete updated[childId];
-                      return updated;
-                    });
-                  } else {
-                    Alert.alert("Error", "Child not found.");
-                  }
-                } else {
-                  Alert.alert("Error", "No children found.");
-                }
+              if (!userData?.children) {
+                Alert.alert("Error", "No children found.");
+                return;
               }
+
+              const childToRemove = userData.children.find(
+                (child) => child.uid === childId
+              );
+
+              if (!childToRemove) {
+                Alert.alert("Error", "Child not found.");
+                return;
+              }
+
+              // Delete profile picture from storage
+              try {
+                await storage().ref(`profilePictures/${childId}.png`).delete();
+              } catch (error) {
+                // Continue even if image deletion fails
+              }
+
+              // Call delete function
+              await callFunction(
+                user,
+                "https://delete-child-hy6oofbihq-uc.a.run.app",
+                { church: userData.church, uid: childId },
+                "Failed to remove child. Please try again."
+              );
+
+              // Remove child from Firestore
+              await firestore()
+                .collection("users")
+                .doc(user.uid)
+                .update({
+                  children: FieldValue.arrayRemove(childToRemove),
+                });
+
+              // Update local state
+              setProfilePictureUrls((prev) => {
+                const updated = { ...prev };
+                delete updated[childId];
+                return updated;
+              });
             } catch (error) {
+              console.error("Remove child error:", error);
               Alert.alert(
                 "Error",
                 "Failed to remove the child. Please try again."

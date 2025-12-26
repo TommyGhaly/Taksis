@@ -5,17 +5,15 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-  runOnJS,
 } from 'react-native-reanimated';
 
 const AnimatedExpoImage = Animated.createAnimatedComponent(Image);
 const { width: WINDOW_WIDTH, height: WINDOW_HEIGHT } = Dimensions.get('window');
 
-// Spring config tuned for smooth, non-bouncy animation
 const SPRING_CONFIG = {
-  damping: 20,
-  stiffness: 200,
-  mass: 0.8,
+  damping: 25,
+  stiffness: 120,
+  mass: 1,
 };
 
 const ProfileImageExpander = React.memo(({ 
@@ -32,7 +30,6 @@ const ProfileImageExpander = React.memo(({
   const profileImageRef = useRef(null);
   const positionRef = useRef({ x: 0, y: 0 });
 
-  // Single progress value drives everything
   const progress = useSharedValue(0);
   const startX = useSharedValue(0);
   const startY = useSharedValue(0);
@@ -49,43 +46,50 @@ const ProfileImageExpander = React.memo(({
     [imageUrl]
   );
 
-  // Pre-measure position on mount and periodically
   const measurePosition = useCallback(() => {
     profileImageRef.current?.measure((x, y, w, h, pageX, pageY) => {
+      // Calculate offset from center of screen to center of image
+      const imageCenterX = pageX + w / 2;
+      const imageCenterY = pageY + h / 2;
+      const screenCenterX = WINDOW_WIDTH / 2;
+      const screenCenterY = WINDOW_HEIGHT / 2;
+      
       positionRef.current = {
-        x: pageX + w / 2 - WINDOW_WIDTH / 2,
-        y: pageY + h / 2 - WINDOW_HEIGHT / 2,
+        x: imageCenterX - screenCenterX,
+        y: imageCenterY - screenCenterY,
       };
     });
   }, []);
 
-// 1. Use the cached position instead of re-measuring
-const openModal = useCallback(() => {
-  if (onPress) {
-    onPress();
-    return;
-  }
+  const openModal = useCallback(() => {
+    if (onPress) {
+      onPress();
+      return;
+    }
 
-  // Use pre-measured position directly
-  startX.value = positionRef.current.x;
-  startY.value = positionRef.current.y;
-  progress.value = 0;
-  
-  setModalVisible(true);
-  setIsAnimating(true);
-  
-  // Delay animation start by 1 frame to let modal mount
-  requestAnimationFrame(() => {
-    progress.value = withSpring(1, SPRING_CONFIG);
-  });
-}, [onPress]);
-
-// 2. Softer spring (less work per frame)
-const SPRING_CONFIG = {
-  damping: 25,
-  stiffness: 120,
-  mass: 1,
-};
+    // Re-measure position right before opening
+    profileImageRef.current?.measure((x, y, w, h, pageX, pageY) => {
+      const imageCenterX = pageX + w / 2;
+      const imageCenterY = pageY + h / 2;
+      const screenCenterX = WINDOW_WIDTH / 2;
+      const screenCenterY = WINDOW_HEIGHT / 2;
+      
+      const offsetX = imageCenterX - screenCenterX;
+      const offsetY = imageCenterY - screenCenterY;
+      
+      // If essentially centered (within 20px), don't translate at all
+      startX.value = Math.abs(offsetX) < 20 ? 0 : offsetX;
+      startY.value = Math.abs(offsetY) < 20 ? 0 : offsetY;
+      progress.value = 0;
+      
+      setModalVisible(true);
+      setIsAnimating(true);
+      
+      requestAnimationFrame(() => {
+        progress.value = withSpring(1, SPRING_CONFIG);
+      });
+    });
+  }, [onPress]);
 
   const closeModal = useCallback(() => {
     setModalVisible(false);
@@ -97,10 +101,14 @@ const SPRING_CONFIG = {
     const p = progress.value;
     const scaleVal = 1 + p * (finalSize / size - 1);
     
+    // Interpolate from start position to center (0, 0)
+    const translateX = startX.value * (1 - p);
+    const translateY = startY.value * (1 - p);
+    
     return {
       transform: [
-        { translateX: startX.value * (1 - p) },
-        { translateY: startY.value * (1 - p) - p * 30 },
+        { translateX },
+        { translateY },
         { scale: scaleVal },
       ],
       borderRadius: (size / 2) * (1 - p) + 8 * p,

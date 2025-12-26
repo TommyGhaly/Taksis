@@ -495,7 +495,11 @@ const IndividualProfile = ({
             try {
               const currentUser = auth().currentUser;
               if (!currentUser) {
-                throw new Error("No authenticated user found");
+                Alert.alert(
+                  "Error",
+                  "You must be logged in to perform this action."
+                );
+                return;
               }
 
               if (!isChild) {
@@ -510,11 +514,12 @@ const IndividualProfile = ({
               await callFunction(
                 currentUser,
                 "https://unavailable-for-week-hy6oofbihq-uc.a.run.app",
-                { church: church, week: targetWeek, uid: userId, family: family },
+                { church, week: targetWeek, uid: userId, family },
                 "Failed to mark as unavailable. Please try again."
               );
               onClose();
             } catch (error) {
+              console.error("Error marking unavailable:", error);
               Alert.alert(
                 "Error",
                 "Failed to mark as unavailable. Please try again."

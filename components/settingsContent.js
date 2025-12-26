@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
-  ScrollView,
+  Platform,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
@@ -20,7 +20,7 @@ import { callFunction } from "./functionCalls";
 import { deleteUser } from "@react-native-firebase/auth";
 import messaging from "@react-native-firebase/messaging";
 import ProfileImageExpander from "./ProfileImageExpander";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const defaultProfileImage = require("../assets/default_profile.png");
 
@@ -33,10 +33,9 @@ const SettingsContent = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [suggestion, setSuggestion] = useState("");
 
-  // Profile picture cache management
-  const CACHE_DURATION = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
-  const CACHE_KEY_PREFIX = 'profilePicture_';
-  const CACHE_TIMESTAMP_PREFIX = 'profilePictureTimestamp_';
+  const CACHE_DURATION = 3 * 24 * 60 * 60 * 1000;
+  const CACHE_KEY_PREFIX = "profilePicture_";
+  const CACHE_TIMESTAMP_PREFIX = "profilePictureTimestamp_";
 
   const getCacheKey = (userId) => `${CACHE_KEY_PREFIX}${userId}`;
   const getTimestampKey = (userId) => `${CACHE_TIMESTAMP_PREFIX}${userId}`;
@@ -46,7 +45,7 @@ const SettingsContent = () => {
       await AsyncStorage.setItem(getCacheKey(userId), url);
       await AsyncStorage.setItem(getTimestampKey(userId), Date.now().toString());
     } catch (error) {
-      console.error('Error saving to cache:', error);
+      console.error("Error saving to cache:", error);
     }
   };
 
@@ -54,16 +53,13 @@ const SettingsContent = () => {
     try {
       const cachedUrl = await AsyncStorage.getItem(getCacheKey(userId));
       const timestamp = await AsyncStorage.getItem(getTimestampKey(userId));
-      
       if (cachedUrl && timestamp) {
         const age = Date.now() - parseInt(timestamp);
-        if (age < CACHE_DURATION) {
-          return cachedUrl;
-        }
+        if (age < CACHE_DURATION) return cachedUrl;
       }
       return null;
     } catch (error) {
-      console.error('Error reading from cache:', error);
+      console.error("Error reading from cache:", error);
       return null;
     }
   };
@@ -73,43 +69,33 @@ const SettingsContent = () => {
       await AsyncStorage.removeItem(getCacheKey(userId));
       await AsyncStorage.removeItem(getTimestampKey(userId));
     } catch (error) {
-      console.error('Error clearing cache:', error);
+      console.error("Error clearing cache:", error);
     }
   };
 
   useEffect(() => {
     const user = auth().currentUser;
     if (user) {
-      // Fetch user data
       const unsubscribe = firestore()
         .collection("users")
         .doc(user.uid)
         .onSnapshot(
           (doc) => {
-            if (doc.exists) {
-              setUserRoles(doc.data());
-            }
+            if (doc.exists) setUserRoles(doc.data());
           },
-          (error) => {
-            console.error('Error fetching user data:', error);
-          }
+          (error) => console.error("Error fetching user data:", error)
         );
 
-      // Fetch profile picture with caching
       const fetchImage = async (forceRefresh = false) => {
         try {
-          // First, try to get from cache if not forcing refresh
           if (!forceRefresh) {
             const cachedUrl = await getFromCache(user.uid);
             if (cachedUrl) {
               setImageUrl(cachedUrl);
-              // Still fetch from storage to check for updates
               fetchFromStorage(false);
               return;
             }
           }
-
-          // If no cache or force refresh, fetch from storage
           await fetchFromStorage(true);
         } catch (error) {
           setImageUrl(null);
@@ -118,38 +104,27 @@ const SettingsContent = () => {
 
       const fetchFromStorage = async (updateUI = true) => {
         try {
-          const url = await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
+          const url = await storage()
+            .ref(`profilePictures/${user.uid}.png`)
+            .getDownloadURL();
           if (typeof url === "string" && url.trim() !== "") {
-            // Check if URL has changed
             const cachedUrl = await getFromCache(user.uid);
             if (url !== cachedUrl) {
               await saveToCache(user.uid, url);
-              if (updateUI) {
-                setImageUrl(url);
-              }
+              if (updateUI) setImageUrl(url);
             }
           } else {
             await clearCache(user.uid);
-            if (updateUI) {
-              setImageUrl(null);
-            }
+            if (updateUI) setImageUrl(null);
           }
         } catch (error) {
-          // Profile picture doesn't exist
           await clearCache(user.uid);
-          if (updateUI) {
-            setImageUrl(null);
-          }
+          if (updateUI) setImageUrl(null);
         }
       };
 
-      // Initial fetch
       fetchImage();
-
-      // Poll for changes every 10 seconds
-      const intervalId = setInterval(() => {
-        fetchImage(false);
-      }, 10000);
+      const intervalId = setInterval(() => fetchImage(false), 10000);
 
       return () => {
         clearInterval(intervalId);
@@ -158,8 +133,7 @@ const SettingsContent = () => {
     }
   }, []);
 
-  const wait = (time) =>
-    new Promise((resolve) => setTimeout(resolve, time * 1000));
+  const wait = (time) => new Promise((resolve) => setTimeout(resolve, time * 1000));
 
   const handleSignOut = async () => {
     try {
@@ -171,16 +145,13 @@ const SettingsContent = () => {
         if (userDoc.exists) {
           const fcmTokens = userDoc.data().fcmTokens || [];
           if (fcmTokens.includes(token)) {
-            await userDocRef.update({
-              fcmTokens: fcmTokens.filter((t) => t !== token),
-            });
+            await userDocRef.update({ fcmTokens: fcmTokens.filter((t) => t !== token) });
           }
         }
-        // Clear cache on sign out
         await clearCache(user.uid);
       }
     } catch (error) {
-      console.error('Error during sign out:', error);
+      console.error("Error during sign out:", error);
     } finally {
       setSignUp(true);
       auth().signOut();
@@ -197,35 +168,28 @@ const SettingsContent = () => {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
+            const user = auth().currentUser;
+            if (!user) {
+              Alert.alert("Error", "User not authenticated. Please sign in again.");
+              return;
+            }
             setIsLoading(true);
             try {
-              const user = auth().currentUser;
-              if (user) {
-                await callFunction(
-                  user,
-                  "https://remove-family-schedules-hy6oofbihq-uc.a.run.app",
-                  {uid: user.uid, church: userRoles.church},
-                  "Failed to remove family from schedules. Please try again."
-                );
-                await callFunction(
-                  user,
-                  "https://delete-user-hy6oofbihq-uc.a.run.app"
-                );
-                try {
-                  await storage().ref(`profilePictures/${user.uid}.png`).delete();
-                } catch (error) {
-                  console.error('Error deleting profile picture:', error);
-                }
-                // Clear cache on account deletion
-                await clearCache(user.uid);
-                setSignUp(false);
-                await firestore().collection("users").doc(user.uid).delete();
-                await wait(2);
-                await deleteUser(user);
-                Alert.alert("Success", "Your account has been deleted.");
+              await callFunction(user, "https://remove-family-schedules-hy6oofbihq-uc.a.run.app", { uid: user.uid, church: userRoles.church }, "Failed to remove family from schedules.");
+              await callFunction(user, "https://delete-user-hy6oofbihq-uc.a.run.app", {}, "Failed to delete user.");
+              try {
+                await storage().ref(`profilePictures/${user.uid}.png`).delete();
+              } catch (error) {
+                console.error("Error deleting profile picture:", error);
               }
+              await clearCache(user.uid);
+              setSignUp(false);
+              await firestore().collection("users").doc(user.uid).delete();
+              await wait(2);
+              await deleteUser(user);
+              Alert.alert("Success", "Your account has been deleted.");
             } catch (error) {
-              console.error('Error deleting account:', error);
+              console.error("Error deleting account:", error);
               await handleSignOut();
             } finally {
               setIsLoading(false);
@@ -255,7 +219,7 @@ const SettingsContent = () => {
         setModalVisible(false);
       }
     } catch (error) {
-      console.error('Error submitting suggestion:', error);
+      console.error("Error submitting suggestion:", error);
       Alert.alert("Error", "Failed to submit suggestion. Please try again.");
     } finally {
       setIsLoading(false);
@@ -263,48 +227,37 @@ const SettingsContent = () => {
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
       {isLoading && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#fff" />
+          <ActivityIndicator size="large" color="#147EFB" />
         </View>
       )}
-      
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
+
+      <Modal animationType="fade" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>App Suggestions</Text>
+            <Text style={styles.modalSubtitle}>Help us improve by sharing your ideas</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter your suggestion"
-              placeholderTextColor="#888"
+              placeholder="Enter your suggestion..."
+              placeholderTextColor="rgba(255,255,255,0.4)"
               value={suggestion}
               onChangeText={setSuggestion}
               multiline
             />
             <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.modalButtonText}>Cancel</Text>
+              <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setModalVisible(false)}>
+                <Text style={styles.buttonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.submitButton]}
-                onPress={handleSubmitSuggestion}
-              >
-                <Text style={styles.modalButtonText}>Submit</Text>
+              <TouchableOpacity style={[styles.modalButton, styles.submitButtonModal]} onPress={handleSubmitSuggestion}>
+                <Text style={styles.buttonText}>Submit</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-
       <View style={styles.profileSection}>
         <ProfileImageExpander
           imageUrl={imageUrl}
@@ -319,117 +272,69 @@ const SettingsContent = () => {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
-        <TouchableOpacity 
-          style={styles.option} 
-          onPress={() => navigation.navigate("AccountInfo")}
-        >
-          <Text style={styles.optionText}>Account info</Text>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("AccountInfo")}>
+          <Text style={styles.cardText}>Account info</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.option} 
-          onPress={() => navigation.navigate("ChangeName")}
-        >
-          <Text style={styles.optionText}>Change name</Text>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeName")}>
+          <Text style={styles.cardText}>Change name</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.option} 
-          onPress={() => navigation.navigate("ChangeEmail")}
-        >
-          <Text style={styles.optionText}>Change email</Text>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeEmail")}>
+          <Text style={styles.cardText}>Change email</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.option} 
-          onPress={() => navigation.navigate("ChangeNumber")}
-        >
-          <Text style={styles.optionText}>Change phone number</Text>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeNumber")}>
+          <Text style={styles.cardText}>Change phone number</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.option} 
-          onPress={() => navigation.navigate("ChangeAge")}
-        >
-          <Text style={styles.optionText}>Change date of birth</Text>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeAge")}>
+          <Text style={styles.cardText}>Change date of birth</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.option} 
-          onPress={() => navigation.navigate("ChangePhoto")}
-        >
-          <Text style={styles.optionText}>Change profile picture</Text>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangePhoto")}>
+          <Text style={styles.cardText}>Change profile picture</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.option} 
-          onPress={() => navigation.navigate("ChangePassword")}
-        >
-          <Text style={styles.optionText}>Change password</Text>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangePassword")}>
+          <Text style={styles.cardText}>Change password</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Role</Text>
-        <TouchableOpacity 
-          style={styles.option} 
-          onPress={() => navigation.navigate("ChangeRank")}
-        >
-          <Text style={styles.optionText}>Change deacon rank</Text>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeRank")}>
+          <Text style={styles.cardText}>Change deacon rank</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.option} 
-          onPress={() => navigation.navigate("ChangeRoles")}
-        >
-          <Text style={styles.optionText}>Change church services that apply to you</Text>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeRoles")}>
+          <Text style={styles.cardText}>Change church services that apply to you</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.option} 
-          onPress={() => navigation.navigate("RequestServants")}
-        >
-          <Text style={styles.optionText}>Apply to be a servants meeting tracker</Text>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("RequestServants")}>
+          <Text style={styles.cardText}>Apply to be a servants meeting tracker</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Children</Text>
-        <TouchableOpacity 
-          style={styles.option} 
-          onPress={() => navigation.navigate("ChangeChildren")}
-        >
-          <Text style={styles.optionText}>Change your children</Text>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeChildren")}>
+          <Text style={styles.cardText}>Change your children</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.option} 
-          onPress={() => navigation.navigate("AddChild")}
-        >
-          <Text style={styles.optionText}>Add child</Text>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("AddChild")}>
+          <Text style={styles.cardText}>Add child</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Church Adjustments</Text>
-        <TouchableOpacity 
-          style={styles.option} 
-          onPress={() => navigation.navigate("ChangeChurch")}
-        >
-          <Text style={styles.optionText}>Change church</Text>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeChurch")}>
+          <Text style={styles.cardText}>Change church</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.option} 
-          onPress={() => navigation.navigate("RequestAdmin")}
-        >
-          <Text style={styles.optionText}>Apply for admin</Text>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("RequestAdmin")}>
+          <Text style={styles.cardText}>Apply for admin</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>App Adjustments</Text>
-        <TouchableOpacity 
-          style={styles.option} 
-          onPress={() => navigation.navigate("HomeScreenSelector")}
-        >
-          <Text style={styles.optionText}>Change home screen</Text>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("HomeScreenSelector")}>
+          <Text style={styles.cardText}>Change home screen</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.option} 
-          onPress={() => setModalVisible(true)}
-        >
-          <Text style={styles.optionText}>App suggestions</Text>
+        <TouchableOpacity style={styles.card} onPress={() => setModalVisible(true)}>
+          <Text style={styles.cardText}>App suggestions</Text>
         </TouchableOpacity>
       </View>
 
@@ -442,7 +347,7 @@ const SettingsContent = () => {
       </TouchableOpacity>
 
       <View style={styles.bottomPadding} />
-    </ScrollView>
+    </View>
   );
 };
 
@@ -450,7 +355,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#121212",
-    paddingHorizontal: 16,
   },
   loadingOverlay: {
     position: "absolute",
@@ -458,7 +362,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.7)",
     justifyContent: "center",
     alignItems: "center",
     zIndex: 1000,
@@ -470,117 +374,143 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.7)",
   },
   modalContent: {
-    backgroundColor: "#2e2e2e",
-    borderRadius: 10,
-    padding: 20,
-    width: "80%",
+    backgroundColor: "#1a1a1a",
+    borderRadius: 14,
+    padding: 28,
+    width: "85%",
     maxWidth: 400,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
+    fontSize: 22,
+    fontWeight: "600",
     color: "#fff",
-    marginBottom: 15,
+    marginBottom: 8,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  modalSubtitle: {
+    fontSize: 15,
+    color: "rgba(255,255,255,0.6)",
+    marginBottom: 20,
     textAlign: "center",
   },
   input: {
-    backgroundColor: "#fff",
-    borderRadius: 5,
-    padding: 10,
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 14,
+    padding: 14,
     fontSize: 16,
-    color: "#000",
+    color: "#fff",
     marginBottom: 20,
-    minHeight: 100,
+    minHeight: 120,
     textAlignVertical: "top",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
   },
   modalButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
+    width: "100%",
+    gap: 12,
   },
   modalButton: {
     flex: 1,
-    padding: 12,
-    borderRadius: 5,
+    padding: 14,
+    borderRadius: 14,
     alignItems: "center",
-    marginHorizontal: 5,
   },
   cancelButton: {
-    backgroundColor: "#888",
+    backgroundColor: "rgba(255,255,255,0.1)",
   },
-  submitButton: {
-    backgroundColor: "#147efb",
+  submitButtonModal: {
+    backgroundColor: "#147EFB",
   },
-  modalButtonText: {
+  buttonText: {
     fontSize: 16,
     color: "#fff",
-    fontWeight: "bold",
+    fontWeight: "600",
+  },
+  header: {
+    fontSize: 36,
+    color: "#fff",
+    textAlign: "center",
+    marginTop: 20,
+    marginBottom: 8,
+    fontWeight: "300",
+    letterSpacing: 1,
   },
   profileSection: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
-    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    marginBottom: 10,
   },
   profileImage: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: "#333333",
+    marginRight: 14,
   },
   userName: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "600",
     color: "#fff",
     flex: 1,
-    marginLeft: 8,
+    left: 10
   },
   section: {
-    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 22,
     color: "#4d9cff",
-    marginBottom: 10,
-    fontWeight: "bold",
+    marginBottom: 14,
+    fontWeight: "600",
   },
-  option: {
-    backgroundColor: "#2e2e2e",
+  card: {
+    backgroundColor: "#1a1a1a",
     padding: 16,
-    borderRadius: 10,
-    marginBottom: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    borderRadius: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
   },
-  optionText: {
-    fontSize: 16,
+  cardText: {
+    fontSize: 18,
     color: "#fff",
+    fontWeight: "600",
   },
   signOut: {
-    backgroundColor: "#147efb",
-    padding: 16,
-    borderRadius: 10,
+    backgroundColor: "#147EFB",
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 14,
+    marginHorizontal: 20,
     alignItems: "center",
     marginTop: 10,
   },
   signOutText: {
-    fontSize: 18,
+    fontSize: 16,
     color: "#ffffff",
-    fontWeight: "bold",
+    fontWeight: "600",
   },
   deleteAccount: {
     backgroundColor: "#ff3b30",
-    padding: 16,
-    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 14,
+    marginHorizontal: 20,
     alignItems: "center",
-    marginTop: 20,
+    marginTop: 12,
   },
   deleteAccountText: {
-    fontSize: 18,
+    fontSize: 16,
     color: "#ffffff",
-    fontWeight: "bold",
+    fontWeight: "600",
   },
   bottomPadding: {
     height: 40,

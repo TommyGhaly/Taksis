@@ -37,7 +37,7 @@ const myTheme = {
 };
 
 const consistentHeaderStyle = {
-  backgroundColor: "#252525",
+  backgroundColor: "#1a1a1a",
 };
 
 const screenConfigs = {
