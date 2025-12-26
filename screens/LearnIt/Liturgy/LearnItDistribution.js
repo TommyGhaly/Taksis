@@ -1,106 +1,81 @@
 import * as React from "react";
-import { useState } from "react";
+import { useRef, useEffect } from "react";
 import {
   StyleSheet,
   View,
   Text,
   Pressable,
   FlatList,
-  LayoutAnimation,
-  UIManager,
   Platform,
-  ScrollView,
   Animated,
+  Alert,
 } from "react-native";
-import BackArrow from "../../../components/backArrow";
-import * as WebBrowser from "expo-web-browser"; // Import Expo WebBrowser
-import hymnsData from "./Distribution.json"; 
-
-// Enable LayoutAnimation on Android
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+import * as WebBrowser from "expo-web-browser";
+import { Ionicons } from "@expo/vector-icons";
+import hymnsData from "./Distribution.json";
 
 const openUrl = async (url) => {
   try {
-    await WebBrowser.openBrowserAsync(url); // Use WebBrowser's openBrowserAsync
+    await WebBrowser.openBrowserAsync(url);
   } catch (error) {
-    Alert.alert(
-      "Error",
-      "Failed to open the link. Please try again."
-    );
+    Alert.alert("Error", "Failed to open the link. Please try again.");
   }
 };
 
-const LearnItDistribution = () => {
-  const [expanded, setExpanded] = useState(null);
+const LearnItDistribution = ({ navigation }) => {
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  const itemAnimValues = useRef(hymnsData.map(() => new Animated.Value(0))).current;
 
-  // Animated value for the header (title)
-  const headerAnim = React.useRef(new Animated.Value(0)).current;
-  // Create an animated value for each hymnsData item
-  const itemAnimValues = React.useRef(
-    hymnsData.map(() => new Animated.Value(0))
-  ).current;
-
-  React.useEffect(() => {
-    Animated.stagger(150, [
-      // Animate header first
-      Animated.spring(headerAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-      }),
-      // Then animate each list item
+  useEffect(() => {
+    Animated.stagger(100, [
+      Animated.spring(headerAnim, { toValue: 1, useNativeDriver: true, tension: 50, friction: 8 }),
       ...itemAnimValues.map((anim) =>
-        Animated.spring(anim, { toValue: 1, useNativeDriver: true })
+        Animated.spring(anim, { toValue: 1, useNativeDriver: true, tension: 50, friction: 8 })
       ),
     ]).start();
   }, []);
 
-  const renderItem = ({ item, index }) => {
-    // Calculate a max height for the sub-options container
-
-    return (
-      <Animated.View
-        style={[
-          styles.animatedItem,
+  const renderItem = ({ item, index }) => (
+    <Animated.View
+      style={{
+        transform: [
           {
-            transform: [
-              {
-                translateY: itemAnimValues[index].interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [50, 0],
-                }),
-              },
-            ],
-            opacity: itemAnimValues[index],
+            translateY: itemAnimValues[index].interpolate({
+              inputRange: [0, 1],
+              outputRange: [30, 0],
+            }),
           },
+        ],
+        opacity: itemAnimValues[index],
+        marginBottom: 12,
+      }}
+    >
+      <Pressable
+        style={({ pressed }) => [
+          styles.button,
+          { opacity: pressed ? 0.8 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
         ]}
+        onPress={() => openUrl(item.url)}
       >
-        <View>
-          <Pressable style={styles.button} onPress={() => openUrl(item.url)}>
-            <Text style={styles.buttonText}>{item.title}</Text>
-          </Pressable>
+        <View style={styles.buttonContent}>
+          <Text style={styles.buttonText}>{item.title}</Text>
+          <Ionicons name="open-outline" size={18} color="rgba(255,255,255,0.3)" />
         </View>
-      </Animated.View>
-    );
-  };
+      </Pressable>
+    </Animated.View>
+  );
 
   return (
     <View style={styles.container}>
-      <BackArrow style={styles.backbutton} />
-      {/* Wrap the header in an Animated.View */}
       <Animated.View
         style={[
-          styles.titleContainer,
+          styles.headerContainer,
           {
             transform: [
               {
                 translateY: headerAnim.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [50, 0],
+                  outputRange: [20, 0],
                 }),
               },
             ],
@@ -108,13 +83,24 @@ const LearnItDistribution = () => {
           },
         ]}
       >
-        <Text style={styles.title}>Communion</Text>
+        <Pressable
+          style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1 }]}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="chevron-back" size={22} color="#fff" />
+        </Pressable>
+
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerSubtext}>DISTRIBUTION</Text>
+          <Text style={styles.headerTitle}>Communion</Text>
+        </View>
       </Animated.View>
+
       <FlatList
         data={hymnsData}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.buttonContainer}
+        contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
       />
     </View>
@@ -125,84 +111,62 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#121212",
-    padding: 20,
-    justifyContent: "flex-start",
   },
-  titleContainer: {
-    backgroundColor: "#1a1a1a",
-    width: "100%",
-    borderRadius: 12,
-    paddingVertical: 20,
-    marginBottom: 20,
-    marginTop: 40,
-    alignSelf: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#ffffff",
-    textAlign: "center",
-  },
-  buttonContainer: {
-    width: "90%",
+  headerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingTop: Platform.OS === "ios" ? 55 : 35,
     paddingBottom: 20,
+    paddingHorizontal: 20,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.08)",
     justifyContent: "center",
-    alignContent: "center",
-    alignSelf: "center",
+    alignItems: "center",
   },
-  animatedItem: {
-    marginBottom: 0,
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: "center",
+    marginRight: 36,
   },
-  buttonText: {
-    fontSize: 22,
-    color: "#ffffff",
-    fontWeight: "bold",
-    textAlign: "center",
+  headerSubtext: {
+    fontSize: 11,
+    color: "#555",
+    letterSpacing: 3,
+    marginBottom: 6,
+  },
+  headerTitle: {
+    fontSize: 32,
+    color: "#fff",
+    fontWeight: "300",
+    letterSpacing: 1,
+  },
+  listContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 40,
   },
   button: {
-    backgroundColor: "#2c2c2c",
-    paddingVertical: 25,
-    width: "95%", // Ensures uniform size
-    borderRadius: 8,
-    marginBottom: 20,
-    alignItems: "center",
-    alignSelf: "center",
-  },
-  expandedContainer: {
-    width: "90%",
     backgroundColor: "#1a1a1a",
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 10,
-    alignSelf: "center",
-    textAlign: "center",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
   },
-  subButton: {
-    backgroundColor: "#3a3a3a",
-    paddingVertical: 15,
-    width: "100%",
-    borderRadius: 8,
-    marginBottom: 15,
+  buttonContent: {
+    flexDirection: "row",
     alignItems: "center",
-    alignSelf: "center",
-    textAlign: "center",
+    justifyContent: "space-between",
+    paddingVertical: 18,
+    paddingHorizontal: 20,
   },
-  subButtonText: {
-    fontSize: 18,
-    color: "#ffffff",
-    fontWeight: "bold",
-    textAlign: "center",
-    marginHorizontal: 5,
-  },
-  backbutton: {
-    position: "absolute",
-    top: 20,
-    left: 20,
+  buttonText: {
+    fontSize: 17,
+    color: "#fff",
+    fontWeight: "600",
+    flex: 1,
   },
 });
 

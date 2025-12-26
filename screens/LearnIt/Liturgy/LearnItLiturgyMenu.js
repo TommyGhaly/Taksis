@@ -1,28 +1,69 @@
 import * as React from "react";
-import { Pressable, StyleSheet, View, Text, Animated } from "react-native";
-import BackArrow from "../../../components/backArrow";
+import { useRef, useEffect } from "react";
+import {
+  Pressable,
+  StyleSheet,
+  View,
+  Text,
+  Animated,
+  Platform,
+  FlatList,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+
+const menuItems = [
+  { screen: "Matins", label: "Matins" },
+  { screen: "OfferingLamb", label: "Offering of the Lamb" },
+  { screen: "LiturgyWord", label: "Liturgy of the Word" },
+  { screen: "LiturgyFaithful", label: "Liturgy of the Faithful" },
+  { screen: "Distribution", label: "Distribution" },
+];
 
 const LearnItLiturgyMenu = ({ navigation }) => {
-  // Create an animated value for the header
-  const headerAnim = React.useRef(new Animated.Value(0)).current;
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  const itemAnimValues = useRef(menuItems.map(() => new Animated.Value(0))).current;
 
-  // Create animated values for the menu options
-  const animatedValues = [1, 2, 3, 4, 5].map(() => new Animated.Value(0));
-
-  React.useEffect(() => {
-    Animated.stagger(150, [
-      // Animate the header first...
-      Animated.spring(headerAnim, { toValue: 1, useNativeDriver: true }),
-      // Then animate each menu option
-      ...animatedValues.map((anim) =>
-        Animated.spring(anim, { toValue: 1, useNativeDriver: true })
+  useEffect(() => {
+    Animated.stagger(100, [
+      Animated.spring(headerAnim, { toValue: 1, useNativeDriver: true, tension: 50, friction: 8 }),
+      ...itemAnimValues.map((anim) =>
+        Animated.spring(anim, { toValue: 1, useNativeDriver: true, tension: 50, friction: 8 })
       ),
     ]).start();
   }, []);
 
+  const renderItem = ({ item, index }) => (
+    <Animated.View
+      style={{
+        transform: [
+          {
+            translateY: itemAnimValues[index].interpolate({
+              inputRange: [0, 1],
+              outputRange: [30, 0],
+            }),
+          },
+        ],
+        opacity: itemAnimValues[index],
+        marginBottom: 12,
+      }}
+    >
+      <Pressable
+        style={({ pressed }) => [
+          styles.button,
+          { opacity: pressed ? 0.8 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
+        ]}
+        onPress={() => navigation.navigate(item.screen)}
+      >
+        <View style={styles.buttonContent}>
+          <Text style={styles.buttonText}>{item.label}</Text>
+          <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+
   return (
-    <View style={styles.learnitliturgymenu}>
-      {/* Wrap header in an Animated.View and use headerAnim */}
+    <View style={styles.container}>
       <Animated.View
         style={[
           styles.headerContainer,
@@ -31,7 +72,7 @@ const LearnItLiturgyMenu = ({ navigation }) => {
               {
                 translateY: headerAnim.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [50, 0],
+                  outputRange: [20, 0],
                 }),
               },
             ],
@@ -39,93 +80,90 @@ const LearnItLiturgyMenu = ({ navigation }) => {
           },
         ]}
       >
-        <Text style={styles.optionText}>Liturgy</Text>
+        <Pressable
+          style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1 }]}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="chevron-back" size={22} color="#fff" />
+        </Pressable>
+
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerSubtext}>DIVINE LITURGY</Text>
+          <Text style={styles.headerTitle}>Liturgy</Text>
+        </View>
       </Animated.View>
 
-      {[
-        "Matins",
-        "OfferingLamb",
-        "LiturgyWord",
-        "LiturgyFaithful",
-        "Distribution",
-      ].map((screen, index) => (
-        <Animated.View
-          key={screen}
-          style={[
-            styles.option,
-            {
-              transform: [
-                {
-                  translateY: animatedValues[index].interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [50, 0],
-                  }),
-                },
-              ],
-              opacity: animatedValues[index],
-            },
-          ]}
-        >
-          <Pressable onPress={() => navigation.navigate(screen)}>
-            <Text style={styles.optionText}>
-              {screen.replace(/([A-Z])/g, " $1").trim()}
-            </Text>
-          </Pressable>
-        </Animated.View>
-      ))}
-
-      <View style={styles.backbutton}>
-        <BackArrow />
-      </View>
+      <FlatList
+        data={menuItems}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.screen}
+        contentContainerStyle={styles.listContainer}
+        showsVerticalScrollIndicator={false}
+      />
     </View>
   );
 };
 
-LearnItLiturgyMenu.sharedElements = () => ["liturgyBox"];
-
 const styles = StyleSheet.create({
-  learnitliturgymenu: {
-    backgroundColor: "#121212",
+  container: {
     flex: 1,
-    padding: 20,
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: "#121212",
   },
   headerContainer: {
-    marginBottom: 40,
+    flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#2c2c2c",
-    padding: 20,
-    paddingLeft: 120,
-    paddingRight: 120,
-    borderRadius: 10,
-    justifyContent: "center",
+    paddingTop: Platform.OS === "ios" ? 55 : 35,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
   },
-  option: {
-    width: "100%",
-    height: 70,
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: "center",
+    marginRight: 36,
+  },
+  headerSubtext: {
+    fontSize: 11,
+    color: "#555",
+    letterSpacing: 3,
+    marginBottom: 6,
+  },
+  headerTitle: {
+    fontSize: 32,
+    color: "#fff",
+    fontWeight: "300",
+    letterSpacing: 1,
+  },
+  listContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 40,
+  },
+  button: {
     backgroundColor: "#1a1a1a",
-    borderRadius: 12,
-    justifyContent: "center",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  buttonContent: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
-    elevation: 8,
+    justifyContent: "space-between",
+    paddingVertical: 18,
+    paddingHorizontal: 20,
   },
-  optionText: {
-    fontSize: 24,
-    color: "#ffffff",
-    textAlign: "center",
-    fontWeight: "700",
-    lineHeight: 30,
-  },
-  backbutton: {
-    position: "absolute",
-    top: 20,
-    left: 20,
+  buttonText: {
+    fontSize: 17,
+    color: "#fff",
+    fontWeight: "600",
+    flex: 1,
   },
 });
 
