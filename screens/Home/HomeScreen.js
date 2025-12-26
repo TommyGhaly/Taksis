@@ -21,7 +21,7 @@ import auth from "@react-native-firebase/auth";
 import { deleteUser } from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
 import { check, request, PERMISSIONS, RESULTS } from "react-native-permissions";
-import {callFunction} from "../../components/functionCalls";
+import { callFunction } from "../../components/functionCalls";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import HomeScreenNames from "../../components/homescreenNames";
 import PhotoInput from "../../components/photoInput";
@@ -29,7 +29,10 @@ import { BlurView } from "expo-blur";
 import Churches from "../../components/churches";
 
 // Import caching system
-import { useFirestoreDocument, useFirestoreCollection } from "../../hooks/useFirebaseCache";
+import {
+  useFirestoreDocument,
+  useFirestoreCollection,
+} from "../../hooks/useFirebaseCache";
 import { FirestoreCache } from "../../utils/cacheManager";
 
 async function createNotificationChannel() {
@@ -58,7 +61,7 @@ async function storeFCMToken(userId, fcmToken) {
     await userRef.update({
       fcmTokens: FieldValue.arrayUnion(fcmToken),
     });
-    
+
     // Optionally refresh user cache to include new token
     // Note: FCM tokens are typically not displayed in UI, so cache refresh may not be needed
   } catch (error) {
@@ -143,22 +146,22 @@ async function checkNotificationPermission() {
 
 const HomeScreen = () => {
   const user = auth().currentUser;
-  
+
   // Use cached Firebase hooks for user data
-  const { 
-    data: userDoc, 
-    loading: userLoading, 
-    error: userError, 
+  const {
+    data: userDoc,
+    loading: userLoading,
+    error: userError,
     refresh: refreshUser,
-    updateDocument: updateUserDoc 
-  } = useFirestoreDocument('users', user?.uid);
+    updateDocument: updateUserDoc,
+  } = useFirestoreDocument("users", user?.uid);
 
   // Use cached hook for church data when churchId is available
-  const { 
-    data: churchDoc, 
-    loading: churchLoading, 
-    refresh: refreshChurch 
-  } = useFirestoreDocument('churches', userDoc?.church);
+  const {
+    data: churchDoc,
+    loading: churchLoading,
+    refresh: refreshChurch,
+  } = useFirestoreDocument("churches", userDoc?.church);
 
   const [schedule, setSchedule] = useState({
     matins: { name: "N/A" },
@@ -228,12 +231,17 @@ const HomeScreen = () => {
           if (doc.exists) {
             const userData = doc.data();
             const hasChurch = userData?.church && userData.church.trim() !== "";
-            
-            console.log("Church realtime check - hasChurch:", hasChurch, "church value:", userData?.church);
-            
+
+            console.log(
+              "Church realtime check - hasChurch:",
+              hasChurch,
+              "church value:",
+              userData?.church
+            );
+
             // Update church modal visibility based on real-time data
             setShowChurchModal(!hasChurch);
-            
+
             // If church was just set, update the cached data
             if (hasChurch && showChurchModal) {
               refreshUser();
@@ -337,40 +345,40 @@ const HomeScreen = () => {
   const handleDOBSubmit = async () => {
     const user = auth().currentUser;
     if (!user) {
-      Alert.alert("Error", "User not authenticated.");
+      Alert.alert("Error", "User not authenticated. Please sign in again.");
       return;
     }
 
     try {
       const formattedDOB = formatDate(date);
-      
-      // Update using cached system for immediate UI updates
+
       await updateUserDoc({
         DOB: formattedDOB,
         ssGrades: [],
         alhanGrades: [],
       });
 
-      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
+      await callFunction(
+        user,
+        "https://update-user-hy6oofbihq-uc.a.run.app",
+        {},
+        "Failed to update user."
+      );
 
-      // Refresh cache to get any server-side changes
       await refreshUser();
-      
-      // Use cached userDoc instead of fetching again
-      const userData = userDoc || (await firestore().collection("users").doc(user.uid).get()).data();
+
+      const userData =
+        userDoc ||
+        (await firestore().collection("users").doc(user.uid).get()).data();
       if (userData?.children?.length > 0) {
         const church = userData.church || null;
         await Promise.all(
           userData.children.map(async (child) => {
             if (child?.uid) {
-              const payload = {
-                church: church, 
-                uid: child.uid
-              }
               await callFunction(
                 user,
                 "https://delete-child-hy6oofbihq-uc.a.run.app",
-                payload,
+                { church, uid: child.uid },
                 "Failed to delete child"
               );
             }
@@ -385,6 +393,7 @@ const HomeScreen = () => {
       setShowDOBModal(false);
       setShowPhoneModal(true);
     } catch (error) {
+      console.error("DOB submit error:", error);
       Alert.alert("Error", "Failed to update date of birth. Please try again.");
     }
   };
@@ -398,21 +407,24 @@ const HomeScreen = () => {
     const fullName = `${firstName.trim()} ${lastName.trim()}`;
     const user = auth().currentUser;
     if (!user) {
-      Alert.alert("Error", "User not authenticated.");
+      Alert.alert("Error", "User not authenticated. Please sign in again.");
       return;
     }
 
     try {
-      // Update using cached system for immediate UI updates
-      await updateUserDoc({
-        name: fullName,
-      });
-      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
+      await updateUserDoc({ name: fullName });
+      await callFunction(
+        user,
+        "https://update-user-hy6oofbihq-uc.a.run.app",
+        {},
+        "Failed to update user."
+      );
       setUserName(fullName);
       setShowNameModal(false);
       setFirstName("");
       setLastName("");
     } catch (error) {
+      console.error("Name submit error:", error);
       Alert.alert("Error", "Failed to update name. Please try again.");
     }
   };
@@ -457,35 +469,31 @@ const HomeScreen = () => {
 
     const user = auth().currentUser;
     if (!user) {
-      Alert.alert("Error", "User not authenticated.");
+      Alert.alert("Error", "User not authenticated. Please sign in again.");
       return;
     }
 
     setIsSubmittingChurch(true);
     try {
-      // Map church title to church ID
-
-
       const churchId = selectedChurch;
-      
+
       if (!churchId) {
         Alert.alert("Error", "Invalid church selection.");
         return;
       }
 
-      // Update using cached system for immediate UI updates
-      await updateUserDoc({
-        church: churchId,
-      });
-
-      // Call the update function to ensure backend is synchronized
-      await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
-
-      // Refresh cache to get any server-side changes
+      await updateUserDoc({ church: churchId });
+      await callFunction(
+        user,
+        "https://update-user-hy6oofbihq-uc.a.run.app",
+        {},
+        "Failed to update user."
+      );
       await refreshUser();
-      
+
       setShowChurchModal(false);
     } catch (error) {
+      console.error("Church submit error:", error);
       Alert.alert("Error", "Failed to update church. Please try again.");
     } finally {
       setIsSubmittingChurch(false);
@@ -541,26 +549,22 @@ const HomeScreen = () => {
   const handleRemoveChildren = async () => {
     const user = auth().currentUser;
     if (!user) {
-      Alert.alert("Error", "User not authenticated.");
+      Alert.alert("Error", "User not authenticated. Please sign in again.");
       return;
     }
 
     try {
       const userRef = firestore().collection("users").doc(user.uid);
-      const userDoc = await userRef.get();
-      const userData = userDoc.data();
+      const userDocSnap = await userRef.get();
+      const userData = userDocSnap.data();
       const church = userData?.church || null;
 
       await Promise.all(
         childrenWithoutPfp.map(async (childId) => {
-          const payload = {
-            church: church, 
-            uid: childId
-          }
           await callFunction(
             user,
             "https://delete-child-hy6oofbihq-uc.a.run.app",
-            payload,
+            { church, uid: childId },
             "Failed to delete child"
           );
         })
@@ -579,6 +583,7 @@ const HomeScreen = () => {
       setShowChildrenProfilePicModal(false);
       setChildrenWithoutPfp([]);
     } catch (error) {
+      console.error("Remove children error:", error);
       Alert.alert("Error", "Failed to remove children. Please try again.");
     }
   };
@@ -630,23 +635,26 @@ const HomeScreen = () => {
           onPress: async () => {
             const user = auth().currentUser;
             if (!user) {
-              Alert.alert("Error", "User not authenticated.");
+              Alert.alert(
+                "Error",
+                "User not authenticated. Please sign in again."
+              );
               return;
             }
 
             setIsLoading(true);
             try {
-              const userDoc = await firestore()
+              const userDocSnap = await firestore()
                 .collection("users")
                 .doc(user.uid)
                 .get();
 
-              if (!userDoc.exists) {
+              if (!userDocSnap.exists) {
                 Alert.alert("Error", "User data not found.");
                 return;
               }
 
-              const userData = userDoc.data();
+              const userData = userDocSnap.data();
               const churchIdFromData = userData?.church;
 
               await firestore()
@@ -662,18 +670,24 @@ const HomeScreen = () => {
                 await callFunction(
                   user,
                   "https://unavailable-for-week-hy6oofbihq-uc.a.run.app",
-                  { church: churchIdFromData, week: week, uid: user.uid, family: true },
+                  {
+                    church: churchIdFromData,
+                    week,
+                    uid: user.uid,
+                    family: true,
+                  },
                   "Failed to mark as unavailable. Please try again."
                 );
               }
 
               Alert.alert(
                 "Request Sent",
-                `You have been marked as unavailable for the selected weeks.`
+                "You have been marked as unavailable for the selected weeks."
               );
               setSelectedWeeks([]);
               setShowWeekModal(false);
             } catch (error) {
+              console.error("Unavailable weeks error:", error);
               Alert.alert(
                 "Error",
                 "Failed to mark as unavailable. Please try again."
@@ -760,7 +774,7 @@ const HomeScreen = () => {
     if (userDoc) {
       const name = userDoc?.name || null;
       setUserName(name);
-      
+
       // Check for required fields and show modals accordingly
       const isNameInvalid =
         !name ||
@@ -770,7 +784,7 @@ const HomeScreen = () => {
       const isDOBInvalid = !userDoc?.DOB || userDoc.DOB.trim() === "";
       const isPhoneInvalid = !userDoc?.phone || userDoc.phone.trim() === "";
       const hasChurch = userDoc?.church && userDoc.church.trim() !== "";
-      
+
       setShowNameModal(isNameInvalid);
       setShowDOBModal(!isNameInvalid && isDOBInvalid);
       setShowPhoneModal(
@@ -779,7 +793,7 @@ const HomeScreen = () => {
           isPhoneInvalid &&
           !phoneModalShownThisSession
       );
-      
+
       // Church modal is controlled by real-time listener
     } else if (userError) {
       // Handle case where user document doesn't exist
@@ -839,11 +853,12 @@ const HomeScreen = () => {
             const scheduleData = doc.data();
             const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
             const [month, day, year] = scheduleDateStr.split("-").map(Number);
-            const scheduleDate = new Date(
-              2000 + year,
-              month - 1,
-              day
-            ).setHours(0, 0, 0, 0);
+            const scheduleDate = new Date(2000 + year, month - 1, day).setHours(
+              0,
+              0,
+              0,
+              0
+            );
 
             if (
               !closestDate ||
@@ -902,7 +917,7 @@ const HomeScreen = () => {
                   : []
               );
               setIsSSTeacher(userData.isSSTeacher || false);
-              
+
               // Data validation for grades
               if (
                 userData.alhanGrades &&
@@ -1121,9 +1136,18 @@ const HomeScreen = () => {
   // Show loading state while user data is loading
   if (userLoading) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ fontSize: 18, color: '#fff', marginBottom: 10 }}>Loading...</Text>
-        <Text style={{ fontSize: 14, color: '#888' }}>Getting your data ready</Text>
+      <SafeAreaView
+        style={[
+          styles.container,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
+        <Text style={{ fontSize: 18, color: "#fff", marginBottom: 10 }}>
+          Loading...
+        </Text>
+        <Text style={{ fontSize: 14, color: "#888" }}>
+          Getting your data ready
+        </Text>
       </SafeAreaView>
     );
   }
@@ -1131,21 +1155,39 @@ const HomeScreen = () => {
   // Show error state if user data failed to load
   if (userError && !userDoc) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ fontSize: 18, color: '#ff6b6b', marginBottom: 10 }}>Connection Error</Text>
-        <Text style={{ fontSize: 14, color: '#888', textAlign: 'center', marginBottom: 20 }}>
-          Unable to load your data. Check your internet connection.
+      <SafeAreaView
+        style={[
+          styles.container,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
+        <Text style={{ fontSize: 18, color: "#ff6b6b", marginBottom: 10 }}>
+          Connection Error
         </Text>
-        <TouchableOpacity 
-          onPress={refreshUser} 
-          style={{ 
-            backgroundColor: '#007AFF', 
-            padding: 12, 
-            borderRadius: 8,
-            minWidth: 120 
+        <Text
+          style={{
+            fontSize: 14,
+            color: "#888",
+            textAlign: "center",
+            marginBottom: 20,
           }}
         >
-          <Text style={{ color: 'white', textAlign: 'center', fontWeight: '600' }}>Retry</Text>
+          Unable to load your data. Check your internet connection.
+        </Text>
+        <TouchableOpacity
+          onPress={refreshUser}
+          style={{
+            backgroundColor: "#007AFF",
+            padding: 12,
+            borderRadius: 8,
+            minWidth: 120,
+          }}
+        >
+          <Text
+            style={{ color: "white", textAlign: "center", fontWeight: "600" }}
+          >
+            Retry
+          </Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -1183,11 +1225,11 @@ const HomeScreen = () => {
             <Text style={styles.modalSubtitle}>
               Please select your church to continue with the app.
             </Text>
-            
+
             <View style={styles.churchListContainer}>
               <Churches onSelectChurch={handleChurchSelection} />
             </View>
-            
+
             <Pressable
               style={({ pressed }) => [
                 styles.enhancedSubmitButton,
@@ -1568,242 +1610,239 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   header: {
-    fontSize: 28,
-    color: "#e0e0e0",
+    fontSize: 36,
+    color: "#fff",
     textAlign: "center",
-    marginVertical: 20,
-    fontWeight: "bold",
+    marginTop: 20,
+    marginBottom: 8,
+    fontWeight: "300",
+    letterSpacing: 1,
+  },
+  headerDivider: {
+    width: 60,
+    height: 2,
+    backgroundColor: "#333",
+    alignSelf: "center",
+    marginBottom: 30,
+    borderRadius: 1,
   },
   section: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
   },
   sectionTitle: {
     fontSize: 22,
     color: "#4d9cff",
-    marginBottom: 10,
-    fontWeight: "bold",
+    marginBottom: 14,
+    fontWeight: "600",
   },
   nextServiceWeek: {
     fontSize: 20,
     color: "#4d9cff",
     textAlign: "center",
-    marginBottom: 10,
-    fontWeight: "bold",
+    marginBottom: 12,
+    fontWeight: "600",
   },
   card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#2c2c2c",
+    backgroundColor: "#1a1a1a",
     padding: 16,
-    borderRadius: 10,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+    borderRadius: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
   },
   icon: {
-    marginRight: 10,
+    marginRight: 14,
   },
   name: {
     fontSize: 18,
-    color: "#e0e0e0",
+    color: "#fff",
+    fontWeight: "600",
   },
   nextServiceBox: {
-    backgroundColor: "#333333",
-    padding: 16,
-    borderRadius: 10,
-    marginHorizontal: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+    backgroundColor: "#1a1a1a",
+    padding: 20,
+    borderRadius: 14,
+    marginHorizontal: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
   },
   nextServiceText: {
     fontSize: 16,
-    color: "#e0e0e0",
+    color: "rgba(255,255,255,0.6)",
     textAlign: "center",
-    marginBottom: 5,
+    marginBottom: 8,
   },
   nextRoleText: {
     fontSize: 18,
-    color: "#e0e0e0",
+    color: "#fff",
     textAlign: "center",
-    fontWeight: "bold",
-    marginBottom: 10,
+    fontWeight: "600",
+    marginBottom: 16,
   },
   unavailableButton: {
     backgroundColor: "#ff3b30",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    marginVertical: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 14,
+    marginVertical: 12,
     alignSelf: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 5,
   },
   requestButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     color: "#ffffff",
-    fontWeight: "bold",
+    fontWeight: "600",
     textAlign: "center",
   },
   blackspace: {
     height: 0,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: "#121212",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
     justifyContent: "center",
     alignItems: "center",
   },
   modalContainer: {
-    backgroundColor: "#1e1e1e",
-    padding: 20,
-    borderRadius: 10,
-    width: "80%",
+    backgroundColor: "#1a1a1a",
+    padding: 24,
+    borderRadius: 14,
+    width: "85%",
     alignItems: "center",
-    position: "relative",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
   },
   modalDOBContainer: {
-    backgroundColor: "#252525",
-    borderRadius: 20,
-    padding: 24,
+    backgroundColor: "#1a1a1a",
+    borderRadius: 14,
+    padding: 28,
     alignItems: "center",
     marginHorizontal: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 10,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: "rgba(255, 255, 255, 0.06)",
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     width: "100%",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     color: "#fff",
-    fontWeight: "bold",
+    fontWeight: "600",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   modalSubtitle: {
-    fontSize: 16,
-    color: "#e0e0e0",
+    fontSize: 15,
+    color: "rgba(255,255,255,0.6)",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 24,
+    lineHeight: 22,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   input: {
     width: "100%",
-    backgroundColor: "#333333",
-    color: "#e0e0e0",
-    borderColor: "#555",
-    padding: 10,
-    borderRadius: 10,
-    marginVertical: 10,
-    fontSize: 18,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    color: "#fff",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+    padding: 14,
+    borderRadius: 14,
+    marginVertical: 8,
+    fontSize: 16,
   },
   datePickerContainer: {
-    backgroundColor: "#2A2A2A",
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     width: "100%",
     alignItems: "center",
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
   },
   dateText: {
     fontSize: 16,
-    color: "#F0FFF0",
+    color: "#fff",
     marginBottom: 10,
-    textAlign: Platform.OS === "ios" ? "center" : "center",
+    textAlign: "center",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   datePicker: {
     width: "100%",
   },
   submitButton: {
-    backgroundColor: "#2196F3",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    marginTop: 10,
+    backgroundColor: "#147EFB",
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 14,
+    marginTop: 12,
   },
   closeButton: {
-    padding: 5,
+    padding: 8,
   },
   buttonText: {
-    fontSize: 18,
+    fontSize: 16,
     color: "#ffffff",
-    fontWeight: "bold",
+    fontWeight: "600",
     textAlign: "center",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   weekButton: {
-    backgroundColor: "#2c2c2c",
-    paddingVertical: 12,
-    borderRadius: 5,
-    marginVertical: 5,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginVertical: 6,
     width: "100%",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
   },
   weekButtonSelected: {
     backgroundColor: "#ff3b30",
+    borderColor: "#ff3b30",
   },
   weekButtonText: {
     fontSize: 16,
-    color: "#e0e0e0",
+    color: "#fff",
     fontWeight: "500",
-    marginBottom: 5,
   },
   cancelButton: {
-    backgroundColor: "#555",
-    width: "40%",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    width: "45%",
   },
   modalButtonContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     width: "100%",
     marginTop: 20,
+    gap: 12,
   },
   enhancedModalContainer: {
-    backgroundColor: "#1C1C1E",
-    borderRadius: 28,
+    backgroundColor: "#1a1a1a",
+    borderRadius: 14,
     padding: 32,
     alignItems: "center",
     marginHorizontal: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
     position: "relative",
     overflow: "hidden",
   },
   churchModalContainer: {
-    backgroundColor: "#1C1C1E",
-    borderRadius: 28,
+    backgroundColor: "#1a1a1a",
+    borderRadius: 14,
     padding: 32,
     alignItems: "center",
     marginHorizontal: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
     position: "relative",
     overflow: "hidden",
     width: "90%",
@@ -1818,58 +1857,53 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 100,
+    height: 120,
     backgroundColor: "#147EFB",
-    opacity: 0.1,
+    opacity: 0.08,
   },
   modalIconContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: "rgba(20, 126, 251, 0.15)",
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: "rgba(255,255,255,0.05)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 20,
+    marginBottom: 24,
   },
   enhancedSubmitButton: {
     flexDirection: "row",
     backgroundColor: "#147EFB",
     paddingVertical: 16,
-    paddingHorizontal: 28,
+    paddingHorizontal: 32,
     borderRadius: 14,
-    marginTop: 20,
+    marginTop: 24,
     alignItems: "center",
-    shadowColor: "#147EFB",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
   },
   enhancedButtonPressed: {
-    opacity: 0.8,
+    opacity: 0.85,
     transform: [{ scale: 0.98 }],
   },
   enhancedButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     color: "#FFFFFF",
     fontWeight: "600",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   lastServeText: {
-    fontSize: 14,
-    color: "#888888",
+    fontSize: 13,
+    color: "rgba(255,255,255,0.4)",
     textAlign: "center",
-    marginTop: 8,
+    marginTop: 12,
     fontStyle: "italic",
   },
   churchItem: {
-    backgroundColor: "#2A2A2A",
+    backgroundColor: "rgba(255,255,255,0.05)",
     padding: 16,
-    marginVertical: 8,
+    marginVertical: 6,
     marginHorizontal: 10,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "transparent",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
   },
   selectedChurchItem: {
     backgroundColor: "#147EFB",
@@ -1877,7 +1911,7 @@ const styles = StyleSheet.create({
   },
   churchItemText: {
     fontSize: 16,
-    color: "#E0E0E0",
+    color: "rgba(255,255,255,0.7)",
     fontWeight: "500",
     textAlign: "center",
   },

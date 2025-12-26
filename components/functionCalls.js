@@ -1,12 +1,12 @@
 import { Alert } from "react-native";
 
-export const callFunction = async ({
+export const callFunction = async (
   user,
   url,
   payload = {},
   errorMessage = "Request failed. Please try again.",
-  awaitResponse = false,
-}) => {
+  awaitResponse = false
+) => {
   try {
     const idToken = await user.getIdToken();
 
@@ -25,9 +25,16 @@ export const callFunction = async ({
         throw new Error(`HTTP ${res.status}`);
       }
       return await res.json().catch(() => null);
+    } else {
+      request.catch((error) => {
+        console.error("Background request failed:", error);
+        Alert.alert("Error", errorMessage);
+      });
     }
   } catch (err) {
     Alert.alert("Error", errorMessage);
     throw err;
   }
 };
+
+export default callFunction;

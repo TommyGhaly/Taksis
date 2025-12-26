@@ -1,38 +1,36 @@
 import * as React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Text,
   StyleSheet,
   View,
   ScrollView,
   TouchableOpacity,
-  Image,
+  Pressable,
   Alert,
+  Animated,
+  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import BackArrow from "../../components/backArrow";
 import ProfileImageExpander from "../../components/ProfileImageExpander";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { Ionicons } from "@expo/vector-icons";
 import PhotoInput from "../../components/photoInput";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 
-// Haptic feedback options
 const hapticOptions = {
   enableVibrateFallback: true,
   ignoreAndroidSystemSettings: false,
 };
 
-// Cache keys
 const CACHE_KEYS = {
   USER_DATA: 'user_data_',
   IMAGE_URL: 'image_url_',
   CACHE_TIMESTAMP: '_timestamp'
 };
 
-// Cache duration (3 days in milliseconds)
 const CACHE_DURATION = 3 * 24 * 60 * 60 * 1000;
 
 const AccountInfo = ({ navigation }) => {
@@ -42,13 +40,21 @@ const AccountInfo = ({ navigation }) => {
   const [isLoadingFromCache, setIsLoadingFromCache] = useState(true);
   const user = auth().currentUser;
 
-  // Helper function to check if cache is valid
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  const contentAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.stagger(100, [
+      Animated.spring(headerAnim, { toValue: 1, useNativeDriver: true, tension: 50, friction: 8 }),
+      Animated.spring(contentAnim, { toValue: 1, useNativeDriver: true, tension: 50, friction: 8 }),
+    ]).start();
+  }, []);
+
   const isCacheValid = async (key) => {
     try {
       const timestampKey = key + CACHE_KEYS.CACHE_TIMESTAMP;
       const timestamp = await AsyncStorage.getItem(timestampKey);
       if (!timestamp) return false;
-      
       const cacheTime = parseInt(timestamp);
       const currentTime = Date.now();
       return (currentTime - cacheTime) < CACHE_DURATION;
@@ -57,7 +63,6 @@ const AccountInfo = ({ navigation }) => {
     }
   };
 
-  // Helper function to save to cache
   const saveToCache = async (key, data) => {
     try {
       await AsyncStorage.setItem(key, JSON.stringify(data));
@@ -67,12 +72,10 @@ const AccountInfo = ({ navigation }) => {
     }
   };
 
-  // Helper function to get from cache
   const getFromCache = async (key) => {
     try {
       const isValid = await isCacheValid(key);
       if (!isValid) return null;
-      
       const cachedData = await AsyncStorage.getItem(key);
       return cachedData ? JSON.parse(cachedData) : null;
     } catch (error) {
@@ -81,7 +84,6 @@ const AccountInfo = ({ navigation }) => {
     }
   };
 
-  // Helper function to clear cache for a specific key
   const clearCache = async (key) => {
     try {
       await AsyncStorage.removeItem(key);
@@ -96,14 +98,10 @@ const AccountInfo = ({ navigation }) => {
       try {
         if (user) {
           const cacheKey = CACHE_KEYS.USER_DATA + user.uid;
-          
-          // Try to get from cache first
           const cachedData = await getFromCache(cacheKey);
           if (cachedData) {
             setUserData(cachedData);
             setIsLoadingFromCache(false);
-            
-            // Fetch fresh data in background
             firestore()
               .collection("users")
               .doc(user.uid)
@@ -116,11 +114,7 @@ const AccountInfo = ({ navigation }) => {
                 }
               });
           } else {
-            // No cache, fetch from Firestore
-            const userDoc = await firestore()
-              .collection("users")
-              .doc(user.uid)
-              .get();
+            const userDoc = await firestore().collection("users").doc(user.uid).get();
             if (userDoc.exists) {
               const freshData = userDoc.data();
               setUserData(freshData);
@@ -134,7 +128,6 @@ const AccountInfo = ({ navigation }) => {
         Alert.alert("Error", "Failed to fetch user data. Please try again.");
       }
     };
-
     fetchUserData();
   }, [user]);
 
@@ -143,13 +136,9 @@ const AccountInfo = ({ navigation }) => {
       const fetchImage = async () => {
         try {
           const cacheKey = CACHE_KEYS.IMAGE_URL + user.uid;
-          
-          // Try to get from cache first
           const cachedUrl = await getFromCache(cacheKey);
           if (cachedUrl && typeof cachedUrl === "string" && cachedUrl.trim() !== "") {
             setImageUrl(cachedUrl);
-            
-            // Verify the cached URL is still valid in background
             storage()
               .ref(`profilePictures/${user.uid}.png`)
               .getDownloadURL()
@@ -159,14 +148,9 @@ const AccountInfo = ({ navigation }) => {
                   saveToCache(cacheKey, url);
                 }
               })
-              .catch(() => {
-                clearCache(cacheKey);
-              });
+              .catch(() => clearCache(cacheKey));
           } else {
-            // No cache, fetch from Storage
-            const url = await storage()
-              .ref(`profilePictures/${user.uid}.png`)
-              .getDownloadURL();
+            const url = await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
             if (typeof url === "string" && url.trim() !== "") {
               setImageUrl(url);
               saveToCache(cacheKey, url);
@@ -178,14 +162,8 @@ const AccountInfo = ({ navigation }) => {
           setImageUrl(null);
         }
       };
-
-      // Fetch image immediately
       fetchImage();
-
-      // Set up interval to check for updates every 30 seconds
       const intervalId = setInterval(fetchImage, 30000);
-
-      // Cleanup interval on component unmount or user change
       return () => clearInterval(intervalId);
     } else {
       setImageUrl(null);
@@ -200,10 +178,8 @@ const AccountInfo = ({ navigation }) => {
   const handlePhotoUpload = async () => {
     setShowPhotoModal(false);
     try {
-      // Clear the image cache when uploading new photo
       const cacheKey = CACHE_KEYS.IMAGE_URL + user.uid;
       await clearCache(cacheKey);
-      
       const storagePath = `profilePictures/${user.uid}.png`;
       const newUrl = await storage().ref(storagePath).getDownloadURL();
       if (typeof newUrl === "string" && newUrl.trim() !== "") {
@@ -220,96 +196,105 @@ const AccountInfo = ({ navigation }) => {
   if (!userData) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.loadingText}>
-          {isLoadingFromCache ? "Loading..." : "Loading..."}
-        </Text>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
+  const InfoCard = ({ label, value }) => (
+    <View style={styles.infoCard}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollViewContent}
-        showsVerticalScrollIndicator={false}
+      <Animated.View
+        style={[
+          styles.headerContainer,
+          {
+            transform: [{ translateY: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
+            opacity: headerAnim,
+          },
+        ]}
       >
-        <View style={styles.header}>
-          <BackArrow />
-          <Text style={[styles.accountInfo, styles.text]}>Account info</Text>
+        <Pressable
+          style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1 }]}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="chevron-back" size={22} color="#fff" />
+        </Pressable>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerSubtext}>PROFILE</Text>
+          <Text style={styles.headerTitle}>Account Info</Text>
         </View>
-        <View style={styles.profileImageContainer}>
-          <ProfileImageExpander
-            imageUrl={imageUrl}
-            size={100}
-            finalSize={300}
-            borderRadius={50}
-            style={styles.profileImage}
-          />
-          <TouchableOpacity
-            style={styles.editIconContainer}
-            onPress={handleEditPhoto}
-            activeOpacity={0.7}
-            accessibilityLabel="Edit Profile Picture"
-          >
-            <Icon name="pencil" size={18} color="#fff" />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.infoBlock}>
-          <Text style={styles.infoText}>{userData.name || "First Last"}</Text>
-        </View>
-        <View style={styles.infoBlock}>
-          <Text style={styles.infoText}>
-            {userData.email || "example@gmail.com"}
-          </Text>
-        </View>
-        <View style={styles.infoBlock}>
-          <Text style={styles.infoText}>{userData.phone || "1234567890"}</Text>
-        </View>
-        {/* Conditionally render the Rank field if the user is a deacon */}
-        {userData.isDeacon && (
-          <View style={styles.infoBlock}>
-            <Text style={styles.infoText}>{userData.rank || "Deacon"}</Text>
-          </View>
-        )}
-        <View style={styles.infoBlock}>
-          <Text style={styles.infoText}>{userData.church || "Church 1"}</Text>
-        </View>
-        <View style={styles.infoBlock}>
-          <Text style={styles.infoText}>{userData.DOB || "Date of Birth"}</Text>
-        </View>
-        {/* Conditionally render the Children heading and list if children exist */}
-        {userData.children && userData.children.length > 0 && (
-          <>
-            <Text style={[styles.childHeading, styles.text]}>Children</Text>
-            {(userData.children || []).map((child, index) => (
+      </Animated.View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <Animated.View
+          style={{
+            transform: [{ translateY: contentAnim.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }],
+            opacity: contentAnim,
+          }}
+        >
+          <View style={styles.profileSection}>
+            <View style={styles.profileImageWrapper}>
+              <ProfileImageExpander
+                imageUrl={imageUrl}
+                size={100}
+                finalSize={300}
+                borderRadius={50}
+                style={styles.profileImage}
+              />
               <TouchableOpacity
-                key={index}
-                style={styles.childInfo}
-                onPress={() =>
-                  navigation.navigate("ChildAccountInfo", {
-                    childUid: child.uid,
-                  })
-                }
+                style={styles.editIconContainer}
+                onPress={handleEditPhoto}
+                activeOpacity={0.7}
               >
-                <Text style={styles.infoText}>
-                  {child.name || `Child ${index + 1} First Last`}
-                </Text>
-                <Image
-                  style={styles.vectorIcon}
-                  resizeMode="cover"
-                  source={require("../../assets/vector.png")}
-                />
+                <Ionicons name="pencil" size={16} color="#fff" />
               </TouchableOpacity>
-            ))}
-          </>
-        )}
+            </View>
+            <Text style={styles.profileName}>{userData.name || "User"}</Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Personal Information</Text>
+            <InfoCard label="Email" value={userData.email || "Not set"} />
+            <InfoCard label="Phone" value={userData.phone || "Not set"} />
+            <InfoCard label="Date of Birth" value={userData.DOB || "Not set"} />
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Church Information</Text>
+            <InfoCard label="Church" value={userData.church || "Not set"} />
+            {userData.isDeacon && (
+              <InfoCard label="Rank" value={userData.rank || "Deacon"} />
+            )}
+          </View>
+
+          {userData.children && userData.children.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Children</Text>
+              {userData.children.map((child, index) => (
+                <Pressable
+                  key={index}
+                  style={({ pressed }) => [
+                    styles.childCard,
+                    { opacity: pressed ? 0.8 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
+                  ]}
+                  onPress={() => navigation.navigate("ChildAccountInfo", { childUid: child.uid })}
+                >
+                  <Text style={styles.childName}>{child.name || `Child ${index + 1}`}</Text>
+                  <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </Animated.View>
       </ScrollView>
 
-      <PhotoInput
-        visible={showPhotoModal}
-        onClose={handlePhotoUpload}
-        userId={user?.uid}
-      />
+      <PhotoInput visible={showPhotoModal} onClose={handlePhotoUpload} userId={user?.uid} />
     </View>
   );
 };
@@ -319,83 +304,119 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#121212",
   },
-  scrollViewContent: {
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-  },
-  text: {
-    color: "#fff",
-  },
-  header: {
+  headerContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
+    paddingTop: Platform.OS === "ios" ? 55 : 35,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
   },
-  accountInfo: {
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: "center",
+    marginRight: 36,
+  },
+  headerSubtext: {
+    fontSize: 11,
+    color: "#555",
+    letterSpacing: 3,
+    marginBottom: 6,
+  },
+  headerTitle: {
     fontSize: 24,
-    marginLeft: 16, // Creates spacing between the back arrow and the title
-  },
-  infoBlock: {
-    backgroundColor: "#2e2e2e",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  infoText: {
-    fontSize: 16,
     color: "#fff",
+    fontWeight: "300",
+    letterSpacing: 1,
   },
-  childHeading: {
-    fontSize: 18,
-    marginTop: 20,
-    marginBottom: 12,
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
   },
-  childInfo: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  profileSection: {
     alignItems: "center",
-    backgroundColor: "#2e2e2e",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 12,
+    marginBottom: 30,
   },
-  vectorIcon: {
-    width: 8,
-    height: 16,
+  profileImageWrapper: {
+    position: "relative",
+    marginBottom: 16,
   },
   profileImage: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    marginTop: 5,
-    borderWidth: 1,
-    borderColor: "#333333",
-  },
-  profileImageContainer: {
-    alignItems: "center",
-    marginBottom: 30,
-    position: "relative",
   },
   editIconContainer: {
     position: "absolute",
-    top: -5,
-    right: "50%",
-    marginRight: -55,
-    backgroundColor: "#147efb",
-    borderRadius: 16,
-    width: 32,
-    height: 32,
+    bottom: 0,
+    right: 0,
+    backgroundColor: "#147EFB",
+    borderRadius: 14,
+    width: 28,
+    height: 28,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    borderColor: "#121212",
+  },
+  profileName: {
+    fontSize: 24,
+    color: "#fff",
+    fontWeight: "600",
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    color: "#4d9cff",
+    marginBottom: 14,
+    fontWeight: "600",
+  },
+  infoCard: {
+    backgroundColor: "#1a1a1a",
+    padding: 16,
+    borderRadius: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+  },
+  infoLabel: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.5)",
+    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  infoValue: {
+    fontSize: 17,
+    color: "#fff",
+    fontWeight: "600",
+  },
+  childCard: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  childName: {
+    fontSize: 17,
+    color: "#fff",
+    fontWeight: "600",
+    flex: 1,
   },
   centered: {
     flex: 1,
@@ -405,7 +426,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: "#aaa",
+    color: "rgba(255,255,255,0.5)",
   },
 });
 
