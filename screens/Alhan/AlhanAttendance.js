@@ -20,17 +20,15 @@ import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
 import * as Haptics from "react-native-haptic-feedback";
-import Icon from "react-native-vector-icons/MaterialIcons";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Simple cache utilities
 const CacheUtils = {
   async get(key) {
     try {
       const cached = await AsyncStorage.getItem(key);
       if (cached) {
         const parsed = JSON.parse(cached);
-        // Check if cache is still valid (24 hours)
         if (Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
           return parsed.data;
         }
@@ -40,18 +38,13 @@ const CacheUtils = {
     }
     return null;
   },
-
   async set(key, data) {
     try {
-      await AsyncStorage.setItem(key, JSON.stringify({
-        data,
-        timestamp: Date.now()
-      }));
+      await AsyncStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
     } catch (error) {
       console.log('Cache write error:', error);
     }
   },
-
   async remove(key) {
     try {
       await AsyncStorage.removeItem(key);
@@ -65,12 +58,9 @@ const AlhanAttendance = () => {
   const navigation = useNavigation();
   const user = auth().currentUser;
   
-  // Core state
   const [userData, setUserData] = useState(null);
   const [studentsByGrade, setStudentsByGrade] = useState({});
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
-  
-  // UI state
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [newStudentName, setNewStudentName] = useState("");
@@ -82,106 +72,71 @@ const AlhanAttendance = () => {
   const [isNavigating, setIsNavigating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   
-  // Refs
   const sectionListRef = useRef(null);
   const isMounted = useRef(true);
   const studentUnsubscribes = useRef([]);
   const userUnsubscribe = useRef(null);
-  const cacheKeys = useRef({
-    user: null,
-    students: {},
-    profilePics: null
-  });
+  const cacheKeys = useRef({ user: null, students: {}, profilePics: null });
 
-  // Initialize and load cached data immediately
   useEffect(() => {
     isMounted.current = true;
-    
     const initializeApp = async () => {
       if (!user) {
         Alert.alert("Error", "No user found.");
         setLoading(false);
         return;
       }
-
-      // Set cache keys
       cacheKeys.current = {
         user: `alhan_user_${user.uid}`,
         students: {},
         profilePics: `alhan_profile_pics_${user.uid}`
       };
-
-      // Load cached data immediately (non-blocking)
       loadCachedData();
-      
-      // Generate previous Saturdays
       await generatePreviousSaturdays();
-      
-      // Set up real-time listeners
       setupUserListener();
-      
-      // Mark loading as complete after a short delay
       setTimeout(() => {
-        if (isMounted.current) {
-          setLoading(false);
-        }
+        if (isMounted.current) setLoading(false);
       }, 300);
     };
-
     initializeApp();
-
     return () => {
       isMounted.current = false;
-      if (userUnsubscribe.current) {
-        userUnsubscribe.current();
-      }
+      if (userUnsubscribe.current) userUnsubscribe.current();
       studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
       studentUnsubscribes.current = [];
     };
   }, [user]);
 
-  // Load cached data without blocking
   const loadCachedData = async () => {
     try {
-      // Load all cached data in parallel
       const [cachedUser, cachedProfilePics] = await Promise.all([
         CacheUtils.get(cacheKeys.current.user),
         CacheUtils.get(cacheKeys.current.profilePics)
       ]);
-
       if (cachedUser && isMounted.current) {
         setUserData(cachedUser);
         if (cachedUser.alhanGrades?.length > 0) {
           setNewStudentGrade(cachedUser.alhanGrades[0]);
-          
-          // Load cached students for each grade
           const cachedStudents = {};
           await Promise.all(
             cachedUser.alhanGrades.map(async (grade) => {
               const cacheKey = `alhan_students_${user.uid}_${grade}`;
               cacheKeys.current.students[grade] = cacheKey;
               const cached = await CacheUtils.get(cacheKey);
-              if (cached) {
-                cachedStudents[grade] = cached;
-              }
+              if (cached) cachedStudents[grade] = cached;
             })
           );
-          
           if (Object.keys(cachedStudents).length > 0 && isMounted.current) {
             setStudentsByGrade(cachedStudents);
           }
         }
       }
-
-      if (cachedProfilePics && isMounted.current) {
-        setProfilePictureUrls(cachedProfilePics);
-      }
+      if (cachedProfilePics && isMounted.current) setProfilePictureUrls(cachedProfilePics);
     } catch (error) {
       console.log('Error loading cached data:', error);
     }
   };
 
-  // Set up user listener
   const setupUserListener = () => {
     userUnsubscribe.current = firestore()
       .collection("users")
@@ -189,24 +144,16 @@ const AlhanAttendance = () => {
       .onSnapshot(
         async (doc) => {
           if (!isMounted.current) return;
-          
           if (!doc.exists) {
             Alert.alert("Error", "User not found.");
             return;
           }
-          
           const newUserData = doc.data();
           setUserData(newUserData);
-          
-          // Cache user data
           await CacheUtils.set(cacheKeys.current.user, newUserData);
-          
-          // Update new student grade default
           if (newUserData.alhanGrades?.length > 0) {
             setNewStudentGrade(prevGrade => {
-              if (newUserData.alhanGrades.includes(prevGrade)) {
-                return prevGrade;
-              }
+              if (newUserData.alhanGrades.includes(prevGrade)) return prevGrade;
               return newUserData.alhanGrades[0];
             });
           } else {
@@ -214,14 +161,11 @@ const AlhanAttendance = () => {
           }
         },
         (error) => {
-          if (isMounted.current) {
-            Alert.alert("Error", error.message);
-          }
+          if (isMounted.current) Alert.alert("Error", error.message);
         }
       );
   };
 
-  // Subscribe to students based on current alhanGrades
   useEffect(() => {
     if (!userData?.church || !userData?.alhanGrades?.length) {
       setStudentsByGrade({});
@@ -229,27 +173,18 @@ const AlhanAttendance = () => {
       studentUnsubscribes.current = [];
       return;
     }
-
-    // Clean up removed grades
     setStudentsByGrade(prevStudents => {
       const updatedStudents = {};
       userData.alhanGrades.forEach(grade => {
-        if (prevStudents[grade]) {
-          updatedStudents[grade] = prevStudents[grade];
-        }
+        if (prevStudents[grade]) updatedStudents[grade] = prevStudents[grade];
       });
       return updatedStudents;
     });
-
-    // Unsubscribe from previous listeners
     studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
     studentUnsubscribes.current = [];
-
-    // Set up new listeners for current grades
     const newUnsubscribes = userData.alhanGrades.map((grade) => {
       const cacheKey = `alhan_students_${user.uid}_${grade}`;
       cacheKeys.current.students[grade] = cacheKey;
-      
       return firestore()
         .collection("churches")
         .doc(userData.church)
@@ -259,46 +194,27 @@ const AlhanAttendance = () => {
         .onSnapshot(
           async (snapshot) => {
             if (!isMounted.current) return;
-            const students = snapshot.docs.map((doc) => ({
-              uid: doc.id,
-              grade,
-              ...doc.data(),
-            }));
+            const students = snapshot.docs.map((doc) => ({ uid: doc.id, grade, ...doc.data() }));
             students.sort((a, b) => a.name.localeCompare(b.name));
-
-            setStudentsByGrade((prev) => ({
-              ...prev,
-              [grade]: students,
-            }));
-            
-            // Cache the students data
+            setStudentsByGrade((prev) => ({ ...prev, [grade]: students }));
             await CacheUtils.set(cacheKey, students);
           },
           (error) => {
-            if (isMounted.current) {
-              Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
-            }
+            if (isMounted.current) Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
           }
         );
     });
-
     studentUnsubscribes.current = newUnsubscribes;
-
-    // Fetch profile pictures
     fetchProfilePictureUrls();
-
     return () => {
       studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
       studentUnsubscribes.current = [];
     };
   }, [userData?.church, userData?.alhanGrades?.join(",")]);
 
-  // Fetch profile pictures with caching
   const fetchProfilePictureUrls = async () => {
     if (!userData?.church || !userData?.alhanGrades?.length) return;
-    
     try {
-      // Get all students from current grades
       const allStudents = [];
       await Promise.all(
         userData.alhanGrades.map(async (grade) => {
@@ -309,25 +225,16 @@ const AlhanAttendance = () => {
             .doc(grade)
             .collection("students")
             .get();
-          
-          const students = snapshot.docs.map((doc) => ({
-            uid: doc.id,
-            grade,
-            ...doc.data(),
-          }));
+          const students = snapshot.docs.map((doc) => ({ uid: doc.id, grade, ...doc.data() }));
           allStudents.push(...students);
         })
       );
-
-      // Fetch all profile pictures at once
       const urls = {};
       await Promise.all(
         allStudents.map(async (student) => {
           if (student.uid) {
             try {
-              const url = await storage()
-                .ref(`profilePictures/${student.uid}.png`)
-                .getDownloadURL();
+              const url = await storage().ref(`profilePictures/${student.uid}.png`).getDownloadURL();
               urls[student.uid] = typeof url === "string" && url.trim() ? url : null;
             } catch (error) {
               urls[student.uid] = null;
@@ -335,10 +242,8 @@ const AlhanAttendance = () => {
           }
         })
       );
-      
       if (isMounted.current) {
         setProfilePictureUrls(urls);
-        // Cache profile picture URLs
         await CacheUtils.set(cacheKeys.current.profilePics, urls);
       }
     } catch (error) {
@@ -346,44 +251,26 @@ const AlhanAttendance = () => {
     }
   };
 
-  // Set up interval for profile picture updates
   useEffect(() => {
     if (!userData?.church || !userData?.alhanGrades?.length) return;
-
     const intervalId = setInterval(fetchProfilePictureUrls, 30000);
-
-    return () => {
-      clearInterval(intervalId);
-    };
+    return () => clearInterval(intervalId);
   }, [userData?.church, userData?.alhanGrades?.join(",")]);
 
   const generatePreviousSaturdays = async () => {
     const today = new Date();
     const saturdays = [];
     let currentDate = new Date(today);
-
     const currentYear = today.getFullYear();
     const september11ThisYear = new Date(currentYear, 8, 11);
-    const cutoffDate =
-      today < september11ThisYear
-        ? new Date(currentYear - 1, 8, 11)
-        : september11ThisYear;
-
-    // Adjust to the most recent Saturday
+    const cutoffDate = today < september11ThisYear ? new Date(currentYear - 1, 8, 11) : september11ThisYear;
     const currentDay = currentDate.getDay();
-    const daysSinceSaturday =
-      currentDay === 6
-        ? 0
-        : currentDay < 6
-        ? currentDay + 1
-        : currentDay - 6;
+    const daysSinceSaturday = currentDay === 6 ? 0 : currentDay < 6 ? currentDay + 1 : currentDay - 6;
     currentDate.setDate(currentDate.getDate() - daysSinceSaturday);
-
     while (currentDate >= cutoffDate) {
       saturdays.push(formatDate(currentDate));
       currentDate.setDate(currentDate.getDate() - 7);
     }
-
     setPreviousSaturdays(saturdays);
   };
 
@@ -404,12 +291,9 @@ const AlhanAttendance = () => {
   };
 
   const formatGrade = (grade) => {
-    if (isNaN(parseInt(grade))) {
-      return grade;
-    }
+    if (isNaN(parseInt(grade))) return grade;
     const num = parseInt(grade);
-    const suffix =
-      num === 1 ? "st" : num === 2 ? "nd" : num === 3 ? "rd" : "th";
+    const suffix = num === 1 ? "st" : num === 2 ? "nd" : num === 3 ? "rd" : "th";
     return `${num}${suffix} Grade`;
   };
 
@@ -424,9 +308,7 @@ const AlhanAttendance = () => {
       .doc(student.grade)
       .collection("students")
       .doc(student.uid)
-      .update({
-        [dateKey]: status,
-      });
+      .update({ [dateKey]: status });
   };
 
   const addStudent = async () => {
@@ -438,14 +320,11 @@ const AlhanAttendance = () => {
       Alert.alert("Error", "Please select a grade");
       return;
     }
-    
-    // Verify the grade is still assigned to the user
     if (!userData?.alhanGrades?.includes(newStudentGrade)) {
       Alert.alert("Error", "You are no longer assigned to this grade");
       setNewStudentGrade(userData?.alhanGrades?.[0] || "");
       return;
     }
-
     setSubmitting(true);
     const newStudentRef = firestore()
       .collection("churches")
@@ -454,7 +333,6 @@ const AlhanAttendance = () => {
       .doc(newStudentGrade)
       .collection("students")
       .doc();
-
     try {
       await newStudentRef.set({
         name: newStudentName,
@@ -467,8 +345,6 @@ const AlhanAttendance = () => {
       setModalVisible(false);
       setNewStudentName("");
       setNewStudentGrade(userData?.alhanGrades[0] || "");
-      
-      // Clear cache for this grade to force refresh
       await CacheUtils.remove(cacheKeys.current.students[newStudentGrade]);
     } catch (error) {
       Alert.alert("Error", "Failed to add student");
@@ -477,13 +353,10 @@ const AlhanAttendance = () => {
     }
   };
 
-  // Filtered students by grade based on search query
   const filteredStudentsByGrade = useMemo(() => {
     if (!searchQuery.trim()) return studentsByGrade;
     const lower = searchQuery.toLowerCase();
     const filtered = {};
-    
-    // Only include grades that the user is currently assigned to
     if (userData?.alhanGrades) {
       userData.alhanGrades.forEach((grade) => {
         filtered[grade] = (studentsByGrade[grade] || []).filter((student) =>
@@ -491,35 +364,25 @@ const AlhanAttendance = () => {
         );
       });
     }
-    
     return filtered;
   }, [studentsByGrade, searchQuery, userData?.alhanGrades]);
 
-  // Prepare sections for SectionList
   const gradeSections = useMemo(() => {
     if (!userData?.alhanGrades) return [];
     const sections = userData.alhanGrades.map((grade) => ({
       title: grade,
       data: filteredStudentsByGrade[grade] || [],
     }));
-    
-    // When searching, only include sections that have students
     if (searchQuery.trim()) {
       return sections.filter(section => section.data.length > 0);
     }
-    
     return sections;
   }, [userData?.alhanGrades, filteredStudentsByGrade, searchQuery]);
 
-  // Scroll to section header for grade
   const scrollToGrade = useCallback((grade) => {
     if (!sectionListRef.current) return;
-    
-    // Find the section index in the actual rendered sections
     const sectionIndex = gradeSections.findIndex((section) => section.title === grade);
-    
     if (sectionIndex >= 0) {
-      // Use a small timeout to ensure the list has rendered
       setTimeout(() => {
         if (sectionListRef.current && isMounted.current) {
           try {
@@ -531,8 +394,7 @@ const AlhanAttendance = () => {
               viewOffset: 0,
             });
           } catch (error) {
-            // Fallback: try scrolling to the beginning of the section
-            console.log("Scroll to location failed, trying fallback");
+            console.log("Scroll to location failed");
           }
         }
       }, 150);
@@ -552,18 +414,12 @@ const AlhanAttendance = () => {
   const renderGrade = useMemo(
     () =>
       ({ item }) => {
-        // When searching, only show grades that have matching students
         if (searchQuery.trim()) {
           const hasStudents = gradeSections.some(section => section.title === item && section.data.length > 0);
           if (!hasStudents) return null;
         }
-        
         return (
-          <TouchableOpacity
-            style={styles.gradeTag}
-            onPress={() => scrollToGrade(item)}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity style={styles.gradeTag} onPress={() => scrollToGrade(item)} activeOpacity={0.7}>
             <Text style={styles.gradeTagText}>{formatGrade(item)}</Text>
           </TouchableOpacity>
         );
@@ -574,11 +430,7 @@ const AlhanAttendance = () => {
   const renderDate = useMemo(
     () =>
       ({ item }) => (
-        <TouchableOpacity
-          style={styles.dateItem}
-          onPress={() => handleDateSelect(item)}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity style={styles.dateItem} onPress={() => handleDateSelect(item)} activeOpacity={0.7}>
           <Text style={styles.dateText}>{item}</Text>
         </TouchableOpacity>
       ),
@@ -586,7 +438,7 @@ const AlhanAttendance = () => {
   );
 
   const renderStudent = useCallback(
-    ({ item: student, section }) => {
+    ({ item: student }) => {
       const dateKey = selectedDate || getNextSaturday();
       const isPastDate = selectedDate && selectedDate !== getNextSaturday();
       return (
@@ -594,24 +446,13 @@ const AlhanAttendance = () => {
           <View style={styles.studentHeader}>
             <Image
               style={styles.profilePicture}
-              source={
-                profilePictureUrls[student.uid]
-                  ? { uri: profilePictureUrls[student.uid] }
-                  : require("../../assets/default_profile.png")
-              }
+              source={profilePictureUrls[student.uid] ? { uri: profilePictureUrls[student.uid] } : require("../../assets/default_profile.png")}
               defaultSource={require("../../assets/default_profile.png")}
               resizeMode="cover"
-              onError={() =>
-                setProfilePictureUrls((prev) => ({
-                  ...prev,
-                  [student.uid]: null,
-                }))
-              }
+              onError={() => setProfilePictureUrls((prev) => ({ ...prev, [student.uid]: null }))}
             />
             <View style={styles.studentInfo}>
-              <Text style={styles.studentName}>
-                {student.name} - {formatGrade(student.grade)}
-              </Text>
+              <Text style={styles.studentName}>{student.name} - {formatGrade(student.grade)}</Text>
               <TouchableOpacity
                 hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                 onPress={() => {
@@ -619,28 +460,23 @@ const AlhanAttendance = () => {
                     Alert.alert("Error", "User data not loaded.");
                     return;
                   }
-                  
                   if (!userData.alhanGrades) {
                     Alert.alert("Error", "Alhan grades not loaded.");
                     return;
                   }
-                  
                   setIsNavigating(true);
                   navigation.navigate("IndividualAttendance", {
                     church: userData.church,
                     category: "Hymns Class",
                     grade: student.grade,
                     studentId: student.uid,
-                    userGrades: userData?.alhanGrades || [], // Pass grades the user teaches with fallback
+                    userGrades: userData?.alhanGrades || [],
                   });
                   setTimeout(() => setIsNavigating(false), 1000);
                 }}
                 disabled={isNavigating}
               >
-                <Image
-                  source={require("../../assets/vector.png")}
-                  style={styles.icon}
-                />
+                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
               </TouchableOpacity>
             </View>
           </View>
@@ -651,46 +487,26 @@ const AlhanAttendance = () => {
                   styles.attendanceStatus,
                   {
                     backgroundColor:
-                      student[dateKey] === true
-                        ? "#147efb"
-                        : student[dateKey] === false
-                        ? "#D32F2F"
-                        : "#444",
+                      student[dateKey] === true ? "#147EFB" : student[dateKey] === false ? "#ff3b30" : "rgba(255,255,255,0.1)",
                   },
                 ]}
               >
                 <Text style={styles.attendanceStatusText}>
-                  {student[dateKey] === true
-                    ? "Present"
-                    : student[dateKey] === false
-                    ? "Absent"
-                    : "Not Recorded"}
+                  {student[dateKey] === true ? "Present" : student[dateKey] === false ? "Absent" : "Not Recorded"}
                 </Text>
               </View>
             </View>
           ) : (
             <View style={styles.attendanceButtons}>
               <TouchableOpacity
-                style={[
-                  styles.attendanceButton,
-                  {
-                    backgroundColor:
-                      student[dateKey] === false ? "#D32F2F" : "#444",
-                  },
-                ]}
+                style={[styles.attendanceButton, { backgroundColor: student[dateKey] === false ? "#ff3b30" : "rgba(255,255,255,0.08)" }]}
                 onPress={() => handleAttendance(student, false)}
                 activeOpacity={0.7}
               >
                 <Text style={styles.attendanceButtonText}>Absent</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.attendanceButton,
-                  {
-                    backgroundColor:
-                      student[dateKey] === true ? "#147efb" : "#444",
-                  },
-                ]}
+                style={[styles.attendanceButton, { backgroundColor: student[dateKey] === true ? "#147EFB" : "rgba(255,255,255,0.08)" }]}
                 onPress={() => handleAttendance(student, true)}
                 activeOpacity={0.7}
               >
@@ -704,16 +520,10 @@ const AlhanAttendance = () => {
     [profilePictureUrls, userData, selectedDate, isNavigating]
   );
 
-  const memoizedProfilePictureUrls = useMemo(
-    () => profilePictureUrls,
-    [profilePictureUrls]
-  );
-
-  // Show minimal loading only on first load
   if (loading && !userData && Object.keys(studentsByGrade).length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#147efb" />
+        <ActivityIndicator size="large" color="#147EFB" />
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
@@ -721,40 +531,28 @@ const AlhanAttendance = () => {
 
   if (!userData || !userData.alhanGrades || userData.alhanGrades.length === 0) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.message}>
-          Contact your church's alhan admin to get assigned a Hymns class.
-        </Text>
+      <View style={styles.emptyContainer}>
+        <Ionicons name="musical-notes-outline" size={64} color="rgba(255,255,255,0.3)" />
+        <Text style={styles.message}>Contact your church's alhan admin to get assigned a Hymns class.</Text>
       </View>
     );
   }
 
   const dateKey = selectedDate || getNextSaturday();
-  const isPastDate = selectedDate && selectedDate !== getNextSaturday();
 
   return (
     <View style={styles.container}>
       {isNavigating && (
         <View style={styles.navigatingOverlay}>
-          <ActivityIndicator size="large" color="#147efb" />
-          <Text style={styles.loadingText}>Navigating...</Text>
+          <ActivityIndicator size="large" color="#147EFB" />
         </View>
       )}
-      <TouchableOpacity
-        style={styles.titleContainer}
-        onPress={() => setDateModalVisible(true)}
-        activeOpacity={0.7}
-        accessible={true}
-        accessibilityLabel="Select previous week"
-      >
+
+      <TouchableOpacity style={styles.titleContainer} onPress={() => setDateModalVisible(true)} activeOpacity={0.7}>
         <Text style={styles.title}>{dateKey}</Text>
-        <Icon
-          name="calendar-today"
-          size={24}
-          color="#fff"
-          style={styles.calendarIcon}
-        />
+        <Ionicons name="calendar-outline" size={22} color="rgba(255,255,255,0.6)" style={styles.calendarIcon} />
       </TouchableOpacity>
+
       <View style={styles.gradesContainer}>
         <FlatList
           data={searchQuery.trim() ? gradeSections.map(section => section.title) : userData.alhanGrades}
@@ -763,25 +561,22 @@ const AlhanAttendance = () => {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.gradesList}
-          getItemLayout={(data, index) => ({
-            length: 50,
-            offset: 50 * index,
-            index,
-          })}
         />
       </View>
-      {/* Search Bar */}
-      <TextInput
-        style={styles.searchBar}
-        placeholder="Search students..."
-        placeholderTextColor="#888"
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-        autoCorrect={false}
-        autoCapitalize="none"
-        accessible={true}
-        accessibilityLabel="Search students"
-      />
+
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={18} color="rgba(255,255,255,0.4)" style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchBar}
+          placeholder="Search students..."
+          placeholderTextColor="rgba(255,255,255,0.4)"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCorrect={false}
+          autoCapitalize="none"
+        />
+      </View>
+
       <SectionList
         ref={sectionListRef}
         sections={gradeSections}
@@ -802,49 +597,37 @@ const AlhanAttendance = () => {
           const wait = new Promise(resolve => setTimeout(resolve, 500));
           wait.then(() => {
             if (sectionListRef.current && info.index >= 0 && info.index < gradeSections.length) {
-              sectionListRef.current.scrollToLocation({
-                sectionIndex: info.index,
-                itemIndex: 1,
-                animated: false,
-                viewPosition: 0,
-              });
+              sectionListRef.current.scrollToLocation({ sectionIndex: info.index, itemIndex: 1, animated: false, viewPosition: 0 });
             }
           });
         }}
       />
 
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => setModalVisible(true)}
-        activeOpacity={0.7}
-      >
+      <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)} activeOpacity={0.7}>
+        <Ionicons name="add" size={22} color="#fff" style={{ marginRight: 8 }} />
         <Text style={styles.addButtonText}>Add Student</Text>
       </TouchableOpacity>
 
       <Modal visible={modalVisible} transparent animationType="fade">
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.modalContainer}
-        >
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalContainer}>
           <View style={styles.modalContent}>
             {submitting ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#147efb" />
+              <View style={styles.modalLoadingContainer}>
+                <ActivityIndicator size="large" color="#147EFB" />
                 <Text style={styles.loadingText}>Adding Student...</Text>
               </View>
             ) : (
               <>
                 <Text style={styles.modalTitle}>Add New Student</Text>
+                <Text style={styles.modalSubtitle}>Enter the student's details below</Text>
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={styles.input}
                     autoCapitalize="words"
-                    placeholder="Enter student name"
-                    placeholderTextColor="#888"
+                    placeholder="Student name"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
                     value={newStudentName}
                     onChangeText={setNewStudentName}
-                    accessible={true}
-                    accessibilityLabel="Enter student name"
                   />
                   <Picker
                     selectedValue={newStudentGrade}
@@ -853,11 +636,7 @@ const AlhanAttendance = () => {
                     itemStyle={styles.pickerItem}
                   >
                     {userData?.alhanGrades?.map((grade) => (
-                      <Picker.Item
-                        key={grade}
-                        label={formatGrade(grade)}
-                        value={grade}
-                      />
+                      <Picker.Item key={grade} label={formatGrade(grade)} value={grade} />
                     ))}
                   </Picker>
                 </View>
@@ -866,17 +645,10 @@ const AlhanAttendance = () => {
                   onPress={addStudent}
                   activeOpacity={0.7}
                   disabled={submitting}
-                  accessible={true}
-                  accessibilityLabel="Add student"
                 >
                   <Text style={styles.modalButtonText}>Add Student</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setModalVisible(false)}
-                  accessible={true}
-                  accessibilityLabel="Cancel adding student"
-                  disabled={submitting}
-                >
+                <TouchableOpacity onPress={() => setModalVisible(false)} disabled={submitting} style={styles.cancelTouchable}>
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
               </>
@@ -888,14 +660,9 @@ const AlhanAttendance = () => {
       <Modal visible={dateModalVisible} transparent animationType="fade">
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Previous Week</Text>
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={handleJumpToCurrentWeek}
-              activeOpacity={0.7}
-              accessible={true}
-              accessibilityLabel="Jump to current week"
-            >
+            <Text style={styles.modalTitle}>Select Week</Text>
+            <Text style={styles.modalSubtitle}>View attendance for a previous week</Text>
+            <TouchableOpacity style={styles.modalButton} onPress={handleJumpToCurrentWeek} activeOpacity={0.7}>
               <Text style={styles.modalButtonText}>Jump to This Week</Text>
             </TouchableOpacity>
             <FlatList
@@ -905,11 +672,7 @@ const AlhanAttendance = () => {
               style={styles.dateList}
               showsVerticalScrollIndicator={false}
             />
-            <TouchableOpacity
-              onPress={() => setDateModalVisible(false)}
-              accessible={true}
-              accessibilityLabel="Close date selector"
-            >
+            <TouchableOpacity onPress={() => setDateModalVisible(false)} style={styles.cancelTouchable}>
               <Text style={styles.cancelButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
@@ -920,91 +683,99 @@ const AlhanAttendance = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: "#121212" },
+  container: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    backgroundColor: "#121212",
+  },
   titleContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 10,
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: "#2a2a2a",
+    marginBottom: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 14,
+    backgroundColor: "#1a1a1a",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 24,
+    fontWeight: "600",
     color: "#fff",
-    textAlign: "center",
+    letterSpacing: 0.5,
   },
   calendarIcon: {
-    marginLeft: 10,
+    marginLeft: 12,
   },
   gradesContainer: {
-    height: 48,
-    marginBottom: 10,
-    justifyContent: "center",
+    height: 44,
+    marginBottom: 12,
   },
   gradesList: {
     alignItems: "center",
+    paddingRight: 20,
   },
   gradeTag: {
-    backgroundColor: "#2a2a2a",
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    backgroundColor: "#1a1a1a",
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
     marginRight: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
   },
   gradeTagText: {
-    fontSize: 16,
-    color: "#ccc",
+    fontSize: 15,
+    color: "#fff",
     fontWeight: "600",
   },
-  searchBar: {
-    width: "100%",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: "#232323",
-    color: "#fff",
-    borderRadius: 10,
-    marginBottom: 4,
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1a1a1a",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#444",
-    fontSize: 14,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchBar: {
+    flex: 1,
+    paddingVertical: 12,
+    color: "#fff",
+    fontSize: 15,
   },
   gradeHeader: {
     fontSize: 22,
-    fontWeight: "bold",
-    color: "#ccc",
-    marginTop: 0,
-    marginBottom: 10,
+    fontWeight: "600",
+    color: "#4d9cff",
+    marginBottom: 14,
     backgroundColor: "#121212",
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
+    paddingVertical: 8,
   },
   studentContainer: {
-    backgroundColor: "#1e1e1e",
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    backgroundColor: "#1a1a1a",
+    padding: 16,
+    borderRadius: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
   },
   studentHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 10,
   },
   profilePicture: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 15,
-    borderWidth: 2,
-    borderColor: "#333",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 14,
   },
   studentInfo: {
     flex: 1,
@@ -1013,55 +784,42 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   studentName: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 17,
     color: "#fff",
+    fontWeight: "600",
     flex: 1,
-  },
-  icon: {
-    width: 8,
-    height: 15,
   },
   attendanceButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 15,
+    marginTop: 14,
+    gap: 12,
   },
   attendanceButton: {
     flex: 1,
-    borderRadius: 10,
-    marginHorizontal: 5,
-    paddingVertical: 12,
+    borderRadius: 14,
+    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 3,
   },
-  attendanceButtonText: { fontSize: 16, fontWeight: "bold", color: "#ffffff" },
+  attendanceButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#fff",
+  },
   attendanceStatusContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 15,
+    marginTop: 14,
   },
   attendanceStatus: {
-    flex: 1,
-    borderRadius: 10,
-    paddingVertical: 12,
+    borderRadius: 14,
+    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 3,
   },
   attendanceStatusText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#fff",
   },
   loadingContainer: {
     flex: 1,
@@ -1070,143 +828,146 @@ const styles = StyleSheet.create({
     backgroundColor: "#121212",
   },
   loadingText: {
-    fontSize: 18,
-    color: "#fff",
-    marginTop: 10,
+    fontSize: 16,
+    color: "rgba(255,255,255,0.6)",
+    marginTop: 12,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#121212",
+    paddingHorizontal: 40,
+  },
+  message: {
+    fontSize: 16,
+    color: "rgba(255,255,255,0.6)",
+    textAlign: "center",
+    marginTop: 16,
+    lineHeight: 24,
+  },
+  noStudentsText: {
+    fontSize: 15,
+    color: "rgba(255,255,255,0.5)",
+    textAlign: "center",
+    marginVertical: 20,
   },
   addButton: {
-    backgroundColor: "#147efb",
-    borderRadius: 12,
+    backgroundColor: "#147EFB",
+    borderRadius: 14,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 14,
-    marginTop: 20,
-    width: "100%",
-    alignSelf: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
+    paddingVertical: 16,
+    marginTop: 16,
+    marginBottom: 20,
   },
-  addButtonText: { fontSize: 18, fontWeight: "bold", color: "#ffffff" },
+  addButtonText: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#fff",
+  },
   modalContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.8)",
+    backgroundColor: "rgba(0,0,0,0.7)",
   },
   modalContent: {
-    width: 340,
-    padding: 25,
-    backgroundColor: "#1e1e1e",
-    borderRadius: 20,
+    width: "85%",
+    maxWidth: 360,
+    padding: 28,
+    backgroundColor: "#1a1a1a",
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: "rgba(255, 255, 255, 0.06)",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 15,
+  },
+  modalLoadingContainer: {
+    alignItems: "center",
+    paddingVertical: 20,
   },
   modalTitle: {
-    fontSize: 24,
+    fontSize: 22,
     color: "#fff",
-    fontWeight: "bold",
-    marginBottom: 20,
-    letterSpacing: 0.5,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 15,
+    color: "rgba(255,255,255,0.6)",
+    marginBottom: 24,
+    textAlign: "center",
   },
   inputContainer: {
     width: "100%",
     marginBottom: 20,
   },
-  picker: {
-    width: "100%",
-    backgroundColor: "#2a2a2a",
-    borderRadius: 10,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: "#444",
-  },
-  pickerItem: {
-    color: "#e0e0e0",
-    fontSize: 18,
-    fontWeight: "700",
-  },
   input: {
     width: "100%",
-    padding: 12,
-    backgroundColor: "#2a2a2a",
+    padding: 14,
+    backgroundColor: "rgba(255,255,255,0.05)",
     color: "#fff",
-    borderRadius: 10,
-    marginBottom: 15,
+    borderRadius: 14,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#444",
+    borderColor: "rgba(255, 255, 255, 0.06)",
     fontSize: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+  },
+  picker: {
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+  },
+  pickerItem: {
+    color: "#fff",
+    fontSize: 16,
   },
   modalButton: {
     width: "100%",
-    backgroundColor: "#147efb",
-    borderRadius: 12,
-    paddingVertical: 14,
+    backgroundColor: "#147EFB",
+    borderRadius: 14,
+    paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
+    marginBottom: 12,
   },
   modalButtonText: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#ffffff",
-    letterSpacing: 0.5,
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  cancelTouchable: {
+    paddingVertical: 8,
   },
   cancelButtonText: {
     fontSize: 16,
-    color: "#f44336",
-    marginTop: 15,
+    color: "#ff3b30",
     fontWeight: "600",
-  },
-  message: {
-    fontSize: 18,
-    color: "#b0b0b0",
-    textAlign: "center",
-    marginVertical: 10,
-  },
-  noStudentsText: {
-    fontSize: 18,
-    color: "#b0b0b0",
-    textAlign: "center",
-    marginVertical: 10,
   },
   dateList: {
     width: "100%",
-    maxHeight: 300,
-    marginBottom: 20,
+    maxHeight: 280,
+    marginBottom: 16,
   },
   dateItem: {
-    padding: 15,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#444",
+    borderBottomColor: "rgba(255, 255, 255, 0.06)",
   },
   dateText: {
-    fontSize: 18,
+    fontSize: 16,
     color: "#fff",
     textAlign: "center",
   },
   navigatingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.7)",
     justifyContent: "center",
     alignItems: "center",
+    zIndex: 1000,
   },
 });
 
