@@ -1,134 +1,184 @@
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View, Pressable, Animated, Platform } from "react-native";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 const LearnItMainMenu = ({ navigation }) => {
   const [showNotification, setShowNotification] = useState(false);
-  const slideAnim = useRef(new Animated.Value(-100)).current; // Start off-screen
+  const slideAnim = useRef(new Animated.Value(-100)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const menuItems = [
+    { title: "Liturgy", subtitle: "Divine Liturgy", screen: "LiturgyMenu", icon: "cross", library: "material" },
+    { title: "Midnight Praises", subtitle: "Tasbeha", screen: "TasbehaMenu", icon: "moon-outline", library: "ionicons" },
+    { title: "Vespers", subtitle: "Ashaya", screen: "VespersMenu", icon: "candle", library: "material" },
+  ];
 
   useEffect(() => {
-    // Show notification on component mount
+    // Fade in content
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+
+    // Show notification
     setShowNotification(true);
     Animated.timing(slideAnim, {
       toValue: 0,
       duration: 500,
       useNativeDriver: true,
     }).start(() => {
-      // Auto-dismiss after 4 seconds
       setTimeout(() => {
         Animated.timing(slideAnim, {
           toValue: -100,
           duration: 500,
           useNativeDriver: true,
-        }).start(() => {
-          setShowNotification(false);
-        });
-      }, 5000);
+        }).start(() => setShowNotification(false));
+      }, 4000);
     });
 
-    // Reset notification when screen is focused (simulating app refresh)
     const unsubscribe = navigation.addListener("focus", () => {
-      setShowNotification(false); // Reset to allow showing again
+      setShowNotification(false);
     });
 
     return unsubscribe;
-  }, [navigation, slideAnim]);
+  }, [navigation, slideAnim, fadeAnim]);
 
   return (
-    <View style={styles.learnitmainmenu}>
+    <View style={styles.container}>
       {showNotification && (
         <Animated.View style={[styles.notification, { transform: [{ translateY: slideAnim }] }]}>
+          <Ionicons name="volume-high-outline" size={18} color="#888" style={{ marginRight: 8 }} />
           <Text style={styles.notificationText}>
-            Some links may have audio recordings to help practice.
+            Some sections include audio recordings for practice
           </Text>
         </Animated.View>
       )}
-      <View style={styles.headerContainer}>
-        <Text style={styles.headerText}>Learn It</Text>
-      </View>
-      <Pressable
-        style={styles.option}
-        onPress={() => navigation.navigate("LiturgyMenu")}
-      >
-        <Text style={styles.optionText}>Liturgy</Text>
-      </Pressable>
-      <Pressable
-        style={styles.option}
-        onPress={() => navigation.navigate("TasbehaMenu")}
-      >
-        <Text style={styles.optionText}>Midnight Praises (Tasbeha)</Text>
-      </Pressable>
-      <Pressable
-        style={styles.option}
-        onPress={() => navigation.navigate("VespersMenu")}
-      >
-        <Text style={styles.optionText}>Vespers (Ashaya)</Text>
-      </Pressable>
+
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+        <View style={styles.headerContainer}>
+          <Text style={styles.headerSubtext}>TAKSIS</Text>
+          <Text style={styles.headerText}>Learn It</Text>
+          <View style={styles.headerDivider} />
+        </View>
+
+        <View style={styles.menuContainer}>
+          {menuItems.map((item, index) => (
+            <Pressable
+              key={item.screen}
+              onPress={() => navigation.navigate(item.screen)}
+              style={({ pressed }) => [
+                styles.option,
+                { opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
+              ]}
+            >
+              <View style={styles.iconContainer}>
+                {item.library === "material" ? (
+                  <MaterialCommunityIcons name={item.icon} size={26} color="rgba(255,255,255,0.7)" />
+                ) : (
+                  <Ionicons name={item.icon} size={26} color="rgba(255,255,255,0.7)" />
+                )}
+              </View>
+              <View style={styles.textContainer}>
+                <Text style={styles.optionText}>{item.title}</Text>
+                {item.subtitle && <Text style={styles.optionSubtext}>{item.subtitle}</Text>}
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.3)" />
+            </Pressable>
+          ))}
+        </View>
+      </Animated.View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  learnitmainmenu: {
+  container: {
     backgroundColor: "#121212",
     flex: 1,
-    alignItems: "center",
+  },
+  content: {
+    flex: 1,
     padding: 20,
   },
   headerContainer: {
-    marginBottom: 40,
-    width: "100%",
     alignItems: "center",
-    paddingTop: 50,
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
+    marginBottom: 50,
+  },
+  headerSubtext: {
+    fontSize: 12,
+    color: "#666",
+    letterSpacing: 4,
+    marginBottom: 8,
   },
   headerText: {
-    fontSize: 36,
-    color: "#ffffff",
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 20,
+    fontSize: 42,
+    color: "#fff",
+    fontWeight: "300",
+    letterSpacing: 1,
+  },
+  headerDivider: {
+    width: 60,
+    height: 2,
+    backgroundColor: "#333",
+    marginTop: 20,
+    borderRadius: 1,
+  },
+  menuContainer: {
+    gap: 12,
   },
   option: {
-    width: "100%",
-    height: 80,
-    backgroundColor: "#2c2c2c",
-    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1a1a1a",
+    paddingVertical: 20,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+  },
+  iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.05)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 30,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
-    elevation: 8,
+    marginRight: 14,
+  },
+  textContainer: {
+    flex: 1,
   },
   optionText: {
-    fontSize: 26,
-    color: "#ffffff",
-    textAlign: "center",
-    fontWeight: "700",
-    lineHeight: 32,
+    fontSize: 18,
+    color: "#fff",
+    fontWeight: "600",
+  },
+  optionSubtext: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.6)",
+    marginTop: 2,
   },
   notification: {
     position: "absolute",
-    top: Platform.OS === "ios" ? 40 : 20, // Adjust for iOS safe area
-    left: 20,
-    right: 20,
-    backgroundColor: "#2c2c2c",
-    padding: 15,
-    borderRadius: 10,
+    top: Platform.OS === "ios" ? 50 : 30,
+    left: 16,
+    right: 16,
+    backgroundColor: "rgba(40, 40, 40, 0.95)",
+    padding: 14,
+    borderRadius: 12,
     zIndex: 1000,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
   },
   notificationText: {
-    color: "#ffffff",
-    fontSize: 16,
-    textAlign: "center",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+    color: "#E0E0E0",
+    fontSize: 14,
   },
 });
 

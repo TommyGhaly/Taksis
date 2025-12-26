@@ -1,72 +1,79 @@
 import * as React from "react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   StyleSheet,
   View,
   Text,
   Pressable,
   FlatList,
-  LayoutAnimation,
-  UIManager,
   Platform,
   ScrollView,
   Animated,
+  Alert,
 } from "react-native";
-import BackArrow from "../../../components/backArrow";
-import * as WebBrowser from "expo-web-browser"; // Import Expo WebBrowser
+import * as WebBrowser from "expo-web-browser";
+import { Ionicons } from "@expo/vector-icons";
 import hymnsData from "./Matins.json";
-
-// Enable LayoutAnimation on Android
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 const openUrl = async (url) => {
   try {
-    await WebBrowser.openBrowserAsync(url); // Use WebBrowser's openBrowserAsync
+    await WebBrowser.openBrowserAsync(url);
   } catch (error) {
-      Alert.alert(
-        "Error",
-        "Failed to open the link. Please try again."
-      );
+    Alert.alert("Error", "Failed to open the link. Please try again.");
   }
 };
 
-const LearnItMatins = () => {
+const LearnItMatins = ({ navigation }) => {
   const [expanded, setExpanded] = useState(null);
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  const itemAnimValues = useRef(hymnsData.map(() => new Animated.Value(0))).current;
+  const expandAnim = useRef({}).current;
 
-  // Animated value for the header (title)
-  const headerAnim = React.useRef(new Animated.Value(0)).current;
-  // Create an animated value for each hymnsData item
-  const itemAnimValues = React.useRef(
-    hymnsData.map(() => new Animated.Value(0))
-  ).current;
-
-  React.useEffect(() => {
-    Animated.stagger(150, [
-      // Animate header first
-      Animated.spring(headerAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-      }),
-      // Then animate each list item
+  useEffect(() => {
+    Animated.stagger(100, [
+      Animated.spring(headerAnim, { toValue: 1, useNativeDriver: true, tension: 50, friction: 8 }),
       ...itemAnimValues.map((anim) =>
-        Animated.spring(anim, { toValue: 1, useNativeDriver: true })
+        Animated.spring(anim, { toValue: 1, useNativeDriver: true, tension: 50, friction: 8 })
       ),
     ]).start();
   }, []);
 
   const toggleExpand = (id) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpanded(expanded === id ? null : id);
+    if (!expandAnim[id]) {
+      expandAnim[id] = new Animated.Value(0);
+    }
+
+    if (expanded === id) {
+      Animated.timing(expandAnim[id], {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: false,
+      }).start(() => setExpanded(null));
+    } else {
+      if (expanded && expandAnim[expanded]) {
+        expandAnim[expanded].setValue(0);
+      }
+      setExpanded(id);
+      Animated.spring(expandAnim[id], {
+        toValue: 1,
+        tension: 100,
+        friction: 10,
+        useNativeDriver: false,
+      }).start();
+    }
   };
 
   const renderItem = ({ item, index }) => {
-    // Calculate a max height for the sub-options container
-    const scrollViewHeight = Math.min(50 * item.subOptions.length, 300);
+    const isExpanded = expanded === item.id;
+    const hasSubOptions = item.subOptions && item.subOptions.length > 0;
+
+    if (!expandAnim[item.id]) {
+      expandAnim[item.id] = new Animated.Value(0);
+    }
+
+    const animValue = expandAnim[item.id];
+    const subOptionCount = hasSubOptions ? item.subOptions.length : 0;
+    const expandedHeight = Math.min(subOptionCount * 54 + 16, 250);
 
     return (
       <Animated.View
@@ -77,7 +84,7 @@ const LearnItMatins = () => {
               {
                 translateY: itemAnimValues[index].interpolate({
                   inputRange: [0, 1],
-                  outputRange: [50, 0],
+                  outputRange: [30, 0],
                 }),
               },
             ],
@@ -85,50 +92,83 @@ const LearnItMatins = () => {
           },
         ]}
       >
-        <View>
-          <Pressable
-            style={styles.button}
-            onPress={() => toggleExpand(item.id)}
-          >
+        <Pressable
+          style={({ pressed }) => [
+            styles.button,
+            isExpanded && styles.buttonExpanded,
+            { opacity: pressed ? 0.8 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
+          ]}
+          onPress={() => toggleExpand(item.id)}
+        >
+          <View style={styles.buttonContent}>
             <Text style={styles.buttonText}>{item.title}</Text>
-          </Pressable>
-          {expanded === item.id && (
-            <ScrollView
-              style={[
-                styles.expandedContainer,
-                { maxHeight: scrollViewHeight },
-              ]}
-              nestedScrollEnabled
+            <Animated.View
+              style={{
+                transform: [
+                  {
+                    rotate: animValue.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ["0deg", "180deg"],
+                    }),
+                  },
+                ],
+              }}
             >
+              <Ionicons name="chevron-down" size={20} color="rgba(255,255,255,0.4)" />
+            </Animated.View>
+          </View>
+        </Pressable>
+
+        {hasSubOptions && (
+          <Animated.View
+            style={[
+              styles.expandedContainer,
+              {
+                maxHeight: animValue.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, expandedHeight],
+                }),
+                opacity: animValue,
+                paddingVertical: animValue.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 8],
+                }),
+              },
+            ]}
+          >
+            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
               {item.subOptions.map((sub, idx) => (
                 <Pressable
                   key={idx}
-                  style={styles.subButton}
-                  onPress={() => openUrl(sub.url)} // Now uses WebBrowser
+                  style={({ pressed }) => [
+                    styles.subButton,
+                    idx === item.subOptions.length - 1 && styles.subButtonLast,
+                    { opacity: pressed ? 0.7 : 1 },
+                  ]}
+                  onPress={() => openUrl(sub.url)}
                 >
                   <Text style={styles.subButtonText}>{sub.name}</Text>
+                  <Ionicons name="open-outline" size={16} color="rgba(255,255,255,0.3)" />
                 </Pressable>
               ))}
             </ScrollView>
-          )}
-        </View>
+          </Animated.View>
+        )}
       </Animated.View>
     );
   };
 
   return (
     <View style={styles.container}>
-      <BackArrow style={styles.backbutton} />
-      {/* Wrap the header in an Animated.View */}
       <Animated.View
         style={[
-          styles.titleContainer,
+          styles.headerContainer,
           {
             transform: [
               {
                 translateY: headerAnim.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [50, 0],
+                  outputRange: [20, 0],
                 }),
               },
             ],
@@ -136,13 +176,24 @@ const LearnItMatins = () => {
           },
         ]}
       >
-        <Text style={styles.title}>Matins</Text>
+        <Pressable
+          style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1 }]}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="chevron-back" size={22} color="#fff" />
+        </Pressable>
+
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerSubtext}>DIVINE LITURGY</Text>
+          <Text style={styles.headerTitle}>Matins</Text>
+        </View>
       </Animated.View>
+
       <FlatList
         data={hymnsData}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.buttonContainer}
+        contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
       />
     </View>
@@ -153,81 +204,100 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#121212",
-    padding: 20,
-    justifyContent: "flex-start",
   },
-  titleContainer: {
-    backgroundColor: "#1a1a1a",
-    width: "100%",
-    borderRadius: 12,
-    paddingVertical: 20,
-    marginBottom: 20,
-    marginTop: 40,
-    alignSelf: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#ffffff",
-    textAlign: "center",
-  },
-  buttonContainer: {
-    width: "90%",
+  headerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingTop: Platform.OS === "ios" ? 55 : 35,
     paddingBottom: 20,
+    paddingHorizontal: 20,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.08)",
     justifyContent: "center",
-    alignContent: "center",
-    alignSelf: "center",
+    alignItems: "center",
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: "center",
+    marginRight: 36,
+  },
+  headerSubtext: {
+    fontSize: 11,
+    color: "#555",
+    letterSpacing: 3,
+    marginBottom: 6,
+  },
+  headerTitle: {
+    fontSize: 32,
+    color: "#fff",
+    fontWeight: "300",
+    letterSpacing: 1,
+  },
+  listContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 40,
   },
   animatedItem: {
-    marginBottom: 0,
-  },
-  buttonText: {
-    fontSize: 22,
-    color: "#ffffff",
-    fontWeight: "bold",
+    marginBottom: 12,
   },
   button: {
-    backgroundColor: "#2c2c2c",
-    paddingVertical: 25,
-    width: "95%", // Ensures uniform size
-    borderRadius: 8,
-    marginBottom: 20,
+    backgroundColor: "#1a1a1a",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  buttonExpanded: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderBottomWidth: 0,
+  },
+  buttonContent: {
+    flexDirection: "row",
     alignItems: "center",
-    alignSelf: "center",
+    justifyContent: "space-between",
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+  },
+  buttonText: {
+    fontSize: 17,
+    color: "#fff",
+    fontWeight: "600",
+    flex: 1,
   },
   expandedContainer: {
-    width: "90%",
-    backgroundColor: "#1a1a1a",
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 10,
-    alignSelf: "center",
+    backgroundColor: "#151515",
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: "rgba(255,255,255,0.06)",
+    paddingHorizontal: 8,
+    overflow: "hidden",
   },
   subButton: {
-    backgroundColor: "#3a3a3a",
-    paddingVertical: 15,
-    width: "100%",
-    borderRadius: 8,
-    marginBottom: 15,
+    flexDirection: "row",
     alignItems: "center",
-    alignSelf: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#1e1e1e",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    marginBottom: 6,
+    marginTop: 2,
+  },
+  subButtonLast: {
+    marginBottom: 2,
   },
   subButtonText: {
-    fontSize: 18,
-    color: "#ffffff",
-    fontWeight: "bold",
-    textAlign: "center",
-    marginHorizontal: 5,
-  },
-  backbutton: {
-    position: "absolute",
-    top: 20,
-    left: 20,
+    fontSize: 15,
+    color: "rgba(255,255,255,0.85)",
+    fontWeight: "500",
+    flex: 1,
   },
 });
 

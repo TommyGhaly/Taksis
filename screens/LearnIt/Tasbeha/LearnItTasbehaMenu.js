@@ -6,65 +6,73 @@ import {
   Text,
   Pressable,
   FlatList,
-  LayoutAnimation,
-  UIManager,
   Platform,
   Animated,
   Alert,
 } from "react-native";
-import * as WebBrowser from "expo-web-browser"; // Import Expo WebBrowser
-import BackArrow from "../../../components/backArrow";
+import * as WebBrowser from "expo-web-browser";
+import { Ionicons } from "@expo/vector-icons";
 import hymnsData from "./Tasbeha.json";
-
-// Enable LayoutAnimation on Android
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 const openUrl = async (url) => {
   try {
-    // Open the URL using Expo WebBrowser
     await WebBrowser.openBrowserAsync(url);
   } catch (error) {
-    Alert.alert(
-      "Error",
-      "Failed to open the link. Please try again."
-    );
+    Alert.alert("Error", "Failed to open the link. Please try again.");
   }
 };
 
-const LearnItTasbehaMenu = () => {
+const LearnItTasbehaMenu = ({ navigation }) => {
   const [expanded, setExpanded] = useState(null);
-
-  // Animated value for the header (title)
   const headerAnim = useRef(new Animated.Value(0)).current;
+  const itemAnimValues = useRef(hymnsData.map(() => new Animated.Value(0))).current;
+  const expandAnim = useRef({}).current;
 
-  // Create an animated value for each hymnsData item
-  const itemAnimValues = useRef(
-    hymnsData.map(() => new Animated.Value(0))
-  ).current;
-
-  // Trigger animations on mount
   useEffect(() => {
-    Animated.stagger(150, [
-      Animated.spring(headerAnim, { toValue: 1, useNativeDriver: true }),
+    Animated.stagger(100, [
+      Animated.spring(headerAnim, { toValue: 1, useNativeDriver: true, tension: 50, friction: 8 }),
       ...itemAnimValues.map((anim) =>
-        Animated.spring(anim, { toValue: 1, useNativeDriver: true })
+        Animated.spring(anim, { toValue: 1, useNativeDriver: true, tension: 50, friction: 8 })
       ),
     ]).start();
   }, []);
 
-  // Toggle submenu expansion
   const toggleExpand = (id) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpanded(expanded === id ? null : id);
+    if (!expandAnim[id]) {
+      expandAnim[id] = new Animated.Value(0);
+    }
+
+    if (expanded === id) {
+      Animated.timing(expandAnim[id], {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: false,
+      }).start(() => setExpanded(null));
+    } else {
+      if (expanded && expandAnim[expanded]) {
+        expandAnim[expanded].setValue(0);
+      }
+      setExpanded(id);
+      Animated.spring(expandAnim[id], {
+        toValue: 1,
+        tension: 100,
+        friction: 10,
+        useNativeDriver: false,
+      }).start();
+    }
   };
 
   const renderItem = ({ item, index }) => {
     const isExpanded = expanded === item.id;
+    const hasSubOptions = item.subOptions && item.subOptions.length > 0;
+
+    if (!expandAnim[item.id]) {
+      expandAnim[item.id] = new Animated.Value(0);
+    }
+
+    const animValue = expandAnim[item.id];
+    const subOptionCount = hasSubOptions ? item.subOptions.length : 0;
+    const expandedHeight = subOptionCount * 54 + 16;
 
     return (
       <Animated.View
@@ -75,7 +83,7 @@ const LearnItTasbehaMenu = () => {
               {
                 translateY: itemAnimValues[index].interpolate({
                   inputRange: [0, 1],
-                  outputRange: [50, 0],
+                  outputRange: [30, 0],
                 }),
               },
             ],
@@ -84,46 +92,69 @@ const LearnItTasbehaMenu = () => {
         ]}
       >
         <Pressable
-          style={styles.button}
-          onPress={() =>
-            item.subOptions ? toggleExpand(item.id) : openUrl(item.url)
-          }
+          style={({ pressed }) => [
+            styles.button,
+            isExpanded && styles.buttonExpanded,
+            { opacity: pressed ? 0.8 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
+          ]}
+          onPress={() => (hasSubOptions ? toggleExpand(item.id) : openUrl(item.url))}
         >
-          <Text style={styles.buttonText}>{item.title}</Text>
+          <View style={styles.buttonContent}>
+            <Text style={styles.buttonText}>{item.title}</Text>
+            {hasSubOptions && (
+              <Animated.View
+                style={{
+                  transform: [
+                    {
+                      rotate: animValue.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ["0deg", "180deg"],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <Ionicons name="chevron-down" size={20} color="rgba(255,255,255,0.4)" />
+              </Animated.View>
+            )}
+            {!hasSubOptions && (
+              <Ionicons name="open-outline" size={18} color="rgba(255,255,255,0.3)" />
+            )}
+          </View>
         </Pressable>
 
-        {/* Render suboptions if they exist */}
-        {isExpanded && item.subOptions && (
-          <View style={styles.expandedContainer}>
+        {hasSubOptions && (
+          <Animated.View
+            style={[
+              styles.expandedContainer,
+              {
+                maxHeight: animValue.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, expandedHeight],
+                }),
+                opacity: animValue,
+                paddingVertical: animValue.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 8],
+                }),
+              },
+            ]}
+          >
             {item.subOptions.map((subItem, subIndex) => (
-              <Animated.View
+              <Pressable
                 key={subItem.id}
-                style={[
-                  styles.subAnimatedItem,
-                  {
-                    opacity: itemAnimValues[subIndex % itemAnimValues.length],
-                    transform: [
-                      {
-                        translateY: itemAnimValues[
-                          subIndex % itemAnimValues.length
-                        ].interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [30, 0],
-                        }),
-                      },
-                    ],
-                  },
+                style={({ pressed }) => [
+                  styles.subButton,
+                  subIndex === item.subOptions.length - 1 && styles.subButtonLast,
+                  { opacity: pressed ? 0.7 : 1 },
                 ]}
+                onPress={() => openUrl(subItem.url)}
               >
-                <Pressable
-                  style={styles.subButton}
-                  onPress={() => openUrl(subItem.url)}
-                >
-                  <Text style={styles.subButtonText}>{subItem.title}</Text>
-                </Pressable>
-              </Animated.View>
+                <Text style={styles.subButtonText}>{subItem.title}</Text>
+                <Ionicons name="open-outline" size={16} color="rgba(255,255,255,0.3)" />
+              </Pressable>
             ))}
-          </View>
+          </Animated.View>
         )}
       </Animated.View>
     );
@@ -131,16 +162,15 @@ const LearnItTasbehaMenu = () => {
 
   return (
     <View style={styles.container}>
-      <BackArrow style={styles.backbutton} />
       <Animated.View
         style={[
-          styles.titleContainer,
+          styles.headerContainer,
           {
             transform: [
               {
                 translateY: headerAnim.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [50, 0],
+                  outputRange: [20, 0],
                 }),
               },
             ],
@@ -148,13 +178,24 @@ const LearnItTasbehaMenu = () => {
           },
         ]}
       >
-        <Text style={styles.title}>Tasbeha</Text>
+        <Pressable
+          style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1 }]}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="chevron-back" size={22} color="#fff" />
+        </Pressable>
+
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerSubtext}>MIDNIGHT PRAISES</Text>
+          <Text style={styles.headerTitle}>Tasbeha</Text>
+        </View>
       </Animated.View>
+
       <FlatList
         data={hymnsData}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.buttonContainer}
+        contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
       />
     </View>
@@ -165,88 +206,100 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#121212",
-    padding: 20,
-    justifyContent: "flex-start",
   },
-  titleContainer: {
-    backgroundColor: "#2c2c2c", // Matching the header color from the first screen
-    width: "80%",
-    borderRadius: 12,
-    paddingVertical: 20, // Smaller padding for a more compact title
-    marginBottom: 30, // Adjusted for more consistent spacing
-    marginTop: 20,
-    alignSelf: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  title: {
-    fontSize: 24, // Smaller title size to match first screen
-    fontWeight: "700", // Consistent font weight
-    color: "#ffffff",
-    textAlign: "center",
-  },
-  buttonContainer: {
-    width: "90%",
+  headerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingTop: Platform.OS === "ios" ? 55 : 35,
     paddingBottom: 20,
+    paddingHorizontal: 20,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.08)",
     justifyContent: "center",
-    alignContent: "center",
-    alignSelf: "center",
+    alignItems: "center",
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: "center",
+    marginRight: 36,
+  },
+  headerSubtext: {
+    fontSize: 11,
+    color: "#555",
+    letterSpacing: 3,
+    marginBottom: 6,
+  },
+  headerTitle: {
+    fontSize: 32,
+    color: "#fff",
+    fontWeight: "300",
+    letterSpacing: 1,
+  },
+  listContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 40,
   },
   animatedItem: {
-    marginBottom: 20, // Adjusted for consistent spacing between items
-  },
-  buttonText: {
-    fontSize: 22,
-    color: "#ffffff",
-    fontWeight: "700", // Matching the style of first screen
-    textAlign: "center",
+    marginBottom: 12,
   },
   button: {
     backgroundColor: "#1a1a1a",
-    paddingVertical: 30, // Slightly smaller padding for consistent button sizes
-    width: "100%", // Full width for uniform button size
-    borderRadius: 12,
-    marginBottom: 0,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  buttonExpanded: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderBottomWidth: 0,
+  },
+  buttonContent: {
+    flexDirection: "row",
     alignItems: "center",
-    alignSelf: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowColor: "#000",
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
-    elevation: 8,
+    justifyContent: "space-between",
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+  },
+  buttonText: {
+    fontSize: 17,
+    color: "#fff",
+    fontWeight: "600",
+    flex: 1,
   },
   expandedContainer: {
-    width: "100%", // Ensure suboption container takes full width
-    backgroundColor: "#1a1a1a", // Match expanded section's background color
-    borderRadius: 12, // Rounded corners
-    padding: 10,
-    marginBottom: 20,
-    alignSelf: "center",
+    backgroundColor: "#151515",
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: "rgba(255,255,255,0.06)",
+    paddingHorizontal: 8,
+    overflow: "hidden",
   },
   subButton: {
-    backgroundColor: "#2a2a2a", // Match suboption button color
-    paddingVertical: 15,
-    width: "100%", // Stretch across
-    borderRadius: 12, // Rounded corners
-    marginBottom: 20,
-    justifyContent: "center",
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#1e1e1e",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    marginBottom: 6,
+    marginTop: 2,
+  },
+  subButtonLast: {
+    marginBottom: 2,
   },
   subButtonText: {
-    fontSize: 18, // Consistent font size with suboptions
-    color: "#ffffff",
-    fontWeight: "bold",
-    textAlign: "center",
-    marginHorizontal: 5,
-  },
-  backbutton: {
-    position: "absolute",
-    top: 20,
-    left: 20,
+    fontSize: 15,
+    color: "rgba(255,255,255,0.85)",
+    fontWeight: "500",
+    flex: 1,
   },
 });
 
