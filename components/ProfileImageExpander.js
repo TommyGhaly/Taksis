@@ -59,28 +59,33 @@ const ProfileImageExpander = React.memo(({
     });
   }, []);
 
-  const openModal = useCallback(() => {
-    if (onPress) {
-      onPress();
-      return;
-    }
+// 1. Use the cached position instead of re-measuring
+const openModal = useCallback(() => {
+  if (onPress) {
+    onPress();
+    return;
+  }
 
-    // Use pre-measured position, measure again for accuracy
-    profileImageRef.current?.measure((x, y, w, h, pageX, pageY) => {
-      const posX = pageX + w / 2 - WINDOW_WIDTH / 2;
-      const posY = pageY + h / 2 - WINDOW_HEIGHT / 2;
-      
-      startX.value = posX;
-      startY.value = posY;
-      progress.value = 0;
-      
-      setModalVisible(true);
-      setIsAnimating(true);
-      
-      // Single spring animation drives all interpolations
-      progress.value = withSpring(1, SPRING_CONFIG);
-    });
-  }, [onPress]);
+  // Use pre-measured position directly
+  startX.value = positionRef.current.x;
+  startY.value = positionRef.current.y;
+  progress.value = 0;
+  
+  setModalVisible(true);
+  setIsAnimating(true);
+  
+  // Delay animation start by 1 frame to let modal mount
+  requestAnimationFrame(() => {
+    progress.value = withSpring(1, SPRING_CONFIG);
+  });
+}, [onPress]);
+
+// 2. Softer spring (less work per frame)
+const SPRING_CONFIG = {
+  damping: 25,
+  stiffness: 120,
+  mass: 1,
+};
 
   const closeModal = useCallback(() => {
     setModalVisible(false);
