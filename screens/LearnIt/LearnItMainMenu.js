@@ -6,7 +6,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 const LearnItMainMenu = ({ navigation }) => {
   const [showNotification, setShowNotification] = useState(false);
   const slideAnim = useRef(new Animated.Value(-100)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const hasShownNotification = useRef(false);
 
   const menuItems = [
     { title: "Liturgy", subtitle: "Divine Liturgy", screen: "LiturgyMenu", icon: "cross", library: "material" },
@@ -15,14 +15,10 @@ const LearnItMainMenu = ({ navigation }) => {
   ];
 
   useEffect(() => {
-    // Fade in content
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
+    // Only show notification once per mount
+    if (hasShownNotification.current) return;
+    hasShownNotification.current = true;
 
-    // Show notification
     setShowNotification(true);
     Animated.timing(slideAnim, {
       toValue: 0,
@@ -37,13 +33,7 @@ const LearnItMainMenu = ({ navigation }) => {
         }).start(() => setShowNotification(false));
       }, 4000);
     });
-
-    const unsubscribe = navigation.addListener("focus", () => {
-      setShowNotification(false);
-    });
-
-    return unsubscribe;
-  }, [navigation, slideAnim, fadeAnim]);
+  }, [slideAnim]);
 
   return (
     <View style={styles.container}>
@@ -56,7 +46,7 @@ const LearnItMainMenu = ({ navigation }) => {
         </Animated.View>
       )}
 
-      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+      <View style={styles.content}>
         <View style={styles.headerContainer}>
           <Text style={styles.headerSubtext}>TAKSIS</Text>
           <Text style={styles.headerText}>Learn It</Text>
@@ -64,7 +54,7 @@ const LearnItMainMenu = ({ navigation }) => {
         </View>
 
         <View style={styles.menuContainer}>
-          {menuItems.map((item, index) => (
+          {menuItems.map((item) => (
             <Pressable
               key={item.screen}
               onPress={() => navigation.navigate(item.screen)}
@@ -88,7 +78,7 @@ const LearnItMainMenu = ({ navigation }) => {
             </Pressable>
           ))}
         </View>
-      </Animated.View>
+      </View>
     </View>
   );
 };
@@ -163,7 +153,7 @@ const styles = StyleSheet.create({
   },
   notification: {
     position: "absolute",
-    top: Platform.OS === "ios" ? 50 : 30,
+    top: 10,
     left: 16,
     right: 16,
     backgroundColor: "rgba(40, 40, 40, 0.95)",
