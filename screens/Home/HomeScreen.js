@@ -209,6 +209,12 @@ const HomeScreen = () => {
   const scaleValue = useRef(new Animated.Value(0.9)).current;
   const [lastServe, setLastServe] = useState(null);
   const [lastRole, setLastRole] = useState(null);
+  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+  const [userCurrentWeekRole, setUserCurrentWeekRole] = useState(null);
+  const [userCurrentWeekRoleKey, setUserCurrentWeekRoleKey] = useState(null);
+  const [userAvailabilityStatus, setUserAvailabilityStatus] = useState(null);
+  const [isSubmittingStatus, setIsSubmittingStatus] = useState(false);
+  const [availabilityModalStep, setAvailabilityModalStep] = useState('initial'); // 'initial' or 'unavailable-options'
 
   // Real-time listener for church parameter specifically
   const userRealtimeListenerRef = useRef(null);
@@ -517,6 +523,206 @@ const HomeScreen = () => {
         },
       ]
     );
+  };
+
+  const handleAvailabilityResponse = async (status) => {
+    if (status === 'unavailable') {
+      // Transition to unavailable options step
+      setAvailabilityModalStep('unavailable-options');
+      return;
+    }
+
+    // Handle confirmed or unsure
+    setIsSubmittingStatus(true);
+    try {
+      const user = auth().currentUser;
+      if (!user || !churchId || !currentWeek || !userCurrentWeekRoleKey) {
+        Alert.alert("Error", "Missing required information.");
+        setIsSubmittingStatus(false);
+        return;
+      }
+
+      const scheduleDocRef = firestore()
+        .collection("churches")
+        .doc(churchId)
+        .collection("schedule")
+        .doc(currentWeek);
+
+      // Get current schedule data
+      const scheduleDoc = await scheduleDocRef.get();
+      if (!scheduleDoc.exists) {
+        Alert.alert("Error", "Schedule not found.");
+        setIsSubmittingStatus(false);
+        return;
+      }
+
+      const scheduleData = scheduleDoc.data();
+
+      // Update the status for the specific role
+      if (userCurrentWeekRoleKey === 'altar') {
+        // Handle altar array
+        const altarArray = scheduleData.altar || [];
+        const updatedAltar = altarArray.map(server => {
+          if (server && server.uid === user.uid) {
+            return { ...server, status };
+          }
+          return server;
+        });
+        await scheduleDocRef.update({ altar: updatedAltar });
+      } else {
+        // Handle single role
+        const roleData = scheduleData[userCurrentWeekRoleKey];
+        if (roleData && roleData.uid === user.uid) {
+          await scheduleDocRef.update({
+            [userCurrentWeekRoleKey]: { ...roleData, status }
+          });
+        }
+      }
+
+      // Update local state
+      setUserAvailabilityStatus(status);
+      setShowAvailabilityModal(false);
+      setAvailabilityModalStep('initial');
+
+      // Show appropriate message
+      if (status === 'confirmed') {
+        Alert.alert("Thank you!", "Your availability has been confirmed.");
+      } else if (status === 'unsure') {
+        Alert.alert(
+          "Response Saved",
+          "You can change your availability status later. Please confirm as soon as possible - it's urgent to know!",
+          [{ text: "OK" }]
+        );
+      }
+    } catch (error) {
+      console.error("Error updating availability status:", error);
+      Alert.alert("Error", "Failed to update availability. Please try again.");
+    } finally {
+      setIsSubmittingStatus(false);
+    }
+  };
+
+  const handleRemoveSelfFromRole = async () => {
+    setIsSubmittingStatus(true);
+    try {
+      const user = auth().currentUser;
+      if (!user || !churchId || !currentWeek || !userCurrentWeekRoleKey) {
+        Alert.alert("Error", "Missing required information.");
+        setIsSubmittingStatus(false);
+        return;
+      }
+
+      const scheduleDocRef = firestore()
+        .collection("churches")
+        .doc(churchId)
+        .collection("schedule")
+        .doc(currentWeek);
+
+      // Get current schedule data
+      const scheduleDoc = await scheduleDocRef.get();
+      if (!scheduleDoc.exists) {
+        Alert.alert("Error", "Schedule not found.");
+        setIsSubmittingStatus(false);
+        return;
+      }
+
+      const scheduleData = scheduleDoc.data();
+
+      if (userCurrentWeekRoleKey === 'altar') {
+        // Remove from altar array
+        const altarArray = scheduleData.altar || [];
+        const updatedAltar = altarArray.filter(server => server && server.uid !== user.uid);
+        await scheduleDocRef.update({ altar: updatedAltar });
+      } else {
+        // Replace with N/A for single role and remove status field
+        await scheduleDocRef.update({
+          [userCurrentWeekRoleKey]: { name: "N/A" }
+        });
+      }
+
+      // Update local state
+      setUserCurrentWeekRole(null);
+      setUserCurrentWeekRoleKey(null);
+      setUserAvailabilityStatus(null);
+      setShowAvailabilityModal(false);
+      setAvailabilityModalStep('initial');
+
+      Alert.alert(
+        "Removed Successfully",
+        "You have been removed from this role. An admin will need to assign the next person.",
+        [{ text: "OK" }]
+      );
+    } catch (error) {
+      console.error("Error removing from role:", error);
+      Alert.alert("Error", "Failed to remove from role. Please try again.");
+    } finally {
+      setIsSubmittingStatus(false);
+    }
+  };
+
+  const handleKeepButMarkUnavailable = async () => {
+    setIsSubmittingStatus(true);
+    try {
+      const user = auth().currentUser;
+      if (!user || !churchId || !currentWeek || !userCurrentWeekRoleKey) {
+        Alert.alert("Error", "Missing required information.");
+        setIsSubmittingStatus(false);
+        return;
+      }
+
+      const scheduleDocRef = firestore()
+        .collection("churches")
+        .doc(churchId)
+        .collection("schedule")
+        .doc(currentWeek);
+
+      // Get current schedule data
+      const scheduleDoc = await scheduleDocRef.get();
+      if (!scheduleDoc.exists) {
+        Alert.alert("Error", "Schedule not found.");
+        setIsSubmittingStatus(false);
+        return;
+      }
+
+      const scheduleData = scheduleDoc.data();
+
+      // Update the status to unavailable
+      if (userCurrentWeekRoleKey === 'altar') {
+        // Handle altar array
+        const altarArray = scheduleData.altar || [];
+        const updatedAltar = altarArray.map(server => {
+          if (server && server.uid === user.uid) {
+            return { ...server, status: 'unavailable' };
+          }
+          return server;
+        });
+        await scheduleDocRef.update({ altar: updatedAltar });
+      } else {
+        // Handle single role
+        const roleData = scheduleData[userCurrentWeekRoleKey];
+        if (roleData && roleData.uid === user.uid) {
+          await scheduleDocRef.update({
+            [userCurrentWeekRoleKey]: { ...roleData, status: 'unavailable' }
+          });
+        }
+      }
+
+      // Update local state
+      setUserAvailabilityStatus('unavailable');
+      setShowAvailabilityModal(false);
+      setAvailabilityModalStep('initial');
+
+      Alert.alert(
+        "Status Updated",
+        "You have been marked as unavailable but remain scheduled for this role.",
+        [{ text: "OK" }]
+      );
+    } catch (error) {
+      console.error("Error updating availability status:", error);
+      Alert.alert("Error", "Failed to update availability. Please try again.");
+    } finally {
+      setIsSubmittingStatus(false);
+    }
   };
 
   const handleOpenPhotoInput = () => {
@@ -1089,13 +1295,87 @@ const HomeScreen = () => {
     return () => unsubscribeSchedules();
   }, [churchId]);
 
+  // Check if user is scheduled for current week and needs to confirm availability
+  useEffect(() => {
+    const user = auth().currentUser;
+    if (!user || !schedule || !currentWeek) {
+      return;
+    }
+
+    // All possible roles to check
+    const rolesToCheck = [
+      { key: 'matins', label: 'Matins Gospel' },
+      { key: 'third', label: 'Third Hour Gospel' },
+      { key: 'sixth', label: 'Sixth Hour Gospel' },
+      { key: 'pauline', label: 'Pauline Epistle' },
+      { key: 'catholic', label: 'Catholic Epistle' },
+      { key: 'praxis', label: 'Praxis' },
+      { key: 'gospel', label: 'Gospel' },
+      { key: 'water', label: 'Water' },
+      { key: 'wine', label: 'Wine' },
+    ];
+
+    // Check single roles
+    for (const role of rolesToCheck) {
+      const roleData = schedule[role.key];
+      if (roleData && roleData.uid === user.uid) {
+        // User is scheduled for this role
+        if (!roleData.status) {
+          // No status set yet, show the modal
+          setUserCurrentWeekRole(role.label);
+          setUserCurrentWeekRoleKey(role.key);
+          setUserAvailabilityStatus(null);
+          setAvailabilityModalStep('initial');
+          setShowAvailabilityModal(true);
+          return;
+        } else {
+          // Status already set, just track it
+          setUserCurrentWeekRole(role.label);
+          setUserCurrentWeekRoleKey(role.key);
+          setUserAvailabilityStatus(roleData.status);
+          return;
+        }
+      }
+    }
+
+    // Check altar array
+    if (Array.isArray(schedule.altar)) {
+      for (let i = 0; i < schedule.altar.length; i++) {
+        const altarServer = schedule.altar[i];
+        if (altarServer && altarServer.uid === user.uid) {
+          if (!altarServer.status) {
+            // No status set yet, show the modal
+            setUserCurrentWeekRole('Altar Server');
+            setUserCurrentWeekRoleKey('altar');
+            setUserAvailabilityStatus(null);
+            setAvailabilityModalStep('initial');
+            setShowAvailabilityModal(true);
+            return;
+          } else {
+            // Status already set, just track it
+            setUserCurrentWeekRole('Altar Server');
+            setUserCurrentWeekRoleKey('altar');
+            setUserAvailabilityStatus(altarServer.status);
+            return;
+          }
+        }
+      }
+    }
+
+    // User not scheduled or already responded
+    setUserCurrentWeekRole(null);
+    setUserCurrentWeekRoleKey(null);
+    setUserAvailabilityStatus(null);
+  }, [schedule, currentWeek]);
+
   useEffect(() => {
     if (
       showDOBModal ||
       showPhoneModal ||
       showProfilePicModal ||
       showChildrenProfilePicModal ||
-      showChurchModal
+      showChurchModal ||
+      showAvailabilityModal
     ) {
       try {
         Animated.spring(scaleValue, {
@@ -1116,6 +1396,7 @@ const HomeScreen = () => {
     showProfilePicModal,
     showChildrenProfilePicModal,
     showChurchModal,
+    showAvailabilityModal,
   ]);
 
   const readings = [
@@ -1538,6 +1819,164 @@ const HomeScreen = () => {
         </View>
       </Modal>
 
+      {/* Availability Confirmation Modal */}
+      <Modal
+        animationType="none"
+        transparent={true}
+        visible={showAvailabilityModal}
+        onRequestClose={() => {}}
+      >
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={20} style={StyleSheet.absoluteFillObject} />
+          <Animated.View
+            style={[
+              styles.availabilityModalContainer,
+              { transform: [{ scale: scaleValue }] },
+            ]}
+          >
+            {availabilityModalStep === 'initial' ? (
+              <>
+                <View style={styles.availabilityModalHeader}>
+                  <View style={styles.availabilityIconCircle}>
+                    <Ionicons name="calendar" size={32} color="#147EFB" />
+                  </View>
+                  <Text style={styles.availabilityModalTitle}>You're Scheduled</Text>
+                  <Text style={styles.availabilityModalWeek}>Week of {currentWeek}</Text>
+                  <Text style={styles.availabilityModalRole}>{userCurrentWeekRole}</Text>
+                </View>
+
+                <View style={styles.availabilityModalBody}>
+                  <Text style={styles.availabilityQuestion}>Will you be attending?</Text>
+
+                  <TouchableOpacity
+                    style={styles.availabilityOptionButton}
+                    onPress={() => handleAvailabilityResponse('confirmed')}
+                    disabled={isSubmittingStatus}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.availabilityOptionIcon, { backgroundColor: '#28A745' }]}>
+                      <Ionicons name="checkmark-circle" size={28} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.availabilityOptionText}>
+                      <Text style={styles.availabilityOptionTitle}>I will be there</Text>
+                      <Text style={styles.availabilityOptionSubtext}>Confirm attendance</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.availabilityOptionButton}
+                    onPress={() => handleAvailabilityResponse('unsure')}
+                    disabled={isSubmittingStatus}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.availabilityOptionIcon, { backgroundColor: '#E68A00' }]}>
+                      <Ionicons name="help-circle" size={28} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.availabilityOptionText}>
+                      <Text style={styles.availabilityOptionTitle}>Unsure yet</Text>
+                      <Text style={styles.availabilityOptionSubtext}>Still deciding</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.availabilityOptionButton}
+                    onPress={() => handleAvailabilityResponse('unavailable')}
+                    disabled={isSubmittingStatus}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.availabilityOptionIcon, { backgroundColor: '#ff3b30' }]}>
+                      <Ionicons name="close-circle" size={28} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.availabilityOptionText}>
+                      <Text style={styles.availabilityOptionTitle}>Unavailable</Text>
+                      <Text style={styles.availabilityOptionSubtext}>Cannot attend</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.availabilityModalFooter}>
+                  <Ionicons name="lock-closed" size={14} color="rgba(255,255,255,0.4)" />
+                  <Text style={styles.availabilityFooterText}>
+                    Only visible to church admins and you
+                  </Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.unavailableConfirmHeader}>
+                  <View style={styles.unavailableIconCircle}>
+                    <Ionicons name="alert-circle" size={32} color="#ff3b30" />
+                  </View>
+                  <Text style={styles.unavailableConfirmTitle}>You're Unavailable</Text>
+                  <Text style={styles.unavailableConfirmSubtitle}>
+                    What would you like to do?
+                  </Text>
+                </View>
+
+                <View style={styles.unavailableConfirmBody}>
+                  <TouchableOpacity
+                    style={styles.unavailableOptionCard}
+                    onPress={() => handleKeepButMarkUnavailable()}
+                    disabled={isSubmittingStatus}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.unavailableOptionIcon, { backgroundColor: '#147EFB' }]}>
+                      <Ionicons name="bookmark" size={24} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.unavailableOptionContent}>
+                      <Text style={styles.unavailableOptionTitle}>Keep Me Scheduled</Text>
+                      <Text style={styles.unavailableOptionDescription}>
+                        Stay on the schedule but marked as unavailable
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.unavailableOptionCard}
+                    onPress={() => handleRemoveSelfFromRole()}
+                    disabled={isSubmittingStatus}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.unavailableOptionIcon, { backgroundColor: '#ff3b30' }]}>
+                      <Ionicons name="close-circle" size={24} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.unavailableOptionContent}>
+                      <Text style={styles.unavailableOptionTitle}>Remove Me</Text>
+                      <Text style={styles.unavailableOptionDescription}>
+                        Remove from schedule, someone else will be assigned
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.unavailableOptionCard, { marginTop: 8 }]}
+                    onPress={() => setAvailabilityModalStep('initial')}
+                    disabled={isSubmittingStatus}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.unavailableOptionIcon, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+                      <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.unavailableOptionContent}>
+                      <Text style={styles.unavailableOptionTitle}>Go Back</Text>
+                      <Text style={styles.unavailableOptionDescription}>
+                        Return to availability options
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </Animated.View>
+        </View>
+      </Modal>
+
       <ScrollView
         style={styles.homescreen}
         contentContainerStyle={styles.scrollContainer}
@@ -1576,6 +2015,38 @@ const HomeScreen = () => {
               Your next service is on: {nextWeek || "N/A"}
             </Text>
             <Text style={styles.nextRoleText}>{nextRole}</Text>
+
+            {userCurrentWeekRole && userAvailabilityStatus && (
+              <TouchableOpacity
+                style={[
+                  styles.statusPill,
+                  userAvailabilityStatus === 'confirmed' && styles.statusPillConfirmed,
+                  userAvailabilityStatus === 'unsure' && styles.statusPillUnsure,
+                  userAvailabilityStatus === 'unavailable' && styles.statusPillUnavailable,
+                ]}
+                onPress={() => {
+                  setAvailabilityModalStep('initial');
+                  setShowAvailabilityModal(true);
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={
+                    userAvailabilityStatus === 'confirmed' ? 'checkmark-circle' :
+                    userAvailabilityStatus === 'unsure' ? 'help-circle' :
+                    'close-circle'
+                  }
+                  size={16}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.statusPillText}>
+                  {userAvailabilityStatus === 'confirmed' ? 'Confirmed' :
+                   userAvailabilityStatus === 'unsure' ? 'Unsure' :
+                   'Unavailable'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
               style={styles.unavailableButton}
               onPress={handleUnavailableToServe}
@@ -1918,6 +2389,222 @@ const styles = StyleSheet.create({
   selectedChurchItemText: {
     color: "#FFFFFF",
     fontWeight: "600",
+  },
+  availabilityModalContainer: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 20,
+    marginHorizontal: 20,
+    maxWidth: 440,
+    width: "90%",
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  availabilityModalHeader: {
+    alignItems: "center",
+    paddingTop: 40,
+    paddingBottom: 32,
+    paddingHorizontal: 24,
+  },
+  availabilityIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(20, 126, 251, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  availabilityModalTitle: {
+    fontSize: 20,
+    color: "#FFFFFF",
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: 8,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  availabilityModalWeek: {
+    fontSize: 15,
+    color: "rgba(255, 255, 255, 0.6)",
+    fontWeight: "500",
+    textAlign: "center",
+    marginBottom: 12,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  availabilityModalRole: {
+    fontSize: 26,
+    color: "#147EFB",
+    fontWeight: "700",
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  availabilityModalBody: {
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 24,
+  },
+  availabilityQuestion: {
+    fontSize: 18,
+    color: "#FFFFFF",
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: 20,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  availabilityOptionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  availabilityOptionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+  availabilityOptionText: {
+    flex: 1,
+  },
+  availabilityOptionTitle: {
+    fontSize: 17,
+    color: "#FFFFFF",
+    fontWeight: "600",
+    marginBottom: 2,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  availabilityOptionSubtext: {
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.5)",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  availabilityModalFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    backgroundColor: "rgba(0, 0, 0, 0.2)",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.06)",
+  },
+  availabilityFooterText: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.5)",
+    marginLeft: 6,
+    fontStyle: "italic",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  statusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    marginTop: 6,
+    marginBottom: 8,
+    gap: 6,
+  },
+  statusPillConfirmed: {
+    backgroundColor: "#28A745",
+  },
+  statusPillUnsure: {
+    backgroundColor: "#E68A00",
+  },
+  statusPillUnavailable: {
+    backgroundColor: "#ff3b30",
+  },
+  statusPillText: {
+    fontSize: 12,
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  unavailableConfirmContainer: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 20,
+    marginHorizontal: 20,
+    maxWidth: 440,
+    width: "90%",
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  unavailableConfirmHeader: {
+    alignItems: "center",
+    paddingTop: 32,
+    paddingBottom: 24,
+    paddingHorizontal: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.06)",
+  },
+  unavailableIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "rgba(255, 59, 48, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  unavailableConfirmTitle: {
+    fontSize: 24,
+    color: "#FFFFFF",
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 8,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  unavailableConfirmSubtitle: {
+    fontSize: 15,
+    color: "rgba(255, 255, 255, 0.6)",
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  unavailableConfirmBody: {
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+  },
+  unavailableOptionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  unavailableOptionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+  unavailableOptionContent: {
+    flex: 1,
+  },
+  unavailableOptionTitle: {
+    fontSize: 17,
+    color: "#FFFFFF",
+    fontWeight: "600",
+    marginBottom: 4,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  unavailableOptionDescription: {
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.5)",
+    lineHeight: 18,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
 });
 
