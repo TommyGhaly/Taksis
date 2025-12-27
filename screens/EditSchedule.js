@@ -45,6 +45,18 @@ const displayNames = {
   wine: "Wine",
 };
 
+const STATUS_COLORS = {
+  confirmed: "#34c759",
+  unsure: "#ff9500",
+  unavailable: "#ff3b30",
+};
+
+const STATUS_LABELS = {
+  confirmed: "Confirmed",
+  unsure: "Unsure",
+  unavailable: "Unavailable",
+};
+
 const parseDate = (dateStr, format) => {
   if (!dateStr || typeof dateStr !== "string") return null;
   const parts = dateStr.split("-");
@@ -104,6 +116,18 @@ const formatWeekDisplay = (weekStr) => {
     day: "numeric",
     year: "numeric",
   });
+};
+
+const StatusBadge = ({ status, align = "left" }) => {
+  if (!status || !STATUS_LABELS[status]) return null;
+  return (
+    <View style={[styles.statusBadge, align === "right" && styles.statusBadgeRight]}>
+      <View style={[styles.statusDot, { backgroundColor: STATUS_COLORS[status] }]} />
+      <Text style={[styles.statusText, { color: STATUS_COLORS[status] }]}>
+        {STATUS_LABELS[status]}
+      </Text>
+    </View>
+  );
 };
 
 const EditSchedule = () => {
@@ -255,6 +279,7 @@ const EditSchedule = () => {
                 .localeCompare(b.name.split(" ")[0].toLowerCase())
             );
           setAvailableServers(extraServers);
+          
           setupUserListeners(extraServers);
         } else {
           resetScheduleData();
@@ -465,36 +490,43 @@ const EditSchedule = () => {
         <View style={styles.sectionHeaderContainer}>
           <Text style={styles.sectionHeader}>Assign Readers</Text>
         </View>
-        {readings.map((item, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.listItem}
-            onPress={() => openProfile(currentReaders[item]?.uid)}
-            disabled={!currentReaders[item]?.uid}
-            activeOpacity={1}
-          >
-            <View style={styles.listItemContent}>
-              <Text
-                style={[
-                  styles.itemText,
-                  !currentReaders[item]?.uid && styles.disabledText,
-                ]}
-              >
-                {displayNames[item]}
-              </Text>
-              <View style={styles.dropdownContainer}>
-                <TouchableOpacity
-                  style={styles.dropdown}
-                  onPress={() => setReaderDropdownIndex(index)}
-                >
-                  <Text style={styles.dropdownText}>
-                    {assignedReaders[displayNames[item]] || "Select Reader"}
+        {readings.map((item, index) => {
+          const reader = currentReaders[item];
+          const readerStatus = reader?.status;
+          return (
+            <TouchableOpacity
+              key={index}
+              style={styles.listItem}
+              onPress={() => openProfile(reader?.uid)}
+              disabled={!reader?.uid}
+              activeOpacity={1}
+            >
+              <View style={styles.listItemContent}>
+                <View style={styles.readerLeftContent}>
+                  <Text
+                    style={[
+                      styles.itemText,
+                      !reader?.uid && styles.disabledText,
+                    ]}
+                  >
+                    {displayNames[item]}
                   </Text>
-                </TouchableOpacity>
+                  <StatusBadge status={readerStatus} align="right" />
+                </View>
+                <View style={styles.dropdownContainer}>
+                  <TouchableOpacity
+                    style={styles.dropdown}
+                    onPress={() => setReaderDropdownIndex(index)}
+                  >
+                    <Text style={styles.dropdownText}>
+                      {assignedReaders[displayNames[item]] || "Select Reader"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          </TouchableOpacity>
-        ))}
+            </TouchableOpacity>
+          );
+        })}
 
         <View style={styles.altarSectionHeaderContainer}>
           <Text style={styles.sectionHeader}>Altar Servers</Text>
@@ -510,34 +542,41 @@ const EditSchedule = () => {
             </TouchableOpacity>
           </View>
         </View>
-        {servers.map((_, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.listItem}
-            onPress={() => openProfile(altarServers[index]?.uid)}
-            disabled={!altarServers[index]?.uid}
-            activeOpacity={1}
-          >
-            <View style={styles.listItemContent}>
-              <TouchableOpacity
-                style={styles.dropdown}
-                onPress={() => setServerDropdownIndex(index)}
-              >
-                <Text
-                  style={[
-                    styles.dropdownText,
-                    !altarServers[index]?.uid && styles.disabledText,
-                  ]}
-                >
-                  {assignedServers[index] || "Select Server"}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => removeServerFromSchedule(index)}>
-                <Text style={styles.removeButton}>Remove</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        ))}
+        {servers.map((_, index) => {
+          const server = altarServers[index];
+          const serverStatus = server?.status;
+          return (
+            <TouchableOpacity
+              key={index}
+              style={styles.listItem}
+              onPress={() => openProfile(server?.uid)}
+              disabled={!server?.uid}
+              activeOpacity={1}
+            >
+              <View style={styles.serverItemContent}>
+                <View style={styles.serverLeftContent}>
+                  <TouchableOpacity
+                    style={styles.dropdown}
+                    onPress={() => setServerDropdownIndex(index)}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownText,
+                        !server?.uid && styles.disabledText,
+                      ]}
+                    >
+                      {assignedServers[index] || "Select Server"}
+                    </Text>
+                  </TouchableOpacity>
+                  <StatusBadge status={serverStatus} align="left" />
+                </View>
+                <TouchableOpacity onPress={() => removeServerFromSchedule(index)}>
+                  <Text style={styles.removeButton}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       <TouchableOpacity style={styles.addButton} onPress={handleAddServer}>
@@ -714,6 +753,19 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  readerLeftContent: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+  },
+  serverItemContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  serverLeftContent: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+  },
   itemText: { color: "#fff", fontSize: 16, fontWeight: "600" },
   disabledText: { color: "rgba(255,255,255,0.4)" },
   dropdownContainer: {
@@ -864,6 +916,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   infoModalButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  // Status badge styles
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+  },
+  statusBadgeRight: {
+    alignSelf: "flex-start",
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
 });
 
 export default EditSchedule;

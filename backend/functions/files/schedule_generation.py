@@ -568,7 +568,13 @@ async def my_async_scheduled_function():
                 schedule_ref.document(schedule_id).set(schedule)
         else:
             to_delete = upcoming_sunday.strftime("%m-%d-%y")
+            old_schedule = schedule_ref.document(to_delete).get().to_dict()
+            cleaned_old_schedule = clean_past_schedules(old_schedule)
             schedule_ref.document(to_delete).delete()
+        
+            # save old schedules to 'archive' subcollection
+            archive_ref = church_doc.reference.collection("archive")    
+            archive_ref.document(to_delete).set(cleaned_old_schedule)
 
             new_schedule_date = upcoming_sunday + datetime.timedelta(weeks=5)
             new_schedule_id = new_schedule_date.strftime("%m-%d-%y")
@@ -582,6 +588,16 @@ async def my_async_scheduled_function():
 
         set_next_week_serve(church_doc.id)
 
+def clean_past_schedules(schedule_data: Dict[str, any]) -> Dict[str, any]:
+    """Cleans the schedule for storing in archive by removing 'extra' field."""
+    new_data = {}
+    for key, value in schedule_data.items():
+        if key == 'extra':
+            continue
+        else:
+            new_data[key] = value
+    
+    return new_data
 
 def generate_test_data(num_people: int) -> List[Dict[str, Any]]:
     """Generates random test deacon data for development/testing."""
