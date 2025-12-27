@@ -548,10 +548,12 @@ const AlhanAttendance = () => {
         </View>
       )}
 
-      <TouchableOpacity style={styles.titleContainer} onPress={() => setDateModalVisible(true)} activeOpacity={0.7}>
-        <Text style={styles.title}>{dateKey}</Text>
-        <Ionicons name="calendar-outline" size={22} color="rgba(255,255,255,0.6)" style={styles.calendarIcon} />
-      </TouchableOpacity>
+      <View style={styles.headerRow}>
+        <TouchableOpacity style={styles.titleContainer} onPress={() => setDateModalVisible(true)} activeOpacity={0.7}>
+          <Text style={styles.title}>{dateKey}</Text>
+          <Ionicons name="calendar-outline" size={18} color="rgba(255,255,255,0.6)" style={styles.calendarIcon} />
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.gradesContainer}>
         <FlatList
@@ -565,7 +567,7 @@ const AlhanAttendance = () => {
       </View>
 
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={18} color="rgba(255,255,255,0.4)" style={styles.searchIcon} />
+        <Ionicons name="search" size={16} color="rgba(255,255,255,0.4)" style={styles.searchIcon} />
         <TextInput
           style={styles.searchBar}
           placeholder="Search students..."
@@ -604,7 +606,7 @@ const AlhanAttendance = () => {
       />
 
       <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)} activeOpacity={0.7}>
-        <Ionicons name="add" size={22} color="#fff" style={{ marginRight: 8 }} />
+        <Ionicons name="add" size={20} color="#fff" style={{ marginRight: 6 }} />
         <Text style={styles.addButtonText}>Add Student</Text>
       </TouchableOpacity>
 
@@ -685,50 +687,51 @@ const AlhanAttendance = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingHorizontal: 16,
+    paddingTop: 12,
     backgroundColor: "#121212",
+  },
+  headerRow: {
+    marginBottom: 8,
   },
   titleContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 10,
     backgroundColor: "#1a1a1a",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.06)",
   },
   title: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: "600",
     color: "#fff",
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   calendarIcon: {
-    marginLeft: 12,
+    marginLeft: 8,
   },
   gradesContainer: {
-    height: 44,
-    marginBottom: 12,
+    height: 34,
+    marginBottom: 8,
   },
   gradesList: {
     alignItems: "center",
-    paddingRight: 20,
   },
   gradeTag: {
     backgroundColor: "#1a1a1a",
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    marginRight: 10,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginRight: 6,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.06)",
   },
   gradeTagText: {
-    fontSize: 15,
+    fontSize: 13,
     color: "#fff",
     fontWeight: "600",
   },
@@ -736,34 +739,35 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#1a1a1a",
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    marginBottom: 16,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    height: 34,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.06)",
   },
   searchIcon: {
-    marginRight: 10,
+    marginRight: 6,
   },
   searchBar: {
     flex: 1,
-    paddingVertical: 12,
     color: "#fff",
-    fontSize: 15,
+    fontSize: 13,
+    paddingVertical: 0,
   },
   gradeHeader: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "600",
     color: "#4d9cff",
-    marginBottom: 14,
+    marginBottom: 10,
     backgroundColor: "#121212",
-    paddingVertical: 8,
+    paddingVertical: 6,
   },
   studentContainer: {
     backgroundColor: "#1a1a1a",
-    padding: 16,
-    borderRadius: 14,
-    marginBottom: 12,
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.06)",
   },
@@ -772,10 +776,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   profilePicture: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginRight: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
   },
   studentInfo: {
     flex: 1,
@@ -784,7 +788,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   studentName: {
-    fontSize: 17,
+    fontSize: 16,
     color: "#fff",
     fontWeight: "600",
     flex: 1,
@@ -792,32 +796,32 @@ const styles = StyleSheet.create({
   attendanceButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 14,
-    gap: 12,
+    marginTop: 12,
+    gap: 10,
   },
   attendanceButton: {
     flex: 1,
-    borderRadius: 14,
-    paddingVertical: 14,
+    borderRadius: 10,
+    paddingVertical: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   attendanceButtonText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
     color: "#fff",
   },
   attendanceStatusContainer: {
-    marginTop: 14,
+    marginTop: 12,
   },
   attendanceStatus: {
-    borderRadius: 14,
-    paddingVertical: 14,
+    borderRadius: 10,
+    paddingVertical: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   attendanceStatusText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
     color: "#fff",
   },
@@ -854,16 +858,16 @@ const styles = StyleSheet.create({
   },
   addButton: {
     backgroundColor: "#147EFB",
-    borderRadius: 14,
+    borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
-    marginTop: 16,
-    marginBottom: 20,
+    paddingVertical: 14,
+    marginTop: 12,
+    marginBottom: 16,
   },
   addButtonText: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "600",
     color: "#fff",
   },
