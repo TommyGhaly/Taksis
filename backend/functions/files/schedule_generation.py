@@ -44,18 +44,6 @@ import firebase_functions as https_fn
 
 # ============================================================================
 # SCORING ALGORITHM FUNCTIONS
-# Each function calculates a priority score for deacons based on role-specific
-# criteria. Higher scores = higher priority for assignment.
-#
-# Common factors across all roles:
-# - weeksSince: Weeks since last service (higher = more priority)
-# - frequency: How often they typically serve (affects scheduling balance)
-# - Minimum cooldown: Most roles require at least 2 weeks between assignments
-#
-# Role-specific factors:
-# - Age ranges: Each role has an ideal age range (+30 bonus points)
-# - Experience: Some roles weight experience more heavily
-# - Rank: Chanters (Epsaltos) get bonuses/penalties based on role
 # ============================================================================
 
 def sort_values(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -70,16 +58,14 @@ def matins(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     for deacon in deacons:
         value = 0
-        value += deacon["weeksSince"] * 4  # Primary factor: time since last service
+        value += deacon["weeksSince"] * 4
 
-        # Age bonus: teenagers and young adults preferred
         if int(deacon["age"]) > 12 and int(deacon["age"]) < 25:
             value += 30
 
         value += (deacon["frequency"] - 3) * 0.4
         value += (deacon["experience"] - 4) * 0.12
         
-        # Enforce 2-week cooldown between assignments
         if deacon['weeksSince'] < 2:
             value = 0
 
@@ -101,7 +87,6 @@ def third(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
         value += (deacon["frequency"] - 3) * 0.4
 
-        # Chanters (Epsaltos) are preferred for hour readings
         if deacon["rank"] == "Chanter (Epsaltos)":
             value += 12
         
@@ -150,13 +135,11 @@ def pauline(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
         value += (deacon["frequency"] - 3) * 0.4
 
-        # Non-chanters get small bonus (chanters should focus on responses)
         if deacon["rank"] == "Chanter (Epsaltos)":
             pass
         else:
             value += 2.4
 
-        # Too young - significant penalty
         if int(deacon["age"]) < 12:
             value = -40
         
@@ -218,7 +201,6 @@ def praxis(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if int(deacon["age"]) < 12:
             value = -40
         
-        # Longer cooldown for Praxis due to length/difficulty
         if deacon['weeksSince'] < 3:
             value = 0
 
@@ -238,11 +220,9 @@ def gospel(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if int(deacon["age"]) >= 18 and int(deacon["age"]) < 55:
             value += 30
 
-        # Higher frequency/experience thresholds for Gospel
         value += (deacon["frequency"] - 5) * 5
         value += (deacon["experience"] - 5) * 5
 
-        # Non-chanters preferred (significant bonus)
         if deacon["rank"] == "Chanter (Epsaltos)":
             pass
         else:
@@ -297,11 +277,9 @@ def wine(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if int(deacon["age"]) > 25 and int(deacon["age"]) < 60:
             value += 30
 
-        # Highest frequency/experience thresholds
         value += (deacon["frequency"] - 7) * 0.4
         value += (deacon["experience"] - 8.4) * 0.23
 
-        # Must be adult
         if int(deacon["age"]) < 18:
             value = -40
         
@@ -350,14 +328,10 @@ def sort_deacons(deacons: List[Dict]) -> List[Dict]:
 async def update_weeks(schedule_dict: Dict[str, Any], deacons: List[Dict[str, Any]], doc_ref: firestore.DocumentReference) -> Dict[str, Any]:
     """
     Updates deacon weeksSince counters after schedule generation.
-    - Resets to 0 for those who were scheduled
-    - Increments by 1 for those who weren't
-    - Adds non-scheduled deacons to the "extra" list as potential replacements
     """
     unused_deacons = []
     served_uids = []
 
-    # Collect UIDs of all scheduled servers
     for key, value in schedule_dict.items():
         if key == "altar":
             for server in schedule_dict["altar"]:
@@ -368,7 +342,6 @@ async def update_weeks(schedule_dict: Dict[str, Any], deacons: List[Dict[str, An
                 if individual_key == "uid" and individual_value != "N/A":
                     served_uids.append(individual_value)
 
-    # Update counters based on whether they served
     for deacon in deacons:
         if deacon["uid"] in served_uids:
             deacon["lastWeeksSince"] = deacon["weeksSince"]
@@ -377,10 +350,8 @@ async def update_weeks(schedule_dict: Dict[str, Any], deacons: List[Dict[str, An
             deacon["weeksSince"] += 1
             unused_deacons.append(deacon)
 
-    # Persist updated deacon data
     await asyncio.to_thread(doc_ref.update, {"deacons": deacons})
 
-    # Build extras list for potential replacements
     extras = []
     for deacon in unused_deacons:
         extras.append({"name": deacon["name"], "uid": deacon["uid"]})
@@ -392,8 +363,6 @@ async def update_weeks(schedule_dict: Dict[str, Any], deacons: List[Dict[str, An
 def add_person(schedule_list: List[Dict], deacon_list: List[Dict]) -> List[Dict]:
     """
     Adds the best candidate from deacon_list to schedule_list.
-    Ensures no duplicate assignments (same person can't serve multiple roles).
-    Returns "N/A" placeholder if no valid candidates remain.
     """
     uids = []
     for deacon in schedule_list:
@@ -407,7 +376,6 @@ def add_person(schedule_list: List[Dict], deacon_list: List[Dict]) -> List[Dict]
             added = True
             break
 
-        # Skip if already scheduled, otherwise add
         if deacon_list[0]["uid"] in uids:
             deacon_list = deacon_list[1:]
         else:
@@ -424,32 +392,14 @@ def sort_full_deacons(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 async def create_schedule(deacons: List[Dict[str, Any]], church_ref: firestore.DocumentReference, num_altar_servers: int, fullDeacons: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Main schedule generation function.
-    
-    Algorithm:
-    1. Sort all deacons by weeksSince (who's "due" to serve)
-    2. Generate role-specific priority lists using scoring functions
-    3. Assign roles in priority order (wine -> gospel -> water -> ... -> altar)
-    4. Ensure no duplicate assignments across roles
-    5. Update weeksSince counters and create extras list
-    
-    Args:
-        deacons: List of all deacons for this church
-        church_ref: Firestore reference for updating deacon data
-        num_altar_servers: How many altar servers this church needs
-        fullDeacons: List of ordained deacons (for wine bearer), or None
-    
-    Returns:
-        Complete schedule dict ready for Firestore storage
     """
     
-    # Check if church uses ordained deacons for wine
     fullDeacon = not isinstance(fullDeacons, type(None))
     fullDeacon = fullDeacon and len(fullDeacons) > 0
     
     sorted_deacons = sort_deacons(deacons)
     schedule = []
 
-    # Generate priority-sorted lists for each role
     matins_list = matins(sorted_deacons)
     third_list = third(sorted_deacons)
     sixth_list = sixth(sorted_deacons)
@@ -460,14 +410,12 @@ async def create_schedule(deacons: List[Dict[str, Any]], church_ref: firestore.D
     water_list = water(sorted_deacons)
     altar_list = altar(sorted_deacons)
     
-    # Wine bearer: use full deacons if available, otherwise regular scoring
     if fullDeacon:
         wine_list = sort_full_deacons(fullDeacons)
         altar_list.insert(0, wine(sorted_deacons)[0])
     else:
         wine_list = wine(sorted_deacons)
 
-    # Role assignment order (highest responsibility first)
     all_lists = [
         wine_list,
         gospel_list,
@@ -480,15 +428,12 @@ async def create_schedule(deacons: List[Dict[str, Any]], church_ref: firestore.D
         matins_list,
     ]
     
-    # Assign one person per role, avoiding duplicates
     for list in all_lists:
         schedule = add_person(schedule, list)
 
-    # Fill altar server slots
     for i in range(9):
         schedule = add_person(schedule, altar_list)
 
-    # Build final schedule dictionary with proper structure
     schedule_dict = {
         "gospel": (
             {"name": schedule[1]["name"], "uid": schedule[1]["uid"]}
@@ -552,7 +497,6 @@ async def create_schedule(deacons: List[Dict[str, Any]], church_ref: firestore.D
         ),
     }
 
-    # Update deacon counters and add extras list
     schedule_dict = await update_weeks(schedule_dict, deacons, church_ref)
     return schedule_dict
 
@@ -575,13 +519,6 @@ async def get_deacons(church: str) -> Union[List[Dict[str, Any]], str]:
 async def my_async_scheduled_function():
     """
     Main scheduled function - generates/rotates schedules for all churches.
-    
-    Runs weekly (typically Sunday evening) to:
-    1. Delete the just-completed Sunday's schedule
-    2. Generate a new schedule for 5 weeks ahead
-    3. Maintain a rolling 5-week schedule window
-    
-    On first run (< 5 schedules exist), creates all 5 weeks at once.
     """
     
     firestore_client = firestore.Client()
@@ -593,7 +530,6 @@ async def my_async_scheduled_function():
         num_altar_servers = int(church_data.get("altarServers", 0))
         full_deacon_enabled = church_data.get("fullDeacon", None)
 
-        # Filter for ordained deacons if church uses them
         full_deacons = (
             [
                 d
@@ -607,7 +543,6 @@ async def my_async_scheduled_function():
         schedule_ref = church_doc.reference.collection("schedule")
         schedules = list(schedule_ref.stream())
 
-        # Calculate target Sunday (next Sunday, or following Sunday if today is Sunday)
         today = datetime.datetime.now()
         days_until_sunday = (6 - today.weekday()) % 7
         upcoming_sunday = today + datetime.timedelta(days=days_until_sunday)
@@ -615,13 +550,12 @@ async def my_async_scheduled_function():
             hour=0, minute=0, second=0, microsecond=0
         )
 
-        if today.weekday() == 6:  # If today is Sunday, target next week
+        if today.weekday() == 6:
             first_schedule_date = upcoming_sunday + datetime.timedelta(weeks=1)
         else:
             first_schedule_date = upcoming_sunday
 
         if len(schedules) < 5:
-            # Initial setup: create 5 weeks of schedules
             for i in range(5):
                 schedule_date = first_schedule_date + datetime.timedelta(weeks=i)
                 schedule_id = schedule_date.strftime("%m-%d-%y")
@@ -633,7 +567,6 @@ async def my_async_scheduled_function():
 
                 schedule_ref.document(schedule_id).set(schedule)
         else:
-            # Normal rotation: delete old, add new
             to_delete = upcoming_sunday.strftime("%m-%d-%y")
             schedule_ref.document(to_delete).delete()
 
@@ -647,7 +580,6 @@ async def my_async_scheduled_function():
 
             schedule_ref.document(new_schedule_id).set(new_schedule)
 
-        # Update user nextWeekServe fields
         set_next_week_serve(church_doc.id)
 
 
@@ -673,8 +605,55 @@ def generate_test_data(num_people: int) -> List[Dict[str, Any]]:
 
 # ============================================================================
 # UNAVAILABILITY HANDLING
-# Cloud Function endpoint for when a server marks themselves unavailable
 # ============================================================================
+
+def get_scheduled_uids(schedule_data: Dict[str, Any], exclude_uids: List[str] = None) -> set:
+    """
+    Extracts all UIDs currently scheduled (not in extras).
+    Optionally excludes specific UIDs (e.g., those marking unavailable).
+    """
+    exclude_uids = set(exclude_uids) if exclude_uids else set()
+    scheduled = set()
+    
+    for key, value in schedule_data.items():
+        if key == "extra":
+            continue
+        
+        if key == "altar" and isinstance(value, list):
+            for server in value:
+                if isinstance(server, dict):
+                    uid = server.get("uid")
+                    if uid and uid not in exclude_uids and server.get("name") != "N/A":
+                        scheduled.add(uid)
+        elif isinstance(value, dict):
+            uid = value.get("uid")
+            if uid and uid not in exclude_uids and value.get("name") != "N/A":
+                scheduled.add(uid)
+    
+    return scheduled
+
+
+def get_existing_replacement_uids(unavailable_data: Dict[str, Any]) -> set:
+    """
+    Extracts UIDs already suggested as replacements in existing unavailable data.
+    """
+    replacement_uids = set()
+    
+    for key, value in unavailable_data.items():
+        if key == "altar" and isinstance(value, dict):
+            for index, entry in value.items():
+                if isinstance(entry, dict) and "replacement" in entry:
+                    uid = entry["replacement"].get("uid")
+                    if uid and entry["replacement"].get("name") != "N/A":
+                        replacement_uids.add(uid)
+        elif isinstance(value, dict) and "replacement" in value:
+            uid = value["replacement"].get("uid")
+            if uid and value["replacement"].get("name") != "N/A":
+                replacement_uids.add(uid)
+    
+    return replacement_uids
+
+
 def unavailable(request_data: dict):
     """
     Marks a user (and optionally family) as unavailable for a specific week.
@@ -721,17 +700,14 @@ def unavailable(request_data: dict):
     user_ref = firestore_client.collection("users").document(user_id)
     user_doc = user_ref.get()
     
-    # Build list of UIDs to process (user + children if family mode)
     all_uids = [user_id]
     if user_doc.exists:
         user_data = user_doc.to_dict()
         if "children" in user_data and family:
             for child in user_data["children"]:
                 all_uids.append(child["uid"])
-        # Decrease frequency score for marking unavailable
         update_attendance(user_ref)
 
-    # Get the schedule document
     schedule_ref = (
         firestore_client.collection("churches")
         .document(church_id)
@@ -746,7 +722,6 @@ def unavailable(request_data: dict):
 
     schedule_data = schedule_doc.to_dict()
     
-    # Get or create the unavailable document for this week
     unavailable_ref = (
         firestore_client.collection("churches")
         .document(church_id)
@@ -760,79 +735,70 @@ def unavailable(request_data: dict):
     else:
         unavailable_data = {}
     
-    # Get extra deacons with full data for scoring
     extra_deacons = create_extra_deacons(church_id, schedule_data.get("extra", []))
     
-    # Process each UID
+    # Track UIDs that are excluded from being replacements:
+    # 1. Anyone currently scheduled (except those marking unavailable)
+    # 2. Anyone already suggested as a replacement
+    excluded_uids = get_scheduled_uids(schedule_data, exclude_uids=all_uids)
+    excluded_uids.update(get_existing_replacement_uids(unavailable_data))
+    
     for uid in all_uids:
         key, server_data = find_server(schedule_data, uid)
         
         if key is None:
-            # User not found in schedule - skip (they might only be in extras)
             continue
         
-        # Skip if user is in extras (only process those with actual roles)
         if len(key) == 2 and key[0] == "extra":
             continue
         
-        # Store original server info
         original_server = {
             "name": server_data.get("name"),
             "uid": server_data.get("uid")
         }
         
-        # Find suggested replacement using role-appropriate scoring
-        suggested_replacement = find_replacement(key, extra_deacons)
+        # Pass excluded_uids to find_replacement
+        suggested_replacement = find_replacement(key, extra_deacons, excluded_uids)
         
-        # Create N/A placeholder for the schedule
+        # Add the new replacement to excluded set for subsequent iterations
+        if suggested_replacement.get("uid") and suggested_replacement.get("name") != "N/A":
+            excluded_uids.add(suggested_replacement["uid"])
+        
         na_placeholder = {
             "name": "N/A",
             "uid": str(uuid.uuid4())
         }
         
-        # Handle based on role type
         if len(key) == 2 and key[0] == "altar":
-            # This is an altar server (key is tuple like ("altar", index))
             role_name = str(key[0])
             index = str(key[1])
             
-            # Initialize altar dict if not exists
             if role_name not in unavailable_data:
                 unavailable_data[role_name] = {}
             
-            # Record the unavailability with index
             unavailable_data[role_name][index] = {
                 "original": original_server,
                 "replacement": suggested_replacement
             }
             
-            # Update schedule to show N/A (until admin approves)
             schedule_data[role_name][key[1]] = na_placeholder
             
         else:
-            # This is a single-person role (key is tuple like ("gospel",))
             role_name = str(key[0])
             
-            # Record the unavailability
             unavailable_data[role_name] = {
                 "original": original_server,
                 "replacement": suggested_replacement
             }
             
-            # Update schedule to show N/A (until admin approves)
             schedule_data[role_name] = na_placeholder
         
-        # Remove the unavailable user from extras list
         extras = schedule_data.get("extra", [])
         schedule_data["extra"] = [e for e in extras if e.get("uid") != uid]
 
-    # Save the unavailable record
     unavailable_ref.set(unavailable_data, merge=True)
-    
-    # Update the schedule with N/A placeholders
     schedule_ref.update(schedule_data)
     
-    # Trigger async update of nextWeekServe fields
     trigger_async_function(
         "https://set-next-week-serve-async-hy6oofbihq-uc.a.run.app",
         {"church": church_id},
@@ -841,21 +807,26 @@ def unavailable(request_data: dict):
     logging.info(f"Unavailability recorded for week {week_id}")
 
 
-def find_replacement(key, extra_deacons: List[Dict[str, Any]]) -> Dict[str, str]:
+def find_replacement(key, extra_deacons: List[Dict[str, Any]], excluded_uids: set = None) -> Dict[str, str]:
     """
     Finds the best replacement for a role using the appropriate scoring algorithm.
     
     Args:
         key: Tuple identifying the role - ("gospel",) or ("altar", index)
         extra_deacons: List of available deacons with full data for scoring
+        excluded_uids: Set of UIDs to exclude (already scheduled or already suggested)
     
     Returns:
         Dict with "name" and "uid" of suggested replacement, or N/A if none available
     """
-    if not extra_deacons:
+    excluded_uids = excluded_uids or set()
+    
+    # Filter out excluded UIDs before scoring
+    available_deacons = [d for d in extra_deacons if d.get("uid") not in excluded_uids]
+    
+    if not available_deacons:
         return {"name": "N/A", "uid": str(uuid.uuid4())}
     
-    # Map roles to their scoring functions
     scoring_functions = {
         "matins": matins,
         "third": third,
@@ -869,29 +840,25 @@ def find_replacement(key, extra_deacons: List[Dict[str, Any]]) -> Dict[str, str]
         "altar": altar,
     }
     
-    # Determine the role name
     if len(key) == 2:
-        role_name = key[0]  # "altar"
+        role_name = key[0]
     else:
-        role_name = key[0]  # "gospel", "wine", etc.
+        role_name = key[0]
     
-    # Get the appropriate scoring function
     scoring_func = scoring_functions.get(role_name)
     
     if not scoring_func:
-        # Unknown role, return first available
         return {
-            "name": extra_deacons[0].get("name"),
-            "uid": extra_deacons[0].get("uid")
+            "name": available_deacons[0].get("name"),
+            "uid": available_deacons[0].get("uid")
         }
     
-    # Score and sort the extra deacons
-    scored_deacons = scoring_func(extra_deacons.copy())
+    # Score using copies to avoid mutating original data
+    scored_deacons = scoring_func([d.copy() for d in available_deacons])
     
     if not scored_deacons:
         return {"name": "N/A", "uid": str(uuid.uuid4())}
     
-    # Return the best candidate
     best_candidate = scored_deacons[0]
     return {
         "name": best_candidate.get("name"),
@@ -899,11 +866,9 @@ def find_replacement(key, extra_deacons: List[Dict[str, Any]]) -> Dict[str, str]
     }
     
 
-
 def update_attendance(user_ref: firestore.DocumentReference):
     """
     Decreases user's frequency score when they mark unavailable.
-    This affects their future scheduling priority (frequent unavailability = lower priority).
     """
     firestore_client = firestore.Client()
     user_doc = user_ref.get()
@@ -913,13 +878,11 @@ def update_attendance(user_ref: firestore.DocumentReference):
     church_data = church_ref.get().to_dict()
     deacons = church_data.get("deacons", [])
     
-    # Decay frequency by 5% (penalty for unavailability)
     if "frequency" in user_data:
         user_data["frequency"] *= 0.95
         if user_data["frequency"] < 0.1:
             user_data["frequency"] = 0.5
     
-    # Update in church deacons list
     for deacon in deacons:
         if deacon["uid"] == user_data["uid"]:
             deacon["frequency"] = user_data["frequency"]
@@ -934,7 +897,6 @@ def update_attendance(user_ref: firestore.DocumentReference):
 def find_server(schedule_data: Dict[str, Any], target_uid: str) -> Tuple[Union[Tuple[str, int], None], Union[Dict[str, Any], None]]:
     """
     Locates a server in the schedule by UID.
-    Returns: ((key, [index]), server_dict) or (None, None) if not found.
     """
     for key, value in schedule_data.items():
         if isinstance(value, list):
@@ -950,7 +912,6 @@ def find_server(schedule_data: Dict[str, Any], target_uid: str) -> Tuple[Union[T
 def create_extra_deacons(church_id: str, extra_deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Enriches extra deacon list with full deacon data from church document.
-    Needed because extras list only stores name/uid, but scoring needs age/experience/etc.
     """
     firestore_client = firestore.Client()
     church_ref = firestore_client.collection("churches").document(church_id)
@@ -970,13 +931,12 @@ def trigger_async_function(endpoint_url: str, payload: dict):
     try:
         requests.post(endpoint_url, json=payload, timeout=1)
     except requests.exceptions.ReadTimeout:
-        pass  # Expected - we don't wait for response
+        pass
 
 
 def update_future_schedules(church: str):
     """
     Rebalances altar/extra assignments when church changes altarServers count.
-    Redistributes servers across all future schedules.
     """
     firestore_client = firestore.Client()
     church_ref = firestore_client.collection("churches").document(church)
@@ -998,7 +958,6 @@ def update_future_schedules(church: str):
         altar_list = schedule_data.get("altar", [])
         extra_list = schedule_data.get("extra", [])
 
-        # Combine and redistribute
         servers = altar_list + extra_list
         updated_altar_servers = servers[:num_altar_servers]
         updated_extra_servers = servers[num_altar_servers:]
@@ -1012,14 +971,12 @@ def update_future_schedules(church: str):
 
 # ============================================================================
 # CHILD PARAMETER SYNC
-# Ensures children inherit parent's frequency and church settings
 # ============================================================================
 
 def sync_child(user_id):
     """
     Syncs a user's children to have the same church and frequency settings
     as the parent user.
-    Also updates the church's deacons list accordingly.
     """
     firestore_client = firestore.Client()
     user_doc_ref = firestore_client.collection("users").document(user_id)
@@ -1033,13 +990,11 @@ def sync_child(user_id):
     church_data = church_ref.get().to_dict()
     deacons = church_data.get("deacons", [])
     
-    # Update each child with parent's church and frequency
     if "children" in user_data:
         for child in user_data["children"]:
             child["church"] = user_data["church"]
             child["frequency"] = user_data["frequency"]
             updated_children.append(child)
-            # Also update in church deacons list
             for deacon in deacons:
                 if deacon.get("uid") == child.get("uid"):
                     deacon["frequency"] = child.get("frequency", 0)
@@ -1049,16 +1004,13 @@ def sync_child(user_id):
     user_doc_ref.update(user_data)
 
 
-
 # ============================================================================
 # NEXT WEEK SERVE TRACKING
-# Updates each user's "nextWeekServe" field showing their next scheduled date
 # ============================================================================
 
 def set_next_week_serve(church_id):
     """
-    Scans all schedules and updates each user's nextWeekServe field
-    with their earliest upcoming service date and role.
+    Scans all schedules and updates each user's nextWeekServe field.
     """
     reset_next_dates(church_id)
 
@@ -1106,7 +1058,6 @@ def set_user_next_week(user_id, week, role):
         user_info = user_data.to_dict()
         next_week_serve = user_info.get("nextWeekServe")
         
-        # Set if no current value
         if next_week_serve == "N/A" or next_week_serve == "Not Yet Scheduled" or not next_week_serve:
             user_info["nextWeekServe"] = week
             user_info["nextRole"] = role
@@ -1116,7 +1067,6 @@ def set_user_next_week(user_id, week, role):
         if not week:
             return
 
-        # Only update if new date is earlier
         try:
             new_date = datetime.datetime.strptime(week, "%m-%d-%y")
             existing_date = datetime.datetime.strptime(next_week_serve, "%m-%d-%y")

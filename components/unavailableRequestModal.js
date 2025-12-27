@@ -84,10 +84,22 @@ const UnavailableRequestModal = ({
   const [localNextServeData, setLocalNextServeData] = useState({});
 
   // Use props if available, otherwise use local state
-  const availableServers = propAvailableServers?.length > 0 ? propAvailableServers : localAvailableServers;
-  const imageUrls = propImageUrls && Object.keys(propImageUrls).length > 0 ? propImageUrls : localImageUrls;
-  const lastServeData = propLastServeData && Object.keys(propLastServeData).length > 0 ? propLastServeData : localLastServeData;
-  const nextServeData = propNextServeData && Object.keys(propNextServeData).length > 0 ? propNextServeData : localNextServeData;
+  const availableServers =
+    propAvailableServers?.length > 0
+      ? propAvailableServers
+      : localAvailableServers;
+  const imageUrls =
+    propImageUrls && Object.keys(propImageUrls).length > 0
+      ? propImageUrls
+      : localImageUrls;
+  const lastServeData =
+    propLastServeData && Object.keys(propLastServeData).length > 0
+      ? propLastServeData
+      : localLastServeData;
+  const nextServeData =
+    propNextServeData && Object.keys(propNextServeData).length > 0
+      ? propNextServeData
+      : localNextServeData;
   const selectedWeek = propSelectedWeek || week;
 
   // Fetch profile images for original and replacement
@@ -101,7 +113,9 @@ const UnavailableRequestModal = ({
       for (const uid of [original?.uid, replacement?.uid]) {
         if (!uid) continue;
         try {
-          const url = await StorageCache.getDownloadURL(`profilePictures/${uid}.png`);
+          const url = await StorageCache.getDownloadURL(
+            `profilePictures/${uid}.png`
+          );
           urls[uid] = url;
         } catch {
           // Silent fail - use default
@@ -137,7 +151,10 @@ const UnavailableRequestModal = ({
         const extraServers = (scheduleData.extra || [])
           .filter((s) => s.name !== "N/A" && s.uid)
           .sort((a, b) =>
-            a.name.split(" ")[0].toLowerCase().localeCompare(b.name.split(" ")[0].toLowerCase())
+            a.name
+              .split(" ")[0]
+              .toLowerCase()
+              .localeCompare(b.name.split(" ")[0].toLowerCase())
           );
 
         setLocalAvailableServers(extraServers);
@@ -151,17 +168,24 @@ const UnavailableRequestModal = ({
           extraServers.map(async (server) => {
             // Fetch image
             try {
-              const url = await StorageCache.getDownloadURL(`profilePictures/${server.uid}.png`);
+              const url = await StorageCache.getDownloadURL(
+                `profilePictures/${server.uid}.png`
+              );
               urls[server.uid] = url;
             } catch {}
 
             // Fetch user data
             try {
-              const userDoc = await firestore().collection("users").doc(server.uid).get();
+              const userDoc = await firestore()
+                .collection("users")
+                .doc(server.uid)
+                .get();
               if (userDoc.exists) {
                 const userData = userDoc.data();
-                if (userData.lastServe) lastServe[server.uid] = userData.lastServe;
-                if (userData.nextWeekServe) nextServe[server.uid] = userData.nextWeekServe;
+                if (userData.lastServe)
+                  lastServe[server.uid] = userData.lastServe;
+                if (userData.nextWeekServe)
+                  nextServe[server.uid] = userData.nextWeekServe;
               }
             } catch {}
           })
@@ -228,10 +252,10 @@ const UnavailableRequestModal = ({
 
     setSubmitting(true);
     try {
-      await callFunction({
+      await callFunction(
         user,
-        url: "https://handle-unavailable-requests-hy6oofbihq-uc.a.run.app",
-        payload: {
+        "https://handle-unavailable-requests-hy6oofbihq-uc.a.run.app",
+        {
           church: churchId,
           week,
           name: replacement.name,
@@ -239,9 +263,8 @@ const UnavailableRequestModal = ({
           role,
           unavailableUid: original?.uid,
         },
-        errorMessage: "Failed to accept replacement. Please try again.",
-        awaitResponse: true,
-      });
+        "Failed to accept replacement. Please try again."
+      );
 
       await deleteUnavailableEntry();
       onClose();
@@ -261,10 +284,10 @@ const UnavailableRequestModal = ({
     setSubmitting(true);
 
     try {
-      await callFunction({
+      await callFunction(
         user,
-        url: "https://handle-unavailable-requests-hy6oofbihq-uc.a.run.app",
-        payload: {
+        "https://handle-unavailable-requests-hy6oofbihq-uc.a.run.app",
+        {
           church: churchId,
           week,
           name: selectedServer.name,
@@ -272,9 +295,8 @@ const UnavailableRequestModal = ({
           role,
           unavailableUid: original?.uid,
         },
-        errorMessage: "Failed to assign replacement. Please try again.",
-        awaitResponse: true,
-      });
+        "Failed to assign replacement. Please try again."
+      );
 
       await deleteUnavailableEntry();
       onClose();
@@ -318,12 +340,16 @@ const UnavailableRequestModal = ({
                 <Text style={styles.messageText}>
                   <Text style={styles.highlightName}>{original?.name}</Text>
                   {" is unavailable for "}
-                  <Text style={styles.roleHighlight}>{getRoleDisplayName(role)}</Text>
+                  <Text style={styles.roleHighlight}>
+                    {getRoleDisplayName(role)}
+                  </Text>
                 </Text>
 
                 {/* Week Badge */}
                 <View style={styles.weekBadge}>
-                  <Text style={styles.weekBadgeText}>{formatWeekDisplay(week)}</Text>
+                  <Text style={styles.weekBadgeText}>
+                    {formatWeekDisplay(week)}
+                  </Text>
                 </View>
 
                 {/* Profile Cards */}
@@ -336,7 +362,12 @@ const UnavailableRequestModal = ({
                       activeOpacity={0.7}
                     >
                       {loadingImages ? (
-                        <View style={[styles.profileImage, styles.profileImagePlaceholder]}>
+                        <View
+                          style={[
+                            styles.profileImage,
+                            styles.profileImagePlaceholder,
+                          ]}
+                        >
                           <ActivityIndicator size="small" color="#666" />
                         </View>
                       ) : (
@@ -350,7 +381,9 @@ const UnavailableRequestModal = ({
                           defaultSource={require("../assets/default_profile.png")}
                         />
                       )}
-                      <View style={[styles.statusBadge, styles.unavailableBadge]}>
+                      <View
+                        style={[styles.statusBadge, styles.unavailableBadge]}
+                      >
                         <Text style={styles.statusIcon}>✕</Text>
                       </View>
                     </TouchableOpacity>
@@ -374,7 +407,12 @@ const UnavailableRequestModal = ({
                       activeOpacity={0.7}
                     >
                       {loadingImages ? (
-                        <View style={[styles.profileImage, styles.profileImagePlaceholder]}>
+                        <View
+                          style={[
+                            styles.profileImage,
+                            styles.profileImagePlaceholder,
+                          ]}
+                        >
                           <ActivityIndicator size="small" color="#666" />
                         </View>
                       ) : (
@@ -421,12 +459,17 @@ const UnavailableRequestModal = ({
                   disabled={submitting}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.chooseButtonText}>Choose Someone Else</Text>
+                  <Text style={styles.chooseButtonText}>
+                    Choose Someone Else
+                  </Text>
                 </TouchableOpacity>
 
                 <View style={styles.skipButtonsContainer}>
                   <TouchableOpacity
-                    style={[styles.skipButton, showSkipAll && styles.skipButtonHalf]}
+                    style={[
+                      styles.skipButton,
+                      showSkipAll && styles.skipButtonHalf,
+                    ]}
                     onPress={onSkip}
                     disabled={submitting}
                     activeOpacity={0.7}
