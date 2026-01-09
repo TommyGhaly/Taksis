@@ -1024,13 +1024,9 @@ def update_last_week_serve(event: scheduler_fn.ScheduledEvent) -> None:
     return
 
 
-# fix the update users 
-# Make more efficient 
-
-# focus on children after focusing on parents
-# if they are a deacon they should be in the deacon list of their church
-# if they are not on the deacon list of their church check if they are on another one
-# if they are a servant they should be in the servants list of their church
+# ============================================================================
+# MAINTENANCE ENDPOINTS
+# ============================================================================
 
 @https_fn.on_request()
 def sync_all_users(req: https_fn.Request) -> https_fn.Response:
@@ -1067,6 +1063,8 @@ def sync_all_users(req: https_fn.Request) -> https_fn.Response:
                 "weeksSince": user_data.get("weeksSince", 0),
                 "frequency": user_data.get("frequency", 1.0),
             })
+            
+            # Sync name across all schedule documents
             update_names(user_data["uid"], user_data["name"], church_id)
             for week in fc.collection("churches").document(church_id).collection("schedule").stream():
                 if find_server(week.to_dict(), user_data["uid"]) == (None, None):
@@ -1078,7 +1076,7 @@ def sync_all_users(req: https_fn.Request) -> https_fn.Response:
                         }]
                     })
             
-        
+        # Update children deacon list
         if "children" in user_data:
             for child in user_data["children"]:
                 deacons_info[church_id].append({
@@ -1091,6 +1089,8 @@ def sync_all_users(req: https_fn.Request) -> https_fn.Response:
                     "weeksSince": child.get("weeksSince", 0),
                     "frequency": child.get("frequency", 1.0),
                 })
+                
+                # Sync name across all schedule documents
                 update_names(child["uid"], child["name"], church_id)
                 for week in fc.collection("churches").document(church_id).collection("schedule").stream():
                     if find_server(week.to_dict(), child["uid"]) == (None, None):
