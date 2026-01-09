@@ -1022,3 +1022,115 @@ def update_last_week_serve(event: scheduler_fn.ScheduledEvent) -> None:
                 print(f"Updating last serve for schedule {schedule.id} of church {church_doc.id}")
                 update_last_serve(schedule.to_dict(), schedule.id)
     return
+
+
+# fix the update users 
+# Make more efficient 
+
+# focus on children after focusing on parents
+# if they are a deacon they should be in the deacon list of their church
+# if they are not on the deacon list of their church check if they are on another one
+# if they are a servant they should be in the servants list of their church
+
+@https_fn.on_request()
+def sync_all_users(req: https_fn.Request) -> https_fn.Response:
+    """HTTP endpoint to sync all users' data."""
+    fc = firestore.Client()
+    users = fc.collection("users").stream()
+    churches = fc.collection("churches").stream()
+    
+    # refresh entire deacon list and servants list for all churches
+    deacons_info = {}
+    
+    
+    # Loop through all users
+    for user in users:
+        user_data = user.to_dict()
+        church_id = user_data.get("church")
+        if not church_id:
+            continue
+        
+        logging.info(f"Processing user {user_data['uid']}, {user_data['name']}for church {church_id}")
+        
+        if church_id not in deacons_info:
+            deacons_info[church_id] = []
+            
+        # Update deacon list
+        if user_data.get("isDeacon"):
+            deacons_info[church_id].append({
+                "name": user_data["name"],
+                "uid": user_data["uid"],
+                "age": user_data.get("age", None) or calc_age(user_data.get("DOB")) if user_data.get("DOB") else 0,
+                "experience": user_data.get("experience", 0),
+                "lastWeeksSince": user_data.get("lastWeeksSince", 0),
+                "rank": user_data.get("rank", None),
+                "weeksSince": user_data.get("weeksSince", 0),
+                "frequency": user_data.get("frequency", 1.0),
+            })
+            update_names(user_data["uid"], user_data["name"], church_id)
+            for week in fc.collection("churches").document(church_id).collection("schedule").stream():
+                if find_server(week.to_dict(), user_data["uid"]) == (None, None):
+                    logging.warning(f"Deacon {user_data['uid']} not found in schedule for week {week.id} of church {church_id}")
+                    week.reference.update({
+                        'extra': week.to_dict().get('extra', []) + [{
+                            "name": user_data["name"],
+                            "uid": user_data["uid"],
+                        }]
+                    })
+            
+        
+        if "children" in user_data:
+            for child in user_data["children"]:
+                deacons_info[church_id].append({
+                    "name": child["name"],
+                    "uid": child["uid"],
+                    "age": child.get("age", None) or calc_age(child.get("DOB")) if child.get("DOB") else 0,
+                    "experience": child.get("experience", 0),
+                    "lastWeeksSince": child.get("lastWeeksSince", 0),
+                    "rank": child.get("rank", None),
+                    "weeksSince": child.get("weeksSince", 0),
+                    "frequency": child.get("frequency", 1.0),
+                })
+                update_names(child["uid"], child["name"], church_id)
+                for week in fc.collection("churches").document(church_id).collection("schedule").stream():
+                    if find_server(week.to_dict(), child["uid"]) == (None, None):
+                        logging.warning(f"Deacon {child['uid']} not found in schedule for week {week.id} of church {church_id}")
+                        week.reference.update({
+                            'extra': week.to_dict().get('extra', []) + [{
+                                "name": child["name"],
+                                "uid": child["uid"],
+                            }]
+                        })
+
+                
+        # Update servants documents
+        if user_data.get("isSSTeacher"):
+            servants_ref = fc.collection("churches").document(church_id).collection("Servants Meeting")
+            servant_doc = servants_ref.document(user_data["uid"])
+            if not servant_doc.get().exists:
+                logging.warning(f"Servant {user_data['uid']} not found in church {church_id}, creating new document.")
+                servant_doc.set({
+                    "name": user_data["name"],
+                    "uid": user_data["uid"],
+                })
+    
+    
+    for church in churches:
+        # Reverse update the servants documents (check the user docs for accuracy)
+        servants_ref = fc.collection("churches").document(church.id).collection("Servants Meeting").stream()
+        for servant in servants_ref:
+            servant_data = servant.to_dict()
+            user_ref = fc.collection("users").document(servant_data["uid"])
+            if not user_ref.get().exists or church.id != user_ref.get().to_dict().get("church") or not user_ref.get().to_dict().get("isSSTeacher"):
+                logging.info(f"Removing servant {servant_data['uid']} from church {church.id} servants meeting.")
+                servant.reference.delete()
+            
+        # Update deacon list
+        church.reference.update({
+            "deacons": deacons_info.get(church.id, [])
+        })
+    
+    
+    return https_fn.Response("All users synced successfully", status=200)
+            
+        
