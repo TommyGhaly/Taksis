@@ -78,3 +78,6 @@ config.json
 microsoft_config.json
 
 get_teams_drive_id.py
+
+
+qr_stickers
