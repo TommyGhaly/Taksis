@@ -921,7 +921,7 @@ def find_server(schedule_data: Dict[str, Any], target_uid: str) -> Tuple[Union[T
                     return ((key, i), value[i])
         elif isinstance(value, dict):
             if value.get("uid") == target_uid:
-                return (key, value)
+                return ((key,), value)
     return (None, None)
 
 
