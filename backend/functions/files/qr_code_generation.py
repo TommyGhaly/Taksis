@@ -13,7 +13,7 @@ def generate_batch():
     manifest = []
     
     for i in range(BATCH_SIZE):
-        id = f"tk_{generate(size=8)}"
+        id = f"tommy_is_awesome_{generate(size=8)}"
         
         qr = qrcode.QRCode(
             version=None,
