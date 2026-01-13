@@ -7,7 +7,6 @@ import firestore from "@react-native-firebase/firestore";
 import NetInfo from "@react-native-community/netinfo";
 import { UserProvider, useUser } from "./UserContext";
 import { initializeCacheManager } from "./utils/cacheManager";
-import "react-native-gesture-handler";
 
 import Welcome from "./screens/Welcome";
 import SignIn from "./screens/SignIn";

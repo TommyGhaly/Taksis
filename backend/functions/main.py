@@ -129,8 +129,12 @@ initialize_app()
 
 @https_fn.on_request()
 def force_generate_schedule(req: https_fn.Request) -> https_fn.Response:
-    """HTTP endpoint to manually trigger schedule generation (for testing/admin use)."""
-    return asyncio.run(my_async_scheduled_function())
+    asyncio.run(my_async_scheduled_function())
+    return https_fn.Response(
+        response="Schedule generation triggered successfully.",
+        status=200
+    )
+
 
 
 @scheduler_fn.on_schedule(
