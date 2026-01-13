@@ -64,7 +64,7 @@ def matins(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             value += 30
 
         value += (deacon["frequency"] - 3) * 0.4
-        value += (deacon["experience"] - 4) * 0.12
+        value += (int(deacon["experience"]) - 4) * 0.12
         
         if deacon['weeksSince'] < 2:
             value = 0
@@ -136,7 +136,8 @@ def pauline(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         value += (deacon["frequency"] - 3) * 0.4
 
         if deacon["rank"] == "Chanter (Epsaltos)":
-            pass
+            deacon["value"] = 0
+            continue
         else:
             value += 2.4
 
@@ -165,7 +166,9 @@ def catholic(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         value += (deacon["frequency"] - 3) * 0.4
 
         if deacon["rank"] == "Chanter (Epsaltos)":
-            pass
+            deacon['value'] = 0
+            continue
+        
         else:
             value += 2.4
 
@@ -194,7 +197,8 @@ def praxis(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         value += (deacon["frequency"] - 3) * 0.4
 
         if deacon["rank"] == "Chanter (Epsaltos)":
-            pass
+            deacon["value"] = 0
+            continue
         else:
             value += 2.4
 
@@ -221,10 +225,11 @@ def gospel(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             value += 30
 
         value += (deacon["frequency"] - 5) * 5
-        value += (deacon["experience"] - 5) * 5
+        value += (int(deacon["experience"]) - 5) * 5
 
         if deacon["rank"] == "Chanter (Epsaltos)":
-            pass
+            deacon['value'] = 0
+            continue
         else:
             value += 5
 
@@ -252,7 +257,7 @@ def water(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             value += 30
 
         value += (deacon["frequency"] - 6) * 0.4
-        value += (deacon["experience"] - 7) * 0.23
+        value += (int(deacon["experience"]) - 7) * 0.23
 
         if int(deacon["age"]) < 10:
             value = -40
@@ -278,7 +283,7 @@ def wine(deacons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             value += 30
 
         value += (deacon["frequency"] - 7) * 0.4
-        value += (deacon["experience"] - 8.4) * 0.23
+        value += (int(deacon["experience"]) - 8.4) * 0.23
 
         if int(deacon["age"]) < 18:
             value = -40
@@ -569,12 +574,13 @@ async def my_async_scheduled_function():
         else:
             to_delete = upcoming_sunday.strftime("%m-%d-%y")
             old_schedule = schedule_ref.document(to_delete).get().to_dict()
-            cleaned_old_schedule = clean_past_schedules(old_schedule)
-            schedule_ref.document(to_delete).delete()
+            if old_schedule:
+                cleaned_old_schedule = clean_past_schedules(old_schedule)
+                schedule_ref.document(to_delete).delete()
         
-            # save old schedules to 'archive' subcollection
-            archive_ref = church_doc.reference.collection("archive")    
-            archive_ref.document(to_delete).set(cleaned_old_schedule)
+                # save old schedules to 'archive' subcollection
+                archive_ref = church_doc.reference.collection("archive")
+                archive_ref.document(to_delete).set(cleaned_old_schedule)
 
             new_schedule_date = upcoming_sunday + datetime.timedelta(weeks=5)
             new_schedule_id = new_schedule_date.strftime("%m-%d-%y")
