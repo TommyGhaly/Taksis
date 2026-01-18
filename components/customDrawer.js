@@ -24,6 +24,7 @@ const menuSections = [
     title: "Administration",
     items: [
       { id: "Edit Deacons", icon: "pencil-square-o", label: "Edit Deacons", role: "editDeacons" },
+      { id: "Traffic Manager", icon: "car", label: "Traffic Manager", role: "trafficManager" },
       { id: "Servants Management", icon: "user-plus", label: "Servants Manager", role: "servantsManager" },
       { id: "Alhan Management", icon: "microphone", label: "Alhan Manager", role: "alhanManager" },
       { id: "Admin Manager", icon: "shield", label: "Admin Manager", role: "adminManager" },

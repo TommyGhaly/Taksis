@@ -15,6 +15,7 @@ import AlhanAdmin from "./AlhanAdmin";
 import AdminManager from "./AdminManager";
 import EditSchedule from "./EditSchedule";
 import DeaconEdits from "./DeaconEdits";
+import TrafficManager from "./TrafficManager";
 import UnavailableRequestModal from "../components/unavailableRequestModal";
 import CustomDrawerContent from "../components/customDrawer";
 import firestore from "@react-native-firebase/firestore";
@@ -64,6 +65,11 @@ const screenConfigs = {
     component: DeaconEdits,
     name: "Edit Deacons",
     drawerName: "Edit Deacons",
+  },
+  trafficManager: {
+    component: TrafficManager,
+    name: "Traffic Manager",
+    drawerName: "Traffic Manager",
   },
   servantsManager: {
     component: ServantsAdmin,
@@ -202,6 +208,7 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId }) {
       case "hymnsClassAttendance": return userRoles.isAlhan;
       case "servantsMeetingTracker": return userRoles.isServant;
       case "editDeacons": return userRoles.admin;
+      case "trafficManager": return userRoles.trafficAdmin;
       case "servantsManager": return userRoles.ssAdmin;
       case "alhanManager": return userRoles.alhanAdmin;
       case "adminManager": return userRoles.superAdmin;
@@ -256,6 +263,9 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId }) {
       {shouldShowInDrawer("editDeacons") && (
         <Drawer.Screen name="Edit Deacons" component={DeaconEdits} />
       )}
+      {shouldShowInDrawer("trafficManager") && (
+        <Drawer.Screen name="Traffic Manager" component={TrafficManager} />
+      )}
       {shouldShowInDrawer("servantsManager") && (
         <Drawer.Screen name="Servants Management" component={ServantsAdmin} />
       )}
@@ -278,6 +288,7 @@ export default function MainContainer() {
     ssAdmin: false,
     alhanAdmin: false,
     superAdmin: false,
+    trafficAdmin: false,
   });
   const [churchId, setChurchId] = useState(null);
   const [homeTitle, setHomeTitle] = useState("Deacon Service Schedule");
@@ -570,7 +581,8 @@ export default function MainContainer() {
 
   const shouldShowDrawer =
     userRoles.isAlhan || userRoles.isSSTeacher || userRoles.isServant ||
-    userRoles.ssAdmin || userRoles.admin || userRoles.alhanAdmin || userRoles.superAdmin;
+    userRoles.ssAdmin || userRoles.admin || userRoles.alhanAdmin || userRoles.superAdmin ||
+    userRoles.trafficAdmin;
 
   if (isLoading) {
     return (
