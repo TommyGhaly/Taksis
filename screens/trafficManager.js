@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, memo } from "react";
 import {
   View,
   Text,
@@ -24,41 +24,32 @@ const TrafficManager = () => {
   const user = auth().currentUser;
   const [permission, requestPermission] = useCameraPermissions();
 
-  // Data state
   const [churchId, setChurchId] = useState(null);
   const [cars, setCars] = useState([]);
   const [users, setUsers] = useState([]);
   const [imageUrls, setImageUrls] = useState({});
   const [loading, setLoading] = useState(true);
 
-  // Scanner state
   const [scannerVisible, setScannerVisible] = useState(false);
   const [scanned, setScanned] = useState(false);
 
-  // Registration state
   const [registrationVisible, setRegistrationVisible] = useState(false);
   const [currentQrId, setCurrentQrId] = useState(null);
   const [selectedDrivers, setSelectedDrivers] = useState([]);
   const [licensePlate, setLicensePlate] = useState("");
   const [missingPhones, setMissingPhones] = useState({});
-  const [registrationStep, setRegistrationStep] = useState("select"); // 'select' | 'phones' | 'license'
+  const [registrationStep, setRegistrationStep] = useState("select");
   const [saving, setSaving] = useState(false);
 
-  // Edit state
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingCar, setEditingCar] = useState(null);
   const [editLicense, setEditLicense] = useState("");
   const [editDrivers, setEditDrivers] = useState([]);
 
-  // Car detail state
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedCar, setSelectedCar] = useState(null);
+  const [driverTokens, setDriverTokens] = useState({});
 
-  // Delete confirmation
-  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
-  const [carToDelete, setCarToDelete] = useState(null);
-
-  // Fetch church ID
   useEffect(() => {
     const unsub = firestore()
       .collection("users")
@@ -69,62 +60,55 @@ const TrafficManager = () => {
           if (data?.church) setChurchId(data.church);
         }
       });
-    return () => unsub();
+    return unsub;
   }, [user.uid]);
 
-  // Fetch cars for church
   useEffect(() => {
     if (!churchId) return;
     const unsub = firestore()
       .collection("qrCodes")
       .where("church", "==", churchId)
       .onSnapshot((snapshot) => {
-        const carList = snapshot.docs
+        const list = snapshot.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
           .sort((a, b) => (a.license || "").localeCompare(b.license || ""));
-        setCars(carList);
+        setCars(list);
         setLoading(false);
-
-        // Fetch profile images for all owners
-        const allOwnerIds = [
-          ...new Set(carList.flatMap((c) => c.ownerIds || [])),
-        ];
-        allOwnerIds.forEach((uid) => fetchProfileImage(uid));
+        list.forEach((c) => (c.ownerIds || []).forEach(fetchProfileImage));
       });
-    return () => unsub();
+    return unsub;
   }, [churchId]);
 
-  // Fetch users for church
   useEffect(() => {
     if (!churchId) return;
     const unsub = firestore()
       .collection("users")
       .where("church", "==", churchId)
       .onSnapshot((snapshot) => {
-        const userList = snapshot.docs
+        const list = snapshot.docs
           .map((doc) => ({ uid: doc.id, ...doc.data() }))
           .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-        setUsers(userList);
-        userList.forEach((u) => fetchProfileImage(u.uid));
+        setUsers(list);
+        list.forEach((u) => fetchProfileImage(u.uid));
       });
-    return () => unsub();
+    return unsub;
   }, [churchId]);
 
   const fetchProfileImage = async (uid) => {
-    if (imageUrls[uid]) return;
+    if (!uid || imageUrls[uid]) return;
     try {
       const url = await storage()
         .ref(`profilePictures/${uid}.png`)
         .getDownloadURL();
       setImageUrls((prev) => ({ ...prev, [uid]: url }));
-    } catch {
-      // No profile image
-    }
+    } catch {}
   };
 
-  const getUserById = (uid) => users.find((u) => u.uid === uid);
+  const getUserById = useCallback(
+    (uid) => users.find((u) => u.uid === uid),
+    [users]
+  );
 
-  // Scanner handlers
   const openScanner = async () => {
     if (!permission?.granted) {
       const result = await requestPermission();
@@ -146,13 +130,11 @@ const TrafficManager = () => {
       setScanned(true);
       setScannerVisible(false);
 
-      // Check if QR code exists
-      const existingCar = cars.find((c) => c.id === data);
-      if (existingCar) {
-        setSelectedCar(existingCar);
+      const existing = cars.find((c) => c.id === data);
+      if (existing) {
+        setSelectedCar(existing);
         setDetailModalVisible(true);
       } else {
-        // Start registration
         setCurrentQrId(data);
         setSelectedDrivers([]);
         setLicensePlate("");
@@ -164,7 +146,6 @@ const TrafficManager = () => {
     [scanned, cars]
   );
 
-  // Registration handlers
   const toggleDriverSelection = (uid) => {
     setSelectedDrivers((prev) =>
       prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
@@ -173,20 +154,14 @@ const TrafficManager = () => {
 
   const proceedToPhones = () => {
     if (selectedDrivers.length === 0) {
-      Alert.alert(
-        "Select Drivers",
-        "Please select at least one driver for this vehicle."
-      );
+      Alert.alert("Select Drivers", "Please select at least one driver.");
       return;
     }
-
-    // Check which selected drivers are missing phone numbers
     const missing = {};
     selectedDrivers.forEach((uid) => {
       const u = getUserById(uid);
       if (!u?.phone) missing[uid] = "";
     });
-
     if (Object.keys(missing).length > 0) {
       setMissingPhones(missing);
       setRegistrationStep("phones");
@@ -196,11 +171,8 @@ const TrafficManager = () => {
   };
 
   const proceedToLicense = () => {
-    // Validate all phones are filled
-    const emptyPhones = Object.entries(missingPhones).filter(
-      ([_, phone]) => !phone.trim()
-    );
-    if (emptyPhones.length > 0) {
+    const empty = Object.entries(missingPhones).filter(([_, p]) => !p.trim());
+    if (empty.length > 0) {
       Alert.alert(
         "Missing Information",
         "Please enter phone numbers for all drivers."
@@ -218,39 +190,31 @@ const TrafficManager = () => {
       );
       return;
     }
-
     setSaving(true);
     try {
-      // Save phone numbers to user docs
-      const phoneUpdates = Object.entries(missingPhones).map(([uid, phone]) =>
+      const updates = Object.entries(missingPhones).map(([uid, phone]) =>
         firestore().collection("users").doc(uid).update({ phone: phone.trim() })
       );
-      await Promise.all(phoneUpdates);
-
-      // Create QR code doc
+      await Promise.all(updates);
       await firestore().collection("qrCodes").doc(currentQrId).set({
         church: churchId,
         license: licensePlate.trim().toUpperCase(),
         ownerIds: selectedDrivers,
       });
-
       setRegistrationVisible(false);
-      Alert.alert("Success", "Vehicle registered successfully!");
     } catch (err) {
-      console.error("Registration error:", err);
-      Alert.alert("Error", "Failed to register vehicle. Please try again.");
+      Alert.alert("Error", "Failed to register vehicle.");
     } finally {
       setSaving(false);
     }
   };
 
-  // Edit handlers
   const openEditModal = (car) => {
-    setEditingCar(car);
     setEditLicense(car.license || "");
-    setEditDrivers(car.ownerIds || []);
+    setEditDrivers([...(car.ownerIds || [])]);
+    setEditingCar(car);
     setDetailModalVisible(false);
-    setEditModalVisible(true);
+    setTimeout(() => setEditModalVisible(true), 0);
   };
 
   const toggleEditDriver = (uid) => {
@@ -261,17 +225,13 @@ const TrafficManager = () => {
 
   const saveEdit = async () => {
     if (!editLicense.trim()) {
-      Alert.alert(
-        "Missing Information",
-        "Please enter the license plate number."
-      );
+      Alert.alert("Missing Information", "Please enter the license plate.");
       return;
     }
     if (editDrivers.length === 0) {
       Alert.alert("Select Drivers", "Please select at least one driver.");
       return;
     }
-
     setSaving(true);
     try {
       await firestore().collection("qrCodes").doc(editingCar.id).update({
@@ -279,200 +239,219 @@ const TrafficManager = () => {
         ownerIds: editDrivers,
       });
       setEditModalVisible(false);
-      Alert.alert("Success", "Vehicle updated successfully!");
     } catch (err) {
-      console.error("Edit error:", err);
-      Alert.alert("Error", "Failed to update vehicle. Please try again.");
+      Alert.alert("Error", "Failed to update vehicle.");
     } finally {
       setSaving(false);
     }
   };
 
-  // Delete handlers
   const confirmDelete = (car) => {
-    setCarToDelete(car);
-    setDeleteConfirmVisible(true);
-  };
-
-  const deleteCar = async () => {
-    if (!carToDelete) return;
-    setSaving(true);
-    try {
-      await firestore().collection("qrCodes").doc(carToDelete.id).delete();
-      setDeleteConfirmVisible(false);
-      setEditModalVisible(false);
-      setDetailModalVisible(false);
-      setCarToDelete(null);
-      Alert.alert("Deleted", "Vehicle has been removed.");
-    } catch (err) {
-      console.error("Delete error:", err);
-      Alert.alert("Error", "Failed to delete vehicle.");
-    } finally {
-      setSaving(false);
-    }
+    Alert.alert(
+      "Delete Vehicle?",
+      `Remove ${car.license || "this vehicle"} permanently?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            firestore().collection("qrCodes").doc(car.id).delete();
+            setDetailModalVisible(false);
+            setEditModalVisible(false);
+          },
+        },
+      ]
+    );
   };
 
   const callDriver = (phone) => {
-    Linking.openURL(`tel:${phone}`);
+    if (!phone) return;
+    Linking.openURL(`tel:${phone.replace(/[^\d+]/g, "")}`);
   };
 
-  // Render car item
+  const checkDriverTokens = async (ownerIds) => {
+    const tokens = {};
+    await Promise.all(
+      ownerIds.map(async (uid) => {
+        try {
+          const doc = await firestore().collection("users").doc(uid).get();
+          const data = doc.data();
+          if (data?.fcmTokens && Object.keys(data.fcmTokens).length > 0) {
+            tokens[uid] = data.fcmTokens;
+          }
+        } catch {}
+      })
+    );
+    setDriverTokens(tokens);
+  };
+
+  const notifyDriver = (uid) => {
+    const tokens = driverTokens[uid];
+    // TODO: implement notification function
+    console.log("Notify driver:", uid, tokens);
+  };
+
+  const openCarDetail = (car) => {
+    setSelectedCar(car);
+    setDriverTokens({});
+    setDetailModalVisible(true);
+    checkDriverTokens(car.ownerIds || []);
+  };
+
+  const getImageSource = (uid) =>
+    imageUrls[uid] ? { uri: imageUrls[uid] } : DEFAULT_PROFILE;
+
   const renderCarItem = ({ item }) => {
-    const owners = (item.ownerIds || [])
-      .map((uid) => getUserById(uid))
-      .filter(Boolean);
-    const firstOwner = owners[0];
+    const ownerIds = item.ownerIds || [];
+    const owners = ownerIds.map(getUserById).filter(Boolean);
+    const visible = ownerIds.slice(0, 3);
+    const extra = ownerIds.length - 3;
 
     return (
       <TouchableOpacity
-        style={styles.carItem}
-        onPress={() => {
-          setSelectedCar(item);
-          setDetailModalVisible(true);
-        }}
+        style={s.carItem}
+        onPress={() => openCarDetail(item)}
         activeOpacity={0.7}
       >
-        <View style={styles.carItemLeft}>
-          <Image
-            source={
-              firstOwner && imageUrls[firstOwner.uid]
-                ? { uri: imageUrls[firstOwner.uid] }
-                : DEFAULT_PROFILE
-            }
-            style={styles.carItemImage}
-            contentFit="cover"
-          />
-          {owners.length > 1 && (
-            <View style={styles.additionalOwnersBadge}>
-              <Text style={styles.additionalOwnersText}>
-                +{owners.length - 1}
-              </Text>
+        <View style={s.avatarStack}>
+          {visible.map((uid, i) => (
+            <Image
+              key={uid}
+              source={getImageSource(uid)}
+              style={[
+                s.stackedAvatar,
+                { marginLeft: i > 0 ? -18 : 0, zIndex: 3 - i },
+              ]}
+            />
+          ))}
+          {extra > 0 && (
+            <View style={s.extraBadge}>
+              <Text style={s.extraText}>+{extra}</Text>
             </View>
           )}
         </View>
-        <View style={styles.carItemRight}>
-          <Text style={styles.licensePlate}>{item.license || "No Plate"}</Text>
-          <Text style={styles.ownerName} numberOfLines={1}>
+        <View style={s.carInfo}>
+          <Text style={s.licensePlate}>{item.license || "No Plate"}</Text>
+          <Text style={s.ownerNames} numberOfLines={1}>
             {owners.map((o) => o.name).join(", ") || "Unknown"}
           </Text>
         </View>
-        <Icon name="chevron-right" size={24} color="rgba(255,255,255,0.3)" />
+        <Icon name="chevron-right" size={22} color="rgba(255,255,255,0.25)" />
       </TouchableOpacity>
     );
   };
 
-  // Render user selection item
-  const renderUserItem = ({ item, selected, onToggle }) => (
-    <TouchableOpacity
-      style={[styles.userItem, selected && styles.userItemSelected]}
-      onPress={() => onToggle(item.uid)}
-      activeOpacity={0.7}
-    >
-      <Image
-        source={
-          imageUrls[item.uid] ? { uri: imageUrls[item.uid] } : DEFAULT_PROFILE
-        }
-        style={styles.userItemImage}
-        contentFit="cover"
-      />
-      <View style={styles.userItemInfo}>
-        <Text style={styles.userItemName}>{item.name}</Text>
-        {item.phone && <Text style={styles.userItemPhone}>{item.phone}</Text>}
-      </View>
-      <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
-        {selected && <Icon name="check" size={16} color="#fff" />}
-      </View>
-    </TouchableOpacity>
-  );
+  const renderUserSelect = ({ item }) => {
+    const selected = (
+      registrationVisible ? selectedDrivers : editDrivers
+    ).includes(item.uid);
+    const onPress = registrationVisible
+      ? toggleDriverSelection
+      : toggleEditDriver;
+    return (
+      <TouchableOpacity
+        style={[s.userRow, selected && s.userRowSelected]}
+        onPress={() => onPress(item.uid)}
+        activeOpacity={0.7}
+      >
+        <Image source={getImageSource(item.uid)} style={s.userAvatar} />
+        <View style={s.userInfo}>
+          <Text style={s.userName}>{item.name}</Text>
+          {item.phone && <Text style={s.userPhone}>{item.phone}</Text>}
+        </View>
+        <View style={[s.radio, selected && s.radioSelected]}>
+          {selected && <Icon name="check" size={14} color="#fff" />}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={s.center}>
         <ActivityIndicator size="large" color="#147efb" />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Traffic Management</Text>
+    <View style={s.container}>
+      <Text style={s.header}>Traffic Management</Text>
 
       {cars.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Icon name="car-off" size={64} color="rgba(255,255,255,0.2)" />
-          <Text style={styles.emptyStateText}>No vehicles registered</Text>
-          <Text style={styles.emptyStateSubtext}>
-            Scan a QR code to register a vehicle
-          </Text>
+        <View style={s.empty}>
+          <Icon name="car-off" size={56} color="rgba(255,255,255,0.15)" />
+          <Text style={s.emptyText}>No vehicles registered</Text>
+          <Text style={s.emptySubtext}>Scan a QR code to register</Text>
         </View>
       ) : (
         <FlatList
           data={cars}
           keyExtractor={(item) => item.id}
           renderItem={renderCarItem}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
         />
       )}
 
-      {/* Scan Button */}
       <TouchableOpacity
-        style={styles.scanButton}
+        style={s.scanBtn}
         onPress={openScanner}
         activeOpacity={0.8}
       >
-        <Icon name="qrcode-scan" size={24} color="#fff" />
-        <Text style={styles.scanButtonText}>Scan QR Code</Text>
+        <Icon name="qrcode-scan" size={22} color="#fff" />
+        <Text style={s.scanBtnText}>Scan QR Code</Text>
       </TouchableOpacity>
 
-      {/* Scanner Modal */}
+      {/* Scanner */}
       <Modal
         visible={scannerVisible}
         animationType="slide"
         onRequestClose={() => setScannerVisible(false)}
       >
-        <View style={styles.scannerContainer}>
+        <View style={s.scanner}>
           <CameraView
             style={StyleSheet.absoluteFillObject}
             facing="back"
             barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
             onBarcodeScanned={handleBarCodeScanned}
           />
-          <View style={styles.scannerOverlay}>
-            <View style={styles.scannerFrame} />
+          <View style={s.scannerOverlay}>
+            <View style={s.scannerFrame} />
           </View>
           <TouchableOpacity
-            style={styles.scannerCloseButton}
+            style={s.scannerClose}
             onPress={() => setScannerVisible(false)}
           >
-            <Icon name="close" size={28} color="#fff" />
+            <Icon name="close" size={26} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.scannerHint}>
-            Position QR code within the frame
-          </Text>
+          <Text style={s.scannerHint}>Position QR code within frame</Text>
         </View>
       </Modal>
 
-      {/* Registration Modal */}
+      {/* Registration */}
       <Modal
         visible={registrationVisible}
         animationType="slide"
         transparent
         onRequestClose={() => setRegistrationVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {registrationStep === "select" && "Select Drivers"}
-                {registrationStep === "phones" && "Enter Phone Numbers"}
-                {registrationStep === "license" && "Enter License Plate"}
+        <View style={s.overlay}>
+          <View style={s.modal}>
+            <View style={s.modalHead}>
+              <Text style={s.modalTitle}>
+                {registrationStep === "select"
+                  ? "Select Drivers"
+                  : registrationStep === "phones"
+                  ? "Phone Numbers"
+                  : "License Plate"}
               </Text>
               <TouchableOpacity
-                style={styles.modalCloseButton}
                 onPress={() => setRegistrationVisible(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Icon name="close" size={24} color="rgba(255,255,255,0.6)" />
+                <Icon name="close" size={22} color="rgba(255,255,255,0.5)" />
               </TouchableOpacity>
             </View>
 
@@ -481,74 +460,56 @@ const TrafficManager = () => {
                 <FlatList
                   data={users}
                   keyExtractor={(item) => item.uid}
-                  renderItem={({ item }) =>
-                    renderUserItem({
-                      item,
-                      selected: selectedDrivers.includes(item.uid),
-                      onToggle: toggleDriverSelection,
-                    })
-                  }
-                  style={styles.userList}
-                  contentContainerStyle={styles.userListContent}
+                  renderItem={renderUserSelect}
+                  style={s.userList}
                 />
                 <TouchableOpacity
-                  style={styles.primaryButton}
+                  style={s.primaryBtn}
                   onPress={proceedToPhones}
                 >
-                  <Text style={styles.primaryButtonText}>Continue</Text>
+                  <Text style={s.primaryBtnText}>Continue</Text>
                 </TouchableOpacity>
               </>
             )}
 
             {registrationStep === "phones" && (
               <>
-                <Text style={styles.stepSubtitle}>
-                  These drivers don't have phone numbers saved:
-                </Text>
                 {Object.keys(missingPhones).map((uid) => {
                   const u = getUserById(uid);
                   return (
-                    <View key={uid} style={styles.phoneInputRow}>
+                    <View key={uid} style={s.phoneRow}>
                       <Image
-                        source={
-                          imageUrls[uid]
-                            ? { uri: imageUrls[uid] }
-                            : DEFAULT_PROFILE
-                        }
-                        style={styles.phoneInputImage}
-                        contentFit="cover"
+                        source={getImageSource(uid)}
+                        style={s.phoneAvatar}
                       />
-                      <View style={styles.phoneInputInfo}>
-                        <Text style={styles.phoneInputName}>{u?.name}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.phoneName}>{u?.name}</Text>
                         <TextInput
-                          style={styles.phoneInput}
+                          style={s.phoneInput}
                           placeholder="Phone number"
                           placeholderTextColor="rgba(255,255,255,0.3)"
                           keyboardType="phone-pad"
                           value={missingPhones[uid]}
-                          onChangeText={(text) =>
-                            setMissingPhones((prev) => ({
-                              ...prev,
-                              [uid]: text,
-                            }))
+                          onChangeText={(t) =>
+                            setMissingPhones((p) => ({ ...p, [uid]: t }))
                           }
                         />
                       </View>
                     </View>
                   );
                 })}
-                <View style={styles.buttonRow}>
+                <View style={s.btnRow}>
                   <TouchableOpacity
-                    style={styles.secondaryButton}
+                    style={s.secondaryBtn}
                     onPress={() => setRegistrationStep("select")}
                   >
-                    <Text style={styles.secondaryButtonText}>Back</Text>
+                    <Text style={s.secondaryBtnText}>Back</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.primaryButton}
+                    style={s.primaryBtn}
                     onPress={proceedToLicense}
                   >
-                    <Text style={styles.primaryButtonText}>Continue</Text>
+                    <Text style={s.primaryBtnText}>Continue</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -556,42 +517,34 @@ const TrafficManager = () => {
 
             {registrationStep === "license" && (
               <>
-                <Text style={styles.stepSubtitle}>
-                  Enter the vehicle's license plate:
-                </Text>
                 <TextInput
-                  style={styles.licenseInput}
-                  placeholder="e.g. ABC-1234"
+                  style={s.licenseInput}
+                  placeholder="ABC-1234"
                   placeholderTextColor="rgba(255,255,255,0.3)"
                   autoCapitalize="characters"
                   value={licensePlate}
                   onChangeText={setLicensePlate}
                 />
-                <View style={styles.buttonRow}>
+                <View style={s.btnRow}>
                   <TouchableOpacity
-                    style={styles.secondaryButton}
+                    style={s.secondaryBtn}
                     onPress={() =>
                       setRegistrationStep(
-                        Object.keys(missingPhones).length > 0
-                          ? "phones"
-                          : "select"
+                        Object.keys(missingPhones).length ? "phones" : "select"
                       )
                     }
                   >
-                    <Text style={styles.secondaryButtonText}>Back</Text>
+                    <Text style={s.secondaryBtnText}>Back</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[
-                      styles.primaryButton,
-                      saving && styles.disabledButton,
-                    ]}
+                    style={[s.primaryBtn, saving && s.disabled]}
                     onPress={completeRegistration}
                     disabled={saving}
                   >
                     {saving ? (
                       <ActivityIndicator color="#fff" size="small" />
                     ) : (
-                      <Text style={styles.primaryButtonText}>Register</Text>
+                      <Text style={s.primaryBtnText}>Register</Text>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -601,181 +554,136 @@ const TrafficManager = () => {
         </View>
       </Modal>
 
-      {/* Car Detail Modal */}
+      {/* Car Detail */}
       <Modal
         visible={detailModalVisible}
         animationType="fade"
         transparent
         onRequestClose={() => setDetailModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
+        <View style={s.overlay}>
+          <View style={s.modal}>
+            <View style={s.modalHead}>
+              <Text style={s.modalTitle}>
                 {selectedCar?.license || "Vehicle"}
               </Text>
               <TouchableOpacity
-                style={styles.modalCloseButton}
                 onPress={() => setDetailModalVisible(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Icon name="close" size={24} color="rgba(255,255,255,0.6)" />
+                <Icon name="close" size={22} color="rgba(255,255,255,0.5)" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.detailSectionTitle}>Drivers</Text>
-            {(selectedCar?.ownerIds || []).map((uid) => {
-              const u = getUserById(uid);
-              if (!u) return null;
-              return (
-                <View key={uid} style={styles.detailDriverRow}>
-                  <Image
-                    source={
-                      imageUrls[uid] ? { uri: imageUrls[uid] } : DEFAULT_PROFILE
-                    }
-                    style={styles.detailDriverImage}
-                    contentFit="cover"
-                  />
-                  <View style={styles.detailDriverInfo}>
-                    <Text style={styles.detailDriverName}>{u.name}</Text>
-                    {u.phone && (
-                      <Text style={styles.detailDriverPhone}>{u.phone}</Text>
-                    )}
+            <FlatList
+              data={selectedCar?.ownerIds || []}
+              keyExtractor={(uid) => uid}
+              style={s.driverList}
+              renderItem={({ item: uid }) => {
+                const u = getUserById(uid);
+                if (!u) return null;
+                const hasToken = !!driverTokens[uid];
+                return (
+                  <View style={s.driverRow}>
+                    <Image
+                      source={getImageSource(uid)}
+                      style={s.driverAvatar}
+                    />
+                    <View style={s.driverInfo}>
+                      <Text style={s.driverName}>{u.name}</Text>
+                      {u.phone && <Text style={s.driverPhone}>{u.phone}</Text>}
+                    </View>
+                    <View style={s.driverActions}>
+                      {hasToken && (
+                        <TouchableOpacity
+                          style={s.notifyBtn}
+                          onPress={() => notifyDriver(uid)}
+                        >
+                          <Icon name="bell-outline" size={18} color="#fff" />
+                        </TouchableOpacity>
+                      )}
+                      {u.phone && (
+                        <TouchableOpacity
+                          style={s.callBtn}
+                          onPress={() => callDriver(u.phone)}
+                        >
+                          <Icon name="phone" size={18} color="#fff" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
-                  {u.phone && (
-                    <TouchableOpacity
-                      style={styles.callButton}
-                      onPress={() => callDriver(u.phone)}
-                    >
-                      <Icon name="phone" size={20} color="#fff" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              );
-            })}
+                );
+              }}
+            />
 
-            <View style={styles.detailButtonRow}>
+            <View style={s.detailBtns}>
               <TouchableOpacity
-                style={styles.editButton}
+                style={s.editBtn}
                 onPress={() => openEditModal(selectedCar)}
               >
-                <Icon name="pencil" size={18} color="#fff" />
-                <Text style={styles.editButtonText}>Edit</Text>
+                <Icon name="pencil-outline" size={18} color="#fff" />
+                <Text style={s.editBtnText}>Edit</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.deleteButton}
+                style={s.deleteBtn}
                 onPress={() => confirmDelete(selectedCar)}
               >
-                <Icon name="delete" size={18} color="#ff3b30" />
-                <Text style={styles.deleteButtonText}>Delete</Text>
+                <Icon name="trash-can-outline" size={18} color="#ff453a" />
+                <Text style={s.deleteBtnText}>Delete</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Edit Modal */}
+      {/* Edit */}
       <Modal
         visible={editModalVisible}
-        animationType="slide"
+        animationType="none"
         transparent
         onRequestClose={() => setEditModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Vehicle</Text>
+        <View style={s.overlay}>
+          <View style={s.modal}>
+            <View style={s.modalHead}>
+              <Text style={s.modalTitle}>Edit Vehicle</Text>
               <TouchableOpacity
-                style={styles.modalCloseButton}
                 onPress={() => setEditModalVisible(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Icon name="close" size={24} color="rgba(255,255,255,0.6)" />
+                <Icon name="close" size={22} color="rgba(255,255,255,0.5)" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.stepSubtitle}>License Plate</Text>
+            <Text style={s.label}>License Plate</Text>
             <TextInput
-              style={styles.licenseInput}
-              placeholder="e.g. ABC-1234"
+              style={s.licenseInput}
+              placeholder="ABC-1234"
               placeholderTextColor="rgba(255,255,255,0.3)"
               autoCapitalize="characters"
               value={editLicense}
               onChangeText={setEditLicense}
             />
 
-            <Text style={[styles.stepSubtitle, { marginTop: 20 }]}>
-              Drivers
-            </Text>
+            <Text style={[s.label, { marginTop: 20 }]}>Drivers</Text>
             <FlatList
               data={users}
               keyExtractor={(item) => item.uid}
-              renderItem={({ item }) =>
-                renderUserItem({
-                  item,
-                  selected: editDrivers.includes(item.uid),
-                  onToggle: toggleEditDriver,
-                })
-              }
-              style={[styles.userList, { maxHeight: 250 }]}
-              contentContainerStyle={styles.userListContent}
+              renderItem={renderUserSelect}
+              style={[s.userList, { maxHeight: 220 }]}
             />
 
             <TouchableOpacity
-              style={[styles.primaryButton, saving && styles.disabledButton]}
+              style={[s.saveBtn, saving && s.disabled]}
               onPress={saveEdit}
               disabled={saving}
             >
               {saving ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={styles.primaryButtonText}>Save Changes</Text>
+                <Text style={s.saveBtnText}>Save</Text>
               )}
             </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Delete Confirmation Modal */}
-      <Modal
-        visible={deleteConfirmVisible}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setDeleteConfirmVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.confirmModalContent}>
-            <Icon
-              name="alert-circle"
-              size={48}
-              color="#ff3b30"
-              style={{ marginBottom: 16 }}
-            />
-            <Text style={styles.confirmTitle}>Delete Vehicle?</Text>
-            <Text style={styles.confirmSubtitle}>
-              This will permanently remove{" "}
-              {carToDelete?.license || "this vehicle"} from the system.
-            </Text>
-            <View style={styles.confirmButtonRow}>
-              <TouchableOpacity
-                style={styles.confirmCancelButton}
-                onPress={() => setDeleteConfirmVisible(false)}
-              >
-                <Text style={styles.confirmCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.confirmDeleteButton,
-                  saving && styles.disabledButton,
-                ]}
-                onPress={deleteCar}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.confirmDeleteText}>Delete</Text>
-                )}
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       </Modal>
@@ -783,70 +691,58 @@ const TrafficManager = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#121212", padding: 20 },
-  loadingContainer: {
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#000", padding: 20 },
+  center: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: "#000",
     justifyContent: "center",
     alignItems: "center",
   },
   header: { fontSize: 28, fontWeight: "700", color: "#fff", marginBottom: 20 },
 
-  // Empty state
-  emptyState: {
+  empty: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingBottom: 100,
   },
-  emptyStateText: {
-    fontSize: 18,
-    color: "rgba(255,255,255,0.5)",
-    marginTop: 16,
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.3)",
-    marginTop: 8,
-  },
+  emptyText: { fontSize: 17, color: "rgba(255,255,255,0.4)", marginTop: 16 },
+  emptySubtext: { fontSize: 14, color: "rgba(255,255,255,0.25)", marginTop: 6 },
 
-  // Car list
-  listContent: { paddingBottom: 100 },
   carItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1a1a1a",
-    padding: 16,
-    borderRadius: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "#1c1c1e",
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 10,
   },
-  carItemLeft: { position: "relative", marginRight: 14 },
-  carItemImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    borderWidth: 1,
-    borderColor: "#333",
+  avatarStack: { flexDirection: "row", alignItems: "center", marginRight: 12 },
+  stackedAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "#1c1c1e",
   },
-  additionalOwnersBadge: {
-    position: "absolute",
-    bottom: -4,
-    right: -4,
-    backgroundColor: "#147efb",
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  extraBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#2c2c2e",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#1c1c1e",
+    marginLeft: -10,
   },
-  additionalOwnersText: { fontSize: 10, color: "#fff", fontWeight: "600" },
-  carItemRight: { flex: 1 },
-  licensePlate: { fontSize: 18, fontWeight: "700", color: "#fff" },
-  ownerName: { fontSize: 14, color: "rgba(255,255,255,0.5)", marginTop: 4 },
+  extraText: { fontSize: 13, fontWeight: "600", color: "#fff" },
+  carInfo: { flex: 1 },
+  licensePlate: { fontSize: 17, fontWeight: "600", color: "#fff" },
+  ownerNames: { fontSize: 14, color: "rgba(255,255,255,0.45)", marginTop: 2 },
 
-  // Scan button
-  scanButton: {
+  scanBtn: {
     position: "absolute",
     bottom: 20,
     left: 20,
@@ -855,33 +751,32 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
-    borderRadius: 14,
-    gap: 10,
+    paddingVertical: 15,
+    borderRadius: 12,
+    gap: 8,
   },
-  scanButtonText: { fontSize: 16, fontWeight: "600", color: "#fff" },
+  scanBtnText: { fontSize: 16, fontWeight: "600", color: "#fff" },
 
-  // Scanner
-  scannerContainer: { flex: 1, backgroundColor: "#000" },
+  scanner: { flex: 1, backgroundColor: "#000" },
   scannerOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
     alignItems: "center",
   },
   scannerFrame: {
-    width: 250,
-    height: 250,
+    width: 240,
+    height: 240,
     borderWidth: 2,
     borderColor: "#147efb",
-    borderRadius: 20,
+    borderRadius: 16,
   },
-  scannerCloseButton: {
+  scannerClose: {
     position: "absolute",
     top: 60,
     right: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
@@ -891,133 +786,78 @@ const styles = StyleSheet.create({
     bottom: 100,
     alignSelf: "center",
     color: "#fff",
-    fontSize: 16,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
+    fontSize: 15,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
   },
 
-  // Modal
-  modalOverlay: {
+  overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.75)",
+    backgroundColor: "rgba(0,0,0,0.7)",
     justifyContent: "center",
     alignItems: "center",
   },
-  modalContent: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 14,
-    width: "90%",
-    maxHeight: "80%",
+  modal: {
+    backgroundColor: "#1c1c1e",
+    borderRadius: 16,
+    width: "88%",
+    maxHeight: "75%",
     padding: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
   },
-  modalHeader: {
+  modalHead: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 20,
   },
-  modalTitle: { fontSize: 20, fontWeight: "600", color: "#fff" },
-  modalCloseButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    justifyContent: "center",
-    alignItems: "center",
+  modalTitle: { fontSize: 18, fontWeight: "600", color: "#fff" },
+
+  label: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "rgba(255,255,255,0.5)",
+    marginBottom: 10,
   },
 
-  // User list
-  userList: { maxHeight: 350 },
-  userListContent: { paddingBottom: 10 },
-  userItem: {
+  userList: { maxHeight: 280 },
+  userRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
+    padding: 10,
     borderRadius: 10,
-    marginBottom: 8,
+    marginBottom: 6,
     backgroundColor: "rgba(255,255,255,0.05)",
   },
-  userItemSelected: {
-    backgroundColor: "rgba(20,126,251,0.2)",
-    borderWidth: 1,
-    borderColor: "#147efb",
-  },
-  userItemImage: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "#333",
-  },
-  userItemInfo: { flex: 1, marginLeft: 12 },
-  userItemName: { fontSize: 16, fontWeight: "500", color: "#fff" },
-  userItemPhone: { fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 2 },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+  userRowSelected: { backgroundColor: "rgba(20,126,251,0.2)" },
+  userAvatar: { width: 38, height: 38, borderRadius: 19 },
+  userInfo: { flex: 1, marginLeft: 10 },
+  userName: { fontSize: 15, fontWeight: "500", color: "#fff" },
+  userPhone: { fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 1 },
+  radio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.3)",
+    borderColor: "rgba(255,255,255,0.25)",
     justifyContent: "center",
     alignItems: "center",
   },
-  checkboxSelected: { backgroundColor: "#147efb", borderColor: "#147efb" },
+  radioSelected: { backgroundColor: "#147efb", borderColor: "#147efb" },
 
-  // Buttons
-  primaryButton: {
-    backgroundColor: "#147efb",
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 16,
-  },
-  primaryButtonText: { fontSize: 16, fontWeight: "600", color: "#fff" },
-  secondaryButton: {
-    flex: 1,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: "center",
-    marginRight: 10,
-  },
-  secondaryButtonText: { fontSize: 16, fontWeight: "600", color: "#fff" },
-  buttonRow: { flexDirection: "row", marginTop: 16 },
-  disabledButton: { opacity: 0.5 },
-
-  // Phone input
-  stepSubtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.5)",
-    marginBottom: 16,
-  },
-  phoneInputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  phoneInputImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#333",
-  },
-  phoneInputInfo: { flex: 1, marginLeft: 12 },
-  phoneInputName: { fontSize: 14, color: "#fff", marginBottom: 6 },
+  phoneRow: { flexDirection: "row", alignItems: "center", marginBottom: 14 },
+  phoneAvatar: { width: 36, height: 36, borderRadius: 18, marginRight: 10 },
+  phoneName: { fontSize: 14, color: "#fff", marginBottom: 4 },
   phoneInput: {
     backgroundColor: "rgba(255,255,255,0.08)",
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     color: "#fff",
-    fontSize: 15,
+    fontSize: 14,
   },
 
-  // License input
   licenseInput: {
     backgroundColor: "rgba(255,255,255,0.08)",
     borderRadius: 10,
@@ -1030,44 +870,59 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
 
-  // Detail modal
-  detailSectionTitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.5)",
-    marginBottom: 12,
+  btnRow: { flexDirection: "row", marginTop: 16, gap: 10 },
+  primaryBtn: {
+    flex: 1,
+    backgroundColor: "#147efb",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 16,
   },
-  detailDriverRow: {
+  primaryBtnText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  secondaryBtn: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  secondaryBtnText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  disabled: { opacity: 0.5 },
+
+  driverList: { maxHeight: 300 },
+  driverRow: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.05)",
     padding: 12,
     borderRadius: 10,
-    marginBottom: 10,
+    marginBottom: 8,
   },
-  detailDriverImage: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "#333",
-  },
-  detailDriverInfo: { flex: 1, marginLeft: 12 },
-  detailDriverName: { fontSize: 16, fontWeight: "500", color: "#fff" },
-  detailDriverPhone: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.5)",
-    marginTop: 2,
-  },
-  callButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#34c759",
+  driverAvatar: { width: 42, height: 42, borderRadius: 21 },
+  driverInfo: { flex: 1, marginLeft: 12 },
+  driverName: { fontSize: 15, fontWeight: "500", color: "#fff" },
+  driverPhone: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 1 },
+  driverActions: { flexDirection: "row", gap: 8 },
+  notifyBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#ff9f0a",
   },
-  detailButtonRow: { flexDirection: "row", marginTop: 20, gap: 12 },
-  editButton: {
+  callBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#34c759",
+  },
+
+  detailBtns: { flexDirection: "row", marginTop: 16, gap: 10 },
+  editBtn: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
@@ -1075,60 +930,29 @@ const styles = StyleSheet.create({
     backgroundColor: "#147efb",
     paddingVertical: 12,
     borderRadius: 10,
-    gap: 8,
+    gap: 6,
   },
-  editButtonText: { fontSize: 15, fontWeight: "600", color: "#fff" },
-  deleteButton: {
+  editBtnText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  deleteBtn: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,59,48,0.15)",
+    backgroundColor: "rgba(255,69,58,0.12)",
     paddingVertical: 12,
     borderRadius: 10,
-    gap: 8,
+    gap: 6,
   },
-  deleteButtonText: { fontSize: 15, fontWeight: "600", color: "#ff3b30" },
+  deleteBtnText: { fontSize: 15, fontWeight: "600", color: "#ff453a" },
 
-  // Confirm modal
-  confirmModalContent: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 14,
-    width: "85%",
-    padding: 24,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-  },
-  confirmTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#fff",
-    marginBottom: 8,
-  },
-  confirmSubtitle: {
-    fontSize: 15,
-    color: "rgba(255,255,255,0.5)",
-    textAlign: "center",
-    marginBottom: 24,
-  },
-  confirmButtonRow: { flexDirection: "row", gap: 12, width: "100%" },
-  confirmCancelButton: {
-    flex: 1,
-    backgroundColor: "rgba(255,255,255,0.1)",
+  saveBtn: {
+    backgroundColor: "#147efb",
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: "center",
+    marginTop: 16,
   },
-  confirmCancelText: { fontSize: 16, fontWeight: "600", color: "#fff" },
-  confirmDeleteButton: {
-    flex: 1,
-    backgroundColor: "#ff3b30",
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  confirmDeleteText: { fontSize: 16, fontWeight: "600", color: "#fff" },
+  saveBtnText: { fontSize: 15, fontWeight: "600", color: "#fff" },
 });
 
 export default TrafficManager;
