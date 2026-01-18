@@ -17,8 +17,10 @@ import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import callFunction from "../components/functionCalls";
 
 const DEFAULT_PROFILE = require("../assets/default_profile.png");
+const NOTIFICATION_URL = "https://us-central1-taksis-a8ba7.cloudfunctions.net/traffic_notification";
 
 const TrafficManager = () => {
   const user = auth().currentUser;
@@ -49,6 +51,8 @@ const TrafficManager = () => {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedCar, setSelectedCar] = useState(null);
   const [driverTokens, setDriverTokens] = useState({});
+
+
 
   useEffect(() => {
     const unsub = firestore()
@@ -286,10 +290,35 @@ const TrafficManager = () => {
     setDriverTokens(tokens);
   };
 
-  const notifyDriver = (uid) => {
+  // Notification state
+  const [notifyVisible, setNotifyVisible] = useState(false);
+  const [notifyTokens, setNotifyTokens] = useState([]);
+  const [notifyTitle, setNotifyTitle] = useState("");
+  const [notifyMsg, setNotifyMsg] = useState("");
+
+  const openNotify = (uid) => {
     const tokens = driverTokens[uid];
-    // TODO: implement notification function
-    console.log("Notify driver:", uid, tokens);
+    if (!tokens || Object.keys(tokens).length === 0) return;
+    setNotifyTokens(Object.values(tokens));
+    setNotifyTitle("Please Move Your Car");
+    setNotifyMsg("Your vehicle is blocking traffic. Please move it as soon as possible.");
+    setDetailModalVisible(false);
+    setNotifyVisible(true);
+  };
+
+  const sendNotify = () => {
+    if (!notifyTitle.trim() || !notifyMsg.trim()) {
+      Alert.alert("Missing Info", "Please enter title and message.");
+      return;
+    }
+    callFunction(
+      user,
+      NOTIFICATION_URL,
+      { tokens: notifyTokens, title: notifyTitle.trim(), message: notifyMsg.trim() },
+      "Failed to send notification."
+    );
+    setNotifyVisible(false);
+    Alert.alert("Sent", "Notification sent.");
   };
 
   const openCarDetail = (car) => {
@@ -597,7 +626,7 @@ const TrafficManager = () => {
                       {hasToken && (
                         <TouchableOpacity
                           style={s.notifyBtn}
-                          onPress={() => notifyDriver(uid)}
+                          onPress={() => openNotify(uid)}
                         >
                           <Icon name="bell-outline" size={18} color="#fff" />
                         </TouchableOpacity>
@@ -687,12 +716,56 @@ const TrafficManager = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Notify - rendered last to be on top */}
+      {notifyVisible && (
+        <View style={s.alertOverlay}>
+          <View style={s.alertBox}>
+            <View style={s.alertIconWrap}>
+              <Icon name="bell-ring" size={28} color="#ff9f0a" />
+            </View>
+            <Text style={s.alertTitle}>Send Notification</Text>
+            <Text style={s.alertSubtitle}>Customize the message to send</Text>
+            
+            <Text style={s.alertLabel}>Title</Text>
+            <TextInput
+              style={s.alertInput}
+              placeholder="Notification title"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              value={notifyTitle}
+              onChangeText={setNotifyTitle}
+              autoFocus
+            />
+            
+            <Text style={s.alertLabel}>Message</Text>
+            <TextInput
+              style={[s.alertInput, s.alertTextarea]}
+              placeholder="Notification message"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              value={notifyMsg}
+              onChangeText={setNotifyMsg}
+              multiline
+              textAlignVertical="top"
+            />
+            
+            <View style={s.alertBtns}>
+              <TouchableOpacity style={s.alertCancelBtn} onPress={() => setNotifyVisible(false)}>
+                <Text style={s.alertCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.alertSendBtn} onPress={sendNotify}>
+                <Icon name="send" size={16} color="#fff" style={{ marginRight: 6 }} />
+                <Text style={s.alertSendText}>Send</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 };
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000", padding: 20 },
+  container: { flex: 1, backgroundColor: "#121212", padding: 20 },
   center: {
     flex: 1,
     backgroundColor: "#000",
@@ -953,6 +1026,98 @@ const s = StyleSheet.create({
     marginTop: 16,
   },
   saveBtnText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+
+  // Notify alert styles
+  alertOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9999,
+  },
+  alertBox: {
+    backgroundColor: "#1c1c1e",
+    borderRadius: 20,
+    width: 300,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  alertIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255,159,10,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  alertTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#fff",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  alertSubtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.5)",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  alertLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "rgba(255,255,255,0.6)",
+    marginBottom: 8,
+  },
+  alertInput: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: "#fff",
+    fontSize: 15,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  alertTextarea: {
+    height: 90,
+    paddingTop: 12,
+  },
+  alertBtns: {
+    flexDirection: "row",
+    marginTop: 4,
+    gap: 12,
+  },
+  alertCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+  },
+  alertCancelText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.8)",
+  },
+  alertSendBtn: {
+    flex: 1,
+    flexDirection: "row",
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#ff9f0a",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  alertSendText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#fff",
+  },
 });
 
 export default TrafficManager;
