@@ -81,9 +81,8 @@ const adminRoles = [
   { key: "admin", label: "Schedule Admin" },
   { key: "ssAdmin", label: "Servants Manager" },
   { key: "alhanAdmin", label: "Alhan Manager" },
+  { key: "trafficAdmin", label: "Traffic Manager"},
   { key: "isServant", label: "Servants Meeting Tracker" },
-  { key: "deaconAdmin", label: "Deacon Trackers Manager" },
-  { key: "paschaAdmin", label: "Pascha Organizer" },
 ];
 
 const AdminManager = () => {

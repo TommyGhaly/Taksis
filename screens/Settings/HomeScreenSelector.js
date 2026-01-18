@@ -24,6 +24,7 @@ import SundaySchoolAttendance from "../SundaySchool/SundaySchoolAttendance";
 import AlhanAttendance from "../Alhan/AlhanAttendance";
 import ServantsAttendance from "../ServantsMeeting/ServantsAttendance";
 import DeaconEdits from "../DeaconEdits";
+import TrafficManager from "../TrafficManager";
 import ServantsAdmin from "../ServantsAdmin";
 import AlhanAdmin from "../AlhanAdmin";
 import AdminManager from "../AdminManager";
@@ -116,6 +117,13 @@ const HomeScreenSelector = () => {
       caption: "Manage deacon information",
       component: DeaconEdits,
       available: userRoles.admin,
+    },
+    {
+      id: "trafficManager",
+      name: "Traffic Manager",
+      caption: "Manage traffic coordination",
+      component: TrafficManager,
+      available: userRoles.trafficAdmin,
     },
     {
       id: "servantsManager",
