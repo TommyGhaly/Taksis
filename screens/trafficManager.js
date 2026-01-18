@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   FlatList,
   Modal,
@@ -10,6 +11,9 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from "react-native";
 import { Image } from "expo-image";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -717,48 +721,60 @@ const TrafficManager = () => {
         </View>
       </Modal>
 
-      {/* Notify - rendered last to be on top */}
+      {/* Notify - with keyboard handling */}
       {notifyVisible && (
-        <View style={s.alertOverlay}>
-          <View style={s.alertBox}>
-            <View style={s.alertIconWrap}>
-              <Icon name="bell-ring" size={28} color="#ff9f0a" />
-            </View>
-            <Text style={s.alertTitle}>Send Notification</Text>
-            <Text style={s.alertSubtitle}>Customize the message to send</Text>
-            
-            <Text style={s.alertLabel}>Title</Text>
-            <TextInput
-              style={s.alertInput}
-              placeholder="Notification title"
-              placeholderTextColor="rgba(255,255,255,0.3)"
-              value={notifyTitle}
-              onChangeText={setNotifyTitle}
-              autoFocus
-            />
-            
-            <Text style={s.alertLabel}>Message</Text>
-            <TextInput
-              style={[s.alertInput, s.alertTextarea]}
-              placeholder="Notification message"
-              placeholderTextColor="rgba(255,255,255,0.3)"
-              value={notifyMsg}
-              onChangeText={setNotifyMsg}
-              multiline
-              textAlignVertical="top"
-            />
-            
-            <View style={s.alertBtns}>
-              <TouchableOpacity style={s.alertCancelBtn} onPress={() => setNotifyVisible(false)}>
-                <Text style={s.alertCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.alertSendBtn} onPress={sendNotify}>
-                <Icon name="send" size={16} color="#fff" style={{ marginRight: 6 }} />
-                <Text style={s.alertSendText}>Send</Text>
-              </TouchableOpacity>
-            </View>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={s.alertOverlay}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={s.keyboardAvoid}
+            >
+              <TouchableWithoutFeedback>
+                <View style={s.alertBox}>
+                  <View style={s.alertIconWrap}>
+                    <Icon name="bell-ring" size={28} color="#ff9f0a" />
+                  </View>
+                  <Text style={s.alertTitle}>Send Notification</Text>
+                  <Text style={s.alertSubtitle}>Customize the message to send</Text>
+                  
+                  <Text style={s.alertLabel}>Title</Text>
+                  <TextInput
+                    style={s.alertInput}
+                    placeholder="Notification title"
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    value={notifyTitle}
+                    onChangeText={setNotifyTitle}
+                    autoFocus
+                    returnKeyType="next"
+                  />
+                  
+                  <Text style={s.alertLabel}>Message</Text>
+                  <TextInput
+                    style={[s.alertInput, s.alertTextarea]}
+                    placeholder="Notification message"
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    value={notifyMsg}
+                    onChangeText={setNotifyMsg}
+                    multiline
+                    textAlignVertical="top"
+                    blurOnSubmit={true}
+                    returnKeyType="done"
+                  />
+                  
+                  <View style={s.alertBtns}>
+                    <TouchableOpacity style={s.alertCancelBtn} onPress={() => setNotifyVisible(false)}>
+                      <Text style={s.alertCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.alertSendBtn} onPress={sendNotify}>
+                      <Icon name="send" size={16} color="#fff" style={{ marginRight: 6 }} />
+                      <Text style={s.alertSendText}>Send</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       )}
     </View>
   );
@@ -1034,6 +1050,12 @@ const s = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     zIndex: 9999,
+  },
+  keyboardAvoid: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
   },
   alertBox: {
     backgroundColor: "#1c1c1e",
