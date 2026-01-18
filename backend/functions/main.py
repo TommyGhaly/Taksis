@@ -951,6 +951,38 @@ def servants_meeting_notification(event: scheduler_fn.ScheduledEvent) -> None:
     asyncio.run(process_servant_notifications())
 
 
+
+@https_fn.on_request()
+def traffic_notification(req: https_fn.Request) -> https_fn.Response:
+    '''
+    Send notification to user's parked incorrectly
+    inputs user's tokens and message
+    '''
+    try:
+        request_data = req.get_json()
+        if request_data is None:
+            return https_fn.Response("Missing JSON body", status=400)
+    except Exception as e:
+        return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
+
+    tokens = request_data.get('tokens', [])
+    message = request_data.get('message', "")
+    title = request_data.get('title', "")
+    if not tokens or not message or not title:
+        return https_fn.Response("Missing parameters", status=400)
+
+    # Optional auth verification
+    id_token = req.headers.get("Authorization")
+    if id_token:
+        try:
+            decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
+        except Exception as e:
+            return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+
+    send_notification(tokens, message, title)
+    return https_fn.Response(r"Successfully Notified Driver", status=200)
+
+
 # ============================================================================
 # ATTENDANCE SHEET GENERATION
 # ============================================================================
