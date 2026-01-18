@@ -13,11 +13,13 @@ import {
   ScrollView,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
+import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import { useUser } from "../UserContext";
 import ProgressBar from "../components/progressBar";
 import PhotoInput from "../components/photoInput";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
+import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 const InputPhoto = ({ route, navigation }) => {
   const { from } = route.params || {};
@@ -25,7 +27,8 @@ const InputPhoto = ({ route, navigation }) => {
   const { setSignUp } = useUser();
   const [phoneNumber, setPhoneNumber] = useState("");
   const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const fromApplicable = from === "SelectApplicable";
+  const [uploadedPhotoURL, setUploadedPhotoURL] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const hapticOptions = {
     enableVibrateFallback: true,
@@ -37,10 +40,28 @@ const InputPhoto = ({ route, navigation }) => {
       Alert.alert("Error", "User not authenticated");
       return;
     }
+
+    setIsLoading(true);
+
     try {
-      await firestore().collection("users").doc(user.uid).update({
-        phone: phoneNumber.trim(),
-      });
+      // Check if profile picture exists in storage (in case state got out of sync)
+      let photoURL = uploadedPhotoURL;
+      if (!photoURL) {
+        try {
+          const reference = storage().ref(`profilePictures/${user.uid}.png`);
+          photoURL = await reference.getDownloadURL();
+        } catch (storageError) {
+          // No photo uploaded - that's fine, it's optional
+        }
+      }
+
+      // Update Firestore with phone and photo URL if it exists
+      const updateData = { phone: phoneNumber.trim() };
+      if (photoURL) {
+        updateData.photoURL = photoURL;
+      }
+
+      await firestore().collection("users").doc(user.uid).update(updateData);
       setSignUp(true);
       navigation.navigate("SelectChurch");
     } catch (error) {
@@ -48,8 +69,10 @@ const InputPhoto = ({ route, navigation }) => {
         "Error",
         "Could not update profile information. Please try again."
       );
+    } finally {
+      setIsLoading(false);
     }
-  }, [phoneNumber, user, setSignUp, navigation]);
+  }, [phoneNumber, user, setSignUp, navigation, uploadedPhotoURL]);
 
   const handlePhotoPress = useCallback(() => {
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
@@ -62,13 +85,18 @@ const InputPhoto = ({ route, navigation }) => {
 
   const handlePhoneNumberChange = useCallback((text) => {
     setPhoneNumber(text);
-
-    // Auto-dismiss keyboard when phone number reaches typical length (10 digits for US)
-    // Adjust this logic based on your region's phone number format
     const digitsOnly = text.replace(/\D/g, "");
     if (digitsOnly.length >= 10) {
       Keyboard.dismiss();
     }
+  }, []);
+
+  const handleUploadSuccess = useCallback((url) => {
+    setUploadedPhotoURL(url);
+  }, []);
+
+  const handleSkipPhoto = useCallback(() => {
+    setShowPhotoModal(false);
   }, []);
 
   return (
@@ -118,20 +146,43 @@ const InputPhoto = ({ route, navigation }) => {
                   Upload your profile picture (optional)
                 </Text>
                 <Pressable
-                  style={styles.uploadButton}
+                  style={[
+                    styles.uploadButton,
+                    uploadedPhotoURL && styles.uploadButtonSuccess,
+                  ]}
                   onPress={handlePhotoPress}
                 >
-                  <Text style={styles.uploadButtonText}>
-                    Choose Profile Picture
-                  </Text>
+                  {uploadedPhotoURL ? (
+                    <View style={styles.uploadedContainer}>
+                      <Icon name="check-circle" size={20} color="#FFF" />
+                      <Text style={styles.uploadButtonText}>
+                        Photo Uploaded ✓
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.uploadButtonText}>
+                      Choose Profile Picture
+                    </Text>
+                  )}
                 </Pressable>
+                {uploadedPhotoURL && (
+                  <Text style={styles.changePhotoText}>
+                    Tap to change photo
+                  </Text>
+                )}
               </View>
             </View>
           </ScrollView>
         </TouchableWithoutFeedback>
         <View style={styles.footer}>
-          <Pressable style={styles.continueButton} onPress={handleContinue}>
-            <Text style={styles.continueText}>Continue</Text>
+          <Pressable
+            style={[styles.continueButton, isLoading && styles.disabledButton]}
+            onPress={handleContinue}
+            disabled={isLoading}
+          >
+            <Text style={styles.continueText}>
+              {isLoading ? "Saving..." : "Continue"}
+            </Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -140,6 +191,8 @@ const InputPhoto = ({ route, navigation }) => {
         visible={showPhotoModal}
         onClose={() => setShowPhotoModal(false)}
         userId={user?.uid || "default"}
+        onUploadSuccess={handleUploadSuccess}
+        onSkip={handleSkipPhoto}
       />
     </View>
   );
@@ -213,11 +266,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 10,
   },
+  uploadButtonSuccess: {
+    backgroundColor: "#4CAF50",
+  },
+  uploadedContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   uploadButtonText: {
     color: "#FFF",
     fontSize: 16,
     fontWeight: "600",
     fontFamily: "Roboto-Medium",
+  },
+  changePhotoText: {
+    color: "#888",
+    fontSize: 13,
+    marginTop: 8,
   },
   input: {
     width: "100%",
@@ -246,6 +312,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
+  },
+  disabledButton: {
+    backgroundColor: "#555",
   },
   continueText: {
     fontSize: 18,
