@@ -15,7 +15,7 @@ import AlhanAdmin from "./AlhanAdmin";
 import AdminManager from "./AdminManager";
 import EditSchedule from "./EditSchedule";
 import DeaconEdits from "./DeaconEdits";
-import TrafficManager from "./TrafficManager";
+import TrafficManager from "./trafficManager";
 import UnavailableRequestModal from "../components/unavailableRequestModal";
 import CustomDrawerContent from "../components/customDrawer";
 import firestore from "@react-native-firebase/firestore";
