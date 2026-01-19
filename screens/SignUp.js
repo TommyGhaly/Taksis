@@ -124,11 +124,11 @@ const SignUp = ({ navigation }) => {
       const user_ref = firestore().collection("users").doc(user.uid);
       const user_doc = await user_ref.get();
       if (user_doc.exists) {
-        setSignUp(false);
-        navigation.navigate("MainContainer");
+        await auth().signOut();
+        navigation.navigate("SignIn");
         Alert.alert(
           "Already signed up.",
-          "This email is already signed up for this app."
+          "This email is already signed up for this app. Please sign in instead."
         );
         return;
       }
@@ -176,11 +176,11 @@ const SignUp = ({ navigation }) => {
       const user_ref = firestore().collection("users").doc(user.uid);
       const user_doc = await user_ref.get();
       if (user_doc.exists) {
-        setSignUp(false);
-        navigation.navigate("MainContainer");
+        await auth().signOut();
+        navigation.navigate("SignIn");
         Alert.alert(
           "Already signed up.",
-          "This email is already signed up for this app."
+          "This email is already signed up for this app. Please sign in instead."
         );
         return;
       }
