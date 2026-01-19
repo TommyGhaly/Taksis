@@ -28,11 +28,13 @@ const ProfileImageExpander = React.memo(({
   const [isAnimating, setIsAnimating] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const profileImageRef = useRef(null);
-  const positionRef = useRef({ x: 0, y: 0 });
 
   const progress = useSharedValue(0);
   const startX = useSharedValue(0);
   const startY = useSharedValue(0);
+
+  // Scale ratio: we render at finalSize and scale down to size/finalSize initially
+  const initialScale = size / finalSize;
 
   const imageSource = useMemo(() => {
     if (!imageUrl || typeof imageUrl !== "string" || imageUrl.trim() === "") {
@@ -46,28 +48,12 @@ const ProfileImageExpander = React.memo(({
     [imageUrl]
   );
 
-  const measurePosition = useCallback(() => {
-    profileImageRef.current?.measure((x, y, w, h, pageX, pageY) => {
-      // Calculate offset from center of screen to center of image
-      const imageCenterX = pageX + w / 2;
-      const imageCenterY = pageY + h / 2;
-      const screenCenterX = WINDOW_WIDTH / 2;
-      const screenCenterY = WINDOW_HEIGHT / 2;
-      
-      positionRef.current = {
-        x: imageCenterX - screenCenterX,
-        y: imageCenterY - screenCenterY,
-      };
-    });
-  }, []);
-
   const openModal = useCallback(() => {
     if (onPress) {
       onPress();
       return;
     }
 
-    // Re-measure position right before opening
     profileImageRef.current?.measure((x, y, w, h, pageX, pageY) => {
       const imageCenterX = pageX + w / 2;
       const imageCenterY = pageY + h / 2;
@@ -77,7 +63,6 @@ const ProfileImageExpander = React.memo(({
       const offsetX = imageCenterX - screenCenterX;
       const offsetY = imageCenterY - screenCenterY;
       
-      // If essentially centered (within 20px), don't translate at all
       startX.value = Math.abs(offsetX) < 20 ? 0 : offsetX;
       startY.value = Math.abs(offsetY) < 20 ? 0 : offsetY;
       progress.value = 0;
@@ -89,7 +74,7 @@ const ProfileImageExpander = React.memo(({
         progress.value = withSpring(1, SPRING_CONFIG);
       });
     });
-  }, [onPress]);
+  }, [onPress, initialScale]);
 
   const closeModal = useCallback(() => {
     setModalVisible(false);
@@ -99,11 +84,19 @@ const ProfileImageExpander = React.memo(({
 
   const animatedImageStyle = useAnimatedStyle(() => {
     const p = progress.value;
-    const scaleVal = 1 + p * (finalSize / size - 1);
     
-    // Interpolate from start position to center (0, 0)
+    // Scale from initialScale (small) to 1 (full finalSize)
+    const scaleVal = initialScale + p * (1 - initialScale);
+    
+    // Translate from start position to center
     const translateX = startX.value * (1 - p);
     const translateY = startY.value * (1 - p);
+    
+    // Border radius: from circular (size/2) to slightly rounded (8)
+    // Account for scale: actual rendered radius = borderRadius * scale
+    const targetStartRadius = size / 2;
+    const targetEndRadius = 30;
+    const currentRadius = (targetStartRadius + p * (targetEndRadius - targetStartRadius)) / scaleVal;
     
     return {
       transform: [
@@ -111,7 +104,7 @@ const ProfileImageExpander = React.memo(({
         { translateY },
         { scale: scaleVal },
       ],
-      borderRadius: (size / 2) * (1 - p) + 8 * p,
+      borderRadius: currentRadius,
       opacity: p > 0.01 ? 1 : 0,
     };
   });
@@ -137,7 +130,11 @@ const ProfileImageExpander = React.memo(({
         >
           <Animated.View style={[styles.overlay, animatedOverlayStyle]} pointerEvents="none" />
           <AnimatedExpoImage
-            style={[styles.enlargedImage, { width: size, height: size }, animatedImageStyle]}
+            style={[
+              styles.enlargedImage, 
+              { width: finalSize, height: finalSize }, 
+              animatedImageStyle
+            ]}
             source={imageSource}
             contentFit="cover"
             cachePolicy="memory-disk"
@@ -151,7 +148,6 @@ const ProfileImageExpander = React.memo(({
           ref={profileImageRef}
           style={{ width: size, height: size }}
           collapsable={false}
-          onLayout={measurePosition}
         >
           <Image
             style={[

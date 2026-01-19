@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   Platform,
   Keyboard,
   Dimensions,
+  ScrollView,
 } from "react-native";
 import { Image } from "expo-image";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -505,20 +506,15 @@ const TrafficManager = () => {
             onBarcodeScanned={handleBarCodeScanned}
           />
           <View style={s.scannerOverlay}>
-            <View style={s.scannerTop} />
-            <View style={s.scannerMiddle}>
-              <View style={s.scannerSide} />
-              <View style={s.scannerFrame}>
-                <View style={[s.corner, s.cornerTL]} />
-                <View style={[s.corner, s.cornerTR]} />
-                <View style={[s.corner, s.cornerBL]} />
-                <View style={[s.corner, s.cornerBR]} />
-              </View>
-              <View style={s.scannerSide} />
+            <View style={s.scannerFrame}>
+              <View style={[s.corner, s.cornerTL]} />
+              <View style={[s.corner, s.cornerTR]} />
+              <View style={[s.corner, s.cornerBL]} />
+              <View style={[s.corner, s.cornerBR]} />
             </View>
-            <View style={s.scannerBottom}>
-              <Text style={s.scannerHint}>Align QR code within frame</Text>
-            </View>
+          </View>
+          <View style={s.scannerHintContainer}>
+            <Text style={s.scannerHint}>Align QR code within frame</Text>
           </View>
           <TouchableOpacity
             style={s.scannerClose}
@@ -536,183 +532,220 @@ const TrafficManager = () => {
         transparent
         onRequestClose={() => setRegistrationVisible(false)}
       >
-        <View style={s.modalOverlay}>
-          <View style={s.modalContainer}>
-            {/* Modal Header */}
-            <View style={s.modalHeader}>
-              <View style={s.modalHeaderLeft}>
-                {registrationStep !== "select" && (
-                  <TouchableOpacity
-                    style={s.backBtn}
-                    onPress={() => {
-                      if (registrationStep === "license") {
-                        setRegistrationStep(
-                          Object.keys(missingPhones).length
-                            ? "phones"
-                            : "select",
+        <KeyboardAvoidingView
+          style={s.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={s.modalContainer}>
+              {/* Modal Header */}
+              <View style={s.modalHeader}>
+                <View style={s.modalHeaderLeft}>
+                  {registrationStep !== "select" && (
+                    <TouchableOpacity
+                      style={s.backBtn}
+                      onPress={() => {
+                        if (registrationStep === "license") {
+                          setRegistrationStep(
+                            Object.keys(missingPhones).length
+                              ? "phones"
+                              : "select",
+                          );
+                        } else {
+                          setRegistrationStep("select");
+                        }
+                      }}
+                    >
+                      <Icon name="arrow-left" size={20} color="#fff" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={s.modalHeaderCenter}>
+                  <Text style={s.modalTitle}>
+                    {registrationStep === "select"
+                      ? "Select Drivers"
+                      : registrationStep === "phones"
+                        ? "Phone Numbers"
+                        : "License Plate"}
+                  </Text>
+                  <Text style={s.modalStep}>
+                    Step {getStepNumber()} of {getTotalSteps()}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={s.closeBtn}
+                  onPress={() => setRegistrationVisible(false)}
+                >
+                  <Icon name="close" size={20} color="rgba(255,255,255,0.5)" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Progress Bar */}
+              <View style={s.progressBar}>
+                <View
+                  style={[
+                    s.progressFill,
+                    { width: `${(getStepNumber() / getTotalSteps()) * 100}%` },
+                  ]}
+                />
+              </View>
+
+              {/* Content */}
+              <ScrollView
+                style={s.modalBody}
+                contentContainerStyle={s.modalBodyContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                {registrationStep === "select" && (
+                  <>
+                    <Text style={s.sectionLabel}>Who drives this vehicle?</Text>
+                    {users.map((item) => {
+                      const selected = selectedDrivers.includes(item.uid);
+                      return (
+                        <TouchableOpacity
+                          key={item.uid}
+                          style={[s.userRow, selected && s.userRowSelected]}
+                          onPress={() => toggleDriverSelection(item.uid)}
+                          activeOpacity={0.7}
+                        >
+                          <Image
+                            source={getImageSource(item.uid)}
+                            style={s.userAvatar}
+                          />
+                          <View style={s.userInfo}>
+                            <Text style={s.userName}>{item.name}</Text>
+                            {item.phone && (
+                              <Text style={s.userPhone}>{item.phone}</Text>
+                            )}
+                          </View>
+                          <View
+                            style={[s.checkbox, selected && s.checkboxSelected]}
+                          >
+                            {selected && (
+                              <Icon name="check" size={14} color="#fff" />
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </>
+                )}
+
+                {registrationStep === "phones" && (
+                  <>
+                    <Text style={s.sectionLabel}>
+                      Enter missing phone numbers
+                    </Text>
+                    <View style={s.phonesList}>
+                      {Object.keys(missingPhones).map((uid) => {
+                        const u = getUserById(uid);
+                        return (
+                          <View key={uid} style={s.phoneCard}>
+                            <Image
+                              source={getImageSource(uid)}
+                              style={s.phoneAvatar}
+                            />
+                            <View style={s.phoneInputWrap}>
+                              <Text style={s.phoneName}>{u?.name}</Text>
+                              <TextInput
+                                style={s.phoneInput}
+                                placeholder="(123) 456-7890"
+                                placeholderTextColor="rgba(255,255,255,0.25)"
+                                keyboardType="phone-pad"
+                                value={missingPhones[uid]}
+                                onChangeText={(t) =>
+                                  setMissingPhones((p) => ({ ...p, [uid]: t }))
+                                }
+                              />
+                            </View>
+                          </View>
                         );
-                      } else {
-                        setRegistrationStep("select");
-                      }
-                    }}
+                      })}
+                    </View>
+                  </>
+                )}
+
+                {registrationStep === "license" && (
+                  <>
+                    <View style={s.licenseIconWrap}>
+                      <Icon
+                        name="card-text-outline"
+                        size={32}
+                        color="#147efb"
+                      />
+                    </View>
+                    <Text style={s.licenseLabel}>Enter License Plate</Text>
+                    <TextInput
+                      style={s.licenseInput}
+                      placeholder="ABC-1234"
+                      placeholderTextColor="rgba(255,255,255,0.2)"
+                      autoCapitalize="characters"
+                      value={licensePlate}
+                      onChangeText={setLicensePlate}
+                      maxLength={10}
+                    />
+                    <Text style={s.licenseHint}>
+                      This will help identify the vehicle
+                    </Text>
+                  </>
+                )}
+              </ScrollView>
+
+              {/* Footer */}
+              <View style={s.modalFooter}>
+                {registrationStep === "select" && (
+                  <TouchableOpacity
+                    style={[
+                      s.primaryBtn,
+                      selectedDrivers.length === 0 && s.btnDisabled,
+                    ]}
+                    onPress={proceedToPhones}
+                    disabled={selectedDrivers.length === 0}
+                    activeOpacity={0.8}
                   >
-                    <Icon name="arrow-left" size={20} color="#fff" />
+                    <Text style={s.primaryBtnText}>Continue</Text>
+                    <Icon name="arrow-right" size={18} color="#fff" />
+                  </TouchableOpacity>
+                )}
+
+                {registrationStep === "phones" && (
+                  <TouchableOpacity
+                    style={s.primaryBtn}
+                    onPress={proceedToLicense}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={s.primaryBtnText}>Continue</Text>
+                    <Icon name="arrow-right" size={18} color="#fff" />
+                  </TouchableOpacity>
+                )}
+
+                {registrationStep === "license" && (
+                  <TouchableOpacity
+                    style={[
+                      s.primaryBtn,
+                      s.successBtn,
+                      (!licensePlate.trim() || saving) && s.btnDisabled,
+                    ]}
+                    onPress={completeRegistration}
+                    disabled={!licensePlate.trim() || saving}
+                    activeOpacity={0.8}
+                  >
+                    {saving ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <>
+                        <Icon name="check" size={18} color="#fff" />
+                        <Text style={s.primaryBtnText}>Register Vehicle</Text>
+                      </>
+                    )}
                   </TouchableOpacity>
                 )}
               </View>
-              <View style={s.modalHeaderCenter}>
-                <Text style={s.modalTitle}>
-                  {registrationStep === "select"
-                    ? "Select Drivers"
-                    : registrationStep === "phones"
-                      ? "Phone Numbers"
-                      : "License Plate"}
-                </Text>
-                <Text style={s.modalStep}>
-                  Step {getStepNumber()} of {getTotalSteps()}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={s.closeBtn}
-                onPress={() => setRegistrationVisible(false)}
-              >
-                <Icon name="close" size={20} color="rgba(255,255,255,0.5)" />
-              </TouchableOpacity>
             </View>
-
-            {/* Progress Bar */}
-            <View style={s.progressBar}>
-              <View
-                style={[
-                  s.progressFill,
-                  { width: `${(getStepNumber() / getTotalSteps()) * 100}%` },
-                ]}
-              />
-            </View>
-
-            {/* Content */}
-            <View style={s.modalBody}>
-              {registrationStep === "select" && (
-                <>
-                  <Text style={s.sectionLabel}>Who drives this vehicle?</Text>
-                  <FlatList
-                    data={users}
-                    keyExtractor={(item) => item.uid}
-                    renderItem={renderUserSelect}
-                    style={s.userList}
-                    showsVerticalScrollIndicator={false}
-                  />
-                </>
-              )}
-
-              {registrationStep === "phones" && (
-                <>
-                  <Text style={s.sectionLabel}>
-                    Enter missing phone numbers
-                  </Text>
-                  <View style={s.phonesList}>
-                    {Object.keys(missingPhones).map((uid) => {
-                      const u = getUserById(uid);
-                      return (
-                        <View key={uid} style={s.phoneCard}>
-                          <Image
-                            source={getImageSource(uid)}
-                            style={s.phoneAvatar}
-                          />
-                          <View style={s.phoneInputWrap}>
-                            <Text style={s.phoneName}>{u?.name}</Text>
-                            <TextInput
-                              style={s.phoneInput}
-                              placeholder="(123) 456-7890"
-                              placeholderTextColor="rgba(255,255,255,0.25)"
-                              keyboardType="phone-pad"
-                              value={missingPhones[uid]}
-                              onChangeText={(t) =>
-                                setMissingPhones((p) => ({ ...p, [uid]: t }))
-                              }
-                            />
-                          </View>
-                        </View>
-                      );
-                    })}
-                  </View>
-                </>
-              )}
-
-              {registrationStep === "license" && (
-                <>
-                  <View style={s.licenseIconWrap}>
-                    <Icon name="card-text-outline" size={32} color="#147efb" />
-                  </View>
-                  <Text style={s.licenseLabel}>Enter License Plate</Text>
-                  <TextInput
-                    style={s.licenseInput}
-                    placeholder="ABC-1234"
-                    placeholderTextColor="rgba(255,255,255,0.2)"
-                    autoCapitalize="characters"
-                    value={licensePlate}
-                    onChangeText={setLicensePlate}
-                    maxLength={10}
-                  />
-                  <Text style={s.licenseHint}>
-                    This will help identify the vehicle
-                  </Text>
-                </>
-              )}
-            </View>
-
-            {/* Footer */}
-            <View style={s.modalFooter}>
-              {registrationStep === "select" && (
-                <TouchableOpacity
-                  style={[
-                    s.primaryBtn,
-                    selectedDrivers.length === 0 && s.btnDisabled,
-                  ]}
-                  onPress={proceedToPhones}
-                  disabled={selectedDrivers.length === 0}
-                  activeOpacity={0.8}
-                >
-                  <Text style={s.primaryBtnText}>Continue</Text>
-                  <Icon name="arrow-right" size={18} color="#fff" />
-                </TouchableOpacity>
-              )}
-
-              {registrationStep === "phones" && (
-                <TouchableOpacity
-                  style={s.primaryBtn}
-                  onPress={proceedToLicense}
-                  activeOpacity={0.8}
-                >
-                  <Text style={s.primaryBtnText}>Continue</Text>
-                  <Icon name="arrow-right" size={18} color="#fff" />
-                </TouchableOpacity>
-              )}
-
-              {registrationStep === "license" && (
-                <TouchableOpacity
-                  style={[
-                    s.primaryBtn,
-                    s.successBtn,
-                    (!licensePlate.trim() || saving) && s.btnDisabled,
-                  ]}
-                  onPress={completeRegistration}
-                  disabled={!licensePlate.trim() || saving}
-                  activeOpacity={0.8}
-                >
-                  {saving ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <>
-                      <Icon name="check" size={18} color="#fff" />
-                      <Text style={s.primaryBtnText}>Register Vehicle</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Car Detail Modal */}
@@ -1083,58 +1116,65 @@ const s = StyleSheet.create({
   // Scanner
   scanner: { flex: 1, backgroundColor: "#000" },
   scannerOverlay: { ...StyleSheet.absoluteFillObject },
-  scannerTop: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)" },
-  scannerMiddle: { flexDirection: "row", height: 260 },
-  scannerSide: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)" },
-  scannerFrame: { width: 260, height: 260, position: "relative" },
+  scannerFrame: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    width: 260,
+    height: 260,
+    marginLeft: -130,
+    marginTop: -130,
+  },
   corner: {
     position: "absolute",
-    width: 24,
-    height: 24,
+    width: 32,
+    height: 32,
     borderColor: "#147efb",
-    borderWidth: 3,
+    borderWidth: 4,
   },
   cornerTL: {
     top: 0,
     left: 0,
     borderRightWidth: 0,
     borderBottomWidth: 0,
-    borderTopLeftRadius: 12,
+    borderTopLeftRadius: 16,
   },
   cornerTR: {
     top: 0,
     right: 0,
     borderLeftWidth: 0,
     borderBottomWidth: 0,
-    borderTopRightRadius: 12,
+    borderTopRightRadius: 16,
   },
   cornerBL: {
     bottom: 0,
     left: 0,
     borderRightWidth: 0,
     borderTopWidth: 0,
-    borderBottomLeftRadius: 12,
+    borderBottomLeftRadius: 16,
   },
   cornerBR: {
     bottom: 0,
     right: 0,
     borderLeftWidth: 0,
     borderTopWidth: 0,
-    borderBottomRightRadius: 12,
+    borderBottomRightRadius: 16,
   },
-  scannerBottom: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
+  scannerHintContainer: {
+    position: "absolute",
+    bottom: 120,
+    left: 0,
+    right: 0,
     alignItems: "center",
-    paddingTop: 40,
   },
   scannerHint: {
     color: "#fff",
     fontSize: 15,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.6)",
     paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    overflow: "hidden",
   },
   scannerClose: {
     position: "absolute",
@@ -1158,7 +1198,8 @@ const s = StyleSheet.create({
     backgroundColor: "#1a1a1a",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: "85%",
+    maxHeight: "90%",
+    flex: 1,
   },
   modalHeader: {
     flexDirection: "row",
@@ -1191,10 +1232,11 @@ const s = StyleSheet.create({
   progressBar: { height: 3, backgroundColor: "rgba(255,255,255,0.1)" },
   progressFill: { height: "100%", backgroundColor: "#147efb" },
 
-  modalBody: { padding: 20 },
+  modalBody: { flex: 1, padding: 20 },
+  modalBodyContent: { paddingBottom: 20 },
   modalFooter: {
     padding: 20,
-    paddingTop: 8,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.08)",
   },
