@@ -13,20 +13,7 @@ def generate_batch():
     manifest = []
     
     for i in range(BATCH_SIZE):
-        id = f"tommy_is_awesome_{generate(size=8)}"
-        
-        qr = qrcode.QRCode(
-            version=None,
-            error_correction=qrcode.constants.ERROR_CORRECT_H,
-            box_size=20,
-            border=1
-        )
-        qr.add_data(id)
-        qr.make(fit=True)
-        
-        img = qr.make_image(fill_color="black", back_color="white")
-        img.save(f"{OUTPUT_DIR}/{id}.png")
-        
+        id = f"spsm_church_parking_management_{generate(size=8)}"
         manifest.append(id)
         print(f"Generated {i + 1}/{BATCH_SIZE}: {id}")
     
