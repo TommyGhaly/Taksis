@@ -22,6 +22,7 @@ import storage from "@react-native-firebase/storage";
 import * as Haptics from "react-native-haptic-feedback";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { StorageCache } from '../../utils/cacheManager';
 
 const CacheUtils = {
   async get(key) {
@@ -242,32 +243,39 @@ const SundaySchoolAttendance = () => {
         .collection("Servants")
         .get();
       const allServants = servantsSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
-      const urls = {};
-      await Promise.all([
-        ...allStudents.map(async (student) => {
-          if (student.uid) {
-            try {
-              const url = await storage().ref(`profilePictures/${student.uid}.png`).getDownloadURL();
-              urls[student.uid] = typeof url === "string" && url.trim() ? url : null;
-            } catch (error) {
-              urls[student.uid] = null;
+
+      // Fetch profile pictures progressively instead of blocking on Promise.all
+      const allPeople = [...allStudents, ...allServants];
+      const fetchBatch = async (batch) => {
+        const batchUrls = {};
+        await Promise.all(
+          batch.map(async (person) => {
+            if (person.uid) {
+              try {
+                const url = await StorageCache.getDownloadURL(`profilePictures/${person.uid}.png`);
+                batchUrls[person.uid] = typeof url === "string" && url.trim() ? url : null;
+              } catch (error) {
+                batchUrls[person.uid] = null;
+              }
             }
-          }
-        }),
-        ...allServants.map(async (servant) => {
-          if (servant.uid) {
-            try {
-              const url = await storage().ref(`profilePictures/${servant.uid}.png`).getDownloadURL();
-              urls[servant.uid] = typeof url === "string" && url.trim() ? url : null;
-            } catch (error) {
-              urls[servant.uid] = null;
-            }
-          }
-        })
-      ]);
+          })
+        );
+        return batchUrls;
+      };
+
+      // Fetch in batches of 10 to progressively update UI
+      const batchSize = 10;
+      for (let i = 0; i < allPeople.length; i += batchSize) {
+        const batch = allPeople.slice(i, i + batchSize);
+        const batchUrls = await fetchBatch(batch);
+        if (isMounted.current) {
+          setProfilePictureUrls(prev => ({ ...prev, ...batchUrls }));
+        }
+      }
+
+      // Cache all URLs at once
       if (isMounted.current) {
-        setProfilePictureUrls(urls);
-        await CacheUtils.set(cacheKeys.current.profilePics, urls);
+        await CacheUtils.set(cacheKeys.current.profilePics, profilePictureUrls);
       }
     } catch (error) {
       console.error("Error fetching profile pictures:", error);
@@ -552,8 +560,8 @@ const SundaySchoolAttendance = () => {
             <Image
               style={styles.profilePicture}
               source={profilePictureUrls[person.uid] ? { uri: profilePictureUrls[person.uid] } : require("../../assets/default_profile.png")}
-              defaultSource={require("../../assets/default_profile.png")}
               resizeMode="cover"
+              defaultSource={require("../../assets/default_profile.png")}
               onError={() => setProfilePictureUrls((prev) => ({ ...prev, [person.uid]: null }))}
             />
             <View style={styles.studentInfo}>

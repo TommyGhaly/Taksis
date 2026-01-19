@@ -82,6 +82,7 @@ const HomeScreenNames = ({ role, user }) => {
                 : require('../assets/default_profile.png')
             }
             defaultSource={require('../assets/default_profile.png')}
+            resizeMode="cover"
             onError={() => setImageUrl(null)}
           />
         </Animated.View>

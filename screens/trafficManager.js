@@ -375,6 +375,7 @@ const TrafficManager = () => {
                 s.stackedAvatar,
                 { marginLeft: i > 0 ? -14 : 0, zIndex: 3 - i },
               ]}
+              contentFit="cover"
             />
           ))}
           {extra > 0 && (
@@ -401,7 +402,7 @@ const TrafficManager = () => {
         onPress={() => onPress(item.uid)}
         activeOpacity={0.7}
       >
-        <Image source={getImageSource(item.uid)} style={s.userAvatar} />
+        <Image source={getImageSource(item.uid)} style={s.userAvatar} contentFit="cover" />
         <View style={s.userInfo}>
           <Text style={s.userName}>{item.name}</Text>
           {item.phone && <Text style={s.userPhone}>{item.phone}</Text>}
@@ -613,6 +614,7 @@ const TrafficManager = () => {
                           <Image
                             source={getImageSource(item.uid)}
                             style={s.userAvatar}
+                            contentFit="cover"
                           />
                           <View style={s.userInfo}>
                             <Text style={s.userName}>{item.name}</Text>
@@ -646,6 +648,7 @@ const TrafficManager = () => {
                             <Image
                               source={getImageSource(uid)}
                               style={s.phoneAvatar}
+                              contentFit="cover"
                             />
                             <View style={s.phoneInputWrap}>
                               <Text style={s.phoneName}>{u?.name}</Text>
@@ -787,6 +790,7 @@ const TrafficManager = () => {
                     <Image
                       source={getImageSource(uid)}
                       style={s.driverAvatar}
+                      contentFit="cover"
                     />
                     <View style={s.driverInfo}>
                       <Text style={s.driverName}>{u.name}</Text>
@@ -875,7 +879,7 @@ const TrafficManager = () => {
                 data={users}
                 keyExtractor={(item) => item.uid}
                 renderItem={renderUserSelect}
-                style={[s.userList, { maxHeight: 220 }]}
+                style={[s.userList, { maxHeight: 400 }]}
                 showsVerticalScrollIndicator={false}
               />
             </View>
