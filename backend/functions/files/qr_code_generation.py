@@ -4,7 +4,7 @@ import json
 import csv
 from nanoid import generate
 
-BATCH_SIZE = 300
+BATCH_SIZE = 500
 OUTPUT_DIR = '../qr_stickers'
 
 def generate_batch():
