@@ -19,11 +19,10 @@ import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, onSkip }) => {
+const PhotoInput = ({ visible, onClose, userId, onUploadSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [previewUri, setPreviewUri] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [showSkipConfirm, setShowSkipConfirm] = useState(false);
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
@@ -52,7 +51,6 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, onSkip }) => {
       fadeAnim.setValue(0);
       scaleAnim.setValue(0.95);
       progressAnim.setValue(0);
-      setShowSkipConfirm(false);
     }
   }, [visible]);
 
@@ -88,7 +86,6 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, onSkip }) => {
 
     if (!result.canceled) {
       setPreviewUri(result.assets[0].uri);
-      setShowSkipConfirm(false);
     }
   };
 
@@ -114,7 +111,6 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, onSkip }) => {
 
     if (!result.canceled) {
       setPreviewUri(result.assets[0].uri);
-      setShowSkipConfirm(false);
     }
   };
 
@@ -148,7 +144,6 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, onSkip }) => {
             const downloadURL = await reference.getDownloadURL();
             ReactNativeHapticFeedback.trigger('notificationSuccess', hapticOptions);
             
-            // Notify parent of successful upload
             onUploadSuccess?.(downloadURL);
             
             Alert.alert(
@@ -182,18 +177,10 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, onSkip }) => {
   };
 
   const handleClose = () => {
+    if (loading) return;
+    
     ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
     
-    // If no photo selected/uploaded, show skip confirmation
-    if (!previewUri && !loading) {
-      setShowSkipConfirm(true);
-      return;
-    }
-    
-    performClose();
-  };
-
-  const performClose = () => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 0,
@@ -208,68 +195,9 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, onSkip }) => {
     ]).start(() => {
       setPreviewUri(null);
       setUploadProgress(0);
-      setShowSkipConfirm(false);
       onClose();
     });
   };
-
-  const handleSkipConfirm = () => {
-    ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
-    onSkip?.();
-    performClose();
-  };
-
-  const handleBackToUpload = () => {
-    ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
-    setShowSkipConfirm(false);
-  };
-
-  // Skip Confirmation View
-  const renderSkipConfirmation = () => (
-    <>
-      <View style={styles.skipIconContainer}>
-        <Icon name="account-circle-outline" size={80} color="#888" />
-      </View>
-      
-      <View style={styles.header}>
-        <Text style={styles.title}>No Photo Yet</Text>
-        <Text style={styles.subtitle}>
-          You haven't uploaded a profile picture. A photo helps other members recognize you in the community.
-        </Text>
-      </View>
-
-      <View style={styles.buttonContainer}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.primaryButton,
-            pressed && styles.buttonPressed,
-          ]}
-          onPress={handleBackToUpload}
-        >
-          <Icon name="camera-plus" size={24} color="#fff" />
-          <Text style={styles.buttonText}>Add Photo Now</Text>
-        </Pressable>
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.skipButton,
-            pressed && styles.buttonPressed,
-          ]}
-          onPress={handleSkipConfirm}
-        >
-          <Icon name="clock-outline" size={22} color="#888" />
-          <Text style={styles.skipButtonText}>I'll Do It Later</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.hintContainer}>
-        <Icon name="information-outline" size={16} color="#666" />
-        <Text style={styles.hintText}>
-          You can always add a photo from your profile settings
-        </Text>
-      </View>
-    </>
-  );
 
   return (
     <Modal
@@ -297,9 +225,7 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, onSkip }) => {
             <Icon name="close" size={24} color="#888" />
           </Pressable>
 
-          {showSkipConfirm ? (
-            renderSkipConfirmation()
-          ) : previewUri ? (
+          {previewUri ? (
             <>
               {/* Header */}
               <View style={styles.header}>
@@ -494,11 +420,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     paddingHorizontal: 10,
   },
-  skipIconContainer: {
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 10,
-  },
   previewSection: {
     alignItems: 'center',
     marginBottom: 20,
@@ -597,24 +518,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-  },
-  skipButton: {
-    flexDirection: 'row',
-    backgroundColor: 'transparent',
-    borderRadius: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    borderWidth: 1,
-    borderColor: '#444',
-  },
-  skipButtonText: {
-    fontSize: 17,
-    color: '#888',
-    fontWeight: '600',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   optionsGrid: {
     flexDirection: 'row',
