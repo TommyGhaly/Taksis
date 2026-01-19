@@ -7,12 +7,13 @@ import {
   StyleSheet,
   Image,
   ActivityIndicator,
+  FlatList,
 } from "react-native";
 import firestore, { FieldValue } from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
+import storage from "@react-native-firebase/storage";
 import { StorageCache } from "../utils/cacheManager";
 import { callFunction } from "./functionCalls";
-import ServerSelectionModal from "./ServerSelectionModal";
 import IndividualProfile from "./individualProfile";
 
 const displayNames = {
@@ -26,6 +27,79 @@ const displayNames = {
   water: "Water",
   wine: "Wine",
   altar: "Altar Server",
+};
+
+const DATE_FORMATS = {
+  SCHEDULE: 'MM-DD-YY',
+  LAST_SERVE: 'MM-DD-YY',
+};
+
+const parseDate = (dateStr, format) => {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return null;
+  
+  let day, month, year;
+  if (format === DATE_FORMATS.SCHEDULE) {
+    month = parseInt(parts[0], 10);
+    day = parseInt(parts[1], 10);
+    year = parseInt(parts[2], 10);
+  } else if (format === DATE_FORMATS.LAST_SERVE) {
+    day = parseInt(parts[0], 10);
+    month = parseInt(parts[1], 10);
+    year = parseInt(parts[2], 10);
+  } else {
+    return null;
+  }
+  
+  if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  
+  const fullYear = year < 100 ? 2000 + year : year;
+  const date = new Date(fullYear, month - 1, day);
+  
+  if (date.getFullYear() !== fullYear || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return null;
+  }
+  return date;
+};
+
+const calculateWeeksBetween = (lastServeStr, targetWeekStr) => {
+  if (!lastServeStr || !targetWeekStr) return null;
+  const lastServeDate = parseDate(lastServeStr, DATE_FORMATS.LAST_SERVE);
+  const targetDate = parseDate(targetWeekStr, DATE_FORMATS.SCHEDULE);
+  if (!lastServeDate || !targetDate) return null;
+  
+  const diffMs = targetDate.getTime() - lastServeDate.getTime();
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
+};
+
+const getColorForWeeks = (weeks) => {
+  if (weeks === null || weeks === undefined || weeks < 0) return '#666';
+  
+  const colorStops = [
+    { weeks: 0, color: '#ff3b30' },
+    { weeks: 1, color: '#ff3b30' },
+    { weeks: 2, color: '#ff6b30' },
+    { weeks: 3, color: '#ff9500' },
+    { weeks: 4, color: '#ffcc00' },
+    { weeks: 6, color: '#c7dc00' },
+    { weeks: 8, color: '#76d600' },
+    { weeks: Infinity, color: '#34c759' },
+  ];
+  
+  for (const stop of colorStops) {
+    if (weeks <= stop.weeks) return stop.color;
+  }
+  return '#34c759';
+};
+
+const getWeeksDisplayText = (weeks) => {
+  if (weeks === null) return 'No data';
+  if (weeks < 0) return `Will serve in ${Math.abs(weeks)} week${Math.abs(weeks) === 1 ? '' : 's'}`;
+  if (weeks === 0) return 'Serving this week';
+  if (weeks === 1) return 'Served 1 week ago';
+  return `Served ${weeks} weeks ago`;
 };
 
 const formatWeekDisplay = (weekStr) => {
@@ -59,7 +133,6 @@ const UnavailableRequestModal = ({
   onSkip,
   onSkipAll,
   showSkipAll = false,
-  // New props from MainContainer for server selection
   availableServers: propAvailableServers,
   imageUrls: propImageUrls,
   lastServeData: propLastServeData,
@@ -68,22 +141,22 @@ const UnavailableRequestModal = ({
 }) => {
   const user = auth().currentUser;
 
-  // State
   const [originalImageUrl, setOriginalImageUrl] = useState(null);
   const [replacementImageUrl, setReplacementImageUrl] = useState(null);
   const [loadingImages, setLoadingImages] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [showServerModal, setShowServerModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedProfileUid, setSelectedProfileUid] = useState(null);
 
-  // Local state for ServerSelectionModal (fallback if props not provided)
+  // View state: 'main' or 'serverSelect'
+  const [viewMode, setViewMode] = useState('main');
+
   const [localAvailableServers, setLocalAvailableServers] = useState([]);
   const [localImageUrls, setLocalImageUrls] = useState({});
   const [localLastServeData, setLocalLastServeData] = useState({});
   const [localNextServeData, setLocalNextServeData] = useState({});
+  const [loadingServers, setLoadingServers] = useState(false);
 
-  // Use props if available, otherwise use local state
   const availableServers =
     propAvailableServers?.length > 0
       ? propAvailableServers
@@ -102,6 +175,13 @@ const UnavailableRequestModal = ({
       : localNextServeData;
   const selectedWeek = propSelectedWeek || week;
 
+  // Reset view mode when modal closes
+  useEffect(() => {
+    if (!visible) {
+      setViewMode('main');
+    }
+  }, [visible]);
+
   // Fetch profile images for original and replacement
   useEffect(() => {
     if (!visible) return;
@@ -117,9 +197,7 @@ const UnavailableRequestModal = ({
             `profilePictures/${uid}.png`
           );
           urls[uid] = url;
-        } catch {
-          // Silent fail - use default
-        }
+        } catch {}
       }
 
       setOriginalImageUrl(urls[original?.uid] || null);
@@ -130,11 +208,15 @@ const UnavailableRequestModal = ({
     fetchImages();
   }, [visible, original?.uid, replacement?.uid]);
 
-  // Fetch available servers only if props not provided
+  // Fetch available servers proactively when modal is visible
   useEffect(() => {
-    // Skip if props are already provided
-    if (propAvailableServers?.length > 0) return;
-    if (!showServerModal || !churchId || !week) return;
+    const hasPropsData = propAvailableServers?.length > 0;
+    const hasLocalData = localAvailableServers.length > 0;
+    
+    if (hasPropsData || hasLocalData || !visible || !churchId || !week) return;
+
+    let isMounted = true;
+    setLoadingServers(true);
 
     const fetchServers = async () => {
       try {
@@ -145,7 +227,10 @@ const UnavailableRequestModal = ({
           .doc(week)
           .get();
 
-        if (!scheduleDoc.exists) return;
+        if (!scheduleDoc.exists || !isMounted) {
+          setLoadingServers(false);
+          return;
+        }
 
         const scheduleData = scheduleDoc.data();
         const extraServers = (scheduleData.extra || [])
@@ -157,30 +242,35 @@ const UnavailableRequestModal = ({
               .localeCompare(b.name.split(" ")[0].toLowerCase())
           );
 
+        if (!isMounted) return;
         setLocalAvailableServers(extraServers);
 
-        // Fetch images and serve data for each server
         const urls = {};
         const lastServe = {};
         const nextServe = {};
 
         await Promise.all(
           extraServers.map(async (server) => {
-            // Fetch image
             try {
               const url = await StorageCache.getDownloadURL(
                 `profilePictures/${server.uid}.png`
               );
-              urls[server.uid] = url;
-            } catch {}
+              if (isMounted) urls[server.uid] = url;
+            } catch {
+              try {
+                const url = await storage()
+                  .ref(`profilePictures/${server.uid}.png`)
+                  .getDownloadURL();
+                if (isMounted) urls[server.uid] = url;
+              } catch {}
+            }
 
-            // Fetch user data
             try {
               const userDoc = await firestore()
                 .collection("users")
                 .doc(server.uid)
                 .get();
-              if (userDoc.exists) {
+              if (userDoc.exists && isMounted) {
                 const userData = userDoc.data();
                 if (userData.lastServe)
                   lastServe[server.uid] = userData.lastServe;
@@ -191,16 +281,24 @@ const UnavailableRequestModal = ({
           })
         );
 
-        setLocalImageUrls(urls);
-        setLocalLastServeData(lastServe);
-        setLocalNextServeData(nextServe);
+        if (isMounted) {
+          setLocalImageUrls(urls);
+          setLocalLastServeData(lastServe);
+          setLocalNextServeData(nextServe);
+          setLoadingServers(false);
+        }
       } catch (err) {
         console.error("Error fetching servers:", err);
+        if (isMounted) setLoadingServers(false);
       }
     };
 
     fetchServers();
-  }, [showServerModal, churchId, week, propAvailableServers]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [visible, churchId, week, propAvailableServers?.length, localAvailableServers.length]);
 
   const deleteUnavailableEntry = async () => {
     const unavailableRef = firestore()
@@ -276,11 +374,11 @@ const UnavailableRequestModal = ({
   };
 
   const handleChooseSomeoneElse = () => {
-    setShowServerModal(true);
+    setViewMode('serverSelect');
   };
 
   const handleSelectReplacement = async (selectedServer) => {
-    setShowServerModal(false);
+    setViewMode('main');
     setSubmitting(true);
 
     try {
@@ -318,6 +416,247 @@ const UnavailableRequestModal = ({
     setShowProfileModal(false);
   };
 
+  const renderServerItem = ({ item }) => {
+    const weeksSinceLastServe = calculateWeeksBetween(lastServeData[item.uid], selectedWeek);
+    const indicatorColor = getColorForWeeks(weeksSinceLastServe);
+    const displayText = getWeeksDisplayText(weeksSinceLastServe);
+    
+    let secondaryInfo = null;
+    if (nextServeData[item.uid]) {
+      const weeksUntilNext = calculateWeeksBetween(selectedWeek, nextServeData[item.uid]);
+      if (weeksUntilNext !== null && weeksUntilNext >= 0) {
+        if (weeksUntilNext === 0) secondaryInfo = 'Serving next week';
+        else if (weeksUntilNext === 1) secondaryInfo = 'Serving in 1 week';
+        else if (weeksUntilNext <= 8) secondaryInfo = `Serving in ${weeksUntilNext} weeks`;
+      }
+    }
+    
+    return (
+      <TouchableOpacity
+        style={styles.serverItemContainer}
+        onPress={() => handleSelectReplacement(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.serverItemContent}>
+          <View style={styles.serverProfilePicContainer}>
+            <Image
+              source={
+                imageUrls[item.uid]
+                  ? { uri: imageUrls[item.uid] }
+                  : require("../assets/default_profile.png")
+              }
+              style={styles.serverProfilePic}
+              defaultSource={require("../assets/default_profile.png")}
+            />
+            <View style={[styles.serverStatusIndicator, { backgroundColor: indicatorColor }]} />
+          </View>
+          <View style={styles.serverInfo}>
+            <Text style={styles.serverName}>{item.name}</Text>
+            <View style={styles.serveInfoContainer}>
+              <Text style={[styles.primaryServeText, { color: indicatorColor }]}>
+                {displayText}
+              </Text>
+              {secondaryInfo && (
+                <Text style={styles.secondaryServeText}>{secondaryInfo}</Text>
+              )}
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // Render server selection view
+  const renderServerSelectView = () => (
+    <View style={styles.modalContent}>
+      <View style={styles.serverSelectHeader}>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => setViewMode('main')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.backButtonText}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.modalTitle}>Choose Replacement</Text>
+        <View style={styles.backButton} />
+      </View>
+      <FlatList
+        data={availableServers}
+        keyExtractor={(item) => item.uid}
+        showsVerticalScrollIndicator={false}
+        renderItem={renderServerItem}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        style={styles.serverList}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No servers available</Text>
+          </View>
+        }
+      />
+    </View>
+  );
+
+  // Render main view
+  const renderMainView = () => (
+    <View style={styles.modalContent}>
+      <View style={styles.modalHeader}>
+        <Text style={styles.modalTitle}>Schedule Change</Text>
+      </View>
+
+      <View style={styles.modalBody}>
+        <Text style={styles.messageText}>
+          <Text style={styles.highlightName}>{original?.name}</Text>
+          {" is unavailable for "}
+          <Text style={styles.roleHighlight}>
+            {getRoleDisplayName(role)}
+          </Text>
+        </Text>
+
+        <View style={styles.weekBadge}>
+          <Text style={styles.weekBadgeText}>
+            {formatWeekDisplay(week)}
+          </Text>
+        </View>
+
+        <View style={styles.profilesContainer}>
+          <View style={styles.profileCard}>
+            <TouchableOpacity
+              onPress={() => openProfile(original?.uid)}
+              style={styles.profileImageWrapper}
+              activeOpacity={0.7}
+            >
+              {loadingImages ? (
+                <View
+                  style={[
+                    styles.profileImage,
+                    styles.profileImagePlaceholder,
+                  ]}
+                >
+                  <ActivityIndicator size="small" color="#666" />
+                </View>
+              ) : (
+                <Image
+                  source={
+                    originalImageUrl
+                      ? { uri: originalImageUrl }
+                      : require("../assets/default_profile.png")
+                  }
+                  style={[styles.profileImage, styles.unavailableImage]}
+                  defaultSource={require("../assets/default_profile.png")}
+                />
+              )}
+              <View
+                style={[styles.statusBadge, styles.unavailableBadge]}
+              >
+                <Text style={styles.statusIcon}>✕</Text>
+              </View>
+            </TouchableOpacity>
+            <Text style={styles.profileName} numberOfLines={1}>
+              {original?.name?.split(" ")[0]}
+            </Text>
+            <Text style={styles.unavailableLabel}>Unavailable</Text>
+          </View>
+
+          <View style={styles.arrowContainer}>
+            <View style={styles.arrowLine} />
+            <View style={styles.arrowHead} />
+          </View>
+
+          <View style={styles.profileCard}>
+            <TouchableOpacity
+              onPress={() => openProfile(replacement?.uid)}
+              style={styles.profileImageWrapper}
+              activeOpacity={0.7}
+            >
+              {loadingImages ? (
+                <View
+                  style={[
+                    styles.profileImage,
+                    styles.profileImagePlaceholder,
+                  ]}
+                >
+                  <ActivityIndicator size="small" color="#666" />
+                </View>
+              ) : (
+                <Image
+                  source={
+                    replacementImageUrl
+                      ? { uri: replacementImageUrl }
+                      : require("../assets/default_profile.png")
+                  }
+                  style={[styles.profileImage, styles.suggestedImage]}
+                  defaultSource={require("../assets/default_profile.png")}
+                />
+              )}
+              <View style={[styles.statusBadge, styles.suggestedBadge]}>
+                <Text style={styles.statusIcon}>✓</Text>
+              </View>
+            </TouchableOpacity>
+            <Text style={styles.profileName} numberOfLines={1}>
+              {replacement?.name?.split(" ")[0]}
+            </Text>
+            <Text style={styles.suggestedLabel}>Suggested</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.actionsContainer}>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.acceptButton]}
+          onPress={handleAccept}
+          disabled={submitting}
+          activeOpacity={0.8}
+        >
+          {submitting ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.acceptButtonText}>Accept</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionButton, styles.chooseButton]}
+          onPress={handleChooseSomeoneElse}
+          disabled={submitting || loadingServers}
+          activeOpacity={0.8}
+        >
+          {loadingServers ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.chooseButtonText}>
+              Choose Someone Else
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.skipButtonsContainer}>
+          <TouchableOpacity
+            style={[
+              styles.skipButton,
+              showSkipAll && styles.skipButtonHalf,
+            ]}
+            onPress={onSkip}
+            disabled={submitting}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.skipButtonText}>Skip</Text>
+          </TouchableOpacity>
+
+          {showSkipAll && (
+            <TouchableOpacity
+              style={[styles.skipButton, styles.skipButtonHalf]}
+              onPress={onSkipAll}
+              disabled={submitting}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.skipButtonText}>Skip All</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+
   return (
     <>
       <Modal
@@ -327,188 +666,15 @@ const UnavailableRequestModal = ({
         onRequestClose={onClose}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalWrapper}>
-            <View style={styles.modalContent}>
-              {/* Header */}
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Schedule Change</Text>
-              </View>
-
-              {/* Body */}
-              <View style={styles.modalBody}>
-                {/* Message */}
-                <Text style={styles.messageText}>
-                  <Text style={styles.highlightName}>{original?.name}</Text>
-                  {" is unavailable for "}
-                  <Text style={styles.roleHighlight}>
-                    {getRoleDisplayName(role)}
-                  </Text>
-                </Text>
-
-                {/* Week Badge */}
-                <View style={styles.weekBadge}>
-                  <Text style={styles.weekBadgeText}>
-                    {formatWeekDisplay(week)}
-                  </Text>
-                </View>
-
-                {/* Profile Cards */}
-                <View style={styles.profilesContainer}>
-                  {/* Unavailable Person */}
-                  <View style={styles.profileCard}>
-                    <TouchableOpacity
-                      onPress={() => openProfile(original?.uid)}
-                      style={styles.profileImageWrapper}
-                      activeOpacity={0.7}
-                    >
-                      {loadingImages ? (
-                        <View
-                          style={[
-                            styles.profileImage,
-                            styles.profileImagePlaceholder,
-                          ]}
-                        >
-                          <ActivityIndicator size="small" color="#666" />
-                        </View>
-                      ) : (
-                        <Image
-                          source={
-                            originalImageUrl
-                              ? { uri: originalImageUrl }
-                              : require("../assets/default_profile.png")
-                          }
-                          style={[styles.profileImage, styles.unavailableImage]}
-                          defaultSource={require("../assets/default_profile.png")}
-                        />
-                      )}
-                      <View
-                        style={[styles.statusBadge, styles.unavailableBadge]}
-                      >
-                        <Text style={styles.statusIcon}>✕</Text>
-                      </View>
-                    </TouchableOpacity>
-                    <Text style={styles.profileName} numberOfLines={1}>
-                      {original?.name?.split(" ")[0]}
-                    </Text>
-                    <Text style={styles.unavailableLabel}>Unavailable</Text>
-                  </View>
-
-                  {/* Arrow */}
-                  <View style={styles.arrowContainer}>
-                    <View style={styles.arrowLine} />
-                    <View style={styles.arrowHead} />
-                  </View>
-
-                  {/* Suggested Replacement */}
-                  <View style={styles.profileCard}>
-                    <TouchableOpacity
-                      onPress={() => openProfile(replacement?.uid)}
-                      style={styles.profileImageWrapper}
-                      activeOpacity={0.7}
-                    >
-                      {loadingImages ? (
-                        <View
-                          style={[
-                            styles.profileImage,
-                            styles.profileImagePlaceholder,
-                          ]}
-                        >
-                          <ActivityIndicator size="small" color="#666" />
-                        </View>
-                      ) : (
-                        <Image
-                          source={
-                            replacementImageUrl
-                              ? { uri: replacementImageUrl }
-                              : require("../assets/default_profile.png")
-                          }
-                          style={[styles.profileImage, styles.suggestedImage]}
-                          defaultSource={require("../assets/default_profile.png")}
-                        />
-                      )}
-                      <View style={[styles.statusBadge, styles.suggestedBadge]}>
-                        <Text style={styles.statusIcon}>✓</Text>
-                      </View>
-                    </TouchableOpacity>
-                    <Text style={styles.profileName} numberOfLines={1}>
-                      {replacement?.name?.split(" ")[0]}
-                    </Text>
-                    <Text style={styles.suggestedLabel}>Suggested</Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Actions */}
-              <View style={styles.actionsContainer}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.acceptButton]}
-                  onPress={handleAccept}
-                  disabled={submitting}
-                  activeOpacity={0.8}
-                >
-                  {submitting ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.acceptButtonText}>Accept</Text>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.chooseButton]}
-                  onPress={handleChooseSomeoneElse}
-                  disabled={submitting}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.chooseButtonText}>
-                    Choose Someone Else
-                  </Text>
-                </TouchableOpacity>
-
-                <View style={styles.skipButtonsContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.skipButton,
-                      showSkipAll && styles.skipButtonHalf,
-                    ]}
-                    onPress={onSkip}
-                    disabled={submitting}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.skipButtonText}>Skip</Text>
-                  </TouchableOpacity>
-
-                  {showSkipAll && (
-                    <TouchableOpacity
-                      style={[styles.skipButton, styles.skipButtonHalf]}
-                      onPress={onSkipAll}
-                      disabled={submitting}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.skipButtonText}>Skip All</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            </View>
+          <View style={[
+            styles.modalWrapper,
+            viewMode === 'serverSelect' && styles.modalWrapperTall
+          ]}>
+            {viewMode === 'main' ? renderMainView() : renderServerSelectView()}
           </View>
         </View>
       </Modal>
 
-      {/* Server Selection Modal */}
-      <ServerSelectionModal
-        visible={showServerModal}
-        onClose={() => setShowServerModal(false)}
-        onSelect={handleSelectReplacement}
-        servers={availableServers}
-        imageUrls={imageUrls}
-        lastServeData={lastServeData}
-        nextServeData={nextServeData}
-        selectedWeek={selectedWeek}
-        title="Choose Replacement"
-        showNextServe={true}
-      />
-
-      {/* Individual Profile Modal */}
       <IndividualProfile
         userId={selectedProfileUid}
         show={showProfileModal}
@@ -534,6 +700,9 @@ const styles = StyleSheet.create({
     width: "90%",
     maxWidth: 380,
   },
+  modalWrapperTall: {
+    maxHeight: "80%",
+  },
   modalContent: {
     backgroundColor: "#1a1a1a",
     borderRadius: 20,
@@ -543,6 +712,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.6,
     shadowRadius: 25,
     elevation: 25,
+    maxHeight: "100%",
   },
   modalHeader: {
     alignItems: "center",
@@ -550,6 +720,27 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  serverSelectHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "#252525",
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backButtonText: {
+    color: "#fff",
+    fontSize: 24,
+    fontWeight: "300",
   },
   modalTitle: {
     color: "#fff",
@@ -740,6 +931,79 @@ const styles = StyleSheet.create({
     color: "#777",
     fontSize: 14,
     fontWeight: "500",
+  },
+  // Server list styles
+  serverList: {
+    maxHeight: 400,
+  },
+  serverItemContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+  },
+  serverItemContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  serverProfilePicContainer: {
+    position: "relative",
+  },
+  serverProfilePic: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: "#2a2a2a",
+    backgroundColor: "#2a2a2a",
+  },
+  serverStatusIndicator: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "#1a1a1a",
+  },
+  serverInfo: {
+    marginLeft: 14,
+    flex: 1,
+  },
+  serverName: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  serveInfoContainer: {
+    marginTop: 2,
+  },
+  primaryServeText: {
+    fontSize: 13,
+    marginTop: 2,
+    fontWeight: "600",
+  },
+  secondaryServeText: {
+    fontSize: 11,
+    marginTop: 1,
+    color: "#888",
+    fontWeight: "400",
+  },
+  separator: {
+    height: 1,
+    backgroundColor: "#2a2a2a",
+    marginHorizontal: 20,
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: "center",
+  },
+  emptyText: {
+    color: "#666",
+    fontSize: 16,
   },
 });
 
