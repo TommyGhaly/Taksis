@@ -76,12 +76,11 @@ function AppNavigator() {
 
   useEffect(() => {
     const subscriber = auth().onAuthStateChanged(async (user) => {
-      setUser(user);
-      
-      // Check if user needs to complete sign up
+      // Check if user needs to complete sign up BEFORE setting user state
       if (!user) {
         // No user logged in, needs sign up
         setSignUp(true);
+        setUser(user);
       } else {
         try {
           // User is logged in, check if user document exists and has DOB
@@ -89,7 +88,7 @@ function AppNavigator() {
             .collection('users')
             .doc(user.uid)
             .get();
-          
+
           if (!userDoc.exists || !userDoc.data()?.DOB) {
             // User document doesn't exist or DOB is missing
             setSignUp(true);
@@ -102,8 +101,10 @@ function AppNavigator() {
           // On error, assume user needs to complete sign up
           setSignUp(true);
         }
+        // Set user AFTER signUp state is determined to prevent flash
+        setUser(user);
       }
-      
+
       setInitializing(false);
     });
     return subscriber;

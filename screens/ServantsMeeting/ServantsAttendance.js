@@ -196,18 +196,36 @@ const ServantsAttendance = () => {
     try {
       const urls = { ...profilePictureUrls };
       const servantsToFetch = servantsData.filter((servant) => !urls[servant.uid]);
-      await Promise.all(
-        servantsToFetch.map(async (servant) => {
-          try {
-            const url = await storage().ref(`profilePictures/${servant.uid}.png`).getDownloadURL();
-            urls[servant.uid] = typeof url === "string" && url.trim() ? url : null;
-          } catch {
-            urls[servant.uid] = null;
-          }
-        })
-      );
+
+      // Fetch profile pictures progressively instead of blocking on Promise.all
+      const fetchBatch = async (batch) => {
+        const batchUrls = {};
+        await Promise.all(
+          batch.map(async (servant) => {
+            try {
+              const url = await storage().ref(`profilePictures/${servant.uid}.png`).getDownloadURL();
+              batchUrls[servant.uid] = typeof url === "string" && url.trim() ? url : null;
+            } catch {
+              batchUrls[servant.uid] = null;
+            }
+          })
+        );
+        return batchUrls;
+      };
+
+      // Fetch in batches of 10 to progressively update UI
+      const batchSize = 10;
+      for (let i = 0; i < servantsToFetch.length; i += batchSize) {
+        const batch = servantsToFetch.slice(i, i + batchSize);
+        const batchUrls = await fetchBatch(batch);
+        if (isMounted.current) {
+          const newUrls = { ...urls, ...batchUrls };
+          setProfilePictureUrls(newUrls);
+          Object.assign(urls, batchUrls);
+        }
+      }
+
       if (isMounted.current) {
-        setProfilePictureUrls(urls);
         await CacheUtils.set(cacheKeys.current.profilePics, urls);
       }
     } catch (error) {
@@ -281,8 +299,8 @@ const ServantsAttendance = () => {
               <Image
                 style={styles.servantImage}
                 source={profilePictureUrls[servant.uid] ? { uri: profilePictureUrls[servant.uid] } : require("../../assets/default_profile.png")}
-                defaultSource={require("../../assets/default_profile.png")}
                 resizeMode="cover"
+                defaultSource={require("../../assets/default_profile.png")}
                 onError={() => setProfilePictureUrls((prev) => ({ ...prev, [servant.uid]: null }))}
               />
               <View style={styles.servantDetails}>

@@ -229,22 +229,38 @@ const AlhanAttendance = () => {
           allStudents.push(...students);
         })
       );
-      const urls = {};
-      await Promise.all(
-        allStudents.map(async (student) => {
-          if (student.uid) {
-            try {
-              const url = await storage().ref(`profilePictures/${student.uid}.png`).getDownloadURL();
-              urls[student.uid] = typeof url === "string" && url.trim() ? url : null;
-            } catch (error) {
-              urls[student.uid] = null;
+
+      // Fetch profile pictures progressively instead of blocking on Promise.all
+      const fetchBatch = async (batch) => {
+        const batchUrls = {};
+        await Promise.all(
+          batch.map(async (student) => {
+            if (student.uid) {
+              try {
+                const url = await storage().ref(`profilePictures/${student.uid}.png`).getDownloadURL();
+                batchUrls[student.uid] = typeof url === "string" && url.trim() ? url : null;
+              } catch (error) {
+                batchUrls[student.uid] = null;
+              }
             }
-          }
-        })
-      );
+          })
+        );
+        return batchUrls;
+      };
+
+      // Fetch in batches of 10 to progressively update UI
+      const batchSize = 10;
+      for (let i = 0; i < allStudents.length; i += batchSize) {
+        const batch = allStudents.slice(i, i + batchSize);
+        const batchUrls = await fetchBatch(batch);
+        if (isMounted.current) {
+          setProfilePictureUrls(prev => ({ ...prev, ...batchUrls }));
+        }
+      }
+
+      // Cache all URLs at once
       if (isMounted.current) {
-        setProfilePictureUrls(urls);
-        await CacheUtils.set(cacheKeys.current.profilePics, urls);
+        await CacheUtils.set(cacheKeys.current.profilePics, profilePictureUrls);
       }
     } catch (error) {
       console.error("Error fetching profile pictures:", error);
@@ -447,8 +463,8 @@ const AlhanAttendance = () => {
             <Image
               style={styles.profilePicture}
               source={profilePictureUrls[student.uid] ? { uri: profilePictureUrls[student.uid] } : require("../../assets/default_profile.png")}
-              defaultSource={require("../../assets/default_profile.png")}
               resizeMode="cover"
+              defaultSource={require("../../assets/default_profile.png")}
               onError={() => setProfilePictureUrls((prev) => ({ ...prev, [student.uid]: null }))}
             />
             <View style={styles.studentInfo}>

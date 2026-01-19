@@ -446,6 +446,7 @@ const UnavailableRequestModal = ({
                   : require("../assets/default_profile.png")
               }
               style={styles.serverProfilePic}
+              resizeMode="cover"
               defaultSource={require("../assets/default_profile.png")}
             />
             <View style={[styles.serverStatusIndicator, { backgroundColor: indicatorColor }]} />
@@ -542,6 +543,7 @@ const UnavailableRequestModal = ({
                       : require("../assets/default_profile.png")
                   }
                   style={[styles.profileImage, styles.unavailableImage]}
+                  resizeMode="cover"
                   defaultSource={require("../assets/default_profile.png")}
                 />
               )}
@@ -585,6 +587,7 @@ const UnavailableRequestModal = ({
                       : require("../assets/default_profile.png")
                   }
                   style={[styles.profileImage, styles.suggestedImage]}
+                  resizeMode="cover"
                   defaultSource={require("../assets/default_profile.png")}
                 />
               )}
