@@ -131,13 +131,15 @@ const ProfileImageExpander = React.memo(({
           <Animated.View style={[styles.overlay, animatedOverlayStyle]} pointerEvents="none" />
           <AnimatedExpoImage
             style={[
-              styles.enlargedImage, 
-              { width: finalSize, height: finalSize }, 
+              styles.enlargedImage,
+              { width: finalSize, height: finalSize },
               animatedImageStyle
             ]}
             source={imageSource}
-            contentFit="cover"
+            contentFit={isDefaultImage ? "contain" : "cover"}
             cachePolicy="memory-disk"
+            priority="high"
+            transition={0}
             recyclingKey={imageUrl}
           />
         </TouchableOpacity>
