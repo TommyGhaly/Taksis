@@ -6,11 +6,8 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
-  Modal,
-  TextInput,
   SafeAreaView,
   Animated,
-  Pressable,
   AppState,
   StyleSheet,
 } from "react-native";
@@ -22,11 +19,16 @@ import { deleteUser } from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
 import { check, request, PERMISSIONS, RESULTS } from "react-native-permissions";
 import { callFunction } from "../../components/functionCalls";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import HomeScreenNames from "../../components/homescreenNames";
 import PhotoInput from "../../components/photoInput";
-import { BlurView } from "expo-blur";
-import Churches from "../../components/churches";
+import ChurchSelectionModal from "../../components/ChurchSelectionModal";
+import NameModal from "../../components/NameModal";
+import DOBModal from "../../components/DOBModal";
+import PhoneModal from "../../components/PhoneModal";
+import WeekSelectionModal from "../../components/WeekSelectionModal";
+import ProfilePictureModal from "../../components/ProfilePictureModal";
+import ChildrenProfilePictureModal from "../../components/ChildrenProfilePictureModal";
+import AvailabilityModal from "../../components/AvailabilityModal";
 
 // Import caching system
 import {
@@ -606,39 +608,23 @@ const HomeScreen = () => {
     setIsSubmittingStatus(true);
     try {
       const user = auth().currentUser;
-      if (!user || !churchId || !currentWeek || !userCurrentWeekRoleKey) {
+      if (!user || !churchId || !currentWeek) {
         Alert.alert("Error", "Missing required information.");
         setIsSubmittingStatus(false);
         return;
       }
 
-      const scheduleDocRef = firestore()
-        .collection("churches")
-        .doc(churchId)
-        .collection("schedule")
-        .doc(currentWeek);
-
-      // Get current schedule data
-      const scheduleDoc = await scheduleDocRef.get();
-      if (!scheduleDoc.exists) {
-        Alert.alert("Error", "Schedule not found.");
-        setIsSubmittingStatus(false);
-        return;
-      }
-
-      const scheduleData = scheduleDoc.data();
-
-      if (userCurrentWeekRoleKey === 'altar') {
-        // Remove from altar array
-        const altarArray = scheduleData.altar || [];
-        const updatedAltar = altarArray.filter(server => server && server.uid !== user.uid);
-        await scheduleDocRef.update({ altar: updatedAltar });
-      } else {
-        // Replace with N/A for single role and remove status field
-        await scheduleDocRef.update({
-          [userCurrentWeekRoleKey]: { name: "N/A" }
-        });
-      }
+      await callFunction(
+        user,
+        "https://unavailable-for-week-hy6oofbihq-uc.a.run.app",
+        {
+          church: churchId,
+          week: currentWeek,
+          uid: user.uid,
+          family: false,
+        },
+        "Failed to remove from role. Please try again."
+      );
 
       // Update local state
       setUserCurrentWeekRole(null);
@@ -1484,498 +1470,92 @@ const HomeScreen = () => {
       />
 
       {/* Church Selection Modal */}
-      <Modal
-        animationType="none"
-        transparent={true}
+      <ChurchSelectionModal
         visible={showChurchModal}
-        onRequestClose={() => {}}
-      >
-        <View style={styles.modalOverlay}>
-          <BlurView intensity={20} style={StyleSheet.absoluteFillObject} />
-          <Animated.View
-            style={[
-              styles.churchModalContainer,
-              { transform: [{ scale: scaleValue }] },
-            ]}
-          >
-            <View style={styles.modalGradientHeader} />
-            <View style={styles.modalIconContainer}>
-              <Ionicons name="business" size={48} color="#147EFB" />
-            </View>
-            <Text style={styles.modalTitle}>Select Your Church</Text>
-            <Text style={styles.modalSubtitle}>
-              Please select your church to continue with the app.
-            </Text>
+        scaleValue={scaleValue}
+        selectedChurch={selectedChurch}
+        isSubmitting={isSubmittingChurch}
+        onSelectChurch={handleChurchSelection}
+        onSubmit={handleChurchSubmit}
+      />
 
-            <View style={styles.churchListContainer}>
-              <Churches onSelectChurch={handleChurchSelection} />
-            </View>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.enhancedSubmitButton,
-                pressed && styles.enhancedButtonPressed,
-                { opacity: selectedChurch && !isSubmittingChurch ? 1 : 0.6 },
-              ]}
-              onPress={handleChurchSubmit}
-              disabled={!selectedChurch || isSubmittingChurch}
-            >
-              <Text style={styles.enhancedButtonText}>
-                {isSubmittingChurch ? "Setting up..." : "Continue"}
-              </Text>
-            </Pressable>
-          </Animated.View>
-        </View>
-      </Modal>
-
-      <Modal
-        animationType="slide"
-        transparent={true}
+      {/* Name Modal */}
+      <NameModal
         visible={showNameModal}
-        onRequestClose={() => {}}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>We Need Your Name</Text>
-            <Text style={styles.modalSubtitle}>
-              Please provide your first and last name to continue.
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="First Name"
-              placeholderTextColor="#888"
-              value={firstName}
-              onChangeText={setFirstName}
-              autoCapitalize="words"
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Last Name"
-              placeholderTextColor="#888"
-              value={lastName}
-              onChangeText={setLastName}
-              autoCapitalize="words"
-            />
-            <TouchableOpacity
-              style={styles.submitButton}
-              onPress={handleNameSubmit}
-            >
-              <Text style={styles.buttonText}>Submit</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        firstName={firstName}
+        lastName={lastName}
+        onChangeFirstName={setFirstName}
+        onChangeLastName={setLastName}
+        onSubmit={handleNameSubmit}
+      />
 
-      <Modal
+      {/* DOB Modal */}
+      <DOBModal
         visible={showDOBModal}
-        transparent={true}
-        animationType="none"
-        onRequestClose={() => {}}
-      >
-        <View style={styles.modalOverlay}>
-          <Animated.View
-            style={[
-              styles.modalDOBContainer,
-              { transform: [{ scale: scaleValue }] },
-            ]}
-          >
-            <Text style={styles.modalTitle}>We Need Your Date of Birth</Text>
-            <Text style={styles.modalSubtitle}>
-              Please provide your date of birth to continue.
-            </Text>
-            <View style={styles.datePickerContainer}>
-              {Platform.OS === "ios" ? (
-                <>
-                  <Text style={styles.dateText}>{formatDate(date)}</Text>
-                  <DateTimePicker
-                    value={tempDate}
-                    mode="date"
-                    display="spinner"
-                    onChange={handleDateChange}
-                    maximumDate={new Date()}
-                    {...(Platform.OS === "ios" ? { textColor: "#F0F0F0" } : {})}
-                    accentColor="#147ffb"
-                    style={styles.datePicker}
-                  />
-                </>
-              ) : (
-                <Pressable onPress={() => setShowDatePicker(true)}>
-                  <Text style={styles.dateText}>{formatDate(date)}</Text>
-                </Pressable>
-              )}
-            </View>
-            <Pressable style={styles.submitButton} onPress={handleDOBSubmit}>
-              <Text style={styles.buttonText}>Submit</Text>
-            </Pressable>
-          </Animated.View>
-        </View>
-      </Modal>
+        scaleValue={scaleValue}
+        date={date}
+        tempDate={tempDate}
+        showDatePicker={showDatePicker}
+        formatDate={formatDate}
+        onDateChange={handleDateChange}
+        onShowDatePicker={() => setShowDatePicker(true)}
+        onSubmit={handleDOBSubmit}
+      />
 
-      <Modal
+      {/* Phone Modal */}
+      <PhoneModal
         visible={showPhoneModal}
-        transparent={true}
-        animationType="none"
-        onRequestClose={handlePhoneModalClose}
-      >
-        <View style={styles.modalOverlay}>
-          <Animated.View
-            style={[
-              styles.modalDOBContainer,
-              { transform: [{ scale: scaleValue }] },
-            ]}
-          >
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>We Need Your Phone Number</Text>
-              <TouchableOpacity
-                onPress={handlePhoneModalClose}
-                style={styles.closeButton}
-              >
-                <Ionicons name="close" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.modalSubtitle}>
-              Please provide your phone number to continue (e.g., +1234567890).
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Phone Number"
-              placeholderTextColor="#888"
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              keyboardType="phone-pad"
-              autoCapitalize="none"
-              autoFocus={true}
-            />
-            <Pressable style={styles.submitButton} onPress={handlePhoneSubmit}>
-              <Text style={styles.buttonText}>Submit</Text>
-            </Pressable>
-          </Animated.View>
-        </View>
-      </Modal>
+        scaleValue={scaleValue}
+        phoneNumber={phoneNumber}
+        onChangePhoneNumber={setPhoneNumber}
+        onSubmit={handlePhoneSubmit}
+        onClose={handlePhoneModalClose}
+      />
 
-      {Platform.OS === "android" && showDatePicker && (
-        <Modal
-          visible={showDatePicker}
-          transparent={true}
-          animationType="none"
-          onRequestClose={() => setShowDatePicker(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <Animated.View
-              style={[
-                styles.modalDOBContainer,
-                { transform: [{ scale: scaleValue }] },
-              ]}
-            >
-              {(() => {
-                try {
-                  return (
-                    <DateTimePicker
-                      value={tempDate}
-                      mode="date"
-                      display="spinner"
-                      onChange={handleDateChange}
-                      maximumDate={new Date()}
-                      accentColor="#147ffb"
-                    />
-                  );
-                } catch (error) {
-                  return <Text>Error rendering date picker</Text>;
-                }
-              })()}
-            </Animated.View>
-          </View>
-        </Modal>
-      )}
-
-      <Modal
-        animationType="none"
-        transparent={true}
+      {/* Week Selection Modal */}
+      <WeekSelectionModal
         visible={showWeekModal}
-        onRequestClose={() => setShowWeekModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>Select Unavailable Weeks</Text>
-            <Text style={styles.modalSubtitle}>
-              This action cannot be undone.
-            </Text>
-            {getNextFiveWeeks().map((week, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.weekButton,
-                  (selectedWeeks.includes(week) ||
-                    unavailableWeeks.includes(week)) &&
-                    styles.weekButtonSelected,
-                ]}
-                onPress={() => handleWeekSelection(week)}
-                disabled={unavailableWeeks.includes(week)}
-              >
-                <Text style={styles.weekButtonText}>Week of {week}</Text>
-              </TouchableOpacity>
-            ))}
-            <View style={styles.modalButtonContainer}>
-              <TouchableOpacity
-                style={[styles.submitButton, styles.cancelButton]}
-                onPress={() => {
-                  setShowWeekModal(false);
-                  setSelectedWeeks([]);
-                }}
-              >
-                <Text style={styles.buttonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.submitButton, isLoading && { opacity: 0.6 }]}
-                onPress={confirmWeekSelection}
-                disabled={isLoading}
-              >
-                <Text style={styles.buttonText}>
-                  {isLoading ? "Processing..." : "Confirm"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        weeks={getNextFiveWeeks()}
+        selectedWeeks={selectedWeeks}
+        unavailableWeeks={unavailableWeeks}
+        isLoading={isLoading}
+        onWeekSelection={handleWeekSelection}
+        onConfirm={confirmWeekSelection}
+        onCancel={() => {
+          setShowWeekModal(false);
+          setSelectedWeeks([]);
+        }}
+      />
 
-      <Modal
-        animationType="none"
-        transparent={true}
+      {/* Profile Picture Modal */}
+      <ProfilePictureModal
         visible={showProfilePicModal}
-        onRequestClose={() => {}}
-      >
-        <View style={styles.modalOverlay}>
-          <BlurView intensity={20} style={StyleSheet.absoluteFillObject} />
-          <Animated.View
-            style={[
-              styles.enhancedModalContainer,
-              { transform: [{ scale: scaleValue }] },
-            ]}
-          >
-            <View style={styles.modalGradientHeader} />
-            <View style={styles.modalIconContainer}>
-              <Ionicons name="camera" size={48} color="#147EFB" />
-            </View>
-            <Text style={styles.modalTitle}>Profile Picture Required</Text>
-            <Text style={styles.modalSubtitle}>
-              As a {isDeacon ? "deacon" : "Sunday school servant"}, you need a
-              profile picture to help identify you in the church community.
-            </Text>
-            <Pressable
-              style={({ pressed }) => [
-                styles.enhancedSubmitButton,
-                pressed && styles.enhancedButtonPressed,
-              ]}
-              onPress={handleOpenPhotoInput}
-            >
-              <Ionicons
-                name="add-circle-outline"
-                size={24}
-                color="#FFFFFF"
-                style={{ marginRight: 8 }}
-              />
-              <Text style={styles.enhancedButtonText}>Add Profile Picture</Text>
-            </Pressable>
-          </Animated.View>
-        </View>
-      </Modal>
+        scaleValue={scaleValue}
+        isDeacon={isDeacon}
+        onAddPhoto={handleOpenPhotoInput}
+      />
 
-      <Modal
-        animationType="none"
-        transparent={true}
+      {/* Children Profile Picture Modal */}
+      <ChildrenProfilePictureModal
         visible={showChildrenProfilePicModal}
-        onRequestClose={handleCloseChildrenModal}
-      >
-        <View style={styles.modalOverlay}>
-          <Animated.View
-            style={[
-              styles.modalDOBContainer,
-              { transform: [{ scale: scaleValue }] },
-            ]}
-          >
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                Children Profile Pictures Required
-              </Text>
-              <TouchableOpacity
-                onPress={handleCloseChildrenModal}
-                style={styles.closeButton}
-              >
-                <Ionicons name="close" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.modalSubtitle}>
-              Some of your children are missing profile pictures. Please remove
-              them and reregister with profile pictures.
-            </Text>
-            <Pressable
-              style={styles.submitButton}
-              onPress={handleRemoveChildren}
-            >
-              <Text style={styles.buttonText}>Remove Children</Text>
-            </Pressable>
-          </Animated.View>
-        </View>
-      </Modal>
+        scaleValue={scaleValue}
+        onRemoveChildren={handleRemoveChildren}
+        onClose={handleCloseChildrenModal}
+      />
 
       {/* Availability Confirmation Modal */}
-      <Modal
-        animationType="none"
-        transparent={true}
+      <AvailabilityModal
         visible={showAvailabilityModal}
-        onRequestClose={() => {}}
-      >
-        <View style={styles.modalOverlay}>
-          <BlurView intensity={20} style={StyleSheet.absoluteFillObject} />
-          <Animated.View
-            style={[
-              styles.availabilityModalContainer,
-              { transform: [{ scale: scaleValue }] },
-            ]}
-          >
-            {availabilityModalStep === 'initial' ? (
-              <>
-                <View style={styles.availabilityModalHeader}>
-                  <View style={styles.availabilityIconCircle}>
-                    <Ionicons name="calendar" size={32} color="#147EFB" />
-                  </View>
-                  <Text style={styles.availabilityModalTitle}>You're Scheduled</Text>
-                  <Text style={styles.availabilityModalWeek}>Week of {currentWeek}</Text>
-                  <Text style={styles.availabilityModalRole}>{userCurrentWeekRole}</Text>
-                </View>
-
-                <View style={styles.availabilityModalBody}>
-                  <Text style={styles.availabilityQuestion}>Will you be attending?</Text>
-
-                  <TouchableOpacity
-                    style={styles.availabilityOptionButton}
-                    onPress={() => handleAvailabilityResponse('confirmed')}
-                    disabled={isSubmittingStatus}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.availabilityOptionIcon, { backgroundColor: '#28A745' }]}>
-                      <Ionicons name="checkmark-circle" size={28} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.availabilityOptionText}>
-                      <Text style={styles.availabilityOptionTitle}>I will be there</Text>
-                      <Text style={styles.availabilityOptionSubtext}>Confirm attendance</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.availabilityOptionButton}
-                    onPress={() => handleAvailabilityResponse('unsure')}
-                    disabled={isSubmittingStatus}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.availabilityOptionIcon, { backgroundColor: '#E68A00' }]}>
-                      <Ionicons name="help-circle" size={28} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.availabilityOptionText}>
-                      <Text style={styles.availabilityOptionTitle}>Unsure yet</Text>
-                      <Text style={styles.availabilityOptionSubtext}>Still deciding</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.availabilityOptionButton}
-                    onPress={() => handleAvailabilityResponse('unavailable')}
-                    disabled={isSubmittingStatus}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.availabilityOptionIcon, { backgroundColor: '#ff3b30' }]}>
-                      <Ionicons name="close-circle" size={28} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.availabilityOptionText}>
-                      <Text style={styles.availabilityOptionTitle}>Unavailable</Text>
-                      <Text style={styles.availabilityOptionSubtext}>Cannot attend</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.availabilityModalFooter}>
-                  <Ionicons name="lock-closed" size={14} color="rgba(255,255,255,0.4)" />
-                  <Text style={styles.availabilityFooterText}>
-                    Only visible to church admins and you
-                  </Text>
-                </View>
-              </>
-            ) : (
-              <>
-                <View style={styles.unavailableConfirmHeader}>
-                  <View style={styles.unavailableIconCircle}>
-                    <Ionicons name="alert-circle" size={32} color="#ff3b30" />
-                  </View>
-                  <Text style={styles.unavailableConfirmTitle}>You're Unavailable</Text>
-                  <Text style={styles.unavailableConfirmSubtitle}>
-                    What would you like to do?
-                  </Text>
-                </View>
-
-                <View style={styles.unavailableConfirmBody}>
-                  <TouchableOpacity
-                    style={styles.unavailableOptionCard}
-                    onPress={() => handleKeepButMarkUnavailable()}
-                    disabled={isSubmittingStatus}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.unavailableOptionIcon, { backgroundColor: '#147EFB' }]}>
-                      <Ionicons name="bookmark" size={24} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.unavailableOptionContent}>
-                      <Text style={styles.unavailableOptionTitle}>Keep Me Scheduled</Text>
-                      <Text style={styles.unavailableOptionDescription}>
-                        Stay on the schedule but marked as unavailable
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.unavailableOptionCard}
-                    onPress={() => handleRemoveSelfFromRole()}
-                    disabled={isSubmittingStatus}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.unavailableOptionIcon, { backgroundColor: '#ff3b30' }]}>
-                      <Ionicons name="close-circle" size={24} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.unavailableOptionContent}>
-                      <Text style={styles.unavailableOptionTitle}>Remove Me</Text>
-                      <Text style={styles.unavailableOptionDescription}>
-                        Remove from schedule, someone else will be assigned
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.unavailableOptionCard, { marginTop: 8 }]}
-                    onPress={() => setAvailabilityModalStep('initial')}
-                    disabled={isSubmittingStatus}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.unavailableOptionIcon, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
-                      <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.unavailableOptionContent}>
-                      <Text style={styles.unavailableOptionTitle}>Go Back</Text>
-                      <Text style={styles.unavailableOptionDescription}>
-                        Return to availability options
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </Animated.View>
-        </View>
-      </Modal>
+        scaleValue={scaleValue}
+        currentWeek={currentWeek}
+        userCurrentWeekRole={userCurrentWeekRole}
+        availabilityModalStep={availabilityModalStep}
+        isSubmittingStatus={isSubmittingStatus}
+        onAvailabilityResponse={handleAvailabilityResponse}
+        onKeepButMarkUnavailable={handleKeepButMarkUnavailable}
+        onRemoveSelfFromRole={handleRemoveSelfFromRole}
+        onGoBack={() => setAvailabilityModalStep("initial")}
+      />
 
       <ScrollView
         style={styles.homescreen}
@@ -2171,335 +1751,12 @@ const styles = StyleSheet.create({
     height: 0,
     backgroundColor: "#121212",
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContainer: {
-    backgroundColor: "#1a1a1a",
-    padding: 24,
-    borderRadius: 14,
-    width: "85%",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
-  },
-  modalDOBContainer: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 14,
-    padding: 28,
-    alignItems: "center",
-    marginHorizontal: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    width: "100%",
-    marginBottom: 12,
-  },
-  modalTitle: {
-    fontSize: 22,
-    color: "#fff",
-    fontWeight: "600",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
-  modalSubtitle: {
-    fontSize: 15,
-    color: "rgba(255,255,255,0.6)",
-    textAlign: "center",
-    marginBottom: 24,
-    lineHeight: 22,
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
-  input: {
-    width: "100%",
-    backgroundColor: "rgba(255,255,255,0.05)",
-    color: "#fff",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
-    padding: 14,
-    borderRadius: 14,
-    marginVertical: 8,
-    fontSize: 16,
-  },
-  datePickerContainer: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    width: "100%",
-    alignItems: "center",
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
-  },
-  dateText: {
-    fontSize: 16,
-    color: "#fff",
-    marginBottom: 10,
-    textAlign: "center",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
-  datePicker: {
-    width: "100%",
-  },
-  submitButton: {
-    backgroundColor: "#147EFB",
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 14,
-    marginTop: 12,
-  },
-  closeButton: {
-    padding: 8,
-  },
-  buttonText: {
-    fontSize: 16,
-    color: "#ffffff",
-    fontWeight: "600",
-    textAlign: "center",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
-  weekButton: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    paddingVertical: 14,
-    borderRadius: 14,
-    marginVertical: 6,
-    width: "100%",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
-  },
-  weekButtonSelected: {
-    backgroundColor: "#ff3b30",
-    borderColor: "#ff3b30",
-  },
-  weekButtonText: {
-    fontSize: 16,
-    color: "#fff",
-    fontWeight: "500",
-  },
-  cancelButton: {
-    backgroundColor: "rgba(255,255,255,0.1)",
-    width: "45%",
-  },
-  modalButtonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-    marginTop: 20,
-    gap: 12,
-  },
-  enhancedModalContainer: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 14,
-    padding: 32,
-    alignItems: "center",
-    marginHorizontal: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
-    position: "relative",
-    overflow: "hidden",
-  },
-  churchModalContainer: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 14,
-    padding: 32,
-    alignItems: "center",
-    marginHorizontal: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
-    position: "relative",
-    overflow: "hidden",
-    width: "90%",
-    maxHeight: "80%",
-  },
-  churchListContainer: {
-    maxHeight: 300,
-    marginVertical: 20,
-  },
-  modalGradientHeader: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 120,
-    backgroundColor: "#147EFB",
-    opacity: 0.08,
-  },
-  modalIconContainer: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 24,
-  },
-  enhancedSubmitButton: {
-    flexDirection: "row",
-    backgroundColor: "#147EFB",
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 14,
-    marginTop: 24,
-    alignItems: "center",
-  },
-  enhancedButtonPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
-  },
-  enhancedButtonText: {
-    fontSize: 16,
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
   lastServeText: {
     fontSize: 13,
     color: "rgba(255,255,255,0.4)",
     textAlign: "center",
     marginTop: 12,
     fontStyle: "italic",
-  },
-  churchItem: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    padding: 16,
-    marginVertical: 6,
-    marginHorizontal: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
-  },
-  selectedChurchItem: {
-    backgroundColor: "#147EFB",
-    borderColor: "#147EFB",
-  },
-  churchItemText: {
-    fontSize: 16,
-    color: "rgba(255,255,255,0.7)",
-    fontWeight: "500",
-    textAlign: "center",
-  },
-  selectedChurchItemText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-  },
-  availabilityModalContainer: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 20,
-    marginHorizontal: 20,
-    maxWidth: 440,
-    width: "90%",
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
-  },
-  availabilityModalHeader: {
-    alignItems: "center",
-    paddingTop: 40,
-    paddingBottom: 32,
-    paddingHorizontal: 24,
-  },
-  availabilityIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "rgba(20, 126, 251, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-  availabilityModalTitle: {
-    fontSize: 20,
-    color: "#FFFFFF",
-    fontWeight: "600",
-    textAlign: "center",
-    marginBottom: 8,
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
-  availabilityModalWeek: {
-    fontSize: 15,
-    color: "rgba(255, 255, 255, 0.6)",
-    fontWeight: "500",
-    textAlign: "center",
-    marginBottom: 12,
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
-  availabilityModalRole: {
-    fontSize: 26,
-    color: "#147EFB",
-    fontWeight: "700",
-    textAlign: "center",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
-  availabilityModalBody: {
-    paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 24,
-  },
-  availabilityQuestion: {
-    fontSize: 18,
-    color: "#FFFFFF",
-    fontWeight: "600",
-    textAlign: "center",
-    marginBottom: 20,
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
-  availabilityOptionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
-  },
-  availabilityOptionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 14,
-  },
-  availabilityOptionText: {
-    flex: 1,
-  },
-  availabilityOptionTitle: {
-    fontSize: 17,
-    color: "#FFFFFF",
-    fontWeight: "600",
-    marginBottom: 2,
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
-  availabilityOptionSubtext: {
-    fontSize: 13,
-    color: "rgba(255, 255, 255, 0.5)",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
-  availabilityModalFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    backgroundColor: "rgba(0, 0, 0, 0.2)",
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.06)",
-  },
-  availabilityFooterText: {
-    fontSize: 12,
-    color: "rgba(255, 255, 255, 0.5)",
-    marginLeft: 6,
-    fontStyle: "italic",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   statusPill: {
     flexDirection: "row",
@@ -2525,85 +1782,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#FFFFFF",
     fontWeight: "600",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
-  unavailableConfirmContainer: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 20,
-    marginHorizontal: 20,
-    maxWidth: 440,
-    width: "90%",
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
-  },
-  unavailableConfirmHeader: {
-    alignItems: "center",
-    paddingTop: 32,
-    paddingBottom: 24,
-    paddingHorizontal: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.06)",
-  },
-  unavailableIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "rgba(255, 59, 48, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  unavailableConfirmTitle: {
-    fontSize: 24,
-    color: "#FFFFFF",
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 8,
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
-  unavailableConfirmSubtitle: {
-    fontSize: 15,
-    color: "rgba(255, 255, 255, 0.6)",
-    textAlign: "center",
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
-  unavailableConfirmBody: {
-    paddingHorizontal: 24,
-    paddingVertical: 24,
-  },
-  unavailableOptionCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
-  },
-  unavailableOptionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 14,
-  },
-  unavailableOptionContent: {
-    flex: 1,
-  },
-  unavailableOptionTitle: {
-    fontSize: 17,
-    color: "#FFFFFF",
-    fontWeight: "600",
-    marginBottom: 4,
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-  },
-  unavailableOptionDescription: {
-    fontSize: 13,
-    color: "rgba(255, 255, 255, 0.5)",
-    lineHeight: 18,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
 });
