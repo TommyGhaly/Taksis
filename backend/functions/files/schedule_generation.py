@@ -1035,7 +1035,7 @@ def set_next_week_serve(church_id):
     Scans all schedules and updates each user's nextWeekServe field.
     """
     reset_next_dates(church_id)
-
+    
     firestore_client = firestore.Client()
     schedules_ref = (
         firestore_client.collection("churches")
@@ -1043,6 +1043,11 @@ def set_next_week_serve(church_id):
         .collection("schedule")
     )
     schedules = list(schedules_ref.stream())
+    
+    schedules.sort(key=lambda s: datetime.datetime.strptime(s.id, "%m-%d-%y"))
+    
+    uids = {}
+    user_ref = firestore_client.collection("users")
 
     for schedule in schedules:
         schedule_id = schedule.id
@@ -1054,49 +1059,24 @@ def set_next_week_serve(church_id):
 
             if key == "altar":
                 for altar_server in value:
-                    for individual_key, individual_value in altar_server.items():
-                        if individual_key == "uid" and individual_value != "N/A":
-                            set_user_next_week(individual_value, str(schedule_id), key)
-
-            if isinstance(value, dict):
-                for individual_key, individual_value in value.items():
-                    if individual_key == "uid" and individual_value != "N/A":
-                        set_user_next_week(individual_value, str(schedule_id), key)
+                    uid = altar_server.get("uid")
+                    if uid and uid != "N/A" and uid not in uids:
+                        user_doc = user_ref.document(uid).get()
+                        if user_doc.exists:
+                            user_ref.document(uid).update({
+                                "nextWeekServe": str(schedule_id), 
+                                "nextRole": interpret_role(key)
+                            })
+                            uids[uid] = True
+            else:
+                uid = value.get("uid")
+                if uid and uid != "N/A" and uid not in uids:
+                    user_doc = user_ref.document(uid).get()
+                    if user_doc.exists:
+                        user_ref.document(uid).update({
+                            "nextWeekServe": str(schedule_id),
+                            "nextRole": interpret_role(key)
+                        })
+                        uids[uid] = True
 
     return
-
-
-def set_user_next_week(user_id, week, role):
-    """
-    Updates a user's nextWeekServe/nextRole if this date is earlier
-    than their current next scheduled date.
-    """
-    firestore_client = firestore.Client()
-    user_ref = firestore_client.collection("users").document(user_id)
-    role = interpret_role(role)
-    
-    user_data = user_ref.get()
-    if user_data.exists:
-        user_info = user_data.to_dict()
-        next_week_serve = user_info.get("nextWeekServe")
-        
-        if next_week_serve == "N/A" or next_week_serve == "Not Yet Scheduled" or not next_week_serve:
-            user_info["nextWeekServe"] = week
-            user_info["nextRole"] = role
-            user_ref.set(user_info)
-            return
-
-        if not week:
-            return
-
-        try:
-            new_date = datetime.datetime.strptime(week, "%m-%d-%y")
-            existing_date = datetime.datetime.strptime(next_week_serve, "%m-%d-%y")
-            if new_date < existing_date:
-                user_info["nextWeekServe"] = week
-                user_info["nextRole"] = role
-                user_ref.set(user_info)
-        except ValueError as e:
-            return https_fn.Response(f"Invalid date format: {str(e)}", status=400)
-    else:
-        return
