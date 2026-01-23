@@ -982,7 +982,7 @@ const s = StyleSheet.create({
   // Loading
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#121212",
     justifyContent: "center",
     alignItems: "center",
   },
