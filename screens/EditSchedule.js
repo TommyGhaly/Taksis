@@ -7,14 +7,24 @@ import {
   StyleSheet,
   FlatList,
   Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback,
+  Alert,
 } from "react-native";
 import firestore, { FieldValue } from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
+import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import callFunction from "../components/functionCalls";
 import IndividualProfile from "../components/individualProfile";
 import ServerSelectionModal from "../components/ServerSelectionModal";
 import { FirestoreCache, StorageCache } from "../utils/cacheManager";
+
+const NOTIFICATION_URL =
+  "https://us-central1-taksis-a8ba7.cloudfunctions.net/traffic_notification";
 
 const DATE_FORMATS = {
   SCHEDULE: "MM-DD-YY",
@@ -121,8 +131,12 @@ const formatWeekDisplay = (weekStr) => {
 const StatusBadge = ({ status, align = "left" }) => {
   if (!status || !STATUS_LABELS[status]) return null;
   return (
-    <View style={[styles.statusBadge, align === "right" && styles.statusBadgeRight]}>
-      <View style={[styles.statusDot, { backgroundColor: STATUS_COLORS[status] }]} />
+    <View
+      style={[styles.statusBadge, align === "right" && styles.statusBadgeRight]}
+    >
+      <View
+        style={[styles.statusDot, { backgroundColor: STATUS_COLORS[status] }]}
+      />
       <Text style={[styles.statusText, { color: STATUS_COLORS[status] }]}>
         {STATUS_LABELS[status]}
       </Text>
@@ -137,6 +151,9 @@ const EditSchedule = () => {
   const [week, setWeek] = useState(null);
   const [selectedWeek, setSelectedWeek] = useState(null);
   const [availableWeeks, setAvailableWeeks] = useState([]);
+  const [archivedWeeks, setArchivedWeeks] = useState([]);
+  const [showArchivedWeeks, setShowArchivedWeeks] = useState(false);
+  const [isViewingArchived, setIsViewingArchived] = useState(false);
   const [showWeekSelector, setShowWeekSelector] = useState(false);
   const [servers, setServers] = useState([]);
   const [assignedReaders, setAssignedReaders] = useState({});
@@ -155,6 +172,15 @@ const EditSchedule = () => {
   const [nextServeData, setNextServeData] = useState({});
   const [userListeners, setUserListeners] = useState([]);
 
+  // Notification state
+  const [notifyVisible, setNotifyVisible] = useState(false);
+  const [notifyTokens, setNotifyTokens] = useState([]);
+  const [notifyTitle, setNotifyTitle] = useState("");
+  const [notifyMsg, setNotifyMsg] = useState("");
+  const [notifyDeaconName, setNotifyDeaconName] = useState("");
+  const [deaconTokens, setDeaconTokens] = useState({});
+  const [deaconIsChild, setDeaconIsChild] = useState({});
+
   useEffect(() => {
     const unsub = firestore()
       .collection("users")
@@ -167,7 +193,7 @@ const EditSchedule = () => {
               setChurchId(data.church);
           }
         },
-        (err) => console.error("Error fetching user:", err)
+        (err) => console.error("Error fetching user:", err),
       );
     return () => unsub();
   }, [user.uid, churchId]);
@@ -181,7 +207,7 @@ const EditSchedule = () => {
         (doc) => {
           if (doc.exists) setAltarServersCount(doc.data()?.altarServers || 0);
         },
-        (err) => console.error("Error fetching church:", err)
+        (err) => console.error("Error fetching church:", err),
       );
     return () => unsub();
   }, [churchId]);
@@ -217,7 +243,7 @@ const EditSchedule = () => {
           return;
         }
         let earliestSunday = scheduleDates.find(
-          (d) => d.date.getDay() === 0
+          (d) => d.date.getDay() === 0,
         )?.date;
         if (!earliestSunday)
           earliestSunday = getWeekStart(scheduleDates[0].date);
@@ -234,19 +260,48 @@ const EditSchedule = () => {
   }, [churchId]);
 
   useEffect(() => {
+    if (!churchId) return;
+    const fetchArchivedWeeks = async () => {
+      try {
+        const snapshot = await firestore()
+          .collection("churches")
+          .doc(churchId)
+          .collection("archive")
+          .get();
+        const archived = snapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            date: parseDate(doc.id, DATE_FORMATS.SCHEDULE),
+          }))
+          .filter((item) => item.date !== null)
+          .sort((a, b) => b.date - a.date)
+          .map((item) => item.id);
+        setArchivedWeeks(archived);
+      } catch (err) {
+        console.error("Error fetching archived weeks:", err);
+        setArchivedWeeks([]);
+      }
+    };
+    fetchArchivedWeeks();
+  }, [churchId]);
+
+  useEffect(() => {
     if (availableWeeks.length > 0 && !selectedWeek)
       setSelectedWeek(availableWeeks[0]);
   }, [availableWeeks, selectedWeek]);
 
   useEffect(() => {
     if (!churchId || !selectedWeek) return;
+
+    const collectionPath = isViewingArchived ? "archive" : "schedule";
+
     const unsub = firestore()
       .collection("churches")
       .doc(churchId)
-      .collection("schedule")
+      .collection(collectionPath)
       .onSnapshot((snapshot) => {
         const scheduleDoc = snapshot.docs.find(
-          (doc) => doc.id === selectedWeek
+          (doc) => doc.id === selectedWeek,
         );
         if (scheduleDoc) {
           setWeek(selectedWeek);
@@ -268,7 +323,7 @@ const EditSchedule = () => {
           });
           setAssignedServers(serverAssignments);
           setServers(
-            fetchedAltarServers.map((_, i) => `Altar Server ${i + 1}`)
+            fetchedAltarServers.map((_, i) => `Altar Server ${i + 1}`),
           );
           const extraServers = (data.extra || [])
             .filter((s) => s.name !== "N/A" && s.uid)
@@ -276,10 +331,20 @@ const EditSchedule = () => {
               a.name
                 .split(" ")[0]
                 .toLowerCase()
-                .localeCompare(b.name.split(" ")[0].toLowerCase())
+                .localeCompare(b.name.split(" ")[0].toLowerCase()),
             );
           setAvailableServers(extraServers);
-          
+
+          // Collect all scheduled deacon UIDs for token fetching
+          const scheduledUids = new Set();
+          readings.forEach((reading) => {
+            if (data[reading]?.uid) scheduledUids.add(data[reading].uid);
+          });
+          fetchedAltarServers.forEach((server) => {
+            if (server?.uid) scheduledUids.add(server.uid);
+          });
+          fetchDeaconTokens(Array.from(scheduledUids));
+
           setupUserListeners(extraServers);
         } else {
           resetScheduleData();
@@ -289,7 +354,43 @@ const EditSchedule = () => {
       unsub();
       cleanupUserListeners();
     };
-  }, [churchId, selectedWeek]);
+  }, [churchId, selectedWeek, isViewingArchived]);
+
+  const fetchDeaconTokens = async (uids) => {
+    const tokens = {};
+    const isChild = {};
+    await Promise.all(
+      uids.map(async (uid) => {
+        try {
+          const doc = await firestore().collection("users").doc(uid).get();
+          const data = doc.data();
+
+          // Check if user has their own tokens
+          if (data?.fcmTokens && Object.keys(data.fcmTokens).length > 0) {
+            tokens[uid] = data.fcmTokens;
+            isChild[uid] = false;
+          }
+          // If no tokens, check if they have a parent (child profile)
+          else if (data?.parent) {
+            const parentDoc = await firestore()
+              .collection("users")
+              .doc(data.parent)
+              .get();
+            const parentData = parentDoc.data();
+            if (
+              parentData?.fcmTokens &&
+              Object.keys(parentData.fcmTokens).length > 0
+            ) {
+              tokens[uid] = parentData.fcmTokens;
+              isChild[uid] = true;
+            }
+          }
+        } catch {}
+      }),
+    );
+    setDeaconTokens(tokens);
+    setDeaconIsChild(isChild);
+  };
 
   useEffect(() => () => cleanupUserListeners(), []);
 
@@ -308,12 +409,12 @@ const EditSchedule = () => {
               .ref(storagePath)
               .getDownloadURL()
               .then((url) =>
-                setImageUrls((prev) => ({ ...prev, [server.uid]: url }))
+                setImageUrls((prev) => ({ ...prev, [server.uid]: url })),
               )
               .catch(() => {});
           }
         },
-        idx === 0 ? 0 : Math.random() * 500
+        idx === 0 ? 0 : Math.random() * 500,
       );
       const unsub = firestore()
         .collection("users")
@@ -325,16 +426,16 @@ const EditSchedule = () => {
               setLastServeData((prev) =>
                 userData.lastServe
                   ? { ...prev, [server.uid]: userData.lastServe }
-                  : (({ [server.uid]: _, ...rest }) => rest)(prev)
+                  : (({ [server.uid]: _, ...rest }) => rest)(prev),
               );
               setNextServeData((prev) =>
                 userData.nextWeekServe
                   ? { ...prev, [server.uid]: userData.nextWeekServe }
-                  : (({ [server.uid]: _, ...rest }) => rest)(prev)
+                  : (({ [server.uid]: _, ...rest }) => rest)(prev),
               );
             }
           },
-          (err) => console.error("Error listening to user:", server.uid, err)
+          (err) => console.error("Error listening to user:", server.uid, err),
         );
       newListeners.push(unsub);
     });
@@ -357,13 +458,18 @@ const EditSchedule = () => {
     setImageUrls({});
     setLastServeData({});
     setNextServeData({});
+    setDeaconTokens({});
+    setDeaconIsChild({});
     cleanupUserListeners();
   };
 
-  const handleWeekSelect = (w) => {
+  const handleWeekSelect = (w, isArchived = false) => {
     setSelectedWeek(w);
+    setIsViewingArchived(isArchived);
     setShowWeekSelector(false);
+    setShowArchivedWeeks(false);
   };
+
   const openProfile = (userId) => {
     if (userId) {
       setSelectedUserId(userId);
@@ -376,7 +482,7 @@ const EditSchedule = () => {
   };
 
   const assignReader = async (index, newReader) => {
-    if (!week) return;
+    if (!week || isViewingArchived) return;
     const readingKey = readings[index];
     const oldReader = currentReaders[readingKey];
     if (!oldReader?.uid) return;
@@ -390,7 +496,7 @@ const EditSchedule = () => {
           firstServer: oldReader.uid,
           secondServer: newReader.uid,
         },
-        "Failed to assign reader."
+        "Failed to assign reader.",
       );
     } catch (err) {
       console.error("Error assigning reader:", err);
@@ -399,7 +505,7 @@ const EditSchedule = () => {
   };
 
   const assignServer = async (index, newServer) => {
-    if (!week) return;
+    if (!week || isViewingArchived) return;
     const oldServer = altarServers[index];
     if (!oldServer?.uid) return;
     try {
@@ -412,7 +518,7 @@ const EditSchedule = () => {
           firstServer: oldServer.uid,
           secondServer: newServer.uid,
         },
-        "Failed to assign server."
+        "Failed to assign server.",
       );
     } catch (err) {
       console.error("Error assigning server:", err);
@@ -421,13 +527,13 @@ const EditSchedule = () => {
   };
 
   const handleAddServer = async () => {
-    if (!churchId || !week || servers.length >= 6) return;
+    if (!churchId || !week || servers.length >= 6 || isViewingArchived) return;
     try {
       await callFunction(
         user,
         "https://add-server-hy6oofbihq-uc.a.run.app",
         { church: churchId, week: week },
-        "Failed to add server."
+        "Failed to add server.",
       );
       await firestore()
         .collection("churches")
@@ -440,7 +546,7 @@ const EditSchedule = () => {
   };
 
   const removeServerFromSchedule = async (index) => {
-    if (!churchId || !week) return;
+    if (!churchId || !week || isViewingArchived) return;
     const serverToRemove = altarServers[index];
     if (!serverToRemove?.uid) return;
     try {
@@ -448,7 +554,7 @@ const EditSchedule = () => {
         user,
         "https://remove-server-hy6oofbihq-uc.a.run.app",
         { church: churchId, week: week, server: serverToRemove.uid },
-        "Failed to remove server."
+        "Failed to remove server.",
       );
       await firestore()
         .collection("churches")
@@ -459,17 +565,73 @@ const EditSchedule = () => {
     }
   };
 
+  // Notification functions
+  const openNotify = (uid, name) => {
+    const tokens = deaconTokens[uid];
+    if (!tokens || Object.keys(tokens).length === 0) return;
+    setNotifyTokens(Object.values(tokens));
+    setNotifyDeaconName(name);
+    const weekDisplay = formatWeekDisplay(selectedWeek);
+    const isChild = deaconIsChild[uid];
+
+    if (isChild) {
+      // Message for parents
+      setNotifyTitle("Your Child is Scheduled to Serve");
+      setNotifyMsg(
+        `${name} is scheduled to serve on ${weekDisplay}. Please open the app to confirm their availability.`,
+      );
+    } else {
+      // Message for the deacon themselves
+      setNotifyTitle("You're Scheduled to Serve");
+      setNotifyMsg(
+        `You are scheduled to serve on ${weekDisplay}. Please open the app to confirm your availability.`,
+      );
+    }
+    setNotifyVisible(true);
+  };
+
+  const sendNotify = () => {
+    if (!notifyTitle.trim() || !notifyMsg.trim()) {
+      Alert.alert("Missing Info", "Please enter title and message.");
+      return;
+    }
+    callFunction(
+      user,
+      NOTIFICATION_URL,
+      {
+        tokens: notifyTokens,
+        title: notifyTitle.trim(),
+        message: notifyMsg.trim(),
+      },
+      "Failed to send notification.",
+    );
+    setNotifyVisible(false);
+    Alert.alert("Sent", "Notification sent.");
+  };
+
+  const displayedWeeks = showArchivedWeeks ? archivedWeeks : availableWeeks;
+
   return (
     <View style={styles.container}>
       {availableWeeks.length > 0 && (
         <View style={styles.headerContainer}>
           <TouchableOpacity
-            style={styles.weekSelector}
+            style={[
+              styles.weekSelector,
+              isViewingArchived && styles.archivedWeekSelector,
+            ]}
             onPress={() => setShowWeekSelector(true)}
             activeOpacity={0.8}
           >
             <View style={styles.weekSelectorContent}>
-              <Text style={styles.weekLabel}>Week of</Text>
+              <View style={styles.weekLabelRow}>
+                <Text style={styles.weekLabel}>Week of</Text>
+                {isViewingArchived && (
+                  <View style={styles.archivedBadge}>
+                    <Text style={styles.archivedBadgeText}>Archived</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.weekSelectorText}>
                 {formatWeekDisplay(selectedWeek)}
               </Text>
@@ -478,6 +640,14 @@ const EditSchedule = () => {
               <Text style={styles.weekSelectorIcon}>▼</Text>
             </View>
           </TouchableOpacity>
+        </View>
+      )}
+
+      {isViewingArchived && (
+        <View style={styles.archivedBanner}>
+          <Text style={styles.archivedBannerText}>
+            Viewing archived week (read-only)
+          </Text>
         </View>
       )}
 
@@ -493,6 +663,7 @@ const EditSchedule = () => {
         {readings.map((item, index) => {
           const reader = currentReaders[item];
           const readerStatus = reader?.status;
+          const hasToken = reader?.uid && !!deaconTokens[reader.uid];
           return (
             <TouchableOpacity
               key={index}
@@ -513,10 +684,27 @@ const EditSchedule = () => {
                   </Text>
                   <StatusBadge status={readerStatus} align="right" />
                 </View>
-                <View style={styles.dropdownContainer}>
+                <View style={styles.readerRightContent}>
+                  {!isViewingArchived && hasToken && (
+                    <TouchableOpacity
+                      style={styles.notifyBtn}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        openNotify(reader.uid, reader.name);
+                      }}
+                    >
+                      <Icon name="bell-outline" size={18} color="#ff9f0a" />
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity
-                    style={styles.dropdown}
-                    onPress={() => setReaderDropdownIndex(index)}
+                    style={[
+                      styles.dropdown,
+                      isViewingArchived && styles.disabledDropdown,
+                    ]}
+                    onPress={() =>
+                      !isViewingArchived && setReaderDropdownIndex(index)
+                    }
+                    disabled={isViewingArchived}
                   >
                     <Text style={styles.dropdownText}>
                       {assignedReaders[displayNames[item]] || "Select Reader"}
@@ -545,6 +733,7 @@ const EditSchedule = () => {
         {servers.map((_, index) => {
           const server = altarServers[index];
           const serverStatus = server?.status;
+          const hasToken = server?.uid && !!deaconTokens[server.uid];
           return (
             <TouchableOpacity
               key={index}
@@ -555,36 +744,61 @@ const EditSchedule = () => {
             >
               <View style={styles.serverItemContent}>
                 <View style={styles.serverLeftContent}>
-                  <TouchableOpacity
-                    style={styles.dropdown}
-                    onPress={() => setServerDropdownIndex(index)}
-                  >
-                    <Text
+                  <View style={styles.serverDropdownRow}>
+                    <TouchableOpacity
                       style={[
-                        styles.dropdownText,
-                        !server?.uid && styles.disabledText,
+                        styles.dropdown,
+                        isViewingArchived && styles.disabledDropdown,
                       ]}
+                      onPress={() =>
+                        !isViewingArchived && setServerDropdownIndex(index)
+                      }
+                      disabled={isViewingArchived}
                     >
-                      {assignedServers[index] || "Select Server"}
-                    </Text>
-                  </TouchableOpacity>
+                      <Text
+                        style={[
+                          styles.dropdownText,
+                          !server?.uid && styles.disabledText,
+                        ]}
+                      >
+                        {assignedServers[index] || "Select Server"}
+                      </Text>
+                    </TouchableOpacity>
+                    {!isViewingArchived && hasToken && (
+                      <TouchableOpacity
+                        style={styles.notifyBtn}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          openNotify(server.uid, server.name);
+                        }}
+                      >
+                        <Icon name="bell-outline" size={18} color="#ff9f0a" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                   <StatusBadge status={serverStatus} align="left" />
                 </View>
-                <TouchableOpacity onPress={() => removeServerFromSchedule(index)}>
-                  <Text style={styles.removeButton}>Remove</Text>
-                </TouchableOpacity>
+                {!isViewingArchived && (
+                  <TouchableOpacity
+                    onPress={() => removeServerFromSchedule(index)}
+                  >
+                    <Text style={styles.removeButton}>Remove</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </TouchableOpacity>
           );
         })}
       </ScrollView>
 
-      <TouchableOpacity style={styles.addButton} onPress={handleAddServer}>
-        <Text style={styles.addButtonText}>Add Server</Text>
-      </TouchableOpacity>
+      {!isViewingArchived && (
+        <TouchableOpacity style={styles.addButton} onPress={handleAddServer}>
+          <Text style={styles.addButtonText}>Add Server</Text>
+        </TouchableOpacity>
+      )}
 
       <ServerSelectionModal
-        visible={serverDropdownIndex !== null}
+        visible={serverDropdownIndex !== null && !isViewingArchived}
         onClose={() => setServerDropdownIndex(null)}
         onSelect={(server) => assignServer(serverDropdownIndex, server)}
         servers={availableServers}
@@ -596,7 +810,7 @@ const EditSchedule = () => {
         showNextServe={true}
       />
       <ServerSelectionModal
-        visible={readerDropdownIndex !== null}
+        visible={readerDropdownIndex !== null && !isViewingArchived}
         onClose={() => setReaderDropdownIndex(null)}
         onSelect={(reader) => assignReader(readerDropdownIndex, reader)}
         servers={availableServers}
@@ -612,51 +826,101 @@ const EditSchedule = () => {
         visible={showWeekSelector}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowWeekSelector(false)}
+        onRequestClose={() => {
+          setShowWeekSelector(false);
+          setShowArchivedWeeks(false);
+        }}
       >
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setShowWeekSelector(false)}
+          onPress={() => {
+            setShowWeekSelector(false);
+            setShowArchivedWeeks(false);
+          }}
         >
           <TouchableOpacity activeOpacity={1} style={styles.modalWrapper}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Week</Text>
+                <Text style={styles.modalTitle}>
+                  {showArchivedWeeks ? "Archived Weeks" : "Select Week"}
+                </Text>
                 <TouchableOpacity
                   style={styles.modalCloseButton}
-                  onPress={() => setShowWeekSelector(false)}
+                  onPress={() => {
+                    setShowWeekSelector(false);
+                    setShowArchivedWeeks(false);
+                  }}
                 >
                   <Text style={styles.modalCloseX}>×</Text>
                 </TouchableOpacity>
               </View>
+
               <FlatList
-                data={availableWeeks}
+                data={displayedWeeks}
                 keyExtractor={(item) => item}
                 showsVerticalScrollIndicator={false}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[
-                      styles.modalItemContainer,
-                      selectedWeek === item && styles.selectedWeekItem,
-                    ]}
-                    onPress={() => handleWeekSelect(item)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.modalItem,
-                        selectedWeek === item && styles.selectedWeekText,
-                      ]}
-                    >
-                      {formatWeekDisplay(item)}
+                ListEmptyComponent={() => (
+                  <View style={styles.emptyListContainer}>
+                    <Text style={styles.emptyListText}>
+                      {showArchivedWeeks
+                        ? "No archived weeks found"
+                        : "No weeks available"}
                     </Text>
-                    {selectedWeek === item && (
-                      <Text style={styles.checkmark}>✓</Text>
-                    )}
-                  </TouchableOpacity>
+                  </View>
                 )}
+                renderItem={({ item }) => {
+                  const isSelected =
+                    selectedWeek === item &&
+                    isViewingArchived === showArchivedWeeks;
+                  return (
+                    <TouchableOpacity
+                      style={[
+                        styles.modalItemContainer,
+                        isSelected && styles.selectedWeekItem,
+                      ]}
+                      onPress={() => handleWeekSelect(item, showArchivedWeeks)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.weekItemContent}>
+                        <Text
+                          style={[
+                            styles.modalItem,
+                            isSelected && styles.selectedWeekText,
+                          ]}
+                        >
+                          {formatWeekDisplay(item)}
+                        </Text>
+                        {showArchivedWeeks && (
+                          <Text style={styles.archivedLabel}>Archived</Text>
+                        )}
+                      </View>
+                      {isSelected && <Text style={styles.checkmark}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                }}
                 ItemSeparatorComponent={() => <View style={styles.separator} />}
+                ListFooterComponent={() =>
+                  archivedWeeks.length > 0 && !showArchivedWeeks ? (
+                    <TouchableOpacity
+                      style={styles.archiveToggle}
+                      onPress={() => setShowArchivedWeeks(true)}
+                    >
+                      <Text style={styles.archiveToggleText}>
+                        View previous weeks
+                      </Text>
+                    </TouchableOpacity>
+                  ) : showArchivedWeeks ? (
+                    <TouchableOpacity
+                      style={styles.archiveToggle}
+                      onPress={() => setShowArchivedWeeks(false)}
+                    >
+                      <Text style={styles.archiveToggleText}>
+                        ← Back to current weeks
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null
+                }
               />
             </View>
           </TouchableOpacity>
@@ -704,6 +968,68 @@ const EditSchedule = () => {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* Notification Modal */}
+      {notifyVisible && (
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.notifyOverlay}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.notifyAvoid}
+            >
+              <TouchableWithoutFeedback>
+                <View style={styles.notifyModal}>
+                  <View style={styles.notifyIconWrap}>
+                    <Icon name="bell-ring" size={28} color="#ff9f0a" />
+                  </View>
+                  <Text style={styles.notifyTitleText}>Send Notification</Text>
+                  <Text style={styles.notifySubtitle}>
+                    Notify {notifyDeaconName}
+                  </Text>
+
+                  <Text style={styles.notifyLabel}>Title</Text>
+                  <TextInput
+                    style={styles.notifyInput}
+                    placeholder="Notification title"
+                    placeholderTextColor="rgba(255,255,255,0.25)"
+                    value={notifyTitle}
+                    onChangeText={setNotifyTitle}
+                    autoFocus
+                    returnKeyType="next"
+                  />
+
+                  <Text style={styles.notifyLabel}>Message</Text>
+                  <TextInput
+                    style={[styles.notifyInput, styles.notifyTextarea]}
+                    placeholder="Notification message"
+                    placeholderTextColor="rgba(255,255,255,0.25)"
+                    value={notifyMsg}
+                    onChangeText={setNotifyMsg}
+                    multiline
+                    textAlignVertical="top"
+                  />
+
+                  <View style={styles.notifyBtns}>
+                    <TouchableOpacity
+                      style={styles.notifyCancelBtn}
+                      onPress={() => setNotifyVisible(false)}
+                    >
+                      <Text style={styles.notifyCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.notifySendBtn}
+                      onPress={sendNotify}
+                    >
+                      <Icon name="send" size={16} color="#fff" />
+                      <Text style={styles.notifySendText}>Send</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
+          </View>
+        </TouchableWithoutFeedback>
+      )}
 
       <IndividualProfile
         userId={selectedUserId}
@@ -756,6 +1082,12 @@ const styles = StyleSheet.create({
   readerLeftContent: {
     flexDirection: "column",
     alignItems: "flex-start",
+    flex: 1,
+  },
+  readerRightContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   serverItemContent: {
     flexDirection: "row",
@@ -765,6 +1097,12 @@ const styles = StyleSheet.create({
   serverLeftContent: {
     flexDirection: "column",
     alignItems: "flex-start",
+    flex: 1,
+  },
+  serverDropdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   itemText: { color: "#fff", fontSize: 16, fontWeight: "600" },
   disabledText: { color: "rgba(255,255,255,0.4)" },
@@ -781,12 +1119,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.06)",
   },
+  disabledDropdown: {
+    opacity: 0.5,
+  },
   dropdownText: {
     color: "rgba(255,255,255,0.7)",
     fontSize: 15,
     fontWeight: "500",
   },
   removeButton: { color: "#ff3b30", fontSize: 15, fontWeight: "600" },
+  notifyBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,159,10,0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   addButton: {
     backgroundColor: "#147efb",
     paddingVertical: 16,
@@ -810,14 +1159,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.06)",
   },
+  archivedWeekSelector: {
+    borderColor: "rgba(255, 149, 0, 0.3)",
+  },
   weekSelectorContent: { flex: 1 },
+  weekLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
   weekLabel: {
     color: "rgba(255,255,255,0.5)",
     fontSize: 12,
     fontWeight: "600",
-    marginBottom: 6,
     textTransform: "uppercase",
     letterSpacing: 2,
+  },
+  archivedBadge: {
+    backgroundColor: "rgba(255, 149, 0, 0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 10,
+  },
+  archivedBadgeText: {
+    color: "#ff9500",
+    fontSize: 10,
+    fontWeight: "600",
+    textTransform: "uppercase",
   },
   weekSelectorText: { color: "#fff", fontSize: 18, fontWeight: "600" },
   weekSelectorIconContainer: {
@@ -829,6 +1198,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   weekSelectorIcon: { color: "#4d9cff", fontSize: 12 },
+  archivedBanner: {
+    backgroundColor: "rgba(255, 149, 0, 0.15)",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255, 149, 0, 0.3)",
+  },
+  archivedBannerText: {
+    color: "#ff9500",
+    fontSize: 13,
+    fontWeight: "500",
+    textAlign: "center",
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.75)",
@@ -867,6 +1251,18 @@ const styles = StyleSheet.create({
     fontWeight: "300",
     marginTop: -2,
   },
+  archiveToggle: {
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.06)",
+  },
+  archiveToggleText: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 14,
+    fontWeight: "400",
+    textAlign: "center",
+  },
   modalItemContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -874,7 +1270,15 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
   },
+  weekItemContent: {
+    flex: 1,
+  },
   modalItem: { color: "#fff", fontSize: 16, fontWeight: "500" },
+  archivedLabel: {
+    color: "rgba(255, 149, 0, 0.7)",
+    fontSize: 12,
+    marginTop: 4,
+  },
   separator: {
     height: 1,
     backgroundColor: "rgba(255, 255, 255, 0.06)",
@@ -883,6 +1287,14 @@ const styles = StyleSheet.create({
   checkmark: { color: "#4d9cff", fontSize: 18, fontWeight: "600" },
   selectedWeekItem: { backgroundColor: "rgba(77, 156, 255, 0.1)" },
   selectedWeekText: { color: "#4d9cff", fontWeight: "600" },
+  emptyListContainer: {
+    paddingVertical: 30,
+    alignItems: "center",
+  },
+  emptyListText: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 14,
+  },
   infoModalWrapper: { width: "85%", maxWidth: 400 },
   infoModalContent: {
     backgroundColor: "#1a1a1a",
@@ -916,7 +1328,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   infoModalButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  // Status badge styles
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -935,6 +1346,94 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "500",
   },
+  // Notification Modal Styles
+  notifyOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9999,
+  },
+  notifyAvoid: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
+  },
+  notifyModal: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 24,
+    width: "90%",
+    maxWidth: 360,
+    padding: 24,
+  },
+  notifyIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(255,159,10,0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  notifyTitleText: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#fff",
+    textAlign: "center",
+  },
+  notifySubtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.45)",
+    textAlign: "center",
+    marginTop: 4,
+    marginBottom: 24,
+  },
+  notifyLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "rgba(255,255,255,0.5)",
+    marginBottom: 8,
+  },
+  notifyInput: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    color: "#fff",
+    fontSize: 15,
+    marginBottom: 16,
+  },
+  notifyTextarea: { height: 100, paddingTop: 14 },
+  notifyBtns: { flexDirection: "row", gap: 12, marginTop: 8 },
+  notifyCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+  },
+  notifyCancelText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.7)",
+  },
+  notifySendBtn: {
+    flex: 1,
+    flexDirection: "row",
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#ff9f0a",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  notifySendText: { fontSize: 15, fontWeight: "600", color: "#fff" },
 });
 
 export default EditSchedule;

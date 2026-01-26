@@ -1,5 +1,11 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { StyleSheet, View, Text, ScrollView, RefreshControl } from "react-native";
+import {
+  StyleSheet,
+  View,
+  Text,
+  ScrollView,
+  RefreshControl,
+} from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createDrawerNavigator } from "@react-navigation/drawer";
@@ -104,6 +110,18 @@ const isWeekPast = (weekStr) => {
   return weekDate < today;
 };
 
+const docHasRequests = (doc) => {
+  const data = doc.data();
+  return Object.entries(data).some(([key, value]) => {
+    if (key === "altar" && typeof value === "object") {
+      return Object.values(value).some(
+        (entry) => entry.original && entry.replacement
+      );
+    }
+    return value.original && value.replacement;
+  });
+};
+
 const flattenUnavailableRequests = (docs) => {
   const requests = [];
   docs.forEach((doc) => {
@@ -162,11 +180,20 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId }) {
         tabBarIcon: ({ color, size }) => {
           let iconName;
           switch (route.name) {
-            case "Home": iconName = "home"; break;
-            case "Learn to Serve": iconName = "book"; break;
-            case "Edit Schedule": iconName = "pencil"; break;
-            case "Settings": iconName = "gear"; break;
-            default: iconName = "question";
+            case "Home":
+              iconName = "home";
+              break;
+            case "Learn to Serve":
+              iconName = "book";
+              break;
+            case "Edit Schedule":
+              iconName = "pencil";
+              break;
+            case "Settings":
+              iconName = "gear";
+              break;
+            default:
+              iconName = "question";
           }
           return <Icon name={iconName} size={size} color={color} />;
         },
@@ -200,21 +227,34 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId }) {
 }
 
 function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId }) {
-  const shouldShowInDrawer = useCallback((screenId) => {
-    if (screenId === homeScreenId && homeScreenId !== "schedule") return false;
-    if (screenId === "schedule" && homeScreenId !== "schedule") return true;
-    switch (screenId) {
-      case "sundaySchoolAttendance": return userRoles.isSSTeacher;
-      case "hymnsClassAttendance": return userRoles.isAlhan;
-      case "servantsMeetingTracker": return userRoles.isServant;
-      case "editDeacons": return userRoles.admin;
-      case "trafficManager": return userRoles.trafficAdmin;
-      case "servantsManager": return userRoles.ssAdmin;
-      case "alhanManager": return userRoles.alhanAdmin;
-      case "adminManager": return userRoles.superAdmin;
-      default: return false;
-    }
-  }, [userRoles, homeScreenId]);
+  const shouldShowInDrawer = useCallback(
+    (screenId) => {
+      if (screenId === homeScreenId && homeScreenId !== "schedule")
+        return false;
+      if (screenId === "schedule" && homeScreenId !== "schedule") return true;
+      switch (screenId) {
+        case "sundaySchoolAttendance":
+          return userRoles.isSSTeacher;
+        case "hymnsClassAttendance":
+          return userRoles.isAlhan;
+        case "servantsMeetingTracker":
+          return userRoles.isServant;
+        case "editDeacons":
+          return userRoles.admin;
+        case "trafficManager":
+          return userRoles.trafficAdmin;
+        case "servantsManager":
+          return userRoles.ssAdmin;
+        case "alhanManager":
+          return userRoles.alhanAdmin;
+        case "adminManager":
+          return userRoles.superAdmin;
+        default:
+          return false;
+      }
+    },
+    [userRoles, homeScreenId],
+  );
 
   return (
     <Drawer.Navigator
@@ -249,16 +289,28 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId }) {
       </Drawer.Screen>
 
       {shouldShowInDrawer("schedule") && (
-        <Drawer.Screen name="Deacon Service Schedule" component={HomeScreenNavigation} />
+        <Drawer.Screen
+          name="Deacon Service Schedule"
+          component={HomeScreenNavigation}
+        />
       )}
       {shouldShowInDrawer("sundaySchoolAttendance") && (
-        <Drawer.Screen name="Sunday School Attendance" component={SundaySchoolNavigator} />
+        <Drawer.Screen
+          name="Sunday School Attendance"
+          component={SundaySchoolNavigator}
+        />
       )}
       {shouldShowInDrawer("hymnsClassAttendance") && (
-        <Drawer.Screen name="Hymns Class Attendance" component={AlhanNavigator} />
+        <Drawer.Screen
+          name="Hymns Class Attendance"
+          component={AlhanNavigator}
+        />
       )}
       {shouldShowInDrawer("servantsMeetingTracker") && (
-        <Drawer.Screen name="Servants Meeting Attendance" component={ServantsMeetingNavigator} />
+        <Drawer.Screen
+          name="Servants Meeting Attendance"
+          component={ServantsMeetingNavigator}
+        />
       )}
       {shouldShowInDrawer("editDeacons") && (
         <Drawer.Screen name="Edit Deacons" component={DeaconEdits} />
@@ -302,8 +354,8 @@ export default function MainContainer() {
   const [skippedAll, setSkippedAll] = useState(false);
   const skippedRequestsRef = useRef(new Set());
   const processedInitialRef = useRef(false);
+  const deletedDocsRef = useRef(new Set());
 
-  // New state for server data (matching EditSchedule pattern)
   const [availableServers, setAvailableServers] = useState([]);
   const [imageUrls, setImageUrls] = useState({});
   const [lastServeData, setLastServeData] = useState({});
@@ -315,9 +367,14 @@ export default function MainContainer() {
     return `${request.weekId}-${JSON.stringify(request.role)}-${request.original.uid}`;
   };
 
-  const currentRequest = unavailableQueue.find((r) => getRequestId(r) === currentRequestId);
-  const currentIndex = unavailableQueue.findIndex((r) => getRequestId(r) === currentRequestId);
-  const remainingCount = currentIndex >= 0 ? unavailableQueue.length - currentIndex : 0;
+  const currentRequest = unavailableQueue.find(
+    (r) => getRequestId(r) === currentRequestId,
+  );
+  const currentIndex = unavailableQueue.findIndex(
+    (r) => getRequestId(r) === currentRequestId,
+  );
+  const remainingCount =
+    currentIndex >= 0 ? unavailableQueue.length - currentIndex : 0;
 
   const cleanupUserListeners = useCallback(() => {
     userListenersRef.current.forEach((unsub) => {
@@ -326,59 +383,60 @@ export default function MainContainer() {
     userListenersRef.current = [];
   }, []);
 
-  const setupUserListeners = useCallback((servers) => {
-    cleanupUserListeners();
-    const newListeners = [];
+  const setupUserListeners = useCallback(
+    (servers) => {
+      cleanupUserListeners();
+      const newListeners = [];
 
-    servers.forEach((server, idx) => {
-      // Fetch profile picture
-      const storagePath = `profilePictures/${server.uid}.png`;
-      setTimeout(
-        async () => {
-          try {
-            const url = await StorageCache.getDownloadURL(storagePath);
-            setImageUrls((prev) => ({ ...prev, [server.uid]: url }));
-          } catch {
-            storage()
-              .ref(storagePath)
-              .getDownloadURL()
-              .then((url) =>
-                setImageUrls((prev) => ({ ...prev, [server.uid]: url }))
-              )
-              .catch(() => {});
-          }
-        },
-        idx === 0 ? 0 : Math.random() * 500
-      );
-
-      // Listen to user data for lastServe and nextWeekServe
-      const unsub = firestore()
-        .collection("users")
-        .doc(server.uid)
-        .onSnapshot(
-          (doc) => {
-            if (doc.exists) {
-              const userData = doc.data();
-              setLastServeData((prev) =>
-                userData.lastServe
-                  ? { ...prev, [server.uid]: userData.lastServe }
-                  : (({ [server.uid]: _, ...rest }) => rest)(prev)
-              );
-              setNextServeData((prev) =>
-                userData.nextWeekServe
-                  ? { ...prev, [server.uid]: userData.nextWeekServe }
-                  : (({ [server.uid]: _, ...rest }) => rest)(prev)
-              );
+      servers.forEach((server, idx) => {
+        const storagePath = `profilePictures/${server.uid}.png`;
+        setTimeout(
+          async () => {
+            try {
+              const url = await StorageCache.getDownloadURL(storagePath);
+              setImageUrls((prev) => ({ ...prev, [server.uid]: url }));
+            } catch {
+              storage()
+                .ref(storagePath)
+                .getDownloadURL()
+                .then((url) =>
+                  setImageUrls((prev) => ({ ...prev, [server.uid]: url })),
+                )
+                .catch(() => {});
             }
           },
-          (err) => console.error("Error listening to user:", server.uid, err)
+          idx === 0 ? 0 : Math.random() * 500,
         );
 
-      newListeners.push(unsub);
-    });
+        const unsub = firestore()
+          .collection("users")
+          .doc(server.uid)
+          .onSnapshot(
+            (doc) => {
+              if (doc.exists) {
+                const userData = doc.data();
+                setLastServeData((prev) =>
+                  userData.lastServe
+                    ? { ...prev, [server.uid]: userData.lastServe }
+                    : (({ [server.uid]: _, ...rest }) => rest)(prev),
+                );
+                setNextServeData((prev) =>
+                  userData.nextWeekServe
+                    ? { ...prev, [server.uid]: userData.nextWeekServe }
+                    : (({ [server.uid]: _, ...rest }) => rest)(prev),
+                );
+              }
+            },
+            () => {},
+          );
 
-    userListenersRef.current = newListeners;
-  }, [cleanupUserListeners]);
+        newListeners.push(unsub);
+      });
+
+      userListenersRef.current = newListeners;
+    },
+    [cleanupUserListeners],
+  );
 
   const fetchUserData = useCallback(async (isRefresh = false) => {
     const user = auth().currentUser;
@@ -399,18 +457,22 @@ export default function MainContainer() {
         let selectedHomeScreen = data.homeScreen;
         if (!selectedHomeScreen) {
           if (data.isDeacon) selectedHomeScreen = "schedule";
-          else if (data.isSSTeacher) selectedHomeScreen = "sundaySchoolAttendance";
+          else if (data.isSSTeacher)
+            selectedHomeScreen = "sundaySchoolAttendance";
           else if (data.isAlhan) selectedHomeScreen = "hymnsClassAttendance";
           else selectedHomeScreen = "schedule";
 
-          firestore().collection("users").doc(user.uid)
-            .update({ homeScreen: selectedHomeScreen }).catch(() => {});
+          firestore()
+            .collection("users")
+            .doc(user.uid)
+            .update({ homeScreen: selectedHomeScreen })
+            .catch(() => {});
         }
         setHomeScreenId(selectedHomeScreen);
         const config = screenConfigs[selectedHomeScreen];
         if (config) setHomeTitle(config.name);
       }
-    } catch (error) {
+    } catch {
       // Silent error handling
     } finally {
       setIsLoading(false);
@@ -418,7 +480,6 @@ export default function MainContainer() {
     }
   }, []);
 
-  // Fetch schedule data for the current request's week to get available servers
   useEffect(() => {
     if (!churchId || !currentRequest?.weekId) {
       setAvailableServers([]);
@@ -441,7 +502,7 @@ export default function MainContainer() {
                 a.name
                   .split(" ")[0]
                   .toLowerCase()
-                  .localeCompare(b.name.split(" ")[0].toLowerCase())
+                  .localeCompare(b.name.split(" ")[0].toLowerCase()),
               );
             setAvailableServers(extraServers);
             setupUserListeners(extraServers);
@@ -450,33 +511,59 @@ export default function MainContainer() {
             cleanupUserListeners();
           }
         },
-        (error) => {
-          console.error("Error fetching schedule for modal:", error);
+        () => {
           setAvailableServers([]);
-        }
+        },
       );
 
     return () => {
       unsubscribe();
       cleanupUserListeners();
     };
-  }, [churchId, currentRequest?.weekId, setupUserListeners, cleanupUserListeners]);
+  }, [
+    churchId,
+    currentRequest?.weekId,
+    setupUserListeners,
+    cleanupUserListeners,
+  ]);
 
   useEffect(() => {
     if (!userRoles.admin || !churchId) return;
 
     const unsubscribe = firestore()
-      .collection("churches").doc(churchId).collection("unavailable")
+      .collection("churches")
+      .doc(churchId)
+      .collection("unavailable")
       .onSnapshot(
         async (snapshot) => {
-          const deletePromises = [];
-          snapshot.docs.forEach((doc) => {
-            if (isWeekPast(doc.id)) deletePromises.push(doc.ref.delete());
-          });
-          await Promise.all(deletePromises);
+          const scheduleSnapshot = await firestore()
+            .collection("churches")
+            .doc(churchId)
+            .collection("schedule")
+            .get();
 
-          const upcomingDocs = snapshot.docs.filter((doc) => !isWeekPast(doc.id));
-          const requests = flattenUnavailableRequests(upcomingDocs);
+          const validWeeks = new Set(
+            scheduleSnapshot.docs.map((doc) => doc.id),
+          );
+
+          const validDocs = [];
+
+          snapshot.docs.forEach((doc) => {
+            if (
+              isWeekPast(doc.id) ||
+              !validWeeks.has(doc.id) ||
+              !docHasRequests(doc)
+            ) {
+              if (!deletedDocsRef.current.has(doc.id)) {
+                deletedDocsRef.current.add(doc.id);
+                doc.ref.delete().catch(() => {});
+              }
+            } else {
+              validDocs.push(doc);
+            }
+          });
+
+          const requests = flattenUnavailableRequests(validDocs);
 
           const previousIds = new Set(unavailableQueue.map(getRequestId));
           const newRequests = requests.filter((r) => {
@@ -492,13 +579,15 @@ export default function MainContainer() {
             setShowUnavailableModal(true);
           }
 
-          if (!processedInitialRef.current && requests.length > 0) {
+          if (!processedInitialRef.current) {
             processedInitialRef.current = true;
-            setCurrentRequestId(getRequestId(requests[0]));
-            setShowUnavailableModal(true);
+            if (requests.length > 0) {
+              setCurrentRequestId(getRequestId(requests[0]));
+              setShowUnavailableModal(true);
+            }
           }
         },
-        (error) => console.error("Error listening to unavailable requests:", error)
+        () => {},
       );
 
     return () => unsubscribe();
@@ -513,8 +602,9 @@ export default function MainContainer() {
 
     fetchUserData();
 
-    // Set up realtime listener for user data changes
-    const unsubscribe = firestore().collection("users").doc(user.uid)
+    const unsubscribe = firestore()
+      .collection("users")
+      .doc(user.uid)
       .onSnapshot(
         (snapshot) => {
           if (snapshot.exists) {
@@ -534,13 +624,12 @@ export default function MainContainer() {
             }
           }
         },
-        (error) => console.error("Error listening to user data:", error)
+        () => {},
       );
 
     return () => unsubscribe();
   }, [fetchUserData]);
 
-  // Cleanup user listeners on unmount
   useEffect(() => {
     return () => cleanupUserListeners();
   }, [cleanupUserListeners]);
@@ -548,7 +637,9 @@ export default function MainContainer() {
   const onRefresh = useCallback(() => fetchUserData(true), [fetchUserData]);
 
   const moveToNextRequest = useCallback(() => {
-    const currentIdx = unavailableQueue.findIndex((r) => getRequestId(r) === currentRequestId);
+    const currentIdx = unavailableQueue.findIndex(
+      (r) => getRequestId(r) === currentRequestId,
+    );
     for (let i = currentIdx + 1; i < unavailableQueue.length; i++) {
       const nextRequest = unavailableQueue[i];
       const nextId = getRequestId(nextRequest);
@@ -562,7 +653,10 @@ export default function MainContainer() {
     return false;
   }, [unavailableQueue, currentRequestId]);
 
-  const handleRequestComplete = useCallback(() => moveToNextRequest(), [moveToNextRequest]);
+  const handleRequestComplete = useCallback(
+    () => moveToNextRequest(),
+    [moveToNextRequest],
+  );
 
   const handleSkip = useCallback(() => {
     if (currentRequestId) skippedRequestsRef.current.add(currentRequestId);
@@ -570,7 +664,9 @@ export default function MainContainer() {
   }, [currentRequestId, moveToNextRequest]);
 
   const handleSkipAll = useCallback(() => {
-    const currentIdx = unavailableQueue.findIndex((r) => getRequestId(r) === currentRequestId);
+    const currentIdx = unavailableQueue.findIndex(
+      (r) => getRequestId(r) === currentRequestId,
+    );
     for (let i = currentIdx; i < unavailableQueue.length; i++) {
       skippedRequestsRef.current.add(getRequestId(unavailableQueue[i]));
     }
@@ -580,8 +676,13 @@ export default function MainContainer() {
   }, [unavailableQueue, currentRequestId]);
 
   const shouldShowDrawer =
-    userRoles.isAlhan || userRoles.isSSTeacher || userRoles.isServant ||
-    userRoles.ssAdmin || userRoles.admin || userRoles.alhanAdmin || userRoles.superAdmin ||
+    userRoles.isAlhan ||
+    userRoles.isSSTeacher ||
+    userRoles.isServant ||
+    userRoles.ssAdmin ||
+    userRoles.admin ||
+    userRoles.alhanAdmin ||
+    userRoles.superAdmin ||
     userRoles.trafficAdmin;
 
   if (isLoading) {
@@ -589,8 +690,12 @@ export default function MainContainer() {
       <ScrollView
         contentContainerStyle={styles.loadingContainer}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh}
-            tintColor="#147efb" colors={["#147efb"]} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#147efb"
+            colors={["#147efb"]}
+          />
         }
       >
         <Text style={styles.loadingText}>Loading...</Text>
@@ -630,7 +735,6 @@ export default function MainContainer() {
           onSkip={handleSkip}
           onSkipAll={handleSkipAll}
           showSkipAll={remainingCount > 1}
-          // New props for server selection with weeks until serve
           availableServers={availableServers}
           imageUrls={imageUrls}
           lastServeData={lastServeData}
