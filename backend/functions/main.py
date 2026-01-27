@@ -217,7 +217,8 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
     add_user_to_churches(user_data)
     
     # Sync name across all schedule documents
-    update_names(user_id, user_data["name"], user_data["church"])
+    if 'church' in user_data:
+        update_names(user_id, user_data["name"], user_data["church"])
 
     return https_fn.Response("User update completed successfully", status=200)
 
