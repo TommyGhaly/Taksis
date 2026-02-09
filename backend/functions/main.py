@@ -640,7 +640,7 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
     church_id = request_data.get("church")
     week_id = request_data.get("week")
     user_id = request_data.get("uid")
-    
+    logging.warning(request_data)
     if not all([church_id, week_id, user_id]):
         return https_fn.Response("Missing required parameters", status=400)
 
