@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, memo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, memo, useRef } from "react";
 import {
   View,
   Text,
@@ -15,7 +15,6 @@ import {
   Platform,
   Keyboard,
   Dimensions,
-  ScrollView,
   Switch,
 } from "react-native";
 import { Image } from "expo-image";
@@ -32,6 +31,21 @@ const NOTIFICATION_URL =
   "https://us-central1-taksis-a8ba7.cloudfunctions.net/traffic_notification";
 const DEFAULT_CAR_LIMIT = 2;
 
+const COLOR_OPTIONS = [
+  { label: "White", value: "white", hex: "#FFFFFF" },
+  { label: "Black", value: "black", hex: "#1a1a1a" },
+  { label: "Silver", value: "silver", hex: "#C0C0C0" },
+  { label: "Gray", value: "gray", hex: "#808080" },
+  { label: "Red", value: "red", hex: "#D32F2F" },
+  { label: "Blue", value: "blue", hex: "#1976D2" },
+  { label: "Green", value: "green", hex: "#388E3C" },
+  { label: "Brown", value: "brown", hex: "#795548" },
+  { label: "Beige", value: "beige", hex: "#D4C5A9" },
+  { label: "Orange", value: "orange", hex: "#F57C00" },
+  { label: "Yellow", value: "yellow", hex: "#FBC02D" },
+  { label: "Gold", value: "gold", hex: "#FFD700" },
+];
+
 const CarCard = memo(
   ({ item, index, getUserById, getImageSource, onPress }) => {
     const ownerIds = item.ownerIds || [];
@@ -39,6 +53,7 @@ const CarCard = memo(
     const visible = ownerIds.slice(0, 3);
     const extra = ownerIds.length - 3;
     const isPresent = item.present;
+    const colorObj = COLOR_OPTIONS.find((c) => c.value === item.color);
 
     return (
       <TouchableOpacity
@@ -52,9 +67,20 @@ const CarCard = memo(
             <Text style={[s.licenseText, isPresent && s.licenseTextPresent]}>
               {item.license || "NO PLATE"}
             </Text>
-            <Text style={s.ownerNames} numberOfLines={1}>
-              {owners.map((o) => o.name?.split(" ")[0]).join(", ") || "Unknown"}
-            </Text>
+            <View style={s.carSubRow}>
+              <Text style={s.ownerNames} numberOfLines={1}>
+                {owners.map((o) => o.name?.split(" ")[0]).join(", ") || "Unknown"}
+                {item.make || item.model
+                  ? ` · ${[item.make, item.model].filter(Boolean).join(" ")}`
+                  : ""}
+              </Text>
+              {colorObj && (
+                <>
+                  <Text style={s.ownerNamesDot}> · </Text>
+                  <View style={[s.carColorDot, { backgroundColor: colorObj.hex }]} />
+                </>
+              )}
+            </View>
           </View>
         </View>
         <View style={s.avatarStack}>
@@ -80,26 +106,44 @@ const CarCard = memo(
   },
 );
 
-const UserSelectRow = memo(({ item, selected, onPress, getImageSource }) => (
-  <TouchableOpacity
-    style={[s.userRow, selected && s.userRowSelected]}
-    onPress={() => onPress(item.uid)}
-    activeOpacity={0.7}
-  >
-    <Image
-      source={getImageSource(item.uid)}
-      style={s.userAvatar}
-      contentFit="cover"
-    />
-    <View style={s.userInfo}>
-      <Text style={s.userName}>{item.name}</Text>
-      {item.phone && <Text style={s.userPhone}>{item.phone}</Text>}
-    </View>
-    <View style={[s.checkbox, selected && s.checkboxSelected]}>
-      {selected && <Icon name="check" size={14} color="#fff" />}
-    </View>
-  </TouchableOpacity>
-));
+const UserSelectRow = memo(
+  ({ item, selected, onPress, getImageSource, isUnreg, onDelete }) => (
+    <TouchableOpacity
+      style={[s.userRow, selected && s.userRowSelected]}
+      onPress={() => onPress(item.uid)}
+      activeOpacity={0.7}
+    >
+      <Image
+        source={getImageSource(item.uid)}
+        style={s.userAvatar}
+        contentFit="cover"
+      />
+      <View style={s.userInfo}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Text style={s.userName}>{item.name}</Text>
+          {isUnreg && (
+            <View style={s.unregBadge}>
+              <Text style={s.unregBadgeText}>No Account</Text>
+            </View>
+          )}
+        </View>
+        {item.phone && <Text style={s.userPhone}>{item.phone}</Text>}
+      </View>
+      {isUnreg && onDelete && (
+        <TouchableOpacity
+          style={s.unregDeleteBtn}
+          onPress={() => onDelete(item)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Icon name="trash-can-outline" size={16} color="#ff453a" />
+        </TouchableOpacity>
+      )}
+      <View style={[s.checkbox, selected && s.checkboxSelected]}>
+        {selected && <Icon name="check" size={14} color="#fff" />}
+      </View>
+    </TouchableOpacity>
+  ),
+);
 
 const DriverCard = memo(
   ({
@@ -112,13 +156,21 @@ const DriverCard = memo(
     limitEnabled,
     onNotify,
     onCall,
+    isUnreg,
   }) => {
     const overLimit = limitEnabled && presentCars > maxCars;
     return (
       <View style={s.driverCard}>
         <Image source={imageSource} style={s.driverAvatar} contentFit="cover" />
         <View style={s.driverInfo}>
-          <Text style={s.driverName}>{user.name}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={s.driverName}>{user.name}</Text>
+            {isUnreg && (
+              <View style={s.unregBadge}>
+                <Text style={s.unregBadgeText}>No Account</Text>
+              </View>
+            )}
+          </View>
           {user.phone && <Text style={s.driverPhone}>{user.phone}</Text>}
           {overLimit && (
             <View style={s.limitWarning}>
@@ -130,7 +182,7 @@ const DriverCard = memo(
           )}
         </View>
         <View style={s.driverActions}>
-          {hasToken && (
+          {hasToken && !isUnreg && (
             <TouchableOpacity style={s.actionBtn} onPress={() => onNotify(uid)}>
               <Icon name="bell-outline" size={18} color="#ff9f0a" />
             </TouchableOpacity>
@@ -149,6 +201,117 @@ const DriverCard = memo(
   },
 );
 
+const ColorPicker = memo(({ value, onSelect, visible, onToggle }) => {
+  const selected = COLOR_OPTIONS.find((c) => c.value === value);
+  return (
+    <View>
+      <TouchableOpacity
+        style={s.colorPickerBtn}
+        onPress={onToggle}
+        activeOpacity={0.7}
+      >
+        {selected ? (
+          <>
+            <View style={[s.colorSwatch, { backgroundColor: selected.hex }]} />
+            <Text style={s.colorPickerText}>{selected.label}</Text>
+          </>
+        ) : (
+          <Text style={s.colorPickerPlaceholder}>Select color</Text>
+        )}
+        <Icon
+          name={visible ? "chevron-up" : "chevron-down"}
+          size={18}
+          color="rgba(255,255,255,0.4)"
+        />
+      </TouchableOpacity>
+      {visible && (
+        <View style={s.colorGrid}>
+          {COLOR_OPTIONS.map((c) => (
+            <TouchableOpacity
+              key={c.value}
+              style={[
+                s.colorOption,
+                value === c.value && s.colorOptionSelected,
+              ]}
+              onPress={() => onSelect(c.value)}
+              activeOpacity={0.7}
+            >
+              <View
+                style={[s.colorOptionSwatch, { backgroundColor: c.hex }]}
+              />
+              <Text style={s.colorOptionLabel}>{c.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+});
+
+// ── Inline add-guest form (no nested modal) ──
+const AddGuestInline = memo(({ visible, onSave, onCancel, saving }) => {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+
+  useEffect(() => {
+    if (visible) {
+      setName("");
+      setPhone("");
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <View style={s.inlineAddGuest}>
+      <View style={s.inlineAddGuestHeader}>
+        <Icon name="account-plus" size={18} color="#147efb" />
+        <Text style={s.inlineAddGuestTitle}>Add Person</Text>
+      </View>
+      <TextInput
+        style={s.inlineInput}
+        placeholder="Full Name"
+        placeholderTextColor="rgba(255,255,255,0.25)"
+        value={name}
+        onChangeText={setName}
+        autoCapitalize="words"
+      />
+      <TextInput
+        style={s.inlineInput}
+        placeholder="Phone Number"
+        placeholderTextColor="rgba(255,255,255,0.25)"
+        value={phone}
+        onChangeText={setPhone}
+        keyboardType="phone-pad"
+      />
+      <View style={s.inlineAddGuestBtns}>
+        <TouchableOpacity
+          style={s.inlineGuestCancelBtn}
+          onPress={onCancel}
+          activeOpacity={0.7}
+        >
+          <Text style={s.inlineGuestCancelText}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            s.inlineGuestSaveBtn,
+            (!name.trim() || !phone.trim() || saving) && { opacity: 0.4 },
+          ]}
+          onPress={() => onSave(name.trim(), phone.trim())}
+          disabled={!name.trim() || !phone.trim() || saving}
+          activeOpacity={0.7}
+        >
+          {saving ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={s.inlineGuestSaveText}>Save</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+});
+
 const TrafficManager = () => {
   const user = auth().currentUser;
   const [permission, requestPermission] = useCameraPermissions();
@@ -156,44 +319,61 @@ const TrafficManager = () => {
   const [churchId, setChurchId] = useState(null);
   const [cars, setCars] = useState([]);
   const [users, setUsers] = useState([]);
-  const [imageUrls, setImageUrls] = useState({});
+  const [unregUsers, setUnregUsers] = useState([]);
+  const imageUrlsRef = useRef({});
+  const [imageUrlsVersion, setImageUrlsVersion] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const [scannerVisible, setScannerVisible] = useState(false);
   const [scanned, setScanned] = useState(false);
 
+  // Registration (single step)
   const [registrationVisible, setRegistrationVisible] = useState(false);
   const [currentQrId, setCurrentQrId] = useState(null);
   const [selectedDrivers, setSelectedDrivers] = useState([]);
   const [licensePlate, setLicensePlate] = useState("");
-  const [missingPhones, setMissingPhones] = useState({});
-  const [registrationStep, setRegistrationStep] = useState("select");
+  const [regMake, setRegMake] = useState("");
+  const [regModel, setRegModel] = useState("");
+  const [regColor, setRegColor] = useState("");
+  const [regColorPickerOpen, setRegColorPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [regAddGuestOpen, setRegAddGuestOpen] = useState(false);
+  const [addGuestSaving, setAddGuestSaving] = useState(false);
 
+  // Edit
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingCar, setEditingCar] = useState(null);
   const [editLicense, setEditLicense] = useState("");
   const [editDrivers, setEditDrivers] = useState([]);
   const [editSearchQuery, setEditSearchQuery] = useState("");
+  const [editMake, setEditMake] = useState("");
+  const [editModel, setEditModel] = useState("");
+  const [editColor, setEditColor] = useState("");
+  const [editColorPickerOpen, setEditColorPickerOpen] = useState(false);
+  const [editAddGuestOpen, setEditAddGuestOpen] = useState(false);
 
+  // Detail
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedCar, setSelectedCar] = useState(null);
   const [driverTokens, setDriverTokens] = useState({});
 
+  // Notify
   const [notifyVisible, setNotifyVisible] = useState(false);
   const [notifyTokens, setNotifyTokens] = useState([]);
   const [notifyTitle, setNotifyTitle] = useState("");
   const [notifyMsg, setNotifyMsg] = useState("");
 
+  // Menu / Attendance / Settings
   const [menuVisible, setMenuVisible] = useState(false);
   const [attendanceModalVisible, setAttendanceModalVisible] = useState(false);
   const [scannedCar, setScannedCar] = useState(null);
-
   const [carLimitEnabled, setCarLimitEnabled] = useState(true);
   const [maxCarsPerPerson, setMaxCarsPerPerson] = useState(DEFAULT_CAR_LIMIT);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [tempLimit, setTempLimit] = useState(String(DEFAULT_CAR_LIMIT));
+
+  // ── Firestore listeners ──
 
   useEffect(() => {
     const unsub = firestore()
@@ -228,14 +408,32 @@ const TrafficManager = () => {
       .collection("qrCodes")
       .where("church", "==", churchId)
       .onSnapshot((snapshot) => {
-        const list = snapshot.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() }))
+        const all = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const carList = all
+          .filter((d) => !d.isUnregisteredUser && d.church === churchId)
           .sort((a, b) => (a.license || "").localeCompare(b.license || ""));
-        setCars(list);
+        setCars(carList);
         setLoading(false);
-        list.forEach((c) => (c.ownerIds || []).forEach(fetchProfileImage));
+        carList.forEach((c) =>
+          (c.ownerIds || []).forEach((uid) => fetchProfileImage(uid)),
+        );
       });
-    return unsub;
+
+    // Separate listener for unregistered users (no church field)
+    const unregUnsub = firestore()
+      .collection("qrCodes")
+      .where("isUnregisteredUser", "==", true)
+      .onSnapshot((snapshot) => {
+        const unregList = snapshot.docs
+          .map((doc) => ({ uid: doc.id, name: doc.data().name, phone: doc.data().phone, isUnreg: true }))
+          .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+        setUnregUsers(unregList);
+      });
+
+    return () => {
+      unsub();
+      unregUnsub();
+    };
   }, [churchId]);
 
   useEffect(() => {
@@ -253,45 +451,63 @@ const TrafficManager = () => {
     return unsub;
   }, [churchId]);
 
-  const fetchProfileImage = useCallback(
-    async (uid) => {
-      if (!uid || imageUrls[uid]) return;
-      try {
-        const url = await storage()
-          .ref(`profilePictures/${uid}.png`)
-          .getDownloadURL();
-        setImageUrls((prev) => ({ ...prev, [uid]: url }));
-      } catch {}
-    },
-    [imageUrls],
-  );
+  // Stable image fetcher using ref to avoid dependency loops
+  const fetchProfileImage = useCallback(async (uid) => {
+    if (!uid || uid.startsWith("unreg_") || imageUrlsRef.current[uid]) return;
+    // Mark as fetching to prevent duplicate calls
+    imageUrlsRef.current[uid] = "pending";
+    try {
+      const url = await storage()
+        .ref(`profilePictures/${uid}.png`)
+        .getDownloadURL();
+      imageUrlsRef.current[uid] = url;
+      setImageUrlsVersion((v) => v + 1);
+    } catch {
+      // No image found, use default — remove pending marker
+      delete imageUrlsRef.current[uid];
+    }
+  }, []);
+
+  const allUsers = useMemo(() => {
+    return [...users, ...unregUsers];
+  }, [users, unregUsers]);
 
   const getUserById = useCallback(
-    (uid) => users.find((u) => u.uid === uid),
-    [users],
+    (uid) => allUsers.find((u) => u.uid === uid),
+    [allUsers],
   );
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const getImageSource = useCallback(
-    (uid) => (imageUrls[uid] ? { uri: imageUrls[uid] } : DEFAULT_PROFILE),
-    [imageUrls],
+    (uid) => {
+      const url = imageUrlsRef.current[uid];
+      return url && url !== "pending" ? { uri: url } : DEFAULT_PROFILE;
+    },
+    // imageUrlsVersion forces this to update when images load
+    [imageUrlsVersion],
   );
 
-  const filteredUsers = useMemo(() => {
-    if (!searchQuery.trim()) return users;
-    const q = searchQuery.toLowerCase();
-    return users.filter(
-      (u) =>
-        u.name?.toLowerCase().includes(q) || u.phone?.toLowerCase().includes(q),
-    );
-  }, [users, searchQuery]);
+  const filterUserList = useCallback(
+    (query) => {
+      if (!query.trim()) return allUsers;
+      const q = query.toLowerCase();
+      return allUsers.filter(
+        (u) =>
+          u.name?.toLowerCase().includes(q) ||
+          u.phone?.toLowerCase().includes(q),
+      );
+    },
+    [allUsers],
+  );
 
-  const editFilteredUsers = useMemo(() => {
-    if (!editSearchQuery.trim()) return users;
-    const q = editSearchQuery.toLowerCase();
-    return users.filter(
-      (u) =>
-        u.name?.toLowerCase().includes(q) || u.phone?.toLowerCase().includes(q),
-    );
-  }, [users, editSearchQuery]);
+  const filteredUsers = useMemo(
+    () => filterUserList(searchQuery),
+    [filterUserList, searchQuery],
+  );
+  const editFilteredUsers = useMemo(
+    () => filterUserList(editSearchQuery),
+    [filterUserList, editSearchQuery],
+  );
 
   const getPresentCarsForPerson = useCallback(
     (uid) =>
@@ -317,6 +533,8 @@ const TrafficManager = () => {
     },
     [carLimitEnabled, maxCarsPerPerson, getPresentCarsForPerson, getUserById],
   );
+
+  // ── Actions ──
 
   const markCarPresent = useCallback(
     async (car, skipLimitCheck = false) => {
@@ -432,6 +650,8 @@ const TrafficManager = () => {
     [cars],
   );
 
+  // ── Scanner ──
+
   const openScanner = useCallback(async () => {
     if (!permission?.granted) {
       const result = await requestPermission();
@@ -460,8 +680,11 @@ const TrafficManager = () => {
         setCurrentQrId(data);
         setSelectedDrivers([]);
         setLicensePlate("");
-        setMissingPhones({});
-        setRegistrationStep("select");
+        setRegMake("");
+        setRegModel("");
+        setRegColor("");
+        setRegColorPickerOpen(false);
+        setRegAddGuestOpen(false);
         setSearchQuery("");
         setRegistrationVisible(true);
       }
@@ -469,76 +692,160 @@ const TrafficManager = () => {
     [scanned, cars],
   );
 
+  // ── Registration ──
+
   const toggleDriverSelection = useCallback((uid) => {
     setSelectedDrivers((prev) =>
       prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid],
     );
   }, []);
 
-  const proceedToPhones = useCallback(() => {
-    if (selectedDrivers.length === 0) {
-      Alert.alert("Select Drivers", "Please select at least one driver.");
-      return;
-    }
-    const missing = selectedDrivers.reduce((acc, uid) => {
-      const u = getUserById(uid);
-      if (!u?.phone) acc[uid] = "";
-      return acc;
-    }, {});
-    if (Object.keys(missing).length > 0) {
-      setMissingPhones(missing);
-      setRegistrationStep("phones");
-    } else {
-      setRegistrationStep("license");
-    }
-  }, [selectedDrivers, getUserById]);
+  const handleRegAddGuest = useCallback(
+    async (name, phone) => {
+      if (!name || !phone) {
+        Alert.alert("Missing Info", "Please enter name and phone.");
+        return;
+      }
+      setAddGuestSaving(true);
+      try {
+        const docId = `unreg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        await firestore().collection("qrCodes").doc(docId).set({
+          name,
+          phone,
+          uid: docId,
+          isUnregisteredUser: true,
+        });
+        setSelectedDrivers((prev) => [...prev, docId]);
+        setRegAddGuestOpen(false);
+      } catch {
+        Alert.alert("Error", "Failed to add person.");
+      } finally {
+        setAddGuestSaving(false);
+      }
+    },
+    [churchId],
+  );
 
-  const proceedToLicense = useCallback(() => {
-    if (Object.values(missingPhones).some((p) => !p.trim())) {
-      Alert.alert(
-        "Missing Info",
-        "Please enter phone numbers for all drivers.",
-      );
-      return;
-    }
-    setRegistrationStep("license");
-  }, [missingPhones]);
+  const handleEditAddGuest = useCallback(
+    async (name, phone) => {
+      if (!name || !phone) {
+        Alert.alert("Missing Info", "Please enter name and phone.");
+        return;
+      }
+      setAddGuestSaving(true);
+      try {
+        const docId = `unreg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        await firestore().collection("qrCodes").doc(docId).set({
+          name,
+          phone,
+          uid: docId,
+          isUnregisteredUser: true,
+        });
+        setEditDrivers((prev) => [...prev, docId]);
+        setEditAddGuestOpen(false);
+      } catch {
+        Alert.alert("Error", "Failed to add person.");
+      } finally {
+        setAddGuestSaving(false);
+      }
+    },
+    [churchId],
+  );
 
   const completeRegistration = useCallback(async () => {
     if (!licensePlate.trim()) {
       Alert.alert("Missing Info", "Please enter the license plate number.");
       return;
     }
+    if (selectedDrivers.length === 0) {
+      Alert.alert("Select Drivers", "Please select at least one driver.");
+      return;
+    }
     setSaving(true);
     try {
-      await Promise.all(
-        Object.entries(missingPhones).map(([uid, phone]) =>
-          firestore()
-            .collection("users")
-            .doc(uid)
-            .update({ phone: phone.trim() }),
-        ),
-      );
-      await firestore().collection("qrCodes").doc(currentQrId).set({
+      const carData = {
         church: churchId,
         license: licensePlate.trim().toUpperCase(),
         ownerIds: selectedDrivers,
-      });
+      };
+      if (regMake.trim()) carData.make = regMake.trim();
+      if (regModel.trim()) carData.model = regModel.trim();
+      if (regColor) carData.color = regColor;
+      await firestore().collection("qrCodes").doc(currentQrId).set(carData);
       setRegistrationVisible(false);
     } catch {
       Alert.alert("Error", "Failed to register vehicle.");
     } finally {
       setSaving(false);
     }
-  }, [licensePlate, missingPhones, currentQrId, churchId, selectedDrivers]);
+  }, [
+    licensePlate,
+    selectedDrivers,
+    currentQrId,
+    churchId,
+    regMake,
+    regModel,
+    regColor,
+  ]);
+
+  // ── Delete unregistered person ──
+
+  const deleteUnregisteredPerson = useCallback(
+    (person) => {
+      Alert.alert(
+        "Delete Person?",
+        `Remove ${person.name}? They will be unassigned from all cars.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                const batch = firestore().batch();
+                cars
+                  .filter((c) => c.ownerIds?.includes(person.uid))
+                  .forEach((car) => {
+                    batch.update(
+                      firestore().collection("qrCodes").doc(car.id),
+                      { ownerIds: firestore.FieldValue.arrayRemove(person.uid) },
+                    );
+                  });
+                batch.delete(
+                  firestore().collection("qrCodes").doc(person.uid),
+                );
+                await batch.commit();
+                setSelectedDrivers((prev) =>
+                  prev.filter((id) => id !== person.uid),
+                );
+                setEditDrivers((prev) =>
+                  prev.filter((id) => id !== person.uid),
+                );
+              } catch {
+                Alert.alert("Error", "Failed to delete person.");
+              }
+            },
+          },
+        ],
+      );
+    },
+    [cars],
+  );
+
+  // ── Edit ──
 
   const openEditModal = useCallback((car) => {
     setEditLicense(car.license || "");
     setEditDrivers([...(car.ownerIds || [])]);
+    setEditMake(car.make || "");
+    setEditModel(car.model || "");
+    setEditColor(car.color || "");
+    setEditColorPickerOpen(false);
+    setEditAddGuestOpen(false);
     setEditingCar(car);
     setEditSearchQuery("");
     setDetailModalVisible(false);
-    setTimeout(() => setEditModalVisible(true), 0);
+    setTimeout(() => setEditModalVisible(true), 100);
   }, []);
 
   const toggleEditDriver = useCallback((uid) => {
@@ -558,17 +865,24 @@ const TrafficManager = () => {
     }
     setSaving(true);
     try {
-      await firestore().collection("qrCodes").doc(editingCar.id).update({
+      const updateData = {
         license: editLicense.trim().toUpperCase(),
         ownerIds: editDrivers,
-      });
+      };
+      updateData.make = editMake.trim() || firestore.FieldValue.delete();
+      updateData.model = editModel.trim() || firestore.FieldValue.delete();
+      updateData.color = editColor || firestore.FieldValue.delete();
+      await firestore()
+        .collection("qrCodes")
+        .doc(editingCar.id)
+        .update(updateData);
       setEditModalVisible(false);
     } catch {
       Alert.alert("Error", "Failed to update vehicle.");
     } finally {
       setSaving(false);
     }
-  }, [editLicense, editDrivers, editingCar]);
+  }, [editLicense, editDrivers, editingCar, editMake, editModel, editColor]);
 
   const confirmDelete = useCallback((car) => {
     Alert.alert(
@@ -589,6 +903,8 @@ const TrafficManager = () => {
     );
   }, []);
 
+  // ── Notify / Call ──
+
   const callDriver = useCallback((phone) => {
     if (phone) Linking.openURL(`tel:${phone.replace(/[^\d+]/g, "")}`);
   }, []);
@@ -596,13 +912,15 @@ const TrafficManager = () => {
   const checkDriverTokens = useCallback(async (ownerIds) => {
     const tokens = {};
     await Promise.all(
-      ownerIds.map(async (uid) => {
-        try {
-          const doc = await firestore().collection("users").doc(uid).get();
-          const fcm = doc.data()?.fcmTokens;
-          if (fcm && Object.keys(fcm).length > 0) tokens[uid] = fcm;
-        } catch {}
-      }),
+      ownerIds
+        .filter((uid) => !uid.startsWith("unreg_"))
+        .map(async (uid) => {
+          try {
+            const doc = await firestore().collection("users").doc(uid).get();
+            const fcm = doc.data()?.fcmTokens;
+            if (fcm && Object.keys(fcm).length > 0) tokens[uid] = fcm;
+          } catch {}
+        }),
     );
     setDriverTokens(tokens);
   }, []);
@@ -651,15 +969,7 @@ const TrafficManager = () => {
     [checkDriverTokens],
   );
 
-  const getStepNumber = () =>
-    registrationStep === "select"
-      ? 1
-      : registrationStep === "phones"
-        ? 2
-        : Object.keys(missingPhones).length > 0
-          ? 3
-          : 2;
-  const getTotalSteps = () => (Object.keys(missingPhones).length > 0 ? 3 : 2);
+  // ── Render helpers ──
 
   const renderCarItem = useCallback(
     ({ item, index }) => (
@@ -672,6 +982,42 @@ const TrafficManager = () => {
       />
     ),
     [getUserById, getImageSource, openCarDetail],
+  );
+
+  const renderRegUserItem = useCallback(
+    ({ item }) => (
+      <UserSelectRow
+        item={item}
+        selected={selectedDrivers.includes(item.uid)}
+        onPress={toggleDriverSelection}
+        getImageSource={getImageSource}
+        isUnreg={!!item.isUnreg || item.uid?.startsWith("unreg_")}
+        onDelete={
+          item.isUnreg || item.uid?.startsWith("unreg_")
+            ? deleteUnregisteredPerson
+            : undefined
+        }
+      />
+    ),
+    [selectedDrivers, getImageSource, toggleDriverSelection, deleteUnregisteredPerson],
+  );
+
+  const renderEditUserItem = useCallback(
+    ({ item }) => (
+      <UserSelectRow
+        item={item}
+        selected={editDrivers.includes(item.uid)}
+        onPress={toggleEditDriver}
+        getImageSource={getImageSource}
+        isUnreg={!!item.isUnreg || item.uid?.startsWith("unreg_")}
+        onDelete={
+          item.isUnreg || item.uid?.startsWith("unreg_")
+            ? deleteUnregisteredPerson
+            : undefined
+        }
+      />
+    ),
+    [editDrivers, getImageSource, toggleEditDriver, deleteUnregisteredPerson],
   );
 
   if (loading) {
@@ -749,7 +1095,7 @@ const TrafficManager = () => {
         </TouchableOpacity>
       )}
 
-      {/* Menu */}
+      {/* ── Menu ── */}
       <Modal
         visible={menuVisible}
         animationType="fade"
@@ -810,7 +1156,7 @@ const TrafficManager = () => {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Settings - slides from top */}
+      {/* ── Settings ── */}
       <Modal
         visible={settingsVisible}
         animationType="slide"
@@ -894,7 +1240,7 @@ const TrafficManager = () => {
         </View>
       </Modal>
 
-      {/* Attendance */}
+      {/* ── Attendance ── */}
       <Modal
         visible={attendanceModalVisible}
         animationType="fade"
@@ -915,6 +1261,18 @@ const TrafficManager = () => {
                 {scannedCar?.license || "NO PLATE"}
               </Text>
             </View>
+            {(scannedCar?.make || scannedCar?.model || scannedCar?.color) && (
+              <Text style={s.attendanceVehicleInfo}>
+                {[
+                  COLOR_OPTIONS.find((c) => c.value === scannedCar?.color)
+                    ?.label,
+                  scannedCar?.make,
+                  scannedCar?.model,
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              </Text>
+            )}
             {scannedCar?.present ? (
               <>
                 <View style={s.statusRow}>
@@ -964,7 +1322,7 @@ const TrafficManager = () => {
         </View>
       </Modal>
 
-      {/* Scanner */}
+      {/* ── Scanner ── */}
       <Modal
         visible={scannerVisible}
         animationType="slide"
@@ -993,7 +1351,7 @@ const TrafficManager = () => {
         </View>
       </Modal>
 
-      {/* Registration */}
+      {/* ── Registration (single step, FlatList-based) ── */}
       <Modal
         visible={registrationVisible}
         animationType="slide"
@@ -1005,179 +1363,135 @@ const TrafficManager = () => {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={0}
         >
-          <View style={s.bottomSheet}>
+          <View style={s.regSheet}>
             <View style={s.sheetHeader}>
-              <View style={s.sheetHeaderLeft}>
-                {registrationStep !== "select" && (
-                  <TouchableOpacity
-                    onPress={() =>
-                      setRegistrationStep(
-                        registrationStep === "license"
-                          ? Object.keys(missingPhones).length
-                            ? "phones"
-                            : "select"
-                          : "select",
-                      )
-                    }
-                  >
-                    <Icon name="arrow-left" size={24} color="#fff" />
-                  </TouchableOpacity>
-                )}
-              </View>
-              <Text style={s.sheetTitle}>
-                {registrationStep === "select"
-                  ? "Select Drivers"
-                  : registrationStep === "phones"
-                    ? "Phone Numbers"
-                    : "License Plate"}
-              </Text>
+              <View style={s.sheetHeaderLeft} />
+              <Text style={s.sheetTitle}>Register Vehicle</Text>
               <TouchableOpacity onPress={() => setRegistrationVisible(false)}>
                 <Icon name="close" size={24} color="rgba(255,255,255,0.5)" />
               </TouchableOpacity>
             </View>
-            <View style={s.progressBar}>
-              <View
-                style={[
-                  s.progressFill,
-                  { width: `${(getStepNumber() / getTotalSteps()) * 100}%` },
-                ]}
+            <View style={s.regStaticSection}>
+              <Text style={s.inputLabel}>License Plate *</Text>
+              <TextInput
+                style={s.plateInputSmall}
+                placeholder="ABC-1234"
+                placeholderTextColor="rgba(255,255,255,0.2)"
+                autoCapitalize="characters"
+                value={licensePlate}
+                onChangeText={setLicensePlate}
+                maxLength={10}
               />
-            </View>
-            <ScrollView
-              style={s.sheetBody}
-              contentContainerStyle={s.sheetBodyContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              {registrationStep === "select" && (
-                <>
-                  <View style={s.searchBox}>
+              <Text style={[s.inputLabel, { marginTop: 20 }]}>
+                Vehicle Info (optional)
+              </Text>
+              <View style={s.vehicleInfoRow}>
+                <TextInput
+                  style={[s.vehicleInput, { flex: 1, marginRight: 8 }]}
+                  placeholder="Make"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  value={regMake}
+                  onChangeText={setRegMake}
+                />
+                <TextInput
+                  style={[s.vehicleInput, { flex: 1 }]}
+                  placeholder="Model"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  value={regModel}
+                  onChangeText={setRegModel}
+                />
+              </View>
+              <ColorPicker
+                value={regColor}
+                onSelect={(v) => {
+                  setRegColor(v === regColor ? "" : v);
+                  setRegColorPickerOpen(false);
+                }}
+                visible={regColorPickerOpen}
+                onToggle={() => setRegColorPickerOpen((p) => !p)}
+              />
+              <View style={s.driverSectionHeader}>
+                <Text style={[s.inputLabel, { marginTop: 20, marginBottom: 0 }]}>
+                  Drivers *
+                </Text>
+                <TouchableOpacity
+                  style={s.addPersonBtn}
+                  onPress={() => setRegAddGuestOpen((p) => !p)}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="account-plus" size={16} color="#147efb" />
+                  <Text style={s.addPersonBtnText}>Add Person</Text>
+                </TouchableOpacity>
+              </View>
+              <AddGuestInline
+                visible={regAddGuestOpen}
+                onSave={handleRegAddGuest}
+                onCancel={() => setRegAddGuestOpen(false)}
+                saving={addGuestSaving}
+              />
+              <View style={[s.searchBox, { marginBottom: 0 }]}>
+                <Icon name="magnify" size={20} color="rgba(255,255,255,0.4)" />
+                <TextInput
+                  style={s.searchInput}
+                  placeholder="Search..."
+                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery("")}>
                     <Icon
-                      name="magnify"
-                      size={20}
+                      name="close-circle"
+                      size={18}
                       color="rgba(255,255,255,0.4)"
                     />
-                    <TextInput
-                      style={s.searchInput}
-                      placeholder="Search..."
-                      placeholderTextColor="rgba(255,255,255,0.3)"
-                      value={searchQuery}
-                      onChangeText={setSearchQuery}
-                    />
-                    {searchQuery.length > 0 && (
-                      <TouchableOpacity onPress={() => setSearchQuery("")}>
-                        <Icon
-                          name="close-circle"
-                          size={18}
-                          color="rgba(255,255,255,0.4)"
-                        />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                  {filteredUsers.map((item) => (
-                    <UserSelectRow
-                      key={item.uid}
-                      item={item}
-                      selected={selectedDrivers.includes(item.uid)}
-                      onPress={toggleDriverSelection}
-                      getImageSource={getImageSource}
-                    />
-                  ))}
-                  {filteredUsers.length === 0 && (
-                    <Text style={s.noResults}>No users found</Text>
-                  )}
-                </>
-              )}
-              {registrationStep === "phones" &&
-                Object.keys(missingPhones).map((uid) => {
-                  const u = getUserById(uid);
-                  return (
-                    <View key={uid} style={s.phoneCard}>
-                      <Image
-                        source={getImageSource(uid)}
-                        style={s.phoneAvatar}
-                        contentFit="cover"
-                      />
-                      <View style={s.phoneInputWrap}>
-                        <Text style={s.phoneName}>{u?.name}</Text>
-                        <TextInput
-                          style={s.phoneInput}
-                          placeholder="(123) 456-7890"
-                          placeholderTextColor="rgba(255,255,255,0.25)"
-                          keyboardType="phone-pad"
-                          value={missingPhones[uid]}
-                          onChangeText={(t) =>
-                            setMissingPhones((p) => ({ ...p, [uid]: t }))
-                          }
-                        />
-                      </View>
-                    </View>
-                  );
-                })}
-              {registrationStep === "license" && (
-                <View style={s.licenseSection}>
-                  <View style={s.plateIcon}>
-                    <Icon name="card-text-outline" size={28} color="#147efb" />
-                  </View>
-                  <TextInput
-                    style={s.plateInput}
-                    placeholder="ABC-1234"
-                    placeholderTextColor="rgba(255,255,255,0.2)"
-                    autoCapitalize="characters"
-                    value={licensePlate}
-                    onChangeText={setLicensePlate}
-                    maxLength={10}
-                  />
-                </View>
-              )}
-            </ScrollView>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+            <View style={s.regListContainer}>
+              <FlatList
+                data={filteredUsers}
+                keyExtractor={(item) => item.uid}
+                renderItem={renderRegUserItem}
+                ListEmptyComponent={
+                  <Text style={s.noResults}>No users found</Text>
+                }
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={s.regUserListContent}
+              />
+            </View>
             <View style={s.sheetFooter}>
-              {registrationStep === "select" && (
-                <TouchableOpacity
-                  style={[
-                    s.primaryBtn,
-                    selectedDrivers.length === 0 && s.btnDisabled,
-                  ]}
-                  onPress={proceedToPhones}
-                  disabled={selectedDrivers.length === 0}
-                  activeOpacity={0.8}
-                >
-                  <Text style={s.primaryBtnText}>Continue</Text>
-                </TouchableOpacity>
-              )}
-              {registrationStep === "phones" && (
-                <TouchableOpacity
-                  style={s.primaryBtn}
-                  onPress={proceedToLicense}
-                  activeOpacity={0.8}
-                >
-                  <Text style={s.primaryBtnText}>Continue</Text>
-                </TouchableOpacity>
-              )}
-              {registrationStep === "license" && (
-                <TouchableOpacity
-                  style={[
-                    s.primaryBtn,
-                    s.greenBtn,
-                    (!licensePlate.trim() || saving) && s.btnDisabled,
-                  ]}
-                  onPress={completeRegistration}
-                  disabled={!licensePlate.trim() || saving}
-                  activeOpacity={0.8}
-                >
-                  {saving ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <Text style={s.primaryBtnText}>Register</Text>
-                  )}
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                style={[
+                  s.primaryBtn,
+                  s.greenBtn,
+                  (!licensePlate.trim() ||
+                    selectedDrivers.length === 0 ||
+                    saving) &&
+                    s.btnDisabled,
+                ]}
+                onPress={completeRegistration}
+                disabled={
+                  !licensePlate.trim() ||
+                  selectedDrivers.length === 0 ||
+                  saving
+                }
+                activeOpacity={0.8}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={s.primaryBtnText}>Register</Text>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Detail */}
+      {/* ── Detail ── */}
       <Modal
         visible={detailModalVisible}
         animationType="fade"
@@ -1206,6 +1520,35 @@ const TrafficManager = () => {
                 <Icon name="close" size={22} color="rgba(255,255,255,0.5)" />
               </TouchableOpacity>
             </View>
+            {(selectedCar?.make ||
+              selectedCar?.model ||
+              selectedCar?.color) && (
+              <View style={s.vehicleInfoDisplay}>
+                {selectedCar?.color && (
+                  <View
+                    style={[
+                      s.colorDotDetail,
+                      {
+                        backgroundColor:
+                          COLOR_OPTIONS.find(
+                            (c) => c.value === selectedCar.color,
+                          )?.hex || "#888",
+                      },
+                    ]}
+                  />
+                )}
+                <Text style={s.vehicleInfoText}>
+                  {[
+                    COLOR_OPTIONS.find((c) => c.value === selectedCar?.color)
+                      ?.label,
+                    selectedCar?.make,
+                    selectedCar?.model,
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                </Text>
+              </View>
+            )}
             <TouchableOpacity
               style={
                 selectedCar?.present ? s.statusBtnPresent : s.statusBtnAbsent
@@ -1262,6 +1605,7 @@ const TrafficManager = () => {
                     limitEnabled={carLimitEnabled}
                     onNotify={openNotify}
                     onCall={callDriver}
+                    isUnreg={uid.startsWith("unreg_")}
                   />
                 );
               }}
@@ -1287,7 +1631,7 @@ const TrafficManager = () => {
         </View>
       </Modal>
 
-      {/* Edit */}
+      {/* ── Edit ── */}
       <Modal
         visible={editModalVisible}
         animationType="slide"
@@ -1318,7 +1662,55 @@ const TrafficManager = () => {
                 onChangeText={setEditLicense}
                 maxLength={10}
               />
-              <Text style={[s.inputLabel, { marginTop: 20 }]}>Drivers</Text>
+              <Text style={[s.inputLabel, { marginTop: 16 }]}>
+                Vehicle Info (optional)
+              </Text>
+              <View style={s.vehicleInfoRow}>
+                <TextInput
+                  style={[s.vehicleInput, { flex: 1, marginRight: 8 }]}
+                  placeholder="Make"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  value={editMake}
+                  onChangeText={setEditMake}
+                />
+                <TextInput
+                  style={[s.vehicleInput, { flex: 1 }]}
+                  placeholder="Model"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  value={editModel}
+                  onChangeText={setEditModel}
+                />
+              </View>
+              <ColorPicker
+                value={editColor}
+                onSelect={(v) => {
+                  setEditColor(v === editColor ? "" : v);
+                  setEditColorPickerOpen(false);
+                }}
+                visible={editColorPickerOpen}
+                onToggle={() => setEditColorPickerOpen((p) => !p)}
+              />
+              <View style={s.driverSectionHeader}>
+                <Text
+                  style={[s.inputLabel, { marginTop: 16, marginBottom: 0 }]}
+                >
+                  Drivers
+                </Text>
+                <TouchableOpacity
+                  style={s.addPersonBtn}
+                  onPress={() => setEditAddGuestOpen((p) => !p)}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="account-plus" size={16} color="#147efb" />
+                  <Text style={s.addPersonBtnText}>Add Person</Text>
+                </TouchableOpacity>
+              </View>
+              <AddGuestInline
+                visible={editAddGuestOpen}
+                onSave={handleEditAddGuest}
+                onCancel={() => setEditAddGuestOpen(false)}
+                saving={addGuestSaving}
+              />
               <View style={[s.searchBox, { marginBottom: 0 }]}>
                 <Icon name="magnify" size={20} color="rgba(255,255,255,0.4)" />
                 <TextInput
@@ -1346,14 +1738,7 @@ const TrafficManager = () => {
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={s.editUserListContent}
-                renderItem={({ item }) => (
-                  <UserSelectRow
-                    item={item}
-                    selected={editDrivers.includes(item.uid)}
-                    onPress={toggleEditDriver}
-                    getImageSource={getImageSource}
-                  />
-                )}
+                renderItem={renderEditUserItem}
                 ListEmptyComponent={
                   <Text style={s.noResults}>No users found</Text>
                 }
@@ -1363,7 +1748,9 @@ const TrafficManager = () => {
               <TouchableOpacity
                 style={[
                   s.primaryBtn,
-                  (!editLicense.trim() || editDrivers.length === 0 || saving) &&
+                  (!editLicense.trim() ||
+                    editDrivers.length === 0 ||
+                    saving) &&
                     s.btnDisabled,
                 ]}
                 onPress={saveEdit}
@@ -1383,53 +1770,60 @@ const TrafficManager = () => {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Notify */}
+      {/* ── Notify ── */}
       {notifyVisible && (
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={s.centerOverlay}>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-            >
-              <View style={s.notifyCard}>
-                <View style={s.notifyIcon}>
-                  <Icon name="bell-ring" size={24} color="#ff9f0a" />
+        <Modal
+          visible={notifyVisible}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setNotifyVisible(false)}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={s.centerOverlay}>
+              <KeyboardAvoidingView
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
+              >
+                <View style={s.notifyCard}>
+                  <View style={s.notifyIcon}>
+                    <Icon name="bell-ring" size={24} color="#ff9f0a" />
+                  </View>
+                  <Text style={s.notifyTitleText}>Send Notification</Text>
+                  <TextInput
+                    style={s.notifyInput}
+                    placeholder="Title"
+                    placeholderTextColor="rgba(255,255,255,0.25)"
+                    value={notifyTitle}
+                    onChangeText={setNotifyTitle}
+                  />
+                  <TextInput
+                    style={[s.notifyInput, s.notifyTextarea]}
+                    placeholder="Message"
+                    placeholderTextColor="rgba(255,255,255,0.25)"
+                    value={notifyMsg}
+                    onChangeText={setNotifyMsg}
+                    multiline
+                    textAlignVertical="top"
+                  />
+                  <View style={s.notifyBtns}>
+                    <TouchableOpacity
+                      style={s.notifyCancelBtn}
+                      onPress={() => setNotifyVisible(false)}
+                    >
+                      <Text style={s.notifyCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={s.notifySendBtn}
+                      onPress={sendNotify}
+                    >
+                      <Icon name="send" size={16} color="#fff" />
+                      <Text style={s.notifySendText}>Send</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <Text style={s.notifyTitle}>Send Notification</Text>
-                <TextInput
-                  style={s.notifyInput}
-                  placeholder="Title"
-                  placeholderTextColor="rgba(255,255,255,0.25)"
-                  value={notifyTitle}
-                  onChangeText={setNotifyTitle}
-                />
-                <TextInput
-                  style={[s.notifyInput, s.notifyTextarea]}
-                  placeholder="Message"
-                  placeholderTextColor="rgba(255,255,255,0.25)"
-                  value={notifyMsg}
-                  onChangeText={setNotifyMsg}
-                  multiline
-                  textAlignVertical="top"
-                />
-                <View style={s.notifyBtns}>
-                  <TouchableOpacity
-                    style={s.notifyCancelBtn}
-                    onPress={() => setNotifyVisible(false)}
-                  >
-                    <Text style={s.notifyCancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={s.notifySendBtn}
-                    onPress={sendNotify}
-                  >
-                    <Icon name="send" size={16} color="#fff" />
-                    <Text style={s.notifySendText}>Send</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </KeyboardAvoidingView>
-          </View>
-        </TouchableWithoutFeedback>
+              </KeyboardAvoidingView>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
       )}
     </View>
   );
@@ -1510,7 +1904,16 @@ const s = StyleSheet.create({
     marginRight: 12,
   },
   carStatusDotPresent: { backgroundColor: "#34c759" },
+  carColorDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginLeft: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
   carCardInfo: { flex: 1 },
+  carSubRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
   licenseText: {
     fontSize: 17,
     fontWeight: "600",
@@ -1518,7 +1921,8 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
   licenseTextPresent: { color: "#34c759" },
-  ownerNames: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 2 },
+  ownerNames: { fontSize: 13, color: "rgba(255,255,255,0.4)", flexShrink: 1 },
+  ownerNamesDot: { fontSize: 13, color: "rgba(255,255,255,0.3)" },
   avatarStack: { flexDirection: "row", alignItems: "center" },
   stackedAvatar: {
     width: 32,
@@ -1556,7 +1960,11 @@ const s = StyleSheet.create({
     marginBottom: 16,
   },
   emptyTitle: { fontSize: 20, fontWeight: "600", color: "#fff" },
-  emptySubtitle: { fontSize: 14, color: "rgba(255,255,255,0.4)", marginTop: 4 },
+  emptySubtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.4)",
+    marginTop: 4,
+  },
   emptyBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -1708,7 +2116,7 @@ const s = StyleSheet.create({
     width: "100%",
     alignItems: "center",
   },
-  cardClose: { position: "absolute", top: 16, right: 16 },
+  cardClose: { position: "absolute", top: 16, right: 16, zIndex: 1 },
   attendancePlate: {
     flexDirection: "row",
     alignItems: "center",
@@ -1723,6 +2131,11 @@ const s = StyleSheet.create({
     fontWeight: "700",
     color: "#fff",
     letterSpacing: 1,
+  },
+  attendanceVehicleInfo: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.5)",
+    marginTop: 8,
   },
   statusRow: {
     flexDirection: "row",
@@ -1826,12 +2239,20 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "flex-end",
   },
-  bottomSheet: {
+  regSheet: {
     backgroundColor: "#1c1c1e",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "85%",
+    maxHeight: "90%",
+    height: "90%",
   },
+  regStaticSection: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  regListContainer: { flex: 1, paddingHorizontal: 20 },
+  regUserListContent: { paddingBottom: 20, paddingTop: 4 },
   sheetHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -1841,10 +2262,6 @@ const s = StyleSheet.create({
   },
   sheetHeaderLeft: { width: 24 },
   sheetTitle: { fontSize: 17, fontWeight: "600", color: "#fff" },
-  progressBar: { height: 2, backgroundColor: "rgba(255,255,255,0.08)" },
-  progressFill: { height: "100%", backgroundColor: "#147efb" },
-  sheetBody: { padding: 20 },
-  sheetBodyContent: { paddingBottom: 20 },
   sheetFooter: {
     padding: 20,
     paddingTop: 12,
@@ -1859,6 +2276,7 @@ const s = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     marginBottom: 16,
+    marginTop: 8,
   },
   searchInput: {
     flex: 1,
@@ -1902,53 +2320,179 @@ const s = StyleSheet.create({
   },
   checkboxSelected: { backgroundColor: "#147efb", borderColor: "#147efb" },
 
-  phoneCard: {
+  unregBadge: {
+    backgroundColor: "rgba(255,159,10,0.15)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  unregBadgeText: { fontSize: 10, fontWeight: "600", color: "#ff9f0a" },
+  unregDeleteBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,69,58,0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
+
+  driverSectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.04)",
-    padding: 12,
+    justifyContent: "space-between",
+    marginBottom: 0,
+  },
+  addPersonBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "rgba(20,126,251,0.12)",
+    marginTop: 20,
+  },
+  addPersonBtnText: { fontSize: 13, fontWeight: "500", color: "#147efb" },
+
+  // Inline add guest (replaces nested modal)
+  inlineAddGuest: {
+    backgroundColor: "rgba(20,126,251,0.08)",
     borderRadius: 12,
+    padding: 14,
+    marginTop: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "rgba(20,126,251,0.2)",
+  },
+  inlineAddGuestHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     marginBottom: 12,
   },
-  phoneAvatar: { width: 40, height: 40, borderRadius: 20 },
-  phoneInputWrap: { flex: 1, marginLeft: 12 },
-  phoneName: {
-    fontSize: 14,
-    fontWeight: "500",
+  inlineAddGuestTitle: {
+    fontSize: 15,
+    fontWeight: "600",
     color: "#fff",
-    marginBottom: 6,
   },
-  phoneInput: {
+  inlineInput: {
     backgroundColor: "rgba(255,255,255,0.08)",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     color: "#fff",
     fontSize: 15,
+    marginBottom: 8,
+  },
+  inlineAddGuestBtns: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4,
+  },
+  inlineGuestCancelBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+  },
+  inlineGuestCancelText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "rgba(255,255,255,0.6)",
+  },
+  inlineGuestSaveBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#147efb",
+    alignItems: "center",
+  },
+  inlineGuestSaveText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#fff",
   },
 
-  licenseSection: { alignItems: "center", paddingVertical: 20 },
-  plateIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "rgba(20,126,251,0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  plateInput: {
+  vehicleInfoRow: { flexDirection: "row", marginBottom: 8 },
+  vehicleInput: {
     backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     color: "#fff",
-    fontSize: 24,
-    fontWeight: "700",
-    textAlign: "center",
-    letterSpacing: 2,
-    width: "100%",
+    fontSize: 15,
   },
+
+  colorPickerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  colorSwatch: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  colorPickerText: { flex: 1, color: "#fff", fontSize: 15 },
+  colorPickerPlaceholder: {
+    flex: 1,
+    color: "rgba(255,255,255,0.3)",
+    fontSize: 15,
+  },
+  colorGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 8,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 12,
+    padding: 10,
+  },
+  colorOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    gap: 6,
+  },
+  colorOptionSelected: {
+    backgroundColor: "rgba(20,126,251,0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(20,126,251,0.4)",
+  },
+  colorOptionSwatch: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  colorOptionLabel: { fontSize: 13, color: "#fff" },
+
+  vehicleInfoDisplay: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  colorDotDetail: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  vehicleInfoText: { fontSize: 14, color: "rgba(255,255,255,0.5)" },
 
   inputLabel: {
     fontSize: 14,
@@ -1977,8 +2521,8 @@ const s = StyleSheet.create({
     backgroundColor: "#1c1c1e",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "85%",
-    height: "85%",
+    maxHeight: "90%",
+    height: "90%",
   },
   editListContainer: { flex: 1, paddingHorizontal: 20 },
   editUserListContent: { paddingBottom: 20, paddingTop: 4 },
@@ -2126,7 +2670,7 @@ const s = StyleSheet.create({
     alignSelf: "center",
     marginBottom: 12,
   },
-  notifyTitle: {
+  notifyTitleText: {
     fontSize: 18,
     fontWeight: "600",
     color: "#fff",
