@@ -21,18 +21,17 @@ STYLE = {
     'finder_glow': True,
     'bg_color': (18, 18, 22),
     'dot_color': (255, 255, 255),
-    'dot_gradient': True,           # Radial gradient on dots
+    'dot_gradient': True,
     'cross_opacity': 0.95,
     'cross_glow': True,
     'vignette': True,
     'vignette_strength': 0.3,
-    'logo_scale': 0.18,
-    'logo_padding': 12,
+    'logo_scale': 0.18,             # Was 0.18 — ~44% larger
+    'logo_padding': 12,             # Was 12 — more breathing room
     'logo_shadow': True,
-    'logo_bg_opacity': 140,
+    'logo_bg_opacity': 220,         # Was 140 — much more opaque white circle
     'logo_circle_bg': True,
 }
-
 
 def is_finder_region(row, col, n):
     regions = [(0, 0), (0, n - 7), (n - 7, 0)]
