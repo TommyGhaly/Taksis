@@ -83,18 +83,29 @@ function AppNavigator() {
         setUser(user);
       } else {
         try {
-          // User is logged in, check if user document exists and has DOB
-          const userDoc = await firestore()
-            .collection('users')
-            .doc(user.uid)
-            .get();
+          // User is logged in, ensure Firestore user doc exists, then check if onboarding is complete.
+          const userRef = firestore().collection("users").doc(user.uid);
+          const userDoc = await userRef.get();
 
           if (!userDoc.exists) {
-            // No Firestore doc at all — sign out so the user restarts from Welcome.
-            // This breaks the stuck loop caused by Firebase Auth persisting across
-            // app deletes (iOS Keychain) when sign-up was never completed.
-            await auth().signOut();
-            return;
+            // If the Auth user exists but Firestore doc doesn't (race during sign-up, or legacy state),
+            // create a minimal doc so onboarding screens can safely update it.
+            await userRef.set(
+              {
+                uid: user.uid,
+                name: user.displayName || "",
+                email: user.email || "",
+                admin: false,
+                rank: "Chanter (Epsaltos)",
+                experience: 1,
+                frequency: 1,
+                alhanGrades: [],
+                ssGrades: [],
+                nextWeekServe: "N/A",
+              },
+              { merge: true },
+            );
+            setSignUp(true);
           } else if (!userDoc.data()?.DOB) {
             // Doc exists but sign-up is incomplete (mid-onboarding)
             setSignUp(true);

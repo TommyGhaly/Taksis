@@ -39,7 +39,7 @@ const SignIn = ({ navigation }) => {
   const handleSignIn = async () => {
     try {
       await auth().signInWithEmailAndPassword(email, password);
-      navigation.navigate("MainContainer");
+      // App.js onAuthStateChanged controls routing based on Firestore user doc + onboarding status.
     } catch (error) {
       Alert.alert("Sign-In Error", error.message);
     }
