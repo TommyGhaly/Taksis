@@ -89,16 +89,21 @@ function AppNavigator() {
             .doc(user.uid)
             .get();
 
-          if (!userDoc.exists || !userDoc.data()?.DOB) {
-            // User document doesn't exist or DOB is missing
+          if (!userDoc.exists) {
+            // No Firestore doc at all — sign out so the user restarts from Welcome.
+            // This breaks the stuck loop caused by Firebase Auth persisting across
+            // app deletes (iOS Keychain) when sign-up was never completed.
+            await auth().signOut();
+            return;
+          } else if (!userDoc.data()?.DOB) {
+            // Doc exists but sign-up is incomplete (mid-onboarding)
             setSignUp(true);
           } else {
-            // User document exists with DOB
+            // Fully set up
             setSignUp(false);
           }
         } catch (error) {
           console.error("Error checking user document:", error);
-          // On error, assume user needs to complete sign up
           setSignUp(true);
         }
         // Set user AFTER signUp state is determined to prevent flash
