@@ -98,7 +98,7 @@ const SignIn = ({ navigation }) => {
 
         <Pressable
           style={styles.socialButtonGoogle}
-          onPress={() => onGoogleButtonPress(navigation)}
+          onPress={() => onGoogleButtonPress()}
         >
           <View style={styles.socialButtonContent}>
             <Image
@@ -120,7 +120,7 @@ const SignIn = ({ navigation }) => {
             }
             cornerRadius={12}
             style={[styles.appleButton, isTablet && styles.appleButtonTablet]}
-            onPress={() => onAppleButtonPress(navigation)} // Pass navigation to the function
+            onPress={() => onAppleButtonPress()}
           />
         </View>
 
@@ -138,13 +138,13 @@ const SignIn = ({ navigation }) => {
   );
 };
 
-async function onGoogleButtonPress(navigation) {
+async function onGoogleButtonPress() {
   try {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
     const { idToken } = await GoogleSignin.signIn();
     const googleCredential = auth.GoogleAuthProvider.credential(idToken);
     await auth().signInWithCredential(googleCredential);
-    navigation.navigate("MainContainer");
+    // Navigation is handled by onAuthStateChanged in App.js after Firestore check
   } catch (error) {
     Alert.alert("Error", "Google Sign-In failed. Please try again.");
   }
@@ -160,7 +160,7 @@ const generateNonce = (length = 32) => {
   return text;
 };
 
-async function onAppleButtonPress(navigation) {
+async function onAppleButtonPress() {
   try {
     const rawNonce = generateNonce();
     const hashedNonce = await Crypto.digestStringAsync(
@@ -187,7 +187,7 @@ async function onAppleButtonPress(navigation) {
     );
 
     await auth().signInWithCredential(appleCredential);
-    navigation.navigate("MainContainer");
+    // Navigation is handled by onAuthStateChanged in App.js after Firestore check
   } catch (error) {
     Alert.alert("Error", "Apple Sign-In failed. Please try again.");
   }
