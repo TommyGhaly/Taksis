@@ -71,15 +71,10 @@ const SignUp = ({ navigation }) => {
       );
       const user = userCredential.user;
       if (user) {
+        // Write Firestore doc immediately (do not depend on auth().currentUser reload timing)
+        await writeUserToDb(user, name);
         await user.updateProfile({ displayName: name });
-        await auth().currentUser.reload();
-        const updatedUser = auth().currentUser;
-        if (updatedUser && updatedUser.displayName) {
-          await writeUserToDb(updatedUser, updatedUser.displayName);
-          navigation.navigate("InputPhoto");
-        } else {
-          Alert.alert("Sign Up Error", "Failed to get updated user profile.");
-        }
+        navigation.navigate("InputPhoto");
       }
     } catch (error) {
       Alert.alert("Sign Up Error", error.message);
@@ -89,12 +84,11 @@ const SignUp = ({ navigation }) => {
   const writeUserToDb = async (user, fullName) => {
     try {
       const userRef = firestore().collection("users").doc(user.uid);
-      const userDoc = await userRef.get();
-      if (!userDoc.exists) {
-        await userRef.set({
+      await userRef.set(
+        {
           uid: user.uid,
-          name: fullName || "",
-          email: user.email,
+          name: fullName || user.displayName || "",
+          email: user.email || "",
           admin: false,
           rank: "Chanter (Epsaltos)",
           experience: 1,
@@ -102,10 +96,14 @@ const SignUp = ({ navigation }) => {
           alhanGrades: [],
           ssGrades: [],
           nextWeekServe: "N/A",
-        });
-      }
+        },
+        { merge: true },
+      );
     } catch (error) {
-      Alert.alert("Database Error", "Failed to write user data to database.");
+      Alert.alert(
+        "Database Error",
+        error?.message || "Failed to write user data to database.",
+      );
     }
   };
 
@@ -135,7 +133,7 @@ const SignUp = ({ navigation }) => {
       await writeUserToDb(userCredential.user, userCredential.user.displayName);
       navigation.navigate("InputPhoto");
     } catch (error) {
-      // Handle error silently as per original code
+      Alert.alert("Sign Up Error", error?.message || "Google sign up failed.");
     }
   };
 
@@ -190,7 +188,7 @@ const SignUp = ({ navigation }) => {
       await writeUserToDb(userCredential.user, formattedFullName);
       navigation.navigate("InputPhoto");
     } catch (error) {
-      // Handle error silently as per original code
+      Alert.alert("Sign Up Error", error?.message || "Apple sign up failed.");
     }
   };
 
