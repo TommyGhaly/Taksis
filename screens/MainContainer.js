@@ -22,6 +22,7 @@ import AdminManager from "./AdminManager";
 import EditSchedule from "./EditSchedule";
 import DeaconEdits from "./DeaconEdits";
 import TrafficManager from "./trafficManager";
+import PaschaManager from "./PaschaManager";
 import UnavailableRequestModal from "../components/unavailableRequestModal";
 import CustomDrawerContent from "../components/customDrawer";
 import firestore from "@react-native-firebase/firestore";
@@ -76,6 +77,11 @@ const screenConfigs = {
     component: TrafficManager,
     name: "Traffic Manager",
     drawerName: "Traffic Manager",
+  },
+  paschaManager: {
+    component: PaschaManager,
+    name: "Pascha Manager",
+    drawerName: "Pascha Manager",
   },
   servantsManager: {
     component: ServantsAdmin,
@@ -180,20 +186,11 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId }) {
         tabBarIcon: ({ color, size }) => {
           let iconName;
           switch (route.name) {
-            case "Home":
-              iconName = "home";
-              break;
-            case "Learn to Serve":
-              iconName = "book";
-              break;
-            case "Edit Schedule":
-              iconName = "pencil";
-              break;
-            case "Settings":
-              iconName = "gear";
-              break;
-            default:
-              iconName = "question";
+            case "Home":         iconName = "home";   break;
+            case "Learn to Serve": iconName = "book"; break;
+            case "Edit Schedule":  iconName = "pencil"; break;
+            case "Settings":     iconName = "gear";   break;
+            default:             iconName = "question";
           }
           return <Icon name={iconName} size={size} color={color} />;
         },
@@ -229,28 +226,19 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId }) {
 function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId }) {
   const shouldShowInDrawer = useCallback(
     (screenId) => {
-      if (screenId === homeScreenId && homeScreenId !== "schedule")
-        return false;
+      if (screenId === homeScreenId && homeScreenId !== "schedule") return false;
       if (screenId === "schedule" && homeScreenId !== "schedule") return true;
       switch (screenId) {
-        case "sundaySchoolAttendance":
-          return userRoles.isSSTeacher;
-        case "hymnsClassAttendance":
-          return userRoles.isAlhan;
-        case "servantsMeetingTracker":
-          return userRoles.isServant;
-        case "editDeacons":
-          return userRoles.admin;
-        case "trafficManager":
-          return userRoles.trafficAdmin;
-        case "servantsManager":
-          return userRoles.ssAdmin;
-        case "alhanManager":
-          return userRoles.alhanAdmin;
-        case "adminManager":
-          return userRoles.superAdmin;
-        default:
-          return false;
+        case "sundaySchoolAttendance":  return userRoles.isSSTeacher;
+        case "hymnsClassAttendance":    return userRoles.isAlhan;
+        case "servantsMeetingTracker":  return userRoles.isServant;
+        case "editDeacons":             return userRoles.admin;
+        case "trafficManager":          return userRoles.trafficAdmin;
+        case "paschaManager":           return userRoles.paschaAdmin;
+        case "servantsManager":         return userRoles.ssAdmin;
+        case "alhanManager":            return userRoles.alhanAdmin;
+        case "adminManager":            return userRoles.superAdmin;
+        default:                        return false;
       }
     },
     [userRoles, homeScreenId],
@@ -266,10 +254,7 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId }) {
         />
       )}
       screenOptions={({ navigation, route }) => ({
-        drawerStyle: {
-          backgroundColor: "transparent",
-          width: 280,
-        },
+        drawerStyle: { backgroundColor: "transparent", width: 280 },
         headerShown: true,
         headerTitle: route.name === "Home" ? homeTitle : route.name,
         headerLeft: () => <CustomHeader navigation={navigation} />,
@@ -289,34 +274,25 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId }) {
       </Drawer.Screen>
 
       {shouldShowInDrawer("schedule") && (
-        <Drawer.Screen
-          name="Deacon Service Schedule"
-          component={HomeScreenNavigation}
-        />
+        <Drawer.Screen name="Deacon Service Schedule" component={HomeScreenNavigation} />
       )}
       {shouldShowInDrawer("sundaySchoolAttendance") && (
-        <Drawer.Screen
-          name="Sunday School Attendance"
-          component={SundaySchoolNavigator}
-        />
+        <Drawer.Screen name="Sunday School Attendance" component={SundaySchoolNavigator} />
       )}
       {shouldShowInDrawer("hymnsClassAttendance") && (
-        <Drawer.Screen
-          name="Hymns Class Attendance"
-          component={AlhanNavigator}
-        />
+        <Drawer.Screen name="Hymns Class Attendance" component={AlhanNavigator} />
       )}
       {shouldShowInDrawer("servantsMeetingTracker") && (
-        <Drawer.Screen
-          name="Servants Meeting Attendance"
-          component={ServantsMeetingNavigator}
-        />
+        <Drawer.Screen name="Servants Meeting Attendance" component={ServantsMeetingNavigator} />
       )}
       {shouldShowInDrawer("editDeacons") && (
         <Drawer.Screen name="Edit Deacons" component={DeaconEdits} />
       )}
       {shouldShowInDrawer("trafficManager") && (
         <Drawer.Screen name="Traffic Manager" component={TrafficManager} />
+      )}
+      {shouldShowInDrawer("paschaManager") && (
+        <Drawer.Screen name="Pascha Manager" component={PaschaManager} />
       )}
       {shouldShowInDrawer("servantsManager") && (
         <Drawer.Screen name="Servants Management" component={ServantsAdmin} />
@@ -341,6 +317,7 @@ export default function MainContainer() {
     alhanAdmin: false,
     superAdmin: false,
     trafficAdmin: false,
+    paschaAdmin: false,
   });
   const [churchId, setChurchId] = useState(null);
   const [homeTitle, setHomeTitle] = useState("Deacon Service Schedule");
@@ -456,11 +433,10 @@ export default function MainContainer() {
 
         let selectedHomeScreen = data.homeScreen;
         if (!selectedHomeScreen) {
-          if (data.isDeacon) selectedHomeScreen = "schedule";
-          else if (data.isSSTeacher)
-            selectedHomeScreen = "sundaySchoolAttendance";
-          else if (data.isAlhan) selectedHomeScreen = "hymnsClassAttendance";
-          else selectedHomeScreen = "schedule";
+          if (data.isDeacon)           selectedHomeScreen = "schedule";
+          else if (data.isSSTeacher)   selectedHomeScreen = "sundaySchoolAttendance";
+          else if (data.isAlhan)       selectedHomeScreen = "hymnsClassAttendance";
+          else                         selectedHomeScreen = "schedule";
 
           firestore()
             .collection("users")
@@ -499,9 +475,7 @@ export default function MainContainer() {
             const extraServers = (data.extra || [])
               .filter((s) => s.name !== "N/A" && s.uid)
               .sort((a, b) =>
-                a.name
-                  .split(" ")[0]
-                  .toLowerCase()
+                a.name.split(" ")[0].toLowerCase()
                   .localeCompare(b.name.split(" ")[0].toLowerCase()),
               );
             setAvailableServers(extraServers);
@@ -511,21 +485,14 @@ export default function MainContainer() {
             cleanupUserListeners();
           }
         },
-        () => {
-          setAvailableServers([]);
-        },
+        () => { setAvailableServers([]); },
       );
 
     return () => {
       unsubscribe();
       cleanupUserListeners();
     };
-  }, [
-    churchId,
-    currentRequest?.weekId,
-    setupUserListeners,
-    cleanupUserListeners,
-  ]);
+  }, [churchId, currentRequest?.weekId, setupUserListeners, cleanupUserListeners]);
 
   useEffect(() => {
     if (!userRoles.admin || !churchId) return;
@@ -542,18 +509,11 @@ export default function MainContainer() {
             .collection("schedule")
             .get();
 
-          const validWeeks = new Set(
-            scheduleSnapshot.docs.map((doc) => doc.id),
-          );
-
+          const validWeeks = new Set(scheduleSnapshot.docs.map((doc) => doc.id));
           const validDocs = [];
 
           snapshot.docs.forEach((doc) => {
-            if (
-              isWeekPast(doc.id) ||
-              !validWeeks.has(doc.id) ||
-              !docHasRequests(doc)
-            ) {
+            if (isWeekPast(doc.id) || !validWeeks.has(doc.id) || !docHasRequests(doc)) {
               if (!deletedDocsRef.current.has(doc.id)) {
                 deletedDocsRef.current.add(doc.id);
                 doc.ref.delete().catch(() => {});
@@ -653,11 +613,7 @@ export default function MainContainer() {
     return false;
   }, [unavailableQueue, currentRequestId]);
 
-  const handleRequestComplete = useCallback(
-    () => moveToNextRequest(),
-    [moveToNextRequest],
-  );
-
+  const handleRequestComplete = useCallback(() => moveToNextRequest(), [moveToNextRequest]);
   const handleSkip = useCallback(() => {
     if (currentRequestId) skippedRequestsRef.current.add(currentRequestId);
     moveToNextRequest();
@@ -676,14 +632,15 @@ export default function MainContainer() {
   }, [unavailableQueue, currentRequestId]);
 
   const shouldShowDrawer =
-    userRoles.isAlhan ||
-    userRoles.isSSTeacher ||
-    userRoles.isServant ||
-    userRoles.ssAdmin ||
-    userRoles.admin ||
-    userRoles.alhanAdmin ||
-    userRoles.superAdmin ||
-    userRoles.trafficAdmin;
+    userRoles.isAlhan      ||
+    userRoles.isSSTeacher  ||
+    userRoles.isServant    ||
+    userRoles.ssAdmin      ||
+    userRoles.admin        ||
+    userRoles.alhanAdmin   ||
+    userRoles.superAdmin   ||
+    userRoles.trafficAdmin ||
+    userRoles.paschaAdmin;
 
   if (isLoading) {
     return (
@@ -747,14 +704,6 @@ export default function MainContainer() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    marginTop: 60,
-    backgroundColor: "#121212",
-  },
-  header: {
-    backgroundColor: "#1e1e1e",
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
