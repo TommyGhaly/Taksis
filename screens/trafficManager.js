@@ -227,6 +227,7 @@ const TrafficManager = () => {
   const [currentQrId, setCurrentQrId] = useState(null);
   const [editVisible, setEditVisible] = useState(false);
   const [editingCar, setEditingCar] = useState(null);
+  const [pendingReadOnly, setPendingReadOnly] = useState(false);
 
   // Pending
   const [pendingListVisible, setPendingListVisible] = useState(false);
@@ -600,6 +601,7 @@ const TrafficManager = () => {
   // and leave a blocking transparent overlay behind on some devices.
   const openPendingList = useCallback(() => {
     setRegVisible(false);
+    setPendingReadOnly(false);
     setTimeout(() => setPendingListVisible(true), 250);
   }, []);
 
@@ -854,6 +856,39 @@ const TrafficManager = () => {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={s.menuItem}
+                  onPress={() => {
+                    setMenuVisible(false);
+                    setPendingReadOnly(true);
+                    setTimeout(() => setPendingListVisible(true), 250);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View
+                    style={[
+                      s.menuIconWrap,
+                      { backgroundColor: "rgba(255,159,10,0.15)" },
+                    ]}
+                  >
+                    <Icon name="clock-outline" size={20} color="#ff9f0a" />
+                  </View>
+                  <View style={s.menuItemContent}>
+                    <Text style={s.menuItemText}>Pending Vehicles</Text>
+                    <Text style={s.menuItemSub}>
+                      {pendingVehicles.length > 0
+                        ? `${pendingVehicles.length} awaiting approval`
+                        : "No pending vehicles"}
+                    </Text>
+                  </View>
+                  {pendingVehicles.length > 0 && (
+                    <View style={s.pendingBadge}>
+                      <Text style={s.pendingBadgeText}>
+                        {pendingVehicles.length}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.menuItem}
                   onPress={clearAllAttendance}
                   activeOpacity={0.7}
                 >
@@ -1082,13 +1117,19 @@ const TrafficManager = () => {
           <PendingList
             pendingVehicles={pendingVehicles}
             onClose={() => setPendingListVisible(false)}
-            onSelect={(v) => {
-              // FIX: generate qrId and store both together atomically
-              const qrId = `qr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-              setPendingListVisible(false);
-              setRegVisible(false);
-              setTimeout(() => setApprovalData({ vehicle: v, qrId }), 250);
-            }}
+            onSelect={
+              pendingReadOnly
+                ? null
+                : (v) => {
+                    const qrId = `qr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                    setPendingListVisible(false);
+                    setRegVisible(false);
+                    setTimeout(
+                      () => setApprovalData({ vehicle: v, qrId }),
+                      250,
+                    );
+                  }
+            }
           />
         </View>
       </Modal>
