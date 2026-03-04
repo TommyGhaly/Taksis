@@ -188,7 +188,7 @@ const AddGuestInline = memo(({ visible, onSave, onCancel, saving }) => {
   );
 });
 
-// ── VehicleFormSheet — shared Registration & Edit modal ───────────────────────
+// ── VehicleFormSheet ──────────────────────────────────────────────────────────
 
 export const VehicleFormSheet = memo(
   ({
@@ -213,7 +213,6 @@ export const VehicleFormSheet = memo(
     const [guestSaving, setGuestSaving] = useState(false);
     const [saving, setSaving] = useState(false);
 
-    // Seed state when modal opens
     useEffect(() => {
       if (!visible) return;
       setLicense(initialData?.license ?? "");
@@ -336,7 +335,6 @@ export const VehicleFormSheet = memo(
           keyboardVerticalOffset={0}
         >
           <View style={isReg ? s.regSheet : s.editSheet}>
-            {/* Header */}
             <View style={s.sheetHeader}>
               {isReg ? (
                 <TouchableOpacity
@@ -365,7 +363,6 @@ export const VehicleFormSheet = memo(
               </TouchableOpacity>
             </View>
 
-            {/* Body */}
             <FlatList
               data={filteredUsers}
               keyExtractor={(item) => item.uid}
@@ -462,7 +459,6 @@ export const VehicleFormSheet = memo(
               ListFooterComponent={<View style={{ height: 100 }} />}
             />
 
-            {/* Footer */}
             <View style={s.sheetFooter}>
               <TouchableOpacity
                 style={[
@@ -498,19 +494,16 @@ function normalize(s) {
 }
 
 function nameSimilar(a, b) {
-  const na = normalize(a),
-    nb = normalize(b);
+  const na = normalize(a), nb = normalize(b);
   if (na === nb) return true;
-  const aParts = na.split(" "),
-    bParts = nb.split(" ");
+  const aParts = na.split(" "), bParts = nb.split(" ");
   return aParts.some((p) => bParts.includes(p) && p.length > 2);
 }
 
 function phoneSimilar(a, b) {
   if (!a || !b) return false;
   const clean = (s) => s.replace(/\D/g, "");
-  const ca = clean(a),
-    cb = clean(b);
+  const ca = clean(a), cb = clean(b);
   return ca === cb || (ca.length >= 7 && cb.includes(ca.slice(-7)));
 }
 
@@ -639,11 +632,7 @@ export function ApprovalFlow({
                 <Text style={s.matchName}>{u.name}</Text>
                 {u.phone ? <Text style={s.matchPhone}>{u.phone}</Text> : null}
               </View>
-              <Icon
-                name="chevron-right"
-                size={20}
-                color="rgba(255,255,255,0.3)"
-              />
+              <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.3)" />
             </TouchableOpacity>
           )}
         />
@@ -695,11 +684,7 @@ export function ApprovalFlow({
                   <Text style={s.unregBadgeText}>No Account</Text>
                 </View>
               </View>
-              <Icon
-                name="chevron-right"
-                size={20}
-                color="rgba(255,255,255,0.3)"
-              />
+              <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.3)" />
             </TouchableOpacity>
           )}
         />
@@ -708,9 +693,7 @@ export function ApprovalFlow({
           onPress={() => setMatchStage("new")}
           activeOpacity={0.7}
         >
-          <Text style={s.approvalSecondaryText}>
-            None of these — create new
-          </Text>
+          <Text style={s.approvalSecondaryText}>None of these — create new</Text>
         </TouchableOpacity>
       </View>
     );
@@ -779,46 +762,48 @@ export function PendingList({ pendingVehicles, onSelect, onClose }) {
           data={pendingVehicles}
           keyExtractor={(v) => v.id}
           contentContainerStyle={{ padding: 16 }}
-          renderItem={({ item: v }) => (
-            <TouchableOpacity
-              style={s.pendingCard}
-              onPress={() => onSelect(v)}
-              activeOpacity={0.7}
-            >
-              <View style={s.pendingCardLeft}>
-                <View style={s.pendingStatusDot} />
-                <View>
-                  <Text style={s.pendingLicense}>{v.license}</Text>
-                  <Text style={s.pendingMeta}>
-                    {[
-                      v.make,
-                      v.model,
-                      COLOR_OPTIONS.find((c) => c.value === v.color)?.label,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || "No vehicle info"}
-                  </Text>
-                  <Text style={s.pendingDriverCount}>
-                    {v.drivers.length} driver
-                    {v.drivers.length !== 1 ? "s" : ""}:{" "}
-                    {v.drivers.map((d) => d.name.split(" ")[0]).join(", ")}
-                  </Text>
+          renderItem={({ item: v }) => {
+            const Wrapper = onSelect ? TouchableOpacity : View;
+            return (
+              <Wrapper
+                style={s.pendingCard}
+                onPress={onSelect ? () => onSelect(v) : undefined}
+                activeOpacity={0.7}
+              >
+                <View style={s.pendingCardLeft}>
+                  <View style={s.pendingStatusDot} />
+                  <View>
+                    <Text style={s.pendingLicense}>{v.license}</Text>
+                    <Text style={s.pendingMeta}>
+                      {[
+                        v.make,
+                        v.model,
+                        COLOR_OPTIONS.find((c) => c.value === v.color)?.label,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "No vehicle info"}
+                    </Text>
+                    <Text style={s.pendingDriverCount}>
+                      {v.drivers.length} driver
+                      {v.drivers.length !== 1 ? "s" : ""}:{" "}
+                      {v.drivers.map((d) => d.name.split(" ")[0]).join(", ")}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-              <Icon
-                name="chevron-right"
-                size={20}
-                color="rgba(255,255,255,0.3)"
-              />
-            </TouchableOpacity>
-          )}
+                {onSelect ? (
+                  <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.3)" />
+                ) : null}
+              </Wrapper>
+            );
+          }}
         />
       )}
     </View>
   );
 }
 
-// Local styles copied from TrafficManager for these shared components
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const s = StyleSheet.create({
   bottomOverlay: {
     flex: 1,
