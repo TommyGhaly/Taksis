@@ -1,6 +1,6 @@
 import { createStackNavigator } from '@react-navigation/stack';
 import AlhanAttendance from './AlhanAttendance';
-import IndividualAttendance from '../IndividualAttendance';
+import IndividualAttendance from '../AdminScreens/IndividualAttendance';
 
 const Stack = createStackNavigator();
 

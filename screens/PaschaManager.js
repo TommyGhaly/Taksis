@@ -1115,7 +1115,8 @@ const arc = StyleSheet.create({
 export default function PaschaManager() {
   const isMounted = useRef(true);
   const [churchId, setChurchId]               = useState(null);
-  const [paschaVisible, setPaschaVisible]     = useState(false);
+  const [myReadingsVisible, setMyReadingsVisible]   = useState(false);
+  const [fullScheduleVisible, setFullScheduleVisible] = useState(false);
   const [easterDate, setEasterDate]           = useState(null);
   const [schedule, setSchedule]               = useState({});
   const [deacons, setDeacons]                 = useState([]);
@@ -1146,6 +1147,8 @@ export default function PaschaManager() {
         if (!isMounted.current || !doc.exists) return;
         const d = doc.data();
         setPaschaVisible(d.paschaVisible ?? false);
+        setMyReadingsVisible(d.myReadingsVisible ?? false);
+        setFullScheduleVisible(d.fullScheduleVisible ?? false);
         setEasterDate(d.easterDate ?? null);
         setSchedule(d.schedule ?? {});
       });

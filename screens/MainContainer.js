@@ -10,19 +10,21 @@ import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import Icon from "react-native-vector-icons/FontAwesome";
+import IconMCI from "react-native-vector-icons/MaterialCommunityIcons";
 import HomeScreenNavigation from "./Home/HomeScreenNavigator";
 import AlhanNavigator from "./Alhan/AlhanNavigator";
 import SundaySchoolNavigator from "./SundaySchool/SundaySchoolNavigator";
 import LearnItNavigation from "./LearnIt/LearnItNavigation";
 import SettingsNavigation from "./Settings/SettingsNavigation";
 import ServantsMeetingNavigator from "./ServantsMeeting/ServantsMeetingNavigator";
-import ServantsAdmin from "./ServantsAdmin";
-import AlhanAdmin from "./AlhanAdmin";
-import AdminManager from "./AdminManager";
-import EditSchedule from "./EditSchedule";
-import DeaconEdits from "./DeaconEdits";
-import TrafficManager from "./trafficManager";
-import PaschaManager from "./PaschaManager";
+import ServantsAdmin from "./AdminScreens/ServantsAdmin";
+import AlhanAdmin from "./AdminScreens/AlhanAdmin";
+import AdminManager from "./AdminScreens/AdminManager";
+import EditSchedule from "./AdminScreens/EditSchedule";
+import DeaconEdits from "./AdminScreens/DeaconEdits";
+import TrafficManager from "./AdminScreens/trafficManager";
+import PaschaManager from "./AdminScreens/PaschaManager";
+import PaschaHomePage from "./Pascha/PaschaHomePage";
 import UnavailableRequestModal from "../components/unavailableRequestModal";
 import CustomDrawerContent from "../components/customDrawer";
 import firestore from "@react-native-firebase/firestore";
@@ -164,7 +166,7 @@ const flattenUnavailableRequests = (docs) => {
   return requests;
 };
 
-function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId }) {
+function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId, showPaschaTab }) {
   const homeConfig = screenConfigs[homeScreenId] || screenConfigs.schedule;
   const HomeComponent = homeConfig.component;
 
@@ -184,15 +186,20 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId }) {
           ? () => <CustomHeader navigation={navigation} />
           : undefined,
         tabBarIcon: ({ color, size }) => {
-          let iconName;
           switch (route.name) {
-            case "Home":         iconName = "home";   break;
-            case "Learn to Serve": iconName = "book"; break;
-            case "Edit Schedule":  iconName = "pencil"; break;
-            case "Settings":     iconName = "gear";   break;
-            default:             iconName = "question";
+            case "Home":
+              return <Icon name="home" size={size} color={color} />;
+            case "Learn to Serve":
+              return <Icon name="book" size={size} color={color} />;
+            case "Pascha":
+              return <IconMCI name="cross" size={size} color={color} />;
+            case "Edit Schedule":
+              return <Icon name="pencil" size={size} color={color} />;
+            case "Settings":
+              return <Icon name="gear" size={size} color={color} />;
+            default:
+              return <Icon name="question" size={size} color={color} />;
           }
-          return <Icon name={iconName} size={size} color={color} />;
         },
       })}
     >
@@ -207,6 +214,14 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId }) {
         component={LearnItNavigation}
         listeners={{ focus: () => setHomeTitle("Learn to Serve") }}
       />
+      {showPaschaTab && (
+        <Tab.Screen
+          name="Pascha"
+          component={PaschaHomePage}
+          options={{ headerTitle: "Holy Week · Pascha" }}
+          listeners={{ focus: () => setHomeTitle("Holy Week · Pascha") }}
+        />
+      )}
       {userRoles.admin && (
         <Tab.Screen
           name="Edit Schedule"
@@ -223,7 +238,7 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId }) {
   );
 }
 
-function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId }) {
+function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId, showPaschaTab }) {
   const shouldShowInDrawer = useCallback(
     (screenId) => {
       if (screenId === homeScreenId && homeScreenId !== "schedule") return false;
@@ -269,6 +284,7 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId }) {
             setHomeTitle={setHomeTitle}
             showDrawer={true}
             homeScreenId={homeScreenId}
+            showPaschaTab={showPaschaTab}
           />
         )}
       </Drawer.Screen>
@@ -324,6 +340,9 @@ export default function MainContainer() {
   const [homeScreenId, setHomeScreenId] = useState("schedule");
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // ── Pascha tab visibility ─────────────────────────────────────────────────
+  const [showPaschaTab, setShowPaschaTab] = useState(false);
 
   const [unavailableQueue, setUnavailableQueue] = useState([]);
   const [currentRequestId, setCurrentRequestId] = useState(null);
@@ -414,6 +433,20 @@ export default function MainContainer() {
     },
     [cleanupUserListeners],
   );
+
+  // ── Listen for pascha visibility flags ────────────────────────────────────
+  useEffect(() => {
+    if (!churchId) return;
+    const unsub = firestore()
+      .collection("churches").doc(churchId)
+      .collection("pascha").doc("config")
+      .onSnapshot(doc => {
+        if (!doc.exists) { setShowPaschaTab(false); return; }
+        const d = doc.data();
+        setShowPaschaTab(!!(d.myReadingsVisible || d.fullScheduleVisible));
+      }, () => setShowPaschaTab(false));
+    return () => unsub();
+  }, [churchId]);
 
   const fetchUserData = useCallback(async (isRefresh = false) => {
     const user = auth().currentUser;
@@ -669,6 +702,7 @@ export default function MainContainer() {
             homeTitle={homeTitle}
             setHomeTitle={setHomeTitle}
             homeScreenId={homeScreenId}
+            showPaschaTab={showPaschaTab}
           />
         ) : (
           <TabNavigator
@@ -676,6 +710,7 @@ export default function MainContainer() {
             setHomeTitle={setHomeTitle}
             showDrawer={false}
             homeScreenId={homeScreenId}
+            showPaschaTab={showPaschaTab}
           />
         )}
       </NavigationContainer>

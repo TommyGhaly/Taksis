@@ -1,6 +1,6 @@
 import { createStackNavigator } from '@react-navigation/stack';
 import SundaySchoolAttendance from './SundaySchoolAttendance';
-import IndividualAttendance from '../IndividualAttendance';
+import IndividualAttendance from '../AdminScreens/IndividualAttendance';
 import ServantAttendance from './ServantsAttendance';
 
 const Stack = createStackNavigator();
