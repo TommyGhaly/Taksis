@@ -23,11 +23,11 @@ import HomeScreen from "../Home/HomeScreen";
 import SundaySchoolAttendance from "../SundaySchool/SundaySchoolAttendance";
 import AlhanAttendance from "../Alhan/AlhanAttendance";
 import ServantsAttendance from "../ServantsMeeting/ServantsAttendance";
-import DeaconEdits from "../DeaconEdits";
-import TrafficManager from "../trafficManager";
-import ServantsAdmin from "../ServantsAdmin";
-import AlhanAdmin from "../AlhanAdmin";
-import AdminManager from "../AdminManager";
+import DeaconEdits from "../AdminScreens/DeaconEdits";
+import TrafficManager from "../AdminScreens/trafficManager";
+import ServantsAdmin from "../AdminScreens/ServantsAdmin";
+import AlhanAdmin from "../AdminScreens/AlhanAdmin";
+import AdminManager from "../AdminScreens/AdminManager";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const previewSize = (screenWidth - 60) / 2; // 2 columns with padding
