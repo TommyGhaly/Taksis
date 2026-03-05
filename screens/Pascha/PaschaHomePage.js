@@ -190,8 +190,8 @@ const dt = StyleSheet.create({
   dot:         { width:4, height:4, borderRadius:2, backgroundColor:BLUE2, marginBottom:3 },
   label:       { fontSize:11, fontWeight:"500", color:T2, textAlign:"center" },
   labelActive: { color:BLUE2, fontWeight:"600" },
-  date:        { fontSize:9, color:T3, marginTop:2 },
-  dateActive:  { color:"rgba(96,165,250,0.6)" },
+    date:        { fontSize:9, color:"rgba(241,245,249,0.5)", marginTop:2 },
+    dateActive:  { color:"rgba(96,165,250,0.85)" },
 });
 
 // ─── Reading Card ─────────────────────────────────────────────────────────────
@@ -666,4 +666,5 @@ const mn = StyleSheet.create({
   nameToggleBtn:       { width:36, height:36, borderRadius:18, backgroundColor:GLASS,
                          borderWidth:1, borderColor:SEP, justifyContent:"center", alignItems:"center" },
   nameToggleBtnActive: { backgroundColor:BLUE_D, borderColor:"rgba(59,130,246,0.4)" },
+  subtitle: { fontSize:13, color:"rgba(241,245,249,0.45)", fontWeight:"400", marginTop:2 },
 });
