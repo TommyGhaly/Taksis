@@ -27,6 +27,7 @@ import DeaconEdits from "../AdminScreens/DeaconEdits";
 import TrafficManager from "../AdminScreens/trafficManager";
 import ServantsAdmin from "../AdminScreens/ServantsAdmin";
 import AlhanAdmin from "../AdminScreens/AlhanAdmin";
+import PaschaManager from "../AdminScreens/PaschaManager";
 import AdminManager from "../AdminScreens/AdminManager";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
@@ -126,6 +127,13 @@ const HomeScreenSelector = () => {
       available: userRoles.trafficAdmin,
     },
     {
+      id: "paschaManager",
+      name: "Pascha Manager",
+      caption: "Manage Holy Week readings schedule",
+      component: PaschaManager,
+      available: userRoles.paschaAdmin,
+    },
+    {
       id: "servantsManager",
       name: "Servants Manager",
       caption: "Manage Sunday school servants",
@@ -166,7 +174,7 @@ const HomeScreenSelector = () => {
           (error) => {
             console.error("Error fetching user data:", error);
             setIsLoading(false);
-          }
+          },
         );
 
       return () => unsubscribe();
@@ -183,17 +191,11 @@ const HomeScreenSelector = () => {
     try {
       const user = auth().currentUser;
       if (user) {
-        await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .update({
-            homeScreen: selectedScreen,
-          });
+        await firestore().collection("users").doc(user.uid).update({
+          homeScreen: selectedScreen,
+        });
         navigation.goBack();
-        Alert.alert(
-          "Success",
-          "Home screen preference saved successfully!",
-        );
+        Alert.alert("Success", "Home screen preference saved successfully!");
       }
     } catch (error) {
       console.error("Error saving home screen preference:", error);
@@ -211,18 +213,12 @@ const HomeScreenSelector = () => {
     return (
       <TouchableOpacity
         key={screen.id}
-        style={[
-          styles.previewContainer,
-          isSelected && styles.selectedPreview,
-        ]}
+        style={[styles.previewContainer, isSelected && styles.selectedPreview]}
         onPress={() => setSelectedScreen(screen.id)}
         activeOpacity={0.8}
       >
         <View
-          style={[
-            styles.previewCard,
-            isSelected && styles.selectedPreviewCard,
-          ]}
+          style={[styles.previewCard, isSelected && styles.selectedPreviewCard]}
         >
           <AsyncPreview component={screen.component} screenId={screen.id} />
           {isSelected && (
@@ -279,10 +275,7 @@ const HomeScreenSelector = () => {
         </ScrollView>
 
         <TouchableOpacity
-          style={[
-            styles.saveButton,
-            isSaving && styles.saveButtonDisabled,
-          ]}
+          style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
           onPress={handleSaveSelection}
           disabled={isSaving}
         >
@@ -385,9 +378,7 @@ const styles = StyleSheet.create({
   previewScreen: {
     width: screenWidth,
     height: screenHeight,
-    transform: [
-      { scale: previewSize / screenWidth }
-    ],
+    transform: [{ scale: previewSize / screenWidth }],
     transformOrigin: "top left",
   },
   selectedOverlay: {
