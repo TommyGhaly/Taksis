@@ -9,6 +9,9 @@ import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import PaschaSchedule from "../Pascha/PaschaSchedule.json";
+import {
+  expandReadings, isAssignableSlot, ASSIGNABLE, READING_META, READING_ORDER,
+} from "../Pascha/PaschaReadingUtils";
 
 const DEFAULT_AVATAR = require("../../assets/default_profile.png");
 
@@ -24,20 +27,6 @@ const BLUE_D  = "rgba(59,130,246,0.18)";
 const T1      = "#f1f5f9";
 const T2      = "rgba(241,245,249,0.58)";
 const T3      = "rgba(241,245,249,0.24)";
-
-const READING_META = {
-  prophecies: { label:"Prophecy",  icon:"fire",                color:"#f59e0b" },
-  psalm:      { label:"Psalm",     icon:"music-note",          color:"#34d399" },
-  pauline:    { label:"Pauline",   icon:"feather",             color:"#a78bfa" },
-  catholic:   { label:"Catholic",  icon:"bookshelf",           color:"#22d3ee" },
-  praxis:     { label:"Praxis",    icon:"script-text-outline", color:"#fb923c" },
-  gospel:     { label:"Gospel",    icon:"book-cross",          color:"#3b82f6" },
-  gospels:    { label:"Gospel",    icon:"book-cross",          color:"#3b82f6" },
-  homily:     { label:"Homily",    icon:"microphone-outline",  color:"#f87171" },
-  litanies:   { label:"Litanies",  icon:"hands-pray",          color:T2        },
-};
-const ASSIGNABLE    = ["prophecies","psalm","pauline","catholic","praxis","gospel","gospels"];
-const READING_ORDER = ["prophecies","psalm","pauline","catholic","praxis","gospel","gospels","homily","litanies"];
 
 const ALL_DAYS = [
   { id:"last_friday_lent",    label:"Last Friday of Holy Lent", easterOffset:-9,  shortLabel:"Lent Fri" },
@@ -69,41 +58,11 @@ function calcDate(easter, offset) {
   return d.toLocaleDateString("en-US", { weekday:"short", month:"short", day:"numeric" });
 }
 
-function readingDisplay(value) {
-  if (!value) return "";
-  if (typeof value === "string") return value;
-  if (Array.isArray(value))
-    return value.map(v =>
-      typeof v === "string" ? v
-        : v.reference ? (v.location ? `${v.reference} — ${v.location}` : v.reference) : ""
-    ).filter(Boolean).join("\n");
-  return String(value);
-}
-
-function expandReadings(hour) {
-  const rows = [];
-  READING_ORDER.forEach(k => {
-    const val = hour.readings?.[k];
-    if (val == null) return;
-    if (Array.isArray(val) && ASSIGNABLE.includes(k) && k !== "psalm") {
-      val.forEach((entry, i) => {
-        let ref = "", loc = "";
-        if (typeof entry === "string") ref = entry;
-        else if (entry.reference) { ref = entry.reference; loc = entry.location || ""; }
-        rows.push({ rKey:k, slotKey:`${k}_${i}`, index:i, refText:ref, location:loc });
-      });
-    } else {
-      rows.push({ rKey:k, slotKey:k, index:null, refText:readingDisplay(val), location:"" });
-    }
-  });
-  return rows;
-}
-
 function mySlots(hour, hourAssignments, uid) {
   if (!uid) return new Set();
   const slots = new Set();
   expandReadings(hour).forEach(({ slotKey, rKey }) => {
-    if (!ASSIGNABLE.includes(rKey)) return;
+    if (!isAssignableSlot(rKey) && rKey !== "psalm") return;
     if (rKey === "psalm") {
       if ((hourAssignments.psalm_readers || []).some(r => r.uid === uid)) slots.add(slotKey);
     } else {
@@ -127,7 +86,9 @@ function collectMyReadings(schedule, uid) {
       const ha = daySchedule[h.id] || {};
       const slotSet = mySlots(h, ha, uid);
       if (slotSet.size === 0) return;
-      const rows = expandReadings(h).filter(r => ASSIGNABLE.includes(r.rKey) && slotSet.has(r.slotKey));
+      const rows = expandReadings(h).filter(r =>
+        (isAssignableSlot(r.rKey) || r.rKey === "psalm") && slotSet.has(r.slotKey)
+      );
       if (rows.length > 0) hours.push({ hour: h, ha, rows });
     });
     if (hours.length > 0) result.push({ day: dayDef, hours });
@@ -182,27 +143,29 @@ const DayTabBar = ({ selectedId, easterDate, schedule, uid, onSelect }) => (
 );
 
 const dt = StyleSheet.create({
-  bar:         { backgroundColor:"transparent" },
-  content:     { paddingHorizontal:16, paddingVertical:10, gap:6, flexDirection:"row" },
-  tab:         { paddingHorizontal:11, paddingVertical:7, borderRadius:12, backgroundColor:GLASS,
-                 borderWidth:1, borderColor:SEP, alignItems:"center", minWidth:64, height:54 },
-  tabActive:   { backgroundColor:BLUE_D, borderColor:"rgba(59,130,246,0.4)" },
-  dot:         { width:4, height:4, borderRadius:2, backgroundColor:BLUE2, marginBottom:3 },
-  label:       { fontSize:11, fontWeight:"500", color:T2, textAlign:"center" },
-  labelActive: { color:BLUE2, fontWeight:"600" },
-    date:        { fontSize:9, color:"rgba(241,245,249,0.5)", marginTop:2 },
-    dateActive:  { color:"rgba(96,165,250,0.85)" },
+  bar:        { backgroundColor:"transparent" },
+  content:    { paddingHorizontal:16, paddingVertical:10, gap:6, flexDirection:"row" },
+  tab:        { paddingHorizontal:11, paddingVertical:7, borderRadius:12, backgroundColor:GLASS,
+                borderWidth:1, borderColor:SEP, alignItems:"center", minWidth:64, height:54 },
+  tabActive:  { backgroundColor:BLUE_D, borderColor:"rgba(59,130,246,0.4)" },
+  dot:        { width:4, height:4, borderRadius:2, backgroundColor:BLUE2, marginBottom:3 },
+  label:      { fontSize:11, fontWeight:"500", color:T2, textAlign:"center" },
+  labelActive:{ color:BLUE2, fontWeight:"600" },
+  date:       { fontSize:9, color:"rgba(241,245,249,0.5)", marginTop:2 },
+  dateActive: { color:"rgba(96,165,250,0.85)" },
 });
 
 // ─── Reading Card ─────────────────────────────────────────────────────────────
 const ReadingCard = ({ row, hourAssignments, uid, isFullSchedule, isMine, hideNames }) => {
   const meta     = READING_META[row.rKey] || { label:row.rKey, icon:"book-outline", color:T2 };
   const isPsalm  = row.rKey === "psalm";
-  const label    = row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
-  const readers  = isPsalm ? (hourAssignments.psalm_readers || []) : [];
-  const assignee = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
+  const isHomily = row.rKey === "homily";
+  const label    = isHomily
+    ? `Homily — ${row.author || row.refText}`
+    : row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
+  const readers   = isPsalm ? (hourAssignments.psalm_readers || []) : [];
+  const assignee  = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
   const hasAssign = isPsalm ? readers.length > 0 : !!assignee;
-  // show names if: names not hidden AND (full schedule OR it's mine)
   const showNames = !hideNames && (isFullSchedule || isMine);
 
   return (
@@ -219,7 +182,7 @@ const ReadingCard = ({ row, hourAssignments, uid, isFullSchedule, isMine, hideNa
         )}
       </View>
 
-      {!!row.refText && (
+      {!!row.refText && !isHomily && (
         <Text style={rdc.ref}>{row.refText}</Text>
       )}
       {!!row.location && <Text style={rdc.loc}>{row.location}</Text>}
@@ -270,9 +233,12 @@ const HourPager = ({ hours, daySchedule, uid, isFullSchedule, hideNames }) => {
   const [page, setPage] = useState(0);
   const flatRef = useRef(null);
 
-  // Build visible hours list (skip empty if not full schedule)
-  // Always show all hours — personal mode just hides other people's names, not the readings
-  const visibleHours = hours.filter(h => expandReadings(h).some(r => ASSIGNABLE.includes(r.rKey)));
+  const visibleHours = hours.filter(h =>
+    expandReadings(h).some(r => isAssignableSlot(r.rKey) || r.rKey === "psalm")
+  );
+
+  // Clamp page whenever visibleHours length changes (day switch via tab)
+  const clampedPage = Math.min(page, Math.max(0, visibleHours.length - 1));
 
   const goTo = (idx) => {
     if (idx < 0 || idx >= visibleHours.length) return;
@@ -297,9 +263,9 @@ const HourPager = ({ hours, daySchedule, uid, isFullSchedule, hideNames }) => {
     <View style={{ flex:1 }}>
       {/* Page indicator + nav */}
       <View style={pg.nav}>
-        <TouchableOpacity onPress={() => goTo(page - 1)} disabled={page === 0}
-          style={[pg.navBtn, page === 0 && pg.navBtnDisabled]} activeOpacity={0.7}>
-          <Icon name="chevron-left" size={18} color={page === 0 ? T3 : T1} />
+        <TouchableOpacity onPress={() => goTo(clampedPage - 1)} disabled={clampedPage === 0}
+          style={[pg.navBtn, clampedPage === 0 && pg.navBtnDisabled]} activeOpacity={0.7}>
+          <Icon name="chevron-left" size={18} color={clampedPage === 0 ? T3 : T1} />
         </TouchableOpacity>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
@@ -307,7 +273,7 @@ const HourPager = ({ hours, daySchedule, uid, isFullSchedule, hideNames }) => {
           {visibleHours.map((h, i) => {
             const ha = daySchedule[h.id] || {};
             const hasMe = mySlots(h, ha, uid).size > 0;
-            const active = i === page;
+            const active = i === clampedPage;
             return (
               <TouchableOpacity key={h.id} onPress={() => goTo(i)} style={pg.dotBtn} activeOpacity={0.7}>
                 <View style={[pg.dotPill, active && pg.dotPillActive, hasMe && pg.dotPillMe,
@@ -317,11 +283,11 @@ const HourPager = ({ hours, daySchedule, uid, isFullSchedule, hideNames }) => {
           })}
         </ScrollView>
 
-        <TouchableOpacity onPress={() => goTo(page + 1)}
-          disabled={page === visibleHours.length - 1}
-          style={[pg.navBtn, page === visibleHours.length - 1 && pg.navBtnDisabled]} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => goTo(clampedPage + 1)}
+          disabled={clampedPage === visibleHours.length - 1}
+          style={[pg.navBtn, clampedPage === visibleHours.length - 1 && pg.navBtnDisabled]} activeOpacity={0.7}>
           <Icon name="chevron-right" size={18}
-            color={page === visibleHours.length - 1 ? T3 : T1} />
+            color={clampedPage === visibleHours.length - 1 ? T3 : T1} />
         </TouchableOpacity>
       </View>
 
@@ -340,11 +306,12 @@ const HourPager = ({ hours, daySchedule, uid, isFullSchedule, hideNames }) => {
           const ha = daySchedule[hour.id] || {};
           const mySlotSet = mySlots(hour, ha, uid);
           const hasMe = mySlotSet.size > 0;
-          const assignable = expandReadings(hour).filter(r => ASSIGNABLE.includes(r.rKey));
+          const assignable = expandReadings(hour).filter(r =>
+            isAssignableSlot(r.rKey) || r.rKey === "psalm"
+          );
 
           return (
             <View style={[pg.page, { width }]}>
-              {/* Hour name header */}
               <View style={pg.hourHeader}>
                 <View style={[pg.hourAccent, { backgroundColor: hasMe ? BLUE : "rgba(255,255,255,0.15)" }]} />
                 <View style={{ flex:1 }}>
@@ -353,10 +320,9 @@ const HourPager = ({ hours, daySchedule, uid, isFullSchedule, hideNames }) => {
                     <Text style={pg.hourSub}>{mySlotSet.size} reading{mySlotSet.size !== 1 ? "s" : ""} for you</Text>
                   )}
                 </View>
-                <Text style={pg.pageCount}>{page + 1} / {visibleHours.length}</Text>
+                <Text style={pg.pageCount}>{clampedPage + 1} / {visibleHours.length}</Text>
               </View>
 
-              {/* Reading cards */}
               <ScrollView showsVerticalScrollIndicator={false}
                 contentContainerStyle={pg.cardsScroll}>
                 {assignable.length === 0 ? (
@@ -406,7 +372,7 @@ const pg = StyleSheet.create({
   emptyHourTxt:    { fontSize:13, color:T3, fontWeight:"400" },
 });
 
-// ─── Timeline Day Card (home) ─────────────────────────────────────────────────
+// ─── Timeline Day Card ────────────────────────────────────────────────────────
 const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onPress }) => {
   const dateStr = easterDate ? calcDate(easterDate, day.easterOffset) : null;
   const myHours = [];
@@ -414,7 +380,9 @@ const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onPress })
     const ha = daySchedule[h.id] || {};
     const slotSet = mySlots(h, ha, uid);
     if (slotSet.size === 0) return;
-    const rows = expandReadings(h).filter(r => ASSIGNABLE.includes(r.rKey) && slotSet.has(r.slotKey));
+    const rows = expandReadings(h).filter(r =>
+      (isAssignableSlot(r.rKey) || r.rKey === "psalm") && slotSet.has(r.slotKey)
+    );
     if (rows.length > 0) myHours.push({ hour:h, rows });
   });
   const total = myHours.reduce((a, h) => a + h.rows.length, 0);
@@ -540,13 +508,12 @@ export default function PaschaHomePage() {
     <View style={mn.loadingWrap}><ActivityIndicator color={BLUE} size="large" /></View>
   );
 
-  // ── Day detail — paginated ────────────────────────────────────────────────
+  // ── Day detail ────────────────────────────────────────────────────────────
   if (selectedId && selectedDayDef) {
     const dateStr = easterDate ? calcDate(easterDate, selectedDayDef.easterOffset) : null;
     return (
       <View style={mn.container}>
         <StatusBar barStyle="light-content" />
-
         <View style={mn.header}>
           <TouchableOpacity style={mn.backBtn} onPress={() => setSelectedId(null)} activeOpacity={0.7}>
             <Icon name="arrow-left" size={18} color={T1} />
@@ -573,11 +540,12 @@ export default function PaschaHomePage() {
 
         <View style={{ height:74 }}>
           <DayTabBar selectedId={selectedId} easterDate={easterDate}
-            schedule={schedule} uid={uid} onSelect={id => { setSelectedId(id); }} />
+            schedule={schedule} uid={uid} onSelect={setSelectedId} />
         </View>
 
-        {/* Paginated hours — fills remaining space */}
+        {/* key=selectedId forces HourPager to fully remount on day change, resetting page to 0 */}
         <HourPager
+          key={selectedId}
           hours={selectedDayDef.hours || []}
           daySchedule={selectedDaySchedule}
           uid={uid}
@@ -655,16 +623,16 @@ const ov = StyleSheet.create({
 });
 
 const mn = StyleSheet.create({
-  container:   { flex:1, backgroundColor:BG },
-  loadingWrap: { flex:1, backgroundColor:BG, justifyContent:"center", alignItems:"center" },
-  header:      { flexDirection:"row", alignItems:"center", paddingHorizontal:20,
-                 paddingTop:18, paddingBottom:8, gap:12 },
-  backBtn:     { width:36, height:36, borderRadius:18, backgroundColor:GLASS,
-                 borderWidth:1, borderColor:SEP, justifyContent:"center", alignItems:"center" },
-  eyebrow:     { fontSize:11, fontWeight:"500", color:BLUE, letterSpacing:1.8, marginBottom:2 },
-  title:       { fontSize:26, fontWeight:"200", color:T1, letterSpacing:-0.6 },
+  container:           { flex:1, backgroundColor:BG },
+  loadingWrap:         { flex:1, backgroundColor:BG, justifyContent:"center", alignItems:"center" },
+  header:              { flexDirection:"row", alignItems:"center", paddingHorizontal:20,
+                         paddingTop:18, paddingBottom:8, gap:12 },
+  backBtn:             { width:36, height:36, borderRadius:18, backgroundColor:GLASS,
+                         borderWidth:1, borderColor:SEP, justifyContent:"center", alignItems:"center" },
+  eyebrow:             { fontSize:11, fontWeight:"500", color:BLUE, letterSpacing:1.8, marginBottom:2 },
+  title:               { fontSize:26, fontWeight:"200", color:T1, letterSpacing:-0.6 },
+  subtitle:            { fontSize:13, color:"rgba(241,245,249,0.45)", fontWeight:"400", marginTop:2 },
   nameToggleBtn:       { width:36, height:36, borderRadius:18, backgroundColor:GLASS,
                          borderWidth:1, borderColor:SEP, justifyContent:"center", alignItems:"center" },
   nameToggleBtnActive: { backgroundColor:BLUE_D, borderColor:"rgba(59,130,246,0.4)" },
-  subtitle: { fontSize:13, color:"rgba(241,245,249,0.45)", fontWeight:"400", marginTop:2 },
 });

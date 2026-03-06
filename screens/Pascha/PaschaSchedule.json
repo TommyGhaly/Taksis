@@ -148,7 +148,10 @@
           "label": "Palm Sunday Liturgy",
           "readings": {
             "prophecies": null,
-            "psalm": ["81:3 & 1-2", "65:1-2"],
+            "psalm": [
+              { "reference": "81:3 & 1-2", "beforeGospel": "Matthew 21:1-17" },
+              { "reference": "65:1-2", "beforeGospel": "John 12:12-19" }
+            ],
             "gospel": ["Matthew 21:1-17", "Mark 11:1-11", "Luke 19:29-48", "John 12:12-19"],
             "pauline": "Hebrews 9:11-28",
             "catholic": "1 Peter 4:1-11",
@@ -277,7 +280,7 @@
             "gospel": "Mark 11:12-24",
             "pauline": null,
             "catholic": null,
-            "homily": "Abba Shenouda",
+            "homily": { "author": "Abba Shenouda", "assignee": null },
             "litanies": null
           }
         },
@@ -414,7 +417,7 @@
             "gospel": "John 8:21-29",
             "pauline": null,
             "catholic": null,
-            "homily": "Abba Shenouda",
+            "homily": { "author": "Abba Shenouda", "assignee": null },
             "litanies": null
           }
         },
@@ -463,7 +466,7 @@
             "gospel": "Matthew 25:14 & 26:2",
             "pauline": null,
             "catholic": null,
-            "homily": "Abba John",
+            "homily": { "author": "Abba John", "assignee": null },
             "litanies": null
           }
         }
@@ -552,7 +555,7 @@
             "gospel": "John 11:46-57",
             "pauline": null,
             "catholic": null,
-            "homily": "Abba Shenouda",
+            "homily": { "author": "Abba Shenouda", "assignee": null },
             "litanies": null
           }
         },
@@ -601,7 +604,7 @@
             "gospel": "John 12:27-36",
             "pauline": null,
             "catholic": null,
-            "homily": "Abba Severianus",
+            "homily": { "author": "Abba Severianus", "assignee": null },
             "litanies": null
           }
         }
@@ -690,7 +693,7 @@
             "gospel": "Luke 22:7-13",
             "pauline": null,
             "catholic": null,
-            "homily": "Abba John",
+            "homily": { "author": "Abba John", "assignee": null },
             "litanies": ["The Sick", "The Oblations", "Praxis"]
           }
         },
@@ -727,7 +730,7 @@
             "gospel": "Matthew 26:17-19",
             "pauline": null,
             "catholic": null,
-            "homily": "Abba Shenouda",
+            "homily": { "author": "Abba Shenouda", "assignee": null },
             "litanies": null
           }
         },
@@ -740,7 +743,10 @@
             "gospel": "John 13:1-17",
             "pauline": "1 Timothy 4:9 & 5:10",
             "catholic": null,
-            "homily": ["Abba Shenouda", "Abba John"],
+            "homily": [
+              { "author": "Abba Shenouda", "assignee": null },
+              { "author": "Abba John", "assignee": null }
+            ],
             "litanies": ["The Sick", "The Travelers", "Air of Heaven", "Leaders", "Departed", "Oblations", "Catechumens", "Peace", "Fathers", "Assemblies"]
           }
         },
@@ -881,7 +887,7 @@
             ],
             "pauline": "1 Corinthians 1:23 & 2:1-4",
             "catholic": null,
-            "homily": "Abba John",
+            "homily": { "author": "Abba John", "assignee": null },
             "litanies": null
           }
         },
@@ -906,7 +912,7 @@
             ],
             "pauline": null,
             "catholic": null,
-            "homily": "Abba Athanasios",
+            "homily": { "author": "Abba Athanasios", "assignee": null },
             "litanies": null
           }
         },
@@ -967,7 +973,7 @@
             ],
             "pauline": "Philippians 2:4-11",
             "catholic": null,
-            "homily": "Abba Athanasios",
+            "homily": { "author": "Abba Athanasios", "assignee": null },
             "litanies": null
           }
         },

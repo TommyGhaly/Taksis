@@ -1,14 +1,20 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   View, Text, TouchableOpacity, Modal, ScrollView,
   StyleSheet, ActivityIndicator, Image, Platform,
+  FlatList, Dimensions,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import PaschaSchedule from "../Pascha/PaschaSchedule.json";
+import {
+  expandReadings, countSlots, dayProgress as dayTotals,
+  isAssignableSlot, ASSIGNABLE, READING_META, READING_ORDER,
+} from "../Pascha/PaschaReadingUtils";
 
 const DEFAULT_AVATAR = require("../../assets/default_profile.png");
+const { width: SCREEN_W } = Dimensions.get("window");
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 const BG      = "#0f0f0f";
@@ -20,38 +26,25 @@ const BLUE    = "#0a84ff";
 const BLUEDIM = "rgba(10,132,255,0.15)";
 const GREEN   = "#30d158";
 const ORANGE  = "#ff9f0a";
-const PURPLE  = "#bf5af2";
 const T1      = "#ffffff";
 const T2      = "rgba(255,255,255,0.65)";
 const T3      = "rgba(255,255,255,0.28)";
 
-const READING_META = {
-  prophecies: { label:"Prophecy",  icon:"fire",                color:"#e5c46b" },
-  psalm:      { label:"Psalm",     icon:"music-note",          color:"#7ec8a0" },
-  pauline:    { label:"Pauline",   icon:"feather",             color:"#c084fc" },
-  catholic:   { label:"Catholic",  icon:"bookshelf",           color:"#67d3cb" },
-  praxis:     { label:"Praxis",    icon:"script-text-outline", color:"#fb923c" },
-  gospel:     { label:"Gospel",    icon:"book-cross",          color:"#38bdf8" },
-  gospels:    { label:"Gospel",    icon:"book-cross",          color:"#38bdf8" },
-  homily:     { label:"Homily",    icon:"microphone-outline",  color:"#f87171" },
-  litanies:   { label:"Litanies",  icon:"hands-pray",          color:T2        },
-};
-const ASSIGNABLE    = ["prophecies","psalm","pauline","catholic","praxis","gospel","gospels"];
-const READING_ORDER = ["prophecies","psalm","pauline","catholic","praxis","gospel","gospels","homily","litanies"];
+
 
 const ALL_DAYS = [
-  { id:"last_friday_lent",    label:"Last Friday of Holy Lent", easterOffset:-9  },
-  { id:"palm_sunday",         label:"Palm Sunday",              easterOffset:-7  },
-  { id:"monday_eve",          label:"Monday Evening",           easterOffset:-6  },
-  { id:"monday_morning",      label:"Monday Morning",           easterOffset:-6  },
-  { id:"tuesday_eve",         label:"Tuesday Evening",          easterOffset:-5  },
-  { id:"tuesday_morning",     label:"Tuesday Morning",          easterOffset:-5  },
-  { id:"wednesday_eve",       label:"Wednesday Evening",        easterOffset:-4  },
-  { id:"wednesday_morning",   label:"Wednesday Morning",        easterOffset:-4  },
-  { id:"thursday_eve",        label:"Thursday Evening",         easterOffset:-3  },
-  { id:"covenant_thursday",   label:"Covenant Thursday",        easterOffset:-3  },
-  { id:"good_friday_eve",     label:"Good Friday Evening",      easterOffset:-2  },
-  { id:"good_friday_morning", label:"Good Friday Morning",      easterOffset:-2  },
+  { id:"last_friday_lent",    label:"Last Friday of Holy Lent", easterOffset:-9,  shortLabel:"Lent Fri" },
+  { id:"palm_sunday",         label:"Palm Sunday",              easterOffset:-7,  shortLabel:"Palm Sun" },
+  { id:"monday_eve",          label:"Monday Evening",           easterOffset:-6,  shortLabel:"Mon Eve"  },
+  { id:"monday_morning",      label:"Monday Morning",           easterOffset:-6,  shortLabel:"Mon Morn" },
+  { id:"tuesday_eve",         label:"Tuesday Evening",          easterOffset:-5,  shortLabel:"Tue Eve"  },
+  { id:"tuesday_morning",     label:"Tuesday Morning",          easterOffset:-5,  shortLabel:"Tue Morn" },
+  { id:"wednesday_eve",       label:"Wednesday Evening",        easterOffset:-4,  shortLabel:"Wed Eve"  },
+  { id:"wednesday_morning",   label:"Wednesday Morning",        easterOffset:-4,  shortLabel:"Wed Morn" },
+  { id:"thursday_eve",        label:"Thursday Evening",         easterOffset:-3,  shortLabel:"Thu Eve"  },
+  { id:"covenant_thursday",   label:"Covenant Thursday",        easterOffset:-3,  shortLabel:"Cov Thu"  },
+  { id:"good_friday_eve",     label:"Good Friday Evening",      easterOffset:-2,  shortLabel:"Fri Eve"  },
+  { id:"good_friday_morning", label:"Good Friday Morning",      easterOffset:-2,  shortLabel:"Fri Morn" },
 ];
 
 const DAYS_BY_ID = Object.fromEntries(
@@ -69,50 +62,7 @@ function calcDate(easter, offset) {
   return d.toLocaleDateString("en-US", { weekday:"short", month:"short", day:"numeric" });
 }
 
-function expandReadings(hour) {
-  const rows = [];
-  READING_ORDER.forEach(k => {
-    const val = hour.readings?.[k];
-    if (val == null) return;
-    if (Array.isArray(val) && ASSIGNABLE.includes(k) && k !== "psalm") {
-      val.forEach((entry, i) => {
-        let ref = "";
-        if (typeof entry === "string") ref = entry;
-        else if (entry.reference) ref = entry.location ? `${entry.reference} — ${entry.location}` : entry.reference;
-        rows.push({ rKey:k, slotKey:`${k}_${i}`, index:i, refText:ref });
-      });
-    } else {
-      const ref = Array.isArray(val)
-        ? val.map(v => typeof v === "string" ? v : v.reference || "").filter(Boolean).join(", ")
-        : (typeof val === "string" ? val : "");
-      rows.push({ rKey:k, slotKey:k, index:null, refText:ref });
-    }
-  });
-  return rows;
-}
 
-function countSlots(hour, ha) {
-  let total = 0, filled = 0;
-  expandReadings(hour).forEach(({ slotKey, rKey }) => {
-    if (!ASSIGNABLE.includes(rKey)) return;
-    total++;
-    if (rKey === "psalm") {
-      if ((ha.psalm_readers || []).length > 0) filled++;
-    } else {
-      if (ha[slotKey]) filled++;
-    }
-  });
-  return { total, filled };
-}
-
-function dayTotals(day, daySchedule) {
-  let total = 0, filled = 0;
-  (day.hours || []).forEach(h => {
-    const s = countSlots(h, daySchedule[h.id] || {});
-    total += s.total; filled += s.filled;
-  });
-  return { total, filled };
-}
 
 // ─── Profile pic hook ─────────────────────────────────────────────────────────
 function useProfilePic(uid) {
@@ -128,7 +78,7 @@ function useProfilePic(uid) {
   return uri;
 }
 
-const Avatar = ({ uid, size = 28, style }) => {
+const Avatar = ({ uid, size = 24, style }) => {
   const uri = useProfilePic(uid);
   return (
     <View style={[{ width:size, height:size, borderRadius:size/2, overflow:"hidden", backgroundColor:CARD3 }, style]}>
@@ -137,201 +87,246 @@ const Avatar = ({ uid, size = 28, style }) => {
   );
 };
 
-// ─── Reading pill ─────────────────────────────────────────────────────────────
-const ReadingPill = ({ row, hourAssignments, isLast }) => {
-  const meta        = READING_META[row.rKey] || { label:row.rKey, icon:"book-outline", color:T2 };
-  const isPsalm     = row.rKey === "psalm";
-  const label       = row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
+// ─── Reading row ──────────────────────────────────────────────────────────────
+const ReadingRow = ({ row, hourAssignments, isLast }) => {
+  const meta         = READING_META[row.rKey] || { label:row.rKey, icon:"book-outline", color:T2 };
+  const isPsalm      = row.rKey === "psalm";
+  const isHomily     = row.rKey === "homily";
+  const label        = isHomily
+    ? `Homily — ${row.author || row.refText}`
+    : row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
   const psalmReaders = isPsalm ? (hourAssignments.psalm_readers || []) : [];
-  const assignee    = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
-  const hasAssign   = isPsalm ? psalmReaders.length > 0 : !!assignee;
+  const assignee     = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
+  const hasAssign    = isPsalm ? psalmReaders.length > 0 : !!assignee;
 
   return (
-    <View style={[rp.row, !isLast && rp.border]}>
-      <View style={rp.left}>
-        <View style={[rp.iconBox, { backgroundColor: meta.color + "20" }]}>
-          <Icon name={meta.icon} size={13} color={meta.color} />
-        </View>
-        <View style={{ flex:1 }}>
-          <Text style={[rp.type, { color: meta.color }]}>{label}</Text>
-          {!!row.refText && <Text style={rp.ref} numberOfLines={1}>{row.refText}</Text>}
-        </View>
+    <View style={[rr.row, !isLast && rr.border]}>
+      <View style={[rr.iconBox, { backgroundColor: meta.color + "20" }]}>
+        <Icon name={meta.icon} size={12} color={meta.color} />
       </View>
-
-      <View style={rp.right}>
+      <View style={{ flex:1 }}>
+        <Text style={[rr.type, { color: meta.color }]}>{label}</Text>
+        {!!row.refText && !isHomily && (
+          <Text style={rr.ref} numberOfLines={2}>{row.refText}</Text>
+        )}
+      </View>
+      <View style={rr.assigneeCol}>
         {hasAssign ? (
           isPsalm ? (
-            <View style={rp.stack}>
+            <View style={{ gap:4, alignItems:"flex-end" }}>
               {psalmReaders.map((r, i) => (
-                <View key={r.uid||r.name||i} style={rp.chip}>
-                  <Avatar uid={r.uid} size={20} />
-                  <Text style={rp.chipName} numberOfLines={1}>{r.name}</Text>
+                <View key={r.uid||r.name||i} style={rr.chip}>
+                  <Avatar uid={r.uid} size={18} />
+                  <Text style={rr.chipName} numberOfLines={1}>{r.name}</Text>
                 </View>
               ))}
             </View>
           ) : (
-            <View style={rp.chip}>
-              <Avatar uid={assignee.uid} size={20} />
-              <Text style={rp.chipName} numberOfLines={1}>{assignee.name}</Text>
+            <View style={rr.chip}>
+              <Avatar uid={assignee.uid} size={18} />
+              <Text style={rr.chipName} numberOfLines={1}>{assignee.name}</Text>
             </View>
           )
         ) : (
-          <View style={rp.unassignedPill}>
-            <Text style={rp.unassignedTxt}>Unassigned</Text>
-          </View>
+          <Text style={rr.unassigned}>—</Text>
         )}
       </View>
     </View>
   );
 };
 
-const rp = StyleSheet.create({
-  row:           { flexDirection:"row", alignItems:"flex-start", paddingVertical:11, gap:10 },
-  border:        { borderBottomWidth:1, borderBottomColor:SEP },
-  left:          { flexDirection:"row", alignItems:"flex-start", gap:10, flex:1 },
-  iconBox:       { width:26, height:26, borderRadius:8, justifyContent:"center", alignItems:"center", flexShrink:0, marginTop:1 },
-  type:          { fontSize:11, fontWeight:"800", letterSpacing:0.5, textTransform:"uppercase" },
-  ref:           { fontSize:12, color:T2, marginTop:3, lineHeight:17 },
-  right:         { alignItems:"flex-end", flexShrink:0, maxWidth:"48%" },
-  stack:         { gap:5, alignItems:"flex-end" },
-  chip:          { flexDirection:"row", alignItems:"center", gap:6,
-                   backgroundColor:"rgba(48,209,88,0.08)", borderWidth:1,
-                   borderColor:"rgba(48,209,88,0.18)", borderRadius:20,
-                   paddingVertical:4, paddingHorizontal:8 },
-  chipName:      { fontSize:12, fontWeight:"600", color:GREEN, maxWidth:100 },
-  unassignedPill:{ paddingHorizontal:8, paddingVertical:3, borderRadius:10,
-                   backgroundColor:"rgba(255,255,255,0.05)" },
-  unassignedTxt: { fontSize:11, color:T3, fontStyle:"italic" },
+const rr = StyleSheet.create({
+  row:         { flexDirection:"row", alignItems:"flex-start", paddingVertical:10, gap:10 },
+  border:      { borderBottomWidth:1, borderBottomColor:SEP },
+  iconBox:     { width:24, height:24, borderRadius:7, justifyContent:"center", alignItems:"center", flexShrink:0, marginTop:1 },
+  type:        { fontSize:10, fontWeight:"800", letterSpacing:0.5, textTransform:"uppercase" },
+  ref:         { fontSize:12, color:T2, marginTop:2, lineHeight:17 },
+  assigneeCol: { alignItems:"flex-end", flexShrink:0, maxWidth:"45%" },
+  chip:        { flexDirection:"row", alignItems:"center", gap:5,
+                 backgroundColor:"rgba(48,209,88,0.08)", borderWidth:1,
+                 borderColor:"rgba(48,209,88,0.18)", borderRadius:20,
+                 paddingVertical:3, paddingHorizontal:7 },
+  chipName:    { fontSize:11, fontWeight:"600", color:GREEN, maxWidth:90 },
+  unassigned:  { fontSize:13, color:T3 },
 });
 
-// ─── Hour card ────────────────────────────────────────────────────────────────
+// ─── Hour card (inside day page) ──────────────────────────────────────────────
 const HourCard = ({ hour, hourAssignments }) => {
-  const [open, setOpen] = useState(false);
-  const rows = expandReadings(hour);
-  const assignableRows = rows.filter(r => ASSIGNABLE.includes(r.rKey));
+  const rows              = expandReadings(hour);
+  const assignableRows    = rows.filter(r => isAssignableSlot(r.rKey) || r.rKey === "psalm");
   const { total, filled } = countSlots(hour, hourAssignments);
-  const complete = total > 0 && filled === total;
-  const started  = filled > 0 && !complete;
-  const pct      = total > 0 ? Math.round(filled / total * 100) : 0;
-  const accentColor = complete ? GREEN : started ? BLUE : CARD3;
+  const complete          = total > 0 && filled === total;
+  const pct               = total > 0 ? Math.round(filled / total * 100) : 0;
 
   return (
-    <View style={hc.wrap}>
-      <TouchableOpacity style={hc.header} onPress={() => setOpen(v => !v)} activeOpacity={0.7}>
-        <View style={[hc.accent, { backgroundColor: accentColor }]} />
-        <View style={hc.mid}>
+    <View style={hc.card}>
+      <View style={hc.cardTop}>
+        <View style={[hc.accent, { backgroundColor: complete ? GREEN : pct > 0 ? BLUE : CARD3 }]} />
+        <View style={{ flex:1 }}>
           <Text style={hc.label}>{hour.label}</Text>
-          <View style={hc.metaRow}>
-            {complete
-              ? <><Icon name="check-circle-outline" size={11} color={GREEN} />
-                  <Text style={[hc.meta, { color:GREEN }]}>All assigned</Text></>
-              : started
-                ? <><Icon name="circle-slice-4" size={11} color={BLUE} />
-                    <Text style={[hc.meta, { color:BLUE }]}>{filled} of {total}</Text></>
-                : <Text style={hc.meta}>{total} readings</Text>
-            }
-          </View>
         </View>
-        {/* mini progress arc */}
-        <View style={hc.pctWrap}>
-          <Text style={[hc.pctTxt, complete && { color:GREEN }]}>{pct}%</Text>
+        <View style={[hc.badge, complete && hc.badgeGreen]}>
+          {complete
+            ? <Icon name="check" size={10} color={GREEN} />
+            : <Text style={hc.badgeTxt}>{pct}%</Text>
+          }
         </View>
-        <Icon name={open ? "chevron-up" : "chevron-down"} size={14} color={T3} />
-      </TouchableOpacity>
-
-      {open && (
-        <View style={hc.body}>
-          {assignableRows.map((row, i) => (
-            <ReadingPill
-              key={row.slotKey}
-              row={row}
-              hourAssignments={hourAssignments}
-              isLast={i === assignableRows.length - 1}
-            />
-          ))}
-        </View>
-      )}
+      </View>
+      <View style={hc.body}>
+        {assignableRows.map((row, i) => (
+          <ReadingRow
+            key={row.slotKey}
+            row={row}
+            hourAssignments={hourAssignments}
+            isLast={i === assignableRows.length - 1}
+          />
+        ))}
+      </View>
     </View>
   );
 };
 
 const hc = StyleSheet.create({
-  wrap:    { backgroundColor:CARD2, borderRadius:14, marginBottom:8, overflow:"hidden" },
-  header:  { flexDirection:"row", alignItems:"center", padding:14, gap:10 },
-  accent:  { width:3, alignSelf:"stretch", borderRadius:2, flexShrink:0 },
-  mid:     { flex:1 },
-  label:   { fontSize:14, fontWeight:"700", color:T1 },
-  metaRow: { flexDirection:"row", alignItems:"center", gap:4, marginTop:3 },
-  meta:    { fontSize:12, color:T2 },
-  pctWrap: { paddingHorizontal:8, paddingVertical:3, borderRadius:8, backgroundColor:CARD3 },
-  pctTxt:  { fontSize:11, fontWeight:"700", color:T2 },
-  body:    { borderTopWidth:1, borderTopColor:SEP, paddingHorizontal:14, paddingBottom:6 },
+  card:     { backgroundColor:CARD2, borderRadius:14, marginBottom:10, overflow:"hidden" },
+  cardTop:  { flexDirection:"row", alignItems:"center", padding:14, gap:10 },
+  accent:   { width:3, alignSelf:"stretch", borderRadius:2, flexShrink:0 },
+  label:    { fontSize:14, fontWeight:"700", color:T1 },
+  badge:    { paddingHorizontal:8, paddingVertical:3, borderRadius:8, backgroundColor:CARD3 },
+  badgeGreen:{ backgroundColor:"rgba(48,209,88,0.1)", borderWidth:1, borderColor:"rgba(48,209,88,0.25)" },
+  badgeTxt: { fontSize:11, fontWeight:"700", color:T2 },
+  body:     { borderTopWidth:1, borderTopColor:SEP, paddingHorizontal:14, paddingBottom:8 },
 });
 
-// ─── Day section ──────────────────────────────────────────────────────────────
-const DaySection = ({ day, daySchedule, easterDate }) => {
-  const [open, setOpen] = useState(false);
-  const hours  = day.hours || [];
+// ─── Day page (one full page in the pager) ───────────────────────────────────
+const PAGE_W = SCREEN_W - 32; // 16px margin each side
+
+const DayPage = ({ day, daySchedule, easterDate }) => {
+  const hours             = day.hours || [];
   const { total, filled } = dayTotals(day, daySchedule);
-  const pct      = total > 0 ? Math.round(filled / total * 100) : 0;
-  const complete = pct === 100;
-  const dateStr  = easterDate ? calcDate(easterDate, day.easterOffset) : null;
+  const pct               = total > 0 ? Math.round(filled / total * 100) : 0;
+  const complete          = pct === 100;
+  const dateStr           = easterDate ? calcDate(easterDate, day.easterOffset) : null;
 
   return (
-    <View style={ds.wrap}>
-      <TouchableOpacity style={ds.header} onPress={() => setOpen(v => !v)} activeOpacity={0.72}>
-        {/* colored left bar */}
-        <View style={[ds.bar, { backgroundColor: complete ? GREEN : pct > 0 ? BLUE : CARD3 }]} />
-        <View style={{ flex:1 }}>
-          <Text style={ds.label}>{day.label}</Text>
-          {dateStr && <Text style={ds.date}>{dateStr}</Text>}
-        </View>
-        <View style={ds.right}>
+    <View style={{ width: PAGE_W }}>
+      {/* Day header card */}
+      <View style={dp.headerCard}>
+        <View style={dp.headerTop}>
+          <View style={{ flex:1 }}>
+            <Text style={dp.dayLabel}>{day.label}</Text>
+            {dateStr && <Text style={dp.dayDate}>{dateStr}</Text>}
+          </View>
           {complete
-            ? <View style={ds.donePill}>
-                <Icon name="check" size={10} color={GREEN} />
-                <Text style={ds.doneTxt}>Done</Text>
+            ? <View style={dp.donePill}>
+                <Icon name="check" size={11} color={GREEN} />
+                <Text style={dp.doneTxt}>Complete</Text>
               </View>
-            : <Text style={ds.pct}>{pct}%</Text>
+            : <View style={dp.pctPill}>
+                <Text style={dp.pctTxt}>{pct}%</Text>
+              </View>
           }
-          <Icon name={open ? "chevron-up" : "chevron-down"} size={14} color={T3} style={{ marginLeft:8 }} />
         </View>
-      </TouchableOpacity>
-
-      <View style={ds.trackWrap}>
-        <View style={[ds.trackFill, { width:`${pct}%` }, complete && { backgroundColor:GREEN }]} />
+        {/* progress bar */}
+        <View style={dp.track}>
+          <View style={[dp.trackFill, { width:`${pct}%` }, complete && { backgroundColor:GREEN }]} />
+        </View>
+        {/* reading type count dots */}
+        <View style={dp.countRow}>
+          <Text style={dp.countTxt}>{filled} of {total} readings assigned</Text>
+        </View>
       </View>
 
-      {open && (
-        <View style={ds.body}>
-          {hours.map(h => (
-            <HourCard key={h.id} hour={h} hourAssignments={daySchedule[h.id] || {}} />
-          ))}
-        </View>
-      )}
+      {/* Hours */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 24 }}
+        nestedScrollEnabled
+      >
+        {hours.map(h => (
+          <HourCard key={h.id} hour={h} hourAssignments={daySchedule[h.id] || {}} />
+        ))}
+      </ScrollView>
     </View>
   );
 };
 
-const ds = StyleSheet.create({
-  wrap:     { backgroundColor:CARD, borderRadius:18, marginBottom:12,
-              overflow:"hidden", borderWidth:1, borderColor:SEP },
-  header:   { flexDirection:"row", alignItems:"center", padding:16, gap:12 },
-  bar:      { width:4, alignSelf:"stretch", borderRadius:2, flexShrink:0 },
-  label:    { fontSize:16, fontWeight:"700", color:T1 },
-  date:     { fontSize:12, color:T2, marginTop:2 },
-  right:    { flexDirection:"row", alignItems:"center" },
-  pct:      { fontSize:13, fontWeight:"600", color:T2 },
-  donePill: { flexDirection:"row", alignItems:"center", gap:4, paddingHorizontal:9, paddingVertical:3,
-              borderRadius:20, backgroundColor:"rgba(48,209,88,0.1)",
-              borderWidth:1, borderColor:"rgba(48,209,88,0.25)" },
-  doneTxt:  { fontSize:11, fontWeight:"700", color:GREEN },
-  trackWrap:{ height:2, backgroundColor:CARD2, marginHorizontal:16 },
-  trackFill:{ height:2, backgroundColor:BLUE, borderRadius:2 },
-  body:     { padding:12, paddingTop:10 },
+const dp = StyleSheet.create({
+  headerCard:  { backgroundColor:CARD, borderRadius:16, padding:16, marginBottom:12,
+                 borderWidth:1, borderColor:SEP },
+  headerTop:   { flexDirection:"row", alignItems:"flex-start", marginBottom:12 },
+  dayLabel:    { fontSize:18, fontWeight:"800", color:T1, letterSpacing:-0.3 },
+  dayDate:     { fontSize:12, color:T2, marginTop:3 },
+  donePill:    { flexDirection:"row", alignItems:"center", gap:4, paddingHorizontal:10, paddingVertical:4,
+                 borderRadius:20, backgroundColor:"rgba(48,209,88,0.1)",
+                 borderWidth:1, borderColor:"rgba(48,209,88,0.25)" },
+  doneTxt:     { fontSize:11, fontWeight:"700", color:GREEN },
+  pctPill:     { paddingHorizontal:10, paddingVertical:4, borderRadius:20, backgroundColor:CARD2 },
+  pctTxt:      { fontSize:12, fontWeight:"700", color:T2 },
+  track:       { height:3, backgroundColor:CARD2, borderRadius:2, marginBottom:10 },
+  trackFill:   { height:3, backgroundColor:BLUE, borderRadius:2 },
+  countRow:    { flexDirection:"row", alignItems:"center" },
+  countTxt:    { fontSize:12, color:T3 },
 });
 
-// ─── Stats bar (shown in year detail header) ──────────────────────────────────
+// ─── Day tab strip ────────────────────────────────────────────────────────────
+const DayTabStrip = ({ days, selectedIndex, schedule, easterDate, onSelect }) => {
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    // Keep selected tab visible
+    scrollRef.current?.scrollTo({ x: Math.max(0, selectedIndex * 64 - 96), animated: true });
+  }, [selectedIndex]);
+
+  return (
+    <ScrollView
+      ref={scrollRef}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={ts.content}
+      style={ts.bar}
+    >
+      {days.map((day, i) => {
+        const dayDef           = DAYS_BY_ID[day.id];
+        const { total, filled } = dayTotals(dayDef, schedule?.[day.id] || {});
+        const complete          = total > 0 && filled === total;
+        const started           = filled > 0 && !complete;
+        const active            = i === selectedIndex;
+
+        return (
+          <TouchableOpacity
+            key={day.id}
+            onPress={() => onSelect(i)}
+            style={[ts.tab, active && ts.tabActive]}
+            activeOpacity={0.75}
+          >
+            <View style={[ts.dot,
+              complete ? ts.dotGreen : started ? ts.dotBlue : ts.dotGray
+            ]} />
+            <Text style={[ts.label, active && ts.labelActive]} numberOfLines={1}>
+              {day.shortLabel}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+};
+
+const ts = StyleSheet.create({
+  bar:        { backgroundColor:BG, borderBottomWidth:1, borderBottomColor:SEP },
+  content:    { paddingHorizontal:12, paddingVertical:8, gap:6, flexDirection:"row" },
+  tab:        { paddingHorizontal:12, paddingVertical:8, borderRadius:10, backgroundColor:CARD,
+                alignItems:"center", justifyContent:"center", minWidth:70 },
+  tabActive:  { backgroundColor:BLUEDIM, borderWidth:1, borderColor:"rgba(10,132,255,0.35)" },
+  dot:        { width:5, height:5, borderRadius:2.5, marginBottom:5 },
+  dotGray:    { backgroundColor:T3 },
+  dotBlue:    { backgroundColor:BLUE },
+  dotGreen:   { backgroundColor:GREEN },
+  label:      { fontSize:12, fontWeight:"600", color:T2, textAlign:"center" },
+  labelActive:{ color:BLUE },
+});
+
+// ─── Overall stats bar ────────────────────────────────────────────────────────
 const StatsBar = ({ schedule }) => {
   let total = 0, filled = 0, daysComplete = 0;
   ALL_DAYS.forEach(d => {
@@ -344,34 +339,33 @@ const StatsBar = ({ schedule }) => {
 
   return (
     <View style={sb.wrap}>
-      <View style={sb.stat}>
-        <Text style={sb.val}>{pct}%</Text>
-        <Text style={sb.lbl}>Assigned</Text>
-      </View>
-      <View style={sb.div} />
-      <View style={sb.stat}>
-        <Text style={[sb.val, { color:GREEN }]}>{daysComplete}</Text>
-        <Text style={sb.lbl}>Days Done</Text>
-      </View>
-      <View style={sb.div} />
-      <View style={sb.stat}>
-        <Text style={sb.val}>{filled}</Text>
-        <Text style={sb.lbl}>of {total}</Text>
-      </View>
+      {[
+        { val:`${pct}%`, lbl:"Assigned", color:T1 },
+        { val:daysComplete, lbl:"Days Done", color:GREEN },
+        { val:`${filled}/${total}`, lbl:"Readings", color:T1 },
+      ].map(({ val, lbl, color }, i, arr) => (
+        <React.Fragment key={lbl}>
+          <View style={sb.stat}>
+            <Text style={[sb.val, { color }]}>{val}</Text>
+            <Text style={sb.lbl}>{lbl}</Text>
+          </View>
+          {i < arr.length - 1 && <View style={sb.div} />}
+        </React.Fragment>
+      ))}
     </View>
   );
 };
 
 const sb = StyleSheet.create({
-  wrap: { flexDirection:"row", backgroundColor:CARD2, marginHorizontal:16, marginBottom:12,
-          borderRadius:14, padding:14 },
+  wrap: { flexDirection:"row", backgroundColor:CARD, marginHorizontal:16, marginBottom:10,
+          borderRadius:14, padding:14, borderWidth:1, borderColor:SEP },
   stat: { flex:1, alignItems:"center" },
-  val:  { fontSize:20, fontWeight:"800", color:T1, letterSpacing:-0.5 },
+  val:  { fontSize:19, fontWeight:"800", letterSpacing:-0.5 },
   lbl:  { fontSize:11, color:T2, marginTop:3 },
-  div:  { width:1, backgroundColor:SEP, marginHorizontal:8 },
+  div:  { width:1, backgroundColor:SEP, marginHorizontal:4 },
 });
 
-// ─── Year card ────────────────────────────────────────────────────────────────
+// ─── Year card (archive list) ─────────────────────────────────────────────────
 const YearCard = ({ arc, onPress }) => {
   let total = 0, filled = 0;
   ALL_DAYS.forEach(d => {
@@ -392,7 +386,6 @@ const YearCard = ({ arc, onPress }) => {
 
   return (
     <TouchableOpacity style={yc.card} onPress={onPress} activeOpacity={0.75}>
-      {/* top row */}
       <View style={yc.top}>
         <View style={yc.iconBox}>
           <Icon name="cross" size={20} color={ORANGE} />
@@ -410,23 +403,16 @@ const YearCard = ({ arc, onPress }) => {
         }
         <Icon name="chevron-right" size={16} color={T3} style={{ marginLeft:10 }} />
       </View>
-
-      {/* progress bar */}
       <View style={yc.trackWrap}>
         <View style={[yc.trackFill, { width:`${pct}%` }, complete && { backgroundColor:GREEN }]} />
       </View>
-
-      {/* day dots */}
       <View style={yc.dots}>
         {ALL_DAYS.map(d => {
           const dayDef = DAYS_BY_ID[d.id];
           const { total:t, filled:f } = dayTotals(dayDef, arc.schedule?.[d.id] || {});
           const c = t > 0 && f === t;
           const s = f > 0 && !c;
-          return (
-            <View key={d.id}
-              style={[yc.dot, c && yc.dotGreen, s && yc.dotBlue]} />
-          );
+          return <View key={d.id} style={[yc.dot, c && yc.dotGreen, s && yc.dotBlue]} />;
         })}
       </View>
     </TouchableOpacity>
@@ -459,11 +445,14 @@ const PaschaArchiveViewer = ({ visible, churchId, onClose }) => {
   const [archives, setArchives]         = useState([]);
   const [loading, setLoading]           = useState(false);
   const [selectedYear, setSelectedYear] = useState(null);
+  const [pageIndex, setPageIndex]       = useState(0);
+  const pagerRef                        = useRef(null);
 
   useEffect(() => {
     if (!visible || !churchId) return;
     setLoading(true);
     setSelectedYear(null);
+    setPageIndex(0);
     setArchives([]);
     firestore()
       .collection("churches").doc(churchId)
@@ -492,13 +481,23 @@ const PaschaArchiveViewer = ({ visible, churchId, onClose }) => {
     return d.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
   };
 
+  const handleDaySelect = i => {
+    setPageIndex(i);
+    pagerRef.current?.scrollToIndex({ index:i, animated:true });
+  };
+
+  const handleYearOpen = year => {
+    setSelectedYear(year);
+    setPageIndex(0);
+  };
+
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={onClose} statusBarTranslucent>
       <View style={av.overlay}>
         <View style={av.sheet}>
           <View style={av.handle} />
 
-          {/* Header */}
+          {/* ── Header ── */}
           <View style={av.hdr}>
             {selectedYear ? (
               <TouchableOpacity style={av.backBtn} onPress={() => setSelectedYear(null)} activeOpacity={0.7}>
@@ -522,49 +521,79 @@ const PaschaArchiveViewer = ({ visible, churchId, onClose }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Body */}
+          {/* ── Body ── */}
           {loading ? (
             <View style={av.center}>
-              <View style={av.loadingIconWrap}>
-                <ActivityIndicator color={ORANGE} size="large" />
-              </View>
+              <ActivityIndicator color={ORANGE} size="large" />
               <Text style={av.loadingTxt}>Loading archives…</Text>
             </View>
+
           ) : archives.length === 0 ? (
             <View style={av.center}>
               <View style={av.emptyIconWrap}>
                 <Icon name="archive-off-outline" size={34} color={T3} />
               </View>
               <Text style={av.emptyTitle}>No Archives Yet</Text>
-              <Text style={av.emptySub}>
-                Archive a schedule from Settings to see it here.
-              </Text>
+              <Text style={av.emptySub}>Archive a schedule from Settings to see it here.</Text>
             </View>
+
           ) : !selectedYear ? (
+            // ── Year list ──
             <ScrollView contentContainerStyle={av.list} showsVerticalScrollIndicator={false}>
-              <Text style={av.sectionLabel}>{archives.length} archived year{archives.length > 1 ? "s" : ""}</Text>
+              <Text style={av.sectionLabel}>
+                {archives.length} archived year{archives.length > 1 ? "s" : ""}
+              </Text>
               {archives.map(a => (
-                <YearCard key={a.year} arc={a} onPress={() => setSelectedYear(a.year)} />
+                <YearCard key={a.year} arc={a} onPress={() => handleYearOpen(a.year)} />
               ))}
             </ScrollView>
+
           ) : (
-            <ScrollView contentContainerStyle={{ paddingBottom:24 }} showsVerticalScrollIndicator={false}>
+            // ── Year detail: tab strip + pager ──
+            <View style={{ flex:1 }}>
               <StatsBar schedule={selected.schedule} />
-              <View style={av.list}>
-                {ALL_DAYS.map(d => {
-                  const dayDef = DAYS_BY_ID[d.id];
-                  if (!dayDef?.hours?.length) return null;
+              <DayTabStrip
+                days={ALL_DAYS}
+                selectedIndex={pageIndex}
+                schedule={selected.schedule}
+                easterDate={selected.easterDate}
+                onSelect={handleDaySelect}
+              />
+              <FlatList
+                ref={pagerRef}
+                data={ALL_DAYS}
+                keyExtractor={d => d.id}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                snapToInterval={PAGE_W + 16}
+                decelerationRate="fast"
+                contentContainerStyle={{ paddingHorizontal:16, paddingTop:12, gap:16 }}
+                onMomentumScrollEnd={e => {
+                  const idx = Math.round(e.nativeEvent.contentOffset.x / (PAGE_W + 16));
+                  setPageIndex(idx);
+                }}
+                renderItem={({ item: day }) => {
+                  const dayDef = DAYS_BY_ID[day.id];
+                  if (!dayDef?.hours?.length) return <View style={{ width:PAGE_W }} />;
                   return (
-                    <DaySection
-                      key={d.id}
+                    <DayPage
                       day={dayDef}
-                      daySchedule={selected.schedule?.[d.id] || {}}
+                      daySchedule={selected.schedule?.[day.id] || {}}
                       easterDate={selected.easterDate}
                     />
                   );
-                })}
+                }}
+              />
+              {/* Page indicator dots */}
+              <View style={av.pageDots}>
+                {ALL_DAYS.map((_, i) => (
+                  <TouchableOpacity key={i} onPress={() => handleDaySelect(i)} activeOpacity={0.7}>
+                    <View style={[av.pageDot, i === pageIndex && av.pageDotActive]} />
+                  </TouchableOpacity>
+                ))}
               </View>
-            </ScrollView>
+            </View>
           )}
         </View>
       </View>
@@ -588,17 +617,19 @@ const av = StyleSheet.create({
   sub:           { fontSize:12, color:T2, marginTop:2 },
   xBtn:          { width:32, height:32, borderRadius:16, backgroundColor:CARD2,
                    justifyContent:"center", alignItems:"center" },
-  center:        { flex:1, justifyContent:"center", alignItems:"center", padding:32 },
-  loadingIconWrap:{ width:64, height:64, borderRadius:32, backgroundColor:CARD2,
-                    justifyContent:"center", alignItems:"center", marginBottom:16 },
+  center:        { flex:1, justifyContent:"center", alignItems:"center", padding:32, gap:16 },
   loadingTxt:    { fontSize:14, color:T2 },
   emptyIconWrap: { width:72, height:72, borderRadius:36, backgroundColor:CARD2,
-                   justifyContent:"center", alignItems:"center", marginBottom:18 },
-  emptyTitle:    { fontSize:19, fontWeight:"700", color:T1, marginBottom:8 },
+                   justifyContent:"center", alignItems:"center" },
+  emptyTitle:    { fontSize:19, fontWeight:"700", color:T1 },
   emptySub:      { fontSize:14, color:T2, textAlign:"center", lineHeight:21 },
   sectionLabel:  { fontSize:12, fontWeight:"700", color:T3, letterSpacing:1,
                    textTransform:"uppercase", marginBottom:12 },
   list:          { padding:16 },
+  pageDots:      { flexDirection:"row", justifyContent:"center", alignItems:"center",
+                   gap:5, paddingVertical:10 },
+  pageDot:       { width:5, height:5, borderRadius:2.5, backgroundColor:CARD3 },
+  pageDotActive: { width:16, borderRadius:3, backgroundColor:BLUE },
 });
 
 export default PaschaArchiveViewer;
