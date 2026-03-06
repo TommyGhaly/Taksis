@@ -4,7 +4,7 @@ import {
   StyleSheet, ScrollView, Modal, TextInput, Switch,
   FlatList, Alert, KeyboardAvoidingView, Platform,
   ActivityIndicator, StatusBar, Pressable, Image,
-  useWindowDimensions, Dimensions,
+  useWindowDimensions,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -13,6 +13,10 @@ import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import PaschaSchedule from "../Pascha/PaschaSchedule.json";
 import PaschaArchiveViewer from "./PaschaArchiveViewer";
+import {
+  expandReadings, countSlots, dayProgress, isAssignableSlot,
+  ASSIGNABLE, READING_META, READING_ORDER, MAX_PSALM_READERS, readingDisplay,
+} from "../Pascha/PaschaReadingUtils";
 
 const DEFAULT_AVATAR = require("../../assets/default_profile.png");
 
@@ -30,21 +34,6 @@ const ORANGE  = "#ff9f0a";
 const T1      = "#ffffff";
 const T2      = "rgba(255,255,255,0.65)";
 const T3      = "rgba(255,255,255,0.30)";
-
-const READING_META = {
-  prophecies: { label:"Prophecy",  icon:"fire",                color:"#e5c46b" },
-  psalm:      { label:"Psalm",     icon:"music-note",          color:"#7ec8a0" },
-  pauline:    { label:"Pauline",   icon:"feather",             color:"#c084fc" },
-  catholic:   { label:"Catholic",  icon:"bookshelf",           color:"#67d3cb" },
-  praxis:     { label:"Praxis",    icon:"script-text-outline", color:"#fb923c" },
-  gospel:     { label:"Gospel",    icon:"book-cross",          color:"#38bdf8" },
-  gospels:    { label:"Gospel",    icon:"book-cross",          color:"#38bdf8" },
-  homily:     { label:"Homily",    icon:"microphone-outline",  color:"#f87171" },
-  litanies:   { label:"Litanies",  icon:"hands-pray",          color:T2        },
-};
-const ASSIGNABLE        = ["prophecies","psalm","pauline","catholic","praxis","gospel","gospels"];
-const MAX_PSALM_READERS = 4;
-const READING_ORDER     = ["prophecies","psalm","pauline","catholic","praxis","gospel","gospels","homily","litanies"];
 
 const ALL_DAYS = [
   { id:"last_friday_lent",    label:"Last Friday of Holy Lent", easterOffset:-9,  shortLabel:"Lent Fri" },
@@ -75,59 +64,6 @@ function calcDate(easter, offset) {
   return d.toLocaleDateString("en-US", { weekday:"short", month:"short", day:"numeric" });
 }
 
-function readingDisplay(value) {
-  if (!value) return "";
-  if (typeof value === "string") return value;
-  if (Array.isArray(value))
-    return value.map(v =>
-      typeof v === "string" ? v
-        : v.reference ? (v.location ? `${v.reference} — ${v.location}` : v.reference) : ""
-    ).filter(Boolean).join("\n");
-  return String(value);
-}
-
-function expandReadings(hour) {
-  const rows = [];
-  READING_ORDER.forEach(k => {
-    const val = hour.readings?.[k];
-    if (val == null) return;
-    if (Array.isArray(val) && ASSIGNABLE.includes(k) && k !== "psalm") {
-      val.forEach((entry, i) => {
-        let ref = "", loc = "";
-        if (typeof entry === "string") { ref = entry; }
-        else if (entry.reference) { ref = entry.reference; loc = entry.location || ""; }
-        rows.push({ rKey:k, slotKey:`${k}_${i}`, index:i, refText:ref, location:loc });
-      });
-    } else {
-      rows.push({ rKey:k, slotKey:k, index:null, refText:readingDisplay(val), location:"" });
-    }
-  });
-  return rows;
-}
-
-function countSlots(hour, ha) {
-  let total = 0, filled = 0;
-  expandReadings(hour).forEach(({ slotKey, rKey }) => {
-    if (!ASSIGNABLE.includes(rKey)) return;
-    total++;
-    if (rKey === "psalm") {
-      if ((ha.psalm_readers || []).length > 0) filled++;
-    } else {
-      if (ha[slotKey]) filled++;
-    }
-  });
-  return { total, filled };
-}
-
-function dayProgress(day, ds) {
-  let total = 0, filled = 0;
-  (day.hours || []).forEach(h => {
-    const s = countSlots(h, ds[h.id] || {});
-    total += s.total; filled += s.filled;
-  });
-  return { total, filled };
-}
-
 // ─── Profile picture hook ─────────────────────────────────────────────────────
 function useProfilePic(uid) {
   const [uri, setUri] = useState(null);
@@ -151,7 +87,7 @@ const Avatar = ({ uid, size = 40, style }) => {
   );
 };
 
-// ─── Psalm reader row button ──────────────────────────────────────────────────
+// ─── Psalm reader row ─────────────────────────────────────────────────────────
 const PsalmReadersRow = ({ readers = [], onOpen }) => {
   const has = readers.length > 0;
   return (
@@ -159,7 +95,7 @@ const PsalmReadersRow = ({ readers = [], onOpen }) => {
       {has ? (
         <>
           <View style={{ flexDirection:"row" }}>
-            {readers.slice(0,3).map((r, i) => (
+            {readers.slice(0,3).map((r,i) => (
               <Avatar key={r.uid||r.name||i} uid={r.uid} size={26}
                 style={{ marginLeft:i>0?-8:0, borderWidth:1.5, borderColor:CARD }} />
             ))}
@@ -180,7 +116,7 @@ const PsalmReadersRow = ({ readers = [], onOpen }) => {
   );
 };
 
-// ─── Gospel grid ─────────────────────────────────────────────────────────────
+// ─── Gospel grid (procession stations) ───────────────────────────────────────
 const GospelGrid = ({ rows, hourAssignments, onOpenPicker }) => {
   const meta = READING_META.gospels;
   return (
@@ -231,7 +167,10 @@ const gg = StyleSheet.create({
 });
 
 // ─── Psalm multi-select picker ────────────────────────────────────────────────
-const PsalmPickerModal = ({ visible, refText, currentReaders, deacons, congregation, loadingUsers, onSave, onClose }) => {
+const PsalmPickerModal = ({
+  visible, refText, currentReaders, deacons, congregation,
+  loadingUsers, onSave, onClose,
+}) => {
   const { height: screenH } = useWindowDimensions();
   const [tab, setTab]           = useState("deacons");
   const [q, setQ]               = useState("");
@@ -242,12 +181,8 @@ const PsalmPickerModal = ({ visible, refText, currentReaders, deacons, congregat
 
   useEffect(() => {
     if (!visible) return;
-    const map = {};
-    const keys = new Set();
-    (currentReaders || []).forEach(r => {
-      const k = r.uid || r.name;
-      keys.add(k); map[k] = r;
-    });
+    const map = {}, keys = new Set();
+    (currentReaders || []).forEach(r => { const k = r.uid||r.name; keys.add(k); map[k] = r; });
     setSelected(keys); setSelectedMap(map);
     setTab("deacons"); setQ(""); setManual(""); setManualOpen(false);
   }, [visible]);
@@ -432,7 +367,10 @@ const pm = StyleSheet.create({
 });
 
 // ─── HourModal ────────────────────────────────────────────────────────────────
-const HourModal = ({ visible, hour, hourAssignments, deacons, congregation, loadingUsers, onSaveReading, onOpenPsalmPicker, onClose }) => {
+const HourModal = ({
+  visible, hour, hourAssignments, deacons, congregation,
+  loadingUsers, onSaveReading, onOpenPsalmPicker, onClose,
+}) => {
   const { height: screenH } = useWindowDimensions();
   const [pickerSlot, setPickerSlot] = useState(null);
   const [pickerRow_, setPickerRow_] = useState(null);
@@ -448,14 +386,14 @@ const HourModal = ({ visible, hour, hourAssignments, deacons, congregation, load
 
   if (!hour) return null;
 
-  const rows          = expandReadings(hour);
+  const rows              = expandReadings(hour);
   const { total, filled } = countSlots(hour, hourAssignments);
-  const complete      = total > 0 && filled === total;
-  const pct           = total > 0 ? Math.round(filled / total * 100) : 0;
-  const sheetMax      = screenH * 0.92;
-  const psalmReaders  = hourAssignments.psalm_readers || [];
-  const gospelRows    = rows.filter(r => (r.rKey==="gospel"||r.rKey==="gospels") && r.location);
-  const hasGospelGrid = gospelRows.length > 0;
+  const complete          = total > 0 && filled === total;
+  const pct               = total > 0 ? Math.round(filled / total * 100) : 0;
+  const sheetMax          = screenH * 0.92;
+  const psalmReaders      = hourAssignments.psalm_readers || [];
+  const gospelRows        = rows.filter(r => (r.rKey==="gospel"||r.rKey==="gospels") && r.location);
+  const hasGospelGrid     = gospelRows.length > 0;
 
   const openPicker = row => {
     setSel(hourAssignments[row.slotKey] || null);
@@ -465,13 +403,20 @@ const HourModal = ({ visible, hour, hourAssignments, deacons, congregation, load
   const closePicker  = () => { setPickerSlot(null); setPickerRow_(null); };
   const commitPicker = () => { onSaveReading(hour.id, pickerSlot, sel ?? null); closePicker(); };
 
-  const pickerMeta      = pickerRow_ ? (READING_META[pickerRow_.rKey] || { label:pickerRow_.rKey, icon:"book-outline", color:T2 }) : null;
-  const pickerColor     = pickerMeta?.color || T2;
-  const pickerLabel     = pickerRow_ ? (pickerRow_.index!=null ? `${pickerMeta?.label} ${pickerRow_.index+1}` : pickerMeta?.label) : "";
+  const pickerMeta  = pickerRow_ ? (READING_META[pickerRow_.rKey] || { label:pickerRow_.rKey, icon:"book-outline", color:T2 }) : null;
+  const pickerColor = pickerMeta?.color || T2;
+  const pickerLabel = pickerRow_
+    ? pickerRow_.rKey === "homily"
+      ? `Homily — ${pickerRow_.author || pickerRow_.refText}`
+      : pickerRow_.index != null
+        ? `${pickerMeta?.label} ${pickerRow_.index + 1}`
+        : pickerMeta?.label
+    : "";
+
   const pickerScrollMax = sheetMax - (sel ? 330 : 270);
 
   const pickerSource = useMemo(() => {
-    const list = tab==="deacons" ? deacons : congregation;
+    const list = tab === "deacons" ? deacons : congregation;
     return q ? list.filter(u => u.name.toLowerCase().includes(q.toLowerCase())) : list;
   }, [tab, deacons, congregation, q]);
 
@@ -485,6 +430,7 @@ const HourModal = ({ visible, hour, hourAssignments, deacons, congregation, load
               <View style={[hm.sheet, { maxHeight:sheetMax }]}>
                 <View style={hm.handle} />
 
+                {/* ── Reading list view ── */}
                 {!pickerSlot && (
                   <>
                     <View style={hm.hdr}>
@@ -509,14 +455,19 @@ const HourModal = ({ visible, hour, hourAssignments, deacons, congregation, load
                       nestedScrollEnabled
                     >
                       {rows.map((row, i) => {
-                        const meta        = READING_META[row.rKey] || { label:row.rKey, icon:"book-outline", color:T2 };
-                        const assignable  = ASSIGNABLE.includes(row.rKey);
-                        const isPsalm     = row.rKey === "psalm";
-                        const isGospelLoc = (row.rKey==="gospel"||row.rKey==="gospels") && row.location;
-                        const isFirstGospel = hasGospelGrid && row.rKey==="gospels" && row.index===0;
-                        const assignee    = !isPsalm ? (hourAssignments[row.slotKey]||null) : null;
-                        const label       = row.index!=null ? `${meta.label} ${row.index+1}` : meta.label;
+                        const meta           = READING_META[row.rKey] || { label:row.rKey, icon:"book-outline", color:T2 };
+                        const assignable     = isAssignableSlot(row.rKey);
+                        const isPsalm        = row.rKey === "psalm";
+                        const isHomily       = row.rKey === "homily";
+                        const isGospelLoc    = (row.rKey==="gospel"||row.rKey==="gospels") && row.location;
+                        const isFirstGospel  = hasGospelGrid && row.rKey==="gospels" && row.index===0;
+                        const assignee       = !isPsalm ? (hourAssignments[row.slotKey]||null) : null;
+                        const label          = isHomily
+                          ? `Homily — ${row.author || row.refText}`
+                          : row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
+
                         if (isGospelLoc && !isFirstGospel) return null;
+
                         return (
                           <View key={row.slotKey}
                             style={[hm.readingBlock, i===rows.length-1 && { borderBottomWidth:0 }]}>
@@ -530,16 +481,24 @@ const HourModal = ({ visible, hour, hourAssignments, deacons, congregation, load
                                 </Text>
                                 {isFirstGospel
                                   ? <Text style={hm.readingRef}>12 stations</Text>
-                                  : !!row.refText && <Text style={hm.readingRef}>{row.refText}</Text>
+                                  : isHomily
+                                    ? null
+                                    : !!row.refText && <Text style={hm.readingRef}>{row.refText}</Text>
                                 }
                               </View>
                             </View>
+
+                            {/* Gospel grid for procession */}
                             {isFirstGospel && (
                               <GospelGrid rows={gospelRows} hourAssignments={hourAssignments} onOpenPicker={openPicker} />
                             )}
-                            {!isFirstGospel && isPsalm && assignable && (
+
+                            {/* Psalm: multi-reader row */}
+                            {!isFirstGospel && isPsalm && (
                               <PsalmReadersRow readers={psalmReaders} onOpen={onOpenPsalmPicker} />
                             )}
+
+                            {/* All other assignable slots (prophecies, gospels, pauline, catholic, praxis, homily) */}
                             {!isFirstGospel && !isPsalm && assignable && (
                               <TouchableOpacity onPress={() => openPicker(row)} activeOpacity={0.7}
                                 style={[hm.assignBtn, assignee && hm.assignBtnFilled]}>
@@ -552,7 +511,9 @@ const HourModal = ({ visible, hour, hourAssignments, deacons, congregation, load
                                 ) : (
                                   <>
                                     <Icon name="account-plus-outline" size={16} color={T2} />
-                                    <Text style={hm.unassignedTxt}>Assign reader</Text>
+                                    <Text style={hm.unassignedTxt}>
+                                      {isHomily ? "Assign reader" : "Assign reader"}
+                                    </Text>
                                     <Icon name="chevron-right" size={14} color={T3} />
                                   </>
                                 )}
@@ -565,6 +526,7 @@ const HourModal = ({ visible, hour, hourAssignments, deacons, congregation, load
                   </>
                 )}
 
+                {/* ── Picker view ── */}
                 {!!pickerSlot && pickerRow_ && (
                   <>
                     <View style={hm.pickerHdr}>
@@ -576,8 +538,12 @@ const HourModal = ({ visible, hour, hourAssignments, deacons, congregation, load
                       </View>
                       <View style={{ flex:1 }}>
                         <Text style={[hm.pickerType, { color:pickerColor }]}>{pickerLabel}</Text>
-                        {!!pickerRow_.refText && <Text style={hm.pickerRef} numberOfLines={1}>{pickerRow_.refText}</Text>}
-                        {!!pickerRow_.location && <Text style={hm.pickerRef} numberOfLines={1}>{pickerRow_.location}</Text>}
+                        {!!pickerRow_.refText && pickerRow_.rKey !== "homily" && (
+                          <Text style={hm.pickerRef} numberOfLines={1}>{pickerRow_.refText}</Text>
+                        )}
+                        {!!pickerRow_.location && (
+                          <Text style={hm.pickerRef} numberOfLines={1}>{pickerRow_.location}</Text>
+                        )}
                       </View>
                     </View>
                     {sel && (
@@ -784,19 +750,22 @@ const dt = StyleSheet.create({
 });
 
 // ─── Hour tile ────────────────────────────────────────────────────────────────
-const HourTile = React.memo(({ hour, hourAssignments, dayId, deacons, congregation, loadingUsers, onSaveReading, onSavePsalmReaders }) => {
+const HourTile = React.memo(({
+  hour, hourAssignments, dayId, deacons, congregation,
+  loadingUsers, onSaveReading, onSavePsalmReaders,
+}) => {
   const [hourOpen, setHourOpen]               = useState(false);
   const [psalmPickerOpen, setPsalmPickerOpen] = useState(false);
 
-  const rows           = expandReadings(hour);
-  const assignableRows = rows.filter(r => ASSIGNABLE.includes(r.rKey));
+  const rows              = expandReadings(hour);
+  const assignableRows    = rows.filter(r => isAssignableSlot(r.rKey) || r.rKey === "psalm");
   const { total, filled } = countSlots(hour, hourAssignments);
-  const complete     = total > 0 && filled === total;
-  const started      = filled > 0 && !complete;
-  const pct          = total > 0 ? filled / total : 0;
-  const statusColor  = complete ? GREEN : started ? BLUE : T3;
-  const psalmReaders = hourAssignments.psalm_readers || [];
-  const psalmRefText = rows.find(r => r.rKey === "psalm")?.refText || "";
+  const complete          = total > 0 && filled === total;
+  const started           = filled > 0 && !complete;
+  const pct               = total > 0 ? filled / total : 0;
+  const statusColor       = complete ? GREEN : started ? BLUE : T3;
+  const psalmReaders      = hourAssignments.psalm_readers || [];
+  const psalmRefText      = rows.find(r => r.rKey === "psalm")?.refText || "";
 
   return (
     <>
@@ -823,8 +792,11 @@ const HourTile = React.memo(({ hour, hourAssignments, dayId, deacons, congregati
           {assignableRows.map((row, i) => {
             const meta      = READING_META[row.rKey] || { label:row.rKey, icon:"book-outline", color:T2 };
             const isPsalm   = row.rKey === "psalm";
-            const assignee  = !isPsalm ? hourAssignments[row.slotKey] : null;
-            const typeLabel = row.index!=null ? `${meta.label} ${row.index+1}` : meta.label;
+            const isHomily  = row.rKey === "homily";
+            const assignee  = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
+            const typeLabel = isHomily
+              ? `Homily — ${row.author || row.refText}`
+              : row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
             const isLast    = i === assignableRows.length - 1;
             return (
               <View key={row.slotKey} style={[ht.rRow, !isLast && ht.rRowBorder]}>
@@ -850,7 +822,9 @@ const HourTile = React.memo(({ hour, hourAssignments, dayId, deacons, congregati
                     <Text style={ht.assigneeName} numberOfLines={1}>{assignee.name}</Text>
                   </View>
                 ) : (
-                  <Text style={ht.rRef} numberOfLines={1}>{row.refText||"—"}</Text>
+                  <Text style={ht.rRef} numberOfLines={1}>
+                    {isHomily ? "Unassigned" : row.refText || "—"}
+                  </Text>
                 )}
               </View>
             );
@@ -903,7 +877,11 @@ const ht = StyleSheet.create({
 });
 
 // ─── Settings sheet ───────────────────────────────────────────────────────────
-const SettingsSheet = ({ visible, myReadingsVisible, fullScheduleVisible, easterDate, year, onToggleMyReadings, onToggleFullSchedule, onDateSave, onArchivePress, onViewArchives, onClose }) => {
+const SettingsSheet = ({
+  visible, myReadingsVisible, fullScheduleVisible, easterDate, year,
+  onToggleMyReadings, onToggleFullSchedule, onDateSave,
+  onArchivePress, onViewArchives, onClose,
+}) => {
   const [pickerDate, setPickerDate] = useState(new Date());
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -988,7 +966,13 @@ const SettingsSheet = ({ visible, myReadingsVisible, fullScheduleVisible, easter
               {easterDate && !pickerOpen && (
                 <>
                   <View style={ss.divider} />
-                  {[["Last Friday of Lent",-9],["Palm Sunday",-7],["Holy Monday",-6],["Good Friday",-2],["Easter Sunday",0]].map(([l,o]) => (
+                  {[
+                    ["Last Friday of Lent", -9],
+                    ["Palm Sunday",         -7],
+                    ["Holy Monday",         -6],
+                    ["Good Friday",         -2],
+                    ["Easter Sunday",        0],
+                  ].map(([l,o]) => (
                     <View key={l} style={ss.dateRow}>
                       <Text style={ss.dateLabel}>{l}</Text>
                       <Text style={[ss.dateVal, o===0 && { color:BLUE, fontWeight:"700" }]}>{calcDate(easterDate, o)}</Text>
@@ -1048,8 +1032,7 @@ const ArchiveConfirm = ({ visible, year, onConfirm, onClose }) => {
   }, [visible]);
 
   const handleConfirm = async () => {
-    setArchiving(true);
-    setProgress(0);
+    setArchiving(true); setProgress(0);
     const steps = [15, 35, 55, 72, 88];
     let i = 0;
     const tick = setInterval(() => {
@@ -1058,8 +1041,7 @@ const ArchiveConfirm = ({ visible, year, onConfirm, onClose }) => {
     }, 350);
     await onConfirm();
     clearInterval(tick);
-    setProgress(100);
-    setDone(true);
+    setProgress(100); setDone(true);
   };
 
   return (
@@ -1131,22 +1113,23 @@ const arc = StyleSheet.create({
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function PaschaManager() {
   const isMounted = useRef(true);
-  const [churchId, setChurchId]               = useState(null);
+  const [churchId, setChurchId]                     = useState(null);
   const [myReadingsVisible, setMyReadingsVisible]   = useState(false);
   const [fullScheduleVisible, setFullScheduleVisible] = useState(false);
-  const [easterDate, setEasterDate]           = useState(null);
-  const [schedule, setSchedule]               = useState({});
-  const [deacons, setDeacons]                 = useState([]);
-  const [congregation, setCongregation]       = useState([]);
-  const [loadingUsers, setLoadingUsers]       = useState(false);
-  const [settingsOpen, setSettingsOpen]       = useState(false);
-  const [archiveOpen, setArchiveOpen]         = useState(false);
-  const [archiveViewOpen, setArchiveViewOpen] = useState(false);
-  const [selectedId, setSelectedId]           = useState(ALL_DAYS[0].id);
+  const [easterDate, setEasterDate]                 = useState(null);
+  const [schedule, setSchedule]                     = useState({});
+  const [deacons, setDeacons]                       = useState([]);
+  const [congregation, setCongregation]             = useState([]);
+  const [loadingUsers, setLoadingUsers]             = useState(false);
+  const [settingsOpen, setSettingsOpen]             = useState(false);
+  const [archiveOpen, setArchiveOpen]               = useState(false);
+  const [archiveViewOpen, setArchiveViewOpen]       = useState(false);
+  const [selectedId, setSelectedId]                 = useState(ALL_DAYS[0].id);
 
   const year        = easterDate ? new Date(easterDate).getFullYear() : new Date().getFullYear();
   const selectedDay = DAYS_BY_ID[selectedId];
 
+  // ── Church ID listener ────────────────────────────────────────────────────
   useEffect(() => {
     isMounted.current = true;
     const user = auth().currentUser;
@@ -1157,6 +1140,7 @@ export default function PaschaManager() {
     return () => { isMounted.current = false; unsub(); };
   }, []);
 
+  // ── Config listener ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!churchId) return;
     const unsub = firestore().collection("churches").doc(churchId)
@@ -1171,23 +1155,32 @@ export default function PaschaManager() {
     return () => unsub();
   }, [churchId]);
 
+  // ── Users listeners ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!churchId) return;
     setLoadingUsers(true);
     const unsubC = firestore().collection("churches").doc(churchId).onSnapshot(doc => {
       if (!isMounted.current || !doc.exists) return;
-      setDeacons((doc.data().deacons||[]).filter(d => d.name && d.uid)
-        .map(d => ({ ...d, isDeacon:true })).sort((a,b) => a.name.localeCompare(b.name)));
+      setDeacons(
+        (doc.data().deacons || [])
+          .filter(d => d.name && d.uid)
+          .map(d => ({ ...d, isDeacon:true }))
+          .sort((a,b) => a.name.localeCompare(b.name))
+      );
     });
     const unsubU = firestore().collection("users").where("church","==",churchId).onSnapshot(snap => {
       if (!isMounted.current) return;
-      setCongregation(snap.docs.map(d => ({ uid:d.id, ...d.data() }))
-        .filter(u => u.name).sort((a,b) => a.name.localeCompare(b.name)));
+      setCongregation(
+        snap.docs.map(d => ({ uid:d.id, ...d.data() }))
+          .filter(u => u.name)
+          .sort((a,b) => a.name.localeCompare(b.name))
+      );
       setLoadingUsers(false);
     });
     return () => { unsubC(); unsubU(); };
   }, [churchId]);
 
+  // ── Firestore write ───────────────────────────────────────────────────────
   const writeConfig = useCallback(async fields => {
     if (!churchId) return;
     await firestore().collection("churches").doc(churchId)
@@ -1231,11 +1224,12 @@ export default function PaschaManager() {
     }
   }, [churchId, year, schedule, writeConfig]);
 
-  const { total:dayTotal, filled:dayFilled } = selectedDay
-    ? dayProgress(selectedDay, schedule[selectedId]||{})
-    : { total:0, filled:0 };
-  const dayPct = dayTotal > 0 ? Math.round(dayFilled/dayTotal*100) : 0;
+  // ── Day progress for header ───────────────────────────────────────────────
   const ds = schedule[selectedId] || {};
+  const { total:dayTotal, filled:dayFilled } = selectedDay
+    ? dayProgress(selectedDay, ds)
+    : { total:0, filled:0 };
+  const dayPct = dayTotal > 0 ? Math.round(dayFilled / dayTotal * 100) : 0;
 
   return (
     <View style={mn.container}>
@@ -1276,11 +1270,11 @@ export default function PaschaManager() {
       )}
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={mn.scroll}>
-        {(selectedDay?.hours||[]).map(hour => (
+        {(selectedDay?.hours || []).map(hour => (
           <HourTile
             key={hour.id}
             hour={hour}
-            hourAssignments={ds[hour.id]||{}}
+            hourAssignments={ds[hour.id] || {}}
             dayId={selectedId}
             deacons={deacons}
             congregation={congregation}
@@ -1291,15 +1285,19 @@ export default function PaschaManager() {
         ))}
       </ScrollView>
 
-      <SettingsSheet visible={settingsOpen} myReadingsVisible={myReadingsVisible}
-        fullScheduleVisible={fullScheduleVisible} easterDate={easterDate}
+      <SettingsSheet
+        visible={settingsOpen}
+        myReadingsVisible={myReadingsVisible}
+        fullScheduleVisible={fullScheduleVisible}
+        easterDate={easterDate}
         year={year}
         onToggleMyReadings={v => { setMyReadingsVisible(v); writeConfig({ myReadingsVisible:v }); }}
         onToggleFullSchedule={v => { setFullScheduleVisible(v); writeConfig({ fullScheduleVisible:v }); }}
-        onDateSave={date => { const iso=date.toISOString(); setEasterDate(iso); writeConfig({ easterDate:iso }); }}
+        onDateSave={date => { const iso = date.toISOString(); setEasterDate(iso); writeConfig({ easterDate:iso }); }}
         onViewArchives={() => { setSettingsOpen(false); setArchiveViewOpen(true); }}
         onArchivePress={() => { setSettingsOpen(false); setArchiveOpen(true); }}
-        onClose={() => setSettingsOpen(false)} />
+        onClose={() => setSettingsOpen(false)}
+      />
 
       <ArchiveConfirm visible={archiveOpen} year={year} onConfirm={doArchive}
         onClose={() => setArchiveOpen(false)} />
@@ -1311,17 +1309,17 @@ export default function PaschaManager() {
 }
 
 const mn = StyleSheet.create({
-  container:   { flex:1, backgroundColor:"#121212" },
-  header:      { flexDirection:"row", alignItems:"center", paddingHorizontal:20, paddingTop:18, paddingBottom:10 },
-  eyebrow:     { fontSize:11, fontWeight:"700", color:BLUE, letterSpacing:1.5, marginBottom:4 },
-  title:       { fontSize:28, fontWeight:"800", color:T1, letterSpacing:-0.5 },
-  cogBtn:      { width:40, height:40, borderRadius:20, backgroundColor:CARD, justifyContent:"center", alignItems:"center" },
-  nudge:       { flexDirection:"row", alignItems:"center", gap:8, marginHorizontal:16, marginBottom:6, padding:12, borderRadius:12, backgroundColor:"rgba(255,159,10,0.08)", borderWidth:1, borderColor:"rgba(255,159,10,0.18)" },
-  nudgeTxt:    { flex:1, fontSize:13, color:ORANGE, fontWeight:"500" },
-  dayHdr:      { paddingHorizontal:20, paddingTop:14, paddingBottom:10 },
-  dayTitle:    { fontSize:22, fontWeight:"800", color:T1, letterSpacing:-0.3 },
-  dayDate:     { fontSize:13, color:T2, marginTop:3 },
-  dayTrack:    { height:2, backgroundColor:CARD2, borderRadius:2 },
-  dayTrackFill:{ height:2, backgroundColor:BLUE, borderRadius:2 },
-  scroll:      { paddingHorizontal:16, paddingBottom:48, paddingTop:4 },
+  container:    { flex:1, backgroundColor:"#121212" },
+  header:       { flexDirection:"row", alignItems:"center", paddingHorizontal:20, paddingTop:18, paddingBottom:10 },
+  eyebrow:      { fontSize:11, fontWeight:"700", color:BLUE, letterSpacing:1.5, marginBottom:4 },
+  title:        { fontSize:28, fontWeight:"800", color:T1, letterSpacing:-0.5 },
+  cogBtn:       { width:40, height:40, borderRadius:20, backgroundColor:CARD, justifyContent:"center", alignItems:"center" },
+  nudge:        { flexDirection:"row", alignItems:"center", gap:8, marginHorizontal:16, marginBottom:6, padding:12, borderRadius:12, backgroundColor:"rgba(255,159,10,0.08)", borderWidth:1, borderColor:"rgba(255,159,10,0.18)" },
+  nudgeTxt:     { flex:1, fontSize:13, color:ORANGE, fontWeight:"500" },
+  dayHdr:       { paddingHorizontal:20, paddingTop:14, paddingBottom:10 },
+  dayTitle:     { fontSize:22, fontWeight:"800", color:T1, letterSpacing:-0.3 },
+  dayDate:      { fontSize:13, color:T2, marginTop:3 },
+  dayTrack:     { height:2, backgroundColor:CARD2, borderRadius:2 },
+  dayTrackFill: { height:2, backgroundColor:BLUE, borderRadius:2 },
+  scroll:       { paddingHorizontal:16, paddingBottom:48, paddingTop:4 },
 });
