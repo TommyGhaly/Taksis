@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, memo, useRef } from "react";
 import {
-  View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet,
+  View, Text, TouchableOpacity, StyleSheet,
   FlatList, Modal, TextInput, Alert, ActivityIndicator,
-  KeyboardAvoidingView, Platform, Dimensions, Animated,
+  KeyboardAvoidingView, Platform, Dimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
@@ -64,29 +64,31 @@ const UserSelectRow = memo(({ item, selected, onPress, getImageSource, isUnreg, 
 // ── ColorPicker ───────────────────────────────────────────────────────────────
 
 const ColorPicker = memo(({ value, onSelect }) => (
-  <View>
-    <FlatList
-      data={COLOR_OPTIONS}
-      keyExtractor={(c) => c.value}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ gap: 8, paddingVertical: 4, paddingTop: 14 }}
-      renderItem={({ item: c }) => {
-        const selected = value === c.value;
-        return (
-          <TouchableOpacity
-            onPress={() => onSelect(selected ? "" : c.value)}
-            activeOpacity={0.75}
-            style={[s.swatchBtn, selected && s.swatchBtnSelected]}
-          >
-            <View style={[s.swatchCircle, { backgroundColor: c.hex },
-              c.value === "white" && s.swatchCircleWhite]} />
-            <Text style={[s.swatchLabel, selected && s.swatchLabelSelected]}>{c.label}</Text>
-          </TouchableOpacity>
-        );
-      }}
-    />
-  </View>
+  <FlatList
+    data={COLOR_OPTIONS}
+    keyExtractor={(c) => c.value}
+    horizontal
+    showsHorizontalScrollIndicator={false}
+    contentContainerStyle={{ gap: 8, paddingVertical: 4, paddingTop: 14 }}
+    renderItem={({ item: c }) => {
+      const selected = value === c.value;
+      return (
+        <TouchableOpacity
+          onPress={() => onSelect(selected ? "" : c.value)}
+          activeOpacity={0.75}
+          style={s.swatchBtn}
+        >
+          <View style={[
+            s.swatchCircle,
+            { backgroundColor: c.hex },
+            c.value === "white" && s.swatchCircleWhite,
+            selected && s.swatchCircleSelected,
+          ]} />
+          <Text style={[s.swatchLabel, selected && s.swatchLabelSelected]}>{c.label}</Text>
+        </TouchableOpacity>
+      );
+    }}
+  />
 ));
 
 // ── AddGuestInline ────────────────────────────────────────────────────────────
@@ -94,8 +96,13 @@ const ColorPicker = memo(({ value, onSelect }) => (
 const AddGuestInline = memo(({ visible, onSave, onCancel, saving }) => {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  useEffect(() => { if (visible) { setName(""); setPhone(""); } }, [visible]);
+
+  useEffect(() => {
+    if (visible) { setName(""); setPhone(""); }
+  }, [visible]);
+
   if (!visible) return null;
+
   return (
     <View style={s.inlineAddGuest}>
       <View style={s.inlineAddGuestHeader}>
@@ -103,14 +110,20 @@ const AddGuestInline = memo(({ visible, onSave, onCancel, saving }) => {
         <Text style={s.inlineAddGuestTitle}>Add Person</Text>
       </View>
       <TextInput
-        style={s.inlineInput} placeholder="Full Name"
+        style={s.inlineInput}
+        placeholder="Full Name"
         placeholderTextColor="rgba(255,255,255,0.25)"
-        value={name} onChangeText={setName} autoCapitalize="words"
+        value={name}
+        onChangeText={setName}
+        autoCapitalize="words"
       />
       <TextInput
-        style={s.inlineInput} placeholder="Phone Number"
+        style={s.inlineInput}
+        placeholder="Phone Number"
         placeholderTextColor="rgba(255,255,255,0.25)"
-        value={phone} onChangeText={setPhone} keyboardType="phone-pad"
+        value={phone}
+        onChangeText={setPhone}
+        keyboardType="phone-pad"
       />
       <View style={s.inlineAddGuestBtns}>
         <TouchableOpacity style={s.inlineGuestCancelBtn} onPress={onCancel} activeOpacity={0.7}>
@@ -122,7 +135,9 @@ const AddGuestInline = memo(({ visible, onSave, onCancel, saving }) => {
           disabled={!name.trim() || !phone.trim() || saving}
           activeOpacity={0.7}
         >
-          {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.inlineGuestSaveText}>Save</Text>}
+          {saving
+            ? <ActivityIndicator color="#fff" size="small" />
+            : <Text style={s.inlineGuestSaveText}>Save</Text>}
         </TouchableOpacity>
       </View>
     </View>
@@ -131,7 +146,7 @@ const AddGuestInline = memo(({ visible, onSave, onCancel, saving }) => {
 
 // ── SelectedDriverChip ────────────────────────────────────────────────────────
 
-const SelectedDriverChip = memo(({ uid, user, getImageSource, onRemove, isUnreg }) => (
+const SelectedDriverChip = memo(({ uid, user, getImageSource, onRemove }) => (
   <View style={s.chip}>
     <Image source={getImageSource(uid)} style={s.chipAvatar} contentFit="cover" />
     <Text style={s.chipName} numberOfLines={1}>{user?.name?.split(" ")[0] ?? "?"}</Text>
@@ -145,7 +160,7 @@ const SelectedDriverChip = memo(({ uid, user, getImageSource, onRemove, isUnreg 
 
 export const VehicleFormSheet = memo(({
   visible, mode, initialData, allUsers, getImageSource,
-  onSave, onClose, pendingVehicles, onOpenPending,
+  onSave, onClose, pendingVehicles, onOpenPending, onOpenRelink,
 }) => {
   const [license, setLicense] = useState("");
   const [make, setMake] = useState("");
@@ -157,17 +172,7 @@ export const VehicleFormSheet = memo(({
   const [guestSaving, setGuestSaving] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    if (!visible) return;
-    fadeAnim.setValue(0);
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 220,
-      useNativeDriver: true,
-    }).start();
-  }, [visible]);
 
   useEffect(() => {
     if (!visible) return;
@@ -191,7 +196,8 @@ export const VehicleFormSheet = memo(({
   }, [allUsers, search]);
 
   const toggleDriver = useCallback((uid) => {
-    setDrivers((prev) => prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]);
+    setDrivers((prev) =>
+      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]);
   }, []);
 
   const removeDriver = useCallback((uid) => {
@@ -213,8 +219,14 @@ export const VehicleFormSheet = memo(({
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (!license.trim()) { Alert.alert("Missing Info", "Please enter the license plate number."); return; }
-    if (drivers.length === 0) { Alert.alert("Select Drivers", "Please select at least one driver."); return; }
+    if (!license.trim()) {
+      Alert.alert("Missing Info", "Please enter the license plate number.");
+      return;
+    }
+    if (drivers.length === 0) {
+      Alert.alert("Select Drivers", "Please select at least one driver.");
+      return;
+    }
     setSaving(true);
     try {
       await onSave({ license: license.trim().toUpperCase(), make, model, color, drivers });
@@ -254,7 +266,10 @@ export const VehicleFormSheet = memo(({
     );
   }, [drivers, toggleDriver, getImageSource]);
 
-  const selectedDrivers = drivers.map((uid) => ({ uid, user: allUsers.find((u) => u.uid === uid) }));
+  const selectedDrivers = drivers.map((uid) => ({
+    uid,
+    user: allUsers.find((u) => u.uid === uid),
+  }));
 
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
@@ -263,20 +278,8 @@ export const VehicleFormSheet = memo(({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={0}
       >
-        <Animated.View
-          style={[
-            s.formSheet,
-            {
-              opacity: fadeAnim,
-              transform: [{
-                translateY: fadeAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [16, 0],
-                }),
-              }],
-            },
-          ]}
-        >
+        <View style={s.formSheet}>
+
           {/* ── Header ── */}
           <View style={s.formHeader}>
             <TouchableOpacity onPress={onClose} style={s.formCloseBtn}>
@@ -284,15 +287,25 @@ export const VehicleFormSheet = memo(({
             </TouchableOpacity>
             <Text style={s.formTitle}>{isReg ? "Register Vehicle" : "Edit Vehicle"}</Text>
             {isReg ? (
-              <TouchableOpacity style={s.pendingPill} onPress={onOpenPending} activeOpacity={0.7}>
-                <Icon name="car-clock" size={14} color="#ff9f0a" />
-                <Text style={s.pendingPillText}>Pending</Text>
-                {pendingVehicles?.length > 0 ? (
-                  <View style={s.pendingDot}>
-                    <Text style={s.pendingDotText}>{pendingVehicles.length}</Text>
-                  </View>
+              <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                {onOpenPending ? (
+                  <TouchableOpacity style={s.pendingPill} onPress={onOpenPending} activeOpacity={0.7}>
+                    <Icon name="car-clock" size={14} color="#ff9f0a" />
+                    <Text style={s.pendingPillText}>Pending</Text>
+                    {pendingVehicles?.length > 0 ? (
+                      <View style={s.pendingDot}>
+                        <Text style={s.pendingDotText}>{pendingVehicles.length}</Text>
+                      </View>
+                    ) : null}
+                  </TouchableOpacity>
                 ) : null}
-              </TouchableOpacity>
+                {onOpenRelink ? (
+                  <TouchableOpacity style={s.relinkPill} onPress={onOpenRelink} activeOpacity={0.7}>
+                    <Icon name="link-variant" size={14} color="#bf5af2" />
+                    <Text style={s.relinkPillText}>Fix</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             ) : (
               <View style={{ width: 80 }} />
             )}
@@ -323,19 +336,23 @@ export const VehicleFormSheet = memo(({
 
                 {/* ── Vehicle info ── */}
                 <View style={s.formSection}>
-                  <Text style={s.formSectionLabel}>Vehicle Info <Text style={s.formSectionOptional}>(optional)</Text></Text>
+                  <Text style={s.formSectionLabel}>
+                    Vehicle Info <Text style={s.formSectionOptional}>(optional)</Text>
+                  </Text>
                   <View style={s.infoRow}>
                     <TextInput
                       style={[s.infoInput, { flex: 1, marginRight: 8 }]}
                       placeholder="Make"
                       placeholderTextColor="rgba(255,255,255,0.25)"
-                      value={make} onChangeText={setMake}
+                      value={make}
+                      onChangeText={setMake}
                     />
                     <TextInput
                       style={[s.infoInput, { flex: 1 }]}
                       placeholder="Model"
                       placeholderTextColor="rgba(255,255,255,0.25)"
-                      value={model} onChangeText={setModel}
+                      value={model}
+                      onChangeText={setModel}
                     />
                   </View>
                   <ColorPicker value={color} onSelect={setColor} />
@@ -351,14 +368,13 @@ export const VehicleFormSheet = memo(({
                           key={uid} uid={uid} user={user}
                           getImageSource={getImageSource}
                           onRemove={removeDriver}
-                          isUnreg={uid.startsWith("unreg_")}
                         />
                       ))}
                     </View>
                   </View>
                 )}
 
-                {/* ── Add guest ── */}
+                {/* ── Add guest inline ── */}
                 <AddGuestInline
                   visible={guestOpen}
                   onSave={handleAddGuest}
@@ -417,11 +433,16 @@ export const VehicleFormSheet = memo(({
                 color={drivers.length > 0 ? "#34c759" : "rgba(255,255,255,0.2)"}
                 style={{ marginLeft: 12 }}
               />
-              <Text style={s.formFooterMetaText}>{drivers.length} driver{drivers.length !== 1 ? "s" : ""}</Text>
+              <Text style={s.formFooterMetaText}>
+                {drivers.length} driver{drivers.length !== 1 ? "s" : ""}
+              </Text>
             </View>
             <TouchableOpacity
-              style={[s.formSaveBtn, isReg && s.formSaveBtnGreen,
-                (!license.trim() || drivers.length === 0 || saving) && s.btnDisabled]}
+              style={[
+                s.formSaveBtn,
+                isReg && s.formSaveBtnGreen,
+                (!license.trim() || drivers.length === 0 || saving) && s.btnDisabled,
+              ]}
               onPress={handleSave}
               disabled={!license.trim() || drivers.length === 0 || saving}
               activeOpacity={0.8}
@@ -431,7 +452,8 @@ export const VehicleFormSheet = memo(({
                 : <Text style={s.formSaveBtnText}>{isReg ? "Register Vehicle" : "Save Changes"}</Text>}
             </TouchableOpacity>
           </View>
-        </Animated.View>
+
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -614,14 +636,20 @@ export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, ch
       <Text style={s.approvalSubtitle}>Add as unregistered person:</Text>
       <View style={s.approvalInputGroup}>
         <TextInput
-          style={s.approvalInput} placeholder="Full Name"
+          style={s.approvalInput}
+          placeholder="Full Name"
           placeholderTextColor="rgba(255,255,255,0.25)"
-          value={newName} onChangeText={setNewName} autoCapitalize="words"
+          value={newName}
+          onChangeText={setNewName}
+          autoCapitalize="words"
         />
         <TextInput
-          style={s.approvalInput} placeholder="Phone Number"
+          style={s.approvalInput}
+          placeholder="Phone Number"
           placeholderTextColor="rgba(255,255,255,0.25)"
-          value={newPhone} onChangeText={setNewPhone} keyboardType="phone-pad"
+          value={newPhone}
+          onChangeText={setNewPhone}
+          keyboardType="phone-pad"
         />
       </View>
       <TouchableOpacity
@@ -638,7 +666,7 @@ export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, ch
 
 // ── PendingList ───────────────────────────────────────────────────────────────
 
-export function PendingList({ pendingVehicles, onSelect, onClose }) {
+export function PendingList({ pendingVehicles, onSelect, onClose, hideHeader = false }) {
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -648,19 +676,22 @@ export function PendingList({ pendingVehicles, onSelect, onClose }) {
       v.license?.toLowerCase().includes(q) ||
       v.make?.toLowerCase().includes(q) ||
       v.model?.toLowerCase().includes(q) ||
-      v.drivers?.some((d) => d.name?.toLowerCase().includes(q) || d.phone?.toLowerCase().includes(q)),
+      v.drivers?.some((d) =>
+        d.name?.toLowerCase().includes(q) || d.phone?.toLowerCase().includes(q)),
     );
   }, [pendingVehicles, search]);
 
   return (
     <View style={s.pendingSheet}>
-      <View style={s.sheetHeader}>
-        <View style={s.sheetHeaderLeft} />
-        <Text style={s.sheetTitle}>Pending Registrations</Text>
-        <TouchableOpacity onPress={onClose}>
-          <Icon name="close" size={24} color="rgba(255,255,255,0.5)" />
-        </TouchableOpacity>
-      </View>
+      {!hideHeader && (
+        <View style={s.sheetHeader}>
+          <View style={s.sheetHeaderLeft} />
+          <Text style={s.sheetTitle}>Pending Registrations</Text>
+          <TouchableOpacity onPress={onClose}>
+            <Icon name="close" size={24} color="rgba(255,255,255,0.5)" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {pendingVehicles.length === 0 ? (
         <View style={s.pendingEmpty}>
@@ -733,106 +764,102 @@ const s = StyleSheet.create({
   bottomOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
   sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
   sheetHeaderLeft: { width: 24 },
-  sheetTitle: { fontSize: 17, fontWeight: "600", color: "#fff" },
-  sheetFooter: { padding: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.06)" },
+  sheetTitle: { fontSize: 17, fontWeight: "600", color: "#fff", letterSpacing: 0 },
   formSheet: { backgroundColor: "#181818", borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "94%", height: "94%" },
   formHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(255,255,255,0.08)" },
   formCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.06)", justifyContent: "center", alignItems: "center" },
-  formTitle: { fontSize: 17, fontWeight: "700", color: "#fff", letterSpacing: -0.3 },
+  formTitle: { fontSize: 17, fontWeight: "700", color: "#fff", letterSpacing: 0 },
   pendingPill: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,159,10,0.12)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
-  pendingPillText: { fontSize: 12, fontWeight: "600", color: "#ff9f0a" },
+  pendingPillText: { fontSize: 12, fontWeight: "600", color: "#ff9f0a", letterSpacing: 0 },
   pendingDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: "#ff9f0a", justifyContent: "center", alignItems: "center" },
   pendingDotText: { fontSize: 9, fontWeight: "700", color: "#000" },
+  relinkPill: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(191,90,242,0.12)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
+  relinkPillText: { fontSize: 12, fontWeight: "600", color: "#bf5af2", letterSpacing: 0 },
   formSection: { marginTop: 20 },
   formSectionLabel: { fontSize: 11, fontWeight: "600", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 },
   formSectionOptional: { fontWeight: "400", textTransform: "none", letterSpacing: 0, color: "rgba(255,255,255,0.2)" },
   plateInput: { backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 14, paddingHorizontal: 20, paddingVertical: 18, color: "#fff", fontSize: 26, fontWeight: "700", textAlign: "center", letterSpacing: 3, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.08)" },
   infoRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
-  infoInput: { backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, color: "#fff", fontSize: 15, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.08)" },
+  infoInput: { backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, color: "#fff", fontSize: 15, letterSpacing: 0, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.08)" },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(20,126,251,0.15)", borderRadius: 20, paddingVertical: 6, paddingLeft: 6, paddingRight: 10, gap: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(20,126,251,0.25)" },
   chipAvatar: { width: 24, height: 24, borderRadius: 12 },
-  chipName: { fontSize: 13, fontWeight: "600", color: "#fff", maxWidth: 80 },
+  chipName: { fontSize: 13, fontWeight: "600", color: "#fff", maxWidth: 80, letterSpacing: 0 },
   peopleSectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 24, marginBottom: 10 },
   addGuestBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(20,126,251,0.1)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
-  addGuestBtnText: { fontSize: 12, fontWeight: "600", color: "#147efb" },
+  addGuestBtnText: { fontSize: 12, fontWeight: "600", color: "#147efb", letterSpacing: 0 },
   searchRow: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 2, marginBottom: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.06)" },
+  searchBox: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 12 },
+  searchInput: { flex: 1, color: "#fff", fontSize: 15, paddingVertical: 11, marginLeft: 6, letterSpacing: 0 },
   personRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14, marginBottom: 6, backgroundColor: "rgba(255,255,255,0.04)" },
   personRowSelected: { backgroundColor: "rgba(20,126,251,0.12)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(20,126,251,0.3)" },
   personAvatar: { width: 40, height: 40, borderRadius: 20 },
   personInfo: { flex: 1, marginLeft: 12 },
-  personName: { fontSize: 15, fontWeight: "500", color: "#fff" },
-  personPhone: { fontSize: 13, color: "rgba(255,255,255,0.35)", marginTop: 1 },
+  personName: { fontSize: 15, fontWeight: "500", color: "#fff", letterSpacing: 0 },
+  personPhone: { fontSize: 13, color: "rgba(255,255,255,0.35)", marginTop: 1, letterSpacing: 0 },
   formFooter: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#181818", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255,255,255,0.08)", paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
   formFooterMeta: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  formFooterMetaText: { fontSize: 12, color: "rgba(255,255,255,0.35)", marginLeft: 4 },
+  formFooterMetaText: { fontSize: 12, color: "rgba(255,255,255,0.35)", marginLeft: 4, letterSpacing: 0 },
   formSaveBtn: { backgroundColor: "#147efb", paddingVertical: 15, borderRadius: 14, alignItems: "center" },
   formSaveBtnGreen: { backgroundColor: "#30d158" },
-  formSaveBtnText: { fontSize: 16, fontWeight: "700", color: "#fff", letterSpacing: -0.2 },
-  pendingBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(255,159,10,0.12)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  pendingBtnText: { fontSize: 13, fontWeight: "600", color: "#ff9f0a" },
-  pendingBadge: { width: 18, height: 18, borderRadius: 9, backgroundColor: "#ff9f0a", justifyContent: "center", alignItems: "center" },
-  pendingBadgeText: { fontSize: 10, fontWeight: "700", color: "#000" },
-  pendingSheet: { backgroundColor: "#1c1c1e", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%", height: "80%" },
+  formSaveBtnText: { fontSize: 16, fontWeight: "700", color: "#fff", letterSpacing: 0 },
+  pendingSheet: { flex: 1 },
   pendingEmpty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
-  pendingEmptyText: { fontSize: 15, color: "rgba(255,255,255,0.3)" },
+  pendingEmptyText: { fontSize: 15, color: "rgba(255,255,255,0.3)", letterSpacing: 0 },
   pendingCard: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 16, marginBottom: 10 },
   pendingCardLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
   pendingStatusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#ff9f0a" },
-  pendingLicense: { fontSize: 17, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
-  pendingMeta: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 2 },
-  pendingDriverCount: { fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 2 },
-  approvalSheet: { backgroundColor: "#1c1c1e", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "85%", height: "85%" },
+  pendingLicense: { fontSize: 17, fontWeight: "700", color: "#fff", letterSpacing: 0 },
+  pendingMeta: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 2, letterSpacing: 0 },
+  pendingDriverCount: { fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 2, letterSpacing: 0 },
   approvalContainer: { flex: 1, padding: 20 },
   approvalCenter: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
-  approvalSavingText: { color: "rgba(255,255,255,0.5)", fontSize: 14 },
+  approvalSavingText: { color: "rgba(255,255,255,0.5)", fontSize: 14, letterSpacing: 0 },
   approvalProgress: { fontSize: 11, fontWeight: "600", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 },
   approvalDriverHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
-  approvalDriverName: { fontSize: 18, fontWeight: "700", color: "#fff", flex: 1 },
-  approvalSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 16 },
+  approvalDriverName: { fontSize: 18, fontWeight: "700", color: "#fff", flex: 1, letterSpacing: 0 },
+  approvalSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 16, letterSpacing: 0 },
   approvalList: { flex: 1 },
   matchRow: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 14, marginBottom: 8 },
   matchInfo: { flex: 1, gap: 3 },
-  matchName: { fontSize: 15, fontWeight: "600", color: "#fff" },
-  matchPhone: { fontSize: 13, color: "rgba(255,255,255,0.4)" },
+  matchName: { fontSize: 15, fontWeight: "600", color: "#fff", letterSpacing: 0 },
+  matchPhone: { fontSize: 13, color: "rgba(255,255,255,0.4)", letterSpacing: 0 },
   approvalActions: { gap: 8, marginTop: 12 },
   approvalSecondaryBtn: { backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 10, padding: 14, alignItems: "center" },
-  approvalSecondaryText: { fontSize: 14, fontWeight: "500", color: "rgba(255,255,255,0.6)" },
+  approvalSecondaryText: { fontSize: 14, fontWeight: "500", color: "rgba(255,255,255,0.6)", letterSpacing: 0 },
   approvalDangerBtn: { backgroundColor: "rgba(255,69,58,0.1)", borderRadius: 10, padding: 14, alignItems: "center" },
-  approvalDangerText: { fontSize: 14, fontWeight: "500", color: "#ff453a" },
+  approvalDangerText: { fontSize: 14, fontWeight: "500", color: "#ff453a", letterSpacing: 0 },
   approvalInputGroup: { gap: 10, marginBottom: 16 },
-  approvalInput: { backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 15 },
+  approvalInput: { backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 15, letterSpacing: 0 },
   approvalPrimaryBtn: { backgroundColor: "#34c759", borderRadius: 12, padding: 16, alignItems: "center" },
-  approvalPrimaryText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  approvalPrimaryText: { fontSize: 15, fontWeight: "600", color: "#fff", letterSpacing: 0 },
   taksisBadge: { backgroundColor: "rgba(20,126,251,0.15)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  taksisBadgeText: { fontSize: 11, fontWeight: "600", color: "#147efb" },
-  searchBox: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 12 },
-  searchInput: { flex: 1, color: "#fff", fontSize: 15, paddingVertical: 11, marginLeft: 6 },
+  taksisBadgeText: { fontSize: 11, fontWeight: "600", color: "#147efb", letterSpacing: 0 },
+  checkbox: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: "rgba(255,255,255,0.2)", justifyContent: "center", alignItems: "center" },
+  checkboxSelected: { backgroundColor: "#147efb", borderColor: "#147efb" },
+  unregBadge: { backgroundColor: "rgba(255,159,10,0.15)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  unregBadgeText: { fontSize: 10, fontWeight: "600", color: "#ff9f0a", letterSpacing: 0 },
+  unregDeleteBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: "rgba(255,69,58,0.12)", justifyContent: "center", alignItems: "center", marginRight: 8 },
+  inlineAddGuest: { backgroundColor: "rgba(20,126,251,0.08)", borderRadius: 12, padding: 14, marginTop: 8, marginBottom: 8, borderWidth: 1, borderColor: "rgba(20,126,251,0.2)" },
+  inlineAddGuestHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+  inlineAddGuestTitle: { fontSize: 15, fontWeight: "600", color: "#fff", letterSpacing: 0 },
+  inlineInput: { backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: "#fff", fontSize: 15, marginBottom: 8, letterSpacing: 0 },
+  inlineAddGuestBtns: { flexDirection: "row", gap: 8, marginTop: 4 },
+  inlineGuestCancelBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.08)", alignItems: "center" },
+  inlineGuestCancelText: { fontSize: 14, fontWeight: "500", color: "rgba(255,255,255,0.6)", letterSpacing: 0 },
+  inlineGuestSaveBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: "#147efb", alignItems: "center" },
+  inlineGuestSaveText: { fontSize: 14, fontWeight: "600", color: "#fff", letterSpacing: 0 },
+  swatchBtn: { alignItems: "center", gap: 5, paddingHorizontal: 4 },
+  swatchCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: "transparent" },
+  swatchCircleWhite: { borderColor: "rgba(255,255,255,0.2)" },
+  swatchCircleSelected: { borderColor: "#147efb" },
+  swatchLabel: { fontSize: 11, color: "rgba(255,255,255,0.3)", fontWeight: "500", letterSpacing: 0 },
+  swatchLabelSelected: { color: "#fff" },
   userRow: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, marginBottom: 8, backgroundColor: "rgba(255,255,255,0.04)" },
   userRowSelected: { backgroundColor: "rgba(20,126,251,0.15)", borderWidth: 1, borderColor: "rgba(20,126,251,0.3)" },
   userAvatar: { width: 44, height: 44, borderRadius: 22 },
   userInfo: { flex: 1, marginLeft: 12 },
-  userName: { fontSize: 16, fontWeight: "500", color: "#fff" },
-  userPhone: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 2 },
-  checkbox: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: "rgba(255,255,255,0.2)", justifyContent: "center", alignItems: "center" },
-  checkboxSelected: { backgroundColor: "#147efb", borderColor: "#147efb" },
-  unregBadge: { backgroundColor: "rgba(255,159,10,0.15)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  unregBadgeText: { fontSize: 10, fontWeight: "600", color: "#ff9f0a" },
-  unregDeleteBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: "rgba(255,69,58,0.12)", justifyContent: "center", alignItems: "center", marginRight: 8 },
-  inlineAddGuest: { backgroundColor: "rgba(20,126,251,0.08)", borderRadius: 12, padding: 14, marginTop: 8, marginBottom: 8, borderWidth: 1, borderColor: "rgba(20,126,251,0.2)" },
-  inlineAddGuestHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  inlineAddGuestTitle: { fontSize: 15, fontWeight: "600", color: "#fff" },
-  inlineInput: { backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: "#fff", fontSize: 15, marginBottom: 8 },
-  inlineAddGuestBtns: { flexDirection: "row", gap: 8, marginTop: 4 },
-  inlineGuestCancelBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.08)", alignItems: "center" },
-  inlineGuestCancelText: { fontSize: 14, fontWeight: "500", color: "rgba(255,255,255,0.6)" },
-  inlineGuestSaveBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: "#147efb", alignItems: "center" },
-  inlineGuestSaveText: { fontSize: 14, fontWeight: "600", color: "#fff" },
-  swatchBtn: { alignItems: "center", gap: 5, paddingHorizontal: 4 },
-  swatchBtnSelected: {},
-  swatchCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: "transparent" },
-  swatchCircleWhite: { borderColor: "rgba(255,255,255,0.2)" },
-  swatchLabel: { fontSize: 11, color: "rgba(255,255,255,0.3)", fontWeight: "500" },
-  swatchLabelSelected: { color: "#fff" },
+  userName: { fontSize: 16, fontWeight: "500", color: "#fff", letterSpacing: 0 },
+  userPhone: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 2, letterSpacing: 0 },
   btnDisabled: { opacity: 0.35 },
 });
