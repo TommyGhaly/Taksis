@@ -682,13 +682,13 @@ def handle_unavailable_requests(req: https_fn.Request) -> https_fn.Response:
             return https_fn.Response("Missing JSON body", status=400)
     except Exception as e:
         return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
+
     church_id = request_data.get("church")
     week_id = request_data.get("week")
     name = request_data.get("name")
     uid = request_data.get("uid")
     role = request_data.get("role")
     unavailable_uid = request_data.get("unavailableUid")
-    
 
     if not all([church_id, week_id, name, uid, role]):
         return https_fn.Response("Missing required parameters", status=400)
@@ -713,11 +713,10 @@ def handle_unavailable_requests(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response("Schedule not found", status=404)
     
     schedule_data = schedule_doc.to_dict()
-    for deacon in schedule_data.get('extra', []):
-        if deacon['uid'] == unavailable_uid:
-            schedule_data['extra'].remove(deacon)
-            break
-        
+
+    # Remove the replacement (uid) from extras so they don't appear in both places
+    schedule_data['extra'] = [d for d in schedule_data.get('extra', []) if d['uid'] != uid]
+
     if isinstance(role, list):
         schedule_data[role[0]][role[1]] = {'name': name, 'uid': uid}
         handle_unavailable_notification(uid, week_id, role[0], name)
@@ -726,9 +725,7 @@ def handle_unavailable_requests(req: https_fn.Request) -> https_fn.Response:
     
     schedule_ref.update(schedule_data)
     
-    
-    return https_fn.Response("Unavailable request handled", status=200)   
-        
+    return https_fn.Response("Unavailable request handled", status=200)
         
         
 @https_fn.on_request()
