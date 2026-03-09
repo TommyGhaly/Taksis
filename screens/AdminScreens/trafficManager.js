@@ -144,7 +144,6 @@ const DriverCard = memo(({
 });
 
 // ── CarDetailModal ────────────────────────────────────────────────────────────
-// Shared between list tap + QR scan of registered car
 
 const CarDetailModal = memo(({
   visible, car, onClose, getUserById, getImageSource,
@@ -217,7 +216,6 @@ const CarDetailModal = memo(({
               </Text>
             </TouchableOpacity>
           ) : (
-            // QR scan context: dedicated "Mark as Here" button
             !car.present ? (
               <TouchableOpacity
                 style={s.actionBtnGreen}
@@ -242,7 +240,6 @@ const CarDetailModal = memo(({
           {/* Drivers */}
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>Drivers</Text>
 
-          {/* Driver search */}
           {(car.ownerIds?.length ?? 0) > 3 ? (
             <View style={[s.searchBox, { marginBottom: 8 }]}>
               <Icon name="magnify" size={18} color="rgba(255,255,255,0.4)" />
@@ -316,13 +313,10 @@ const TrafficManager = () => {
   const [imgVer, setImgVer] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // Car list search
   const [carSearch, setCarSearch] = useState("");
 
   const [scannerVisible, setScannerVisible] = useState(false);
   const [scanned, setScanned] = useState(false);
-
-  // currentQrId = the actual scanned QR document ID
   const [currentQrId, setCurrentQrId] = useState(null);
 
   const [regVisible, setRegVisible] = useState(false);
@@ -331,19 +325,23 @@ const TrafficManager = () => {
   const [pendingReadOnly, setPendingReadOnly] = useState(false);
 
   const [pendingListVisible, setPendingListVisible] = useState(false);
-  const [approvalData, setApprovalData] = useState(null); // { vehicle, qrId }
+  const [approvalData, setApprovalData] = useState(null);
 
-  // Detail modal — also used for scan-of-registered-car
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedCar, setSelectedCar] = useState(null);
-  const [detailFromScan, setDetailFromScan] = useState(false); // true = opened via QR scan
+  const [detailFromScan, setDetailFromScan] = useState(false);
   const [driverTokens, setDriverTokens] = useState({});
 
-  // Override modal — scan of a QR that maps to a wrong/orphaned document
+  // Override: orphaned doc found for scanned QR
   const [overrideModalVisible, setOverrideModalVisible] = useState(false);
-  const [overrideCandidates, setOverrideCandidates] = useState([]); // cars eligible to be relinked
+  const [overrideCandidates, setOverrideCandidates] = useState([]);
   const [overrideQrId, setOverrideQrId] = useState(null);
   const [overrideSearch, setOverrideSearch] = useState("");
+
+  // Dead-end: no doc found for scanned QR → register new or link existing
+  const [deadEndVisible, setDeadEndVisible] = useState(false);
+  const [deadEndQrId, setDeadEndQrId] = useState(null);
+  const [deadEndSearch, setDeadEndSearch] = useState("");
 
   const [notifyVisible, setNotifyVisible] = useState(false);
   const [notifyTokens, setNotifyTokens] = useState([]);
@@ -580,7 +578,7 @@ const TrafficManager = () => {
 
     const scannedId = data;
 
-    // 1. QR maps to a known registered car → show full detail modal (scan context)
+    // 1. Known registered car → show detail modal
     const existing = cars.find((c) => c.id === scannedId);
     if (existing) {
       setSelectedCar(existing);
@@ -591,36 +589,36 @@ const TrafficManager = () => {
       return;
     }
 
-    // 2. QR ID is reserved → treat as fresh registration only (no override)
+    // 2. Reserved ID → fresh registration only
     if (isReservedId(scannedId)) {
       setCurrentQrId(scannedId);
       setRegVisible(true);
       return;
     }
 
-    // 3. QR ID exists in Firestore but doesn't match any church car
-    //    → could be an orphaned / wrong-church doc. Offer override or new registration.
+    // 3. Check Firestore for orphaned / wrong-church doc
     firestore().collection("qrCodes").doc(scannedId).get().then((doc) => {
       if (doc.exists && !doc.data()?.isUnregisteredUser) {
-        // Doc exists but didn't match our cars list — offer to relink or register fresh
+        // Orphaned doc — offer to relink to one of our cars
         const eligible = cars.filter((c) => !isReservedId(c.id));
         setOverrideCandidates(eligible);
         setOverrideQrId(scannedId);
         setOverrideSearch("");
         setOverrideModalVisible(true);
       } else {
-        // No doc or it's an unreg doc → fresh registration
-        setCurrentQrId(scannedId);
-        setRegVisible(true);
+        // No doc — offer register new OR link to existing (corrupted) car
+        setDeadEndQrId(scannedId);
+        setDeadEndSearch("");
+        setDeadEndVisible(true);
       }
     }).catch(() => {
-      // On error just open registration
-      setCurrentQrId(scannedId);
-      setRegVisible(true);
+      setDeadEndQrId(scannedId);
+      setDeadEndSearch("");
+      setDeadEndVisible(true);
     });
   }, [scanned, cars, checkDriverTokens]);
 
-  // ── Override (relink QR to existing car) ──────────────────────────────────
+  // ── Override: orphaned doc → relink to one of our cars ────────────────────
 
   const filteredOverrideCandidates = useMemo(() => {
     const q = overrideSearch.toLowerCase().trim();
@@ -644,20 +642,16 @@ const TrafficManager = () => {
           text: "Relink", style: "destructive",
           onPress: async () => {
             try {
-              const batch = firestore().batch();
-              // Copy existing car data under the new (scanned) QR id
               const { id: oldId, ...carData } = targetCar;
+              const batch = firestore().batch();
               batch.set(firestore().collection("qrCodes").doc(overrideQrId), carData);
-              // Delete old doc
-              batch.delete(firestore().collection("qrCodes").doc(oldId));
-              // Delete the orphaned scanned doc if it existed
-              batch.delete(firestore().collection("qrCodes").doc(overrideQrId));
-              // Re-set under new id (set overrides delete in same batch is fine — use two batches)
-              await firestore().collection("qrCodes").doc(oldId).delete();
-              await firestore().collection("qrCodes").doc(overrideQrId).set(carData);
+              if (oldId !== overrideQrId) {
+                batch.delete(firestore().collection("qrCodes").doc(oldId));
+              }
+              await batch.commit();
               setOverrideModalVisible(false);
               Alert.alert("Done", `${targetCar.license || "Vehicle"} is now linked to the scanned QR.`);
-            } catch (e) {
+            } catch {
               Alert.alert("Error", "Failed to relink QR code.");
             }
           },
@@ -666,18 +660,58 @@ const TrafficManager = () => {
     );
   }, [overrideQrId]);
 
-  // ── Registration save ──────────────────────────────────────────────────────
+  // ── Dead-end: no doc → register new or link existing corrupted car ─────────
+
+  const filteredDeadEndCars = useMemo(() => {
+    const q = deadEndSearch.toLowerCase().trim();
+    const base = cars.filter((c) => !isReservedId(c.id));
+    if (!q) return base;
+    return base.filter((c) => {
+      const ownerMatch = (c.ownerIds || []).some((uid) => {
+        const u = getUserById(uid);
+        return u?.name?.toLowerCase().includes(q) || u?.phone?.toLowerCase().includes(q);
+      });
+      return c.license?.toLowerCase().includes(q) || c.make?.toLowerCase().includes(q) || ownerMatch;
+    });
+  }, [cars, deadEndSearch, getUserById]);
+
+  const handleDeadEndRelink = useCallback((targetCar) => {
+    Alert.alert(
+      "Link to Existing Vehicle",
+      `Relink "${targetCar.license || "this vehicle"}" to the scanned QR? Its old document will be deleted.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Link", style: "destructive",
+          onPress: async () => {
+            try {
+              const { id: oldId, ...carData } = targetCar;
+              const batch = firestore().batch();
+              batch.set(firestore().collection("qrCodes").doc(deadEndQrId), carData);
+              if (oldId !== deadEndQrId) {
+                batch.delete(firestore().collection("qrCodes").doc(oldId));
+              }
+              await batch.commit();
+              setDeadEndVisible(false);
+              Alert.alert("Done", `${targetCar.license || "Vehicle"} is now linked to the scanned QR.`);
+            } catch {
+              Alert.alert("Error", "Failed to relink vehicle.");
+            }
+          },
+        },
+      ],
+    );
+  }, [deadEndQrId]);
+
+  // ── Registration / Edit ────────────────────────────────────────────────────
 
   const handleRegSave = useCallback(async ({ license, make, model, color, drivers }) => {
     const carData = { church: churchId, license, ownerIds: drivers };
     if (make) carData.make = make;
     if (model) carData.model = model;
     if (color) carData.color = color;
-    // Save under the REAL scanned QR id
     await firestore().collection("qrCodes").doc(currentQrId).set(carData);
   }, [churchId, currentQrId]);
-
-  // ── Edit save ──────────────────────────────────────────────────────────────
 
   const handleEditSave = useCallback(async ({ license, make, model, color, drivers }) => {
     const updateData = {
@@ -888,7 +922,7 @@ const TrafficManager = () => {
         onClose={() => setEditVisible(false)}
       />
 
-      {/* ── Car detail (list tap + QR scan of registered car) ── */}
+      {/* ── Car detail ── */}
       <CarDetailModal
         visible={detailModalVisible}
         car={selectedCar}
@@ -908,7 +942,7 @@ const TrafficManager = () => {
         showPresenceToggle={!detailFromScan}
       />
 
-      {/* ── Override / Relink modal ── */}
+      {/* ── Override: orphaned doc relink ── */}
       <Modal
         visible={overrideModalVisible}
         animationType="slide"
@@ -987,6 +1021,107 @@ const TrafficManager = () => {
                   <Text style={s.primaryBtnText}>Register as New Vehicle</Text>
                 </TouchableOpacity>
               }
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Dead-end: no doc → register new or link existing ── */}
+      <Modal
+        visible={deadEndVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setDeadEndVisible(false)}
+      >
+        <View style={s.bottomOverlay}>
+          <View style={s.overrideSheet}>
+            <View style={s.sheetHeader}>
+              <View style={s.sheetHeaderLeft} />
+              <Text style={s.sheetTitle}>QR Not Registered</Text>
+              <TouchableOpacity onPress={() => setDeadEndVisible(false)}>
+                <Icon name="close" size={24} color="rgba(255,255,255,0.5)" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={s.overrideSubtitle}>
+              Register a new vehicle, or link this QR to an existing one.
+            </Text>
+
+            {/* Register new — primary action */}
+            <TouchableOpacity
+              style={[s.primaryBtn, { marginHorizontal: 16, marginTop: 4, marginBottom: 12 }]}
+              onPress={() => {
+                setDeadEndVisible(false);
+                setCurrentQrId(deadEndQrId);
+                setTimeout(() => setRegVisible(true), 250);
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={s.primaryBtnText}>Register New Vehicle</Text>
+            </TouchableOpacity>
+
+            {/* Divider */}
+            <View style={s.deadEndDivider}>
+              <View style={s.deadEndDividerLine} />
+              <Text style={s.deadEndDividerText}>or link to existing</Text>
+              <View style={s.deadEndDividerLine} />
+            </View>
+
+            {/* Search */}
+            <View style={[s.searchBox, { marginHorizontal: 16, marginTop: 10, marginBottom: 8 }]}>
+              <Icon name="magnify" size={18} color="rgba(255,255,255,0.4)" />
+              <TextInput
+                style={s.searchInput}
+                placeholder="Search by plate, owner, make..."
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                value={deadEndSearch}
+                onChangeText={setDeadEndSearch}
+              />
+              {deadEndSearch.length > 0 ? (
+                <TouchableOpacity onPress={() => setDeadEndSearch("")}>
+                  <Icon name="close-circle" size={16} color="rgba(255,255,255,0.4)" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            <FlatList
+              data={filteredDeadEndCars}
+              keyExtractor={(c) => c.id}
+              contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={
+                <View style={{ alignItems: "center", marginTop: 24 }}>
+                  <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}>No vehicles found</Text>
+                </View>
+              }
+              renderItem={({ item: c }) => {
+                const owners = (c.ownerIds || []).map(getUserById).filter(Boolean);
+                const colorObj = COLOR_OPTIONS.find((x) => x.value === c.color);
+                return (
+                  <TouchableOpacity
+                    style={s.overrideCard}
+                    onPress={() => handleDeadEndRelink(c)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={s.overrideCardLeft}>
+                      {colorObj ? (
+                        <View style={[s.carColorBar, { backgroundColor: colorObj.hex, marginRight: 10 }]} />
+                      ) : null}
+                      <View>
+                        <Text style={s.pendingLicense}>{c.license || "NO PLATE"}</Text>
+                        <Text style={s.pendingMeta}>
+                          {[c.make, c.model].filter(Boolean).join(" ") || "No info"}
+                        </Text>
+                        <Text style={s.pendingDriverCount}>
+                          {owners.map((o) => o.name?.split(" ")[0]).join(", ") || "Unknown"}
+                        </Text>
+                      </View>
+                    </View>
+                    <Icon name="link-variant" size={20} color="#147efb" />
+                  </TouchableOpacity>
+                );
+              }}
             />
           </View>
         </View>
@@ -1121,7 +1256,6 @@ const TrafficManager = () => {
             onSelect={pendingReadOnly ? null : (v) => {
               setPendingListVisible(false);
               setRegVisible(false);
-              // Use the REAL scanned QR id, not a generated one
               setTimeout(() => setApprovalData({ vehicle: v, qrId: currentQrId }), 250);
             }}
           />
@@ -1250,6 +1384,9 @@ const s = StyleSheet.create({
   overrideSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.4)", paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
   overrideCard: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 16, marginBottom: 10 },
   overrideCardLeft: { flex: 1, flexDirection: "row", alignItems: "center" },
+  deadEndDivider: { flexDirection: "row", alignItems: "center", marginHorizontal: 16 },
+  deadEndDividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.1)" },
+  deadEndDividerText: { fontSize: 12, color: "rgba(255,255,255,0.3)", marginHorizontal: 10, fontWeight: "500" },
   menuOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
   menuSheet: { backgroundColor: "#1c1c1e", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
   menuHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)", alignSelf: "center", marginBottom: 20 },
