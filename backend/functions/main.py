@@ -24,6 +24,24 @@ Scheduled Jobs Summary (all times Eastern):
 - Monday 12:00 AM: Generate attendance sheets
 - September 11 12:00 AM: New school year cleanup
 """
+import datetime
+from firebase_functions import scheduler_fn as _sched_mod
+
+_original_strptime = datetime.datetime.strptime
+
+class _PatchedDatetime(datetime.datetime):
+    @classmethod
+    def strptime(cls, data_string, fmt):
+        if fmt == "%Y-%m-%dT%H:%M:%S%z":
+            for f in ("%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S%z"):
+                try:
+                    return _original_strptime(data_string, f)
+                except ValueError:
+                    continue
+        return _original_strptime(data_string, fmt)
+
+# Patch the datetime module reference inside scheduler_fn
+_sched_mod._dt.datetime = _PatchedDatetime
 
 from typing import Any, List, Dict
 import random
@@ -35,7 +53,6 @@ from firebase_admin import initialize_app, firestore, credentials, auth, messagi
 import google.cloud.firestore
 from google.cloud import firestore
 import requests
-import datetime
 from flask import Request
 import re
 import os
@@ -819,22 +836,17 @@ def new_years_cleanup(event: scheduler_fn.ScheduledEvent) -> None:
 
 
 @scheduler_fn.on_schedule(
-    schedule="0 0 * * 0",  # Every Sunday at midnight
+    schedule="0 0 * * 0",
     timezone=scheduler_fn.Timezone("America/New_York"),
 )
-async def scheduled_update_ages():
-    """Weekly job: Recalculates ages from DOB for all users."""
+def scheduled_update_ages(event: scheduler_fn.ScheduledEvent) -> None:
+    asyncio.run(_update_ages_async())
+
+async def _update_ages_async():
     firestore_client = firestore.Client()
-    users_ref = firestore_client.collection("users")
-    users_docs = users_ref.stream()
-
-    tasks = []
-    for user_doc in users_docs:
-        tasks.append(asyncio.to_thread(update_user_sync, user_doc))
-
+    users_docs = firestore_client.collection("users").stream()
+    tasks = [asyncio.to_thread(update_user_sync, doc) for doc in users_docs]
     await asyncio.gather(*tasks)
-    return https_fn.Response("Scheduled age update completed", status=200)
-
 
 def update_user_sync(user_doc):
     """Helper: Updates a single user's age if it has changed."""
