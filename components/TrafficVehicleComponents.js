@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo, memo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, memo, useRef } from "react";
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet,
   FlatList, Modal, TextInput, Alert, ActivityIndicator,
-  KeyboardAvoidingView, Platform, Dimensions,
+  KeyboardAvoidingView, Platform, Dimensions, Animated,
 } from "react-native";
 import { Image } from "expo-image";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
@@ -151,12 +151,23 @@ export const VehicleFormSheet = memo(({
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [color, setColor] = useState("");
-
   const [drivers, setDrivers] = useState([]);
   const [search, setSearch] = useState("");
   const [guestOpen, setGuestOpen] = useState(false);
   const [guestSaving, setGuestSaving] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!visible) return;
+    fadeAnim.setValue(0);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [visible]);
 
   useEffect(() => {
     if (!visible) return;
@@ -166,7 +177,6 @@ export const VehicleFormSheet = memo(({
     setColor(initialData?.color ?? "");
     setDrivers(initialData?.drivers ?? []);
     setSearch("");
-
     setGuestOpen(false);
     setSaving(false);
   }, [visible, initialData]);
@@ -247,13 +257,26 @@ export const VehicleFormSheet = memo(({
   const selectedDrivers = drivers.map((uid) => ({ uid, user: allUsers.find((u) => u.uid === uid) }));
 
   return (
-          <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={s.bottomOverlay}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={0}
       >
-        <View style={s.formSheet}>
+        <Animated.View
+          style={[
+            s.formSheet,
+            {
+              opacity: fadeAnim,
+              transform: [{
+                translateY: fadeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [16, 0],
+                }),
+              }],
+            },
+          ]}
+        >
           {/* ── Header ── */}
           <View style={s.formHeader}>
             <TouchableOpacity onPress={onClose} style={s.formCloseBtn}>
@@ -408,7 +431,7 @@ export const VehicleFormSheet = memo(({
                 : <Text style={s.formSaveBtnText}>{isReg ? "Register Vehicle" : "Save Changes"}</Text>}
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -493,7 +516,6 @@ export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, ch
       if (vehicle.make) carData.make = vehicle.make;
       if (vehicle.model) carData.model = vehicle.model;
       if (vehicle.color) carData.color = vehicle.color;
-      // Save under the REAL scanned QR id
       await firestore().collection("qrCodes").doc(currentQrId).set(carData);
       await firestore().collection("pending_registrations").doc(vehicle.id).delete();
       onDone();
@@ -713,7 +735,6 @@ const s = StyleSheet.create({
   sheetHeaderLeft: { width: 24 },
   sheetTitle: { fontSize: 17, fontWeight: "600", color: "#fff" },
   sheetFooter: { padding: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.06)" },
-  // ── Form sheet ──
   formSheet: { backgroundColor: "#181818", borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "94%", height: "94%" },
   formHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(255,255,255,0.08)" },
   formCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.06)", justifyContent: "center", alignItems: "center" },
@@ -748,7 +769,6 @@ const s = StyleSheet.create({
   formSaveBtn: { backgroundColor: "#147efb", paddingVertical: 15, borderRadius: 14, alignItems: "center" },
   formSaveBtnGreen: { backgroundColor: "#30d158" },
   formSaveBtnText: { fontSize: 16, fontWeight: "700", color: "#fff", letterSpacing: -0.2 },
-  // ── Legacy pending badge (used in PendingList) ──
   pendingBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(255,159,10,0.12)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   pendingBtnText: { fontSize: 13, fontWeight: "600", color: "#ff9f0a" },
   pendingBadge: { width: 18, height: 18, borderRadius: 9, backgroundColor: "#ff9f0a", justifyContent: "center", alignItems: "center" },
@@ -799,7 +819,6 @@ const s = StyleSheet.create({
   unregBadge: { backgroundColor: "rgba(255,159,10,0.15)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   unregBadgeText: { fontSize: 10, fontWeight: "600", color: "#ff9f0a" },
   unregDeleteBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: "rgba(255,69,58,0.12)", justifyContent: "center", alignItems: "center", marginRight: 8 },
-
   inlineAddGuest: { backgroundColor: "rgba(20,126,251,0.08)", borderRadius: 12, padding: 14, marginTop: 8, marginBottom: 8, borderWidth: 1, borderColor: "rgba(20,126,251,0.2)" },
   inlineAddGuestHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
   inlineAddGuestTitle: { fontSize: 15, fontWeight: "600", color: "#fff" },
@@ -809,7 +828,6 @@ const s = StyleSheet.create({
   inlineGuestCancelText: { fontSize: 14, fontWeight: "500", color: "rgba(255,255,255,0.6)" },
   inlineGuestSaveBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: "#147efb", alignItems: "center" },
   inlineGuestSaveText: { fontSize: 14, fontWeight: "600", color: "#fff" },
-
   swatchBtn: { alignItems: "center", gap: 5, paddingHorizontal: 4 },
   swatchBtnSelected: {},
   swatchCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: "transparent" },
