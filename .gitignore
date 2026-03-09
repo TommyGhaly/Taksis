@@ -93,3 +93,5 @@ web-build/
 *.apk
 
 android/app/taksis-release.keystore
+
+credentials.json
