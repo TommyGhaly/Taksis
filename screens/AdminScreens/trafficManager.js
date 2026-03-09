@@ -1026,7 +1026,7 @@ const TrafficManager = () => {
         </View>
       </Modal>
 
-      {/* ── Dead-end: no doc → register new or link existing ── */}
+      {/* ── Dead-end: no doc → register new, approve pending, or link existing ── */}
       <Modal
         visible={deadEndVisible}
         animationType="slide"
@@ -1043,57 +1043,99 @@ const TrafficManager = () => {
               </TouchableOpacity>
             </View>
 
-            <Text style={s.overrideSubtitle}>
-              Register a new vehicle, or link this QR to an existing one.
-            </Text>
-
-            {/* Register new — primary action */}
-            <TouchableOpacity
-              style={[s.primaryBtn, { marginHorizontal: 16, marginTop: 4, marginBottom: 12 }]}
-              onPress={() => {
-                setDeadEndVisible(false);
-                setCurrentQrId(deadEndQrId);
-                setTimeout(() => setRegVisible(true), 250);
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={s.primaryBtnText}>Register New Vehicle</Text>
-            </TouchableOpacity>
-
-            {/* Divider */}
-            <View style={s.deadEndDivider}>
-              <View style={s.deadEndDividerLine} />
-              <Text style={s.deadEndDividerText}>or link to existing</Text>
-              <View style={s.deadEndDividerLine} />
-            </View>
-
-            {/* Search */}
-            <View style={[s.searchBox, { marginHorizontal: 16, marginTop: 10, marginBottom: 8 }]}>
-              <Icon name="magnify" size={18} color="rgba(255,255,255,0.4)" />
-              <TextInput
-                style={s.searchInput}
-                placeholder="Search by plate, owner, make..."
-                placeholderTextColor="rgba(255,255,255,0.3)"
-                value={deadEndSearch}
-                onChangeText={setDeadEndSearch}
-              />
-              {deadEndSearch.length > 0 ? (
-                <TouchableOpacity onPress={() => setDeadEndSearch("")}>
-                  <Icon name="close-circle" size={16} color="rgba(255,255,255,0.4)" />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-
             <FlatList
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
               data={filteredDeadEndCars}
               keyExtractor={(c) => c.id}
               contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={
-                <View style={{ alignItems: "center", marginTop: 24 }}>
-                  <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}>No vehicles found</Text>
+              ListHeaderComponent={
+                <View>
+                  {/* ── Always: Register New ── */}
+                  <TouchableOpacity
+                    style={[s.deadEndOptionBtn, { marginTop: 16 }]}
+                    onPress={() => {
+                      setDeadEndVisible(false);
+                      setCurrentQrId(deadEndQrId);
+                      setTimeout(() => setRegVisible(true), 250);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[s.deadEndOptionIcon, { backgroundColor: "rgba(48,209,88,0.15)" }]}>
+                      <Icon name="car-plus" size={20} color="#30d158" />
+                    </View>
+                    <View style={s.deadEndOptionInfo}>
+                      <Text style={s.deadEndOptionTitle}>Register New Vehicle</Text>
+                      <Text style={s.deadEndOptionSub}>Add a fresh entry under this QR</Text>
+                    </View>
+                    <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.25)" />
+                  </TouchableOpacity>
+
+                  {/* ── Conditional: Approve Pending ── */}
+                  {pendingVehicles.length > 0 && (
+                    <>
+                      <View style={s.deadEndDivider}>
+                        <View style={s.deadEndDividerLine} />
+                        <Text style={s.deadEndDividerText}>or</Text>
+                        <View style={s.deadEndDividerLine} />
+                      </View>
+                      <TouchableOpacity
+                        style={s.deadEndOptionBtn}
+                        onPress={() => {
+                          setDeadEndVisible(false);
+                          setCurrentQrId(deadEndQrId);
+                          setPendingReadOnly(false);
+                          setTimeout(() => setPendingListVisible(true), 250);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <View style={[s.deadEndOptionIcon, { backgroundColor: "rgba(255,159,10,0.15)" }]}>
+                          <Icon name="car-clock" size={20} color="#ff9f0a" />
+                        </View>
+                        <View style={s.deadEndOptionInfo}>
+                          <Text style={s.deadEndOptionTitle}>Approve Pending Vehicle</Text>
+                          <Text style={s.deadEndOptionSub}>{pendingVehicles.length} awaiting approval</Text>
+                        </View>
+                        <View style={s.pendingBadge}>
+                          <Text style={s.pendingBadgeText}>{pendingVehicles.length}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    </>
+                  )}
+
+                  {/* ── Conditional: Link to Existing (corrupted) ── */}
+                  {cars.filter((c) => !isReservedId(c.id)).length > 0 && (
+                    <>
+                      <View style={s.deadEndDivider}>
+                        <View style={s.deadEndDividerLine} />
+                        <Text style={s.deadEndDividerText}>or fix a corrupted file</Text>
+                        <View style={s.deadEndDividerLine} />
+                      </View>
+                      <View style={[s.searchBox, { marginBottom: 10 }]}>
+                        <Icon name="magnify" size={18} color="rgba(255,255,255,0.4)" />
+                        <TextInput
+                          style={s.searchInput}
+                          placeholder="Search by plate, owner, make..."
+                          placeholderTextColor="rgba(255,255,255,0.3)"
+                          value={deadEndSearch}
+                          onChangeText={setDeadEndSearch}
+                        />
+                        {deadEndSearch.length > 0 ? (
+                          <TouchableOpacity onPress={() => setDeadEndSearch("")}>
+                            <Icon name="close-circle" size={16} color="rgba(255,255,255,0.4)" />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                    </>
+                  )}
                 </View>
+              }
+              ListEmptyComponent={
+                deadEndSearch.length > 0 ? (
+                  <View style={{ alignItems: "center", marginTop: 16 }}>
+                    <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}>No vehicles found</Text>
+                  </View>
+                ) : null
               }
               renderItem={({ item: c }) => {
                 const owners = (c.ownerIds || []).map(getUserById).filter(Boolean);
@@ -1384,9 +1426,14 @@ const s = StyleSheet.create({
   overrideSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.4)", paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
   overrideCard: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 16, marginBottom: 10 },
   overrideCardLeft: { flex: 1, flexDirection: "row", alignItems: "center" },
-  deadEndDivider: { flexDirection: "row", alignItems: "center", marginHorizontal: 16 },
+  deadEndDivider: { flexDirection: "row", alignItems: "center", marginHorizontal: 0, marginVertical: 14 },
   deadEndDividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.1)" },
   deadEndDividerText: { fontSize: 12, color: "rgba(255,255,255,0.3)", marginHorizontal: 10, fontWeight: "500" },
+  deadEndOptionBtn: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 14, marginBottom: 0, gap: 12 },
+  deadEndOptionIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: "center", alignItems: "center" },
+  deadEndOptionInfo: { flex: 1 },
+  deadEndOptionTitle: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  deadEndOptionSub: { fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 2 },
   menuOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
   menuSheet: { backgroundColor: "#1c1c1e", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
   menuHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)", alignSelf: "center", marginBottom: 20 },
