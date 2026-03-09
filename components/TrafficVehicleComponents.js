@@ -63,39 +63,31 @@ const UserSelectRow = memo(({ item, selected, onPress, getImageSource, isUnreg, 
 
 // ── ColorPicker ───────────────────────────────────────────────────────────────
 
-const ColorPicker = memo(({ value, onSelect, visible, onToggle }) => {
-  const selected = COLOR_OPTIONS.find((c) => c.value === value);
-  return (
-    <View>
-      <TouchableOpacity style={s.colorPickerBtn} onPress={onToggle} activeOpacity={0.7}>
-        {selected ? (
-          <>
-            <View style={[s.colorSwatch, { backgroundColor: selected.hex }]} />
-            <Text style={s.colorPickerText}>{selected.label}</Text>
-          </>
-        ) : (
-          <Text style={s.colorPickerPlaceholder}>Select color</Text>
-        )}
-        <Icon name={visible ? "chevron-up" : "chevron-down"} size={18} color="rgba(255,255,255,0.4)" />
-      </TouchableOpacity>
-      {visible ? (
-        <View style={s.colorGrid}>
-          {COLOR_OPTIONS.map((c) => (
-            <TouchableOpacity
-              key={c.value}
-              style={[s.colorOption, value === c.value && s.colorOptionSelected]}
-              onPress={() => onSelect(c.value)}
-              activeOpacity={0.7}
-            >
-              <View style={[s.colorOptionSwatch, { backgroundColor: c.hex }]} />
-              <Text style={s.colorOptionLabel}>{c.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      ) : null}
-    </View>
-  );
-});
+const ColorPicker = memo(({ value, onSelect }) => (
+  <View>
+    <FlatList
+      data={COLOR_OPTIONS}
+      keyExtractor={(c) => c.value}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ gap: 8, paddingVertical: 4, paddingTop: 14 }}
+      renderItem={({ item: c }) => {
+        const selected = value === c.value;
+        return (
+          <TouchableOpacity
+            onPress={() => onSelect(selected ? "" : c.value)}
+            activeOpacity={0.75}
+            style={[s.swatchBtn, selected && s.swatchBtnSelected]}
+          >
+            <View style={[s.swatchCircle, { backgroundColor: c.hex },
+              c.value === "white" && s.swatchCircleWhite]} />
+            <Text style={[s.swatchLabel, selected && s.swatchLabelSelected]}>{c.label}</Text>
+          </TouchableOpacity>
+        );
+      }}
+    />
+  </View>
+));
 
 // ── AddGuestInline ────────────────────────────────────────────────────────────
 
@@ -137,6 +129,18 @@ const AddGuestInline = memo(({ visible, onSave, onCancel, saving }) => {
   );
 });
 
+// ── SelectedDriverChip ────────────────────────────────────────────────────────
+
+const SelectedDriverChip = memo(({ uid, user, getImageSource, onRemove, isUnreg }) => (
+  <View style={s.chip}>
+    <Image source={getImageSource(uid)} style={s.chipAvatar} contentFit="cover" />
+    <Text style={s.chipName} numberOfLines={1}>{user?.name?.split(" ")[0] ?? "?"}</Text>
+    <TouchableOpacity onPress={() => onRemove(uid)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+      <Icon name="close-circle" size={16} color="rgba(255,255,255,0.4)" />
+    </TouchableOpacity>
+  </View>
+));
+
 // ── VehicleFormSheet ──────────────────────────────────────────────────────────
 
 export const VehicleFormSheet = memo(({
@@ -147,7 +151,7 @@ export const VehicleFormSheet = memo(({
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [color, setColor] = useState("");
-  const [colorOpen, setColorOpen] = useState(false);
+
   const [drivers, setDrivers] = useState([]);
   const [search, setSearch] = useState("");
   const [guestOpen, setGuestOpen] = useState(false);
@@ -162,7 +166,7 @@ export const VehicleFormSheet = memo(({
     setColor(initialData?.color ?? "");
     setDrivers(initialData?.drivers ?? []);
     setSearch("");
-    setColorOpen(false);
+
     setGuestOpen(false);
     setSaving(false);
   }, [visible, initialData]);
@@ -178,6 +182,10 @@ export const VehicleFormSheet = memo(({
 
   const toggleDriver = useCallback((uid) => {
     setDrivers((prev) => prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]);
+  }, []);
+
+  const removeDriver = useCallback((uid) => {
+    setDrivers((prev) => prev.filter((id) => id !== uid));
   }, []);
 
   const handleAddGuest = useCallback(async (name, phone) => {
@@ -210,53 +218,61 @@ export const VehicleFormSheet = memo(({
 
   const isReg = mode === "register";
 
-  const renderUserItem = useCallback(({ item }) => (
-    <UserSelectRow
-      item={item}
-      selected={drivers.includes(item.uid)}
-      onPress={toggleDriver}
-      getImageSource={getImageSource}
-      isUnreg={!!item.isUnreg || item.uid?.startsWith("unreg_")}
-      onDelete={
-        item.isUnreg || item.uid?.startsWith("unreg_")
-          ? (person) => {
-              Alert.alert("Remove from list?", `Remove ${person.name} from this vehicle?`, [
-                { text: "Cancel", style: "cancel" },
-                { text: "Remove", style: "destructive",
-                  onPress: () => setDrivers((prev) => prev.filter((id) => id !== person.uid)) },
-              ]);
-            }
-          : undefined
-      }
-    />
-  ), [drivers, toggleDriver, getImageSource]);
+  const renderUserItem = useCallback(({ item }) => {
+    const selected = drivers.includes(item.uid);
+    const isUnreg = !!item.isUnreg || item.uid?.startsWith("unreg_");
+    return (
+      <TouchableOpacity
+        style={[s.personRow, selected && s.personRowSelected]}
+        onPress={() => toggleDriver(item.uid)}
+        activeOpacity={0.7}
+      >
+        <Image source={getImageSource(item.uid)} style={s.personAvatar} contentFit="cover" />
+        <View style={s.personInfo}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={s.personName}>{item.name}</Text>
+            {isUnreg && (
+              <View style={s.unregBadge}><Text style={s.unregBadgeText}>No Account</Text></View>
+            )}
+          </View>
+          {item.phone ? <Text style={s.personPhone}>{item.phone}</Text> : null}
+        </View>
+        <View style={[s.checkbox, selected && s.checkboxSelected]}>
+          {selected ? <Icon name="check" size={13} color="#fff" /> : null}
+        </View>
+      </TouchableOpacity>
+    );
+  }, [drivers, toggleDriver, getImageSource]);
+
+  const selectedDrivers = drivers.map((uid) => ({ uid, user: allUsers.find((u) => u.uid === uid) }));
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+          <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={s.bottomOverlay}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={0}
       >
-        <View style={isReg ? s.regSheet : s.editSheet}>
-          <View style={s.sheetHeader}>
+        <View style={s.formSheet}>
+          {/* ── Header ── */}
+          <View style={s.formHeader}>
+            <TouchableOpacity onPress={onClose} style={s.formCloseBtn}>
+              <Icon name="chevron-down" size={24} color="rgba(255,255,255,0.5)" />
+            </TouchableOpacity>
+            <Text style={s.formTitle}>{isReg ? "Register Vehicle" : "Edit Vehicle"}</Text>
             {isReg ? (
-              <TouchableOpacity style={s.pendingBtn} onPress={onOpenPending} activeOpacity={0.7}>
-                <Icon name="car-clock" size={16} color="#ff9f0a" />
-                <Text style={s.pendingBtnText}>Pending</Text>
+              <TouchableOpacity style={s.pendingPill} onPress={onOpenPending} activeOpacity={0.7}>
+                <Icon name="car-clock" size={14} color="#ff9f0a" />
+                <Text style={s.pendingPillText}>Pending</Text>
                 {pendingVehicles?.length > 0 ? (
-                  <View style={s.pendingBadge}>
-                    <Text style={s.pendingBadgeText}>{pendingVehicles.length}</Text>
+                  <View style={s.pendingDot}>
+                    <Text style={s.pendingDotText}>{pendingVehicles.length}</Text>
                   </View>
                 ) : null}
               </TouchableOpacity>
             ) : (
-              <View style={s.sheetHeaderLeft} />
+              <View style={{ width: 80 }} />
             )}
-            <Text style={s.sheetTitle}>{isReg ? "Register Vehicle" : "Edit Vehicle"}</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Icon name="close" size={24} color="rgba(255,255,255,0.5)" />
-            </TouchableOpacity>
           </View>
 
           <FlatList
@@ -265,69 +281,123 @@ export const VehicleFormSheet = memo(({
             renderItem={renderUserItem}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={s.regScrollContent}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
             ListHeaderComponent={
-              <>
-                <Text style={s.inputLabel}>License Plate *</Text>
-                <TextInput
-                  style={s.plateInputSmall}
-                  placeholder="ABC-1234"
-                  placeholderTextColor="rgba(255,255,255,0.2)"
-                  autoCapitalize="characters"
-                  value={license}
-                  onChangeText={setLicense}
-                  maxLength={10}
-                />
-                <Text style={[s.inputLabel, { marginTop: 20 }]}>Vehicle Info (optional)</Text>
-                <View style={s.vehicleInfoRow}>
+              <View>
+                {/* ── Plate ── */}
+                <View style={s.formSection}>
+                  <Text style={s.formSectionLabel}>License Plate</Text>
                   <TextInput
-                    style={[s.vehicleInput, { flex: 1, marginRight: 8 }]}
-                    placeholder="Make" placeholderTextColor="rgba(255,255,255,0.2)"
-                    value={make} onChangeText={setMake}
-                  />
-                  <TextInput
-                    style={[s.vehicleInput, { flex: 1 }]}
-                    placeholder="Model" placeholderTextColor="rgba(255,255,255,0.2)"
-                    value={model} onChangeText={setModel}
+                    style={s.plateInput}
+                    placeholder="ABC · 1234"
+                    placeholderTextColor="rgba(255,255,255,0.15)"
+                    autoCapitalize="characters"
+                    value={license}
+                    onChangeText={setLicense}
+                    maxLength={10}
                   />
                 </View>
-                <ColorPicker
-                  value={color}
-                  onSelect={(v) => { setColor(v === color ? "" : v); setColorOpen(false); }}
-                  visible={colorOpen}
-                  onToggle={() => setColorOpen((p) => !p)}
+
+                {/* ── Vehicle info ── */}
+                <View style={s.formSection}>
+                  <Text style={s.formSectionLabel}>Vehicle Info <Text style={s.formSectionOptional}>(optional)</Text></Text>
+                  <View style={s.infoRow}>
+                    <TextInput
+                      style={[s.infoInput, { flex: 1, marginRight: 8 }]}
+                      placeholder="Make"
+                      placeholderTextColor="rgba(255,255,255,0.25)"
+                      value={make} onChangeText={setMake}
+                    />
+                    <TextInput
+                      style={[s.infoInput, { flex: 1 }]}
+                      placeholder="Model"
+                      placeholderTextColor="rgba(255,255,255,0.25)"
+                      value={model} onChangeText={setModel}
+                    />
+                  </View>
+                  <ColorPicker value={color} onSelect={setColor} />
+                </View>
+
+                {/* ── Selected drivers chips ── */}
+                {selectedDrivers.length > 0 && (
+                  <View style={s.formSection}>
+                    <Text style={s.formSectionLabel}>Selected Drivers</Text>
+                    <View style={s.chipRow}>
+                      {selectedDrivers.map(({ uid, user }) => (
+                        <SelectedDriverChip
+                          key={uid} uid={uid} user={user}
+                          getImageSource={getImageSource}
+                          onRemove={removeDriver}
+                          isUnreg={uid.startsWith("unreg_")}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* ── Add guest ── */}
+                <AddGuestInline
+                  visible={guestOpen}
+                  onSave={handleAddGuest}
+                  onCancel={() => setGuestOpen(false)}
+                  saving={guestSaving}
                 />
-                <View style={s.driverSectionHeader}>
-                  <Text style={[s.inputLabel, { marginTop: 20, marginBottom: 0 }]}>Drivers *</Text>
-                  <TouchableOpacity style={s.addPersonBtn} onPress={() => setGuestOpen((p) => !p)} activeOpacity={0.7}>
-                    <Icon name="account-plus" size={16} color="#147efb" />
-                    <Text style={s.addPersonBtnText}>Add Person</Text>
+
+                {/* ── People header + search ── */}
+                <View style={s.peopleSectionHeader}>
+                  <Text style={s.formSectionLabel}>Add Drivers</Text>
+                  <TouchableOpacity
+                    style={s.addGuestBtn}
+                    onPress={() => setGuestOpen((p) => !p)}
+                    activeOpacity={0.7}
+                  >
+                    <Icon name="account-plus-outline" size={15} color="#147efb" />
+                    <Text style={s.addGuestBtnText}>Add Guest</Text>
                   </TouchableOpacity>
                 </View>
-                <AddGuestInline visible={guestOpen} onSave={handleAddGuest} onCancel={() => setGuestOpen(false)} saving={guestSaving} />
-                <View style={[s.searchBox, { marginBottom: 8 }]}>
-                  <Icon name="magnify" size={20} color="rgba(255,255,255,0.4)" />
+                <View style={s.searchRow}>
+                  <Icon name="magnify" size={18} color="rgba(255,255,255,0.35)" />
                   <TextInput
                     style={s.searchInput}
-                    placeholder="Search..."
-                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    placeholder="Search by name or phone..."
+                    placeholderTextColor="rgba(255,255,255,0.25)"
                     value={search}
                     onChangeText={setSearch}
                   />
-                  {search.length > 0 ? (
+                  {search.length > 0 && (
                     <TouchableOpacity onPress={() => setSearch("")}>
-                      <Icon name="close-circle" size={18} color="rgba(255,255,255,0.4)" />
+                      <Icon name="close-circle" size={16} color="rgba(255,255,255,0.3)" />
                     </TouchableOpacity>
-                  ) : null}
+                  )}
                 </View>
-              </>
+              </View>
             }
-            ListFooterComponent={<View style={{ height: 100 }} />}
+            ListEmptyComponent={
+              <View style={{ alignItems: "center", paddingVertical: 24 }}>
+                <Text style={{ color: "rgba(255,255,255,0.25)", fontSize: 14 }}>No people found</Text>
+              </View>
+            }
           />
 
-          <View style={s.sheetFooter}>
+          {/* ── Footer ── */}
+          <View style={s.formFooter}>
+            <View style={s.formFooterMeta}>
+              <Icon
+                name={license.trim() ? "check-circle" : "circle-outline"}
+                size={14}
+                color={license.trim() ? "#34c759" : "rgba(255,255,255,0.2)"}
+              />
+              <Text style={s.formFooterMetaText}>Plate</Text>
+              <Icon
+                name={drivers.length > 0 ? "check-circle" : "circle-outline"}
+                size={14}
+                color={drivers.length > 0 ? "#34c759" : "rgba(255,255,255,0.2)"}
+                style={{ marginLeft: 12 }}
+              />
+              <Text style={s.formFooterMetaText}>{drivers.length} driver{drivers.length !== 1 ? "s" : ""}</Text>
+            </View>
             <TouchableOpacity
-              style={[s.primaryBtn, isReg && s.greenBtn,
+              style={[s.formSaveBtn, isReg && s.formSaveBtnGreen,
                 (!license.trim() || drivers.length === 0 || saving) && s.btnDisabled]}
               onPress={handleSave}
               disabled={!license.trim() || drivers.length === 0 || saving}
@@ -335,7 +405,7 @@ export const VehicleFormSheet = memo(({
             >
               {saving
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={s.primaryBtnText}>{isReg ? "Register" : "Save"}</Text>}
+                : <Text style={s.formSaveBtnText}>{isReg ? "Register Vehicle" : "Save Changes"}</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -643,9 +713,42 @@ const s = StyleSheet.create({
   sheetHeaderLeft: { width: 24 },
   sheetTitle: { fontSize: 17, fontWeight: "600", color: "#fff" },
   sheetFooter: { padding: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.06)" },
-  regSheet: { backgroundColor: "#1c1c1e", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "92%", height: "92%" },
-  editSheet: { backgroundColor: "#1c1c1e", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "92%", height: "92%" },
-  regScrollContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
+  // ── Form sheet ──
+  formSheet: { backgroundColor: "#181818", borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "94%", height: "94%" },
+  formHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(255,255,255,0.08)" },
+  formCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.06)", justifyContent: "center", alignItems: "center" },
+  formTitle: { fontSize: 17, fontWeight: "700", color: "#fff", letterSpacing: -0.3 },
+  pendingPill: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,159,10,0.12)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
+  pendingPillText: { fontSize: 12, fontWeight: "600", color: "#ff9f0a" },
+  pendingDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: "#ff9f0a", justifyContent: "center", alignItems: "center" },
+  pendingDotText: { fontSize: 9, fontWeight: "700", color: "#000" },
+  formSection: { marginTop: 20 },
+  formSectionLabel: { fontSize: 11, fontWeight: "600", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 },
+  formSectionOptional: { fontWeight: "400", textTransform: "none", letterSpacing: 0, color: "rgba(255,255,255,0.2)" },
+  plateInput: { backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 14, paddingHorizontal: 20, paddingVertical: 18, color: "#fff", fontSize: 26, fontWeight: "700", textAlign: "center", letterSpacing: 3, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.08)" },
+  infoRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  infoInput: { backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, color: "#fff", fontSize: 15, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.08)" },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chip: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(20,126,251,0.15)", borderRadius: 20, paddingVertical: 6, paddingLeft: 6, paddingRight: 10, gap: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(20,126,251,0.25)" },
+  chipAvatar: { width: 24, height: 24, borderRadius: 12 },
+  chipName: { fontSize: 13, fontWeight: "600", color: "#fff", maxWidth: 80 },
+  peopleSectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 24, marginBottom: 10 },
+  addGuestBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(20,126,251,0.1)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
+  addGuestBtnText: { fontSize: 12, fontWeight: "600", color: "#147efb" },
+  searchRow: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 2, marginBottom: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.06)" },
+  personRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14, marginBottom: 6, backgroundColor: "rgba(255,255,255,0.04)" },
+  personRowSelected: { backgroundColor: "rgba(20,126,251,0.12)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(20,126,251,0.3)" },
+  personAvatar: { width: 40, height: 40, borderRadius: 20 },
+  personInfo: { flex: 1, marginLeft: 12 },
+  personName: { fontSize: 15, fontWeight: "500", color: "#fff" },
+  personPhone: { fontSize: 13, color: "rgba(255,255,255,0.35)", marginTop: 1 },
+  formFooter: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#181818", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255,255,255,0.08)", paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
+  formFooterMeta: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+  formFooterMetaText: { fontSize: 12, color: "rgba(255,255,255,0.35)", marginLeft: 4 },
+  formSaveBtn: { backgroundColor: "#147efb", paddingVertical: 15, borderRadius: 14, alignItems: "center" },
+  formSaveBtnGreen: { backgroundColor: "#30d158" },
+  formSaveBtnText: { fontSize: 16, fontWeight: "700", color: "#fff", letterSpacing: -0.2 },
+  // ── Legacy pending badge (used in PendingList) ──
   pendingBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(255,159,10,0.12)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   pendingBtnText: { fontSize: 13, fontWeight: "600", color: "#ff9f0a" },
   pendingBadge: { width: 18, height: 18, borderRadius: 9, backgroundColor: "#ff9f0a", justifyContent: "center", alignItems: "center" },
@@ -684,7 +787,7 @@ const s = StyleSheet.create({
   taksisBadge: { backgroundColor: "rgba(20,126,251,0.15)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   taksisBadgeText: { fontSize: 11, fontWeight: "600", color: "#147efb" },
   searchBox: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 12 },
-  searchInput: { flex: 1, color: "#fff", fontSize: 15, paddingVertical: 12, marginLeft: 8 },
+  searchInput: { flex: 1, color: "#fff", fontSize: 15, paddingVertical: 11, marginLeft: 6 },
   userRow: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, marginBottom: 8, backgroundColor: "rgba(255,255,255,0.04)" },
   userRowSelected: { backgroundColor: "rgba(20,126,251,0.15)", borderWidth: 1, borderColor: "rgba(20,126,251,0.3)" },
   userAvatar: { width: 44, height: 44, borderRadius: 22 },
@@ -696,9 +799,7 @@ const s = StyleSheet.create({
   unregBadge: { backgroundColor: "rgba(255,159,10,0.15)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   unregBadgeText: { fontSize: 10, fontWeight: "600", color: "#ff9f0a" },
   unregDeleteBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: "rgba(255,69,58,0.12)", justifyContent: "center", alignItems: "center", marginRight: 8 },
-  driverSectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 0 },
-  addPersonBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "rgba(20,126,251,0.12)", marginTop: 20 },
-  addPersonBtnText: { fontSize: 13, fontWeight: "500", color: "#147efb" },
+
   inlineAddGuest: { backgroundColor: "rgba(20,126,251,0.08)", borderRadius: 12, padding: 14, marginTop: 8, marginBottom: 8, borderWidth: 1, borderColor: "rgba(20,126,251,0.2)" },
   inlineAddGuestHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
   inlineAddGuestTitle: { fontSize: 15, fontWeight: "600", color: "#fff" },
@@ -708,21 +809,12 @@ const s = StyleSheet.create({
   inlineGuestCancelText: { fontSize: 14, fontWeight: "500", color: "rgba(255,255,255,0.6)" },
   inlineGuestSaveBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: "#147efb", alignItems: "center" },
   inlineGuestSaveText: { fontSize: 14, fontWeight: "600", color: "#fff" },
-  vehicleInfoRow: { flexDirection: "row", marginBottom: 8 },
-  vehicleInput: { backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 15 },
-  colorPickerBtn: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, gap: 8, marginTop: 8 },
-  colorSwatch: { width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
-  colorPickerText: { flex: 1, color: "#fff", fontSize: 15 },
-  colorPickerPlaceholder: { flex: 1, color: "rgba(255,255,255,0.3)", fontSize: 15 },
-  colorGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 10 },
-  colorOption: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.06)", gap: 6 },
-  colorOptionSelected: { backgroundColor: "rgba(20,126,251,0.2)", borderWidth: 1, borderColor: "rgba(20,126,251,0.4)" },
-  colorOptionSwatch: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
-  colorOptionLabel: { fontSize: 13, color: "#fff" },
-  inputLabel: { fontSize: 14, fontWeight: "500", color: "rgba(255,255,255,0.5)", marginBottom: 8 },
-  plateInputSmall: { backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 14, color: "#fff", fontSize: 18, fontWeight: "600", textAlign: "center", letterSpacing: 1 },
-  primaryBtn: { backgroundColor: "#147efb", paddingVertical: 16, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  greenBtn: { backgroundColor: "#34c759" },
-  primaryBtnText: { fontSize: 16, fontWeight: "600", color: "#fff" },
-  btnDisabled: { opacity: 0.4 },
+
+  swatchBtn: { alignItems: "center", gap: 5, paddingHorizontal: 4 },
+  swatchBtnSelected: {},
+  swatchCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: "transparent" },
+  swatchCircleWhite: { borderColor: "rgba(255,255,255,0.2)" },
+  swatchLabel: { fontSize: 11, color: "rgba(255,255,255,0.3)", fontWeight: "500" },
+  swatchLabelSelected: { color: "#fff" },
+  btnDisabled: { opacity: 0.35 },
 });
