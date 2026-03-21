@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { CameraView, useCameraPermissions } from "expo-camera";
-// import MlkitOcr from "rn-mlkit-ocr";
+import MlkitOcr from "react-native-mlkit-ocr";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
@@ -455,7 +455,16 @@ const TrafficManager = () => {
   }, []);
 
   const startOcrLoop = useCallback(() => {
-    // temporary disable OCR due to stability issues in the current library version
+    stopOcrLoop();
+    ocrIntervalRef.current = setInterval(async () => {
+      if (!cameraRef.current) return;
+      try {
+        const photo = await cameraRef.current.takePictureAsync({ quality: 0.5, skipProcessing: true, base64: false });
+        const blocks = await MlkitOcr.detectFromUri(photo.uri);
+        const plate = extractPlate(blocks);
+        if (plate) setOcrOverlay(plate);
+      } catch { /* silent — frames drop naturally */ }
+    }, 900);
   }, [stopOcrLoop]);
 
   const openScanner = useCallback(async () => {
