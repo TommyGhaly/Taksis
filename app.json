@@ -16,28 +16,27 @@
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-google-signin/google-signin",
+      "expo-camera",
       [
         "expo-build-properties",
         {
           "ios": {
             "useFrameworks": "static",
             "usesAppleSignIn": true,
-            "deploymentTarget": "15.5"
+            "deploymentTarget": "16.0"
           },
           "android": {
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
             "minSdkVersion": 24,
             "android16KbPageSize": true
-
           }
         }
       ],
+      ["rn-mlkit-ocr", { "ocrModels": ["latin"], "ocrUseBundled": true }],
       [
         "expo-dev-client",
-        {
-          "developmentClient": true
-        }
+        { "developmentClient": true }
       ]
     ],
     "experimental": {
