@@ -66,6 +66,13 @@ function extractPlate(blocks) {
   for (const b of blocks) {
     const clean = cleanPlate(b.text);
     if (PLATE_REGEX.test(clean)) candidates.push({ text: clean, score: scorePlate(clean) });
+    // Also try individual lines within a block (MLKit sometimes groups lines)
+    if (b.lines) {
+      for (const line of b.lines) {
+        const lc = cleanPlate(line.text);
+        if (PLATE_REGEX.test(lc)) candidates.push({ text: lc, score: scorePlate(lc) });
+      }
+    }
   }
   if (!candidates.length) return null;
   candidates.sort((a, b) => b.score - a.score);
@@ -287,10 +294,12 @@ const TrafficManager = () => {
 
   const [scannerVisible, setScannerVisible] = useState(false);
   const cameraRef = useRef(null);
-  const ocrIntervalRef = useRef(null);
-  const lastOcrRef = useRef(0);
+  const ocrRunningRef = useRef(false);
+  const ocrCancelledRef = useRef(false);
   const [ocrOverlay, setOcrOverlay] = useState(null);
+  const [ocrStatus, setOcrStatus] = useState("idle"); // idle | scanning | detected
   const [scannedPlate, setScannedPlate] = useState(null);
+  const consecutiveRef = useRef({ plate: null, count: 0 });
 
   const [matchSheetVisible, setMatchSheetVisible] = useState(false);
   const [plateMatches, setPlateMatches] = useState([]);
@@ -448,24 +457,72 @@ const TrafficManager = () => {
   // ── Scanner / OCR ──────────────────────────────────────────────────────────
 
   const stopOcrLoop = useCallback(() => {
-    if (ocrIntervalRef.current) {
-      clearInterval(ocrIntervalRef.current);
-      ocrIntervalRef.current = null;
-    }
+    ocrCancelledRef.current = true;
   }, []);
 
   const startOcrLoop = useCallback(() => {
-    stopOcrLoop();
-    ocrIntervalRef.current = setInterval(async () => {
-      if (!cameraRef.current) return;
-      try {
-        const photo = await cameraRef.current.takePictureAsync({ quality: 0.5, skipProcessing: true, base64: false });
-        const blocks = await MlkitOcr.detectFromUri(photo.uri);
-        const plate = extractPlate(blocks);
-        if (plate) setOcrOverlay(plate);
-      } catch { /* silent — frames drop naturally */ }
-    }, 900);
-  }, [stopOcrLoop]);
+    // Prevent duplicate loops
+    if (ocrRunningRef.current) return;
+
+    ocrCancelledRef.current = false;
+    ocrRunningRef.current = true;
+    consecutiveRef.current = { plate: null, count: 0 };
+    setOcrStatus("scanning");
+
+    const CONFIDENCE_THRESHOLD = 2; // need same plate N times in a row
+    const COOLDOWN_MS = 400;        // pause between captures
+
+    (async () => {
+      // Small warmup delay for camera to stabilize
+      await new Promise((r) => setTimeout(r, 600));
+
+      while (!ocrCancelledRef.current) {
+        try {
+          if (cameraRef.current) {
+            const photo = await cameraRef.current.takePictureAsync({
+              quality: 0.6,
+              base64: false,
+              // Let the system handle rotation so MLKit gets an upright image
+              skipProcessing: false,
+            });
+
+            if (ocrCancelledRef.current) break;
+
+            const blocks = await MlkitOcr.detectFromUri(photo.uri);
+            const plate = extractPlate(blocks);
+
+            if (ocrCancelledRef.current) break;
+
+            if (plate) {
+              // Require the same plate to appear consecutively for confidence
+              if (consecutiveRef.current.plate === plate) {
+                consecutiveRef.current.count += 1;
+              } else {
+                consecutiveRef.current = { plate, count: 1 };
+              }
+
+              if (consecutiveRef.current.count >= CONFIDENCE_THRESHOLD) {
+                setOcrOverlay(plate);
+                setOcrStatus("detected");
+              } else {
+                // Show candidate but mark as still scanning
+                setOcrOverlay(plate);
+              }
+            }
+            // If no plate found this frame, don't clear — keep last good result
+          }
+        } catch {
+          // Camera may not be ready or frame dropped — just continue
+        }
+
+        // Wait before next capture to avoid hammering the camera
+        await new Promise((r) => setTimeout(r, COOLDOWN_MS));
+      }
+
+      ocrRunningRef.current = false;
+      setOcrStatus("idle");
+    })();
+  }, []);
 
   const openScanner = useCallback(async () => {
     if (!permission?.granted) {
@@ -475,8 +532,12 @@ const TrafficManager = () => {
         return;
       }
     }
+    ocrCancelledRef.current = false;
+    ocrRunningRef.current = false;
     setOcrOverlay(null);
+    setOcrStatus("idle");
     setScannedPlate(null);
+    consecutiveRef.current = { plate: null, count: 0 };
     setScannerVisible(true);
   }, [permission, requestPermission]);
 
@@ -964,9 +1025,21 @@ const TrafficManager = () => {
             <View style={[s.corner, s.cBL]} /><View style={[s.corner, s.cBR]} />
           </View>
           <View style={s.ocrResultBanner}>
-            {ocrOverlay
-              ? <Text style={s.ocrResultText}>{ocrOverlay}</Text>
-              : <Text style={s.ocrResultPlaceholder}>Point at a license plate…</Text>}
+            {ocrOverlay ? (
+              <View style={{ alignItems: "center" }}>
+                <Text style={s.ocrResultText}>{ocrOverlay}</Text>
+                {ocrStatus === "scanning" && (
+                  <Text style={s.ocrConfirmingText}>Confirming…</Text>
+                )}
+              </View>
+            ) : (
+              <View style={{ alignItems: "center" }}>
+                <Text style={s.ocrResultPlaceholder}>Point at a license plate…</Text>
+                {ocrStatus === "scanning" && (
+                  <ActivityIndicator size="small" color="rgba(255,255,255,0.5)" style={{ marginTop: 6 }} />
+                )}
+              </View>
+            )}
           </View>
           <TouchableOpacity
             style={[s.confirmPlateBtn, !ocrOverlay && { opacity: 0.35 }]}
@@ -1142,8 +1215,9 @@ const s = StyleSheet.create({
   cTR: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 12 },
   cBL: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 12 },
   cBR: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 12 },
-  ocrResultBanner: { position: "absolute", top: SH * 0.3 - 64, backgroundColor: "rgba(0,0,0,0.65)", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16 },
+  ocrResultBanner: { position: "absolute", top: SH * 0.3 - 64, backgroundColor: "rgba(0,0,0,0.65)", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16, minWidth: 180, alignItems: "center" },
   ocrResultText: { fontSize: 28, fontWeight: "700", color: "#fff", letterSpacing: 4 },
+  ocrConfirmingText: { fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 4 },
   ocrResultPlaceholder: { fontSize: 15, color: "rgba(255,255,255,0.45)" },
   confirmPlateBtn: { position: "absolute", bottom: 120, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#147efb", paddingHorizontal: 28, paddingVertical: 16, borderRadius: 30 },
   confirmPlateBtnText: { fontSize: 16, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
