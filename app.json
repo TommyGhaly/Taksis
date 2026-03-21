@@ -21,7 +21,8 @@
         {
           "ios": {
             "useFrameworks": "static",
-            "usesAppleSignIn": true
+            "usesAppleSignIn": true,
+            "deploymentTarget": "15.5"
           },
           "android": {
             "compileSdkVersion": 35,

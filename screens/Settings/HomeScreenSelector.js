@@ -24,7 +24,7 @@ import SundaySchoolAttendance from "../SundaySchool/SundaySchoolAttendance";
 import AlhanAttendance from "../Alhan/AlhanAttendance";
 import ServantsAttendance from "../ServantsMeeting/ServantsAttendance";
 import DeaconEdits from "../AdminScreens/DeaconEdits";
-import TrafficManager from "../AdminScreens/trafficManager";
+import TrafficManager from "../AdminScreens/TrafficManager";
 import ServantsAdmin from "../AdminScreens/ServantsAdmin";
 import AlhanAdmin from "../AdminScreens/AlhanAdmin";
 import PaschaManager from "../AdminScreens/PaschaManager";

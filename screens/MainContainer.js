@@ -22,7 +22,7 @@ import AlhanAdmin from "./AdminScreens/AlhanAdmin";
 import AdminManager from "./AdminScreens/AdminManager";
 import EditSchedule from "./AdminScreens/EditSchedule";
 import DeaconEdits from "./AdminScreens/DeaconEdits";
-import TrafficManager from "./AdminScreens/trafficManager";
+import TrafficManager from "./AdminScreens/TrafficManager";
 import PaschaManager from "./AdminScreens/PaschaManager";
 import PaschaHomePage from "./Pascha/PaschaHomePage";
 import UnavailableRequestModal from "../components/unavailableRequestModal";
