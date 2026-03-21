@@ -11,35 +11,34 @@
       "resizeMode": "cover",
       "backgroundColor": "#000000"
     },
-    "plugins": [
-      "expo-apple-authentication",
-      "@react-native-firebase/app",
-      "@react-native-firebase/auth",
-      "@react-native-google-signin/google-signin",
-      [
-        "expo-build-properties",
-        {
-          "ios": {
-            "useFrameworks": "static",
-            "usesAppleSignIn": true,
-            "deploymentTarget": "15.5"
-          },
-          "android": {
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35,
-            "minSdkVersion": 24,
-            "android16KbPageSize": true
-
-          }
+  "plugins": [
+    "expo-apple-authentication",
+    "@react-native-firebase/app",
+    "@react-native-firebase/auth",
+    "@react-native-google-signin/google-signin",
+    "expo-camera",
+    [
+      "expo-build-properties",
+      {
+        "ios": {
+          "useFrameworks": "static",
+          "usesAppleSignIn": true,
+          "deploymentTarget": "16.0"
+        },
+        "android": {
+          "compileSdkVersion": 35,
+          "targetSdkVersion": 35,
+          "minSdkVersion": 24,
+          "android16KbPageSize": true
         }
-      ],
-      [
-        "expo-dev-client",
-        {
-          "developmentClient": true
-        }
-      ]
+      }
     ],
+    ["rn-mlkit-ocr", { "ocrModels": ["latin"], "ocrUseBundled": true }],
+    [
+      "expo-dev-client",
+      { "developmentClient": true }
+    ]
+  ],
     "experimental": {
       "bridgeless": false
     },
