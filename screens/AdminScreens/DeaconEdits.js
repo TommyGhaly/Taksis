@@ -23,6 +23,7 @@ import auth from "@react-native-firebase/auth";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import IndividualProfile from "../../components/individualProfile";
 import AlphabetIndexBar from "../../components/AlphabetIndexBar";
+import DeaconSyncModal from "../../components/DeaconSyncModal";
 
 // Import caching system
 import { useFirestoreDocument } from "../../hooks/useFirebaseCache";
@@ -63,6 +64,7 @@ const DeaconEdits = () => {
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [isLoadingDeacons, setIsLoadingDeacons] = useState(true);
   const [userDataLoading, setUserDataLoading] = useState(true);
+  const [syncModalVisible, setSyncModalVisible] = useState(false);
   
   const sectionListRef = useRef(null);
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -497,6 +499,19 @@ const DeaconEdits = () => {
 
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
+      {/* Header with Sync button */}
+      <View style={styles.pageHeader}>
+        <Text style={styles.pageTitle}>Deacons</Text>
+        <TouchableOpacity
+          style={styles.syncButton}
+          onPress={() => setSyncModalVisible(true)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="sync" size={16} color="#147efb" />
+          <Text style={styles.syncButtonText}>Sync</Text>
+        </TouchableOpacity>
+      </View>
+
       {sections.length === 0 ? (
         <ScrollView
           refreshControl={
@@ -561,6 +576,12 @@ const DeaconEdits = () => {
           url=""
         />
       )}
+
+      <DeaconSyncModal
+        visible={syncModalVisible}
+        onClose={() => setSyncModalVisible(false)}
+        churchId={currentChurch}
+      />
     </View>
   );
 };
@@ -570,6 +591,33 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#121212",
     paddingTop: 20,
+  },
+  pageHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  pageTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  syncButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(20,126,251,0.1)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(20,126,251,0.2)",
+  },
+  syncButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#147efb",
   },
   listWrapper: {
     flex: 1,
