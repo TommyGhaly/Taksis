@@ -7,8 +7,6 @@ import {
   KeyboardAvoidingView, Platform, Keyboard, Dimensions, Switch,
 } from "react-native";
 import { Image } from "expo-image";
-import { CameraView, useCameraPermissions } from "expo-camera";
-import MlkitOcr from "react-native-mlkit-ocr";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
@@ -18,6 +16,7 @@ import {
   COLOR_OPTIONS, getUnregCollection,
 } from "../../components/TrafficVehicleComponents";
 import callFunction from "../../components/functionCalls";
+import PlateScanner from "../../components/PlateScanner";
 
 const { width: SW, height: SH } = Dimensions.get("window");
 const DEFAULT_PROFILE = require("../../assets/default_profile.png");
@@ -47,36 +46,6 @@ function plateSimilar(a, b) {
   if (ca === cb) return true;
   if (Math.abs(ca.length - cb.length) > 2) return false;
   return levenshtein(ca, cb) <= 2;
-}
-
-const PLATE_REGEX = /^[A-Z0-9]{4,8}$/;
-
-function scorePlate(text) {
-  let score = 0;
-  if (text.length >= 5 && text.length <= 8) score += 3;
-  if (/[A-Z]/.test(text) && /[0-9]/.test(text)) score += 3;
-  if (/^[A-Z]{3}[0-9]{4}$/.test(text)) score += 5;
-  if (/^[0-9]{1,4}[A-Z]{2,3}$/.test(text)) score += 4;
-  if (/^[A-Z]{1,2}[0-9]{2,4}[A-Z]{1,2}$/.test(text)) score += 4;
-  return score;
-}
-
-function extractPlate(blocks) {
-  const candidates = [];
-  for (const b of blocks) {
-    const clean = cleanPlate(b.text);
-    if (PLATE_REGEX.test(clean)) candidates.push({ text: clean, score: scorePlate(clean) });
-    // Also try individual lines within a block (MLKit sometimes groups lines)
-    if (b.lines) {
-      for (const line of b.lines) {
-        const lc = cleanPlate(line.text);
-        if (PLATE_REGEX.test(lc)) candidates.push({ text: lc, score: scorePlate(lc) });
-      }
-    }
-  }
-  if (!candidates.length) return null;
-  candidates.sort((a, b) => b.score - a.score);
-  return candidates[0].score >= 3 ? candidates[0].text : null;
 }
 
 // ── CarCard ───────────────────────────────────────────────────────────────────
@@ -278,7 +247,6 @@ const PlateMatchSheet = memo(({ visible, scannedPlate, matches, onConfirm, onReg
 
 const TrafficManager = () => {
   const user = auth().currentUser;
-  const [permission, requestPermission] = useCameraPermissions();
 
   const [churchId, setChurchId] = useState(null);
   const [cars, setCars] = useState([]);
@@ -292,14 +260,9 @@ const TrafficManager = () => {
 
   const [carSearch, setCarSearch] = useState("");
 
+  // Scanner
   const [scannerVisible, setScannerVisible] = useState(false);
-  const cameraRef = useRef(null);
-  const ocrRunningRef = useRef(false);
-  const ocrCancelledRef = useRef(false);
-  const [ocrOverlay, setOcrOverlay] = useState(null);
-  const [ocrStatus, setOcrStatus] = useState("idle"); // idle | scanning | detected
   const [scannedPlate, setScannedPlate] = useState(null);
-  const consecutiveRef = useRef({ plate: null, count: 0 });
 
   const [matchSheetVisible, setMatchSheetVisible] = useState(false);
   const [plateMatches, setPlateMatches] = useState([]);
@@ -454,100 +417,15 @@ const TrafficManager = () => {
 
   const presentCount = useMemo(() => cars.filter((c) => c.present).length, [cars]);
 
-  // ── Scanner / OCR ──────────────────────────────────────────────────────────
+  // ── Scanner callbacks ──────────────────────────────────────────────────────
 
-  const stopOcrLoop = useCallback(() => {
-    ocrCancelledRef.current = true;
-  }, []);
-
-  const startOcrLoop = useCallback(() => {
-    // Prevent duplicate loops
-    if (ocrRunningRef.current) return;
-
-    ocrCancelledRef.current = false;
-    ocrRunningRef.current = true;
-    consecutiveRef.current = { plate: null, count: 0 };
-    setOcrStatus("scanning");
-
-    const CONFIDENCE_THRESHOLD = 2; // need same plate N times in a row
-    const COOLDOWN_MS = 400;        // pause between captures
-
-    (async () => {
-      // Small warmup delay for camera to stabilize
-      await new Promise((r) => setTimeout(r, 600));
-
-      while (!ocrCancelledRef.current) {
-        try {
-          if (cameraRef.current) {
-            const photo = await cameraRef.current.takePictureAsync({
-              quality: 0.6,
-              base64: false,
-              // Let the system handle rotation so MLKit gets an upright image
-              skipProcessing: false,
-            });
-
-            if (ocrCancelledRef.current) break;
-
-            const blocks = await MlkitOcr.detectFromUri(photo.uri);
-            const plate = extractPlate(blocks);
-
-            if (ocrCancelledRef.current) break;
-
-            if (plate) {
-              // Require the same plate to appear consecutively for confidence
-              if (consecutiveRef.current.plate === plate) {
-                consecutiveRef.current.count += 1;
-              } else {
-                consecutiveRef.current = { plate, count: 1 };
-              }
-
-              if (consecutiveRef.current.count >= CONFIDENCE_THRESHOLD) {
-                setOcrOverlay(plate);
-                setOcrStatus("detected");
-              } else {
-                // Show candidate but mark as still scanning
-                setOcrOverlay(plate);
-              }
-            }
-            // If no plate found this frame, don't clear — keep last good result
-          }
-        } catch {
-          // Camera may not be ready or frame dropped — just continue
-        }
-
-        // Wait before next capture to avoid hammering the camera
-        await new Promise((r) => setTimeout(r, COOLDOWN_MS));
-      }
-
-      ocrRunningRef.current = false;
-      setOcrStatus("idle");
-    })();
-  }, []);
-
-  const openScanner = useCallback(async () => {
-    if (!permission?.granted) {
-      const result = await requestPermission();
-      if (!result.granted) {
-        Alert.alert("Permission Required", "Camera access is needed to scan license plates.");
-        return;
-      }
-    }
-    ocrCancelledRef.current = false;
-    ocrRunningRef.current = false;
-    setOcrOverlay(null);
-    setOcrStatus("idle");
+  const openScanner = useCallback(() => {
     setScannedPlate(null);
-    consecutiveRef.current = { plate: null, count: 0 };
     setScannerVisible(true);
-  }, [permission, requestPermission]);
+  }, []);
 
-  const closeScanner = useCallback(() => {
-    stopOcrLoop();
+  const handlePlateScanned = useCallback((plate) => {
     setScannerVisible(false);
-  }, [stopOcrLoop]);
-
-  const confirmScannedPlate = useCallback((plate) => {
-    closeScanner();
     const currentCars = carsRef.current;
     const cleaned = cleanPlate(plate);
 
@@ -575,7 +453,12 @@ const TrafficManager = () => {
     // 3. No match — register
     setScannedPlate(cleaned);
     setTimeout(() => setRegVisible(true), 100);
-  }, [closeScanner, checkDriverTokens]);
+  }, []);
+
+  const handleScannerManualEntry = useCallback(() => {
+    setScannerVisible(false);
+    setTimeout(() => setRegVisible(true), 100);
+  }, []);
 
   const handleMatchConfirm = useCallback((car) => {
     setMatchSheetVisible(false);
@@ -584,7 +467,7 @@ const TrafficManager = () => {
     setDetailFromScan(true);
     setDetailModalVisible(true);
     checkDriverTokens(car.ownerIds || []);
-  }, [checkDriverTokens]);
+  }, []);
 
   const handleMatchRegisterNew = useCallback(() => {
     setMatchSheetVisible(false);
@@ -828,6 +711,14 @@ const TrafficManager = () => {
         </TouchableOpacity>
       )}
 
+      {/* ── Plate Scanner ── */}
+      <PlateScanner
+        visible={scannerVisible}
+        onPlateScanned={handlePlateScanned}
+        onClose={() => setScannerVisible(false)}
+        onManualEntry={handleScannerManualEntry}
+      />
+
       {/* ── Registration ── */}
       <VehicleFormSheet
         visible={regVisible}
@@ -1011,54 +902,6 @@ const TrafficManager = () => {
         </View>
       </Modal>
 
-      {/* ── Plate Scanner ── */}
-      <Modal visible={scannerVisible} animationType="slide" onRequestClose={closeScanner}>
-        <View style={s.scanner}>
-          <CameraView
-            ref={cameraRef}
-            style={StyleSheet.absoluteFillObject}
-            facing="back"
-            onCameraReady={startOcrLoop}
-          />
-          <View style={s.scannerFrame}>
-            <View style={[s.corner, s.cTL]} /><View style={[s.corner, s.cTR]} />
-            <View style={[s.corner, s.cBL]} /><View style={[s.corner, s.cBR]} />
-          </View>
-          <View style={s.ocrResultBanner}>
-            {ocrOverlay ? (
-              <View style={{ alignItems: "center" }}>
-                <Text style={s.ocrResultText}>{ocrOverlay}</Text>
-                {ocrStatus === "scanning" && (
-                  <Text style={s.ocrConfirmingText}>Confirming…</Text>
-                )}
-              </View>
-            ) : (
-              <View style={{ alignItems: "center" }}>
-                <Text style={s.ocrResultPlaceholder}>Point at a license plate…</Text>
-                {ocrStatus === "scanning" && (
-                  <ActivityIndicator size="small" color="rgba(255,255,255,0.5)" style={{ marginTop: 6 }} />
-                )}
-              </View>
-            )}
-          </View>
-          <TouchableOpacity
-            style={[s.confirmPlateBtn, !ocrOverlay && { opacity: 0.35 }]}
-            onPress={() => ocrOverlay && confirmScannedPlate(ocrOverlay)}
-            disabled={!ocrOverlay}
-            activeOpacity={0.8}
-          >
-            <Icon name="check-circle" size={22} color="#fff" />
-            <Text style={s.confirmPlateBtnText}>{ocrOverlay ? `Use "${ocrOverlay}"` : "Detecting…"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.manualEntryBtn} onPress={() => { closeScanner(); setTimeout(() => setRegVisible(true), 100); }} activeOpacity={0.7}>
-            <Text style={s.manualEntryText}>Enter manually</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.scannerClose} onPress={closeScanner}>
-            <Icon name="close" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
       {/* ── Notify ── */}
       {notifyVisible ? (
         <Modal visible animationType="fade" transparent onRequestClose={() => setNotifyVisible(false)}>
@@ -1208,22 +1051,6 @@ const s = StyleSheet.create({
   callActionBtn: { backgroundColor: "rgba(52,199,89,0.12)" },
   unregBadge: { backgroundColor: "rgba(255,159,10,0.15)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   unregBadgeText: { fontSize: 10, fontWeight: "600", color: "#ff9f0a" },
-  scanner: { flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center" },
-  scannerFrame: { width: SW * 0.85, height: 140, position: "absolute", top: SH * 0.3 },
-  corner: { position: "absolute", width: 28, height: 28, borderColor: "#147efb", borderWidth: 3 },
-  cTL: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 12 },
-  cTR: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 12 },
-  cBL: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 12 },
-  cBR: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 12 },
-  ocrResultBanner: { position: "absolute", top: SH * 0.3 - 64, backgroundColor: "rgba(0,0,0,0.65)", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16, minWidth: 180, alignItems: "center" },
-  ocrResultText: { fontSize: 28, fontWeight: "700", color: "#fff", letterSpacing: 4 },
-  ocrConfirmingText: { fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 4 },
-  ocrResultPlaceholder: { fontSize: 15, color: "rgba(255,255,255,0.45)" },
-  confirmPlateBtn: { position: "absolute", bottom: 120, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#147efb", paddingHorizontal: 28, paddingVertical: 16, borderRadius: 30 },
-  confirmPlateBtnText: { fontSize: 16, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
-  manualEntryBtn: { position: "absolute", bottom: 68 },
-  manualEntryText: { fontSize: 14, color: "rgba(255,255,255,0.5)", textDecorationLine: "underline" },
-  scannerClose: { position: "absolute", top: 60, right: 20, width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.15)", justifyContent: "center", alignItems: "center" },
   scannedPlateRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,159,10,0.1)", padding: 12, borderRadius: 10, marginBottom: 8 },
   scannedPlateLabel: { fontSize: 14, color: "rgba(255,255,255,0.5)" },
   scannedPlateValue: { fontSize: 18, fontWeight: "700", color: "#ff9f0a", letterSpacing: 2 },
