@@ -1,737 +1,458 @@
 /**
  * DeaconSyncModal
  *
- * Two-phase data integrity sync:
- *   Phase 1 — Deacons list (church.deacons[] vs user docs with isDeacon)
- *   Phase 2 — Schedules (each of 5 weeks, one at a time)
+ * Auto-scans on open. Flow: Scan → Deacon list review → Per-schedule review → Done
  *
- * Shows issues first, lets admin confirm before writing.
+ * Deacon sources:
+ *   1. Any user doc with church === churchId AND isDeacon === true
+ *   2. ALL children from ANY user doc where church === churchId
+ *      (children are embedded objects in the parent's children[] array,
+ *       each child has uid, name, age, experience, frequency, rank, etc.)
  */
 
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
-  View, Text, TouchableOpacity, Modal, ScrollView,
-  ActivityIndicator, StyleSheet, Alert,
+  View, Text, TouchableOpacity, Modal, FlatList,
+  ActivityIndicator, StyleSheet, Dimensions,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
-// ── Schedule structure ───────────────────────────────────────────────────────
+const { height: SH } = Dimensions.get("window");
 
-const READING_KEYS = [
-  "matins", "third", "sixth", "pauline",
-  "catholic", "praxis", "gospel", "water", "wine",
-];
-const ARRAY_KEYS = ["altar", "extra"];
+// ── Config ───────────────────────────────────────────────────────────────────
 
-const DEFAULT_DEACON_FIELDS = { experience: 5, frequency: 5, rank: 5, age: 0 };
+const READING_KEYS = ["matins","third","sixth","pauline","catholic","praxis","gospel","water","wine"];
+const DEFAULTS = { experience: 5, frequency: 5, rank: 5, age: 0 };
 
-// ── Date helpers (same as EditSchedule) ──────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-const getWeekStart = (d) => { const x = new Date(d); return new Date(x.setDate(x.getDate() - x.getDay())); };
-const fmt = (d) => {
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dy = String(d.getDate()).padStart(2, "0");
-  const y = String(d.getFullYear()).slice(-2);
-  return `${m}-${dy}-${y}`;
-};
-const generateWeeks = (start, n = 5) => {
-  const ws = [], s = getWeekStart(start);
-  for (let i = 0; i < n; i++) { const d = new Date(s); d.setDate(s.getDate() + i * 7); ws.push(fmt(d)); }
-  return ws;
-};
-const fmtDisplay = (s) => {
-  if (!s) return "";
-  const [m, d, y] = s.split("-").map(Number);
-  return new Date(2000 + y, m - 1, d).toLocaleDateString("en-US", {
-    weekday: "short", month: "short", day: "numeric",
-  });
-};
+const ws = (d) => { const x = new Date(d); return new Date(x.setDate(x.getDate()-x.getDay())); };
+const fid = (d) => `${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}-${String(d.getFullYear()).slice(-2)}`;
+const gw = (s,n=5) => { const r=[],w=ws(s); for(let i=0;i<n;i++){const d=new Date(w);d.setDate(w.getDate()+i*7);r.push(fid(d));}return r; };
+const nd = (s) => { if(!s)return""; const[m,d,y]=s.split("-").map(Number); return new Date(2000+y,m-1,d).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}); };
 
-// ── Scan helpers ─────────────────────────────────────────────────────────────
-
-async function fetchAllDeaconUsers(churchId) {
-  const snap = await firestore()
+/**
+ * Fetch all deacons for a church:
+ *  - Users with isDeacon: true AND church === churchId
+ *  - ALL children[] entries from ANY user with church === churchId
+ */
+async function fetchAllDeacons(churchId) {
+  // Get all users in this church
+  const allUsersSnap = await firestore()
     .collection("users")
     .where("church", "==", churchId)
-    .where("isDeacon", "==", true)
     .get();
 
-  const users = [];
-  for (const doc of snap.docs) {
-    const data = doc.data();
-    users.push({ uid: doc.id, name: data.name || "", ...data });
+  const deacons = [];
+  const seen = new Set();
 
-    // Children with their own user docs are fetched by the query already
-    // (they have isDeacon: true and church set). But also check embedded
-    // children array for UIDs that might have their own docs.
+  const add = (uid, data) => {
+    if (!uid || seen.has(uid)) return;
+    seen.add(uid);
+    deacons.push({
+      uid,
+      name: data.name || "",
+      age: data.age ?? DEFAULTS.age,
+      experience: data.experience ?? DEFAULTS.experience,
+      frequency: data.frequency ?? DEFAULTS.frequency,
+      rank: data.rank ?? DEFAULTS.rank,
+    });
+  };
+
+  for (const doc of allUsersSnap.docs) {
+    const data = doc.data();
+
+    // 1. If user is a deacon, add them
+    if (data.isDeacon === true) {
+      add(doc.id, data);
+    }
+
+    // 2. ALL children of ANY church member are deacons
     if (Array.isArray(data.children)) {
       for (const child of data.children) {
-        if (child.uid && !snap.docs.find((d) => d.id === child.uid)) {
-          try {
-            const childDoc = await firestore().collection("users").doc(child.uid).get();
-            if (childDoc.exists) {
-              const cd = childDoc.data();
-              if (cd.isDeacon && cd.church === churchId) {
-                users.push({ uid: child.uid, name: cd.name || child.name || "", ...cd });
-              }
-            }
-          } catch {}
+        if (child.uid) {
+          add(child.uid, child);
         }
       }
     }
   }
 
-  // Deduplicate by uid
-  const seen = new Set();
-  return users.filter((u) => { if (seen.has(u.uid)) return false; seen.add(u.uid); return true; });
+  return deacons;
 }
 
-function buildDeaconEntry(userDoc) {
+function buildEntry(d) {
   return {
-    uid: userDoc.uid,
-    name: userDoc.name || "",
-    age: userDoc.age ?? DEFAULT_DEACON_FIELDS.age,
-    experience: userDoc.experience ?? DEFAULT_DEACON_FIELDS.experience,
-    frequency: userDoc.frequency ?? DEFAULT_DEACON_FIELDS.frequency,
-    rank: userDoc.rank ?? DEFAULT_DEACON_FIELDS.rank,
+    uid: d.uid, name: d.name || "",
+    age: d.age ?? DEFAULTS.age,
+    experience: d.experience ?? DEFAULTS.experience,
+    frequency: d.frequency ?? DEFAULTS.frequency,
+    rank: d.rank ?? DEFAULTS.rank,
   };
 }
 
-function scanDeaconList(currentArray, allDeaconUsers) {
-  const currentUids = new Set(currentArray.map((d) => d.uid));
-  const expectedUids = new Set(allDeaconUsers.map((u) => u.uid));
+function diffList(current, expected) {
+  const cSet = new Set(current.map(d => d.uid));
+  const eSet = new Set(expected.map(u => u.uid));
+  const eMap = new Map(expected.map(u => [u.uid, u]));
 
-  const missing = allDeaconUsers
-    .filter((u) => !currentUids.has(u.uid))
-    .map((u) => ({ type: "missing", uid: u.uid, name: u.name, userData: u }));
+  // Fields that should match between user doc and deacon array entry
+  const SYNC_FIELDS = ["name", "age", "experience", "frequency", "rank"];
 
-  const extra = currentArray
-    .filter((d) => !expectedUids.has(d.uid))
-    .map((d) => ({ type: "extra", uid: d.uid, name: d.name }));
+  const stale = [];
+  for (const entry of current) {
+    const source = eMap.get(entry.uid);
+    if (!source) continue; // will be caught by toRemove
+    const mismatched = [];
+    for (const f of SYNC_FIELDS) {
+      const srcVal = source[f] ?? DEFAULTS[f] ?? 0;
+      const curVal = entry[f] ?? DEFAULTS[f] ?? 0;
+      if (String(srcVal) !== String(curVal)) {
+        mismatched.push({ field: f, from: curVal, to: srcVal });
+      }
+    }
+    if (mismatched.length > 0) {
+      stale.push({ uid: entry.uid, name: source.name || entry.name, fields: mismatched });
+    }
+  }
 
-  return { missing, extra };
+  return {
+    toAdd: expected.filter(u => !cSet.has(u.uid)),
+    toRemove: current.filter(d => !eSet.has(d.uid)),
+    stale,
+  };
 }
 
-function scanSchedule(scheduleData, masterUids, masterMap) {
-  const issues = [];
-  const seenUids = new Set();
-  const scheduledUids = new Set();
+function diffSched(data, uids, names) {
+  const scheduled = new Set(), unknowns = [];
+  const check = (uid, name, loc) => {
+    if (!uid) return;
+    scheduled.add(uid);
+    if (!uids.has(uid)) unknowns.push({ uid, name, loc });
+  };
+  for (const k of READING_KEYS) { const e = data[k]; check(e?.uid, e?.name, k); }
+  for (const e of (data.altar || [])) check(e?.uid, e?.name, "altar");
+  for (const e of (data.extra || [])) check(e?.uid, e?.name, "extra");
 
-  // Check reading roles
-  for (const key of READING_KEYS) {
-    const entry = scheduleData[key];
-    if (!entry?.uid) continue;
-
-    if (seenUids.has(entry.uid)) {
-      issues.push({ type: "duplicate", key, uid: entry.uid, name: entry.name, location: `role: ${key}` });
-    }
-    seenUids.add(entry.uid);
-    scheduledUids.add(entry.uid);
-
-    if (!masterUids.has(entry.uid)) {
-      issues.push({ type: "unknown", key, uid: entry.uid, name: entry.name, location: `role: ${key}` });
-    }
-  }
-
-  // Check altar array
-  const altar = scheduleData.altar || [];
-  altar.forEach((entry, i) => {
-    if (!entry?.uid) return;
-    if (seenUids.has(entry.uid)) {
-      issues.push({ type: "duplicate", key: "altar", index: i, uid: entry.uid, name: entry.name, location: `altar[${i}]` });
-    }
-    seenUids.add(entry.uid);
-    scheduledUids.add(entry.uid);
-
-    if (!masterUids.has(entry.uid)) {
-      issues.push({ type: "unknown", key: "altar", index: i, uid: entry.uid, name: entry.name, location: `altar[${i}]` });
-    }
-  });
-
-  // Check extra array for unknowns
-  const extra = scheduleData.extra || [];
-  extra.forEach((entry, i) => {
-    if (!entry?.uid) return;
-    scheduledUids.add(entry.uid);
-    if (!masterUids.has(entry.uid)) {
-      issues.push({ type: "unknown", key: "extra", index: i, uid: entry.uid, name: entry.name, location: `extra[${i}]` });
-    }
-  });
-
-  // Find deacons missing from the entire schedule
-  const missingFromSchedule = [];
-  for (const uid of masterUids) {
-    if (!scheduledUids.has(uid)) {
-      missingFromSchedule.push({ type: "missing_from_schedule", uid, name: masterMap.get(uid) || "Unknown" });
-    }
-  }
-
-  return { issues, missingFromSchedule };
+  const missing = [];
+  for (const uid of uids) { if (!scheduled.has(uid)) missing.push({ uid, name: names.get(uid) || "Unknown" }); }
+  return { unknowns, missing };
 }
 
-// ── Fix helpers ──────────────────────────────────────────────────────────────
+async function applyListFix(churchId, current, toAdd, toRemove, stale) {
+  const rm = new Set(toRemove.map(d => d.uid));
+  const staleMap = new Map(stale.map(s => [s.uid, s]));
 
-async function fixDeaconList(churchId, currentArray, toAdd, toRemove) {
-  const removeUids = new Set(toRemove.map((d) => d.uid));
-  let updated = currentArray.filter((d) => !removeUids.has(d.uid));
+  let up = current
+    .filter(d => !rm.has(d.uid))
+    .map(d => {
+      const s = staleMap.get(d.uid);
+      if (!s) return d;
+      const patched = { ...d };
+      for (const f of s.fields) patched[f.field] = f.to;
+      return patched;
+    });
 
-  for (const item of toAdd) {
-    updated.push(buildDeaconEntry(item.userData));
-  }
-
-  await firestore().collection("churches").doc(churchId).update({ deacons: updated });
-  return updated;
+  for (const u of toAdd) up.push(buildEntry(u));
+  await firestore().collection("churches").doc(churchId).update({ deacons: up });
+  return up;
 }
 
-async function fixSchedule(churchId, weekId, scheduleData, unknowns, missingDeacons, masterMap) {
-  const updates = {};
-  const unknownUids = new Set(unknowns.map((u) => u.uid));
-
-  // Remove unknowns from reading roles
-  for (const key of READING_KEYS) {
-    const entry = scheduleData[key];
-    if (entry?.uid && unknownUids.has(entry.uid)) {
-      updates[key] = { uid: "", name: "N/A" };
-    }
-  }
-
-  // Remove unknowns from altar
-  const altar = scheduleData.altar || [];
-  const filteredAltar = altar.filter((e) => !e?.uid || !unknownUids.has(e.uid));
-  if (filteredAltar.length !== altar.length) {
-    updates.altar = filteredAltar;
-  }
-
-  // Remove unknowns from extra + add missing deacons to extra
-  let extra = (scheduleData.extra || []).filter((e) => !e?.uid || !unknownUids.has(e.uid));
-  for (const d of missingDeacons) {
-    if (!extra.find((e) => e.uid === d.uid)) {
-      extra.push({ uid: d.uid, name: masterMap.get(d.uid) || d.name || "Unknown" });
-    }
-  }
-  extra.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  updates.extra = extra;
-
-  if (Object.keys(updates).length > 0) {
-    await firestore()
-      .collection("churches").doc(churchId)
-      .collection("schedule").doc(weekId)
-      .update(updates);
-  }
+async function applySchedFix(churchId, wid, data, unknowns, missing, names) {
+  const up = {}, unk = new Set(unknowns.map(u => u.uid));
+  for (const k of READING_KEYS) { if (data[k]?.uid && unk.has(data[k].uid)) up[k] = { uid: "", name: "N/A" }; }
+  const a = data.altar || [], fa = a.filter(e => !e?.uid || !unk.has(e.uid));
+  if (fa.length !== a.length) up.altar = fa;
+  let ex = (data.extra || []).filter(e => !e?.uid || !unk.has(e.uid));
+  for (const m of missing) { if (!ex.find(e => e.uid === m.uid)) ex.push({ uid: m.uid, name: names.get(m.uid) || m.name || "Unknown" }); }
+  ex.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  up.extra = ex;
+  await firestore().collection("churches").doc(churchId).collection("schedule").doc(wid).update(up);
 }
 
-// ── Phase enum ───────────────────────────────────────────────────────────────
+// ── Phases ───────────────────────────────────────────────────────────────────
 
-const PHASE = {
-  IDLE: "idle",
-  SCANNING: "scanning",
-  DEACON_REVIEW: "deacon_review",
-  DEACON_FIXING: "deacon_fixing",
-  SCHEDULE_REVIEW: "schedule_review",
-  SCHEDULE_FIXING: "schedule_fixing",
-  DONE: "done",
-};
+const P = { SCAN: 0, LIST: 1, SCHED: 2, DONE: 3 };
+
+// ── Row ──────────────────────────────────────────────────────────────────────
+
+const Row = ({ name, action, color }) => (
+  <View style={st.row}>
+    <View style={[st.dot, { backgroundColor: color }]} />
+    <Text style={st.rowName} numberOfLines={1}>{name}</Text>
+    <Text style={[st.rowTag, { color }]} numberOfLines={2}>{action}</Text>
+  </View>
+);
 
 // ── Component ────────────────────────────────────────────────────────────────
 
 const DeaconSyncModal = ({ visible, onClose, churchId }) => {
-  const [phase, setPhase] = useState(PHASE.IDLE);
-  const [scanResult, setScanResult] = useState(null);
-  const [scheduleResults, setScheduleResults] = useState([]);
-  const [currentScheduleIdx, setCurrentScheduleIdx] = useState(0);
-  const [fixLog, setFixLog] = useState([]);
+  const [phase, setPhase] = useState(P.SCAN);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [log, setLog] = useState([]);
+  const [listDiff, setListDiff] = useState(null);
+  const [schedDiffs, setSchedDiffs] = useState([]);
+  const [idx, setIdx] = useState(0);
+  const ref = useRef({});
 
-  const masterMapRef = useRef(new Map());
-  const masterUidsRef = useRef(new Set());
-  const allDeaconUsersRef = useRef([]);
-  const currentDeaconsRef = useRef([]);
-  const weekIdsRef = useRef([]);
-  const scheduleDataRef = useRef({});
+  // ── Auto-scan on open ──────────────────────────────────────────────────────
 
-  // ── Start scan ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (visible && churchId) {
+      setPhase(P.SCAN); setError(null); setLog([]);
+      setListDiff(null); setSchedDiffs([]); setIdx(0);
+      setBusy(false);
+      scan();
+    }
+  }, [visible, churchId]);
 
-  const startScan = useCallback(async () => {
-    setPhase(PHASE.SCANNING);
-    setError(null);
-    setFixLog([]);
-    setScanResult(null);
-    setScheduleResults([]);
-    setCurrentScheduleIdx(0);
+  // ── Scan ───────────────────────────────────────────────────────────────────
 
+  const scan = useCallback(async () => {
     try {
-      // 1. Fetch all deacon users
-      const allUsers = await fetchAllDeaconUsers(churchId);
-      allDeaconUsersRef.current = allUsers;
+      const allDeacons = await fetchAllDeacons(churchId);
+      const names = new Map(), uids = new Set();
+      allDeacons.forEach(d => { names.set(d.uid, d.name); uids.add(d.uid); });
 
-      const mMap = new Map();
-      const mUids = new Set();
-      allUsers.forEach((u) => { mMap.set(u.uid, u.name); mUids.add(u.uid); });
-      masterMapRef.current = mMap;
-      masterUidsRef.current = mUids;
+      const cDoc = await firestore().collection("churches").doc(churchId).get();
+      const currentList = cDoc.data()?.deacons || [];
+      const ld = diffList(currentList, allDeacons);
 
-      // 2. Fetch current deacons array
-      const churchDoc = await firestore().collection("churches").doc(churchId).get();
-      const churchData = churchDoc.data() || {};
-      const currentDeacons = churchData.deacons || [];
-      currentDeaconsRef.current = currentDeacons;
+      const sSnap = await firestore().collection("churches").doc(churchId).collection("schedule").get();
+      const exist = new Set(sSnap.docs.map(d => d.id));
+      const today = new Date(), sun = ws(today);
+      if (sun <= today) sun.setDate(sun.getDate() + 7);
+      const weeks = gw(sun, 5).filter(id => exist.has(id));
+      sSnap.docs.forEach(d => { if (!weeks.includes(d.id)) weeks.push(d.id); });
+      weeks.sort();
 
-      // 3. Scan deacon list
-      const deaconIssues = scanDeaconList(currentDeacons, allUsers);
-
-      // 4. Generate week IDs and fetch schedules
-      const today = new Date();
-      const nextSunday = getWeekStart(today);
-      if (nextSunday <= today) nextSunday.setDate(nextSunday.getDate() + 7);
-
-      // Also check existing schedule docs
-      const schedSnap = await firestore()
-        .collection("churches").doc(churchId)
-        .collection("schedule").get();
-
-      const existingIds = new Set(schedSnap.docs.map((d) => d.id));
-      const generated = generateWeeks(nextSunday, 5);
-      const weekIds = generated.filter((id) => existingIds.has(id));
-      // Also include any existing ones not in generated (edge case)
-      schedSnap.docs.forEach((d) => { if (!weekIds.includes(d.id)) weekIds.push(d.id); });
-      weekIds.sort();
-
-      weekIdsRef.current = weekIds;
-
-      // 5. Scan each schedule
-      const schedResults = [];
-      const schedDataMap = {};
-      for (const wid of weekIds) {
-        const doc = schedSnap.docs.find((d) => d.id === wid);
+      const sData = {}, diffs = [];
+      for (const w of weeks) {
+        const doc = sSnap.docs.find(d => d.id === w);
         if (!doc) continue;
         const data = doc.data();
-        schedDataMap[wid] = data;
-        const result = scanSchedule(data, mUids, mMap);
-        schedResults.push({ weekId: wid, ...result });
+        sData[w] = data;
+        const r = diffSched(data, uids, names);
+        if (r.unknowns.length > 0 || r.missing.length > 0) diffs.push({ weekId: w, ...r });
       }
-      scheduleDataRef.current = schedDataMap;
 
-      setScanResult(deaconIssues);
-      setScheduleResults(schedResults);
+      ref.current = { allDeacons, names, uids, currentList, sData };
+      setListDiff(ld); setSchedDiffs(diffs); setIdx(0);
 
-      // Decide where to go
-      if (deaconIssues.missing.length > 0 || deaconIssues.extra.length > 0) {
-        setPhase(PHASE.DEACON_REVIEW);
-      } else if (schedResults.some((r) => r.issues.length > 0 || r.missingFromSchedule.length > 0)) {
-        setPhase(PHASE.SCHEDULE_REVIEW);
-        setCurrentScheduleIdx(0);
-      } else {
-        setPhase(PHASE.DONE);
-        setFixLog(["Everything looks clean — no issues found."]);
-      }
-    } catch (err) {
-      console.error("Sync scan error:", err);
-      setError(err.message || "Failed to scan");
-      setPhase(PHASE.IDLE);
+      const hasListIssues = ld.toAdd.length > 0 || ld.toRemove.length > 0 || ld.stale.length > 0;
+      if (hasListIssues) setPhase(P.LIST);
+      else if (diffs.length > 0) setPhase(P.SCHED);
+      else { setLog(["No issues found — everything is clean."]); setPhase(P.DONE); }
+    } catch (e) {
+      setError(e.message || "Scan failed");
+      setPhase(P.DONE);
     }
   }, [churchId]);
 
-  // ── Fix deacon list ────────────────────────────────────────────────────────
+  // ── Fix list ───────────────────────────────────────────────────────────────
 
-  const applyDeaconFix = useCallback(async () => {
-    if (!scanResult) return;
-    setPhase(PHASE.DEACON_FIXING);
+  const doFixList = useCallback(async () => {
+    setBusy(true); setError(null);
     try {
-      const updated = await fixDeaconList(
-        churchId,
-        currentDeaconsRef.current,
-        scanResult.missing,
-        scanResult.extra,
-      );
-      currentDeaconsRef.current = updated;
+      const up = await applyListFix(churchId, ref.current.currentList, listDiff.toAdd, listDiff.toRemove, listDiff.stale);
+      ref.current.currentList = up;
+      listDiff.toAdd.forEach(u => { ref.current.uids.add(u.uid); ref.current.names.set(u.uid, u.name); });
+      const p = [];
+      if (listDiff.toAdd.length) p.push(`+${listDiff.toAdd.length} added`);
+      if (listDiff.toRemove.length) p.push(`-${listDiff.toRemove.length} removed`);
+      if (listDiff.stale.length) p.push(`${listDiff.stale.length} updated`);
+      setLog(prev => [...prev, `Deacon list: ${p.join(", ")}`]);
+      afterList();
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  }, [churchId, listDiff, schedDiffs]);
 
-      // Update master sets to include newly added
-      const mMap = masterMapRef.current;
-      const mUids = masterUidsRef.current;
-      scanResult.missing.forEach((m) => { mUids.add(m.uid); mMap.set(m.uid, m.name); });
-
-      const log = [];
-      if (scanResult.missing.length > 0)
-        log.push(`Added ${scanResult.missing.length} deacon(s) to list`);
-      if (scanResult.extra.length > 0)
-        log.push(`Removed ${scanResult.extra.length} non-deacon(s) from list`);
-      setFixLog((prev) => [...prev, ...log]);
-
-      // Move to schedules
-      if (scheduleResults.some((r) => r.issues.length > 0 || r.missingFromSchedule.length > 0)) {
-        setPhase(PHASE.SCHEDULE_REVIEW);
-        setCurrentScheduleIdx(0);
-      } else {
-        setPhase(PHASE.DONE);
-        setFixLog((prev) => [...prev, "All schedules are clean."]);
-      }
-    } catch (err) {
-      console.error("Fix deacon list error:", err);
-      setError(err.message);
-      setPhase(PHASE.DEACON_REVIEW);
-    }
-  }, [churchId, scanResult, scheduleResults]);
-
-  const skipDeaconFix = useCallback(() => {
-    if (scheduleResults.some((r) => r.issues.length > 0 || r.missingFromSchedule.length > 0)) {
-      setPhase(PHASE.SCHEDULE_REVIEW);
-      setCurrentScheduleIdx(0);
-    } else {
-      setPhase(PHASE.DONE);
-      setFixLog((prev) => [...prev, "Skipped deacon list fix.", "All schedules are clean."]);
-    }
-  }, [scheduleResults]);
+  const skipList = () => { setLog(prev => [...prev, "Deacon list: skipped"]); afterList(); };
+  const afterList = () => { if (schedDiffs.length > 0) { setIdx(0); setPhase(P.SCHED); } else setPhase(P.DONE); };
 
   // ── Fix schedule ───────────────────────────────────────────────────────────
 
-  const applyScheduleFix = useCallback(async () => {
-    const result = scheduleResults[currentScheduleIdx];
-    if (!result) return;
-    setPhase(PHASE.SCHEDULE_FIXING);
-
+  const doFixSched = useCallback(async () => {
+    const sd = schedDiffs[idx]; if (!sd) return;
+    setBusy(true); setError(null);
     try {
-      const unknowns = result.issues.filter((i) => i.type === "unknown");
-      await fixSchedule(
-        churchId, result.weekId,
-        scheduleDataRef.current[result.weekId],
-        unknowns, result.missingFromSchedule,
-        masterMapRef.current,
-      );
+      await applySchedFix(churchId, sd.weekId, ref.current.sData[sd.weekId], sd.unknowns, sd.missing, ref.current.names);
+      const p = [];
+      if (sd.unknowns.length) p.push(`${sd.unknowns.length} removed`);
+      if (sd.missing.length) p.push(`${sd.missing.length} → extras`);
+      setLog(prev => [...prev, `${nd(sd.weekId)}: ${p.join(", ")}`]);
+      next();
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  }, [churchId, schedDiffs, idx]);
 
-      const log = [];
-      if (unknowns.length > 0) log.push(`${fmtDisplay(result.weekId)}: removed ${unknowns.length} unknown(s)`);
-      if (result.missingFromSchedule.length > 0) log.push(`${fmtDisplay(result.weekId)}: added ${result.missingFromSchedule.length} to extras`);
-      setFixLog((prev) => [...prev, ...log]);
+  const skipSched = () => { setLog(prev => [...prev, `${nd(schedDiffs[idx]?.weekId)}: skipped`]); next(); };
+  const next = () => { const n = idx + 1; if (n < schedDiffs.length) setIdx(n); else setPhase(P.DONE); };
 
-      advanceSchedule();
-    } catch (err) {
-      console.error("Fix schedule error:", err);
-      setError(err.message);
-      setPhase(PHASE.SCHEDULE_REVIEW);
-    }
-  }, [churchId, currentScheduleIdx, scheduleResults]);
-
-  const skipScheduleFix = useCallback(() => {
-    setFixLog((prev) => [...prev, `${fmtDisplay(scheduleResults[currentScheduleIdx]?.weekId)}: skipped`]);
-    advanceSchedule();
-  }, [currentScheduleIdx, scheduleResults]);
-
-  const advanceSchedule = useCallback(() => {
-    const next = currentScheduleIdx + 1;
-    if (next < scheduleResults.length) {
-      // Find next schedule with issues
-      let idx = next;
-      while (idx < scheduleResults.length) {
-        const r = scheduleResults[idx];
-        if (r.issues.length > 0 || r.missingFromSchedule.length > 0) break;
-        idx++;
-      }
-      if (idx < scheduleResults.length) {
-        setCurrentScheduleIdx(idx);
-        setPhase(PHASE.SCHEDULE_REVIEW);
-      } else {
-        setPhase(PHASE.DONE);
-      }
-    } else {
-      setPhase(PHASE.DONE);
-    }
-  }, [currentScheduleIdx, scheduleResults]);
-
-  // Fix all remaining schedules at once
-  const fixAllSchedules = useCallback(async () => {
-    setPhase(PHASE.SCHEDULE_FIXING);
+  const fixAll = useCallback(async () => {
+    setBusy(true); setError(null);
     try {
-      for (let i = currentScheduleIdx; i < scheduleResults.length; i++) {
-        const result = scheduleResults[i];
-        if (result.issues.length === 0 && result.missingFromSchedule.length === 0) continue;
-
-        const unknowns = result.issues.filter((x) => x.type === "unknown");
-        await fixSchedule(
-          churchId, result.weekId,
-          scheduleDataRef.current[result.weekId],
-          unknowns, result.missingFromSchedule,
-          masterMapRef.current,
-        );
-
-        const log = [];
-        if (unknowns.length > 0) log.push(`${fmtDisplay(result.weekId)}: removed ${unknowns.length} unknown(s)`);
-        if (result.missingFromSchedule.length > 0) log.push(`${fmtDisplay(result.weekId)}: added ${result.missingFromSchedule.length} to extras`);
-        setFixLog((prev) => [...prev, ...log]);
+      for (let i = idx; i < schedDiffs.length; i++) {
+        const sd = schedDiffs[i];
+        await applySchedFix(churchId, sd.weekId, ref.current.sData[sd.weekId], sd.unknowns, sd.missing, ref.current.names);
+        const p = [];
+        if (sd.unknowns.length) p.push(`${sd.unknowns.length} removed`);
+        if (sd.missing.length) p.push(`${sd.missing.length} → extras`);
+        setLog(prev => [...prev, `${nd(sd.weekId)}: ${p.join(", ")}`]);
       }
-      setPhase(PHASE.DONE);
-    } catch (err) {
-      setError(err.message);
-      setPhase(PHASE.SCHEDULE_REVIEW);
-    }
-  }, [churchId, currentScheduleIdx, scheduleResults]);
+      setPhase(P.DONE);
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  }, [churchId, schedDiffs, idx]);
 
-  // ── Reset ──────────────────────────────────────────────────────────────────
+  // ── Close ──────────────────────────────────────────────────────────────────
 
-  const handleClose = () => {
-    setPhase(PHASE.IDLE);
-    setScanResult(null);
-    setScheduleResults([]);
-    setCurrentScheduleIdx(0);
-    setFixLog([]);
-    setError(null);
+  const close = () => {
+    setPhase(P.SCAN); setListDiff(null); setSchedDiffs([]);
+    setIdx(0); setLog([]); setError(null); setBusy(false);
     onClose();
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  if (!visible) return null;
 
-  const currentSched = scheduleResults[currentScheduleIdx];
-  const totalScheduleIssues = scheduleResults.reduce(
-    (sum, r) => sum + r.issues.length + r.missingFromSchedule.length, 0
-  );
+  const cs = schedDiffs[idx];
+  const lc = listDiff ? listDiff.toAdd.length + listDiff.toRemove.length + listDiff.stale.length : 0;
+  const sc = cs ? cs.unknowns.length + cs.missing.length : 0;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <View style={st.overlay}>
-        <View style={st.sheet}>
-          {/* Header */}
-          <View style={st.header}>
-            <View style={st.headerLeft}>
-              <Icon name="sync" size={20} color="#147efb" />
-              <Text style={st.headerTitle}>Sync & Fix</Text>
+    <Modal visible animationType="fade" transparent onRequestClose={close}>
+      <View style={st.backdrop}>
+        <View style={st.dialog}>
+
+          {/* Close button — always visible */}
+          <TouchableOpacity style={st.closeBtn} onPress={close} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Icon name="close" size={18} color="rgba(255,255,255,0.3)" />
+          </TouchableOpacity>
+
+          {/* ── SCANNING ── */}
+          {phase === P.SCAN && (
+            <View style={st.center}>
+              <ActivityIndicator color="#147efb" size="large" />
+              <Text style={st.scanTitle}>Scanning…</Text>
+              <Text style={st.scanText}>Checking deacons and schedules</Text>
             </View>
-            <TouchableOpacity style={st.closeBtn} onPress={handleClose}>
-              <Icon name="close" size={20} color="rgba(255,255,255,0.5)" />
-            </TouchableOpacity>
-          </View>
+          )}
 
-          <ScrollView style={st.body} showsVerticalScrollIndicator={false}>
-
-            {/* ── IDLE ── */}
-            {phase === PHASE.IDLE && (
-              <View style={st.centeredSection}>
-                <View style={st.iconCircle}>
-                  <Icon name="database-sync-outline" size={32} color="#147efb" />
-                </View>
-                <Text style={st.title}>Data Integrity Check</Text>
-                <Text style={st.desc}>
-                  This will scan your deacons list and all schedules for corruption, missing entries, and unknown people. You'll review all issues before any changes are made.
+          {/* ── DEACON LIST ── */}
+          {phase === P.LIST && listDiff && (
+            <>
+              <View style={st.header}>
+                <Text style={st.label}>DEACON LIST</Text>
+                <Text style={st.headerTitle}>
+                  {lc} issue{lc !== 1 ? "s" : ""} found
                 </Text>
-                {error && <Text style={st.errorText}>{error}</Text>}
-                <TouchableOpacity style={st.primaryBtn} onPress={startScan} activeOpacity={0.8}>
-                  <Icon name="magnify" size={18} color="#fff" />
-                  <Text style={st.primaryBtnText}>Start Scan</Text>
+              </View>
+
+              <FlatList
+                data={[
+                  ...listDiff.toAdd.map(u => ({ k: u.uid, n: u.name, a: "Add", c: "#30d158" })),
+                  ...listDiff.toRemove.map(d => ({ k: d.uid, n: d.name, a: "Remove", c: "#ff453a" })),
+                  ...listDiff.stale.map(s => ({ k: `s-${s.uid}`, n: s.name, a: s.fields.map(f => `${f.field}: ${f.from} → ${f.to}`).join(", "), c: "#ff9f0a" })),
+                ]}
+                keyExtractor={i => i.k}
+                renderItem={({ item }) => <Row name={item.n} action={item.a} color={item.c} />}
+                style={st.list}
+                contentContainerStyle={st.listContent}
+                showsVerticalScrollIndicator={false}
+                ItemSeparatorComponent={() => <View style={st.sep} />}
+              />
+
+              {error && <Text style={st.err}>{error}</Text>}
+
+              <View style={st.footer}>
+                <TouchableOpacity style={st.ghostBtn} onPress={skipList} disabled={busy}>
+                  <Text style={st.ghostBtnText}>Skip</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={st.mainBtn} onPress={doFixList} disabled={busy} activeOpacity={0.8}>
+                  {busy && <ActivityIndicator color="#fff" size={14} />}
+                  <Text style={st.mainBtnText}>Fix List</Text>
                 </TouchableOpacity>
               </View>
-            )}
+            </>
+          )}
 
-            {/* ── SCANNING ── */}
-            {phase === PHASE.SCANNING && (
-              <View style={st.centeredSection}>
-                <ActivityIndicator size="large" color="#147efb" />
-                <Text style={st.scanningText}>Scanning data…</Text>
-                <Text style={st.scanningSubtext}>Checking deacons list and schedules</Text>
+          {/* ── SCHEDULE ── */}
+          {phase === P.SCHED && cs && (
+            <>
+              <View style={st.header}>
+                <Text style={st.label}>
+                  SCHEDULE {idx + 1} OF {schedDiffs.length}
+                </Text>
+                <Text style={st.headerTitle}>{nd(cs.weekId)}</Text>
+                <Text style={st.headerSub}>
+                  {sc} issue{sc !== 1 ? "s" : ""}
+                </Text>
               </View>
-            )}
 
-            {/* ── DEACON REVIEW ── */}
-            {phase === PHASE.DEACON_REVIEW && scanResult && (
-              <View>
-                <View style={st.phaseHeader}>
-                  <View style={st.phaseBadge}>
-                    <Text style={st.phaseBadgeText}>Step 1 of 2</Text>
-                  </View>
-                  <Text style={st.phaseTitle}>Deacons List</Text>
-                  <Text style={st.phaseDesc}>
-                    {scanResult.missing.length + scanResult.extra.length} issue(s) found
-                  </Text>
-                </View>
+              <FlatList
+                data={[
+                  ...cs.unknowns.map((u, i) => ({ k: `u${u.uid}${i}`, n: u.name, a: "Remove", c: "#ff453a" })),
+                  ...cs.missing.map(m => ({ k: `m${m.uid}`, n: m.name, a: "→ Extras", c: "#30d158" })),
+                ]}
+                keyExtractor={i => i.k}
+                renderItem={({ item }) => <Row name={item.n} action={item.a} color={item.c} />}
+                style={st.list}
+                contentContainerStyle={st.listContent}
+                showsVerticalScrollIndicator={false}
+                ItemSeparatorComponent={() => <View style={st.sep} />}
+              />
 
-                {scanResult.missing.length > 0 && (
-                  <View style={st.issueSection}>
-                    <View style={st.issueLabelRow}>
-                      <Icon name="account-plus" size={16} color="#30d158" />
-                      <Text style={st.issueLabel}>Missing from deacons list ({scanResult.missing.length})</Text>
-                    </View>
-                    <Text style={st.issueDesc}>These users have isDeacon but aren't in the church's deacon array.</Text>
-                    {scanResult.missing.map((m) => (
-                      <View key={m.uid} style={st.issueItem}>
-                        <Icon name="account-outline" size={16} color="#30d158" />
-                        <Text style={st.issueItemText}>{m.name || m.uid}</Text>
-                        <Text style={st.issueAction}>Will add</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
+              {error && <Text style={st.err}>{error}</Text>}
 
-                {scanResult.extra.length > 0 && (
-                  <View style={st.issueSection}>
-                    <View style={st.issueLabelRow}>
-                      <Icon name="account-remove" size={16} color="#ff453a" />
-                      <Text style={st.issueLabel}>Shouldn't be on list ({scanResult.extra.length})</Text>
-                    </View>
-                    <Text style={st.issueDesc}>These are in the deacon array but don't have isDeacon: true.</Text>
-                    {scanResult.extra.map((e) => (
-                      <View key={e.uid} style={st.issueItem}>
-                        <Icon name="account-off-outline" size={16} color="#ff453a" />
-                        <Text style={st.issueItemText}>{e.name || e.uid}</Text>
-                        <Text style={[st.issueAction, { color: "#ff453a" }]}>Will remove</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {error && <Text style={st.errorText}>{error}</Text>}
-
-                <View style={st.actionRow}>
-                  <TouchableOpacity style={st.secondaryBtn} onPress={skipDeaconFix}>
-                    <Text style={st.secondaryBtnText}>Skip</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={st.primaryBtn} onPress={applyDeaconFix} activeOpacity={0.8}>
-                    <Icon name="check" size={18} color="#fff" />
-                    <Text style={st.primaryBtnText}>Fix Deacons List</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
-            {/* ── DEACON FIXING ── */}
-            {phase === PHASE.DEACON_FIXING && (
-              <View style={st.centeredSection}>
-                <ActivityIndicator size="large" color="#30d158" />
-                <Text style={st.scanningText}>Fixing deacons list…</Text>
-              </View>
-            )}
-
-            {/* ── SCHEDULE REVIEW ── */}
-            {phase === PHASE.SCHEDULE_REVIEW && currentSched && (
-              <View>
-                <View style={st.phaseHeader}>
-                  <View style={st.phaseBadge}>
-                    <Text style={st.phaseBadgeText}>
-                      Step 2 of 2 — Schedule {currentScheduleIdx + 1}/{scheduleResults.length}
-                    </Text>
-                  </View>
-                  <Text style={st.phaseTitle}>{fmtDisplay(currentSched.weekId)}</Text>
-                  <Text style={st.phaseDesc}>
-                    {currentSched.issues.length + currentSched.missingFromSchedule.length} issue(s)
-                  </Text>
-                </View>
-
-                {currentSched.issues.filter((i) => i.type === "unknown").length > 0 && (
-                  <View style={st.issueSection}>
-                    <View style={st.issueLabelRow}>
-                      <Icon name="account-question" size={16} color="#ff453a" />
-                      <Text style={st.issueLabel}>
-                        Unknown people ({currentSched.issues.filter((i) => i.type === "unknown").length})
-                      </Text>
-                    </View>
-                    <Text style={st.issueDesc}>These are in the schedule but not on the deacons list.</Text>
-                    {currentSched.issues.filter((i) => i.type === "unknown").map((u, idx) => (
-                      <View key={`${u.uid}-${idx}`} style={st.issueItem}>
-                        <Icon name="account-off-outline" size={16} color="#ff453a" />
-                        <View style={{ flex: 1 }}>
-                          <Text style={st.issueItemText}>{u.name || u.uid}</Text>
-                          <Text style={st.issueItemSub}>{u.location}</Text>
-                        </View>
-                        <Text style={[st.issueAction, { color: "#ff453a" }]}>Remove</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {currentSched.issues.filter((i) => i.type === "duplicate").length > 0 && (
-                  <View style={st.issueSection}>
-                    <View style={st.issueLabelRow}>
-                      <Icon name="content-duplicate" size={16} color="#ff9f0a" />
-                      <Text style={st.issueLabel}>
-                        Duplicates ({currentSched.issues.filter((i) => i.type === "duplicate").length})
-                      </Text>
-                    </View>
-                    {currentSched.issues.filter((i) => i.type === "duplicate").map((d, idx) => (
-                      <View key={`${d.uid}-dup-${idx}`} style={st.issueItem}>
-                        <Icon name="content-duplicate" size={16} color="#ff9f0a" />
-                        <View style={{ flex: 1 }}>
-                          <Text style={st.issueItemText}>{d.name}</Text>
-                          <Text style={st.issueItemSub}>{d.location}</Text>
-                        </View>
-                        <Text style={[st.issueAction, { color: "#ff9f0a" }]}>Duplicate</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {currentSched.missingFromSchedule.length > 0 && (
-                  <View style={st.issueSection}>
-                    <View style={st.issueLabelRow}>
-                      <Icon name="account-plus" size={16} color="#30d158" />
-                      <Text style={st.issueLabel}>
-                        Missing from schedule ({currentSched.missingFromSchedule.length})
-                      </Text>
-                    </View>
-                    <Text style={st.issueDesc}>These deacons aren't anywhere in this week. Will be added to extras.</Text>
-                    <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
-                      {currentSched.missingFromSchedule.map((m) => (
-                        <View key={m.uid} style={st.issueItem}>
-                          <Icon name="account-outline" size={16} color="#30d158" />
-                          <Text style={st.issueItemText}>{m.name}</Text>
-                          <Text style={st.issueAction}>→ extras</Text>
-                        </View>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-
-                {error && <Text style={st.errorText}>{error}</Text>}
-
-                <View style={st.actionRow}>
-                  <TouchableOpacity style={st.secondaryBtn} onPress={skipScheduleFix}>
-                    <Text style={st.secondaryBtnText}>Skip</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={st.primaryBtn} onPress={applyScheduleFix} activeOpacity={0.8}>
-                    <Icon name="check" size={18} color="#fff" />
-                    <Text style={st.primaryBtnText}>Fix This Week</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {scheduleResults.length - currentScheduleIdx > 1 && (
-                  <TouchableOpacity style={st.fixAllBtn} onPress={fixAllSchedules} activeOpacity={0.8}>
-                    <Icon name="check-all" size={18} color="#147efb" />
-                    <Text style={st.fixAllBtnText}>Fix all remaining weeks</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-
-            {/* ── SCHEDULE FIXING ── */}
-            {phase === PHASE.SCHEDULE_FIXING && (
-              <View style={st.centeredSection}>
-                <ActivityIndicator size="large" color="#30d158" />
-                <Text style={st.scanningText}>Fixing schedule…</Text>
-              </View>
-            )}
-
-            {/* ── DONE ── */}
-            {phase === PHASE.DONE && (
-              <View style={st.centeredSection}>
-                <View style={[st.iconCircle, { backgroundColor: "rgba(48,209,88,0.1)" }]}>
-                  <Icon name="check-circle-outline" size={32} color="#30d158" />
-                </View>
-                <Text style={st.title}>Sync Complete</Text>
-
-                {fixLog.length > 0 && (
-                  <View style={st.logSection}>
-                    {fixLog.map((entry, i) => (
-                      <View key={i} style={st.logItem}>
-                        <Icon name="check" size={14} color="rgba(255,255,255,0.4)" />
-                        <Text style={st.logText}>{entry}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                <TouchableOpacity style={st.primaryBtn} onPress={handleClose} activeOpacity={0.8}>
-                  <Text style={st.primaryBtnText}>Done</Text>
+              <View style={st.footer}>
+                <TouchableOpacity style={st.ghostBtn} onPress={skipSched} disabled={busy}>
+                  <Text style={st.ghostBtnText}>Skip</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={st.mainBtn} onPress={doFixSched} disabled={busy} activeOpacity={0.8}>
+                  {busy && <ActivityIndicator color="#fff" size={14} />}
+                  <Text style={st.mainBtnText}>Fix</Text>
                 </TouchableOpacity>
               </View>
-            )}
 
-          </ScrollView>
+              {schedDiffs.length - idx > 1 && !busy && (
+                <TouchableOpacity style={st.linkBtn} onPress={fixAll}>
+                  <Text style={st.linkBtnText}>Fix all remaining ({schedDiffs.length - idx})</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+
+          {/* ── DONE ── */}
+          {phase === P.DONE && (
+            <View style={st.doneWrap}>
+              <View style={st.doneTop}>
+                <View style={st.doneIcon}>
+                  <Icon name={error ? "alert-circle-outline" : "check-circle-outline"} size={28} color={error ? "#ff453a" : "#30d158"} />
+                </View>
+                <Text style={st.doneTitle}>{error ? "Finished with errors" : "Sync Complete"}</Text>
+
+                {log.length > 0 && (
+                  <FlatList
+                    data={log}
+                    keyExtractor={(_, i) => String(i)}
+                    style={st.logList}
+                    showsVerticalScrollIndicator={false}
+                    renderItem={({ item }) => (
+                      <View style={st.logRow}>
+                        <Text style={st.logBullet}>•</Text>
+                        <Text style={st.logText}>{item}</Text>
+                      </View>
+                    )}
+                  />
+                )}
+
+                {error && <Text style={st.err}>{error}</Text>}
+              </View>
+
+              <TouchableOpacity style={st.doneBtn} onPress={close} activeOpacity={0.8}>
+                <Text style={st.doneBtnText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
         </View>
       </View>
     </Modal>
@@ -741,52 +462,83 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const st = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#1a1a1a", borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "90%", minHeight: 300 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  headerTitle: { fontSize: 17, fontWeight: "700", color: "#fff" },
-  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.08)", justifyContent: "center", alignItems: "center" },
-  body: { padding: 20 },
+  backdrop: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center", alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  dialog: {
+    backgroundColor: "#1c1c1e", borderRadius: 20,
+    width: "100%", minHeight: 200, maxHeight: SH * 0.72,
+    paddingTop: 24, paddingBottom: 22, paddingHorizontal: 22,
+  },
 
-  centeredSection: { alignItems: "center", paddingVertical: 24 },
-  iconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: "rgba(20,126,251,0.1)", justifyContent: "center", alignItems: "center", marginBottom: 16 },
-  title: { fontSize: 20, fontWeight: "700", color: "#fff", marginBottom: 10, textAlign: "center" },
-  desc: { fontSize: 14, color: "rgba(255,255,255,0.45)", textAlign: "center", lineHeight: 20, marginBottom: 24, paddingHorizontal: 8 },
+  // Close
+  closeBtn: { position: "absolute", top: 16, right: 16, zIndex: 1 },
 
-  scanningText: { fontSize: 16, fontWeight: "600", color: "#fff", marginTop: 16 },
-  scanningSubtext: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 6 },
+  // Scanning
+  center: { alignItems: "center", justifyContent: "center", paddingVertical: 48 },
+  scanTitle: { fontSize: 18, fontWeight: "600", color: "#fff", marginTop: 18 },
+  scanText: { fontSize: 14, color: "rgba(255,255,255,0.4)", marginTop: 6 },
 
-  phaseHeader: { marginBottom: 20 },
-  phaseBadge: { backgroundColor: "rgba(20,126,251,0.12)", alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginBottom: 10 },
-  phaseBadgeText: { fontSize: 11, fontWeight: "600", color: "#147efb", textTransform: "uppercase", letterSpacing: 0.5 },
-  phaseTitle: { fontSize: 20, fontWeight: "700", color: "#fff" },
-  phaseDesc: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 4 },
+  // Header area
+  header: { marginBottom: 12 },
+  label: {
+    fontSize: 11, fontWeight: "700", letterSpacing: 1,
+    color: "rgba(255,255,255,0.25)", marginBottom: 6,
+  },
+  headerTitle: { fontSize: 22, fontWeight: "700", color: "#fff" },
+  headerSub: { fontSize: 14, color: "rgba(255,255,255,0.4)", marginTop: 2 },
 
-  issueSection: { backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.04)" },
-  issueLabelRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
-  issueLabel: { fontSize: 14, fontWeight: "600", color: "#fff" },
-  issueDesc: { fontSize: 12, color: "rgba(255,255,255,0.35)", marginBottom: 10 },
+  // List
+  list: { flexGrow: 0, maxHeight: SH * 0.38, marginBottom: 16 },
+  listContent: { paddingVertical: 4 },
+  sep: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.06)" },
 
-  issueItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.04)" },
-  issueItemText: { flex: 1, fontSize: 14, color: "#fff" },
-  issueItemSub: { fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 1 },
-  issueAction: { fontSize: 12, fontWeight: "600", color: "#30d158" },
+  // Row
+  row: { flexDirection: "row", alignItems: "center", paddingVertical: 12 },
+  dot: { width: 7, height: 7, borderRadius: 4, marginRight: 14 },
+  rowName: { flex: 1, fontSize: 16, color: "#fff" },
+  rowTag: { fontSize: 12, fontWeight: "600", maxWidth: "45%", textAlign: "right" },
 
-  actionRow: { flexDirection: "row", gap: 10, marginTop: 20, marginBottom: 10 },
-  primaryBtn: { flex: 1.5, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#147efb", paddingVertical: 16, borderRadius: 14 },
-  primaryBtnText: { fontSize: 15, fontWeight: "700", color: "#fff" },
-  secondaryBtn: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.06)", paddingVertical: 16, borderRadius: 14 },
-  secondaryBtnText: { fontSize: 15, fontWeight: "600", color: "rgba(255,255,255,0.5)" },
+  // Error
+  err: { fontSize: 13, color: "#ff453a", marginBottom: 10 },
 
-  fixAllBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, marginTop: 4, marginBottom: 10 },
-  fixAllBtnText: { fontSize: 14, fontWeight: "500", color: "#147efb" },
+  // Footer buttons
+  footer: { flexDirection: "row", gap: 10 },
+  mainBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, backgroundColor: "#147efb",
+    paddingVertical: 15, borderRadius: 12,
+  },
+  mainBtnText: { fontSize: 16, fontWeight: "600", color: "#fff" },
+  ghostBtn: {
+    paddingVertical: 15, paddingHorizontal: 22, borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  ghostBtnText: { fontSize: 16, fontWeight: "500", color: "rgba(255,255,255,0.35)" },
 
-  errorText: { fontSize: 13, color: "#ff453a", textAlign: "center", marginVertical: 10 },
+  // Fix all link
+  linkBtn: { alignItems: "center", paddingVertical: 14 },
+  linkBtnText: { fontSize: 14, color: "#147efb", fontWeight: "500" },
 
-  logSection: { width: "100%", backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 12, padding: 14, marginBottom: 20 },
-  logItem: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 4 },
-  logText: { fontSize: 13, color: "rgba(255,255,255,0.5)", flex: 1 },
+  // Done
+  doneWrap: { flex: 1, justifyContent: "space-between" },
+  doneTop: { alignItems: "center", flex: 1 },
+  doneIcon: { alignItems: "center", marginBottom: 12 },
+  doneTitle: { fontSize: 20, fontWeight: "700", color: "#fff", textAlign: "center", marginBottom: 16 },
+  doneBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    backgroundColor: "#30d158", paddingVertical: 15, borderRadius: 12,
+    width: "100%", marginTop: 12,
+  },
+  doneBtnText: { fontSize: 16, fontWeight: "600", color: "#fff" },
+
+  // Log
+  logList: { maxHeight: SH * 0.25, width: "100%", marginBottom: 8 },
+  logRow: { flexDirection: "row", paddingVertical: 4 },
+  logBullet: { fontSize: 13, color: "rgba(255,255,255,0.3)", marginRight: 8, marginTop: 1 },
+  logText: { flex: 1, fontSize: 14, color: "rgba(255,255,255,0.5)", lineHeight: 20 },
 });
 
 export default DeaconSyncModal;

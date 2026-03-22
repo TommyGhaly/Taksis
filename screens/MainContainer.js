@@ -5,12 +5,21 @@ import {
   Text,
   ScrollView,
   RefreshControl,
+  Modal,
+  TouchableOpacity,
+  ActivityIndicator,
+  Linking,
+  Platform,
+  AppState,
 } from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import Icon from "react-native-vector-icons/FontAwesome";
 import IconMCI from "react-native-vector-icons/MaterialCommunityIcons";
+let Updates = null;
+try { Updates = require("expo-updates"); } catch {}
+import Constants from "expo-constants";
 import HomeScreenNavigation from "./Home/HomeScreenNavigator";
 import AlhanNavigator from "./Alhan/AlhanNavigator";
 import SundaySchoolNavigator from "./SundaySchool/SundaySchoolNavigator";
@@ -48,6 +57,27 @@ const myTheme = {
 const consistentHeaderStyle = {
   backgroundColor: "#1a1a1a",
 };
+
+// ── Version helpers ──────────────────────────────────────────────────────────
+
+const STORE_URLS = {
+  ios: "https://apps.apple.com/app/taksis/id6504739738", // Replace with your actual App Store ID
+  android: "https://play.google.com/store/apps/details?id=com.taksis", // Replace with your actual package name
+};
+
+function compareVersions(current, minimum) {
+  const c = current.split(".").map(Number);
+  const m = minimum.split(".").map(Number);
+  for (let i = 0; i < Math.max(c.length, m.length); i++) {
+    const cv = c[i] || 0;
+    const mv = m[i] || 0;
+    if (cv < mv) return -1;
+    if (cv > mv) return 1;
+  }
+  return 0;
+}
+
+// ── Screen configs (unchanged) ───────────────────────────────────────────────
 
 const screenConfigs = {
   schedule: {
@@ -323,6 +353,37 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId, sho
   );
 }
 
+// ── Update blocker modal ─────────────────────────────────────────────────────
+
+function ForceUpdateModal({ visible }) {
+  const storeUrl = Platform.OS === "ios" ? STORE_URLS.ios : STORE_URLS.android;
+
+  return (
+    <Modal visible={visible} animationType="fade" transparent={false}>
+      <View style={updateStyles.container}>
+        <View style={updateStyles.card}>
+          <View style={updateStyles.iconWrap}>
+            <IconMCI name="update" size={40} color="#147efb" />
+          </View>
+          <Text style={updateStyles.title}>Update Required</Text>
+          <Text style={updateStyles.message}>
+            A new version of Taksis is available. Please update to continue using the app.
+          </Text>
+          <TouchableOpacity
+            style={updateStyles.button}
+            onPress={() => Linking.openURL(storeUrl)}
+            activeOpacity={0.8}
+          >
+            <Text style={updateStyles.buttonText}>Update Now</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ── Main container ───────────────────────────────────────────────────────────
+
 export default function MainContainer() {
   const [userRoles, setUserRoles] = useState({
     isAlhan: false,
@@ -340,6 +401,7 @@ export default function MainContainer() {
   const [homeScreenId, setHomeScreenId] = useState("schedule");
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [forceUpdate, setForceUpdate] = useState(false);
 
   // ── Pascha tab visibility ─────────────────────────────────────────────────
   const [showPaschaTab, setShowPaschaTab] = useState(false);
@@ -357,6 +419,66 @@ export default function MainContainer() {
   const [lastServeData, setLastServeData] = useState({});
   const [nextServeData, setNextServeData] = useState({});
   const userListenersRef = useRef([]);
+
+  // ── Update checks ─────────────────────────────────────────────────────────
+
+  // 1. OTA updates (JS-only changes via EAS Update)
+  //    expo-updates native module is not available in dev builds,
+  //    so we guard both on __DEV__ and module availability.
+  useEffect(() => {
+    if (__DEV__) return;
+    if (!Updates || !Updates.isEnabled) return;
+
+    const checkOTA = async () => {
+      try {
+        const update = await Updates.checkForUpdateAsync();
+        if (update.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          await Updates.reloadAsync();
+        }
+      } catch {}
+    };
+
+    checkOTA();
+
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") checkOTA();
+    });
+
+    return () => sub.remove();
+  }, []);
+
+  // 2. Minimum version enforcement (native build updates via Firestore)
+  //    Set config/app.minVersion in Firestore to block old builds
+  useEffect(() => {
+    const unsub = firestore()
+      .collection("config")
+      .doc("app")
+      .onSnapshot(
+        (doc) => {
+          if (!doc.exists) return;
+          const data = doc.data();
+          const minVersion = data?.minVersion;
+          if (!minVersion) return;
+
+          const currentVersion =
+            Constants.expoConfig?.version ||
+            Constants.manifest?.version ||
+            "0.0.0";
+
+          if (compareVersions(currentVersion, minVersion) < 0) {
+            setForceUpdate(true);
+          } else {
+            setForceUpdate(false);
+          }
+        },
+        () => {},
+      );
+
+    return () => unsub();
+  }, []);
+
+  // ── Everything below is unchanged ─────────────────────────────────────────
 
   const getRequestId = (request) => {
     if (!request) return null;
@@ -695,6 +817,8 @@ export default function MainContainer() {
 
   return (
     <>
+      <ForceUpdateModal visible={forceUpdate} />
+
       <NavigationContainer independent={true} theme={myTheme}>
         {shouldShowDrawer ? (
           <DrawerNavigator
@@ -748,5 +872,60 @@ const styles = StyleSheet.create({
   loadingText: {
     color: "#fff",
     fontSize: 16,
+  },
+});
+
+const updateStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#121212",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  card: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 24,
+    padding: 32,
+    width: "100%",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  iconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "rgba(20,126,251,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  message: {
+    fontSize: 15,
+    color: "rgba(255,255,255,0.5)",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  button: {
+    backgroundColor: "#147efb",
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 14,
+    width: "100%",
+    alignItems: "center",
+  },
+  buttonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
   },
 });

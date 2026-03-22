@@ -1,11 +1,12 @@
 /**
  * PlateScanner
  *
- * OCR via expo-text-extractor (MLKit Android / Apple Vision iOS)
+ * OCR: @react-native-ml-kit/text-recognition
  *
  * Install:
- *   npx expo install expo-text-extractor
- *   npx expo prebuild && npx expo run:android
+ *   npm install @react-native-ml-kit/text-recognition
+ *   cd ios && pod install && cd ..
+ *   npx expo prebuild (then rebuild dev client)
  *
  * Props:
  *   visible, onPlateScanned, onClose, onManualEntry
@@ -19,13 +20,16 @@ import {
   Platform, ActivityIndicator, Vibration,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { extractTextFromImage, isSupported } from "expo-text-extractor";
+import TextRecognition from "@react-native-ml-kit/text-recognition";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 // ── Plate detection ──────────────────────────────────────────────────────────
 
-function cleanPlate(r) { return r.toUpperCase().replace(/[^A-Z0-9]/g, "").trim(); }
+function cleanPlate(r) {
+  return r.toUpperCase().replace(/[^A-Z0-9]/g, "").trim();
+}
+
 const PLATE_RE = /^[A-Z0-9]{4,8}$/;
 
 function scorePlate(t) {
@@ -38,13 +42,35 @@ function scorePlate(t) {
   return s;
 }
 
-function extractPlate(arr) {
-  const c = [];
-  const add = (r) => { const x = cleanPlate(r); if (PLATE_RE.test(x)) c.push({ t: x, s: scorePlate(x) }); };
-  for (const line of arr) { line.split(/\s+/).forEach(add); add(line); }
-  if (!c.length) return null;
-  c.sort((a, b) => b.s - a.s);
-  return c[0].s >= 3 ? c[0].t : null;
+function extractPlate(result) {
+  const cands = [];
+  const tryAdd = (raw) => {
+    const c = cleanPlate(raw);
+    if (PLATE_RE.test(c)) cands.push({ t: c, s: scorePlate(c) });
+  };
+
+  // result.blocks[].lines[].text gives us individual lines
+  if (result?.blocks) {
+    for (const block of result.blocks) {
+      tryAdd(block.text);
+      if (block.lines) {
+        for (const line of block.lines) {
+          tryAdd(line.text);
+          // Also try splitting on spaces (plates like "ABC 1234")
+          line.text.split(/\s+/).forEach(tryAdd);
+        }
+      }
+    }
+  }
+
+  // Also try the full text
+  if (result?.text) {
+    result.text.split(/\s+/).forEach(tryAdd);
+  }
+
+  if (!cands.length) return null;
+  cands.sort((a, b) => b.s - a.s);
+  return cands[0].s >= 3 ? cands[0].t : null;
 }
 
 const CONFIRM = 3;
@@ -73,15 +99,22 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) 
       setPhase("start"); setFrames(0); setRawText(null);
       setPlate(null); setConf(0); setFinal(null); setErr(null);
       stop.current = false; running.current = false;
-    } else { stop.current = true; }
+    } else {
+      stop.current = true;
+    }
   }, [visible]);
 
-  useEffect(() => { if (visible && !perm?.granted) reqPerm(); }, [visible, perm]);
+  useEffect(() => {
+    if (visible && !perm?.granted) reqPerm();
+  }, [visible, perm]);
 
   // OCR loop
   const loop = useCallback(async () => {
     if (running.current) return;
-    running.current = true; stop.current = false;
+    running.current = true;
+    stop.current = false;
+
+    // Camera warmup
     await new Promise((r) => setTimeout(r, 700));
     if (stop.current) { running.current = false; return; }
     setPhase("scan");
@@ -89,21 +122,42 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) 
     let con = { p: null, n: 0 }, f = 0;
 
     while (!stop.current) {
-      f++; setFrames(f);
+      f++;
+      setFrames(f);
+
       try {
-        if (!cam.current) { await new Promise((r) => setTimeout(r, 300)); continue; }
-        const pic = await cam.current.takePictureAsync({ quality: 0.6, skipProcessing: false, base64: false });
-        if (stop.current) break;
-        const texts = await extractTextFromImage(pic.uri);
+        if (!cam.current) {
+          await new Promise((r) => setTimeout(r, 300));
+          continue;
+        }
+
+        const pic = await cam.current.takePictureAsync({
+          quality: 0.6,
+          skipProcessing: false,
+          base64: false,
+        });
         if (stop.current) break;
 
-        setRawText(texts.join(" ") || null);
+        // Ensure file:// prefix for Android
+        let uri = pic.uri;
+        if (Platform.OS === "android" && !uri.startsWith("file://")) {
+          uri = `file://${uri}`;
+        }
+
+        const result = await TextRecognition.recognize(uri);
+        if (stop.current) break;
+
+        // Show raw text for transparency
+        setRawText(result?.text || null);
         setErr(null);
-        const found = extractPlate(texts);
+
+        const found = extractPlate(result);
 
         if (found) {
           con = found === con.p ? { p: found, n: con.n + 1 } : { p: found, n: 1 };
-          setPlate(found); setConf(Math.min(con.n, CONFIRM));
+          setPlate(found);
+          setConf(Math.min(con.n, CONFIRM));
+
           if (con.n >= CONFIRM) {
             setFinal(found);
             try { Vibration.vibrate(40); } catch {}
@@ -116,9 +170,13 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) 
           setConf(con.n);
           if (con.n === 0) setPlate(null);
         }
-      } catch (e) { setErr(e?.message || "OCR error"); }
+      } catch (e) {
+        setErr(e?.message || "OCR error");
+      }
+
       await new Promise((r) => setTimeout(r, COOLDOWN));
     }
+
     running.current = false;
   }, []);
 
@@ -134,15 +192,16 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) 
   const confirm = useCallback(() => { if (final) onPlateScanned?.(final); }, [final, onPlateScanned]);
   const forceUse = useCallback(() => {
     if (!plate) return;
-    stop.current = true; setFinal(plate); setPhase("review");
+    stop.current = true;
+    setFinal(plate);
+    setPhase("review");
   }, [plate]);
 
   if (!visible) return null;
 
-  // Status line content
+  // Status line
   let statusIcon = "magnify", statusMsg = "Scanning…", statusColor = "#8e8e93", spinning = true;
-  if (!isSupported) { statusIcon = "alert-circle-outline"; statusMsg = "OCR not supported"; statusColor = "#ff453a"; spinning = false; }
-  else if (phase === "start") { statusMsg = "Starting camera…"; }
+  if (phase === "start") { statusMsg = "Starting camera…"; }
   else if (err) { statusIcon = "alert-circle-outline"; statusMsg = err; statusColor = "#ff453a"; spinning = false; }
   else if (plate) { statusIcon = "car"; statusMsg = `Detected: ${plate}`; statusColor = "#64d2ff"; }
   else if (frames > 0) { statusMsg = `Scanning… frame ${frames}`; statusColor = "#fff"; }
@@ -151,12 +210,15 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) 
     <Modal visible animationType="slide" onRequestClose={close}>
       <View style={st.root}>
 
-        {/* Camera — full bleed behind everything */}
-        <CameraView ref={cam} style={StyleSheet.absoluteFillObject} facing="back" onCameraReady={loop} />
+        <CameraView
+          ref={cam}
+          style={StyleSheet.absoluteFillObject}
+          facing="back"
+          onCameraReady={loop}
+        />
 
-        {/* ─── TOP SECTION ─── */}
+        {/* ── Top ── */}
         <View style={[st.topSection, { paddingTop: insets.top + 8 }]}>
-          {/* Nav row */}
           <View style={st.navRow}>
             <TouchableOpacity style={st.navBtn} onPress={close} activeOpacity={0.7}>
               <Icon name="close" size={20} color="#fff" />
@@ -164,8 +226,6 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) 
             <Text style={st.navTitle}>Scan license plate</Text>
             <View style={{ width: 40 }} />
           </View>
-
-          {/* Status pill */}
           <View style={st.statusPill}>
             {spinning
               ? <ActivityIndicator size={14} color={statusColor} />
@@ -174,7 +234,7 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) 
           </View>
         </View>
 
-        {/* ─── VIEWFINDER (center) ─── */}
+        {/* ── Viewfinder ── */}
         <View style={st.finderWrap}>
           <View style={[
             st.finder,
@@ -187,10 +247,10 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) 
           </View>
         </View>
 
-        {/* ─── BOTTOM SECTION ─── */}
+        {/* ── Bottom ── */}
         <View style={[st.bottomSection, { paddingBottom: insets.bottom + 12 }]}>
 
-          {/* Feedback area — plate or debug info */}
+          {/* Feedback area */}
           <View style={st.feedbackArea}>
             {phase === "scan" && plate ? (
               <View style={st.plateCard}>
@@ -242,7 +302,7 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) 
             </TouchableOpacity>
           )}
 
-          {/* Manual entry link */}
+          {/* Manual entry */}
           {onManualEntry && phase !== "review" && (
             <TouchableOpacity style={st.manualRow} onPress={manual} activeOpacity={0.7}>
               <Icon name="keyboard-outline" size={14} color="rgba(255,255,255,0.45)" />
@@ -251,7 +311,7 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) 
           )}
         </View>
 
-        {/* ─── REVIEW OVERLAY ─── */}
+        {/* ── Review ── */}
         {phase === "review" && final && (
           <View style={st.reviewOverlay}>
             <View style={[st.reviewSheet, { paddingBottom: insets.bottom + 24 }]}>
@@ -300,7 +360,7 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) 
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
 
-  // ── Top ──
+  // Top
   topSection: {
     position: "absolute", top: 0, left: 0, right: 0, zIndex: 10,
     paddingHorizontal: 16,
@@ -325,10 +385,8 @@ const st = StyleSheet.create({
   },
   statusText: { fontSize: 13, fontWeight: "600" },
 
-  // ── Viewfinder ──
-  finderWrap: {
-    flex: 1, justifyContent: "center", alignItems: "center",
-  },
+  // Viewfinder
+  finderWrap: { flex: 1, justifyContent: "center", alignItems: "center" },
   finder: {
     width: "84%", aspectRatio: 3.2,
     borderWidth: 2, borderColor: "rgba(255,255,255,0.2)", borderRadius: 14,
@@ -339,17 +397,14 @@ const st = StyleSheet.create({
   cBL: { bottom: -2, left: -2, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 14 },
   cBR: { bottom: -2, right: -2, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 14 },
 
-  // ── Bottom ──
+  // Bottom
   bottomSection: {
     position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10,
     paddingHorizontal: 20, paddingTop: 16,
     backgroundColor: "rgba(0,0,0,0.55)",
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
   },
-
-  // Feedback area
   feedbackArea: { marginBottom: 16 },
-
   plateCard: {
     alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.06)",
@@ -360,22 +415,17 @@ const st = StyleSheet.create({
     fontSize: 10, fontWeight: "700", letterSpacing: 1.5,
     color: "rgba(255,255,255,0.35)", marginBottom: 4,
   },
-  plateValue: {
-    fontSize: 30, fontWeight: "800", color: "#fff", letterSpacing: 4,
-  },
+  plateValue: { fontSize: 30, fontWeight: "800", color: "#fff", letterSpacing: 4 },
   dots: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.12)" },
   dotOn: { backgroundColor: "#30d158" },
   dotLabel: { fontSize: 11, color: "rgba(255,255,255,0.3)", marginLeft: 4 },
-
   hintCard: {
     flexDirection: "row", alignItems: "center", gap: 10,
     backgroundColor: "rgba(255,255,255,0.04)",
     borderRadius: 12, paddingVertical: 14, paddingHorizontal: 16,
   },
   hintText: { fontSize: 13, color: "rgba(255,255,255,0.4)", flex: 1 },
-
-  // Action button
   actionBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
     backgroundColor: "#147efb", borderRadius: 14,
@@ -384,15 +434,13 @@ const st = StyleSheet.create({
   actionBtnOff: { backgroundColor: "rgba(255,255,255,0.06)" },
   actionBtnText: { fontSize: 16, fontWeight: "700", color: "#fff" },
   actionBtnTextOff: { fontSize: 15, color: "rgba(255,255,255,0.2)" },
-
-  // Manual
   manualRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 6, paddingVertical: 12,
   },
   manualText: { fontSize: 13, color: "rgba(255,255,255,0.4)" },
 
-  // ── Review overlay ──
+  // Review
   reviewOverlay: {
     ...StyleSheet.absoluteFillObject, zIndex: 20,
     backgroundColor: "rgba(0,0,0,0.7)",

@@ -33,10 +33,11 @@
           }
         }
       ],
-      ["rn-mlkit-ocr", { "ocrModels": ["latin"], "ocrUseBundled": true }],
       [
         "expo-dev-client",
-        { "developmentClient": true }
+        {
+          "developmentClient": true
+        }
       ]
     ],
     "experimental": {
@@ -52,7 +53,9 @@
       "bundleIdentifier": "com.tghaly.taksis",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["remote-notification"],
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
         "NSCameraUsageDescription": "Allow Ⲧⲁⲝⲓⲥ to access your camera for taking photos for profile identification.",
         "NSPhotoLibraryUsageDescription": "Allow Ⲧⲁⲝⲓⲥ to access your photo library for uploading profile pictures."
       },
@@ -76,7 +79,8 @@
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
         "VIBRATE",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {},
@@ -86,6 +90,15 @@
       "assets/**/*",
       "screens/**/*",
       "components/**/*"
-    ]
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/3b1e338f-eb92-4c7d-a84b-62060e5a6c9f",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 3000
+    }
   }
 }
