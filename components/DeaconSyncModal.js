@@ -88,6 +88,9 @@ function buildEntry(d) {
     experience: d.experience ?? DEFAULTS.experience,
     frequency: d.frequency ?? DEFAULTS.frequency,
     rank: d.rank ?? DEFAULTS.rank,
+    weeksSince: d.weeksSince ?? 4,
+    lastWeeksSince: d.lastWeeksSince ?? 4,
+    value: d.value ?? 0,
   };
 }
 
@@ -96,23 +99,46 @@ function diffList(current, expected) {
   const eSet = new Set(expected.map(u => u.uid));
   const eMap = new Map(expected.map(u => [u.uid, u]));
 
-  // Fields that should match between user doc and deacon array entry
+  // Fields synced from user doc → deacon array (one-way)
   const SYNC_FIELDS = ["name", "age", "experience", "frequency", "rank"];
+
+  // Fields that must exist on every deacon array entry (with defaults)
+  const REQUIRED_FIELDS = {
+    weeksSince: 4,
+    lastWeeksSince: 4,
+    name: "",
+    age: DEFAULTS.age,
+    experience: DEFAULTS.experience,
+    frequency: DEFAULTS.frequency,
+    rank: DEFAULTS.rank,
+  };
 
   const stale = [];
   for (const entry of current) {
+    if (!eSet.has(entry.uid)) continue; // will be caught by toRemove
     const source = eMap.get(entry.uid);
-    if (!source) continue; // will be caught by toRemove
     const mismatched = [];
-    for (const f of SYNC_FIELDS) {
-      const srcVal = source[f] ?? DEFAULTS[f] ?? 0;
-      const curVal = entry[f] ?? DEFAULTS[f] ?? 0;
-      if (String(srcVal) !== String(curVal)) {
-        mismatched.push({ field: f, from: curVal, to: srcVal });
+
+    // Check user-doc-synced fields
+    if (source) {
+      for (const f of SYNC_FIELDS) {
+        const srcVal = source[f] ?? DEFAULTS[f] ?? 0;
+        const curVal = entry[f] ?? DEFAULTS[f] ?? 0;
+        if (String(srcVal) !== String(curVal)) {
+          mismatched.push({ field: f, from: curVal, to: srcVal });
+        }
       }
     }
+
+    // Check required fields are present (not undefined/null)
+    for (const [f, defaultVal] of Object.entries(REQUIRED_FIELDS)) {
+      if (entry[f] === undefined || entry[f] === null) {
+        mismatched.push({ field: f, from: "missing", to: defaultVal });
+      }
+    }
+
     if (mismatched.length > 0) {
-      stale.push({ uid: entry.uid, name: source.name || entry.name, fields: mismatched });
+      stale.push({ uid: entry.uid, name: source?.name || entry.name, fields: mismatched });
     }
   }
 
@@ -149,7 +175,10 @@ async function applyListFix(churchId, current, toAdd, toRemove, stale) {
       const s = staleMap.get(d.uid);
       if (!s) return d;
       const patched = { ...d };
-      for (const f of s.fields) patched[f.field] = f.to;
+      for (const f of s.fields) {
+        // f.to is either the user-doc value or the default for missing fields
+        patched[f.field] = f.to;
+      }
       return patched;
     });
 
