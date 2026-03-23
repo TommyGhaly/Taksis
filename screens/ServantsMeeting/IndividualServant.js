@@ -1,6 +1,19 @@
 import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator } from "react-native";
-import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Image,
+  ActivityIndicator,
+} from "react-native";
+import {
+  useNavigation,
+  useRoute,
+  useFocusEffect,
+} from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import BackArrow from "../../components/backArrow";
@@ -72,7 +85,7 @@ const IndividualServant = () => {
             (error) => {
               Alert.alert("Error", "Failed to fetch data. Please try again.");
               setLoading(false);
-            }
+            },
           );
       };
 
@@ -82,12 +95,24 @@ const IndividualServant = () => {
       return () => {
         if (servantUnsubscribe) servantUnsubscribe();
       };
-    }, [church, servantID])
+    }, [church, servantID]),
   );
 
   // Memoize sorted attendance data
   const sortedAttendanceData = React.useMemo(() => {
-    return [...attendanceData].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const parseDate = (str) => {
+      if (!str) return new Date(0);
+      const parts = str.split("-");
+      if (parts.length !== 3) return new Date(0);
+      const [month, day, year] = parts.map(Number);
+      // Handle 2-digit years (e.g. "25" → 2025)
+      const fullYear = year < 100 ? 2000 + year : year;
+      return new Date(fullYear, month - 1, day);
+    };
+
+    return [...attendanceData].sort(
+      (a, b) => parseDate(b.date) - parseDate(a.date),
+    );
   }, [attendanceData]);
 
   const getStatusStyle = (status) => {
@@ -128,7 +153,7 @@ const IndividualServant = () => {
                             text: "OK",
                             onPress: () => navigation.goBack(),
                           },
-                        ]
+                        ],
                       );
                     },
                   },
@@ -152,21 +177,27 @@ const IndividualServant = () => {
                               text: "OK",
                               onPress: () => navigation.goBack(),
                             },
-                          ]
+                          ],
                         );
                       } catch (error) {
-                        Alert.alert("Error", "Failed to update teacher role. Please try again.");
+                        Alert.alert(
+                          "Error",
+                          "Failed to update teacher role. Please try again.",
+                        );
                       }
                     },
                   },
-                ]
+                ],
               );
             } catch (error) {
-              Alert.alert("Error", "Failed to remove servant. Please try again.");
+              Alert.alert(
+                "Error",
+                "Failed to remove servant. Please try again.",
+              );
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -181,7 +212,7 @@ const IndividualServant = () => {
   return (
     <View style={styles.container}>
       <BackArrow style={styles.backArrow} onPress={() => navigation.goBack()} />
-      
+
       {/* Header Section */}
       <View style={styles.headerSection}>
         <Text style={styles.title}>{`${servantName}`}</Text>
@@ -196,7 +227,7 @@ const IndividualServant = () => {
         </View>
         <Text style={styles.subtitle}>{`Category: Servants Meeting`}</Text>
       </View>
-      
+
       {/* Attendance Section */}
       <ScrollView contentContainerStyle={styles.attendanceContainer}>
         {sortedAttendanceData.map((attendance, index) => (
@@ -212,16 +243,19 @@ const IndividualServant = () => {
                 {attendance.status === false
                   ? "Absent"
                   : attendance.status === true
-                  ? "Present"
-                  : "No Status"}
+                    ? "Present"
+                    : "No Status"}
               </Text>
             </View>
           </View>
         ))}
       </ScrollView>
-      
+
       {/* Action Button */}
-      <TouchableOpacity onPress={handleDeleteServant} style={styles.removeButton}>
+      <TouchableOpacity
+        onPress={handleDeleteServant}
+        style={styles.removeButton}
+      >
         <Text style={styles.removeButtonText}>Remove Servant</Text>
       </TouchableOpacity>
     </View>

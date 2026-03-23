@@ -10,8 +10,9 @@ import firestore from "@react-native-firebase/firestore";
 
 const { width: SW, height: SH } = Dimensions.get("window");
 
+// ── Changed: now points to cars/unregistered/people ──────────────────────────
 export const getUnregCollection = () =>
-  firestore().collection("qrCodes").doc("unregistered").collection("people");
+  firestore().collection("cars").doc("unregistered").collection("people");
 
 export const COLOR_OPTIONS = [
   { label: "White",  value: "white",  hex: "#FFFFFF" },
@@ -172,8 +173,6 @@ export const VehicleFormSheet = memo(({
   const [guestSaving, setGuestSaving] = useState(false);
   const [saving, setSaving] = useState(false);
 
-
-
   useEffect(() => {
     if (!visible) return;
     setLicense(initialData?.license ?? "");
@@ -279,8 +278,6 @@ export const VehicleFormSheet = memo(({
         keyboardVerticalOffset={0}
       >
         <View style={s.formSheet}>
-
-          {/* ── Header ── */}
           <View style={s.formHeader}>
             <TouchableOpacity onPress={onClose} style={s.formCloseBtn}>
               <Icon name="chevron-down" size={24} color="rgba(255,255,255,0.5)" />
@@ -320,89 +317,39 @@ export const VehicleFormSheet = memo(({
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
             ListHeaderComponent={
               <View>
-                {/* ── Plate ── */}
                 <View style={s.formSection}>
                   <Text style={s.formSectionLabel}>License Plate</Text>
-                  <TextInput
-                    style={s.plateInput}
-                    placeholder="ABC · 1234"
-                    placeholderTextColor="rgba(255,255,255,0.15)"
-                    autoCapitalize="characters"
-                    value={license}
-                    onChangeText={setLicense}
-                    maxLength={10}
-                  />
+                  <TextInput style={s.plateInput} placeholder="ABC · 1234" placeholderTextColor="rgba(255,255,255,0.15)" autoCapitalize="characters" value={license} onChangeText={setLicense} maxLength={10} />
                 </View>
-
-                {/* ── Vehicle info ── */}
                 <View style={s.formSection}>
-                  <Text style={s.formSectionLabel}>
-                    Vehicle Info <Text style={s.formSectionOptional}>(optional)</Text>
-                  </Text>
+                  <Text style={s.formSectionLabel}>Vehicle Info <Text style={s.formSectionOptional}>(optional)</Text></Text>
                   <View style={s.infoRow}>
-                    <TextInput
-                      style={[s.infoInput, { flex: 1, marginRight: 8 }]}
-                      placeholder="Make"
-                      placeholderTextColor="rgba(255,255,255,0.25)"
-                      value={make}
-                      onChangeText={setMake}
-                    />
-                    <TextInput
-                      style={[s.infoInput, { flex: 1 }]}
-                      placeholder="Model"
-                      placeholderTextColor="rgba(255,255,255,0.25)"
-                      value={model}
-                      onChangeText={setModel}
-                    />
+                    <TextInput style={[s.infoInput, { flex: 1, marginRight: 8 }]} placeholder="Make" placeholderTextColor="rgba(255,255,255,0.25)" value={make} onChangeText={setMake} />
+                    <TextInput style={[s.infoInput, { flex: 1 }]} placeholder="Model" placeholderTextColor="rgba(255,255,255,0.25)" value={model} onChangeText={setModel} />
                   </View>
                   <ColorPicker value={color} onSelect={setColor} />
                 </View>
-
-                {/* ── Selected drivers chips ── */}
                 {selectedDrivers.length > 0 && (
                   <View style={s.formSection}>
                     <Text style={s.formSectionLabel}>Selected Drivers</Text>
                     <View style={s.chipRow}>
                       {selectedDrivers.map(({ uid, user }) => (
-                        <SelectedDriverChip
-                          key={uid} uid={uid} user={user}
-                          getImageSource={getImageSource}
-                          onRemove={removeDriver}
-                        />
+                        <SelectedDriverChip key={uid} uid={uid} user={user} getImageSource={getImageSource} onRemove={removeDriver} />
                       ))}
                     </View>
                   </View>
                 )}
-
-                {/* ── Add guest inline ── */}
-                <AddGuestInline
-                  visible={guestOpen}
-                  onSave={handleAddGuest}
-                  onCancel={() => setGuestOpen(false)}
-                  saving={guestSaving}
-                />
-
-                {/* ── People header + search ── */}
+                <AddGuestInline visible={guestOpen} onSave={handleAddGuest} onCancel={() => setGuestOpen(false)} saving={guestSaving} />
                 <View style={s.peopleSectionHeader}>
                   <Text style={s.formSectionLabel}>Add Drivers</Text>
-                  <TouchableOpacity
-                    style={s.addGuestBtn}
-                    onPress={() => setGuestOpen((p) => !p)}
-                    activeOpacity={0.7}
-                  >
+                  <TouchableOpacity style={s.addGuestBtn} onPress={() => setGuestOpen((p) => !p)} activeOpacity={0.7}>
                     <Icon name="account-plus-outline" size={15} color="#147efb" />
                     <Text style={s.addGuestBtnText}>Add Guest</Text>
                   </TouchableOpacity>
                 </View>
                 <View style={s.searchRow}>
                   <Icon name="magnify" size={18} color="rgba(255,255,255,0.35)" />
-                  <TextInput
-                    style={s.searchInput}
-                    placeholder="Search by name or phone..."
-                    placeholderTextColor="rgba(255,255,255,0.25)"
-                    value={search}
-                    onChangeText={setSearch}
-                  />
+                  <TextInput style={s.searchInput} placeholder="Search by name or phone..." placeholderTextColor="rgba(255,255,255,0.25)" value={search} onChangeText={setSearch} />
                   {search.length > 0 && (
                     <TouchableOpacity onPress={() => setSearch("")}>
                       <Icon name="close-circle" size={16} color="rgba(255,255,255,0.3)" />
@@ -418,41 +365,22 @@ export const VehicleFormSheet = memo(({
             }
           />
 
-          {/* ── Footer ── */}
           <View style={s.formFooter}>
             <View style={s.formFooterMeta}>
-              <Icon
-                name={license.trim() ? "check-circle" : "circle-outline"}
-                size={14}
-                color={license.trim() ? "#34c759" : "rgba(255,255,255,0.2)"}
-              />
+              <Icon name={license.trim() ? "check-circle" : "circle-outline"} size={14} color={license.trim() ? "#34c759" : "rgba(255,255,255,0.2)"} />
               <Text style={s.formFooterMetaText}>Plate</Text>
-              <Icon
-                name={drivers.length > 0 ? "check-circle" : "circle-outline"}
-                size={14}
-                color={drivers.length > 0 ? "#34c759" : "rgba(255,255,255,0.2)"}
-                style={{ marginLeft: 12 }}
-              />
-              <Text style={s.formFooterMetaText}>
-                {drivers.length} driver{drivers.length !== 1 ? "s" : ""}
-              </Text>
+              <Icon name={drivers.length > 0 ? "check-circle" : "circle-outline"} size={14} color={drivers.length > 0 ? "#34c759" : "rgba(255,255,255,0.2)"} style={{ marginLeft: 12 }} />
+              <Text style={s.formFooterMetaText}>{drivers.length} driver{drivers.length !== 1 ? "s" : ""}</Text>
             </View>
             <TouchableOpacity
-              style={[
-                s.formSaveBtn,
-                isReg && s.formSaveBtnGreen,
-                (!license.trim() || drivers.length === 0 || saving) && s.btnDisabled,
-              ]}
+              style={[s.formSaveBtn, isReg && s.formSaveBtnGreen, (!license.trim() || drivers.length === 0 || saving) && s.btnDisabled]}
               onPress={handleSave}
               disabled={!license.trim() || drivers.length === 0 || saving}
               activeOpacity={0.8}
             >
-              {saving
-                ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={s.formSaveBtnText}>{isReg ? "Register Vehicle" : "Save Changes"}</Text>}
+              {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.formSaveBtnText}>{isReg ? "Register Vehicle" : "Save Changes"}</Text>}
             </TouchableOpacity>
           </View>
-
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -530,6 +458,7 @@ export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, ch
     }
   }
 
+  // ── Changed: writes to "cars" instead of "qrCodes" ────────────────────────
   async function finalize(res) {
     setSaving(true);
     try {
@@ -538,7 +467,7 @@ export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, ch
       if (vehicle.make) carData.make = vehicle.make;
       if (vehicle.model) carData.model = vehicle.model;
       if (vehicle.color) carData.color = vehicle.color;
-      await firestore().collection("qrCodes").doc(currentQrId).set(carData);
+      await firestore().collection("cars").doc(currentQrId).set(carData);
       await firestore().collection("pending_registrations").doc(vehicle.id).delete();
       onDone();
     } catch {
@@ -635,22 +564,8 @@ export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, ch
       </View>
       <Text style={s.approvalSubtitle}>Add as unregistered person:</Text>
       <View style={s.approvalInputGroup}>
-        <TextInput
-          style={s.approvalInput}
-          placeholder="Full Name"
-          placeholderTextColor="rgba(255,255,255,0.25)"
-          value={newName}
-          onChangeText={setNewName}
-          autoCapitalize="words"
-        />
-        <TextInput
-          style={s.approvalInput}
-          placeholder="Phone Number"
-          placeholderTextColor="rgba(255,255,255,0.25)"
-          value={newPhone}
-          onChangeText={setNewPhone}
-          keyboardType="phone-pad"
-        />
+        <TextInput style={s.approvalInput} placeholder="Full Name" placeholderTextColor="rgba(255,255,255,0.25)" value={newName} onChangeText={setNewName} autoCapitalize="words" />
+        <TextInput style={s.approvalInput} placeholder="Phone Number" placeholderTextColor="rgba(255,255,255,0.25)" value={newPhone} onChangeText={setNewPhone} keyboardType="phone-pad" />
       </View>
       <TouchableOpacity
         style={[s.approvalPrimaryBtn, (!newName.trim() || !newPhone.trim()) && { opacity: 0.4 }]}
@@ -692,7 +607,6 @@ export function PendingList({ pendingVehicles, onSelect, onClose, hideHeader = f
           </TouchableOpacity>
         </View>
       )}
-
       {pendingVehicles.length === 0 ? (
         <View style={s.pendingEmpty}>
           <Icon name="car-clock" size={40} color="rgba(255,255,255,0.15)" />
@@ -702,13 +616,7 @@ export function PendingList({ pendingVehicles, onSelect, onClose, hideHeader = f
         <>
           <View style={[s.searchBox, { marginHorizontal: 16, marginTop: 12, marginBottom: 4 }]}>
             <Icon name="magnify" size={18} color="rgba(255,255,255,0.4)" />
-            <TextInput
-              style={s.searchInput}
-              placeholder="Search by plate, name, make..."
-              placeholderTextColor="rgba(255,255,255,0.3)"
-              value={search}
-              onChangeText={setSearch}
-            />
+            <TextInput style={s.searchInput} placeholder="Search by plate, name, make..." placeholderTextColor="rgba(255,255,255,0.3)" value={search} onChangeText={setSearch} />
             {search.length > 0 ? (
               <TouchableOpacity onPress={() => setSearch("")}>
                 <Icon name="close-circle" size={16} color="rgba(255,255,255,0.4)" />
@@ -729,11 +637,7 @@ export function PendingList({ pendingVehicles, onSelect, onClose, hideHeader = f
             renderItem={({ item: v }) => {
               const Wrapper = onSelect ? TouchableOpacity : View;
               return (
-                <Wrapper
-                  style={s.pendingCard}
-                  onPress={onSelect ? () => onSelect(v) : undefined}
-                  activeOpacity={0.7}
-                >
+                <Wrapper style={s.pendingCard} onPress={onSelect ? () => onSelect(v) : undefined} activeOpacity={0.7}>
                   <View style={s.pendingCardLeft}>
                     <View style={s.pendingStatusDot} />
                     <View>
