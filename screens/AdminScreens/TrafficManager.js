@@ -12,16 +12,21 @@ import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import {
-  VehicleFormSheet, ApprovalFlow, PendingList,
+  VehicleFormSheet, PendingList,
   COLOR_OPTIONS, getUnregCollection,
 } from "../../components/TrafficVehicleComponents";
 import callFunction from "../../components/functionCalls";
 import PlateScanner from "../../components/PlateScanner";
+import { runMigrationIfNeeded } from "../../utils/carsMigration";
+import VehicleReviewModal from "../../components/VehicleReviewModal";
 
 const { width: SW, height: SH } = Dimensions.get("window");
 const DEFAULT_PROFILE = require("../../assets/default_profile.png");
 const NOTIFICATION_URL = "https://us-central1-taksis-a8ba7.cloudfunctions.net/traffic_notification";
 const DEFAULT_CAR_LIMIT = 2;
+
+// ── Collection helper ─────────────────────────────────────────────────────────
+const CARS_COLLECTION = "cars";
 
 // ── Plate helpers ─────────────────────────────────────────────────────────────
 
@@ -249,6 +254,7 @@ const TrafficManager = () => {
   const user = auth().currentUser;
 
   const [churchId, setChurchId] = useState(null);
+  const [migrationDone, setMigrationDone] = useState(false);
   const [cars, setCars] = useState([]);
   const carsRef = useRef([]);
   const [users, setUsers] = useState([]);
@@ -273,7 +279,6 @@ const TrafficManager = () => {
 
   const [pendingListVisible, setPendingListVisible] = useState(false);
   const [pendingReadOnly, setPendingReadOnly] = useState(false);
-  const [approvalData, setApprovalData] = useState(null);
 
   const [relinkVisible, setRelinkVisible] = useState(false);
   const [relinkSearch, setRelinkSearch] = useState("");
@@ -293,6 +298,10 @@ const TrafficManager = () => {
   const [maxCarsPerPerson, setMaxCarsPerPerson] = useState(DEFAULT_CAR_LIMIT);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [tempLimit, setTempLimit] = useState(String(DEFAULT_CAR_LIMIT));
+
+  // ── Review queue (migration + malformed car detection) ─────────────────────
+  const [reviewQueue, setReviewQueue] = useState([]);
+  const [reviewVisible, setReviewVisible] = useState(false);
 
   // ── Listeners ──────────────────────────────────────────────────────────────
 
@@ -314,24 +323,56 @@ const TrafficManager = () => {
     });
   }, [churchId]);
 
+  // ── Migration: run once when churchId is known, before attaching car listeners
   useEffect(() => {
     if (!churchId) return;
-    const unsubCars = firestore().collection("qrCodes")
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const result = await runMigrationIfNeeded(churchId);
+        if (result.migrated) {
+          console.log("[TrafficManager] Migration completed:", result.stats);
+        }
+        if (!cancelled && result.reviewQueue?.length > 0) {
+          setReviewQueue(result.reviewQueue);
+          setReviewVisible(true);
+        }
+      } catch (e) {
+        console.error("[TrafficManager] Migration error:", e);
+      } finally {
+        if (!cancelled) setMigrationDone(true);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [churchId]);
+
+  // ── Car + pending listeners: only attach AFTER migration completes
+  useEffect(() => {
+    if (!churchId || !migrationDone) return;
+
+    const unsubCars = firestore().collection(CARS_COLLECTION)
       .where("church", "==", churchId)
       .onSnapshot((snapshot) => {
         const list = snapshot.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter((d) => !d.isUnregisteredUser)
           .sort((a, b) => (a.license || "").localeCompare(b.license || ""));
         setCars(list);
         carsRef.current = list;
         setLoading(false);
-        list.forEach((c) => (c.ownerIds || []).forEach((uid) => fetchProfileImage(uid)));
+        list.forEach((c) => (c.ownerIds || []).forEach((uid) => {
+          if (typeof uid === "string") fetchProfileImage(uid);
+        }));
       });
-    const unsubUnreg = getUnregCollection().onSnapshot((snapshot) => {
-      setUnregUsers(snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data(), isUnreg: true }))
-        .sort((a, b) => (a.name || "").localeCompare(b.name || "")));
-    });
+
+    const unsubUnreg = firestore()
+      .collection("cars").doc("unregistered").collection("people")
+      .onSnapshot((snapshot) => {
+        setUnregUsers(snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data(), isUnreg: true }))
+          .sort((a, b) => (a.name || "").localeCompare(b.name || "")));
+      });
+
     const unsubPending = firestore().collection("pending_registrations")
       .where("church", "==", churchId)
       .onSnapshot((snapshot) => {
@@ -340,8 +381,9 @@ const TrafficManager = () => {
           return { id: doc.id, license: d.license, church: d.church, drivers: d.drivers || [], make: d.make, model: d.model, color: d.color };
         }));
       });
+
     return () => { unsubCars(); unsubUnreg(); unsubPending(); };
-  }, [churchId]);
+  }, [churchId, migrationDone]);
 
   useEffect(() => {
     if (!churchId) return;
@@ -429,7 +471,6 @@ const TrafficManager = () => {
     const currentCars = carsRef.current;
     const cleaned = cleanPlate(plate);
 
-    // 1. Exact match
     const exact = currentCars.find((c) => cleanPlate(c.license) === cleaned);
     if (exact) {
       setScannedPlate(cleaned);
@@ -441,7 +482,6 @@ const TrafficManager = () => {
       return;
     }
 
-    // 2. Fuzzy matches
     const fuzzy = currentCars.filter((c) => plateSimilar(cleaned, c.license));
     if (fuzzy.length > 0) {
       setScannedPlate(cleaned);
@@ -450,7 +490,6 @@ const TrafficManager = () => {
       return;
     }
 
-    // 3. No match — register
     setScannedPlate(cleaned);
     setTimeout(() => setRegVisible(true), 100);
   }, []);
@@ -487,8 +526,8 @@ const TrafficManager = () => {
           try {
             const { id: oldId, ...carData } = targetCar;
             const batch = firestore().batch();
-            batch.set(firestore().collection("qrCodes").doc(newId), carData);
-            if (oldId !== newId) batch.delete(firestore().collection("qrCodes").doc(oldId));
+            batch.set(firestore().collection(CARS_COLLECTION).doc(newId), carData);
+            if (oldId !== newId) batch.delete(firestore().collection(CARS_COLLECTION).doc(oldId));
             await batch.commit();
             setRelinkVisible(false);
             setRegVisible(false);
@@ -507,7 +546,7 @@ const TrafficManager = () => {
     if (make) carData.make = make;
     if (model) carData.model = model;
     if (color) carData.color = color;
-    await firestore().collection("qrCodes").doc(docId).set(carData);
+    await firestore().collection(CARS_COLLECTION).doc(docId).set(carData);
   }, [churchId]);
 
   const handleEditSave = useCallback(async ({ license, make, model, color, drivers }) => {
@@ -517,7 +556,7 @@ const TrafficManager = () => {
       model: model || firestore.FieldValue.delete(),
       color: color || firestore.FieldValue.delete(),
     };
-    await firestore().collection("qrCodes").doc(editingCar.id).update(updateData);
+    await firestore().collection(CARS_COLLECTION).doc(editingCar.id).update(updateData);
   }, [editingCar]);
 
   const openEditModal = useCallback((car) => {
@@ -530,7 +569,7 @@ const TrafficManager = () => {
     Alert.alert("Delete Vehicle?", `Remove ${car.license || "this vehicle"} permanently?`, [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => {
-        firestore().collection("qrCodes").doc(car.id).delete();
+        firestore().collection(CARS_COLLECTION).doc(car.id).delete();
         setDetailModalVisible(false);
         setEditVisible(false);
       }},
@@ -551,14 +590,14 @@ const TrafficManager = () => {
       }
     }
     try {
-      await firestore().collection("qrCodes").doc(car.id).update({ present: true });
+      await firestore().collection(CARS_COLLECTION).doc(car.id).update({ present: true });
     } catch { Alert.alert("Error", "Failed to mark car as present."); }
     setDetailModalVisible(false);
   }, [checkCarLimit, maxCarsPerPerson]);
 
   const markCarAbsent = useCallback(async (car) => {
     try {
-      await firestore().collection("qrCodes").doc(car.id).update({ present: false });
+      await firestore().collection(CARS_COLLECTION).doc(car.id).update({ present: false });
     } catch { Alert.alert("Error", "Failed to mark car as absent."); }
     setDetailModalVisible(false);
   }, []);
@@ -570,7 +609,7 @@ const TrafficManager = () => {
         try {
           const batch = firestore().batch();
           cars.filter((c) => c.present).forEach((car) =>
-            batch.update(firestore().collection("qrCodes").doc(car.id), { present: false }));
+            batch.update(firestore().collection(CARS_COLLECTION).doc(car.id), { present: false }));
           await batch.commit();
         } catch { Alert.alert("Error", "Failed to clear attendance."); }
         setMenuVisible(false);
@@ -607,7 +646,7 @@ const TrafficManager = () => {
 
   const checkDriverTokens = useCallback(async (ownerIds) => {
     const tokens = {};
-    await Promise.all(ownerIds.filter((uid) => !uid.startsWith("unreg_")).map(async (uid) => {
+    await Promise.all(ownerIds.filter((uid) => typeof uid === "string" && !uid.startsWith("unreg_")).map(async (uid) => {
       try {
         const doc = await firestore().collection("users").doc(uid).get();
         const fcm = doc.data()?.fcmTokens;
@@ -646,11 +685,24 @@ const TrafficManager = () => {
     <CarCard item={item} index={index} getUserById={getUserById} getImageSource={getImageSource} onPress={openCarDetail} />
   ), [getUserById, getImageSource, openCarDetail]);
 
+  // ── Review queue callbacks ─────────────────────────────────────────────────
+
+  const handleReviewComplete = useCallback(() => {
+    setReviewVisible(false);
+    setReviewQueue([]);
+  }, []);
+
+  const handleReviewItemResolved = useCallback((item, action) => {
+    // Remove the resolved item from the queue so re-opening from menu
+    // doesn't show already-handled items
+    setReviewQueue((prev) => prev.filter((q) => q.id !== item.id));
+  }, []);
+
   if (loading) {
     return (
       <View style={s.loadingContainer}>
         <ActivityIndicator size="large" color="#147efb" />
-        <Text style={s.loadingText}>Loading...</Text>
+        <Text style={s.loadingText}>{!migrationDone ? "Migrating data..." : "Loading..."}</Text>
       </View>
     );
   }
@@ -773,10 +825,7 @@ const TrafficManager = () => {
         onClose={() => { setPendingListVisible(false); setPendingReadOnly(false); }}>
         <PendingList pendingVehicles={pendingVehicles} hideHeader
           onClose={() => { setPendingListVisible(false); setPendingReadOnly(false); }}
-          onSelect={pendingReadOnly ? null : (v) => {
-            setPendingListVisible(false);
-            setTimeout(() => setApprovalData({ vehicle: v, plateId: scannedPlate || cleanPlate(v.license) }), 150);
-          }} />
+          onSelect={pendingReadOnly ? null : null} />
       </SubSheet>
 
       {/* ── Relink ── */}
@@ -815,27 +864,16 @@ const TrafficManager = () => {
         </View>
       </SubSheet>
 
-      {/* ── Approval flow ── */}
-      <Modal visible={!!approvalData} animationType="none" transparent onRequestClose={() => setApprovalData(null)}>
-        <View style={s.bottomOverlay}>
-          <View style={s.approvalSheet}>
-            <View style={s.sheetHeader}>
-              <View style={s.sheetHeaderLeft} />
-              <Text style={s.sheetTitle}>Approve — {approvalData?.vehicle?.license}</Text>
-              <TouchableOpacity onPress={() => setApprovalData(null)}>
-                <Icon name="close" size={24} color="rgba(255,255,255,0.5)" />
-              </TouchableOpacity>
-            </View>
-            {approvalData ? (
-              <ApprovalFlow
-                vehicle={approvalData.vehicle} churchUsers={users} unregUsers={unregUsers}
-                currentQrId={approvalData.plateId} churchId={churchId}
-                onDone={() => { const lic = approvalData.vehicle.license; setApprovalData(null); setRegVisible(false); Alert.alert("Registered", `${lic} has been registered.`); }}
-                onCancel={() => setApprovalData(null)} />
-            ) : null}
-          </View>
-        </View>
-      </Modal>
+      {/* ── Vehicle Review Modal (migration + malformed car fixes) ── */}
+      <VehicleReviewModal
+        visible={reviewVisible}
+        reviewQueue={reviewQueue}
+        churchId={churchId}
+        allUsers={allUsers}
+        getImageSource={getImageSource}
+        onComplete={handleReviewComplete}
+        onItemResolved={handleReviewItemResolved}
+      />
 
       {/* ── Menu ── */}
       <Modal visible={menuVisible} animationType="fade" transparent onRequestClose={() => setMenuVisible(false)}>
@@ -844,6 +882,18 @@ const TrafficManager = () => {
             <TouchableWithoutFeedback>
               <View style={s.menuSheet}>
                 <View style={s.menuHandle} />
+                {reviewQueue.length > 0 && (
+                  <TouchableOpacity style={s.menuItem} onPress={() => { setMenuVisible(false); setReviewVisible(true); }} activeOpacity={0.7}>
+                    <View style={[s.menuIconWrap, { backgroundColor: "rgba(255,159,10,0.15)" }]}>
+                      <Icon name="alert-circle-outline" size={20} color="#ff9f0a" />
+                    </View>
+                    <View style={s.menuItemContent}>
+                      <Text style={s.menuItemText}>Review Vehicles</Text>
+                      <Text style={s.menuItemSub}>{reviewQueue.length} need driver linking</Text>
+                    </View>
+                    <View style={s.pendingBadge}><Text style={s.pendingBadgeText}>{reviewQueue.length}</Text></View>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity style={s.menuItem} onPress={() => { setMenuVisible(false); setSettingsVisible(true); }} activeOpacity={0.7}>
                   <View style={s.menuIconWrap}><Icon name="speedometer" size={20} color="#147efb" /></View>
                   <View style={s.menuItemContent}><Text style={s.menuItemText}>Car Limit</Text><Text style={s.menuItemSub}>{carLimitEnabled ? `${maxCarsPerPerson} per person` : "Disabled"}</Text></View>
