@@ -3,13 +3,15 @@
  *
  * OCR: @react-native-ml-kit/text-recognition
  *
- * Install:
- *   npm install @react-native-ml-kit/text-recognition
- *   cd ios && pod install && cd ..
- *   npx expo prebuild (then rebuild dev client)
+ * If the detected plate matches an existing car (via knownPlates prop),
+ * it fires onPlateScanned immediately — no confirmation, no review.
+ * Otherwise, requires 3 consecutive frames before confirming.
  *
  * Props:
- *   visible, onPlateScanned, onClose, onManualEntry
+ *   visible, onPlateScanned, onClose, onManualEntry, knownPlates
+ *
+ *   knownPlates — Set<string> or array of plate strings already in the system.
+ *                 When a scanned plate matches, skips confirmation + review.
  */
 
 import React, {
@@ -49,21 +51,18 @@ function extractPlate(result) {
     if (PLATE_RE.test(c)) cands.push({ t: c, s: scorePlate(c) });
   };
 
-  // result.blocks[].lines[].text gives us individual lines
   if (result?.blocks) {
     for (const block of result.blocks) {
       tryAdd(block.text);
       if (block.lines) {
         for (const line of block.lines) {
           tryAdd(line.text);
-          // Also try splitting on spaces (plates like "ABC 1234")
           line.text.split(/\s+/).forEach(tryAdd);
         }
       }
     }
   }
 
-  // Also try the full text
   if (result?.text) {
     result.text.split(/\s+/).forEach(tryAdd);
   }
@@ -76,9 +75,26 @@ function extractPlate(result) {
 const CONFIRM = 3;
 const COOLDOWN = 400;
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Normalize knownPlates prop into a Set of cleaned strings */
+function buildKnownSet(knownPlates) {
+  if (!knownPlates) return null;
+  if (knownPlates instanceof Set) {
+    const s = new Set();
+    knownPlates.forEach((p) => s.add(cleanPlate(p)));
+    return s.size > 0 ? s : null;
+  }
+  if (Array.isArray(knownPlates)) {
+    const s = new Set(knownPlates.map(cleanPlate).filter(Boolean));
+    return s.size > 0 ? s : null;
+  }
+  return null;
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
-const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) => {
+const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry, knownPlates }) => {
   const [perm, reqPerm] = useCameraPermissions();
   const insets = useSafeAreaInsets();
   const cam = useRef(null);
@@ -92,6 +108,12 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) 
   const [conf, setConf] = useState(0);
   const [final, setFinal] = useState(null);
   const [err, setErr] = useState(null);
+
+  // Build known set once per render cycle
+  const knownSet = useRef(null);
+  useEffect(() => {
+    knownSet.current = buildKnownSet(knownPlates);
+  }, [knownPlates]);
 
   // Reset
   useEffect(() => {
@@ -138,7 +160,6 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) 
         });
         if (stop.current) break;
 
-        // Ensure file:// prefix for Android
         let uri = pic.uri;
         if (Platform.OS === "android" && !uri.startsWith("file://")) {
           uri = `file://${uri}`;
@@ -147,13 +168,21 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) 
         const result = await TextRecognition.recognize(uri);
         if (stop.current) break;
 
-        // Show raw text for transparency
         setRawText(result?.text || null);
         setErr(null);
 
         const found = extractPlate(result);
 
         if (found) {
+          // ── Fast path: known plate → skip confirmation + review ──
+          if (knownSet.current && knownSet.current.has(found)) {
+            stop.current = true;
+            try { Vibration.vibrate(40); } catch {}
+            onPlateScanned?.(found);
+            break;
+          }
+
+          // ── Normal path: require CONFIRM consecutive reads ──
           con = found === con.p ? { p: found, n: con.n + 1 } : { p: found, n: 1 };
           setPlate(found);
           setConf(Math.min(con.n, CONFIRM));
@@ -178,7 +207,7 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) 
     }
 
     running.current = false;
-  }, []);
+  }, [onPlateScanned]);
 
   const rescan = useCallback(() => {
     setPhase("scan"); setPlate(null); setConf(0);
@@ -360,7 +389,6 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry }) 
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
 
-  // Top
   topSection: {
     position: "absolute", top: 0, left: 0, right: 0, zIndex: 10,
     paddingHorizontal: 16,
@@ -377,15 +405,14 @@ const st = StyleSheet.create({
   },
   navTitle: { fontSize: 15, fontWeight: "600", color: "#fff" },
   statusPill: {
-    flexDirection: "row", alignItems: "center", gap: 8,
+    flexDirection: "row", alignItems: "center",
     alignSelf: "center",
     backgroundColor: "rgba(0,0,0,0.5)",
     paddingHorizontal: 14, paddingVertical: 8,
     borderRadius: 20, marginBottom: 16,
   },
-  statusText: { fontSize: 13, fontWeight: "600" },
+  statusText: { fontSize: 13, fontWeight: "600", marginLeft: 8 },
 
-  // Viewfinder
   finderWrap: { flex: 1, justifyContent: "center", alignItems: "center" },
   finder: {
     width: "84%", aspectRatio: 3.2,
@@ -397,7 +424,6 @@ const st = StyleSheet.create({
   cBL: { bottom: -2, left: -2, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 14 },
   cBR: { bottom: -2, right: -2, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 14 },
 
-  // Bottom
   bottomSection: {
     position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10,
     paddingHorizontal: 20, paddingTop: 16,
@@ -416,31 +442,30 @@ const st = StyleSheet.create({
     color: "rgba(255,255,255,0.35)", marginBottom: 4,
   },
   plateValue: { fontSize: 30, fontWeight: "800", color: "#fff", letterSpacing: 4 },
-  dots: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.12)" },
+  dots: { flexDirection: "row", alignItems: "center", marginTop: 10 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.12)", marginRight: 6 },
   dotOn: { backgroundColor: "#30d158" },
   dotLabel: { fontSize: 11, color: "rgba(255,255,255,0.3)", marginLeft: 4 },
   hintCard: {
-    flexDirection: "row", alignItems: "center", gap: 10,
+    flexDirection: "row", alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.04)",
     borderRadius: 12, paddingVertical: 14, paddingHorizontal: 16,
   },
-  hintText: { fontSize: 13, color: "rgba(255,255,255,0.4)", flex: 1 },
+  hintText: { fontSize: 13, color: "rgba(255,255,255,0.4)", flex: 1, marginLeft: 10 },
   actionBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
     backgroundColor: "#147efb", borderRadius: 14,
     paddingVertical: 16, marginBottom: 4,
   },
   actionBtnOff: { backgroundColor: "rgba(255,255,255,0.06)" },
-  actionBtnText: { fontSize: 16, fontWeight: "700", color: "#fff" },
+  actionBtnText: { fontSize: 16, fontWeight: "700", color: "#fff", marginLeft: 10 },
   actionBtnTextOff: { fontSize: 15, color: "rgba(255,255,255,0.2)" },
   manualRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, paddingVertical: 12,
+    paddingVertical: 12,
   },
-  manualText: { fontSize: 13, color: "rgba(255,255,255,0.4)" },
+  manualText: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginLeft: 6 },
 
-  // Review
   reviewOverlay: {
     ...StyleSheet.absoluteFillObject, zIndex: 20,
     backgroundColor: "rgba(0,0,0,0.7)",
@@ -471,19 +496,19 @@ const st = StyleSheet.create({
   },
   reviewPlateText: { fontSize: 34, fontWeight: "800", color: "#fff", letterSpacing: 5 },
   reviewQuestion: { fontSize: 14, color: "rgba(255,255,255,0.35)", marginBottom: 24 },
-  reviewBtns: { flexDirection: "row", gap: 10, width: "100%" },
+  reviewBtns: { flexDirection: "row", width: "100%" },
   btnSecondary: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8, paddingVertical: 16, borderRadius: 14,
+    paddingVertical: 16, borderRadius: 14, marginRight: 10,
     backgroundColor: "rgba(255,255,255,0.08)",
   },
-  btnSecondaryText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  btnSecondaryText: { fontSize: 15, fontWeight: "600", color: "#fff", marginLeft: 8 },
   btnPrimary: {
     flex: 1.5, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8, paddingVertical: 16, borderRadius: 14,
+    paddingVertical: 16, borderRadius: 14,
     backgroundColor: "#30d158",
   },
-  btnPrimaryText: { fontSize: 15, fontWeight: "700", color: "#fff" },
+  btnPrimaryText: { fontSize: 15, fontWeight: "700", color: "#fff", marginRight: 8 },
   reviewManual: { marginTop: 16, paddingVertical: 8 },
   reviewManualText: { fontSize: 13, color: "rgba(255,255,255,0.3)" },
 });

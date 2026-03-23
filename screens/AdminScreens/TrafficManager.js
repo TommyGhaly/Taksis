@@ -769,6 +769,7 @@ const TrafficManager = () => {
         onPlateScanned={handlePlateScanned}
         onClose={() => setScannerVisible(false)}
         onManualEntry={handleScannerManualEntry}
+        knownPlates={cars.map((c) => c.license || c.id)}
       />
 
       {/* ── Registration ── */}
