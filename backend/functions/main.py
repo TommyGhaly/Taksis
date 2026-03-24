@@ -201,41 +201,82 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
 
-    # Remove from all churches first (clean slate)
-    remove_user_from_churches(user_id)
-    
     firestore_client = firestore.Client()
 
-    # Fetch and update user data
+    # Fetch user data
     try:
         doc_ref = firestore_client.collection("users").document(user_id)
         doc = doc_ref.get()
         if not doc.exists:
             return https_fn.Response("User document not found", status=404)
-        
         user_data = doc.to_dict()
-        
-        # Calculate age from DOB if needed
-        if "DOB" in user_data:
-            user_data["age"] = calc_age(user_data["DOB"])
-            doc_ref.update({"age": user_data["age"]})
-        
-        # Update children's ages
-        if "children" in user_data:
-            for child in user_data["children"]:
-                if "DOB" in child:
-                    child["age"] = calc_age(child["DOB"])
-            doc_ref.update({"children": user_data["children"]})
-            
     except Exception as e:
         return https_fn.Response(f"Error retrieving user data: {str(e)}", status=500)
 
-    # Add to appropriate church lists
-    add_user_to_churches(user_data)
-    
-    # Sync name across all schedule documents
-    if 'church' in user_data:
-        update_names(user_id, user_data["name"], user_data["church"])
+    # Recalculate ages and write only if something changed
+    age_update = {}
+    if "DOB" in user_data:
+        current_age = calc_age(user_data["DOB"])
+        if user_data.get("age") != current_age:
+            user_data["age"] = current_age
+            age_update["age"] = current_age
+    if "children" in user_data:
+        children_changed = False
+        for child in user_data["children"]:
+            if "DOB" in child:
+                new_age = calc_age(child["DOB"])
+                if child.get("age") != new_age:
+                    child["age"] = new_age
+                    children_changed = True
+        if children_changed:
+            age_update["children"] = user_data["children"]
+    if age_update:
+        doc_ref.update(age_update)
+
+    church_id = user_data.get("church")
+    if not church_id:
+        return https_fn.Response("User update completed successfully", status=200)
+
+    # Check what the church doc currently has for this user
+    church_doc = firestore_client.collection("churches").document(church_id).get()
+    church_data = church_doc.to_dict() if church_doc.exists else {}
+    existing_deacon = next(
+        (d for d in church_data.get("deacons", []) if d.get("uid") == user_id),
+        None
+    )
+    servant_doc = (
+        firestore_client.collection("churches")
+        .document(church_id)
+        .collection("Servants Meeting")
+        .document(user_id)
+        .get()
+    )
+    is_deacon = bool(user_data.get("isDeacon"))
+    is_ss_teacher = bool(user_data.get("isSSTeacher"))
+
+    # Membership is correct if:
+    # - isDeacon matches whether user is in deacons[] with up-to-date name/age
+    # - isSSTeacher matches whether user is in Servants Meeting
+    deacon_ok = (
+        (is_deacon and existing_deacon is not None
+         and existing_deacon.get("name") == user_data.get("name")
+         and existing_deacon.get("age") == user_data.get("age"))
+        or (not is_deacon and existing_deacon is None)
+    )
+    servant_ok = (is_ss_teacher == servant_doc.exists)
+
+    needs_membership_sync = not (deacon_ok and servant_ok)
+    needs_name_sync = (
+        existing_deacon is not None
+        and existing_deacon.get("name") != user_data.get("name")
+    )
+
+    if needs_membership_sync:
+        remove_user_from_churches(user_id)
+        add_user_to_churches(user_data)
+
+    if needs_name_sync:
+        update_names(user_id, user_data["name"], church_id)
 
     return https_fn.Response("User update completed successfully", status=200)
 
@@ -846,20 +887,50 @@ async def _update_ages_async():
     await asyncio.gather(*tasks)
 
 def update_user_sync(user_doc):
-    """Helper: Updates a single user's age if it has changed."""
-    user_data = user_doc.to_dict()
-    if "DOB" in user_data:
-        current_age = calc_age(user_data["DOB"])
-        stored_age = user_data.get("age")
-        if stored_age is None or int(stored_age) != current_age:
-            print(f"Updating age for user {user_data['name']}")
-            user_doc.reference.update({"age": current_age})
+    """Helper: Updates a single user's age if it has changed.
 
-            mock_request = Request.from_values(
-                headers={"Authorization": ""},
-                json={"uid": user_data["uid"]},
-            )
-            update_user(mock_request)
+    Only triggers a full update_user sync when the age crosses a threshold
+    that affects church group assignment (e.g., 18 = adult, 12 = teen).
+    Otherwise, just writes the age field directly to avoid unnecessary writes.
+    """
+    # Age thresholds that change which church group a user belongs to
+    AGE_THRESHOLDS = {18, 12}  # adjust to match your group boundaries
+
+    user_data = user_doc.to_dict()
+    if "DOB" not in user_data:
+        return
+
+    current_age = calc_age(user_data["DOB"])
+    stored_age = user_data.get("age")
+    if stored_age is not None and int(stored_age) == current_age:
+        return
+
+    print(f"Updating age for user {user_data['name']}: {stored_age} -> {current_age}")
+    update_dict = {"age": current_age}
+
+    # Also update children ages in the same write
+    if "children" in user_data:
+        updated_children = []
+        for child in user_data["children"]:
+            if "DOB" in child:
+                child = {**child, "age": calc_age(child["DOB"])}
+            updated_children.append(child)
+        update_dict["children"] = updated_children
+
+    user_doc.reference.update(update_dict)
+
+    # Only do the expensive full sync if the age crossed a group boundary
+    crossed_threshold = (
+        stored_age is not None and
+        any(min(int(stored_age), current_age) < t <= max(int(stored_age), current_age)
+            for t in AGE_THRESHOLDS)
+    )
+    if crossed_threshold or stored_age is None:
+        mock_request = Request.from_values(
+            headers={"Authorization": ""},
+            json={"uid": user_data["uid"]},
+        )
+        update_user(mock_request)
 
 
 async def update_all_users():
