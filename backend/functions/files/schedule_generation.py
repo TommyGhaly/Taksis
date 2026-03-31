@@ -1069,7 +1069,10 @@ def set_next_week_serve(church_id):
                             })
                             uids[uid] = True
             else:
-                uid = value.get("uid")
+                if isinstance(value, dict):
+                    uid = value.get("uid")
+                else:
+                    uid = None
                 if uid and uid != "N/A" and uid not in uids:
                     user_doc = user_ref.document(uid).get()
                     if user_doc.exists:
