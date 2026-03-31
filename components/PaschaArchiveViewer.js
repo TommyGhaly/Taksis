@@ -7,16 +7,16 @@ import {
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
-import PaschaSchedule from "../Pascha/PaschaSchedule.json";
+import PaschaSchedule from "../screens/Pascha/PaschaSchedule.json";
 import {
   expandReadings, countSlots, dayProgress as dayTotals,
-  isAssignableSlot, ASSIGNABLE, READING_META, READING_ORDER,
-} from "../Pascha/PaschaReadingUtils";
+  isAssignableSlot, isPsalmSlot, hasLanguagePicker, effectiveLanguage, langShort,
+  psalmReadersKey, ASSIGNABLE, READING_META, READING_ORDER,
+} from "../screens/Pascha/PaschaReadingUtils";
 
-const DEFAULT_AVATAR = require("../../assets/default_profile.png");
+const DEFAULT_AVATAR = require("../assets/default_profile.png");
 const { width: SCREEN_W } = Dimensions.get("window");
 
-// ─── Tokens ───────────────────────────────────────────────────────────────────
 const BG      = "#0f0f0f";
 const CARD    = "#1c1c1e";
 const CARD2   = "#2c2c2e";
@@ -29,8 +29,6 @@ const ORANGE  = "#ff9f0a";
 const T1      = "#ffffff";
 const T2      = "rgba(255,255,255,0.65)";
 const T3      = "rgba(255,255,255,0.28)";
-
-
 
 const ALL_DAYS = [
   { id:"last_friday_lent",    label:"Last Friday of Holy Lent", easterOffset:-9,  shortLabel:"Lent Fri" },
@@ -54,7 +52,6 @@ const DAYS_BY_ID = Object.fromEntries(
   })
 );
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function calcDate(easter, offset) {
   if (!easter) return null;
   const d = new Date(easter);
@@ -62,9 +59,6 @@ function calcDate(easter, offset) {
   return d.toLocaleDateString("en-US", { weekday:"short", month:"short", day:"numeric" });
 }
 
-
-
-// ─── Profile pic hook ─────────────────────────────────────────────────────────
 function useProfilePic(uid) {
   const [uri, setUri] = useState(null);
   useEffect(() => {
@@ -90,11 +84,16 @@ const Avatar = ({ uid, size = 24, style }) => {
 // ─── Reading row ──────────────────────────────────────────────────────────────
 const ReadingRow = ({ row, hourAssignments, isLast }) => {
   const meta         = READING_META[row.rKey] || { label:row.rKey, icon:"book-outline", color:T2 };
-  const isPsalm      = row.rKey === "psalm";
+  const isPsalm      = isPsalmSlot(row.rKey);
   const isHomily     = row.rKey === "homily";
-  const label        = isHomily
-    ? `Homily — ${row.author || row.refText}`
-    : row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
+
+  let label;
+  if (isHomily) {
+    label = `Homily — ${row.author || row.refText}`;
+  } else {
+    label = row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
+  }
+
   const psalmReaders = isPsalm ? (hourAssignments.psalm_readers || []) : [];
   const assignee     = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
   const hasAssign    = isPsalm ? psalmReaders.length > 0 : !!assignee;
@@ -105,7 +104,16 @@ const ReadingRow = ({ row, hourAssignments, isLast }) => {
         <Icon name={meta.icon} size={12} color={meta.color} />
       </View>
       <View style={{ flex:1 }}>
-        <Text style={[rr.type, { color: meta.color }]}>{label}</Text>
+        <View style={{ flexDirection:"row", alignItems:"center", gap:6 }}>
+          <Text style={[rr.type, { color: meta.color }]}>{label}</Text>
+          {hasLanguagePicker(row.rKey) && (
+            <View style={rr.langBadge}>
+              <Text style={rr.langBadgeTxt}>
+                {langShort(effectiveLanguage(row, hourAssignments))}
+              </Text>
+            </View>
+          )}
+        </View>
         {!!row.refText && !isHomily && (
           <Text style={rr.ref} numberOfLines={2}>{row.refText}</Text>
         )}
@@ -140,6 +148,8 @@ const rr = StyleSheet.create({
   border:      { borderBottomWidth:1, borderBottomColor:SEP },
   iconBox:     { width:24, height:24, borderRadius:7, justifyContent:"center", alignItems:"center", flexShrink:0, marginTop:1 },
   type:        { fontSize:10, fontWeight:"800", letterSpacing:0.5, textTransform:"uppercase" },
+  langBadge:   { paddingHorizontal:4, paddingVertical:1, borderRadius:4, backgroundColor:CARD3 },
+  langBadgeTxt:{ fontSize:8, fontWeight:"700", color:T3, letterSpacing:0.3 },
   ref:         { fontSize:12, color:T2, marginTop:2, lineHeight:17 },
   assigneeCol: { alignItems:"flex-end", flexShrink:0, maxWidth:"45%" },
   chip:        { flexDirection:"row", alignItems:"center", gap:5,
@@ -150,10 +160,10 @@ const rr = StyleSheet.create({
   unassigned:  { fontSize:13, color:T3 },
 });
 
-// ─── Hour card (inside day page) ──────────────────────────────────────────────
+// ─── Hour card ────────────────────────────────────────────────────────────────
 const HourCard = ({ hour, hourAssignments }) => {
   const rows              = expandReadings(hour);
-  const assignableRows    = rows.filter(r => isAssignableSlot(r.rKey) || r.rKey === "psalm");
+  const assignableRows    = rows.filter(r => isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey));
   const { total, filled } = countSlots(hour, hourAssignments);
   const complete          = total > 0 && filled === total;
   const pct               = total > 0 ? Math.round(filled / total * 100) : 0;
@@ -197,8 +207,8 @@ const hc = StyleSheet.create({
   body:     { borderTopWidth:1, borderTopColor:SEP, paddingHorizontal:14, paddingBottom:8 },
 });
 
-// ─── Day page (one full page in the pager) ───────────────────────────────────
-const PAGE_W = SCREEN_W - 32; // 16px margin each side
+// ─── Day page ─────────────────────────────────────────────────────────────────
+const PAGE_W = SCREEN_W - 32;
 
 const DayPage = ({ day, daySchedule, easterDate }) => {
   const hours             = day.hours || [];
@@ -209,7 +219,6 @@ const DayPage = ({ day, daySchedule, easterDate }) => {
 
   return (
     <View style={{ width: PAGE_W }}>
-      {/* Day header card */}
       <View style={dp.headerCard}>
         <View style={dp.headerTop}>
           <View style={{ flex:1 }}>
@@ -226,22 +235,14 @@ const DayPage = ({ day, daySchedule, easterDate }) => {
               </View>
           }
         </View>
-        {/* progress bar */}
         <View style={dp.track}>
           <View style={[dp.trackFill, { width:`${pct}%` }, complete && { backgroundColor:GREEN }]} />
         </View>
-        {/* reading type count dots */}
         <View style={dp.countRow}>
           <Text style={dp.countTxt}>{filled} of {total} readings assigned</Text>
         </View>
       </View>
-
-      {/* Hours */}
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 24 }}
-        nestedScrollEnabled
-      >
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom:24 }} nestedScrollEnabled>
         {hours.map(h => (
           <HourCard key={h.id} hour={h} hourAssignments={daySchedule[h.id] || {}} />
         ))}
@@ -251,14 +252,12 @@ const DayPage = ({ day, daySchedule, easterDate }) => {
 };
 
 const dp = StyleSheet.create({
-  headerCard:  { backgroundColor:CARD, borderRadius:16, padding:16, marginBottom:12,
-                 borderWidth:1, borderColor:SEP },
+  headerCard:  { backgroundColor:CARD, borderRadius:16, padding:16, marginBottom:12, borderWidth:1, borderColor:SEP },
   headerTop:   { flexDirection:"row", alignItems:"flex-start", marginBottom:12 },
   dayLabel:    { fontSize:18, fontWeight:"800", color:T1, letterSpacing:-0.3 },
   dayDate:     { fontSize:12, color:T2, marginTop:3 },
   donePill:    { flexDirection:"row", alignItems:"center", gap:4, paddingHorizontal:10, paddingVertical:4,
-                 borderRadius:20, backgroundColor:"rgba(48,209,88,0.1)",
-                 borderWidth:1, borderColor:"rgba(48,209,88,0.25)" },
+                 borderRadius:20, backgroundColor:"rgba(48,209,88,0.1)", borderWidth:1, borderColor:"rgba(48,209,88,0.25)" },
   doneTxt:     { fontSize:11, fontWeight:"700", color:GREEN },
   pctPill:     { paddingHorizontal:10, paddingVertical:4, borderRadius:20, backgroundColor:CARD2 },
   pctTxt:      { fontSize:12, fontWeight:"700", color:T2 },
@@ -271,40 +270,24 @@ const dp = StyleSheet.create({
 // ─── Day tab strip ────────────────────────────────────────────────────────────
 const DayTabStrip = ({ days, selectedIndex, schedule, easterDate, onSelect }) => {
   const scrollRef = useRef(null);
-
   useEffect(() => {
-    // Keep selected tab visible
     scrollRef.current?.scrollTo({ x: Math.max(0, selectedIndex * 64 - 96), animated: true });
   }, [selectedIndex]);
 
   return (
-    <ScrollView
-      ref={scrollRef}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={ts.content}
-      style={ts.bar}
-    >
+    <ScrollView ref={scrollRef} horizontal showsHorizontalScrollIndicator={false}
+      contentContainerStyle={ts.content} style={ts.bar}>
       {days.map((day, i) => {
-        const dayDef           = DAYS_BY_ID[day.id];
+        const dayDef            = DAYS_BY_ID[day.id];
         const { total, filled } = dayTotals(dayDef, schedule?.[day.id] || {});
         const complete          = total > 0 && filled === total;
         const started           = filled > 0 && !complete;
         const active            = i === selectedIndex;
-
         return (
-          <TouchableOpacity
-            key={day.id}
-            onPress={() => onSelect(i)}
-            style={[ts.tab, active && ts.tabActive]}
-            activeOpacity={0.75}
-          >
-            <View style={[ts.dot,
-              complete ? ts.dotGreen : started ? ts.dotBlue : ts.dotGray
-            ]} />
-            <Text style={[ts.label, active && ts.labelActive]} numberOfLines={1}>
-              {day.shortLabel}
-            </Text>
+          <TouchableOpacity key={day.id} onPress={() => onSelect(i)}
+            style={[ts.tab, active && ts.tabActive]} activeOpacity={0.75}>
+            <View style={[ts.dot, complete ? ts.dotGreen : started ? ts.dotBlue : ts.dotGray]} />
+            <Text style={[ts.label, active && ts.labelActive]} numberOfLines={1}>{day.shortLabel}</Text>
           </TouchableOpacity>
         );
       })}
@@ -326,7 +309,7 @@ const ts = StyleSheet.create({
   labelActive:{ color:BLUE },
 });
 
-// ─── Overall stats bar ────────────────────────────────────────────────────────
+// ─── Stats bar ────────────────────────────────────────────────────────────────
 const StatsBar = ({ schedule }) => {
   let total = 0, filled = 0, daysComplete = 0;
   ALL_DAYS.forEach(d => {
@@ -365,7 +348,7 @@ const sb = StyleSheet.create({
   div:  { width:1, backgroundColor:SEP, marginHorizontal:4 },
 });
 
-// ─── Year card (archive list) ─────────────────────────────────────────────────
+// ─── Year card ────────────────────────────────────────────────────────────────
 const YearCard = ({ arc, onPress }) => {
   let total = 0, filled = 0;
   ALL_DAYS.forEach(d => {
@@ -387,9 +370,7 @@ const YearCard = ({ arc, onPress }) => {
   return (
     <TouchableOpacity style={yc.card} onPress={onPress} activeOpacity={0.75}>
       <View style={yc.top}>
-        <View style={yc.iconBox}>
-          <Icon name="cross" size={20} color={ORANGE} />
-        </View>
+        <View style={yc.iconBox}><Icon name="cross" size={20} color={ORANGE} /></View>
         <View style={{ flex:1, marginLeft:14 }}>
           <Text style={yc.year}>Pascha {arc.year}</Text>
           {arc.archivedAt && <Text style={yc.sub}>Archived {fmtDate(arc.archivedAt)}</Text>}
@@ -420,16 +401,14 @@ const YearCard = ({ arc, onPress }) => {
 };
 
 const yc = StyleSheet.create({
-  card:     { backgroundColor:CARD, borderRadius:18, padding:16,
-              borderWidth:1, borderColor:SEP, marginBottom:12 },
+  card:     { backgroundColor:CARD, borderRadius:18, padding:16, borderWidth:1, borderColor:SEP, marginBottom:12 },
   top:      { flexDirection:"row", alignItems:"center", marginBottom:12 },
   iconBox:  { width:42, height:42, borderRadius:12, backgroundColor:"rgba(255,159,10,0.1)",
               justifyContent:"center", alignItems:"center", flexShrink:0 },
   year:     { fontSize:17, fontWeight:"800", color:T1, letterSpacing:-0.3 },
   sub:      { fontSize:12, color:T3, marginTop:2 },
   donePill: { flexDirection:"row", alignItems:"center", gap:4, paddingHorizontal:8, paddingVertical:3,
-              borderRadius:20, backgroundColor:"rgba(48,209,88,0.1)",
-              borderWidth:1, borderColor:"rgba(48,209,88,0.25)" },
+              borderRadius:20, backgroundColor:"rgba(48,209,88,0.1)", borderWidth:1, borderColor:"rgba(48,209,88,0.25)" },
   doneTxt:  { fontSize:10, fontWeight:"700", color:GREEN },
   pct:      { fontSize:13, fontWeight:"700", color:T2 },
   trackWrap:{ height:4, backgroundColor:CARD2, borderRadius:2, marginBottom:10 },
@@ -450,13 +429,8 @@ const PaschaArchiveViewer = ({ visible, churchId, onClose }) => {
 
   useEffect(() => {
     if (!visible || !churchId) return;
-    setLoading(true);
-    setSelectedYear(null);
-    setPageIndex(0);
-    setArchives([]);
-    firestore()
-      .collection("churches").doc(churchId)
-      .collection("pascha").get()
+    setLoading(true); setSelectedYear(null); setPageIndex(0); setArchives([]);
+    firestore().collection("churches").doc(churchId).collection("pascha").get()
       .then(snap => {
         const found = [];
         snap.forEach(doc => {
@@ -470,10 +444,7 @@ const PaschaArchiveViewer = ({ visible, churchId, onClose }) => {
       .finally(() => setLoading(false));
   }, [visible, churchId]);
 
-  const selected = useMemo(
-    () => archives.find(a => a.year === selectedYear) || null,
-    [archives, selectedYear]
-  );
+  const selected = useMemo(() => archives.find(a => a.year === selectedYear) || null, [archives, selectedYear]);
 
   const fmtDate = ts => {
     if (!ts) return "";
@@ -486,88 +457,57 @@ const PaschaArchiveViewer = ({ visible, churchId, onClose }) => {
     pagerRef.current?.scrollToIndex({ index:i, animated:true });
   };
 
-  const handleYearOpen = year => {
-    setSelectedYear(year);
-    setPageIndex(0);
-  };
-
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={onClose} statusBarTranslucent>
       <View style={av.overlay}>
         <View style={av.sheet}>
           <View style={av.handle} />
-
-          {/* ── Header ── */}
           <View style={av.hdr}>
             {selectedYear ? (
               <TouchableOpacity style={av.backBtn} onPress={() => setSelectedYear(null)} activeOpacity={0.7}>
                 <Icon name="arrow-left" size={18} color={T1} />
               </TouchableOpacity>
             ) : (
-              <View style={av.iconBox}>
-                <Icon name="archive-outline" size={19} color={ORANGE} />
-              </View>
+              <View style={av.iconBox}><Icon name="archive-outline" size={19} color={ORANGE} /></View>
             )}
             <View style={{ flex:1 }}>
-              <Text style={av.title}>
-                {selectedYear ? `Pascha ${selectedYear}` : "Archived Schedules"}
-              </Text>
-              {selected?.archivedAt && (
-                <Text style={av.sub}>Archived {fmtDate(selected.archivedAt)}</Text>
-              )}
+              <Text style={av.title}>{selectedYear ? `Pascha ${selectedYear}` : "Archived Schedules"}</Text>
+              {selected?.archivedAt && <Text style={av.sub}>Archived {fmtDate(selected.archivedAt)}</Text>}
             </View>
             <TouchableOpacity style={av.xBtn} onPress={onClose} activeOpacity={0.7}>
               <Icon name="close" size={17} color={T2} />
             </TouchableOpacity>
           </View>
 
-          {/* ── Body ── */}
           {loading ? (
             <View style={av.center}>
               <ActivityIndicator color={ORANGE} size="large" />
               <Text style={av.loadingTxt}>Loading archives…</Text>
             </View>
-
           ) : archives.length === 0 ? (
             <View style={av.center}>
-              <View style={av.emptyIconWrap}>
-                <Icon name="archive-off-outline" size={34} color={T3} />
-              </View>
+              <View style={av.emptyIconWrap}><Icon name="archive-off-outline" size={34} color={T3} /></View>
               <Text style={av.emptyTitle}>No Archives Yet</Text>
               <Text style={av.emptySub}>Archive a schedule from Settings to see it here.</Text>
             </View>
-
           ) : !selectedYear ? (
-            // ── Year list ──
             <ScrollView contentContainerStyle={av.list} showsVerticalScrollIndicator={false}>
-              <Text style={av.sectionLabel}>
-                {archives.length} archived year{archives.length > 1 ? "s" : ""}
-              </Text>
+              <Text style={av.sectionLabel}>{archives.length} archived year{archives.length > 1 ? "s" : ""}</Text>
               {archives.map(a => (
-                <YearCard key={a.year} arc={a} onPress={() => handleYearOpen(a.year)} />
+                <YearCard key={a.year} arc={a} onPress={() => { setSelectedYear(a.year); setPageIndex(0); }} />
               ))}
             </ScrollView>
-
           ) : (
-            // ── Year detail: tab strip + pager ──
             <View style={{ flex:1 }}>
               <StatsBar schedule={selected.schedule} />
-              <DayTabStrip
-                days={ALL_DAYS}
-                selectedIndex={pageIndex}
-                schedule={selected.schedule}
-                easterDate={selected.easterDate}
-                onSelect={handleDaySelect}
-              />
+              <DayTabStrip days={ALL_DAYS} selectedIndex={pageIndex} schedule={selected.schedule}
+                easterDate={selected.easterDate} onSelect={handleDaySelect} />
               <FlatList
                 ref={pagerRef}
                 data={ALL_DAYS}
                 keyExtractor={d => d.id}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                snapToInterval={PAGE_W + 16}
-                decelerationRate="fast"
+                horizontal pagingEnabled showsHorizontalScrollIndicator={false}
+                snapToInterval={PAGE_W + 16} decelerationRate="fast"
                 contentContainerStyle={{ paddingHorizontal:16, paddingTop:12, gap:16 }}
                 onMomentumScrollEnd={e => {
                   const idx = Math.round(e.nativeEvent.contentOffset.x / (PAGE_W + 16));
@@ -577,15 +517,10 @@ const PaschaArchiveViewer = ({ visible, churchId, onClose }) => {
                   const dayDef = DAYS_BY_ID[day.id];
                   if (!dayDef?.hours?.length) return <View style={{ width:PAGE_W }} />;
                   return (
-                    <DayPage
-                      day={dayDef}
-                      daySchedule={selected.schedule?.[day.id] || {}}
-                      easterDate={selected.easterDate}
-                    />
+                    <DayPage day={dayDef} daySchedule={selected.schedule?.[day.id] || {}} easterDate={selected.easterDate} />
                   );
                 }}
               />
-              {/* Page indicator dots */}
               <View style={av.pageDots}>
                 {ALL_DAYS.map((_, i) => (
                   <TouchableOpacity key={i} onPress={() => handleDaySelect(i)} activeOpacity={0.7}>
