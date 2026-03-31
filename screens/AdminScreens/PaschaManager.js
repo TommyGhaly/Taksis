@@ -12,9 +12,11 @@ import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import PaschaSchedule from "../Pascha/PaschaSchedule.json";
-import PaschaArchiveViewer from "./PaschaArchiveViewer";
+import PaschaArchiveViewer from "../../components/PaschaArchiveViewer";
 import {
-  expandReadings, countSlots, dayProgress, isAssignableSlot,
+  expandReadings, countSlots, dayProgress, isAssignableSlot, isPsalmSlot,
+  hasLanguagePicker, languageOptionsFor, effectiveLanguage, langDisplay, langShort,
+  langFirestoreKey, psalmReadersKey,
   ASSIGNABLE, READING_META, READING_ORDER, MAX_PSALM_READERS, readingDisplay,
 } from "../Pascha/PaschaReadingUtils";
 
@@ -56,7 +58,6 @@ const DAYS_BY_ID = Object.fromEntries(
   })
 );
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function calcDate(easter, offset) {
   if (!easter) return null;
   const d = new Date(easter);
@@ -88,7 +89,7 @@ const Avatar = ({ uid, size = 40, style }) => {
 };
 
 // ─── Psalm reader row ─────────────────────────────────────────────────────────
-const PsalmReadersRow = ({ readers = [], onOpen }) => {
+const PsalmReadersRow = ({ readers = [], onOpen, label }) => {
   const has = readers.length > 0;
   return (
     <TouchableOpacity style={[hm.assignBtn, has && hm.assignBtnFilled]} onPress={onOpen} activeOpacity={0.7}>
@@ -108,13 +109,74 @@ const PsalmReadersRow = ({ readers = [], onOpen }) => {
       ) : (
         <>
           <Icon name="account-multiple-plus-outline" size={16} color={T2} />
-          <Text style={hm.unassignedTxt}>Assign readers (up to {MAX_PSALM_READERS})</Text>
+          <Text style={hm.unassignedTxt}>{label || `Assign readers (up to ${MAX_PSALM_READERS})`}</Text>
           <Icon name="chevron-right" size={14} color={T3} />
         </>
       )}
     </TouchableOpacity>
   );
 };
+
+// ─── Language pill + dropdown ──────────────────────────────────────────────────
+const LanguagePill = ({ row, hourAssignments, onSave }) => {
+  const [open, setOpen] = useState(false);
+  if (!hasLanguagePicker(row.rKey)) return null;
+
+  const current = effectiveLanguage(row, hourAssignments);
+  const options = languageOptionsFor(row.rKey);
+
+  return (
+    <View style={{ position:"relative" }}>
+      <TouchableOpacity
+        style={lp.pill}
+        onPress={() => setOpen(v => !v)}
+        activeOpacity={0.7}
+      >
+        <Text style={lp.pillTxt}>{langShort(current)}</Text>
+        <Icon name="chevron-down" size={11} color={T2} />
+      </TouchableOpacity>
+      {open && (
+        <View style={lp.dropdown}>
+          {options.map(opt => {
+            const active = opt.value === current;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={[lp.dropItem, active && lp.dropItemActive]}
+                onPress={() => {
+                  onSave(row.slotKey, opt.value);
+                  setOpen(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[lp.dropTxt, active && lp.dropTxtActive]}>{opt.label}</Text>
+                {active && <Icon name="check" size={13} color={BLUE} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+};
+
+const lp = StyleSheet.create({
+  pill:          { flexDirection:"row", alignItems:"center", gap:3, paddingHorizontal:8,
+                   paddingVertical:4, borderRadius:8, backgroundColor:CARD2, borderWidth:1,
+                   borderColor:SEP },
+  pillTxt:       { fontSize:10, fontWeight:"700", color:T2, letterSpacing:0.5 },
+  dropdown:      { position:"absolute", top:30, right:0, zIndex:100, backgroundColor:CARD,
+                   borderRadius:12, borderWidth:1, borderColor:SEP, paddingVertical:4,
+                   minWidth:120, ...Platform.select({
+                     ios: { shadowColor:"#000", shadowOffset:{width:0,height:4}, shadowOpacity:0.4, shadowRadius:12 },
+                     android: { elevation:8 },
+                   }) },
+  dropItem:      { flexDirection:"row", alignItems:"center", justifyContent:"space-between",
+                   paddingHorizontal:14, paddingVertical:10 },
+  dropItemActive:{ backgroundColor:BLUEDIM },
+  dropTxt:       { fontSize:14, color:T2, fontWeight:"500" },
+  dropTxtActive: { color:BLUE, fontWeight:"600" },
+});
 
 // ─── Gospel grid (procession stations) ───────────────────────────────────────
 const GospelGrid = ({ rows, hourAssignments, onOpenPicker }) => {
@@ -168,7 +230,7 @@ const gg = StyleSheet.create({
 
 // ─── Psalm multi-select picker ────────────────────────────────────────────────
 const PsalmPickerModal = ({
-  visible, refText, currentReaders, deacons, congregation,
+  visible, refText, pickerLabel, currentReaders, deacons, congregation,
   loadingUsers, onSave, onClose,
 }) => {
   const { height: screenH } = useWindowDimensions();
@@ -226,6 +288,7 @@ const PsalmPickerModal = ({
   };
 
   const selectedList = Object.values(selectedMap);
+  const displayLabel = pickerLabel || "Psalm Readers";
 
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={onClose} statusBarTranslucent>
@@ -243,7 +306,7 @@ const PsalmPickerModal = ({
                     <Icon name="music-note" size={17} color={READING_META.psalm.color} />
                   </View>
                   <View style={{ flex:1 }}>
-                    <Text style={[hm.pickerType, { color:READING_META.psalm.color }]}>Psalm Readers</Text>
+                    <Text style={[hm.pickerType, { color:READING_META.psalm.color }]}>{displayLabel}</Text>
                     {!!refText && <Text style={hm.pickerRef} numberOfLines={1}>{refText}</Text>}
                   </View>
                   <View style={pm.counter}>
@@ -342,7 +405,7 @@ const PsalmPickerModal = ({
                     onPress={commit} activeOpacity={0.8}
                   >
                     <Text style={[hm.saveBtnTxt, selected.size===0 && { color:RED }]}>
-                      {selected.size===0 ? "Clear Psalm Readers" : `Confirm ${selected.size} Reader${selected.size>1?"s":""}`}
+                      {selected.size===0 ? "Clear Readers" : `Confirm ${selected.size} Reader${selected.size>1?"s":""}`}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -369,7 +432,7 @@ const pm = StyleSheet.create({
 // ─── HourModal ────────────────────────────────────────────────────────────────
 const HourModal = ({
   visible, hour, hourAssignments, deacons, congregation,
-  loadingUsers, onSaveReading, onOpenPsalmPicker, onClose,
+  loadingUsers, onSaveReading, onSaveLanguage, onOpenPsalmPicker, onClose,
 }) => {
   const { height: screenH } = useWindowDimensions();
   const [pickerSlot, setPickerSlot] = useState(null);
@@ -391,9 +454,10 @@ const HourModal = ({
   const complete          = total > 0 && filled === total;
   const pct               = total > 0 ? Math.round(filled / total * 100) : 0;
   const sheetMax          = screenH * 0.92;
-  const psalmReaders      = hourAssignments.psalm_readers || [];
-  const gospelRows        = rows.filter(r => (r.rKey==="gospel"||r.rKey==="gospels") && r.location);
-  const hasGospelGrid     = gospelRows.length > 0;
+
+  // Procession gospel grid rows (only for gospels with location)
+  const gospelGridRows = rows.filter(r => (r.rKey==="gospel"||r.rKey==="gospels") && r.location);
+  const hasGospelGrid  = gospelGridRows.length > 0;
 
   const openPicker = row => {
     setSel(hourAssignments[row.slotKey] || null);
@@ -405,13 +469,17 @@ const HourModal = ({
 
   const pickerMeta  = pickerRow_ ? (READING_META[pickerRow_.rKey] || { label:pickerRow_.rKey, icon:"book-outline", color:T2 }) : null;
   const pickerColor = pickerMeta?.color || T2;
-  const pickerLabel = pickerRow_
-    ? pickerRow_.rKey === "homily"
-      ? `Homily — ${pickerRow_.author || pickerRow_.refText}`
-      : pickerRow_.index != null
-        ? `${pickerMeta?.label} ${pickerRow_.index + 1}`
-        : pickerMeta?.label
-    : "";
+
+  let pickerLabel = "";
+  if (pickerRow_) {
+    if (pickerRow_.rKey === "homily") {
+      pickerLabel = `Homily — ${pickerRow_.author || pickerRow_.refText}`;
+    } else if (pickerRow_.index != null) {
+      pickerLabel = `${pickerMeta?.label} ${pickerRow_.index + 1}`;
+    } else {
+      pickerLabel = pickerMeta?.label || "";
+    }
+  }
 
   const pickerScrollMax = sheetMax - (sel ? 330 : 270);
 
@@ -419,6 +487,18 @@ const HourModal = ({
     const list = tab === "deacons" ? deacons : congregation;
     return q ? list.filter(u => u.name.toLowerCase().includes(q.toLowerCase())) : list;
   }, [tab, deacons, congregation, q]);
+
+  /** Build the label for a reading row in the hour list */
+  const rowLabel = (row) => {
+    const meta = READING_META[row.rKey] || { label:row.rKey };
+    if (row.rKey === "homily") return `Homily — ${row.author || row.refText}`;
+    if (row.langLabel) {
+      return row.index != null
+        ? `${meta.label} ${row.index + 1} (${row.langLabel})`
+        : `${meta.label} (${row.langLabel})`;
+    }
+    return row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
+  };
 
   return (
     <Modal visible={visible} animationType="none" transparent
@@ -455,18 +535,19 @@ const HourModal = ({
                       nestedScrollEnabled
                     >
                       {rows.map((row, i) => {
-                        const meta           = READING_META[row.rKey] || { label:row.rKey, icon:"book-outline", color:T2 };
-                        const assignable     = isAssignableSlot(row.rKey);
-                        const isPsalm        = row.rKey === "psalm";
-                        const isHomily       = row.rKey === "homily";
-                        const isGospelLoc    = (row.rKey==="gospel"||row.rKey==="gospels") && row.location;
-                        const isFirstGospel  = hasGospelGrid && row.rKey==="gospels" && row.index===0;
-                        const assignee       = !isPsalm ? (hourAssignments[row.slotKey]||null) : null;
-                        const label          = isHomily
-                          ? `Homily — ${row.author || row.refText}`
-                          : row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
+                        const meta       = READING_META[row.rKey] || { label:row.rKey, icon:"book-outline", color:T2 };
+                        const assignable = isAssignableSlot(row.rKey);
+                        const isPsalm    = isPsalmSlot(row.rKey);
+                        const isHomily   = row.rKey === "homily";
+                        const isGospelLoc = (row.rKey==="gospel"||row.rKey==="gospels") && row.location;
+                        const isFirstGospelGrid = hasGospelGrid && row.rKey==="gospels" && row.index===0;
+                        const assignee   = !isPsalm ? (hourAssignments[row.slotKey]||null) : null;
+                        const label      = rowLabel(row);
+                        const readersKey = isPsalm ? psalmReadersKey(row) : null;
+                        const readers    = isPsalm ? (hourAssignments[readersKey] || []) : [];
 
-                        if (isGospelLoc && !isFirstGospel) return null;
+                        // Skip non-first procession gospels (they render in the grid)
+                        if (isGospelLoc && !isFirstGospelGrid) return null;
 
                         return (
                           <View key={row.slotKey}
@@ -477,29 +558,38 @@ const HourModal = ({
                               </View>
                               <View style={{ flex:1 }}>
                                 <Text style={[hm.readingLabel, { color:meta.color }]}>
-                                  {isFirstGospel ? "Gospels" : label}
+                                  {isFirstGospelGrid ? "Gospels" : label}
                                 </Text>
-                                {isFirstGospel
+                                {isFirstGospelGrid
                                   ? <Text style={hm.readingRef}>12 stations</Text>
                                   : isHomily
                                     ? null
                                     : !!row.refText && <Text style={hm.readingRef}>{row.refText}</Text>
                                 }
                               </View>
+                              <LanguagePill
+                                row={row}
+                                hourAssignments={hourAssignments}
+                                onSave={(slotKey, lang) => onSaveLanguage(hour.id, slotKey, lang)}
+                              />
                             </View>
 
                             {/* Gospel grid for procession */}
-                            {isFirstGospel && (
-                              <GospelGrid rows={gospelRows} hourAssignments={hourAssignments} onOpenPicker={openPicker} />
+                            {isFirstGospelGrid && (
+                              <GospelGrid rows={gospelGridRows} hourAssignments={hourAssignments} onOpenPicker={openPicker} />
                             )}
 
                             {/* Psalm: multi-reader row */}
-                            {!isFirstGospel && isPsalm && (
-                              <PsalmReadersRow readers={psalmReaders} onOpen={onOpenPsalmPicker} />
+                            {!isFirstGospelGrid && isPsalm && (
+                              <PsalmReadersRow
+                                readers={readers}
+                                label={`Assign ${label.toLowerCase()} readers`}
+                                onOpen={() => onOpenPsalmPicker(row)}
+                              />
                             )}
 
-                            {/* All other assignable slots (prophecies, gospels, pauline, catholic, praxis, homily) */}
-                            {!isFirstGospel && !isPsalm && assignable && (
+                            {/* All other assignable slots */}
+                            {!isFirstGospelGrid && !isPsalm && assignable && (
                               <TouchableOpacity onPress={() => openPicker(row)} activeOpacity={0.7}
                                 style={[hm.assignBtn, assignee && hm.assignBtnFilled]}>
                                 {assignee ? (
@@ -511,9 +601,7 @@ const HourModal = ({
                                 ) : (
                                   <>
                                     <Icon name="account-plus-outline" size={16} color={T2} />
-                                    <Text style={hm.unassignedTxt}>
-                                      {isHomily ? "Assign reader" : "Assign reader"}
-                                    </Text>
+                                    <Text style={hm.unassignedTxt}>Assign reader</Text>
                                     <Icon name="chevron-right" size={14} color={T3} />
                                   </>
                                 )}
@@ -752,20 +840,25 @@ const dt = StyleSheet.create({
 // ─── Hour tile ────────────────────────────────────────────────────────────────
 const HourTile = React.memo(({
   hour, hourAssignments, dayId, deacons, congregation,
-  loadingUsers, onSaveReading, onSavePsalmReaders,
+  loadingUsers, onSaveReading, onSavePsalmReaders, onSaveLanguage,
 }) => {
   const [hourOpen, setHourOpen]               = useState(false);
-  const [psalmPickerOpen, setPsalmPickerOpen] = useState(false);
+  const [psalmPickerRow, setPsalmPickerRow]   = useState(null);
 
   const rows              = expandReadings(hour);
-  const assignableRows    = rows.filter(r => isAssignableSlot(r.rKey) || r.rKey === "psalm");
+  const assignableRows    = rows.filter(r => isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey));
   const { total, filled } = countSlots(hour, hourAssignments);
   const complete          = total > 0 && filled === total;
   const started           = filled > 0 && !complete;
   const pct               = total > 0 ? filled / total : 0;
   const statusColor       = complete ? GREEN : started ? BLUE : T3;
-  const psalmReaders      = hourAssignments.psalm_readers || [];
-  const psalmRefText      = rows.find(r => r.rKey === "psalm")?.refText || "";
+
+  /** Build a display label for a row — no language in text */
+  const rowDisplayLabel = (row) => {
+    const meta = READING_META[row.rKey] || { label:row.rKey };
+    if (row.rKey === "homily") return `Homily — ${row.author || row.refText}`;
+    return row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
+  };
 
   return (
     <>
@@ -791,28 +884,35 @@ const HourTile = React.memo(({
         <View style={ht.readingList}>
           {assignableRows.map((row, i) => {
             const meta      = READING_META[row.rKey] || { label:row.rKey, icon:"book-outline", color:T2 };
-            const isPsalm   = row.rKey === "psalm";
+            const isPsalm   = isPsalmSlot(row.rKey);
             const isHomily  = row.rKey === "homily";
-            const assignee  = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
-            const typeLabel = isHomily
-              ? `Homily — ${row.author || row.refText}`
-              : row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
-            const isLast    = i === assignableRows.length - 1;
+            const readersKey = isPsalm ? psalmReadersKey(row) : null;
+            const readers    = isPsalm ? (hourAssignments[readersKey] || []) : [];
+            const assignee   = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
+            const typeLabel  = rowDisplayLabel(row);
+            const isLast     = i === assignableRows.length - 1;
             return (
               <View key={row.slotKey} style={[ht.rRow, !isLast && ht.rRowBorder]}>
                 <View style={ht.rLeft}>
                   <Icon name={meta.icon} size={13} color={meta.color} />
                   <Text style={[ht.rType, { color:meta.color }]}>{typeLabel}</Text>
+                  {hasLanguagePicker(row.rKey) && (
+                    <View style={ht.langBadge}>
+                      <Text style={ht.langBadgeTxt}>
+                        {langShort(effectiveLanguage(row, hourAssignments))}
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 {isPsalm ? (
-                  psalmReaders.length > 0
+                  readers.length > 0
                     ? <View style={ht.assigneeRow}>
-                        {psalmReaders.slice(0,3).map((r,idx) => (
+                        {readers.slice(0,3).map((r,idx) => (
                           <Avatar key={r.uid||r.name||idx} uid={r.uid} size={20}
                             style={{ marginLeft:idx>0?-6:0, borderWidth:1.5, borderColor:CARD }} />
                         ))}
                         <Text style={ht.assigneeName} numberOfLines={1}>
-                          {psalmReaders.length===1 ? psalmReaders[0].name : `${psalmReaders.length} readers`}
+                          {readers.length===1 ? readers[0].name : `${readers.length} readers`}
                         </Text>
                       </View>
                     : <Text style={ht.rRef} numberOfLines={1}>{row.refText||"—"}</Text>
@@ -841,18 +941,22 @@ const HourTile = React.memo(({
         congregation={congregation}
         loadingUsers={loadingUsers}
         onSaveReading={onSaveReading}
-        onOpenPsalmPicker={() => { setHourOpen(false); setPsalmPickerOpen(true); }}
+        onSaveLanguage={onSaveLanguage}
+        onOpenPsalmPicker={(row) => { setHourOpen(false); setPsalmPickerRow(row); }}
         onClose={() => setHourOpen(false)}
       />
       <PsalmPickerModal
-        visible={psalmPickerOpen}
-        refText={psalmRefText}
-        currentReaders={psalmReaders}
+        visible={!!psalmPickerRow}
+        refText={psalmPickerRow?.refText || ""}
+        pickerLabel={psalmPickerRow ? rowDisplayLabel(psalmPickerRow) : ""}
+        currentReaders={psalmPickerRow ? (hourAssignments[psalmReadersKey(psalmPickerRow)] || []) : []}
         deacons={deacons}
         congregation={congregation}
         loadingUsers={loadingUsers}
-        onSave={readers => onSavePsalmReaders(hour.id, readers)}
-        onClose={() => { setPsalmPickerOpen(false); setHourOpen(true); }}
+        onSave={readers => {
+          if (psalmPickerRow) onSavePsalmReaders(hour.id, psalmReadersKey(psalmPickerRow), readers);
+        }}
+        onClose={() => { setPsalmPickerRow(null); setHourOpen(true); }}
       />
     </>
   );
@@ -871,12 +975,14 @@ const ht = StyleSheet.create({
   rRowBorder:  { borderBottomWidth:1, borderBottomColor:SEP },
   rLeft:       { flexDirection:"row", alignItems:"center", gap:6, flex:1, marginRight:8 },
   rType:       { fontSize:12, fontWeight:"700" },
+  langBadge:   { paddingHorizontal:5, paddingVertical:1, borderRadius:4, backgroundColor:CARD2 },
+  langBadgeTxt:{ fontSize:9, fontWeight:"700", color:T3, letterSpacing:0.3 },
   rRef:        { fontSize:12, color:T3, flex:1, textAlign:"right" },
   assigneeRow: { flexDirection:"row", alignItems:"center", gap:4 },
   assigneeName:{ fontSize:12, fontWeight:"600", color:GREEN, maxWidth:130 },
 });
 
-// ─── Settings sheet ───────────────────────────────────────────────────────────
+// ─── Settings sheet (unchanged) ───────────────────────────────────────────────
 const SettingsSheet = ({
   visible, myReadingsVisible, fullScheduleVisible, easterDate, year,
   onToggleMyReadings, onToggleFullSchedule, onDateSave,
@@ -915,12 +1021,9 @@ const SettingsSheet = ({
                 </View>
                 <View style={{ flex:1 }}>
                   <Text style={ss.label}>My Readings</Text>
-                  <Text style={ss.desc}>
-                    {myReadingsVisible ? "Members can see their assignments" : "Hidden from members"}
-                  </Text>
+                  <Text style={ss.desc}>{myReadingsVisible ? "Members can see their assignments" : "Hidden from members"}</Text>
                 </View>
-                <Switch value={myReadingsVisible} onValueChange={onToggleMyReadings}
-                  trackColor={{ false:T3, true:BLUE }} thumbColor={T1} />
+                <Switch value={myReadingsVisible} onValueChange={onToggleMyReadings} trackColor={{ false:T3, true:BLUE }} thumbColor={T1} />
               </View>
             </View>
             <View style={ss.card}>
@@ -930,12 +1033,9 @@ const SettingsSheet = ({
                 </View>
                 <View style={{ flex:1 }}>
                   <Text style={ss.label}>Full Schedule</Text>
-                  <Text style={ss.desc}>
-                    {fullScheduleVisible ? "Everyone can see all assignments" : "Hidden from members"}
-                  </Text>
+                  <Text style={ss.desc}>{fullScheduleVisible ? "Everyone can see all assignments" : "Hidden from members"}</Text>
                 </View>
-                <Switch value={fullScheduleVisible} onValueChange={onToggleFullSchedule}
-                  trackColor={{ false:T3, true:BLUE }} thumbColor={T1} />
+                <Switch value={fullScheduleVisible} onValueChange={onToggleFullSchedule} trackColor={{ false:T3, true:BLUE }} thumbColor={T1} />
               </View>
             </View>
             <View style={ss.card}>
@@ -966,13 +1066,7 @@ const SettingsSheet = ({
               {easterDate && !pickerOpen && (
                 <>
                   <View style={ss.divider} />
-                  {[
-                    ["Last Friday of Lent", -9],
-                    ["Palm Sunday",         -7],
-                    ["Holy Monday",         -6],
-                    ["Good Friday",         -2],
-                    ["Easter Sunday",        0],
-                  ].map(([l,o]) => (
+                  {[["Last Friday of Lent",-9],["Palm Sunday",-7],["Holy Monday",-6],["Good Friday",-2],["Easter Sunday",0]].map(([l,o]) => (
                     <View key={l} style={ss.dateRow}>
                       <Text style={ss.dateLabel}>{l}</Text>
                       <Text style={[ss.dateVal, o===0 && { color:BLUE, fontWeight:"700" }]}>{calcDate(easterDate, o)}</Text>
@@ -1021,7 +1115,7 @@ const ss = StyleSheet.create({
   archiveTxt:    { fontSize:15, fontWeight:"600", color:RED },
 });
 
-// ─── Archive confirm ──────────────────────────────────────────────────────────
+// ─── Archive confirm (unchanged) ──────────────────────────────────────────────
 const ArchiveConfirm = ({ visible, year, onConfirm, onClose }) => {
   const [archiving, setArchiving] = useState(false);
   const [progress, setProgress]   = useState(0);
@@ -1051,14 +1145,11 @@ const ArchiveConfirm = ({ visible, year, onConfirm, onClose }) => {
         <View style={arc.sheet}>
           <View style={arc.handle} />
           <View style={arc.iconWrap}>
-            <Icon name={done ? "check-circle-outline" : "archive-clock-outline"} size={32}
-              color={done ? GREEN : ORANGE} />
+            <Icon name={done ? "check-circle-outline" : "archive-clock-outline"} size={32} color={done ? GREEN : ORANGE} />
           </View>
           <Text style={arc.title}>{done ? "Archived!" : `Archive ${year}?`}</Text>
           <Text style={arc.body}>
-            {done
-              ? `The ${year} schedule has been saved and cleared.`
-              : "Reader assignments will be saved and this year's schedule cleared for next year."}
+            {done ? `The ${year} schedule has been saved and cleared.` : "Reader assignments will be saved and this year's schedule cleared for next year."}
           </Text>
           <View style={arc.divider} />
           {archiving ? (
@@ -1129,7 +1220,6 @@ export default function PaschaManager() {
   const year        = easterDate ? new Date(easterDate).getFullYear() : new Date().getFullYear();
   const selectedDay = DAYS_BY_ID[selectedId];
 
-  // ── Church ID listener ────────────────────────────────────────────────────
   useEffect(() => {
     isMounted.current = true;
     const user = auth().currentUser;
@@ -1140,7 +1230,6 @@ export default function PaschaManager() {
     return () => { isMounted.current = false; unsub(); };
   }, []);
 
-  // ── Config listener ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!churchId) return;
     const unsub = firestore().collection("churches").doc(churchId)
@@ -1155,7 +1244,6 @@ export default function PaschaManager() {
     return () => unsub();
   }, [churchId]);
 
-  // ── Users listeners ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!churchId) return;
     setLoadingUsers(true);
@@ -1180,7 +1268,6 @@ export default function PaschaManager() {
     return () => { unsubC(); unsubU(); };
   }, [churchId]);
 
-  // ── Firestore write ───────────────────────────────────────────────────────
   const writeConfig = useCallback(async fields => {
     if (!churchId) return;
     await firestore().collection("churches").doc(churchId)
@@ -1202,12 +1289,19 @@ export default function PaschaManager() {
     await writeConfig({ [path]: value });
   }, [writeConfig]);
 
-  const savePsalmReaders = useCallback(async (dayId, hourId, readers) => {
-    const path  = `schedule.${dayId}.${hourId}.psalm_readers`;
+  /** Save psalm readers — now accepts the full Firestore key (e.g. "psalm_coptic_readers") */
+  const savePsalmReaders = useCallback(async (dayId, hourId, readersKey, readers) => {
+    const path  = `schedule.${dayId}.${hourId}.${readersKey}`;
     const value = readers.length > 0
       ? readers.map(r => ({ uid:r.uid||null, name:r.name }))
       : firestore.FieldValue.delete();
     await writeConfig({ [path]: value });
+  }, [writeConfig]);
+
+  /** Save language override for a reading slot */
+  const saveLanguage = useCallback(async (dayId, hourId, slotKey, lang) => {
+    const path = `schedule.${dayId}.${hourId}.${langFirestoreKey(slotKey)}`;
+    await writeConfig({ [path]: lang });
   }, [writeConfig]);
 
   const doArchive = useCallback(async () => {
@@ -1224,7 +1318,6 @@ export default function PaschaManager() {
     }
   }, [churchId, year, schedule, writeConfig]);
 
-  // ── Day progress for header ───────────────────────────────────────────────
   const ds = schedule[selectedId] || {};
   const { total:dayTotal, filled:dayFilled } = selectedDay
     ? dayProgress(selectedDay, ds)
@@ -1280,7 +1373,8 @@ export default function PaschaManager() {
             congregation={congregation}
             loadingUsers={loadingUsers}
             onSaveReading={(hourId, slotKey, person) => saveReading(selectedId, hourId, slotKey, person)}
-            onSavePsalmReaders={(hourId, readers) => savePsalmReaders(selectedId, hourId, readers)}
+            onSavePsalmReaders={(hourId, readersKey, readers) => savePsalmReaders(selectedId, hourId, readersKey, readers)}
+            onSaveLanguage={(hourId, slotKey, lang) => saveLanguage(selectedId, hourId, slotKey, lang)}
           />
         ))}
       </ScrollView>
