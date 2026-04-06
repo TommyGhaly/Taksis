@@ -6,21 +6,24 @@ export ANDROID_HOME="$HOME/Library/Android/sdk"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export PATH="$PATH:$ANDROID_HOME/platform-tools"
 
-# ── Check Java version ───────────────────────────────────────
-JAVA_VER=$(java -version 2>&1 | head -1 | grep -oE '"[0-9]+' | tr -d '"')
-if [ -z "$JAVA_VER" ]; then
-  echo "❌ Java not found. Install Java 17: brew install openjdk@17"
+# ── Force Java 17 ────────────────────────────────────────────
+export JAVA_HOME=$(/usr/libexec/java_home -v 17 2>/dev/null)
+if [ -z "$JAVA_HOME" ]; then
+  echo "❌ Java 17 not found. Install: brew install openjdk@17"
   exit 1
-elif [ "$JAVA_VER" -lt 17 ]; then
-  echo "❌ Java $JAVA_VER detected. Gradle 8.13 requires Java 17+."
-  echo "   Switch terminal or run: export JAVA_HOME=\$(/usr/libexec/java_home -v 17)"
-  exit 1
-else
-  echo "✅ Java $JAVA_VER"
 fi
+export PATH="$JAVA_HOME/bin:$PATH"
+
+JAVA_VER=$(java -version 2>&1 | head -1 | grep -oE '"[0-9]+' | tr -d '"')
+if [ "$JAVA_VER" != "17" ]; then
+  echo "❌ Expected Java 17, got $JAVA_VER"
+  exit 1
+fi
+echo "✅ Java $JAVA_VER"
 
 # ── Kill Gradle daemons ──────────────────────────────────────
 pkill -f gradle 2>/dev/null || true
+sleep 2
 
 # ── Clean prebuild ───────────────────────────────────────────
 rm -rf android
@@ -62,5 +65,5 @@ cd android
 cd ..
 
 echo ""
-echo "Done. AAB at:"
-echo "  android/app/build/outputs/bundle/release/app-release.aab"
+echo "✅ Done. AAB at:"
+echo "   android/app/build/outputs/bundle/release/app-release.aab"
