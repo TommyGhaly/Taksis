@@ -15,7 +15,7 @@ import PaschaArchiveViewer from "../../components/PaschaArchiveViewer";
 import {
   expandReadings, countSlots, dayProgress, isAssignableSlot, isPsalmSlot,
   hasLanguagePicker, languageOptionsFor, effectiveLanguage, langDisplay, langShort,
-  langFirestoreKey, psalmReadersKey,
+  langFirestoreKey, psalmReadersKey, prophecyCopticToggleKey,
   ASSIGNABLE, READING_META, MAX_PSALM_READERS, readingDisplay,
 } from "../Pascha/PaschaReadingUtils";
 
@@ -149,6 +149,41 @@ const lp = StyleSheet.create({
   dropItemActive:{ backgroundColor: BLUEDIM },
   dropTxt:       { fontSize: 14, color: T2, fontWeight: "500" },
   dropTxtActive: { color: BLUE, fontWeight: "600" },
+});
+
+// ── Prophecy Coptic Toggle ────────────────────────────────────────────────────
+const ProphecyCopticToggle = ({ vernacularSlotKey, hourAssignments, onSave }) => {
+  const toggleKey = prophecyCopticToggleKey(vernacularSlotKey);
+  const enabled   = hourAssignments[toggleKey] === true;
+  return (
+    <TouchableOpacity
+      style={[pct.row, enabled && pct.rowOn]}
+      onPress={() => onSave(toggleKey, enabled ? firestore.FieldValue.delete() : true)}
+      activeOpacity={0.75}
+    >
+      <View style={[pct.iconBox, enabled && pct.iconBoxOn]}>
+        <Icon name="alpha-c-circle-outline" size={15} color={enabled ? COPTIC_COLOR : T3} />
+      </View>
+      <Text style={[pct.label, enabled && pct.labelOn]}>Read in Coptic</Text>
+      <View style={[pct.pill, enabled && pct.pillOn]}>
+        <Text style={[pct.pillTxt, enabled && pct.pillTxtOn]}>{enabled ? "ON" : "OFF"}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
+const pct = StyleSheet.create({
+  row:       { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 7,
+               paddingHorizontal: 10, borderRadius: 10, marginBottom: 6 },
+  rowOn:     { backgroundColor: COPTIC_BG },
+  iconBox:   { width: 26, height: 26, borderRadius: 8, backgroundColor: CARD2,
+               justifyContent: "center", alignItems: "center" },
+  iconBoxOn: { backgroundColor: "rgba(245,158,11,0.18)" },
+  label:     { flex: 1, fontSize: 12, fontWeight: "600", color: T3 },
+  labelOn:   { color: COPTIC_COLOR },
+  pill:      { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: CARD2 },
+  pillOn:    { backgroundColor: "rgba(245,158,11,0.2)", borderWidth: 1, borderColor: COPTIC_BORDER },
+  pillTxt:   { fontSize: 10, fontWeight: "800", color: T3, letterSpacing: 0.5 },
+  pillTxtOn: { color: COPTIC_COLOR },
 });
 
 // ── Gospel grid (procession stations) ────────────────────────────────────────
@@ -400,7 +435,7 @@ const pm = StyleSheet.create({
 // ── HourModal ─────────────────────────────────────────────────────────────────
 const HourModal = ({
   visible, hour, hourAssignments, deacons, congregation,
-  loadingUsers, onSaveReading, onSaveLanguage, onOpenPsalmPicker, onClose,
+  loadingUsers, onSaveReading, onSaveLanguage, onSaveCopticToggle, onOpenPsalmPicker, onClose,
 }) => {
   const { height: screenH } = useWindowDimensions();
   const [pickerSlot, setPickerSlot] = useState(null);
@@ -417,7 +452,8 @@ const HourModal = ({
 
   if (!hour) return null;
 
-  const rows              = expandReadings(hour);
+  // Pass hourAssignments into expandReadings so coptic rows appear when toggled
+  const rows              = expandReadings(hour, hourAssignments);
   const { total, filled } = countSlots(hour, hourAssignments);
   const complete          = total > 0 && filled === total;
   const pct               = total > 0 ? Math.round(filled / total * 100) : 0;
@@ -537,6 +573,15 @@ const HourModal = ({
                               <LanguagePill row={row} hourAssignments={hourAssignments}
                                 onSave={(slotKey, lang) => onSaveLanguage(hour.id, slotKey, lang)} />
                             </View>
+
+                            {/* ── Coptic toggle for prophecy rows ── */}
+                            {row.rKey === "prophecies" && row.hasCopticOption && (
+                              <ProphecyCopticToggle
+                                vernacularSlotKey={row.slotKey}
+                                hourAssignments={hourAssignments}
+                                onSave={(key, value) => onSaveCopticToggle(hour.id, key, value)}
+                              />
+                            )}
 
                             {isFirstGospelGrid && (
                               <GospelGrid rows={gospelGridRows} hourAssignments={hourAssignments} onOpenPicker={openPicker} />
@@ -801,12 +846,13 @@ const dt = StyleSheet.create({
 // ── Hour tile ─────────────────────────────────────────────────────────────────
 const HourTile = React.memo(({
   hour, hourAssignments, dayId, deacons, congregation,
-  loadingUsers, onSaveReading, onSavePsalmReaders, onSaveLanguage,
+  loadingUsers, onSaveReading, onSavePsalmReaders, onSaveLanguage, onSaveCopticToggle,
 }) => {
   const [hourOpen, setHourOpen]             = useState(false);
   const [psalmPickerRow, setPsalmPickerRow] = useState(null);
 
-  const rows              = expandReadings(hour);
+  // Pass hourAssignments so coptic rows are included when toggled on
+  const rows              = expandReadings(hour, hourAssignments);
   const assignableRows    = rows.filter(r => isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey));
   const { total, filled } = countSlots(hour, hourAssignments);
   const complete          = total > 0 && filled === total;
@@ -903,6 +949,7 @@ const HourTile = React.memo(({
         loadingUsers={loadingUsers}
         onSaveReading={onSaveReading}
         onSaveLanguage={onSaveLanguage}
+        onSaveCopticToggle={onSaveCopticToggle}
         onOpenPsalmPicker={row => { setHourOpen(false); setPsalmPickerRow(row); }}
         onClose={() => setHourOpen(false)}
       />
@@ -1192,10 +1239,9 @@ export default function PaschaManager() {
   const [archiveViewOpen, setArchiveViewOpen]         = useState(false);
   const [selectedId, setSelectedId]                   = useState(null);
 
-  const allDays = useMemo(() => buildAllDays(scheduleShell), [scheduleShell]);
+  const allDays  = useMemo(() => buildAllDays(scheduleShell), [scheduleShell]);
   const daysById = useMemo(() => Object.fromEntries(allDays.map(d => [d.id, d])), [allDays]);
 
-  // Merge shell hours + assignees into the schedule shape used by the UI
   const schedule = useMemo(() => {
     const merged = {};
     allDays.forEach(day => {
@@ -1223,7 +1269,6 @@ export default function PaschaManager() {
   useEffect(() => {
     if (!churchId) return;
 
-    // Schedule shell (structure written by Python script)
     const unsubShell = firestore()
       .collection("churches").doc(churchId)
       .collection("pascha").doc("schedule_config")
@@ -1235,7 +1280,6 @@ export default function PaschaManager() {
         }
       });
 
-    // Config (metadata only — easterDate, visibility toggles)
     const unsubConfig = firestore()
       .collection("churches").doc(churchId)
       .collection("pascha").doc("config")
@@ -1247,7 +1291,6 @@ export default function PaschaManager() {
         setEasterDate(d.easterDate ?? null);
       });
 
-    // Schedule (assignees + language overrides, keyed by dayId.hourId.slotKey)
     const unsubSchedule = firestore()
       .collection("churches").doc(churchId)
       .collection("pascha").doc("schedule")
@@ -1289,11 +1332,8 @@ export default function PaschaManager() {
       .collection("churches").doc(churchId)
       .collection("pascha").doc("config");
     await ref.update(fields).catch(async err => {
-      if (err.code === "firestore/not-found") {
-        await ref.set(fields);
-      } else {
-        Alert.alert("Error", "Failed to save.");
-      }
+      if (err.code === "firestore/not-found") await ref.set(fields);
+      else Alert.alert("Error", "Failed to save.");
     });
   }, [churchId]);
 
@@ -1303,11 +1343,8 @@ export default function PaschaManager() {
       .collection("churches").doc(churchId)
       .collection("pascha").doc("schedule");
     await ref.update(fields).catch(async err => {
-      if (err.code === "firestore/not-found") {
-        await ref.set(fields);
-      } else {
-        Alert.alert("Error", "Failed to save.");
-      }
+      if (err.code === "firestore/not-found") await ref.set(fields);
+      else Alert.alert("Error", "Failed to save.");
     });
   }, [churchId]);
 
@@ -1332,17 +1369,29 @@ export default function PaschaManager() {
     await writeSchedule({ [path]: lang });
   }, [writeSchedule]);
 
+  /**
+   * Saves the admin's coptic toggle for a prophecy slot.
+   * value is either `true` or `firestore.FieldValue.delete()`.
+   * When toggled OFF we also clear any existing coptic assignee so no
+   * orphaned data accumulates.
+   */
+  const saveCopticToggle = useCallback(async (dayId, hourId, toggleKey, value) => {
+    const fields = { [`${dayId}.${hourId}.${toggleKey}`]: value };
+    // If turning off, also delete the corresponding _coptic slot assignee.
+    // The coptic slotKey is derived by stripping "_coptic_enabled" → adding "_coptic".
+    if (value !== true) {
+      const vernacularSlot = toggleKey.replace(/_coptic_enabled$/, "");
+      fields[`${dayId}.${hourId}.${vernacularSlot}_coptic`] = firestore.FieldValue.delete();
+    }
+    await writeSchedule(fields);
+  }, [writeSchedule]);
+
   const doArchive = useCallback(async () => {
     try {
       await firestore()
         .collection("churches").doc(churchId)
         .collection("pascha").doc(`archive_${year}`)
-        .set({
-          schedule:   schedule,
-          easterDate: easterDate,
-          archivedAt: firestore.FieldValue.serverTimestamp(),
-        });
-      // Clear schedule assignees — shell (schedule_config) is untouched
+        .set({ schedule, easterDate, archivedAt: firestore.FieldValue.serverTimestamp() });
       await firestore()
         .collection("churches").doc(churchId)
         .collection("pascha").doc("schedule")
@@ -1353,7 +1402,7 @@ export default function PaschaManager() {
     } catch {
       Alert.alert("Error", "Archive failed.");
     }
-  }, [churchId, year, schedule, easterDate, writeConfig]);
+  }, [churchId, year, schedule, easterDate]);
 
   const ds = selectedId ? (schedule[selectedId] || {}) : {};
   const { total: dayTotal, filled: dayFilled } = selectedDay
@@ -1424,6 +1473,7 @@ export default function PaschaManager() {
             onSaveReading={(hourId, slotKey, person) => saveReading(selectedId, hourId, slotKey, person)}
             onSavePsalmReaders={(hourId, readersKey, readers) => savePsalmReaders(selectedId, hourId, readersKey, readers)}
             onSaveLanguage={(hourId, slotKey, lang) => saveLanguage(selectedId, hourId, slotKey, lang)}
+            onSaveCopticToggle={(hourId, toggleKey, value) => saveCopticToggle(selectedId, hourId, toggleKey, value)}
           />
         ))}
       </ScrollView>

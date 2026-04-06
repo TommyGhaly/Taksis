@@ -200,11 +200,11 @@
             ],
             "psalm": { "reference": "8:3-4" },
             "gospel": { "reference": "Matthew 21:10-17" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
             "psalm": {
-              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
@@ -223,11 +223,11 @@
             ],
             "psalm": { "reference": "22:22-23" },
             "gospel": { "reference": "Matthew 20:20-28" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
             "psalm": {
-              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
@@ -253,6 +253,7 @@
             ],
             "psalm": { "reference": "26:6-7" },
             "gospel": { "reference": "John 12:20-36" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -275,6 +276,7 @@
             ],
             "psalm": { "reference": "28:9 & 2" },
             "gospel": { "reference": "Luke 9:18-22" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -297,6 +299,7 @@
             ],
             "psalm": { "reference": "29:1-2" },
             "gospel": { "reference": "Mark 10:32-34" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -319,6 +322,7 @@
             ],
             "psalm": { "reference": "17:6 & 1" },
             "gospel": { "reference": "Mark 8:27-33" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -341,6 +345,7 @@
             ],
             "psalm": { "reference": "18:17-18" },
             "gospel": { "reference": "Matthew 17:19-23" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -374,6 +379,7 @@
             "psalm": { "reference": "71:18-19" },
             "gospel": { "reference": "Mark 11:12-24" },
             "homily": { "author": "Abba Shenouda", "language": "english", "assignee": null },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -397,6 +403,7 @@
             ],
             "psalm": { "reference": "121:1-2" },
             "gospel": { "reference": "Mark 11:11-19" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -420,6 +427,7 @@
             ],
             "psalm": { "reference": "121:4" },
             "gospel": { "reference": "John 2:13-17" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -444,6 +452,7 @@
             ],
             "psalm": { "reference": "64:5 & 4" },
             "gospel": { "reference": "Matthew 21:23-27" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -467,6 +476,7 @@
             ],
             "psalm": { "reference": "12:3-4" },
             "gospel": { "reference": "John 8:51-59" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -497,6 +507,7 @@
             ],
             "psalm": { "reference": "62:6-7" },
             "gospel": { "reference": "Luke 13:23-30" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -519,6 +530,7 @@
             ],
             "psalm": { "reference": "12:4 & 6" },
             "gospel": { "reference": "Luke 13:31-35" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -541,6 +553,7 @@
             ],
             "psalm": { "reference": "91:2-3" },
             "gospel": { "reference": "Luke 21:34-38" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -563,6 +576,7 @@
             ],
             "psalm": { "reference": "32:10-11" },
             "gospel": { "reference": "Luke 11:37-52" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -585,6 +599,7 @@
             ],
             "psalm": { "reference": "122:4" },
             "gospel": { "reference": "Mark 13:32 - 14:2" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -618,6 +633,7 @@
             "psalm": { "reference": "119:2 & 7" },
             "gospel": { "reference": "John 8:21-29" },
             "homily": { "author": "Abba Shenouda", "language": "english", "assignee": null },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -641,6 +657,7 @@
             ],
             "psalm": { "reference": "119:154-155" },
             "gospel": { "reference": "Matthew 23:37 - 24:2" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -664,6 +681,7 @@
             ],
             "psalm": { "reference": "18:48 & 17" },
             "gospel": { "reference": "John 8:12-20" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -689,6 +707,7 @@
             ],
             "psalm": { "reference": "24:1-3" },
             "gospel": { "reference": "Matthew 24:3-35" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -713,6 +732,7 @@
             "psalm": { "reference": "44:6 & 40:1" },
             "gospel": { "reference": "Matthew 25:14 & 26:2" },
             "homily": { "author": "Abba John", "language": "english", "assignee": null },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -743,6 +763,7 @@
             ],
             "psalm": { "reference": "58:17-18" },
             "gospel": { "reference": "Matthew 22:1-14" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -765,6 +786,7 @@
             ],
             "psalm": { "reference": "64:5" },
             "gospel": { "reference": "Matthew 24:36-51" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -787,6 +809,7 @@
             ],
             "psalm": { "reference": "102:1 & 2" },
             "gospel": { "reference": "Matthew 25:1-13" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -809,6 +832,7 @@
             ],
             "psalm": { "reference": "22:20-21" },
             "gospel": { "reference": "Matthew 23:29-36" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -831,6 +855,7 @@
             ],
             "psalm": { "reference": "56:1-2" },
             "gospel": { "reference": "John 11:55-57" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -864,6 +889,7 @@
             "psalm": { "reference": "50:6 & 32:10" },
             "gospel": { "reference": "John 11:46-57" },
             "homily": { "author": "Abba Shenouda", "language": "english", "assignee": null },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -887,6 +913,7 @@
             ],
             "psalm": { "reference": "41:6 & 1" },
             "gospel": { "reference": "Luke 22:1-6" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -910,6 +937,7 @@
             ],
             "psalm": { "reference": "83:2 & 5" },
             "gospel": { "reference": "John 12:1-8" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -934,6 +962,7 @@
             ],
             "psalm": { "reference": "40:6-8" },
             "gospel": { "reference": "Matthew 26:3-16" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -957,6 +986,7 @@
             "psalm": { "reference": "6:2-3 & 68:17" },
             "gospel": { "reference": "John 12:27-36" },
             "homily": { "author": "Abba Severianus", "language": "english", "assignee": null },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -987,6 +1017,7 @@
             ],
             "psalm": { "reference": "68:1 & 16" },
             "gospel": { "reference": "John 10:17-21" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1009,6 +1040,7 @@
             ],
             "psalm": { "reference": "54:21 & 1" },
             "gospel": { "reference": "Mark 14:3-11" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1031,6 +1063,7 @@
             ],
             "psalm": { "reference": "139:1-2" },
             "gospel": { "reference": "John 12:36-43" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1053,6 +1086,7 @@
             ],
             "psalm": { "reference": "7:1-2" },
             "gospel": { "reference": "John 10:29-38" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1075,6 +1109,7 @@
             ],
             "psalm": { "reference": "61:8 & 2" },
             "gospel": { "reference": "John 12:44-50" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1109,6 +1144,7 @@
             "psalm": { "reference": "54:21 & 12" },
             "gospel": { "reference": "Luke 22:7-13" },
             "homily": { "author": "Abba John", "language": "english", "assignee": null },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": ["The Sick", "The Oblations", "Praxis"]
           },
           "readings_format": {
@@ -1134,6 +1170,7 @@
             ],
             "psalm": { "reference": "94:21 & 23" },
             "gospel": { "reference": "Matthew 26:17-19" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1158,6 +1195,7 @@
             ],
             "psalm": { "reference": "30:18 & 13" },
             "gospel": { "reference": "Mark 14:12-16" },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1184,6 +1222,7 @@
             "psalm": { "reference": "22:1" },
             "gospel": { "reference": "Matthew 26:17-19" },
             "homily": { "author": "Abba Shenouda", "language": "english", "assignee": null },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1257,6 +1296,7 @@
               { "number": 3, "reference": "John 15:26 & 16:1-33", "language": "english", "assignee": null },
               { "number": 4, "reference": "John 17:1-26", "language": "english", "assignee": null }
             ],
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1294,6 +1334,7 @@
               { "number": 3, "reference": "Luke 22:31-39", "language": "english", "assignee": null },
               { "number": 4, "reference": "John 18:1-2", "language": "english", "assignee": null }
             ],
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1331,6 +1372,7 @@
               { "number": 3, "reference": "Luke 22:40-46", "language": "english", "assignee": null },
               { "number": 4, "reference": "John 18:3-9", "language": "english", "assignee": null }
             ],
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1369,6 +1411,7 @@
               { "number": 3, "reference": "Luke 22:47-54", "language": "english", "assignee": null },
               { "number": 4, "reference": "John 18:10-14", "language": "english", "assignee": null }
             ],
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1406,6 +1449,7 @@
               { "number": 3, "reference": "Luke 22:56-65", "language": "english", "assignee": null },
               { "number": 4, "reference": "John 18:15-27", "language": "english", "assignee": null }
             ],
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1461,6 +1505,7 @@
             ],
             "pauline": { "reference": "1 Corinthians 1:23 & 2:1-4", "language": "english", "assignee": null },
             "homily": { "author": "Abba John", "language": "english", "assignee": null },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1504,6 +1549,7 @@
               { "number": 4, "reference": "John 19:1-12", "language": "english", "assignee": null }
             ],
             "homily": { "author": "Abba Athanasios", "language": "english", "assignee": null },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1542,6 +1588,7 @@
               { "number": 4, "reference": "John 19:13-27", "language": "english", "assignee": null }
             ],
             "pauline": { "reference": "Galatians 6:14-18", "language": "english", "assignee": null },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1582,6 +1629,7 @@
               { "number": 4, "reference": "John 19:28-30", "language": "english", "assignee": null }
             ],
             "pauline": { "reference": "Philippians 2:4-11", "language": "english", "assignee": null },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1622,6 +1670,7 @@
             ],
             "pauline": { "reference": "Philippians 2:4-11", "language": "english", "assignee": null },
             "homily": { "author": "Abba Athanasios", "language": "english", "assignee": null },
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
@@ -1660,6 +1709,7 @@
               { "number": 3, "reference": "Luke 23:50-56", "language": "english", "assignee": null },
               { "number": 4, "reference": "John 19:38-42", "language": "english", "assignee": null }
             ],
+            "exposition": { "language": "english", "assignee": null },
             "litanies": null
           },
           "readings_format": {
