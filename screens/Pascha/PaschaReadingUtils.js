@@ -2,8 +2,8 @@
  * PaschaReadingUtils.js
  *
  * Canonical reading order:
- *   Prophecies → Homily → Pauline → Catholic → Praxis
- *   → Psalm (Coptic only, multi-reader)
+ *   Prophecies (Coptic then Vernacular per reading) → Homily → Pauline → Catholic → Praxis
+ *   → Psalm (Coptic only if rf.psalm.coptic exists, multi-reader)
  *   → Gospel (Coptic fixed) → Gospel (Vernacular, language picker)
  *   → Exposition → Litanies
  *
@@ -19,6 +19,7 @@ export const VERNACULAR_OPTIONS = [
 
 export const READING_META = {
   prophecies:         { label: "Prophecy",         icon: "fire",                color: "#e5c46b" },
+  prophecies_coptic:  { label: "Prophecy",         icon: "fire",                color: "#e5c46b" },
   homily:             { label: "Homily",            icon: "microphone-outline",  color: "#f87171" },
   pauline:            { label: "Pauline",           icon: "feather",             color: "#c084fc" },
   catholic:           { label: "Catholic",          icon: "bookshelf",           color: "#67d3cb" },
@@ -37,6 +38,7 @@ export const READING_META = {
 // All slot types that get a reader picker
 export const ASSIGNABLE = [
   "prophecies",
+  "prophecies_coptic",
   "homily",
   "pauline", "catholic", "praxis",
   "psalm",
@@ -45,7 +47,7 @@ export const ASSIGNABLE = [
   "exposition",
 ];
 
-const COPTIC_FIXED_KEYS = new Set(["gospel_coptic", "gospels_coptic"]);
+const COPTIC_FIXED_KEYS = new Set(["gospel_coptic", "gospels_coptic", "prophecies_coptic"]);
 
 export function isAssignableSlot(rKey) {
   return ASSIGNABLE.includes(rKey) && rKey !== "psalm";
@@ -86,8 +88,8 @@ export function langFirestoreKey(slotKey) {
 
 export function effectiveLanguage(row, hourAssignments) {
   if (COPTIC_FIXED_KEYS.has(row.rKey)) return "coptic";
-  if (row.rKey === "psalm")            return "coptic";
-  if (row.rKey === "exposition")       return null; // no language badge
+  if (row.rKey === "psalm" && row.isCoptic) return "coptic";
+  if (row.rKey === "exposition")       return null;
   const override = hourAssignments[langFirestoreKey(row.slotKey)];
   if (override) return override;
   return row.language || "english";
@@ -161,30 +163,39 @@ function sanitizeKey(ref) {
 }
 
 // ─── expandReadings ───────────────────────────────────────────────────────────
-// Order: Prophecies → Homily → Pauline → Catholic → Praxis
-//        → Psalm → Gospel (Coptic) → Gospel (Vernacular) → Exposition → Litanies
-//
-// Within each bilingual type, Coptic rows always precede vernacular rows.
 export function expandReadings(hour) {
   const r  = hour.readings || {};
   const rf = hour.readings_format || {};
   const rows = [];
 
-  // ── 1. Prophecies
+  // ── 1. Prophecies (Coptic then vernacular per prophecy)
   const prophecies = r.prophecies
     ? Array.isArray(r.prophecies) ? r.prophecies : [r.prophecies]
     : [];
   prophecies.forEach((p, i) => {
+    const slotBase = prophecies.length === 1 ? "prophecy" : `prophecy_${i}`;
+    const idx = prophecies.length === 1 ? null : i;
+
+    // Coptic row first if coptic_assignee field is present in the JSON
+    if (p && typeof p === "object" && "coptic_assignee" in p) {
+      rows.push({
+        rKey: "prophecies_coptic",
+        slotKey: `${slotBase}_coptic`,
+        index: idx, refText: refOf(p), language: "coptic", location: "",
+        isCoptic: true,
+      });
+    }
+
+    // Vernacular row
     rows.push({
       rKey: "prophecies",
-      slotKey: prophecies.length === 1 ? "prophecy" : `prophecy_${i}`,
-      index: prophecies.length === 1 ? null : i,
-      refText: refOf(p), language: langOf(p), location: "",
+      slotKey: slotBase,
+      index: idx, refText: refOf(p), language: langOf(p) || "english", location: "",
       isCoptic: false,
     });
   });
 
-  // ── 2. Homily  (moved up before Pauline)
+  // ── 2. Homily
   if (r.homily) {
     const homilies = Array.isArray(r.homily) ? r.homily : [r.homily];
     homilies.forEach((h, i) => {
@@ -225,7 +236,7 @@ export function expandReadings(hour) {
     });
   }
 
-  // ── 6. Psalm (Coptic only) + 7. Gospel (Coptic before vernacular)
+  // ── 6. Psalm — Coptic only if rf.psalm.coptic exists, otherwise vernacular
   const hasPairedPsalms = isPairedPsalmArray(r.psalm);
 
   if (hasPairedPsalms) {
@@ -235,17 +246,17 @@ export function expandReadings(hour) {
     const hasGospelFormat = rf.gospel != null;
 
     gospels.forEach((gRef, i) => {
-      // Psalm (Coptic) always first
       const paired = r.psalm.find(p => p.beforeGospel === gRef);
       if (paired) {
+        const isCopticPsalm = rf.psalm?.coptic != null;
         rows.push({
           rKey: "psalm",
           slotKey: `psalm_before_${sanitizeKey(gRef)}`,
-          index: null, refText: psalmRef(paired), language: "coptic", location: "",
-          isCoptic: true,
+          index: null, refText: psalmRef(paired),
+          language: isCopticPsalm ? "coptic" : "english",
+          location: "", isCoptic: isCopticPsalm,
         });
       }
-      // Gospel Coptic
       if (hasGospelFormat && rf.gospel.coptic) {
         rows.push({
           rKey: "gospel_coptic",
@@ -263,7 +274,6 @@ export function expandReadings(hour) {
         });
       }
     });
-    // Gospel vernacular (one combined reader) comes after all Coptic gospel rows
     if (hasGospelFormat && rf.gospel.vernacular) {
       rows.push({
         rKey: "gospel_vernacular",
@@ -274,22 +284,24 @@ export function expandReadings(hour) {
       });
     }
   } else {
-    // Standard psalm — always Coptic
+    // Standard psalm
     if (r.psalm) {
       const pRef = typeof r.psalm === "string" ? r.psalm
         : r.psalm?.reference ? r.psalm.reference : psalmRef(r.psalm);
       if (pRef) {
+        // Only Coptic if readings_format explicitly has psalm.coptic
+        const isCopticPsalm = rf.psalm?.coptic != null;
         rows.push({
           rKey: "psalm", slotKey: "psalm", index: null,
-          refText: pRef, language: "coptic", location: "",
-          isCoptic: true,
+          refText: pRef,
+          language: isCopticPsalm ? "coptic" : "english",
+          location: "", isCoptic: isCopticPsalm,
         });
       }
     }
 
     const hasGospelFormat = rf.gospel != null;
     if (hasGospelFormat) {
-      // Coptic pass(es) first
       if (rf.gospel.coptic) {
         const copticEntries = Array.isArray(rf.gospel.coptic)
           ? rf.gospel.coptic : [rf.gospel.coptic];
@@ -314,7 +326,6 @@ export function expandReadings(hour) {
           });
         }
       }
-      // Vernacular pass after all Coptic
       if (rf.gospel.vernacular) {
         if (Array.isArray(rf.gospel.vernacular)) {
           rf.gospel.vernacular.forEach((v, i) => {
@@ -346,7 +357,6 @@ export function expandReadings(hour) {
         }
       }
     } else {
-      // v1 fallback — no readings_format
       if (r.gospel && !Array.isArray(r.gospel)) {
         rows.push({
           rKey: "gospel", slotKey: "gospel", index: null,
@@ -376,7 +386,7 @@ export function expandReadings(hour) {
     }
   }
 
-  // ── 8. Exposition
+  // ── 7. Exposition
   if (r.exposition !== undefined) {
     rows.push({
       rKey: "exposition", slotKey: "exposition", index: null,
@@ -384,8 +394,6 @@ export function expandReadings(hour) {
       isCoptic: false,
     });
   }
-
-  // (Litanies are structural/display only — not expanded as assignable rows here)
 
   return rows;
 }
