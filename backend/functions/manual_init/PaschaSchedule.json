@@ -16,7 +16,8 @@
             "pauline": null,
             "catholic": { "reference": "James 5:10-20", "language": "english", "assignee": null },
             "litanies": ["The Sick"]
-          }
+          },
+          "readings_format": null
         },
         {
           "id": "unction_second",
@@ -28,7 +29,8 @@
             "pauline": { "reference": "Romans 15:1-7", "language": "english", "assignee": null },
             "catholic": null,
             "litanies": ["The Travelers"]
-          }
+          },
+          "readings_format": null
         },
         {
           "id": "unction_third",
@@ -40,7 +42,8 @@
             "pauline": { "reference": "1 Corinthians 12:28 - 13:8", "language": "english", "assignee": null },
             "catholic": null,
             "litanies": ["The Air of Heaven & Fruits"]
-          }
+          },
+          "readings_format": null
         },
         {
           "id": "unction_fourth",
@@ -52,7 +55,8 @@
             "pauline": { "reference": "Romans 8:14-21", "language": "english", "assignee": null },
             "catholic": null,
             "litanies": ["The Leaders"]
-          }
+          },
+          "readings_format": null
         },
         {
           "id": "unction_fifth",
@@ -64,7 +68,8 @@
             "pauline": { "reference": "Galatians 2:16-20", "language": "english", "assignee": null },
             "catholic": null,
             "litanies": ["The Departed"]
-          }
+          },
+          "readings_format": null
         },
         {
           "id": "unction_sixth",
@@ -76,7 +81,8 @@
             "pauline": { "reference": "Colossians 3:12-17", "language": "english", "assignee": null },
             "catholic": null,
             "litanies": ["The Oblations"]
-          }
+          },
+          "readings_format": null
         },
         {
           "id": "unction_seventh",
@@ -88,7 +94,8 @@
             "pauline": { "reference": "Ephesians 6:10-18", "language": "english", "assignee": null },
             "catholic": null,
             "litanies": ["The Catechumens"]
-          }
+          },
+          "readings_format": null
         },
         {
           "id": "liturgy",
@@ -101,7 +108,8 @@
             "catholic": { "reference": "James 5:7-16", "language": "english", "assignee": null },
             "praxis": { "reference": "Acts 15:1-18", "language": "english", "assignee": null },
             "litanies": null
-          }
+          },
+          "readings_format": null
         }
       ]
     },
@@ -129,7 +137,8 @@
               { "number": 11, "reference": "Matthew 21:1-11", "location": "Before the Southern Door", "language": "english", "assignee": null },
               { "number": 12, "reference": "Luke 7:28-35", "location": "Before the Icon of St. John the Baptist", "language": "english", "assignee": null }
             ]
-          }
+          },
+          "readings_format": null
         },
         {
           "id": "morning_incense",
@@ -141,7 +150,8 @@
             "pauline": null,
             "catholic": null,
             "litanies": null
-          }
+          },
+          "readings_format": null
         },
         {
           "id": "liturgy",
@@ -149,10 +159,10 @@
           "readings": {
             "prophecies": null,
             "psalm": [
-              { "reference": "81:3 & 1-2" },
-              { "reference": "65:1-2" }
+              { "reference": "81:3 & 1-2", "beforeGospel": "Matthew 21:1-17" },
+              { "reference": "65:1-2", "beforeGospel": "John 12:12-19" }
             ],
-            "gospels": [
+            "gospel": [
               { "reference": "Matthew 21:1-17", "language": "english", "assignee": null },
               { "reference": "Mark 11:1-11", "language": "english", "assignee": null },
               { "reference": "Luke 19:29-48", "language": "english", "assignee": null },
@@ -162,7 +172,8 @@
             "catholic": { "reference": "1 Peter 4:1-11", "language": "english", "assignee": null },
             "praxis": { "reference": "Acts 28:11-31", "language": "english", "assignee": null },
             "litanies": ["The Sick", "The Gospel", "The Peace", "The Fathers", "The Assemblies", "The Departed"]
-          }
+          },
+          "readings_format": null
         },
         {
           "id": "general_funeral",
@@ -176,7 +187,8 @@
             "pauline": { "reference": "1 Corinthians 15:1-23", "language": "english", "assignee": null },
             "catholic": null,
             "litanies": null
-          }
+          },
+          "readings_format": null
         },
         {
           "id": "ninth",
@@ -186,18 +198,19 @@
               { "reference": "Lamentations 1:1-4", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Zephaniah 3:11-20", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "8:3-4" },
+            "gospel": { "reference": "Matthew 21:10-17" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "8:3-4",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Matthew 21:10-17",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -208,18 +221,19 @@
               { "reference": "Isaiah 48:12-22", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Nahum 1:2-8", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "22:22-23" },
+            "gospel": { "reference": "Matthew 20:20-28" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "22:22-23",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Matthew 20:20-28",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         }
       ]
@@ -228,7 +242,7 @@
       "id": "monday_eve",
       "label": "Monday Eve",
       "order": 3,
-      "easterOffset": -6,
+      "easterOffset": -7,
       "hours": [
         {
           "id": "first",
@@ -237,18 +251,19 @@
             "prophecies": [
               { "reference": "Zephaniah 1:2-12", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "26:6-7" },
+            "gospel": { "reference": "John 12:20-36" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "26:6-7",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "John 12:20-36",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -258,18 +273,19 @@
             "prophecies": [
               { "reference": "Zephaniah 1:14 - 2:3", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "28:9 & 2" },
+            "gospel": { "reference": "Luke 9:18-22" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "28:9 & 2",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Luke 9:18-22",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -279,18 +295,19 @@
             "prophecies": [
               { "reference": "Joel 1:5-15", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "29:1-2" },
+            "gospel": { "reference": "Mark 10:32-34" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "29:1-2",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Mark 10:32-34",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -300,18 +317,19 @@
             "prophecies": [
               { "reference": "Micah 2:3-11", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "17:6 & 1" },
+            "gospel": { "reference": "Mark 8:27-33" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "17:6 & 1",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Mark 8:27-33",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -321,18 +339,19 @@
             "prophecies": [
               { "reference": "Micah 3:1-4", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "18:17-18" },
+            "gospel": { "reference": "Matthew 17:19-23" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "18:17-18",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Matthew 17:19-23",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         }
       ]
@@ -352,19 +371,20 @@
               { "reference": "Isaiah 5:1-9", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Sirach 1:1-24", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "71:18-19" },
+            "gospel": { "reference": "Mark 11:12-24" },
+            "homily": { "author": "Abba Shenouda", "language": "english", "assignee": null },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "71:18-19",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Mark 11:12-24",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "homily": { "author": "Abba Shenouda", "language": "english", "assignee": null },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -375,18 +395,19 @@
               { "reference": "Isaiah 5:20-30", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Jeremiah 9:12-19", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "121:1-2" },
+            "gospel": { "reference": "Mark 11:11-19" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "121:1-2",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Mark 11:11-19",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -397,18 +418,19 @@
               { "reference": "Exodus 32:7-15", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Wisdom of Solomon 1:1-9", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "121:4" },
+            "gospel": { "reference": "John 2:13-17" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "121:4",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "John 2:13-17",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -417,21 +439,22 @@
           "readings": {
             "prophecies": [
               { "reference": "Genesis 2:15 - 3:24", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "reference": "Isaiah 40:1-5", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "reference": "Proverbs 9:1-11", "coptic_assignee": null, "language": "english", "assignee": null }
+              { "reference": "Isaiah 5:1-9", "coptic_assignee": null, "language": "english", "assignee": null },
+              { "reference": "Sirach 1:1-24", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "64:5 & 4" },
+            "gospel": { "reference": "Matthew 21:23-27" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "64:5 & 4",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Matthew 21:23-27",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -440,20 +463,21 @@
           "readings": {
             "prophecies": [
               { "reference": "Isaiah 50:1-3", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "reference": "Sirach 1:20-30", "coptic_assignee": null, "language": "english", "assignee": null }
+              { "reference": "Sirach 1:18-27", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "12:3-4" },
+            "gospel": { "reference": "John 8:51-59" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "12:3-4",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "John 8:51-59",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         }
       ]
@@ -462,7 +486,7 @@
       "id": "tuesday_eve",
       "label": "Tuesday Eve",
       "order": 5,
-      "easterOffset": -5,
+      "easterOffset": -6,
       "hours": [
         {
           "id": "first",
@@ -471,18 +495,19 @@
             "prophecies": [
               { "reference": "Zechariah 1:1-6", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "62:6-7" },
+            "gospel": { "reference": "Luke 13:23-30" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "62:6-7",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Luke 13:23-30",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -492,18 +517,19 @@
             "prophecies": [
               { "reference": "Malachi 1:1-9", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "12:4 & 6" },
+            "gospel": { "reference": "Luke 13:31-35" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "12:4 & 6",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Luke 13:31-35",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -513,18 +539,19 @@
             "prophecies": [
               { "reference": "Hosea 4:15 - 5:7", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "91:2-3" },
+            "gospel": { "reference": "Luke 21:34-38" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "91:2-3",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Luke 21:34-38",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -534,18 +561,19 @@
             "prophecies": [
               { "reference": "Hosea 10:12 - 11:2", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "32:10-11" },
+            "gospel": { "reference": "Luke 11:37-52" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "32:10-11",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Luke 11:37-52",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -555,18 +583,19 @@
             "prophecies": [
               { "reference": "Amos 5:6-14", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "122:4" },
+            "gospel": { "reference": "Mark 13:32 - 14:2" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "122:4",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Mark 13:32 - 14:2",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         }
       ]
@@ -586,19 +615,20 @@
               { "reference": "Job 23:2 - 24:25", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Hosea 4:1-8", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "119:2 & 7" },
+            "gospel": { "reference": "John 8:21-29" },
+            "homily": { "author": "Abba Shenouda", "language": "english", "assignee": null },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "119:2 & 7",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "John 8:21-29",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "homily": { "author": "Abba Shenouda", "language": "english", "assignee": null },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -609,18 +639,19 @@
               { "reference": "Deuteronomy 8:11-20", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Sirach 2:1-9", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "119:154-155" },
+            "gospel": { "reference": "Matthew 23:37 - 24:2" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "119:154-155",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Matthew 23:37 - 24:2",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -631,18 +662,19 @@
               { "reference": "Ezekiel 21:3-13", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Sirach 4:20 - 5:2", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "18:48 & 17" },
+            "gospel": { "reference": "John 8:12-20" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "18:48 & 17",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "John 8:12-20",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -655,18 +687,19 @@
               { "reference": "Isaiah 40:9-31", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Daniel 7:9-15", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "24:1-3" },
+            "gospel": { "reference": "Matthew 24:3-35" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "24:1-3",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Matthew 24:3-35",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -677,19 +710,20 @@
               { "reference": "Isaiah 30:25-30", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Proverbs 6:24 - 7:5", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "44:6 & 40:1" },
+            "gospel": { "reference": "Matthew 25:14 & 26:2" },
+            "homily": { "author": "Abba John", "language": "english", "assignee": null },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "44:6 & 40:1",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Matthew 25:14 & 26:2",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "homily": { "author": "Abba John", "language": "english", "assignee": null },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         }
       ]
@@ -698,7 +732,7 @@
       "id": "wednesday_eve",
       "label": "Wednesday Eve",
       "order": 7,
-      "easterOffset": -4,
+      "easterOffset": -5,
       "hours": [
         {
           "id": "first",
@@ -707,18 +741,19 @@
             "prophecies": [
               { "reference": "Ezekiel 22:17-22", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "58:17-18" },
+            "gospel": { "reference": "Matthew 22:1-14" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "58:17-18",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Matthew 22:1-14",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -728,18 +763,19 @@
             "prophecies": [
               { "reference": "Amos 5:18-27", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "64:5" },
+            "gospel": { "reference": "Matthew 24:36-51" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "64:5",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Matthew 24:36-51",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -749,18 +785,19 @@
             "prophecies": [
               { "reference": "Jeremiah 13:9 & 16:9-13", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "102:1 & 2" },
+            "gospel": { "reference": "Matthew 25:1-13" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "102:1 & 2",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Matthew 25:1-13",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -770,18 +807,19 @@
             "prophecies": [
               { "reference": "Hosea 9:14 - 10:2", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "22:20-21" },
+            "gospel": { "reference": "Matthew 23:29-36" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "22:20-21",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Matthew 23:29-36",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -791,18 +829,19 @@
             "prophecies": [
               { "reference": "Wisdom of Solomon 7:24-30", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "56:1-2" },
+            "gospel": { "reference": "John 11:55-57" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "56:1-2",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "John 11:55-57",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         }
       ]
@@ -822,19 +861,20 @@
               { "reference": "Proverbs 3:5-14", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Hosea 5:13 & 6:3", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "50:6 & 32:10" },
+            "gospel": { "reference": "John 11:46-57" },
+            "homily": { "author": "Abba Shenouda", "language": "english", "assignee": null },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "50:6 & 32:10",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "John 11:46-57",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "homily": { "author": "Abba Shenouda", "language": "english", "assignee": null },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -845,18 +885,19 @@
               { "reference": "Exodus 13:17-22", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Sirach 22:7-18", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "41:6 & 1" },
+            "gospel": { "reference": "Luke 22:1-6" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "41:6 & 1",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Luke 22:1-6",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -867,18 +908,19 @@
               { "reference": "Exodus 14:13 - 15:1", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Sirach 23:7-14", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "83:2 & 5" },
+            "gospel": { "reference": "John 12:1-8" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "83:2 & 5",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "John 12:1-8",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -888,20 +930,21 @@
             "prophecies": [
               { "reference": "Genesis 24:1-9", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Numbers 20:1-13", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "reference": "Proverbs 1:10-33", "coptic_assignee": null, "language": "english", "assignee": null }
+              { "reference": "Proverbs 1:11-35", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "40:6-8" },
+            "gospel": { "reference": "Matthew 26:3-16" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "40:6-8",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Matthew 26:3-16",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -911,19 +954,20 @@
             "prophecies": [
               { "reference": "Isaiah 28:16-29", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "6:2-3 & 68:17" },
+            "gospel": { "reference": "John 12:27-36" },
+            "homily": { "author": "Abba Severianus", "language": "english", "assignee": null },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "6:2-3 & 68:17",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "John 12:27-36",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "homily": { "author": "Abba Severianus", "language": "english", "assignee": null },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         }
       ]
@@ -932,7 +976,7 @@
       "id": "thursday_eve",
       "label": "Thursday Eve",
       "order": 9,
-      "easterOffset": -3,
+      "easterOffset": -4,
       "hours": [
         {
           "id": "first",
@@ -941,18 +985,19 @@
             "prophecies": [
               { "reference": "Ezekiel 43:5-11", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "68:1 & 16" },
+            "gospel": { "reference": "John 10:17-21" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "68:1 & 16",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "John 10:17-21",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -962,18 +1007,19 @@
             "prophecies": [
               { "reference": "Amos 4:4-13", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "54:21 & 1" },
+            "gospel": { "reference": "Mark 14:3-11" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "54:21 & 1",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Mark 14:3-11",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -983,18 +1029,19 @@
             "prophecies": [
               { "reference": "Amos 3:1-11", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "139:1-2" },
+            "gospel": { "reference": "John 12:36-43" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "139:1-2",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "John 12:36-43",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -1004,18 +1051,19 @@
             "prophecies": [
               { "reference": "Ezekiel 20:27-33", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "7:1-2" },
+            "gospel": { "reference": "John 10:29-38" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "7:1-2",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "John 10:29-38",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -1023,20 +1071,21 @@
           "label": "Eleventh Hour",
           "readings": {
             "prophecies": [
-              { "reference": "Jeremiah 8:4-9", "coptic_assignee": null, "language": "english", "assignee": null }
+              { "reference": "Jeremiah 8:4-10", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "61:8 & 2" },
+            "gospel": { "reference": "John 12:44-50" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "61:8 & 2",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "John 12:44-50",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         }
       ]
@@ -1057,19 +1106,20 @@
               { "reference": "Isaiah 58:1-9", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Ezekiel 18:20-32", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "54:21 & 12" },
+            "gospel": { "reference": "Luke 22:7-13" },
+            "homily": { "author": "Abba John", "language": "english", "assignee": null },
+            "litanies": ["The Sick", "The Oblations", "Praxis"]
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "54:21 & 12",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Luke 22:7-13",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "homily": { "author": "Abba John", "language": "english", "assignee": null },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": ["The Sick", "The Oblations", "Praxis"]
+            }
           }
         },
         {
@@ -1082,18 +1132,19 @@
               { "reference": "Zechariah 9:11-15", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Proverbs 29:27 & 30:1", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "94:21 & 23" },
+            "gospel": { "reference": "Matthew 26:17-19" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "94:21 & 23",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Matthew 26:17-19",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -1105,18 +1156,19 @@
               { "reference": "Ezekiel 20:39-44", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Sirach 12:13 - 13:1", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "30:18 & 13" },
+            "gospel": { "reference": "Mark 14:12-16" },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "30:18 & 13",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Mark 14:12-16",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -1129,19 +1181,20 @@
               { "reference": "Genesis 14:17-20", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Job 27:1 & 28:1-13", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "22:1" },
+            "gospel": { "reference": "Matthew 26:17-19" },
+            "homily": { "author": "Abba Shenouda", "language": "english", "assignee": null },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "22:1",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
             "gospel": {
-              "reference": "Matthew 26:17-19",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
-            },
-            "homily": { "author": "Abba Shenouda", "language": "english", "assignee": null },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            }
           }
         },
         {
@@ -1158,42 +1211,29 @@
               { "reference": "Ezekiel 36:25-29", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Ezekiel 47:1-9", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
-            "psalm": {
-              "reference": "51:7 & 10",
-              "coptic_assignee": null,
-              "vernacular": { "language": "english", "assignee": null }
-            },
-            "gospel": {
-              "reference": "John 13:1-17",
-              "coptic_assignee": null,
-              "vernacular": { "language": "english", "assignee": null }
-            },
-            "pauline": { "reference": "1 Timothy 4:9 & 5:1-10", "language": "english", "assignee": null },
+            "psalm": null,
+            "gospel": { "reference": "John 13:1-17" },
+            "pauline": { "reference": "1 Timothy 4:9 & 5:10", "language": "english", "assignee": null },
             "homily": [
               { "author": "Abba Shenouda", "language": "english", "assignee": null },
               { "author": "Abba John", "language": "english", "assignee": null }
             ],
             "litanies": ["The Sick", "The Travelers", "Air of Heaven", "Leaders", "Departed", "Oblations", "Catechumens", "Peace", "Fathers", "Assemblies"]
-          }
+          },
+          "readings_format": null
         },
         {
           "id": "liturgy",
           "label": "Covenant Thursday Liturgy",
           "readings": {
             "prophecies": null,
-            "psalm": {
-              "reference": "22:5 & 41:9",
-              "coptic_assignee": null,
-              "vernacular": { "language": "english", "assignee": null }
-            },
-            "gospel": {
-              "reference": "Matthew 26:20-29",
-              "coptic_assignee": null,
-              "vernacular": { "language": "english", "assignee": null }
-            },
+            "psalm": null,
+            "gospel": { "reference": "Matthew 26:20-29" },
             "pauline": { "reference": "1 Corinthians 11:23-34", "language": "english", "assignee": null },
+            "catholic": null,
             "litanies": null
-          }
+          },
+          "readings_format": null
         }
       ]
     },
@@ -1201,7 +1241,7 @@
       "id": "good_friday_eve",
       "label": "Good Friday Eve",
       "order": 11,
-      "easterOffset": -2,
+      "easterOffset": -3,
       "hours": [
         {
           "id": "first",
@@ -1210,19 +1250,34 @@
             "prophecies": [
               { "reference": "Jeremiah 8:15 & 9:1-6", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "101:1 & 8" },
+            "gospels": [
+              { "number": 1, "reference": "John 13:33 & 14:1-25", "language": "english", "assignee": null },
+              { "number": 2, "reference": "John 14:26 & 15:1-25", "language": "english", "assignee": null },
+              { "number": 3, "reference": "John 15:26 & 16:1-33", "language": "english", "assignee": null },
+              { "number": 4, "reference": "John 17:1-26", "language": "english", "assignee": null }
+            ],
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "101:1 & 8",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
-            "gospels": [
-              { "number": 1, "label": "First Paraclete", "reference": "John 13:33 & 14:1-25", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 2, "label": "Second Paraclete", "reference": "John 14:26 & 15:1-25", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 3, "label": "Third Paraclete", "reference": "John 15:26 & 16:1-33", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 4, "label": "Fourth Paraclete", "reference": "John 17:1-26", "coptic_assignee": null, "language": "english", "assignee": null }
-            ],
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            "gospel": {
+              "coptic": [
+                { "reference": "John 13:33 & 14:1-25", "assignee": null },
+                { "reference": "John 14:26 & 15:1-25", "assignee": null },
+                { "reference": "John 15:26 & 16:1-33", "assignee": null },
+                { "reference": "John 17:1-26", "assignee": null }
+              ],
+              "vernacular": [
+                { "reference": "John 13:33 & 14:1-25", "language": "english", "assignee": null },
+                { "reference": "John 14:26 & 15:1-25", "language": "english", "assignee": null },
+                { "reference": "John 15:26 & 16:1-33", "language": "english", "assignee": null },
+                { "reference": "John 17:1-26", "language": "english", "assignee": null }
+              ]
+            }
           }
         },
         {
@@ -1232,19 +1287,34 @@
             "prophecies": [
               { "reference": "Ezekiel 36:16-23", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "108:1 & 3" },
+            "gospels": [
+              { "number": 1, "reference": "Matthew 26:30-35", "language": "english", "assignee": null },
+              { "number": 2, "reference": "Mark 14:26-31", "language": "english", "assignee": null },
+              { "number": 3, "reference": "Luke 22:31-39", "language": "english", "assignee": null },
+              { "number": 4, "reference": "John 18:1-2", "language": "english", "assignee": null }
+            ],
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "108:1 & 3",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
-            "gospels": [
-              { "number": 1, "reference": "Matthew 26:30-35", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 2, "reference": "Mark 14:26-31", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 3, "reference": "Luke 22:31-39", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 4, "reference": "John 18:1-2", "coptic_assignee": null, "language": "english", "assignee": null }
-            ],
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            "gospel": {
+              "coptic": [
+                { "reference": "Matthew 26:30-35", "assignee": null },
+                { "reference": "Mark 14:26-31", "assignee": null },
+                { "reference": "Luke 22:31-39", "assignee": null },
+                { "reference": "John 18:1-2", "assignee": null }
+              ],
+              "vernacular": [
+                { "reference": "Matthew 26:30-35", "language": "english", "assignee": null },
+                { "reference": "Mark 14:26-31", "language": "english", "assignee": null },
+                { "reference": "Luke 22:31-39", "language": "english", "assignee": null },
+                { "reference": "John 18:1-2", "language": "english", "assignee": null }
+              ]
+            }
           }
         },
         {
@@ -1254,19 +1324,34 @@
             "prophecies": [
               { "reference": "Ezekiel 22:23-28", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "58:1 & 68:20" },
+            "gospels": [
+              { "number": 1, "reference": "Matthew 26:36-46", "language": "english", "assignee": null },
+              { "number": 2, "reference": "Mark 14:32-42", "language": "english", "assignee": null },
+              { "number": 3, "reference": "Luke 22:40-46", "language": "english", "assignee": null },
+              { "number": 4, "reference": "John 18:3-9", "language": "english", "assignee": null }
+            ],
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "58:1 & 68:20",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
-            "gospels": [
-              { "number": 1, "reference": "Matthew 26:36-46", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 2, "reference": "Mark 14:32-42", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 3, "reference": "Luke 22:40-46", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 4, "reference": "John 18:3-9", "coptic_assignee": null, "language": "english", "assignee": null }
-            ],
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            "gospel": {
+              "coptic": [
+                { "reference": "Matthew 26:36-46", "assignee": null },
+                { "reference": "Mark 14:32-42", "assignee": null },
+                { "reference": "Luke 22:40-46", "assignee": null },
+                { "reference": "John 18:3-9", "assignee": null }
+              ],
+              "vernacular": [
+                { "reference": "Matthew 26:36-46", "language": "english", "assignee": null },
+                { "reference": "Mark 14:32-42", "language": "english", "assignee": null },
+                { "reference": "Luke 22:40-46", "language": "english", "assignee": null },
+                { "reference": "John 18:3-9", "language": "english", "assignee": null }
+              ]
+            }
           }
         },
         {
@@ -1274,22 +1359,37 @@
           "label": "Ninth Hour",
           "readings": {
             "prophecies": [
-              { "reference": "Jeremiah 9:7-11", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "reference": "Ezekiel 21:28-32", "coptic_assignee": null, "language": "english", "assignee": null }
+              { "reference": "Jeremiah 9:7-15", "coptic_assignee": null, "language": "english", "assignee": null },
+              { "reference": "Ezekiel 21:33-37", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "27:3-4 & 34:4" },
+            "gospels": [
+              { "number": 1, "reference": "Matthew 26:47-58", "language": "english", "assignee": null },
+              { "number": 2, "reference": "Mark 14:43-54", "language": "english", "assignee": null },
+              { "number": 3, "reference": "Luke 22:47-54", "language": "english", "assignee": null },
+              { "number": 4, "reference": "John 18:10-14", "language": "english", "assignee": null }
+            ],
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "27:3-4 & 34:4",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
-            "gospels": [
-              { "number": 1, "reference": "Matthew 26:47-58", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 2, "reference": "Mark 14:43-54", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 3, "reference": "Luke 22:47-55", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 4, "reference": "John 18:10-14", "coptic_assignee": null, "language": "english", "assignee": null }
-            ],
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            "gospel": {
+              "coptic": [
+                { "reference": "Matthew 26:47-58", "assignee": null },
+                { "reference": "Mark 14:43-54", "assignee": null },
+                { "reference": "Luke 22:47-54", "assignee": null },
+                { "reference": "John 18:10-14", "assignee": null }
+              ],
+              "vernacular": [
+                { "reference": "Matthew 26:47-58", "language": "english", "assignee": null },
+                { "reference": "Mark 14:43-54", "language": "english", "assignee": null },
+                { "reference": "Luke 22:47-54", "language": "english", "assignee": null },
+                { "reference": "John 18:10-14", "language": "english", "assignee": null }
+              ]
+            }
           }
         },
         {
@@ -1299,19 +1399,34 @@
             "prophecies": [
               { "reference": "Isaiah 27:11 & 28:1-15", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "2:1-3 & 2:4-5" },
+            "gospels": [
+              { "number": 1, "reference": "Matthew 26:59-75", "language": "english", "assignee": null },
+              { "number": 2, "reference": "Mark 14:55-72", "language": "english", "assignee": null },
+              { "number": 3, "reference": "Luke 22:56-65", "language": "english", "assignee": null },
+              { "number": 4, "reference": "John 18:15-27", "language": "english", "assignee": null }
+            ],
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "2:1-2 & 2:4-5",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
-            "gospels": [
-              { "number": 1, "reference": "Matthew 26:59-75", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 2, "reference": "Mark 14:55-72", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 3, "reference": "Luke 22:56-65", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 4, "reference": "John 18:15-27", "coptic_assignee": null, "language": "english", "assignee": null }
-            ],
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            "gospel": {
+              "coptic": [
+                { "reference": "Matthew 26:59-75", "assignee": null },
+                { "reference": "Mark 14:55-72", "assignee": null },
+                { "reference": "Luke 22:56-65", "assignee": null },
+                { "reference": "John 18:15-27", "assignee": null }
+              ],
+              "vernacular": [
+                { "reference": "Matthew 26:59-75", "language": "english", "assignee": null },
+                { "reference": "Mark 14:55-72", "language": "english", "assignee": null },
+                { "reference": "Luke 22:56-65", "language": "english", "assignee": null },
+                { "reference": "John 18:15-27", "language": "english", "assignee": null }
+              ]
+            }
           }
         }
       ]
@@ -1331,29 +1446,42 @@
               { "reference": "Isaiah 1:2-9", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Isaiah 2:10-21", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Jeremiah 22:29 & 23:1-6", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "reference": "Jeremiah 18:2-6 & 20:3 & 21:1 & 38:1", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Isaiah 24:1-13", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Wisdom of Solomon 2:12-22", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "reference": "Job 12:17 & 13:1", "coptic_assignee": null, "language": "english", "assignee": null },
+              { "reference": "Job 12:18 & 13:1", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Zechariah 11:11-14", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "reference": "Micah 1:16 & 2:1-3", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Micah 7:1-8", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "26:15 & 34:13-14 & 19" },
+            "gospels": [
+              { "number": 1, "reference": "Matthew 27:1-14", "language": "english", "assignee": null },
+              { "number": 2, "reference": "Mark 15:1-5", "language": "english", "assignee": null },
+              { "number": 3, "reference": "Luke 22:66 & 23:1-12", "language": "english", "assignee": null },
+              { "number": 4, "reference": "John 18:28", "language": "english", "assignee": null }
+            ],
+            "pauline": { "reference": "1 Corinthians 1:23 & 2:1-4", "language": "english", "assignee": null },
+            "homily": { "author": "Abba John", "language": "english", "assignee": null },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "26:15 & 34:13-14 & 19",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
-            "gospels": [
-              { "number": 1, "reference": "Matthew 27:1-14", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 2, "reference": "Mark 15:1-5", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 3, "reference": "Luke 22:66 & 23:1-12", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 4, "reference": "John 18:28-40", "coptic_assignee": null, "language": "english", "assignee": null }
-            ],
-            "pauline": { "reference": "1 Corinthians 1:23 & 2:1-5", "language": "english", "assignee": null },
-            "homily": { "author": "Abba John", "language": "english", "assignee": null },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            "gospel": {
+              "coptic": [
+                { "reference": "Matthew 27:1-14", "assignee": null },
+                { "reference": "Mark 15:1-5", "assignee": null },
+                { "reference": "Luke 22:66 & 23:1-12", "assignee": null },
+                { "reference": "John 18:28", "assignee": null }
+              ],
+              "vernacular": [
+                { "reference": "Matthew 27:1-14", "language": "english", "assignee": null },
+                { "reference": "Mark 15:1-5", "language": "english", "assignee": null },
+                { "reference": "Luke 22:66 & 23:1-12", "language": "english", "assignee": null },
+                { "reference": "John 18:28", "language": "english", "assignee": null }
+              ]
+            }
           }
         },
         {
@@ -1368,21 +1496,32 @@
               { "reference": "Amos 9:4-10", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Job 29:21 & 30:1-10", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
-            "psalm": {
-              "reference": "37:17 & 21:15-16",
-              "coptic_assignee": null,
-              "vernacular": { "language": "english", "assignee": null }
-            },
+            "psalm": null,
             "gospels": [
-              { "number": 1, "reference": "Matthew 27:15-26", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 2, "reference": "Mark 15:6-25", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 3, "reference": "Luke 23:13-25", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 4, "reference": "John 19:1-12", "coptic_assignee": null, "language": "english", "assignee": null }
+              { "number": 1, "reference": "Matthew 27:15-26", "language": "english", "assignee": null },
+              { "number": 2, "reference": "Mark 15:6-25", "language": "english", "assignee": null },
+              { "number": 3, "reference": "Luke 23:13-25", "language": "english", "assignee": null },
+              { "number": 4, "reference": "John 19:1-12", "language": "english", "assignee": null }
             ],
-            "pauline": { "reference": "Colossians 2:13-15", "language": "english", "assignee": null },
             "homily": { "author": "Abba Athanasios", "language": "english", "assignee": null },
-            "exposition": { "language": "english", "assignee": null },
             "litanies": null
+          },
+          "readings_format": {
+            "psalm": null,
+            "gospel": {
+              "coptic": [
+                { "reference": "Matthew 27:15-26", "assignee": null },
+                { "reference": "Mark 15:6-25", "assignee": null },
+                { "reference": "Luke 23:13-25", "assignee": null },
+                { "reference": "John 19:1-12", "assignee": null }
+              ],
+              "vernacular": [
+                { "reference": "Matthew 27:15-26", "language": "english", "assignee": null },
+                { "reference": "Mark 15:6-25", "language": "english", "assignee": null },
+                { "reference": "Luke 23:13-25", "language": "english", "assignee": null },
+                { "reference": "John 19:1-12", "language": "english", "assignee": null }
+              ]
+            }
           }
         },
         {
@@ -1395,20 +1534,35 @@
               { "reference": "Isaiah 12:2 & 13:1-10", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Amos 8:9-12", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
-            "psalm": {
-              "reference": "37:21-22 & 21:16-18 & 8",
-              "coptic_assignee": null,
-              "vernacular": { "language": "english", "assignee": null }
-            },
+            "psalm": { "reference": "37:21-22 & 21:16-18 & 8" },
             "gospels": [
-              { "number": 1, "reference": "Matthew 27:27-45", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 2, "reference": "Mark 15:26-33", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 3, "reference": "Luke 23:26-44", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 4, "reference": "John 19:13-27", "coptic_assignee": null, "language": "english", "assignee": null }
+              { "number": 1, "reference": "Matthew 27:27-45", "language": "english", "assignee": null },
+              { "number": 2, "reference": "Mark 15:26-33", "language": "english", "assignee": null },
+              { "number": 3, "reference": "Luke 23:26-44", "language": "english", "assignee": null },
+              { "number": 4, "reference": "John 19:13-27", "language": "english", "assignee": null }
             ],
             "pauline": { "reference": "Galatians 6:14-18", "language": "english", "assignee": null },
-            "exposition": { "language": "english", "assignee": null },
             "litanies": null
+          },
+          "readings_format": {
+            "psalm": {
+              "coptic": { "assignee": null },
+              "vernacular": { "language": "english", "assignee": null }
+            },
+            "gospel": {
+              "coptic": [
+                { "reference": "Matthew 27:27-45", "assignee": null },
+                { "reference": "Mark 15:26-33", "assignee": null },
+                { "reference": "Luke 23:26-44", "assignee": null },
+                { "reference": "John 19:13-27", "assignee": null }
+              ],
+              "vernacular": [
+                { "reference": "Matthew 27:27-45", "language": "english", "assignee": null },
+                { "reference": "Mark 15:26-33", "language": "english", "assignee": null },
+                { "reference": "Luke 23:26-44", "language": "english", "assignee": null },
+                { "reference": "John 19:13-27", "language": "english", "assignee": null }
+              ]
+            }
           }
         },
         {
@@ -1416,24 +1570,39 @@
           "label": "Ninth Hour",
           "readings": {
             "prophecies": [
-              { "reference": "Jeremiah 11:17 & 12:1-13", "coptic_assignee": null, "language": "english", "assignee": null },
+              { "reference": "Jeremiah 11:17 & 12:13", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Zechariah 14:5-11", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Joel 2:1-11", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
-            "psalm": {
-              "reference": "69:1-2 & 21",
-              "coptic_assignee": null,
-              "vernacular": { "language": "english", "assignee": null }
-            },
+            "psalm": { "reference": "69:1-2 & 21" },
             "gospels": [
-              { "number": 1, "reference": "Matthew 27:46-50", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 2, "reference": "Mark 15:34-37", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 3, "reference": "Luke 23:45-46", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 4, "reference": "John 19:28-30", "coptic_assignee": null, "language": "english", "assignee": null }
+              { "number": 1, "reference": "Matthew 27:46-50", "language": "english", "assignee": null },
+              { "number": 2, "reference": "Mark 15:34-37", "language": "english", "assignee": null },
+              { "number": 3, "reference": "Luke 23:45-46", "language": "english", "assignee": null },
+              { "number": 4, "reference": "John 19:28-30", "language": "english", "assignee": null }
             ],
             "pauline": { "reference": "Philippians 2:4-11", "language": "english", "assignee": null },
-            "exposition": { "language": "english", "assignee": null },
             "litanies": null
+          },
+          "readings_format": {
+            "psalm": {
+              "coptic": { "assignee": null },
+              "vernacular": { "language": "english", "assignee": null }
+            },
+            "gospel": {
+              "coptic": [
+                { "reference": "Matthew 27:46-50", "assignee": null },
+                { "reference": "Mark 15:34-37", "assignee": null },
+                { "reference": "Luke 23:45-46", "assignee": null },
+                { "reference": "John 19:28-30", "assignee": null }
+              ],
+              "vernacular": [
+                { "reference": "Matthew 27:46-50", "language": "english", "assignee": null },
+                { "reference": "Mark 15:34-37", "language": "english", "assignee": null },
+                { "reference": "Luke 23:45-46", "language": "english", "assignee": null },
+                { "reference": "John 19:28-30", "language": "english", "assignee": null }
+              ]
+            }
           }
         },
         {
@@ -1444,21 +1613,36 @@
               { "reference": "Exodus 12:1-14", "coptic_assignee": null, "language": "english", "assignee": null },
               { "reference": "Leviticus 23:5-15", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "142:6-7 & 30:5" },
+            "gospels": [
+              { "number": 1, "reference": "Matthew 27:51-56", "language": "english", "assignee": null },
+              { "number": 2, "reference": "Mark 15:38-41", "language": "english", "assignee": null },
+              { "number": 3, "reference": "Luke 23:47-49", "language": "english", "assignee": null },
+              { "number": 4, "reference": "John 19:31-37", "language": "english", "assignee": null }
+            ],
+            "pauline": { "reference": "Philippians 2:4-11", "language": "english", "assignee": null },
+            "homily": { "author": "Abba Athanasios", "language": "english", "assignee": null },
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "142:6-7 & 30:5",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
-            "gospels": [
-              { "number": 1, "reference": "Matthew 27:51-56", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 2, "reference": "Mark 15:38-41", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 3, "reference": "Luke 23:47-49", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 4, "reference": "John 19:31-37", "coptic_assignee": null, "language": "english", "assignee": null }
-            ],
-            "pauline": { "reference": "Galatians 3:1-6", "language": "english", "assignee": null },
-            "homily": { "author": "Abba Athanasios", "language": "english", "assignee": null },
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            "gospel": {
+              "coptic": [
+                { "reference": "Matthew 27:51-56", "assignee": null },
+                { "reference": "Mark 15:38-41", "assignee": null },
+                { "reference": "Luke 23:47-49", "assignee": null },
+                { "reference": "John 19:31-37", "assignee": null }
+              ],
+              "vernacular": [
+                { "reference": "Matthew 27:51-56", "language": "english", "assignee": null },
+                { "reference": "Mark 15:38-41", "language": "english", "assignee": null },
+                { "reference": "Luke 23:47-49", "language": "english", "assignee": null },
+                { "reference": "John 19:31-37", "language": "english", "assignee": null }
+              ]
+            }
           }
         },
         {
@@ -1467,21 +1651,36 @@
           "readings": {
             "prophecies": [
               { "reference": "Lamentations 3:1-66", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "reference": "Jonah 1:10 & 2:1-7", "coptic_assignee": null, "language": "english", "assignee": null }
+              { "reference": "Jonah 1:10 & 2:2-7", "coptic_assignee": null, "language": "english", "assignee": null }
             ],
+            "psalm": { "reference": "87:6-7 & 22:4 & 44:6-8" },
+            "gospels": [
+              { "number": 1, "reference": "Matthew 27:57-61", "language": "english", "assignee": null },
+              { "number": 2, "reference": "Mark 15:42 & 16:1", "language": "english", "assignee": null },
+              { "number": 3, "reference": "Luke 23:50-56", "language": "english", "assignee": null },
+              { "number": 4, "reference": "John 19:38-42", "language": "english", "assignee": null }
+            ],
+            "litanies": null
+          },
+          "readings_format": {
             "psalm": {
-              "reference": "87:6-7 & 22:4 & 44:6 & 8",
-              "coptic_assignee": null,
+              "coptic": { "assignee": null },
               "vernacular": { "language": "english", "assignee": null }
             },
-            "gospels": [
-              { "number": 1, "reference": "Matthew 27:57-61", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 2, "reference": "Mark 15:42 & 16:1", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 3, "reference": "Luke 23:50-56", "coptic_assignee": null, "language": "english", "assignee": null },
-              { "number": 4, "reference": "John 19:38-42", "coptic_assignee": null, "language": "english", "assignee": null }
-            ],
-            "exposition": { "language": "english", "assignee": null },
-            "litanies": null
+            "gospel": {
+              "coptic": [
+                { "reference": "Matthew 27:57-61", "assignee": null },
+                { "reference": "Mark 15:42 & 16:1", "assignee": null },
+                { "reference": "Luke 23:50-56", "assignee": null },
+                { "reference": "John 19:38-42", "assignee": null }
+              ],
+              "vernacular": [
+                { "reference": "Matthew 27:57-61", "language": "english", "assignee": null },
+                { "reference": "Mark 15:42 & 16:1", "language": "english", "assignee": null },
+                { "reference": "Luke 23:50-56", "language": "english", "assignee": null },
+                { "reference": "John 19:38-42", "language": "english", "assignee": null }
+              ]
+            }
           }
         }
       ]

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ⲧⲁⲝⲓⲥ",
     "slug": "taksis",
-    "version": "4.0.2",
+    "version": "4.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -32,17 +32,8 @@
             "android16KbPageSize": true
           }
         }
-      ],
-      [
-        "expo-dev-client",
-        {
-          "developmentClient": true
-        }
       ]
     ],
-    "experimental": {
-      "bridgeless": false
-    },
     "extra": {
       "eas": {
         "projectId": "3b1e338f-eb92-4c7d-a84b-62060e5a6c9f"
