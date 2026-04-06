@@ -11,18 +11,17 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
-import PaschaSchedule from "../Pascha/PaschaSchedule.json";
 import PaschaArchiveViewer from "../../components/PaschaArchiveViewer";
 import {
   expandReadings, countSlots, dayProgress, isAssignableSlot, isPsalmSlot,
   hasLanguagePicker, languageOptionsFor, effectiveLanguage, langDisplay, langShort,
   langFirestoreKey, psalmReadersKey,
-  ASSIGNABLE, READING_META, READING_ORDER, MAX_PSALM_READERS, readingDisplay,
+  ASSIGNABLE, READING_META, MAX_PSALM_READERS, readingDisplay,
 } from "../Pascha/PaschaReadingUtils";
 
 const DEFAULT_AVATAR = require("../../assets/default_profile.png");
 
-// ─── Tokens ───────────────────────────────────────────────────────────────────
+// ── Tokens ────────────────────────────────────────────────────────────────────
 const BG      = "#0f0f0f";
 const CARD    = "#1c1c1e";
 const CARD2   = "#2c2c2e";
@@ -36,36 +35,30 @@ const ORANGE  = "#ff9f0a";
 const T1      = "#ffffff";
 const T2      = "rgba(255,255,255,0.65)";
 const T3      = "rgba(255,255,255,0.30)";
+const COPTIC_COLOR  = "#f59e0b";
+const COPTIC_BG     = "rgba(245,158,11,0.10)";
+const COPTIC_BORDER = "rgba(245,158,11,0.28)";
 
-const ALL_DAYS = [
-  { id:"last_friday_lent",    label:"Last Friday of Holy Lent", easterOffset:-9,  shortLabel:"Lent Fri" },
-  { id:"palm_sunday",         label:"Palm Sunday",              easterOffset:-7,  shortLabel:"Palm Sun" },
-  { id:"monday_eve",          label:"Monday Evening",           easterOffset:-6,  shortLabel:"Mon Eve"  },
-  { id:"monday_morning",      label:"Monday Morning",           easterOffset:-6,  shortLabel:"Mon Morn" },
-  { id:"tuesday_eve",         label:"Tuesday Evening",          easterOffset:-5,  shortLabel:"Tue Eve"  },
-  { id:"tuesday_morning",     label:"Tuesday Morning",          easterOffset:-5,  shortLabel:"Tue Morn" },
-  { id:"wednesday_eve",       label:"Wednesday Evening",        easterOffset:-4,  shortLabel:"Wed Eve"  },
-  { id:"wednesday_morning",   label:"Wednesday Morning",        easterOffset:-4,  shortLabel:"Wed Morn" },
-  { id:"thursday_eve",        label:"Thursday Evening",         easterOffset:-3,  shortLabel:"Thu Eve"  },
-  { id:"covenant_thursday",   label:"Covenant Thursday",        easterOffset:-3,  shortLabel:"Cov Thu"  },
-  { id:"good_friday_eve",     label:"Good Friday Evening",      easterOffset:-2,  shortLabel:"Fri Eve"  },
-  { id:"good_friday_morning", label:"Good Friday Morning",      easterOffset:-2,  shortLabel:"Fri Morn" },
-];
-const DAYS_BY_ID = Object.fromEntries(
-  ALL_DAYS.map(d => {
-    const json = PaschaSchedule.days.find(j => j.id === d.id) || {};
-    return [d.id, { ...json, ...d }];
-  })
-);
+// ── Derived day helpers ───────────────────────────────────────────────────────
+function buildAllDays(shell) {
+  if (!shell?.days) return [];
+  return shell.days.map(d => ({
+    id:           d.id,
+    label:        d.label,
+    easterOffset: d.easterOffset,
+    shortLabel:   d.shortLabel ?? d.label.split(" ").slice(0, 2).join(" "),
+    hours:        d.hours ?? [],
+  }));
+}
 
 function calcDate(easter, offset) {
   if (!easter) return null;
   const d = new Date(easter);
   d.setDate(d.getDate() + offset);
-  return d.toLocaleDateString("en-US", { weekday:"short", month:"short", day:"numeric" });
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
-// ─── Profile picture hook ─────────────────────────────────────────────────────
+// ── Profile picture hook ──────────────────────────────────────────────────────
 function useProfilePic(uid) {
   const [uri, setUri] = useState(null);
   useEffect(() => {
@@ -82,23 +75,23 @@ function useProfilePic(uid) {
 const Avatar = ({ uid, size = 40, style }) => {
   const uri = useProfilePic(uid);
   return (
-    <View style={[{ width:size, height:size, borderRadius:size/2, overflow:"hidden", backgroundColor:CARD2 }, style]}>
-      <Image source={uri ? { uri } : DEFAULT_AVATAR} style={{ width:size, height:size }} resizeMode="cover" />
+    <View style={[{ width: size, height: size, borderRadius: size / 2, overflow: "hidden", backgroundColor: CARD2 }, style]}>
+      <Image source={uri ? { uri } : DEFAULT_AVATAR} style={{ width: size, height: size }} resizeMode="cover" />
     </View>
   );
 };
 
-// ─── Psalm reader row ─────────────────────────────────────────────────────────
+// ── Psalm reader row ──────────────────────────────────────────────────────────
 const PsalmReadersRow = ({ readers = [], onOpen, label }) => {
   const has = readers.length > 0;
   return (
     <TouchableOpacity style={[hm.assignBtn, has && hm.assignBtnFilled]} onPress={onOpen} activeOpacity={0.7}>
       {has ? (
         <>
-          <View style={{ flexDirection:"row" }}>
-            {readers.slice(0,3).map((r,i) => (
-              <Avatar key={r.uid||r.name||i} uid={r.uid} size={26}
-                style={{ marginLeft:i>0?-8:0, borderWidth:1.5, borderColor:CARD }} />
+          <View style={{ flexDirection: "row" }}>
+            {readers.slice(0, 3).map((r, i) => (
+              <Avatar key={r.uid || r.name || i} uid={r.uid} size={26}
+                style={{ marginLeft: i > 0 ? -8 : 0, borderWidth: 1.5, borderColor: CARD }} />
             ))}
           </View>
           <Text style={hm.assignedName} numberOfLines={1}>
@@ -117,21 +110,15 @@ const PsalmReadersRow = ({ readers = [], onOpen, label }) => {
   );
 };
 
-// ─── Language pill + dropdown ──────────────────────────────────────────────────
+// ── Language pill ─────────────────────────────────────────────────────────────
 const LanguagePill = ({ row, hourAssignments, onSave }) => {
   const [open, setOpen] = useState(false);
   if (!hasLanguagePicker(row.rKey)) return null;
-
   const current = effectiveLanguage(row, hourAssignments);
   const options = languageOptionsFor(row.rKey);
-
   return (
-    <View style={{ position:"relative" }}>
-      <TouchableOpacity
-        style={lp.pill}
-        onPress={() => setOpen(v => !v)}
-        activeOpacity={0.7}
-      >
+    <View style={{ position: "relative" }}>
+      <TouchableOpacity style={lp.pill} onPress={() => setOpen(v => !v)} activeOpacity={0.7}>
         <Text style={lp.pillTxt}>{langShort(current)}</Text>
         <Icon name="chevron-down" size={11} color={T2} />
       </TouchableOpacity>
@@ -140,15 +127,10 @@ const LanguagePill = ({ row, hourAssignments, onSave }) => {
           {options.map(opt => {
             const active = opt.value === current;
             return (
-              <TouchableOpacity
-                key={opt.value}
+              <TouchableOpacity key={opt.value}
                 style={[lp.dropItem, active && lp.dropItemActive]}
-                onPress={() => {
-                  onSave(row.slotKey, opt.value);
-                  setOpen(false);
-                }}
-                activeOpacity={0.7}
-              >
+                onPress={() => { onSave(row.slotKey, opt.value); setOpen(false); }}
+                activeOpacity={0.7}>
                 <Text style={[lp.dropTxt, active && lp.dropTxtActive]}>{opt.label}</Text>
                 {active && <Icon name="check" size={13} color={BLUE} />}
               </TouchableOpacity>
@@ -159,26 +141,17 @@ const LanguagePill = ({ row, hourAssignments, onSave }) => {
     </View>
   );
 };
-
 const lp = StyleSheet.create({
-  pill:          { flexDirection:"row", alignItems:"center", gap:3, paddingHorizontal:8,
-                   paddingVertical:4, borderRadius:8, backgroundColor:CARD2, borderWidth:1,
-                   borderColor:SEP },
-  pillTxt:       { fontSize:10, fontWeight:"700", color:T2, letterSpacing:0.5 },
-  dropdown:      { position:"absolute", top:30, right:0, zIndex:100, backgroundColor:CARD,
-                   borderRadius:12, borderWidth:1, borderColor:SEP, paddingVertical:4,
-                   minWidth:120, ...Platform.select({
-                     ios: { shadowColor:"#000", shadowOffset:{width:0,height:4}, shadowOpacity:0.4, shadowRadius:12 },
-                     android: { elevation:8 },
-                   }) },
-  dropItem:      { flexDirection:"row", alignItems:"center", justifyContent:"space-between",
-                   paddingHorizontal:14, paddingVertical:10 },
-  dropItemActive:{ backgroundColor:BLUEDIM },
-  dropTxt:       { fontSize:14, color:T2, fontWeight:"500" },
-  dropTxtActive: { color:BLUE, fontWeight:"600" },
+  pill:          { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: CARD2, borderWidth: 1, borderColor: SEP },
+  pillTxt:       { fontSize: 10, fontWeight: "700", color: T2, letterSpacing: 0.5 },
+  dropdown:      { position: "absolute", top: 30, right: 0, zIndex: 100, backgroundColor: CARD, borderRadius: 12, borderWidth: 1, borderColor: SEP, paddingVertical: 4, minWidth: 120, ...Platform.select({ ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12 }, android: { elevation: 8 } }) },
+  dropItem:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10 },
+  dropItemActive:{ backgroundColor: BLUEDIM },
+  dropTxt:       { fontSize: 14, color: T2, fontWeight: "500" },
+  dropTxtActive: { color: BLUE, fontWeight: "600" },
 });
 
-// ─── Gospel grid (procession stations) ───────────────────────────────────────
+// ── Gospel grid (procession stations) ────────────────────────────────────────
 const GospelGrid = ({ rows, hourAssignments, onOpenPicker }) => {
   const meta = READING_META.gospels;
   return (
@@ -188,10 +161,10 @@ const GospelGrid = ({ rows, hourAssignments, onOpenPicker }) => {
         return (
           <TouchableOpacity key={row.slotKey} style={gg.cell} onPress={() => onOpenPicker(row)} activeOpacity={0.7}>
             <View style={gg.cellTop}>
-              <View style={[gg.numBadge, { backgroundColor:meta.color+"22" }]}>
-                <Text style={[gg.numTxt, { color:meta.color }]}>{row.index + 1}</Text>
+              <View style={[gg.numBadge, { backgroundColor: meta.color + "22" }]}>
+                <Text style={[gg.numTxt, { color: meta.color }]}>{row.index + 1}</Text>
               </View>
-              <View style={{ flex:1 }}>
+              <View style={{ flex: 1 }}>
                 <Text style={gg.ref} numberOfLines={1}>{row.refText}</Text>
                 {!!row.location && <Text style={gg.loc} numberOfLines={2}>{row.location}</Text>}
               </View>
@@ -213,38 +186,37 @@ const GospelGrid = ({ rows, hourAssignments, onOpenPicker }) => {
     </View>
   );
 };
-
 const gg = StyleSheet.create({
-  grid:         { flexDirection:"row", flexWrap:"wrap", gap:8, marginTop:4 },
-  cell:         { width:"48%", backgroundColor:CARD2, borderRadius:12, padding:10, gap:6 },
-  cellTop:      { flexDirection:"row", alignItems:"flex-start", gap:8 },
-  numBadge:     { width:24, height:24, borderRadius:7, justifyContent:"center", alignItems:"center", flexShrink:0 },
-  numTxt:       { fontSize:11, fontWeight:"800" },
-  ref:          { fontSize:12, color:T1, fontWeight:"600", lineHeight:16 },
-  loc:          { fontSize:10, color:T3, marginTop:2, lineHeight:14 },
-  assigneeRow:  { flexDirection:"row", alignItems:"center", gap:6 },
-  assigneeName: { fontSize:11, fontWeight:"600", color:GREEN, flex:1 },
-  unassignedRow:{ flexDirection:"row", alignItems:"center", gap:4 },
-  unassignedTxt:{ fontSize:11, color:T3 },
+  grid:         { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
+  cell:         { width: "48%", backgroundColor: CARD2, borderRadius: 12, padding: 10, gap: 6 },
+  cellTop:      { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  numBadge:     { width: 24, height: 24, borderRadius: 7, justifyContent: "center", alignItems: "center", flexShrink: 0 },
+  numTxt:       { fontSize: 11, fontWeight: "800" },
+  ref:          { fontSize: 12, color: T1, fontWeight: "600", lineHeight: 16 },
+  loc:          { fontSize: 10, color: T3, marginTop: 2, lineHeight: 14 },
+  assigneeRow:  { flexDirection: "row", alignItems: "center", gap: 6 },
+  assigneeName: { fontSize: 11, fontWeight: "600", color: GREEN, flex: 1 },
+  unassignedRow:{ flexDirection: "row", alignItems: "center", gap: 4 },
+  unassignedTxt:{ fontSize: 11, color: T3 },
 });
 
-// ─── Psalm multi-select picker ────────────────────────────────────────────────
+// ── Psalm multi-select picker ─────────────────────────────────────────────────
 const PsalmPickerModal = ({
   visible, refText, pickerLabel, currentReaders, deacons, congregation,
   loadingUsers, onSave, onClose,
 }) => {
   const { height: screenH } = useWindowDimensions();
-  const [tab, setTab]           = useState("deacons");
-  const [q, setQ]               = useState("");
-  const [selected, setSelected] = useState(new Set());
+  const [tab, setTab]             = useState("deacons");
+  const [q, setQ]                 = useState("");
+  const [selected, setSelected]   = useState(new Set());
   const [selectedMap, setSelectedMap] = useState({});
-  const [manual, setManual]     = useState("");
+  const [manual, setManual]       = useState("");
   const [manualOpen, setManualOpen] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
     const map = {}, keys = new Set();
-    (currentReaders || []).forEach(r => { const k = r.uid||r.name; keys.add(k); map[k] = r; });
+    (currentReaders || []).forEach(r => { const k = r.uid || r.name; keys.add(k); map[k] = r; });
     setSelected(keys); setSelectedMap(map);
     setTab("deacons"); setQ(""); setManual(""); setManualOpen(false);
   }, [visible]);
@@ -276,37 +248,36 @@ const PsalmPickerModal = ({
   const addManual = () => {
     const name = manual.trim();
     if (!name || selected.size >= MAX_PSALM_READERS) return;
-    const item = { uid:`m_${Date.now()}`, name, isManual:true };
+    const item = { uid: `m_${Date.now()}`, name, isManual: true };
     setSelected(prev => new Set([...prev, item.uid]));
     setSelectedMap(m => ({ ...m, [item.uid]: item }));
     setManual(""); setManualOpen(false);
   };
 
   const commit = () => {
-    onSave(Object.values(selectedMap).map(r => ({ uid:r.uid||null, name:r.name })));
+    onSave(Object.values(selectedMap).map(r => ({ uid: r.uid || null, name: r.name })));
     onClose();
   };
 
   const selectedList = Object.values(selectedMap);
-  const displayLabel = pickerLabel || "Psalm Readers";
 
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={onClose} statusBarTranslucent>
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={hm.backdrop}>
           <TouchableWithoutFeedback>
-            <KeyboardAvoidingView behavior={Platform.OS==="ios"?"padding":"height"} style={{ width:"100%" }}>
-              <View style={[hm.sheet, { maxHeight:sheetMax }]}>
+            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ width: "100%" }}>
+              <View style={[hm.sheet, { maxHeight: sheetMax }]}>
                 <View style={hm.handle} />
                 <View style={hm.pickerHdr}>
                   <TouchableOpacity style={hm.backBtn} onPress={onClose} activeOpacity={0.7}>
                     <Icon name="close" size={19} color={T1} />
                   </TouchableOpacity>
-                  <View style={[hm.pickerIconBox, { backgroundColor:READING_META.psalm.color+"22" }]}>
+                  <View style={[hm.pickerIconBox, { backgroundColor: READING_META.psalm.color + "22" }]}>
                     <Icon name="music-note" size={17} color={READING_META.psalm.color} />
                   </View>
-                  <View style={{ flex:1 }}>
-                    <Text style={[hm.pickerType, { color:READING_META.psalm.color }]}>{displayLabel}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[hm.pickerType, { color: READING_META.psalm.color }]}>{pickerLabel || "Psalm Readers"}</Text>
                     {!!refText && <Text style={hm.pickerRef} numberOfLines={1}>{refText}</Text>}
                   </View>
                   <View style={pm.counter}>
@@ -329,11 +300,11 @@ const PsalmPickerModal = ({
                   </ScrollView>
                 )}
                 <View style={hm.seg}>
-                  <View style={[hm.segSlider, tab==="all" && { left:"50%" }]} />
-                  {[["deacons","Deacons"],["all","All Members"]].map(([k,l]) => (
+                  <View style={[hm.segSlider, tab === "all" && { left: "50%" }]} />
+                  {[["deacons", "Deacons"], ["all", "All Members"]].map(([k, l]) => (
                     <TouchableOpacity key={k} onPress={() => { setTab(k); setQ(""); }}
                       style={hm.segBtn} activeOpacity={0.8}>
-                      <Text style={[hm.segTxt, tab===k && hm.segTxtOn]}>{l}</Text>
+                      <Text style={[hm.segTxt, tab === k && hm.segTxtOn]}>{l}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -342,7 +313,7 @@ const PsalmPickerModal = ({
                   <TextInput style={hm.searchIn} placeholder="Search..." placeholderTextColor={T3}
                     value={q} onChangeText={setQ} returnKeyType="search" />
                   {q.length > 0 && (
-                    <TouchableOpacity onPress={() => setQ("")} hitSlop={{ top:8,bottom:8,left:8,right:8 }}>
+                    <TouchableOpacity onPress={() => setQ("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                       <Icon name="close-circle" size={15} color={T3} />
                     </TouchableOpacity>
                   )}
@@ -351,23 +322,22 @@ const PsalmPickerModal = ({
                   ? <View style={hm.center}><ActivityIndicator color={BLUE} /></View>
                   : <FlatList
                       data={source}
-                      keyExtractor={i => i.uid||i.name}
-                      style={{ maxHeight:listMax, paddingHorizontal:20 }}
+                      keyExtractor={i => i.uid || i.name}
+                      style={{ maxHeight: listMax, paddingHorizontal: 20 }}
                       keyboardShouldPersistTaps="handled"
                       showsVerticalScrollIndicator
                       ListEmptyComponent={<Text style={hm.empty}>No results</Text>}
                       renderItem={({ item }) => {
-                        const k = item.uid || item.name;
-                        const on = selected.has(k);
+                        const k     = item.uid || item.name;
+                        const on    = selected.has(k);
                         const atMax = selected.size >= MAX_PSALM_READERS && !on;
                         return (
                           <TouchableOpacity
-                            style={[hm.pRow, on && hm.pRowOn, atMax && { opacity:0.4 }]}
+                            style={[hm.pRow, on && hm.pRowOn, atMax && { opacity: 0.4 }]}
                             onPress={() => { if (!atMax) toggle(item); }}
-                            activeOpacity={0.65}
-                          >
+                            activeOpacity={0.65}>
                             <Avatar uid={item.uid} size={38} />
-                            <View style={{ flex:1, marginLeft:12 }}>
+                            <View style={{ flex: 1, marginLeft: 12 }}>
                               <Text style={hm.pRowName}>{item.name}</Text>
                               {item.isDeacon && <Text style={hm.pRowTag}>DEACON</Text>}
                             </View>
@@ -401,11 +371,10 @@ const PsalmPickerModal = ({
                 )}
                 <View style={hm.pickerFooter}>
                   <TouchableOpacity
-                    style={[hm.saveBtn, selected.size===0 && hm.saveBtnClear]}
-                    onPress={commit} activeOpacity={0.8}
-                  >
-                    <Text style={[hm.saveBtnTxt, selected.size===0 && { color:RED }]}>
-                      {selected.size===0 ? "Clear Readers" : `Confirm ${selected.size} Reader${selected.size>1?"s":""}`}
+                    style={[hm.saveBtn, selected.size === 0 && hm.saveBtnClear]}
+                    onPress={commit} activeOpacity={0.8}>
+                    <Text style={[hm.saveBtnTxt, selected.size === 0 && { color: RED }]}>
+                      {selected.size === 0 ? "Clear Readers" : `Confirm ${selected.size} Reader${selected.size > 1 ? "s" : ""}`}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -417,19 +386,18 @@ const PsalmPickerModal = ({
     </Modal>
   );
 };
-
 const pm = StyleSheet.create({
-  counter:    { paddingHorizontal:10, paddingVertical:4, borderRadius:10, backgroundColor:CARD2 },
-  counterTxt: { fontSize:13, fontWeight:"700", color:T2 },
-  chipScroll: { maxHeight:48, marginHorizontal:20, marginBottom:4 },
-  chipRow:    { flexDirection:"row", gap:6, alignItems:"center" },
-  chip:       { flexDirection:"row", alignItems:"center", gap:6, backgroundColor:"rgba(48,209,88,0.1)", borderWidth:1, borderColor:"rgba(48,209,88,0.25)", borderRadius:20, paddingVertical:5, paddingHorizontal:10 },
-  chipName:   { fontSize:13, fontWeight:"600", color:GREEN, maxWidth:100 },
-  checkbox:   { width:22, height:22, borderRadius:6, borderWidth:2, borderColor:T3, justifyContent:"center", alignItems:"center" },
-  checkboxOn: { backgroundColor:BLUE, borderColor:BLUE },
+  counter:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: CARD2 },
+  counterTxt: { fontSize: 13, fontWeight: "700", color: T2 },
+  chipScroll: { maxHeight: 48, marginHorizontal: 20, marginBottom: 4 },
+  chipRow:    { flexDirection: "row", gap: 6, alignItems: "center" },
+  chip:       { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(48,209,88,0.1)", borderWidth: 1, borderColor: "rgba(48,209,88,0.25)", borderRadius: 20, paddingVertical: 5, paddingHorizontal: 10 },
+  chipName:   { fontSize: 13, fontWeight: "600", color: GREEN, maxWidth: 100 },
+  checkbox:   { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: T3, justifyContent: "center", alignItems: "center" },
+  checkboxOn: { backgroundColor: BLUE, borderColor: BLUE },
 });
 
-// ─── HourModal ────────────────────────────────────────────────────────────────
+// ── HourModal ─────────────────────────────────────────────────────────────────
 const HourModal = ({
   visible, hour, hourAssignments, deacons, congregation,
   loadingUsers, onSaveReading, onSaveLanguage, onOpenPsalmPicker, onClose,
@@ -455,8 +423,7 @@ const HourModal = ({
   const pct               = total > 0 ? Math.round(filled / total * 100) : 0;
   const sheetMax          = screenH * 0.92;
 
-  // Procession gospel grid rows (only for gospels with location)
-  const gospelGridRows = rows.filter(r => (r.rKey==="gospel"||r.rKey==="gospels") && r.location);
+  const gospelGridRows = rows.filter(r => (r.rKey === "gospel" || r.rKey === "gospels") && r.location);
   const hasGospelGrid  = gospelGridRows.length > 0;
 
   const openPicker = row => {
@@ -467,36 +434,28 @@ const HourModal = ({
   const closePicker  = () => { setPickerSlot(null); setPickerRow_(null); };
   const commitPicker = () => { onSaveReading(hour.id, pickerSlot, sel ?? null); closePicker(); };
 
-  const pickerMeta  = pickerRow_ ? (READING_META[pickerRow_.rKey] || { label:pickerRow_.rKey, icon:"book-outline", color:T2 }) : null;
+  const pickerMeta  = pickerRow_ ? (READING_META[pickerRow_.rKey] || { label: pickerRow_.rKey, icon: "book-outline", color: T2 }) : null;
   const pickerColor = pickerMeta?.color || T2;
+  const isCopticPicker = pickerRow_?.isCoptic === true;
 
   let pickerLabel = "";
   if (pickerRow_) {
-    if (pickerRow_.rKey === "homily") {
-      pickerLabel = `Homily — ${pickerRow_.author || pickerRow_.refText}`;
-    } else if (pickerRow_.index != null) {
-      pickerLabel = `${pickerMeta?.label} ${pickerRow_.index + 1}`;
-    } else {
-      pickerLabel = pickerMeta?.label || "";
-    }
+    if (pickerRow_.rKey === "homily")     pickerLabel = `Homily — ${pickerRow_.author || pickerRow_.refText}`;
+    else if (pickerRow_.rKey === "exposition") pickerLabel = "Exposition";
+    else if (pickerRow_.index != null)    pickerLabel = `${pickerMeta?.label} ${pickerRow_.index + 1}`;
+    else                                  pickerLabel = pickerMeta?.label || "";
   }
 
   const pickerScrollMax = sheetMax - (sel ? 330 : 270);
-
   const pickerSource = useMemo(() => {
     const list = tab === "deacons" ? deacons : congregation;
     return q ? list.filter(u => u.name.toLowerCase().includes(q.toLowerCase())) : list;
   }, [tab, deacons, congregation, q]);
 
-  /** Build the label for a reading row in the hour list */
-  const rowLabel = (row) => {
-    const meta = READING_META[row.rKey] || { label:row.rKey };
-    if (row.rKey === "homily") return `Homily — ${row.author || row.refText}`;
-    if (row.langLabel) {
-      return row.index != null
-        ? `${meta.label} ${row.index + 1} (${row.langLabel})`
-        : `${meta.label} (${row.langLabel})`;
-    }
+  const rowLabel = row => {
+    const meta = READING_META[row.rKey] || { label: row.rKey };
+    if (row.rKey === "homily")      return `Homily — ${row.author || row.refText}`;
+    if (row.rKey === "exposition")  return "Exposition";
     return row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
   };
 
@@ -506,17 +465,17 @@ const HourModal = ({
       <TouchableWithoutFeedback onPress={pickerSlot ? closePicker : onClose}>
         <View style={hm.backdrop}>
           <TouchableWithoutFeedback>
-            <KeyboardAvoidingView behavior={Platform.OS==="ios"?"padding":"height"} style={{ width:"100%" }}>
-              <View style={[hm.sheet, { maxHeight:sheetMax }]}>
+            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ width: "100%" }}>
+              <View style={[hm.sheet, { maxHeight: sheetMax }]}>
                 <View style={hm.handle} />
 
-                {/* ── Reading list view ── */}
+                {/* ── Reading list ── */}
                 {!pickerSlot && (
                   <>
                     <View style={hm.hdr}>
-                      <View style={{ flex:1 }}>
+                      <View style={{ flex: 1 }}>
                         <Text style={hm.title}>{hour.label}</Text>
-                        <Text style={[hm.sub, complete && { color:GREEN }]}>
+                        <Text style={[hm.sub, complete && { color: GREEN }]}>
                           {complete ? "All readings assigned" : `${filled} of ${total} assigned`}
                         </Text>
                       </View>
@@ -525,70 +484,68 @@ const HourModal = ({
                       </TouchableOpacity>
                     </View>
                     <View style={hm.trackWrap}>
-                      <View style={[hm.trackFill, { width:`${pct}%` }, complete && { backgroundColor:GREEN }]} />
+                      <View style={[hm.trackFill, { width: `${pct}%` }, complete && { backgroundColor: GREEN }]} />
                     </View>
                     <ScrollView
-                      style={{ flexGrow:1, maxHeight:sheetMax - 100 }}
+                      style={{ flexGrow: 1, maxHeight: sheetMax - 100 }}
                       contentContainerStyle={hm.body}
                       showsVerticalScrollIndicator
                       alwaysBounceVertical={false}
-                      nestedScrollEnabled
-                    >
+                      nestedScrollEnabled>
                       {rows.map((row, i) => {
-                        const meta       = READING_META[row.rKey] || { label:row.rKey, icon:"book-outline", color:T2 };
-                        const assignable = isAssignableSlot(row.rKey);
-                        const isPsalm    = isPsalmSlot(row.rKey);
-                        const isHomily   = row.rKey === "homily";
-                        const isGospelLoc = (row.rKey==="gospel"||row.rKey==="gospels") && row.location;
-                        const isFirstGospelGrid = hasGospelGrid && row.rKey==="gospels" && row.index===0;
-                        const assignee   = !isPsalm ? (hourAssignments[row.slotKey]||null) : null;
-                        const label      = rowLabel(row);
-                        const readersKey = isPsalm ? psalmReadersKey(row) : null;
-                        const readers    = isPsalm ? (hourAssignments[readersKey] || []) : [];
+                        const meta        = READING_META[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
+                        const assignable  = isAssignableSlot(row.rKey);
+                        const isPsalm     = isPsalmSlot(row.rKey);
+                        const isExp       = row.rKey === "exposition";
+                        const isGospelLoc = (row.rKey === "gospel" || row.rKey === "gospels") && row.location;
+                        const isFirstGospelGrid = hasGospelGrid && row.rKey === "gospels" && row.index === 0;
+                        const isCopticRow = row.isCoptic === true;
+                        const assignee    = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
+                        const label       = rowLabel(row);
+                        const readers     = isPsalm ? (hourAssignments[psalmReadersKey(row)] || []) : [];
 
-                        // Skip non-first procession gospels (they render in the grid)
                         if (isGospelLoc && !isFirstGospelGrid) return null;
 
                         return (
                           <View key={row.slotKey}
-                            style={[hm.readingBlock, i===rows.length-1 && { borderBottomWidth:0 }]}>
+                            style={[hm.readingBlock, i === rows.length - 1 && { borderBottomWidth: 0 }]}>
                             <View style={hm.readingTop}>
-                              <View style={[hm.readingIcon, { backgroundColor:meta.color+"22" }]}>
-                                <Icon name={meta.icon} size={15} color={meta.color} />
+                              <View style={[
+                                hm.readingIcon,
+                                { backgroundColor: isCopticRow ? COPTIC_BG : meta.color + "22" },
+                              ]}>
+                                <Icon name={meta.icon} size={15} color={isCopticRow ? COPTIC_COLOR : meta.color} />
                               </View>
-                              <View style={{ flex:1 }}>
-                                <Text style={[hm.readingLabel, { color:meta.color }]}>
-                                  {isFirstGospelGrid ? "Gospels" : label}
-                                </Text>
+                              <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                  <Text style={[hm.readingLabel, { color: isCopticRow ? COPTIC_COLOR : meta.color }]}>
+                                    {isFirstGospelGrid ? "Gospels" : label}
+                                  </Text>
+                                  {isCopticRow && (
+                                    <View style={hm.copticBadge}>
+                                      <Text style={hm.copticBadgeTxt}>COPTIC</Text>
+                                    </View>
+                                  )}
+                                </View>
                                 {isFirstGospelGrid
                                   ? <Text style={hm.readingRef}>12 stations</Text>
-                                  : isHomily
+                                  : row.rKey === "homily" || isExp
                                     ? null
                                     : !!row.refText && <Text style={hm.readingRef}>{row.refText}</Text>
                                 }
                               </View>
-                              <LanguagePill
-                                row={row}
-                                hourAssignments={hourAssignments}
-                                onSave={(slotKey, lang) => onSaveLanguage(hour.id, slotKey, lang)}
-                              />
+                              <LanguagePill row={row} hourAssignments={hourAssignments}
+                                onSave={(slotKey, lang) => onSaveLanguage(hour.id, slotKey, lang)} />
                             </View>
 
-                            {/* Gospel grid for procession */}
                             {isFirstGospelGrid && (
                               <GospelGrid rows={gospelGridRows} hourAssignments={hourAssignments} onOpenPicker={openPicker} />
                             )}
-
-                            {/* Psalm: multi-reader row */}
                             {!isFirstGospelGrid && isPsalm && (
-                              <PsalmReadersRow
-                                readers={readers}
+                              <PsalmReadersRow readers={readers}
                                 label={`Assign ${label.toLowerCase()} readers`}
-                                onOpen={() => onOpenPsalmPicker(row)}
-                              />
+                                onOpen={() => onOpenPsalmPicker(row)} />
                             )}
-
-                            {/* All other assignable slots */}
                             {!isFirstGospelGrid && !isPsalm && assignable && (
                               <TouchableOpacity onPress={() => openPicker(row)} activeOpacity={0.7}
                                 style={[hm.assignBtn, assignee && hm.assignBtnFilled]}>
@@ -621,12 +578,15 @@ const HourModal = ({
                       <TouchableOpacity style={hm.backBtn} onPress={closePicker} activeOpacity={0.7}>
                         <Icon name="arrow-left" size={19} color={T1} />
                       </TouchableOpacity>
-                      <View style={[hm.pickerIconBox, { backgroundColor:pickerColor+"22" }]}>
-                        <Icon name={pickerMeta.icon} size={17} color={pickerColor} />
+                      <View style={[hm.pickerIconBox, { backgroundColor: isCopticPicker ? COPTIC_BG : pickerColor + "22" }]}>
+                        <Icon name={pickerMeta.icon} size={17} color={isCopticPicker ? COPTIC_COLOR : pickerColor} />
                       </View>
-                      <View style={{ flex:1 }}>
-                        <Text style={[hm.pickerType, { color:pickerColor }]}>{pickerLabel}</Text>
-                        {!!pickerRow_.refText && pickerRow_.rKey !== "homily" && (
+                      <View style={{ flex: 1 }}>
+                        <Text style={[hm.pickerType, { color: isCopticPicker ? COPTIC_COLOR : pickerColor }]}>
+                          {pickerLabel}
+                          {isCopticPicker ? "  •  Coptic" : ""}
+                        </Text>
+                        {!!pickerRow_.refText && pickerRow_.rKey !== "homily" && pickerRow_.rKey !== "exposition" && (
                           <Text style={hm.pickerRef} numberOfLines={1}>{pickerRow_.refText}</Text>
                         )}
                         {!!pickerRow_.location && (
@@ -637,21 +597,21 @@ const HourModal = ({
                     {sel && (
                       <View style={hm.selBanner}>
                         <Avatar uid={sel.uid} size={44} />
-                        <View style={{ flex:1, marginLeft:12 }}>
+                        <View style={{ flex: 1, marginLeft: 12 }}>
                           <Text style={hm.selName}>{sel.name}</Text>
                           <Text style={hm.selSub}>{sel.isDeacon ? "Deacon" : sel.isManual ? "Manual entry" : "Member"}</Text>
                         </View>
-                        <TouchableOpacity onPress={() => setSel(null)} hitSlop={{ top:8,bottom:8,left:8,right:8 }}>
+                        <TouchableOpacity onPress={() => setSel(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                           <Icon name="close-circle" size={20} color={RED} />
                         </TouchableOpacity>
                       </View>
                     )}
                     <View style={hm.seg}>
-                      <View style={[hm.segSlider, tab==="all" && { left:"50%" }]} />
-                      {[["deacons","Deacons"],["all","All Members"]].map(([k,l]) => (
+                      <View style={[hm.segSlider, tab === "all" && { left: "50%" }]} />
+                      {[["deacons", "Deacons"], ["all", "All Members"]].map(([k, l]) => (
                         <TouchableOpacity key={k} onPress={() => { setTab(k); setQ(""); }}
                           style={hm.segBtn} activeOpacity={0.8}>
-                          <Text style={[hm.segTxt, tab===k && hm.segTxtOn]}>{l}</Text>
+                          <Text style={[hm.segTxt, tab === k && hm.segTxtOn]}>{l}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -660,7 +620,7 @@ const HourModal = ({
                       <TextInput style={hm.searchIn} placeholder="Search..." placeholderTextColor={T3}
                         value={q} onChangeText={setQ} returnKeyType="search" />
                       {q.length > 0 && (
-                        <TouchableOpacity onPress={() => setQ("")} hitSlop={{ top:8,bottom:8,left:8,right:8 }}>
+                        <TouchableOpacity onPress={() => setQ("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                           <Icon name="close-circle" size={15} color={T3} />
                         </TouchableOpacity>
                       )}
@@ -669,18 +629,18 @@ const HourModal = ({
                       ? <View style={hm.center}><ActivityIndicator color={BLUE} /></View>
                       : <FlatList
                           data={pickerSource}
-                          keyExtractor={i => i.uid||i.name}
-                          style={{ maxHeight:pickerScrollMax, paddingHorizontal:20 }}
+                          keyExtractor={i => i.uid || i.name}
+                          style={{ maxHeight: pickerScrollMax, paddingHorizontal: 20 }}
                           keyboardShouldPersistTaps="handled"
                           showsVerticalScrollIndicator
                           ListEmptyComponent={<Text style={hm.empty}>No results</Text>}
                           renderItem={({ item }) => {
-                            const on = sel?.uid ? sel.uid===item.uid : sel?.name===item.name;
+                            const on = sel?.uid ? sel.uid === item.uid : sel?.name === item.name;
                             return (
                               <TouchableOpacity style={[hm.pRow, on && hm.pRowOn]}
                                 onPress={() => setSel(on ? null : item)} activeOpacity={0.65}>
                                 <Avatar uid={item.uid} size={38} />
-                                <View style={{ flex:1, marginLeft:12 }}>
+                                <View style={{ flex: 1, marginLeft: 12 }}>
                                   <Text style={hm.pRowName}>{item.name}</Text>
                                   {item.isDeacon && <Text style={hm.pRowTag}>DEACON</Text>}
                                 </View>
@@ -698,7 +658,7 @@ const HourModal = ({
                           value={manual} onChangeText={setManual} autoFocus returnKeyType="done"
                           onSubmitEditing={() => {
                             const n = manual.trim();
-                            if (n) { setSel({ uid:`m_${Date.now()}`, name:n, isManual:true }); setManual(""); setManualOpen(false); }
+                            if (n) { setSel({ uid: `m_${Date.now()}`, name: n, isManual: true }); setManual(""); setManualOpen(false); }
                           }} />
                         <View style={hm.manualBtns}>
                           <TouchableOpacity style={hm.mCancel} onPress={() => { setManualOpen(false); setManual(""); }}>
@@ -706,7 +666,7 @@ const HourModal = ({
                           </TouchableOpacity>
                           <TouchableOpacity style={hm.mAdd} onPress={() => {
                             const n = manual.trim();
-                            if (n) { setSel({ uid:`m_${Date.now()}`, name:n, isManual:true }); setManual(""); setManualOpen(false); }
+                            if (n) { setSel({ uid: `m_${Date.now()}`, name: n, isManual: true }); setManual(""); setManualOpen(false); }
                           }}>
                             <Text style={hm.mAddTxt}>Add</Text>
                           </TouchableOpacity>
@@ -721,7 +681,7 @@ const HourModal = ({
                     <View style={hm.pickerFooter}>
                       <TouchableOpacity style={[hm.saveBtn, !sel && hm.saveBtnClear]}
                         onPress={commitPicker} activeOpacity={0.8}>
-                        <Text style={[hm.saveBtnTxt, !sel && { color:RED }]}>
+                        <Text style={[hm.saveBtnTxt, !sel && { color: RED }]}>
                           {sel ? `Assign  ${sel.name}` : "Clear Assignment"}
                         </Text>
                       </TouchableOpacity>
@@ -738,77 +698,79 @@ const HourModal = ({
 };
 
 const hm = StyleSheet.create({
-  backdrop:       { flex:1, backgroundColor:"rgba(0,0,0,0.65)", justifyContent:"flex-end" },
-  sheet:          { backgroundColor:CARD, borderTopLeftRadius:26, borderTopRightRadius:26, paddingBottom:Platform.OS==="ios"?34:20, flexShrink:1 },
-  handle:         { width:38, height:4, borderRadius:2, backgroundColor:SEP, alignSelf:"center", marginTop:12 },
-  hdr:            { flexDirection:"row", alignItems:"flex-start", gap:12, paddingHorizontal:20, paddingTop:16, paddingBottom:12 },
-  title:          { fontSize:20, fontWeight:"800", color:T1, letterSpacing:-0.3 },
-  sub:            { fontSize:13, color:T2, marginTop:2 },
-  xBtn:           { width:32, height:32, borderRadius:16, backgroundColor:CARD2, justifyContent:"center", alignItems:"center" },
-  trackWrap:      { height:2, backgroundColor:SEP, marginHorizontal:20, borderRadius:2, marginBottom:6 },
-  trackFill:      { height:2, backgroundColor:BLUE, borderRadius:2 },
-  body:           { paddingHorizontal:20, paddingBottom:12 },
-  readingBlock:   { paddingVertical:14, borderBottomWidth:1, borderBottomColor:SEP },
-  readingTop:     { flexDirection:"row", gap:12, marginBottom:10, alignItems:"flex-start" },
-  readingIcon:    { width:32, height:32, borderRadius:9, justifyContent:"center", alignItems:"center", flexShrink:0 },
-  readingLabel:   { fontSize:10, fontWeight:"800", letterSpacing:0.8, textTransform:"uppercase", marginBottom:4 },
-  readingRef:     { fontSize:14, color:T1, lineHeight:20 },
-  assignBtn:      { flexDirection:"row", alignItems:"center", gap:10, backgroundColor:CARD2, borderRadius:12, paddingHorizontal:12, paddingVertical:10 },
-  assignBtnFilled:{ backgroundColor:"rgba(48,209,88,0.08)", borderWidth:1, borderColor:"rgba(48,209,88,0.2)" },
-  assignedName:   { flex:1, fontSize:14, color:GREEN, fontWeight:"600" },
-  unassignedTxt:  { flex:1, fontSize:14, color:T2 },
-  pickerHdr:      { flexDirection:"row", alignItems:"center", gap:12, paddingHorizontal:20, paddingTop:16, paddingBottom:14, borderBottomWidth:1, borderBottomColor:SEP },
-  backBtn:        { width:36, height:36, borderRadius:18, backgroundColor:CARD2, justifyContent:"center", alignItems:"center" },
-  pickerIconBox:  { width:36, height:36, borderRadius:10, justifyContent:"center", alignItems:"center" },
-  pickerType:     { fontSize:17, fontWeight:"700" },
-  pickerRef:      { fontSize:12, color:T2, marginTop:2 },
-  selBanner:      { flexDirection:"row", alignItems:"center", marginHorizontal:20, marginTop:14, marginBottom:2, borderRadius:16, padding:14, backgroundColor:BLUEDIM, borderWidth:1, borderColor:"rgba(10,132,255,0.25)" },
-  selName:        { fontSize:15, fontWeight:"700", color:T1 },
-  selSub:         { fontSize:12, color:T2, marginTop:2 },
-  seg:            { flexDirection:"row", marginHorizontal:20, marginTop:14, backgroundColor:CARD2, borderRadius:12, padding:3, position:"relative" },
-  segSlider:      { position:"absolute", top:3, bottom:3, left:3, width:"50%", backgroundColor:CARD3, borderRadius:10 },
-  segBtn:         { flex:1, paddingVertical:9, alignItems:"center", zIndex:1 },
-  segTxt:         { fontSize:13, fontWeight:"600", color:T3 },
-  segTxtOn:       { color:T1 },
-  searchRow:      { flexDirection:"row", alignItems:"center", backgroundColor:CARD2, borderRadius:11, paddingHorizontal:12, marginHorizontal:20, marginTop:10, marginBottom:6 },
-  searchIn:       { flex:1, color:T1, fontSize:14, paddingVertical:11, marginLeft:8 },
-  center:         { height:100, justifyContent:"center", alignItems:"center" },
-  empty:          { textAlign:"center", color:T3, fontSize:14, paddingVertical:24 },
-  pRow:           { flexDirection:"row", alignItems:"center", padding:10, borderRadius:13, marginBottom:6, backgroundColor:CARD2 },
-  pRowOn:         { backgroundColor:BLUEDIM, borderWidth:1, borderColor:"rgba(10,132,255,0.25)" },
-  pRowName:       { fontSize:14, color:T1, fontWeight:"500" },
-  pRowTag:        { fontSize:9, color:BLUE, fontWeight:"800", marginTop:2, letterSpacing:0.6 },
-  radio:          { width:22, height:22, borderRadius:11, borderWidth:2, borderColor:T3, justifyContent:"center", alignItems:"center" },
-  radioOn:        { borderColor:BLUE },
-  radioDot:       { width:10, height:10, borderRadius:5, backgroundColor:BLUE },
-  addManual:      { flexDirection:"row", alignItems:"center", gap:8, marginHorizontal:20, marginTop:4, marginBottom:8, padding:13, borderRadius:12, backgroundColor:BLUEDIM },
-  addManualTxt:   { fontSize:14, fontWeight:"500", color:BLUE },
-  manualBox:      { marginHorizontal:20, marginTop:6, marginBottom:8 },
-  manualIn:       { backgroundColor:CARD2, borderRadius:11, paddingHorizontal:14, paddingVertical:12, color:T1, fontSize:14, marginBottom:8 },
-  manualBtns:     { flexDirection:"row", gap:8 },
-  mCancel:        { flex:1, paddingVertical:12, borderRadius:11, backgroundColor:CARD2, alignItems:"center" },
-  mCancelTxt:     { fontSize:14, fontWeight:"600", color:T2 },
-  mAdd:           { flex:1, paddingVertical:12, borderRadius:11, backgroundColor:BLUE, alignItems:"center" },
-  mAddTxt:        { fontSize:14, fontWeight:"700", color:T1 },
-  pickerFooter:   { paddingHorizontal:20, paddingTop:10, borderTopWidth:1, borderTopColor:SEP },
-  saveBtn:        { backgroundColor:BLUE, paddingVertical:15, borderRadius:14, alignItems:"center" },
-  saveBtnClear:   { backgroundColor:"rgba(255,69,58,0.1)", borderWidth:1, borderColor:"rgba(255,69,58,0.2)" },
-  saveBtnTxt:     { fontSize:15, fontWeight:"700", color:T1 },
+  backdrop:       { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },
+  sheet:          { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingBottom: Platform.OS === "ios" ? 34 : 20, flexShrink: 1 },
+  handle:         { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP, alignSelf: "center", marginTop: 12 },
+  hdr:            { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
+  title:          { fontSize: 20, fontWeight: "800", color: T1, letterSpacing: -0.3 },
+  sub:            { fontSize: 13, color: T2, marginTop: 2 },
+  xBtn:           { width: 32, height: 32, borderRadius: 16, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
+  trackWrap:      { height: 2, backgroundColor: SEP, marginHorizontal: 20, borderRadius: 2, marginBottom: 6 },
+  trackFill:      { height: 2, backgroundColor: BLUE, borderRadius: 2 },
+  body:           { paddingHorizontal: 20, paddingBottom: 12 },
+  readingBlock:   { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: SEP },
+  readingTop:     { flexDirection: "row", gap: 12, marginBottom: 10, alignItems: "flex-start" },
+  readingIcon:    { width: 32, height: 32, borderRadius: 9, justifyContent: "center", alignItems: "center", flexShrink: 0 },
+  readingLabel:   { fontSize: 10, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 4 },
+  readingRef:     { fontSize: 14, color: T1, lineHeight: 20 },
+  copticBadge:    { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: COPTIC_BG, borderWidth: 1, borderColor: COPTIC_BORDER },
+  copticBadgeTxt: { fontSize: 9, fontWeight: "800", color: COPTIC_COLOR, letterSpacing: 0.5 },
+  assignBtn:      { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: CARD2, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  assignBtnFilled:{ backgroundColor: "rgba(48,209,88,0.08)", borderWidth: 1, borderColor: "rgba(48,209,88,0.2)" },
+  assignedName:   { flex: 1, fontSize: 14, color: GREEN, fontWeight: "600" },
+  unassignedTxt:  { flex: 1, fontSize: 14, color: T2 },
+  pickerHdr:      { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: SEP },
+  backBtn:        { width: 36, height: 36, borderRadius: 18, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
+  pickerIconBox:  { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
+  pickerType:     { fontSize: 17, fontWeight: "700" },
+  pickerRef:      { fontSize: 12, color: T2, marginTop: 2 },
+  selBanner:      { flexDirection: "row", alignItems: "center", marginHorizontal: 20, marginTop: 14, marginBottom: 2, borderRadius: 16, padding: 14, backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.25)" },
+  selName:        { fontSize: 15, fontWeight: "700", color: T1 },
+  selSub:         { fontSize: 12, color: T2, marginTop: 2 },
+  seg:            { flexDirection: "row", marginHorizontal: 20, marginTop: 14, backgroundColor: CARD2, borderRadius: 12, padding: 3, position: "relative" },
+  segSlider:      { position: "absolute", top: 3, bottom: 3, left: 3, width: "50%", backgroundColor: CARD3, borderRadius: 10 },
+  segBtn:         { flex: 1, paddingVertical: 9, alignItems: "center", zIndex: 1 },
+  segTxt:         { fontSize: 13, fontWeight: "600", color: T3 },
+  segTxtOn:       { color: T1 },
+  searchRow:      { flexDirection: "row", alignItems: "center", backgroundColor: CARD2, borderRadius: 11, paddingHorizontal: 12, marginHorizontal: 20, marginTop: 10, marginBottom: 6 },
+  searchIn:       { flex: 1, color: T1, fontSize: 14, paddingVertical: 11, marginLeft: 8 },
+  center:         { height: 100, justifyContent: "center", alignItems: "center" },
+  empty:          { textAlign: "center", color: T3, fontSize: 14, paddingVertical: 24 },
+  pRow:           { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 13, marginBottom: 6, backgroundColor: CARD2 },
+  pRowOn:         { backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.25)" },
+  pRowName:       { fontSize: 14, color: T1, fontWeight: "500" },
+  pRowTag:        { fontSize: 9, color: BLUE, fontWeight: "800", marginTop: 2, letterSpacing: 0.6 },
+  radio:          { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: T3, justifyContent: "center", alignItems: "center" },
+  radioOn:        { borderColor: BLUE },
+  radioDot:       { width: 10, height: 10, borderRadius: 5, backgroundColor: BLUE },
+  addManual:      { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginTop: 4, marginBottom: 8, padding: 13, borderRadius: 12, backgroundColor: BLUEDIM },
+  addManualTxt:   { fontSize: 14, fontWeight: "500", color: BLUE },
+  manualBox:      { marginHorizontal: 20, marginTop: 6, marginBottom: 8 },
+  manualIn:       { backgroundColor: CARD2, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 12, color: T1, fontSize: 14, marginBottom: 8 },
+  manualBtns:     { flexDirection: "row", gap: 8 },
+  mCancel:        { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: CARD2, alignItems: "center" },
+  mCancelTxt:     { fontSize: 14, fontWeight: "600", color: T2 },
+  mAdd:           { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: BLUE, alignItems: "center" },
+  mAddTxt:        { fontSize: 14, fontWeight: "700", color: T1 },
+  pickerFooter:   { paddingHorizontal: 20, paddingTop: 10, borderTopWidth: 1, borderTopColor: SEP },
+  saveBtn:        { backgroundColor: BLUE, paddingVertical: 15, borderRadius: 14, alignItems: "center" },
+  saveBtnClear:   { backgroundColor: "rgba(255,69,58,0.1)", borderWidth: 1, borderColor: "rgba(255,69,58,0.2)" },
+  saveBtnTxt:     { fontSize: 15, fontWeight: "700", color: T1 },
 });
 
-// ─── Day tab bar ──────────────────────────────────────────────────────────────
-const DayTabBar = ({ days, selectedId, easterDate, schedule, onSelect }) => (
+// ── Day tab bar ───────────────────────────────────────────────────────────────
+const DayTabBar = ({ allDays, selectedId, easterDate, schedule, onSelect }) => (
   <ScrollView horizontal showsHorizontalScrollIndicator={false}
     contentContainerStyle={dt.content} style={dt.bar}>
-    {days.map(day => {
-      const ds = schedule[day.id] || {};
+    {allDays.map(day => {
+      const ds               = schedule[day.id] || {};
       const { total, filled } = dayProgress(day, ds);
-      const complete = total > 0 && filled === total;
-      const started  = filled > 0 && !complete;
-      const active   = day.id === selectedId;
-      const dateStr  = easterDate
-        ? new Date(new Date(easterDate).setDate(new Date(easterDate).getDate()+day.easterOffset))
-            .toLocaleDateString("en-US",{ month:"short", day:"numeric" })
+      const complete         = total > 0 && filled === total;
+      const started          = filled > 0 && !complete;
+      const active           = day.id === selectedId;
+      const dateStr          = easterDate
+        ? new Date(new Date(easterDate).setDate(new Date(easterDate).getDate() + day.easterOffset))
+            .toLocaleDateString("en-US", { month: "short", day: "numeric" })
         : null;
       return (
         <TouchableOpacity key={day.id} onPress={() => onSelect(day.id)}
@@ -821,29 +783,28 @@ const DayTabBar = ({ days, selectedId, easterDate, schedule, onSelect }) => (
     })}
   </ScrollView>
 );
-
 const dt = StyleSheet.create({
-  bar:        { backgroundColor:BG },
-  content:    { paddingHorizontal:12, paddingVertical:8, gap:5, flexDirection:"row" },
-  tab:        { paddingHorizontal:9, paddingVertical:6, borderRadius:9, backgroundColor:CARD, alignItems:"center", minWidth:62, height:52 },
-  tabActive:  { backgroundColor:BLUEDIM, borderWidth:1, borderColor:"rgba(10,132,255,0.35)" },
-  dot:        { width:5, height:5, borderRadius:2.5, marginBottom:3 },
-  dotGray:    { backgroundColor:T3 },
-  dotBlue:    { backgroundColor:BLUE },
-  dotGreen:   { backgroundColor:GREEN },
-  label:      { fontSize:11, fontWeight:"600", color:T2, textAlign:"center" },
-  labelActive:{ color:BLUE },
-  date:       { fontSize:9, color:T3, marginTop:2 },
-  dateActive: { color:"rgba(10,132,255,0.7)" },
+  bar:        { backgroundColor: BG },
+  content:    { paddingHorizontal: 12, paddingVertical: 8, gap: 5, flexDirection: "row" },
+  tab:        { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: CARD, alignItems: "center", minWidth: 62, height: 52 },
+  tabActive:  { backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.35)" },
+  dot:        { width: 5, height: 5, borderRadius: 2.5, marginBottom: 3 },
+  dotGray:    { backgroundColor: T3 },
+  dotBlue:    { backgroundColor: BLUE },
+  dotGreen:   { backgroundColor: GREEN },
+  label:      { fontSize: 11, fontWeight: "600", color: T2, textAlign: "center" },
+  labelActive:{ color: BLUE },
+  date:       { fontSize: 9, color: T3, marginTop: 2 },
+  dateActive: { color: "rgba(10,132,255,0.7)" },
 });
 
-// ─── Hour tile ────────────────────────────────────────────────────────────────
+// ── Hour tile ─────────────────────────────────────────────────────────────────
 const HourTile = React.memo(({
   hour, hourAssignments, dayId, deacons, congregation,
   loadingUsers, onSaveReading, onSavePsalmReaders, onSaveLanguage,
 }) => {
-  const [hourOpen, setHourOpen]               = useState(false);
-  const [psalmPickerRow, setPsalmPickerRow]   = useState(null);
+  const [hourOpen, setHourOpen]             = useState(false);
+  const [psalmPickerRow, setPsalmPickerRow] = useState(null);
 
   const rows              = expandReadings(hour);
   const assignableRows    = rows.filter(r => isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey));
@@ -853,10 +814,10 @@ const HourTile = React.memo(({
   const pct               = total > 0 ? filled / total : 0;
   const statusColor       = complete ? GREEN : started ? BLUE : T3;
 
-  /** Build a display label for a row — no language in text */
-  const rowDisplayLabel = (row) => {
-    const meta = READING_META[row.rKey] || { label:row.rKey };
-    if (row.rKey === "homily") return `Homily — ${row.author || row.refText}`;
+  const rowDisplayLabel = row => {
+    const meta = READING_META[row.rKey] || { label: row.rKey };
+    if (row.rKey === "homily")     return `Homily — ${row.author || row.refText}`;
+    if (row.rKey === "exposition") return "Exposition";
     return row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
   };
 
@@ -868,54 +829,54 @@ const HourTile = React.memo(({
           {complete
             ? <View style={ht.pill}>
                 <Icon name="check" size={11} color={GREEN} />
-                <Text style={[ht.pillTxt, { color:GREEN }]}>Done</Text>
+                <Text style={[ht.pillTxt, { color: GREEN }]}>Done</Text>
               </View>
             : started
-              ? <View style={[ht.pill, { backgroundColor:"rgba(10,132,255,0.12)", borderColor:"rgba(10,132,255,0.3)" }]}>
-                  <Text style={[ht.pillTxt, { color:BLUE }]}>In progress</Text>
+              ? <View style={[ht.pill, { backgroundColor: "rgba(10,132,255,0.12)", borderColor: "rgba(10,132,255,0.3)" }]}>
+                  <Text style={[ht.pillTxt, { color: BLUE }]}>In progress</Text>
                 </View>
               : null
           }
         </View>
         <View style={ht.track}>
-          <View style={[ht.trackFill, { flex:pct, backgroundColor:statusColor }]} />
-          <View style={{ flex:1-pct }} />
+          <View style={[ht.trackFill, { flex: pct, backgroundColor: statusColor }]} />
+          <View style={{ flex: 1 - pct }} />
         </View>
         <View style={ht.readingList}>
           {assignableRows.map((row, i) => {
-            const meta      = READING_META[row.rKey] || { label:row.rKey, icon:"book-outline", color:T2 };
-            const isPsalm   = isPsalmSlot(row.rKey);
-            const isHomily  = row.rKey === "homily";
-            const readersKey = isPsalm ? psalmReadersKey(row) : null;
-            const readers    = isPsalm ? (hourAssignments[readersKey] || []) : [];
+            const meta       = READING_META[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
+            const isPsalm    = isPsalmSlot(row.rKey);
+            const isCoptic   = row.isCoptic === true;
+            const readers    = isPsalm ? (hourAssignments[psalmReadersKey(row)] || []) : [];
             const assignee   = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
             const typeLabel  = rowDisplayLabel(row);
             const isLast     = i === assignableRows.length - 1;
             return (
               <View key={row.slotKey} style={[ht.rRow, !isLast && ht.rRowBorder]}>
                 <View style={ht.rLeft}>
-                  <Icon name={meta.icon} size={13} color={meta.color} />
-                  <Text style={[ht.rType, { color:meta.color }]}>{typeLabel}</Text>
-                  {hasLanguagePicker(row.rKey) && (
-                    <View style={ht.langBadge}>
-                      <Text style={ht.langBadgeTxt}>
-                        {langShort(effectiveLanguage(row, hourAssignments))}
-                      </Text>
-                    </View>
-                  )}
+                  <Icon name={meta.icon} size={13} color={isCoptic ? COPTIC_COLOR : meta.color} />
+                  <Text style={[ht.rType, { color: isCoptic ? COPTIC_COLOR : meta.color }]}>{typeLabel}</Text>
+                  {isCoptic
+                    ? <View style={ht.copticBadge}><Text style={ht.copticBadgeTxt}>COPTIC</Text></View>
+                    : hasLanguagePicker(row.rKey) && (
+                        <View style={ht.langBadge}>
+                          <Text style={ht.langBadgeTxt}>{langShort(effectiveLanguage(row, hourAssignments))}</Text>
+                        </View>
+                      )
+                  }
                 </View>
                 {isPsalm ? (
                   readers.length > 0
                     ? <View style={ht.assigneeRow}>
-                        {readers.slice(0,3).map((r,idx) => (
-                          <Avatar key={r.uid||r.name||idx} uid={r.uid} size={20}
-                            style={{ marginLeft:idx>0?-6:0, borderWidth:1.5, borderColor:CARD }} />
+                        {readers.slice(0, 3).map((r, idx) => (
+                          <Avatar key={r.uid || r.name || idx} uid={r.uid} size={20}
+                            style={{ marginLeft: idx > 0 ? -6 : 0, borderWidth: 1.5, borderColor: CARD }} />
                         ))}
                         <Text style={ht.assigneeName} numberOfLines={1}>
-                          {readers.length===1 ? readers[0].name : `${readers.length} readers`}
+                          {readers.length === 1 ? readers[0].name : `${readers.length} readers`}
                         </Text>
                       </View>
-                    : <Text style={ht.rRef} numberOfLines={1}>{row.refText||"—"}</Text>
+                    : <Text style={ht.rRef} numberOfLines={1}>{row.refText || "—"}</Text>
                 ) : assignee ? (
                   <View style={ht.assigneeRow}>
                     <Avatar uid={assignee.uid} size={20} />
@@ -923,7 +884,7 @@ const HourTile = React.memo(({
                   </View>
                 ) : (
                   <Text style={ht.rRef} numberOfLines={1}>
-                    {isHomily ? "Unassigned" : row.refText || "—"}
+                    {row.rKey === "homily" || row.rKey === "exposition" ? "Unassigned" : row.refText || "—"}
                   </Text>
                 )}
               </View>
@@ -942,7 +903,7 @@ const HourTile = React.memo(({
         loadingUsers={loadingUsers}
         onSaveReading={onSaveReading}
         onSaveLanguage={onSaveLanguage}
-        onOpenPsalmPicker={(row) => { setHourOpen(false); setPsalmPickerRow(row); }}
+        onOpenPsalmPicker={row => { setHourOpen(false); setPsalmPickerRow(row); }}
         onClose={() => setHourOpen(false)}
       />
       <PsalmPickerModal
@@ -961,30 +922,31 @@ const HourTile = React.memo(({
     </>
   );
 });
-
 const ht = StyleSheet.create({
-  tile:        { backgroundColor:CARD, borderRadius:16, marginBottom:10, padding:16, borderWidth:1, borderColor:SEP },
-  titleRow:    { flexDirection:"row", alignItems:"center", justifyContent:"space-between", marginBottom:10 },
-  name:        { fontSize:16, fontWeight:"700", color:T1, flex:1, marginRight:8 },
-  pill:        { flexDirection:"row", alignItems:"center", gap:4, paddingHorizontal:9, paddingVertical:3, borderRadius:20, backgroundColor:"rgba(48,209,88,0.1)", borderWidth:1, borderColor:"rgba(48,209,88,0.28)" },
-  pillTxt:     { fontSize:11, fontWeight:"700" },
-  track:       { flexDirection:"row", height:2, borderRadius:2, backgroundColor:CARD2, marginBottom:12, overflow:"hidden" },
-  trackFill:   { borderRadius:2 },
-  readingList: {},
-  rRow:        { flexDirection:"row", alignItems:"center", justifyContent:"space-between", paddingVertical:7 },
-  rRowBorder:  { borderBottomWidth:1, borderBottomColor:SEP },
-  rLeft:       { flexDirection:"row", alignItems:"center", gap:6, flex:1, marginRight:8 },
-  rType:       { fontSize:12, fontWeight:"700" },
-  langBadge:   { paddingHorizontal:5, paddingVertical:1, borderRadius:4, backgroundColor:CARD2 },
-  langBadgeTxt:{ fontSize:9, fontWeight:"700", color:T3, letterSpacing:0.3 },
-  rRef:        { fontSize:12, color:T3, flex:1, textAlign:"right" },
-  assigneeRow: { flexDirection:"row", alignItems:"center", gap:4 },
-  assigneeName:{ fontSize:12, fontWeight:"600", color:GREEN, maxWidth:130 },
+  tile:         { backgroundColor: CARD, borderRadius: 16, marginBottom: 10, padding: 16, borderWidth: 1, borderColor: SEP },
+  titleRow:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  name:         { fontSize: 16, fontWeight: "700", color: T1, flex: 1, marginRight: 8 },
+  pill:         { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20, backgroundColor: "rgba(48,209,88,0.1)", borderWidth: 1, borderColor: "rgba(48,209,88,0.28)" },
+  pillTxt:      { fontSize: 11, fontWeight: "700" },
+  track:        { flexDirection: "row", height: 2, borderRadius: 2, backgroundColor: CARD2, marginBottom: 12, overflow: "hidden" },
+  trackFill:    { borderRadius: 2 },
+  readingList:  {},
+  rRow:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 7 },
+  rRowBorder:   { borderBottomWidth: 1, borderBottomColor: SEP },
+  rLeft:        { flexDirection: "row", alignItems: "center", gap: 6, flex: 1, marginRight: 8 },
+  rType:        { fontSize: 12, fontWeight: "700" },
+  copticBadge:  { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: COPTIC_BG, borderWidth: 1, borderColor: COPTIC_BORDER },
+  copticBadgeTxt:{ fontSize: 9, fontWeight: "700", color: COPTIC_COLOR, letterSpacing: 0.3 },
+  langBadge:    { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: CARD2 },
+  langBadgeTxt: { fontSize: 9, fontWeight: "700", color: T3, letterSpacing: 0.3 },
+  rRef:         { fontSize: 12, color: T3, flex: 1, textAlign: "right" },
+  assigneeRow:  { flexDirection: "row", alignItems: "center", gap: 4 },
+  assigneeName: { fontSize: 12, fontWeight: "600", color: GREEN, maxWidth: 130 },
 });
 
-// ─── Settings sheet (unchanged) ───────────────────────────────────────────────
+// ── Settings sheet ────────────────────────────────────────────────────────────
 const SettingsSheet = ({
-  visible, myReadingsVisible, fullScheduleVisible, easterDate, year,
+  visible, myReadingsVisible, fullScheduleVisible, easterDate, year, allDays,
   onToggleMyReadings, onToggleFullSchedule, onDateSave,
   onArchivePress, onViewArchives, onClose,
 }) => {
@@ -1002,6 +964,14 @@ const SettingsSheet = ({
     } else if (selected) setPickerDate(selected);
   };
 
+  const keyDays = [
+    { label: "Last Friday of Lent", offset: -9 },
+    { label: "Palm Sunday",         offset: -7 },
+    { label: "Holy Monday",         offset: -6 },
+    { label: "Good Friday",         offset: -2 },
+    { label: "Easter Sunday",       offset:  0 },
+  ];
+
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
       <View style={ss.backdrop}>
@@ -1013,42 +983,44 @@ const SettingsSheet = ({
               <Icon name="close" size={17} color={T2} />
             </TouchableOpacity>
           </View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:20, gap:12 }}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 12 }}>
             <View style={ss.card}>
               <View style={ss.row}>
-                <View style={[ss.iconBox, { backgroundColor:"rgba(48,209,88,0.12)" }]}>
+                <View style={[ss.iconBox, { backgroundColor: "rgba(48,209,88,0.12)" }]}>
                   <Icon name="account-outline" size={19} color={GREEN} />
                 </View>
-                <View style={{ flex:1 }}>
+                <View style={{ flex: 1 }}>
                   <Text style={ss.label}>My Readings</Text>
                   <Text style={ss.desc}>{myReadingsVisible ? "Members can see their assignments" : "Hidden from members"}</Text>
                 </View>
-                <Switch value={myReadingsVisible} onValueChange={onToggleMyReadings} trackColor={{ false:T3, true:BLUE }} thumbColor={T1} />
+                <Switch value={myReadingsVisible} onValueChange={onToggleMyReadings}
+                  trackColor={{ false: T3, true: BLUE }} thumbColor={T1} />
               </View>
             </View>
             <View style={ss.card}>
               <View style={ss.row}>
-                <View style={[ss.iconBox, { backgroundColor:"rgba(10,132,255,0.12)" }]}>
+                <View style={[ss.iconBox, { backgroundColor: "rgba(10,132,255,0.12)" }]}>
                   <Icon name="calendar-text-outline" size={19} color={BLUE} />
                 </View>
-                <View style={{ flex:1 }}>
+                <View style={{ flex: 1 }}>
                   <Text style={ss.label}>Full Schedule</Text>
                   <Text style={ss.desc}>{fullScheduleVisible ? "Everyone can see all assignments" : "Hidden from members"}</Text>
                 </View>
-                <Switch value={fullScheduleVisible} onValueChange={onToggleFullSchedule} trackColor={{ false:T3, true:BLUE }} thumbColor={T1} />
+                <Switch value={fullScheduleVisible} onValueChange={onToggleFullSchedule}
+                  trackColor={{ false: T3, true: BLUE }} thumbColor={T1} />
               </View>
             </View>
             <View style={ss.card}>
               <View style={ss.row}>
-                <View style={[ss.iconBox, { backgroundColor:BLUEDIM }]}>
+                <View style={[ss.iconBox, { backgroundColor: BLUEDIM }]}>
                   <Icon name="calendar-star" size={19} color={BLUE} />
                 </View>
-                <View style={{ flex:1 }}>
+                <View style={{ flex: 1 }}>
                   <Text style={ss.label}>Easter Sunday</Text>
                   <Text style={ss.desc}>{easterDate ? calcDate(easterDate, 0) : "Not set — tap Edit"}</Text>
                 </View>
                 <Pressable style={ss.editBtn} onPress={() => {
-                  if (pickerOpen && Platform.OS==="ios") { onDateSave(pickerDate); setPickerOpen(false); }
+                  if (pickerOpen && Platform.OS === "ios") { onDateSave(pickerDate); setPickerOpen(false); }
                   else setPickerOpen(v => !v);
                 }}>
                   <Text style={ss.editTxt}>{pickerOpen ? "Done" : "Edit"}</Text>
@@ -1056,20 +1028,21 @@ const SettingsSheet = ({
               </View>
               {pickerOpen && (
                 <DateTimePicker value={pickerDate} mode="date"
-                  display={Platform.OS==="ios" ? "spinner" : "default"}
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
                   onChange={handleChange}
-                  minimumDate={new Date(2020,0,1)} maximumDate={new Date(2050,11,31)}
-                  style={{ width:"100%", height:Platform.OS==="ios"?150:180, marginTop:8 }}
-                  {...(Platform.OS==="ios" ? { textColor:"#E0E0E0", accentColor:BLUE } : {})}
-                />
+                  minimumDate={new Date(2020, 0, 1)} maximumDate={new Date(2050, 11, 31)}
+                  style={{ width: "100%", height: Platform.OS === "ios" ? 150 : 180, marginTop: 8 }}
+                  {...(Platform.OS === "ios" ? { textColor: "#E0E0E0", accentColor: BLUE } : {})} />
               )}
               {easterDate && !pickerOpen && (
                 <>
                   <View style={ss.divider} />
-                  {[["Last Friday of Lent",-9],["Palm Sunday",-7],["Holy Monday",-6],["Good Friday",-2],["Easter Sunday",0]].map(([l,o]) => (
-                    <View key={l} style={ss.dateRow}>
-                      <Text style={ss.dateLabel}>{l}</Text>
-                      <Text style={[ss.dateVal, o===0 && { color:BLUE, fontWeight:"700" }]}>{calcDate(easterDate, o)}</Text>
+                  {keyDays.map(({ label, offset }) => (
+                    <View key={label} style={ss.dateRow}>
+                      <Text style={ss.dateLabel}>{label}</Text>
+                      <Text style={[ss.dateVal, offset === 0 && { color: BLUE, fontWeight: "700" }]}>
+                        {calcDate(easterDate, offset)}
+                      </Text>
                     </View>
                   ))}
                 </>
@@ -1078,7 +1051,7 @@ const SettingsSheet = ({
             <TouchableOpacity style={ss.archivesBtn} onPress={onViewArchives} activeOpacity={0.8}>
               <Icon name="archive-eye-outline" size={18} color={BLUE} />
               <Text style={ss.archivesBtnTxt}>View Archived Schedules</Text>
-              <Icon name="chevron-right" size={15} color={T3} style={{ marginLeft:"auto" }} />
+              <Icon name="chevron-right" size={15} color={T3} style={{ marginLeft: "auto" }} />
             </TouchableOpacity>
             <TouchableOpacity style={ss.archiveBtn} onPress={onArchivePress} activeOpacity={0.8}>
               <Icon name="archive-outline" size={18} color={RED} />
@@ -1090,32 +1063,31 @@ const SettingsSheet = ({
     </Modal>
   );
 };
-
 const ss = StyleSheet.create({
-  backdrop:      { flex:1, backgroundColor:"rgba(0,0,0,0.72)", justifyContent:"flex-end" },
-  sheet:         { backgroundColor:CARD, borderTopLeftRadius:26, borderTopRightRadius:26, maxHeight:"90%", paddingBottom:Platform.OS==="ios"?34:20 },
-  handle:        { width:38, height:4, borderRadius:2, backgroundColor:SEP, alignSelf:"center", marginTop:12 },
-  hdr:           { flexDirection:"row", alignItems:"center", justifyContent:"space-between", paddingHorizontal:20, paddingVertical:16, borderBottomWidth:1, borderBottomColor:SEP },
-  hdrTitle:      { fontSize:20, fontWeight:"700", color:T1 },
-  xBtn:          { width:32, height:32, borderRadius:16, backgroundColor:CARD2, justifyContent:"center", alignItems:"center" },
-  card:          { backgroundColor:CARD2, borderRadius:14, padding:16 },
-  row:           { flexDirection:"row", alignItems:"center", gap:12 },
-  iconBox:       { width:40, height:40, borderRadius:11, justifyContent:"center", alignItems:"center" },
-  label:         { fontSize:15, fontWeight:"600", color:T1 },
-  desc:          { fontSize:13, color:T2, marginTop:2 },
-  editBtn:       { paddingHorizontal:14, paddingVertical:7, borderRadius:9, backgroundColor:CARD },
-  editTxt:       { fontSize:13, fontWeight:"600", color:BLUE },
-  divider:       { height:1, backgroundColor:SEP, marginVertical:12 },
-  dateRow:       { flexDirection:"row", justifyContent:"space-between", marginBottom:8 },
-  dateLabel:     { fontSize:13, color:T2 },
-  dateVal:       { fontSize:13, color:T1, fontWeight:"500" },
-  archivesBtn:   { flexDirection:"row", alignItems:"center", gap:10, padding:15, borderRadius:14, borderWidth:1, borderColor:"rgba(10,132,255,0.22)", backgroundColor:"rgba(10,132,255,0.07)" },
-  archivesBtnTxt:{ fontSize:15, fontWeight:"600", color:BLUE },
-  archiveBtn:    { flexDirection:"row", alignItems:"center", justifyContent:"center", gap:8, padding:15, borderRadius:14, borderWidth:1, borderColor:"rgba(255,69,58,0.22)", backgroundColor:"rgba(255,69,58,0.06)" },
-  archiveTxt:    { fontSize:15, fontWeight:"600", color:RED },
+  backdrop:      { flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "flex-end" },
+  sheet:         { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: "90%", paddingBottom: Platform.OS === "ios" ? 34 : 20 },
+  handle:        { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP, alignSelf: "center", marginTop: 12 },
+  hdr:           { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: SEP },
+  hdrTitle:      { fontSize: 20, fontWeight: "700", color: T1 },
+  xBtn:          { width: 32, height: 32, borderRadius: 16, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
+  card:          { backgroundColor: CARD2, borderRadius: 14, padding: 16 },
+  row:           { flexDirection: "row", alignItems: "center", gap: 12 },
+  iconBox:       { width: 40, height: 40, borderRadius: 11, justifyContent: "center", alignItems: "center" },
+  label:         { fontSize: 15, fontWeight: "600", color: T1 },
+  desc:          { fontSize: 13, color: T2, marginTop: 2 },
+  editBtn:       { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 9, backgroundColor: CARD },
+  editTxt:       { fontSize: 13, fontWeight: "600", color: BLUE },
+  divider:       { height: 1, backgroundColor: SEP, marginVertical: 12 },
+  dateRow:       { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
+  dateLabel:     { fontSize: 13, color: T2 },
+  dateVal:       { fontSize: 13, color: T1, fontWeight: "500" },
+  archivesBtn:   { flexDirection: "row", alignItems: "center", gap: 10, padding: 15, borderRadius: 14, borderWidth: 1, borderColor: "rgba(10,132,255,0.22)", backgroundColor: "rgba(10,132,255,0.07)" },
+  archivesBtnTxt:{ fontSize: 15, fontWeight: "600", color: BLUE },
+  archiveBtn:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,69,58,0.22)", backgroundColor: "rgba(255,69,58,0.06)" },
+  archiveTxt:    { fontSize: 15, fontWeight: "600", color: RED },
 });
 
-// ─── Archive confirm (unchanged) ──────────────────────────────────────────────
+// ── Archive confirm ───────────────────────────────────────────────────────────
 const ArchiveConfirm = ({ visible, year, onConfirm, onClose }) => {
   const [archiving, setArchiving] = useState(false);
   const [progress, setProgress]   = useState(0);
@@ -1145,11 +1117,14 @@ const ArchiveConfirm = ({ visible, year, onConfirm, onClose }) => {
         <View style={arc.sheet}>
           <View style={arc.handle} />
           <View style={arc.iconWrap}>
-            <Icon name={done ? "check-circle-outline" : "archive-clock-outline"} size={32} color={done ? GREEN : ORANGE} />
+            <Icon name={done ? "check-circle-outline" : "archive-clock-outline"} size={32}
+              color={done ? GREEN : ORANGE} />
           </View>
           <Text style={arc.title}>{done ? "Archived!" : `Archive ${year}?`}</Text>
           <Text style={arc.body}>
-            {done ? `The ${year} schedule has been saved and cleared.` : "Reader assignments will be saved and this year's schedule cleared for next year."}
+            {done
+              ? `The ${year} schedule has been saved and assignees cleared.`
+              : "Reader assignments will be saved to an archive. The schedule structure stays intact for next year."}
           </Text>
           <View style={arc.divider} />
           {archiving ? (
@@ -1157,10 +1132,10 @@ const ArchiveConfirm = ({ visible, year, onConfirm, onClose }) => {
               <View style={arc.progressHeader}>
                 <Icon name="archive-arrow-down-outline" size={14} color={done ? GREEN : ORANGE} />
                 <Text style={arc.progressLabel}>{done ? "Complete" : "Saving archive…"}</Text>
-                <Text style={[arc.progressPct, done && { color:GREEN }]}>{progress}%</Text>
+                <Text style={[arc.progressPct, done && { color: GREEN }]}>{progress}%</Text>
               </View>
               <View style={arc.progressTrack}>
-                <View style={[arc.progressFill, { width:`${progress}%`, backgroundColor:done ? GREEN : ORANGE }]} />
+                <View style={[arc.progressFill, { width: `${progress}%`, backgroundColor: done ? GREEN : ORANGE }]} />
               </View>
             </View>
           ) : (
@@ -1179,46 +1154,61 @@ const ArchiveConfirm = ({ visible, year, onConfirm, onClose }) => {
     </Modal>
   );
 };
-
 const arc = StyleSheet.create({
-  overlay:         { flex:1, backgroundColor:"rgba(0,0,0,0.82)", justifyContent:"flex-end" },
-  sheet:           { backgroundColor:CARD, borderTopLeftRadius:26, borderTopRightRadius:26, paddingHorizontal:24, paddingBottom:Platform.OS==="ios"?44:28, paddingTop:12, alignItems:"center" },
-  handle:          { width:38, height:4, borderRadius:2, backgroundColor:SEP, alignSelf:"center", marginBottom:20 },
-  iconWrap:        { width:60, height:60, borderRadius:30, backgroundColor:"rgba(255,159,10,0.1)", justifyContent:"center", alignItems:"center", marginBottom:14 },
-  title:           { fontSize:20, fontWeight:"800", color:T1, marginBottom:8, letterSpacing:-0.3 },
-  body:            { fontSize:14, color:T2, textAlign:"center", lineHeight:21, marginBottom:20 },
-  divider:         { width:"100%", height:1, backgroundColor:SEP, marginBottom:20 },
-  actions:         { flexDirection:"row", gap:10, width:"100%" },
-  cancelBtn:       { flex:1, paddingVertical:14, borderRadius:14, backgroundColor:CARD2, alignItems:"center" },
-  cancelTxt:       { fontSize:15, fontWeight:"600", color:T2 },
-  confirmBtn:      { flex:2, flexDirection:"row", alignItems:"center", justifyContent:"center", gap:8, paddingVertical:14, borderRadius:14, backgroundColor:RED },
-  confirmTxt:      { fontSize:15, fontWeight:"700", color:T1 },
-  progressSection: { width:"100%" },
-  progressHeader:  { flexDirection:"row", alignItems:"center", gap:6, marginBottom:10 },
-  progressLabel:   { flex:1, fontSize:13, color:T2, fontWeight:"500" },
-  progressPct:     { fontSize:13, fontWeight:"700", color:T1 },
-  progressTrack:   { height:5, backgroundColor:CARD2, borderRadius:3, overflow:"hidden" },
-  progressFill:    { height:5, borderRadius:3 },
+  overlay:         { flex: 1, backgroundColor: "rgba(0,0,0,0.82)", justifyContent: "flex-end" },
+  sheet:           { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 24, paddingBottom: Platform.OS === "ios" ? 44 : 28, paddingTop: 12, alignItems: "center" },
+  handle:          { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP, alignSelf: "center", marginBottom: 20 },
+  iconWrap:        { width: 60, height: 60, borderRadius: 30, backgroundColor: "rgba(255,159,10,0.1)", justifyContent: "center", alignItems: "center", marginBottom: 14 },
+  title:           { fontSize: 20, fontWeight: "800", color: T1, marginBottom: 8, letterSpacing: -0.3 },
+  body:            { fontSize: 14, color: T2, textAlign: "center", lineHeight: 21, marginBottom: 20 },
+  divider:         { width: "100%", height: 1, backgroundColor: SEP, marginBottom: 20 },
+  actions:         { flexDirection: "row", gap: 10, width: "100%" },
+  cancelBtn:       { flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: CARD2, alignItems: "center" },
+  cancelTxt:       { fontSize: 15, fontWeight: "600", color: T2 },
+  confirmBtn:      { flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: RED },
+  confirmTxt:      { fontSize: 15, fontWeight: "700", color: T1 },
+  progressSection: { width: "100%" },
+  progressHeader:  { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  progressLabel:   { flex: 1, fontSize: 13, color: T2, fontWeight: "500" },
+  progressPct:     { fontSize: 13, fontWeight: "700", color: T1 },
+  progressTrack:   { height: 5, backgroundColor: CARD2, borderRadius: 3, overflow: "hidden" },
+  progressFill:    { height: 5, borderRadius: 3 },
 });
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────────
 export default function PaschaManager() {
   const isMounted = useRef(true);
-  const [churchId, setChurchId]                     = useState(null);
-  const [myReadingsVisible, setMyReadingsVisible]   = useState(false);
+  const [churchId, setChurchId]                       = useState(null);
+  const [scheduleShell, setScheduleShell]             = useState(null);
+  const [assignees, setAssignees]                     = useState({});
+  const [myReadingsVisible, setMyReadingsVisible]     = useState(false);
   const [fullScheduleVisible, setFullScheduleVisible] = useState(false);
-  const [easterDate, setEasterDate]                 = useState(null);
-  const [schedule, setSchedule]                     = useState({});
-  const [deacons, setDeacons]                       = useState([]);
-  const [congregation, setCongregation]             = useState([]);
-  const [loadingUsers, setLoadingUsers]             = useState(false);
-  const [settingsOpen, setSettingsOpen]             = useState(false);
-  const [archiveOpen, setArchiveOpen]               = useState(false);
-  const [archiveViewOpen, setArchiveViewOpen]       = useState(false);
-  const [selectedId, setSelectedId]                 = useState(ALL_DAYS[0].id);
+  const [easterDate, setEasterDate]                   = useState(null);
+  const [deacons, setDeacons]                         = useState([]);
+  const [congregation, setCongregation]               = useState([]);
+  const [loadingUsers, setLoadingUsers]               = useState(false);
+  const [settingsOpen, setSettingsOpen]               = useState(false);
+  const [archiveOpen, setArchiveOpen]                 = useState(false);
+  const [archiveViewOpen, setArchiveViewOpen]         = useState(false);
+  const [selectedId, setSelectedId]                   = useState(null);
+
+  const allDays = useMemo(() => buildAllDays(scheduleShell), [scheduleShell]);
+  const daysById = useMemo(() => Object.fromEntries(allDays.map(d => [d.id, d])), [allDays]);
+
+  // Merge shell hours + assignees into the schedule shape used by the UI
+  const schedule = useMemo(() => {
+    const merged = {};
+    allDays.forEach(day => {
+      merged[day.id] = {};
+      (day.hours || []).forEach(h => {
+        merged[day.id][h.id] = { ...(assignees[day.id]?.[h.id] ?? {}) };
+      });
+    });
+    return merged;
+  }, [allDays, assignees]);
 
   const year        = easterDate ? new Date(easterDate).getFullYear() : new Date().getFullYear();
-  const selectedDay = DAYS_BY_ID[selectedId];
+  const selectedDay = selectedId ? (daysById[selectedId] ?? null) : null;
 
   useEffect(() => {
     isMounted.current = true;
@@ -1232,16 +1222,41 @@ export default function PaschaManager() {
 
   useEffect(() => {
     if (!churchId) return;
-    const unsub = firestore().collection("churches").doc(churchId)
-      .collection("pascha").doc("config").onSnapshot(doc => {
+
+    // Schedule shell (structure written by Python script)
+    const unsubShell = firestore()
+      .collection("churches").doc(churchId)
+      .collection("pascha").doc("schedule_config")
+      .onSnapshot(doc => {
+        if (!isMounted.current) return;
+        if (doc.exists) {
+          setScheduleShell(doc.data());
+          setSelectedId(prev => prev ?? doc.data()?.days?.[0]?.id ?? null);
+        }
+      });
+
+    // Config (metadata only — easterDate, visibility toggles)
+    const unsubConfig = firestore()
+      .collection("churches").doc(churchId)
+      .collection("pascha").doc("config")
+      .onSnapshot(doc => {
         if (!isMounted.current || !doc.exists) return;
         const d = doc.data();
         setMyReadingsVisible(d.myReadingsVisible ?? false);
         setFullScheduleVisible(d.fullScheduleVisible ?? false);
         setEasterDate(d.easterDate ?? null);
-        setSchedule(d.schedule ?? {});
       });
-    return () => unsub();
+
+    // Schedule (assignees + language overrides, keyed by dayId.hourId.slotKey)
+    const unsubSchedule = firestore()
+      .collection("churches").doc(churchId)
+      .collection("pascha").doc("schedule")
+      .onSnapshot(doc => {
+        if (!isMounted.current) return;
+        setAssignees(doc.exists ? doc.data() : {});
+      });
+
+    return () => { unsubShell(); unsubConfig(); unsubSchedule(); };
   }, [churchId]);
 
   useEffect(() => {
@@ -1252,16 +1267,16 @@ export default function PaschaManager() {
       setDeacons(
         (doc.data().deacons || [])
           .filter(d => d.name && d.uid)
-          .map(d => ({ ...d, isDeacon:true }))
-          .sort((a,b) => a.name.localeCompare(b.name))
+          .map(d => ({ ...d, isDeacon: true }))
+          .sort((a, b) => a.name.localeCompare(b.name))
       );
     });
-    const unsubU = firestore().collection("users").where("church","==",churchId).onSnapshot(snap => {
+    const unsubU = firestore().collection("users").where("church", "==", churchId).onSnapshot(snap => {
       if (!isMounted.current) return;
       setCongregation(
-        snap.docs.map(d => ({ uid:d.id, ...d.data() }))
+        snap.docs.map(d => ({ uid: d.id, ...d.data() }))
           .filter(u => u.name)
-          .sort((a,b) => a.name.localeCompare(b.name))
+          .sort((a, b) => a.name.localeCompare(b.name))
       );
       setLoadingUsers(false);
     });
@@ -1270,65 +1285,94 @@ export default function PaschaManager() {
 
   const writeConfig = useCallback(async fields => {
     if (!churchId) return;
-    await firestore().collection("churches").doc(churchId)
-      .collection("pascha").doc("config")
-      .update(fields)
-      .catch(async err => {
-        if (err.code === "firestore/not-found") {
-          await firestore().collection("churches").doc(churchId)
-            .collection("pascha").doc("config").set(fields);
-        } else Alert.alert("Error", "Failed to save.");
-      });
+    const ref = firestore()
+      .collection("churches").doc(churchId)
+      .collection("pascha").doc("config");
+    await ref.update(fields).catch(async err => {
+      if (err.code === "firestore/not-found") {
+        await ref.set(fields);
+      } else {
+        Alert.alert("Error", "Failed to save.");
+      }
+    });
+  }, [churchId]);
+
+  const writeSchedule = useCallback(async fields => {
+    if (!churchId) return;
+    const ref = firestore()
+      .collection("churches").doc(churchId)
+      .collection("pascha").doc("schedule");
+    await ref.update(fields).catch(async err => {
+      if (err.code === "firestore/not-found") {
+        await ref.set(fields);
+      } else {
+        Alert.alert("Error", "Failed to save.");
+      }
+    });
   }, [churchId]);
 
   const saveReading = useCallback(async (dayId, hourId, slotKey, person) => {
-    const path  = `schedule.${dayId}.${hourId}.${slotKey}`;
+    const path  = `${dayId}.${hourId}.${slotKey}`;
     const value = person
-      ? { uid:person.uid||null, name:person.name }
+      ? { uid: person.uid ?? null, name: person.name }
       : firestore.FieldValue.delete();
-    await writeConfig({ [path]: value });
-  }, [writeConfig]);
+    await writeSchedule({ [path]: value });
+  }, [writeSchedule]);
 
-  /** Save psalm readers — now accepts the full Firestore key (e.g. "psalm_coptic_readers") */
   const savePsalmReaders = useCallback(async (dayId, hourId, readersKey, readers) => {
-    const path  = `schedule.${dayId}.${hourId}.${readersKey}`;
+    const path  = `${dayId}.${hourId}.${readersKey}`;
     const value = readers.length > 0
-      ? readers.map(r => ({ uid:r.uid||null, name:r.name }))
+      ? readers.map(r => ({ uid: r.uid ?? null, name: r.name }))
       : firestore.FieldValue.delete();
-    await writeConfig({ [path]: value });
-  }, [writeConfig]);
+    await writeSchedule({ [path]: value });
+  }, [writeSchedule]);
 
-  /** Save language override for a reading slot */
   const saveLanguage = useCallback(async (dayId, hourId, slotKey, lang) => {
-    const path = `schedule.${dayId}.${hourId}.${langFirestoreKey(slotKey)}`;
-    await writeConfig({ [path]: lang });
-  }, [writeConfig]);
+    const path = `${dayId}.${hourId}.${langFirestoreKey(slotKey)}`;
+    await writeSchedule({ [path]: lang });
+  }, [writeSchedule]);
 
   const doArchive = useCallback(async () => {
     try {
-      await firestore().collection("churches").doc(churchId)
+      await firestore()
+        .collection("churches").doc(churchId)
         .collection("pascha").doc(`archive_${year}`)
-        .set({ schedule, archivedAt:firestore.FieldValue.serverTimestamp() });
-      await writeConfig({ schedule:{} });
+        .set({
+          schedule:   schedule,
+          easterDate: easterDate,
+          archivedAt: firestore.FieldValue.serverTimestamp(),
+        });
+      // Clear schedule assignees — shell (schedule_config) is untouched
+      await firestore()
+        .collection("churches").doc(churchId)
+        .collection("pascha").doc("schedule")
+        .set({});
       await new Promise(r => setTimeout(r, 600));
       setArchiveOpen(false);
       setSettingsOpen(false);
     } catch {
       Alert.alert("Error", "Archive failed.");
     }
-  }, [churchId, year, schedule, writeConfig]);
+  }, [churchId, year, schedule, easterDate, writeConfig]);
 
-  const ds = schedule[selectedId] || {};
-  const { total:dayTotal, filled:dayFilled } = selectedDay
-    ? dayProgress(selectedDay, ds)
-    : { total:0, filled:0 };
+  const ds = selectedId ? (schedule[selectedId] || {}) : {};
+  const { total: dayTotal, filled: dayFilled } = selectedDay
+    ? dayProgress(selectedDay, ds) : { total: 0, filled: 0 };
   const dayPct = dayTotal > 0 ? Math.round(dayFilled / dayTotal * 100) : 0;
+
+  if (!scheduleShell) {
+    return (
+      <View style={mn.loadingWrap}>
+        <ActivityIndicator color={BLUE} size="large" />
+      </View>
+    );
+  }
 
   return (
     <View style={mn.container}>
       <StatusBar barStyle="light-content" />
       <View style={mn.header}>
-        <View style={{ flex:1 }}>
+        <View style={{ flex: 1 }}>
           <Text style={mn.eyebrow}>HOLY WEEK  ·  PASCHA</Text>
           <Text style={mn.title}>Schedule</Text>
         </View>
@@ -1345,9 +1389,14 @@ export default function PaschaManager() {
         </TouchableOpacity>
       )}
 
-      <View style={{ height:68 }}>
-        <DayTabBar days={ALL_DAYS} selectedId={selectedId} easterDate={easterDate}
-          schedule={schedule} onSelect={setSelectedId} />
+      <View style={{ height: 68 }}>
+        <DayTabBar
+          allDays={allDays}
+          selectedId={selectedId}
+          easterDate={easterDate}
+          schedule={schedule}
+          onSelect={setSelectedId}
+        />
       </View>
 
       {selectedDay && (
@@ -1355,8 +1404,8 @@ export default function PaschaManager() {
           <Text style={mn.dayTitle}>{selectedDay.label}</Text>
           {easterDate && <Text style={mn.dayDate}>{calcDate(easterDate, selectedDay.easterOffset)}</Text>}
           {dayTotal > 0 && (
-            <View style={[mn.dayTrack, { marginTop:10 }]}>
-              <View style={[mn.dayTrackFill, { width:`${dayPct}%` }, dayPct===100 && { backgroundColor:GREEN }]} />
+            <View style={[mn.dayTrack, { marginTop: 10 }]}>
+              <View style={[mn.dayTrackFill, { width: `${dayPct}%` }, dayPct === 100 && { backgroundColor: GREEN }]} />
             </View>
           )}
         </View>
@@ -1385,9 +1434,10 @@ export default function PaschaManager() {
         fullScheduleVisible={fullScheduleVisible}
         easterDate={easterDate}
         year={year}
-        onToggleMyReadings={v => { setMyReadingsVisible(v); writeConfig({ myReadingsVisible:v }); }}
-        onToggleFullSchedule={v => { setFullScheduleVisible(v); writeConfig({ fullScheduleVisible:v }); }}
-        onDateSave={date => { const iso = date.toISOString(); setEasterDate(iso); writeConfig({ easterDate:iso }); }}
+        allDays={allDays}
+        onToggleMyReadings={v => { setMyReadingsVisible(v); writeConfig({ myReadingsVisible: v }); }}
+        onToggleFullSchedule={v => { setFullScheduleVisible(v); writeConfig({ fullScheduleVisible: v }); }}
+        onDateSave={date => { const iso = date.toISOString(); setEasterDate(iso); writeConfig({ easterDate: iso }); }}
         onViewArchives={() => { setSettingsOpen(false); setArchiveViewOpen(true); }}
         onArchivePress={() => { setSettingsOpen(false); setArchiveOpen(true); }}
         onClose={() => setSettingsOpen(false)}
@@ -1403,17 +1453,18 @@ export default function PaschaManager() {
 }
 
 const mn = StyleSheet.create({
-  container:    { flex:1, backgroundColor:"#121212" },
-  header:       { flexDirection:"row", alignItems:"center", paddingHorizontal:20, paddingTop:18, paddingBottom:10 },
-  eyebrow:      { fontSize:11, fontWeight:"700", color:BLUE, letterSpacing:1.5, marginBottom:4 },
-  title:        { fontSize:28, fontWeight:"800", color:T1, letterSpacing:-0.5 },
-  cogBtn:       { width:40, height:40, borderRadius:20, backgroundColor:CARD, justifyContent:"center", alignItems:"center" },
-  nudge:        { flexDirection:"row", alignItems:"center", gap:8, marginHorizontal:16, marginBottom:6, padding:12, borderRadius:12, backgroundColor:"rgba(255,159,10,0.08)", borderWidth:1, borderColor:"rgba(255,159,10,0.18)" },
-  nudgeTxt:     { flex:1, fontSize:13, color:ORANGE, fontWeight:"500" },
-  dayHdr:       { paddingHorizontal:20, paddingTop:14, paddingBottom:10 },
-  dayTitle:     { fontSize:22, fontWeight:"800", color:T1, letterSpacing:-0.3 },
-  dayDate:      { fontSize:13, color:T2, marginTop:3 },
-  dayTrack:     { height:2, backgroundColor:CARD2, borderRadius:2 },
-  dayTrackFill: { height:2, backgroundColor:BLUE, borderRadius:2 },
-  scroll:       { paddingHorizontal:16, paddingBottom:48, paddingTop:4 },
+  container:    { flex: 1, backgroundColor: "#121212" },
+  loadingWrap:  { flex: 1, backgroundColor: "#121212", justifyContent: "center", alignItems: "center" },
+  header:       { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 },
+  eyebrow:      { fontSize: 11, fontWeight: "700", color: BLUE, letterSpacing: 1.5, marginBottom: 4 },
+  title:        { fontSize: 28, fontWeight: "800", color: T1, letterSpacing: -0.5 },
+  cogBtn:       { width: 40, height: 40, borderRadius: 20, backgroundColor: CARD, justifyContent: "center", alignItems: "center" },
+  nudge:        { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 6, padding: 12, borderRadius: 12, backgroundColor: "rgba(255,159,10,0.08)", borderWidth: 1, borderColor: "rgba(255,159,10,0.18)" },
+  nudgeTxt:     { flex: 1, fontSize: 13, color: ORANGE, fontWeight: "500" },
+  dayHdr:       { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 10 },
+  dayTitle:     { fontSize: 22, fontWeight: "800", color: T1, letterSpacing: -0.3 },
+  dayDate:      { fontSize: 13, color: T2, marginTop: 3 },
+  dayTrack:     { height: 2, backgroundColor: CARD2, borderRadius: 2 },
+  dayTrackFill: { height: 2, backgroundColor: BLUE, borderRadius: 2 },
+  scroll:       { paddingHorizontal: 16, paddingBottom: 48, paddingTop: 4 },
 });
