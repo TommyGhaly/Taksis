@@ -55,7 +55,8 @@ function calcDate(easter, offset) {
 function getMySlots(hour, ha, uid) {
   if (!uid) return new Set();
   const slots = new Set();
-  expandReadings(hour).forEach(({ slotKey, rKey }) => {
+  // Pass ha so coptic prophecy rows appear only when admin toggled them on
+  expandReadings(hour, ha).forEach(({ slotKey, rKey }) => {
     if (isPsalmSlot(rKey)) {
       if ((ha.psalm_readers || []).some(r => r.uid === uid)) slots.add(slotKey);
     } else if (isAssignableSlot(rKey)) {
@@ -78,7 +79,7 @@ function collectMyReadings(allDays, schedule, uid) {
       const ha = ds[h.id] || {};
       const slotSet = getMySlots(h, ha, uid);
       if (slotSet.size === 0) return;
-      const rows = expandReadings(h).filter(r =>
+      const rows = expandReadings(h, ha).filter(r =>
         (isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey)) && slotSet.has(r.slotKey));
       if (rows.length > 0) hours.push({ hour: h, ha, rows });
     });
@@ -87,9 +88,11 @@ function collectMyReadings(allDays, schedule, uid) {
   return result;
 }
 
-function getVisibleHours(hours) {
-  return hours.filter(h =>
-    expandReadings(h).some(r => isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey)));
+function getVisibleHours(hours, daySchedule) {
+  return hours.filter(h => {
+    const ha = daySchedule[h.id] || {};
+    return expandReadings(h, ha).some(r => isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey));
+  });
 }
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
@@ -249,9 +252,10 @@ const rdc = StyleSheet.create({
 
 // ── Single Hour Page ──────────────────────────────────────────────────────────
 const HourPage = ({ hour, ha, uid, isFullSchedule, hideNames, pageWidth, pageLabel }) => {
-  const mySlotSet = getMySlots(hour, ha, uid);
-  const hasMe     = mySlotSet.size > 0;
-  const assignable = expandReadings(hour).filter(r => isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey));
+  const mySlotSet  = getMySlots(hour, ha, uid);
+  const hasMe      = mySlotSet.size > 0;
+  // Pass ha so coptic rows are gated properly
+  const assignable = expandReadings(hour, ha).filter(r => isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey));
   return (
     <View style={{ width: pageWidth }}>
       <View style={pg.hourHeader}>
@@ -289,7 +293,8 @@ const HourPage = ({ hour, ha, uid, isFullSchedule, hideNames, pageWidth, pageLab
 // ── Hour Pager ────────────────────────────────────────────────────────────────
 const HourPagerController = ({ hours, daySchedule, uid, isFullSchedule, hideNames, targetHourId }) => {
   const { width } = useWindowDimensions();
-  const visibleHours = useMemo(() => getVisibleHours(hours), [hours]);
+  // Pass per-hour assignments so getVisibleHours can gate coptic rows
+  const visibleHours = useMemo(() => getVisibleHours(hours, daySchedule), [hours, daySchedule]);
 
   const targetIdx = useMemo(() => {
     if (!targetHourId) return 0;
@@ -409,7 +414,7 @@ const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onHourPres
     const ha      = daySchedule[h.id] || {};
     const slotSet = getMySlots(h, ha, uid);
     if (slotSet.size === 0) return;
-    const rows = expandReadings(h).filter(r =>
+    const rows = expandReadings(h, ha).filter(r =>
       (isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey)) && slotSet.has(r.slotKey));
     if (rows.length > 0) myHours.push({ hour: h, rows });
   });
@@ -496,11 +501,10 @@ export default function PaschaHomePage() {
   const [fullScheduleOn, setFullScheduleOn] = useState(false);
   const [myReadingsOn, setMyReadingsOn]     = useState(false);
   const [hideNames, setHideNames]   = useState(false);
-  const [nav, setNav]               = useState(null); // null | { dayId, hourId }
+  const [nav, setNav]               = useState(null);
 
   const isFullSchedule = fullScheduleOn;
 
-  // Derived
   const allDays = useMemo(() => buildAllDays(scheduleShell), [scheduleShell]);
   const daysById = useMemo(() => Object.fromEntries(allDays.map(d => [d.id, d])), [allDays]);
   const schedule = useMemo(() => {
@@ -550,7 +554,14 @@ export default function PaschaHomePage() {
         setMyReadingsOn(d.myReadingsVisible ?? false);
         setEasterDate(d.easterDate ?? null);
         setHideNames(d.paschaHideNames ?? false);
-        setAssignees(d.assignees ?? {});
+      });
+
+    const unsubSchedule = firestore()
+      .collection("churches").doc(churchId)
+      .collection("pascha").doc("schedule")
+      .onSnapshot(doc => {
+        if (!isMounted.current) return;
+        setAssignees(doc.exists ? doc.data() : {});
       });
 
     return () => { unsubShell(); unsubConfig(); unsubSchedule(); };
@@ -715,13 +726,13 @@ const ov = StyleSheet.create({
   emptySub:      { fontSize: 14, color: T2, textAlign: "center", lineHeight: 21, maxWidth: 260, fontWeight: "400" },
 });
 const mn = StyleSheet.create({
-  container:          { flex: 1, backgroundColor: BG },
-  loadingWrap:        { flex: 1, backgroundColor: BG, justifyContent: "center", alignItems: "center" },
-  header:             { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 18, paddingBottom: 8, gap: 12 },
-  backBtn:            { width: 36, height: 36, borderRadius: 18, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, justifyContent: "center", alignItems: "center" },
-  eyebrow:            { fontSize: 11, fontWeight: "500", color: BLUE, letterSpacing: 1.8, marginBottom: 2 },
-  title:              { fontSize: 26, fontWeight: "200", color: T1, letterSpacing: -0.6 },
-  subtitle:           { fontSize: 13, color: "rgba(241,245,249,0.45)", fontWeight: "400", marginTop: 2 },
-  nameToggleBtn:      { width: 36, height: 36, borderRadius: 18, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, justifyContent: "center", alignItems: "center" },
-  nameToggleBtnActive:{ backgroundColor: BLUE_D, borderColor: "rgba(59,130,246,0.4)" },
+  container:           { flex: 1, backgroundColor: BG },
+  loadingWrap:         { flex: 1, backgroundColor: BG, justifyContent: "center", alignItems: "center" },
+  header:              { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 18, paddingBottom: 8, gap: 12 },
+  backBtn:             { width: 36, height: 36, borderRadius: 18, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, justifyContent: "center", alignItems: "center" },
+  eyebrow:             { fontSize: 11, fontWeight: "500", color: BLUE, letterSpacing: 1.8, marginBottom: 2 },
+  title:               { fontSize: 26, fontWeight: "200", color: T1, letterSpacing: -0.6 },
+  subtitle:            { fontSize: 13, color: "rgba(241,245,249,0.45)", fontWeight: "400", marginTop: 2 },
+  nameToggleBtn:       { width: 36, height: 36, borderRadius: 18, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, justifyContent: "center", alignItems: "center" },
+  nameToggleBtnActive: { backgroundColor: BLUE_D, borderColor: "rgba(59,130,246,0.4)" },
 });

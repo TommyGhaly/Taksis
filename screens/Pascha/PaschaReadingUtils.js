@@ -7,7 +7,8 @@
  *   → Gospel (Coptic fixed) → Gospel (Vernacular, language picker)
  *   → Exposition → Litanies
  *
- * Coptic rows always come before vernacular rows within each type.
+ * Coptic prophecy rows are gated by a per-slot toggle stored in hourAssignments.
+ * They default to OFF and must be explicitly enabled by the admin.
  */
 
 export const MAX_PSALM_READERS = 4;
@@ -35,7 +36,6 @@ export const READING_META = {
   litanies:           { label: "Litanies",          icon: "hands-pray",          color: "rgba(255,255,255,0.65)" },
 };
 
-// All slot types that get a reader picker
 export const ASSIGNABLE = [
   "prophecies",
   "prophecies_coptic",
@@ -61,7 +61,6 @@ export function isExpositionSlot(rKey) {
   return rKey === "exposition";
 }
 
-/** Whether this slot shows a language picker */
 export function hasLanguagePicker(rKey) {
   if (rKey === "psalm")        return false;
   if (rKey === "litanies")     return false;
@@ -84,6 +83,11 @@ export function psalmReadersKey() {
 
 export function langFirestoreKey(slotKey) {
   return `${slotKey}_lang`;
+}
+
+/** Key under which the admin's coptic-toggle boolean is stored in hourAssignments */
+export function prophecyCopticToggleKey(vernacularSlotKey) {
+  return `${vernacularSlotKey}_coptic_enabled`;
 }
 
 export function effectiveLanguage(row, hourAssignments) {
@@ -163,7 +167,13 @@ function sanitizeKey(ref) {
 }
 
 // ─── expandReadings ───────────────────────────────────────────────────────────
-export function expandReadings(hour) {
+/**
+ * @param {object} hour
+ * @param {object} hourAssignments - the live assignment map for this hour.
+ *   Used to gate coptic prophecy rows on the admin toggle.
+ *   Defaults to {} so read-only callers (archive viewer) don't need to change.
+ */
+export function expandReadings(hour, hourAssignments = {}) {
   const r  = hour.readings || {};
   const rf = hour.readings_format || {};
   const rows = [];
@@ -175,9 +185,10 @@ export function expandReadings(hour) {
   prophecies.forEach((p, i) => {
     const slotBase = prophecies.length === 1 ? "prophecy" : `prophecy_${i}`;
     const idx = prophecies.length === 1 ? null : i;
+    const hasCopticOption = p && typeof p === "object" && "coptic_assignee" in p;
 
-    // Coptic row first if coptic_assignee field is present in the JSON
-    if (p && typeof p === "object" && "coptic_assignee" in p) {
+    // Coptic row: only if JSON supports it AND admin toggled it on
+    if (hasCopticOption && hourAssignments[prophecyCopticToggleKey(slotBase)] === true) {
       rows.push({
         rKey: "prophecies_coptic",
         slotKey: `${slotBase}_coptic`,
@@ -186,10 +197,11 @@ export function expandReadings(hour) {
       });
     }
 
-    // Vernacular row
+    // Vernacular row — always present; carries hasCopticOption so the admin UI can render a toggle
     rows.push({
       rKey: "prophecies",
       slotKey: slotBase,
+      hasCopticOption,
       index: idx, refText: refOf(p), language: langOf(p) || "english", location: "",
       isCoptic: false,
     });
@@ -236,7 +248,7 @@ export function expandReadings(hour) {
     });
   }
 
-  // ── 6. Psalm — Coptic only if rf.psalm.coptic exists, otherwise vernacular
+  // ── 6. Psalm
   const hasPairedPsalms = isPairedPsalmArray(r.psalm);
 
   if (hasPairedPsalms) {
@@ -284,12 +296,10 @@ export function expandReadings(hour) {
       });
     }
   } else {
-    // Standard psalm
     if (r.psalm) {
       const pRef = typeof r.psalm === "string" ? r.psalm
         : r.psalm?.reference ? r.psalm.reference : psalmRef(r.psalm);
       if (pRef) {
-        // Only Coptic if readings_format explicitly has psalm.coptic
         const isCopticPsalm = rf.psalm?.coptic != null;
         rows.push({
           rKey: "psalm", slotKey: "psalm", index: null,
@@ -401,8 +411,8 @@ export function expandReadings(hour) {
 // ─── countSlots ───────────────────────────────────────────────────────────────
 export function countSlots(hour, ha) {
   let total = 0, filled = 0;
-  const hasPsalm = expandReadings(hour).some(r => r.rKey === "psalm");
-  expandReadings(hour).forEach(({ slotKey, rKey }) => {
+  const hasPsalm = expandReadings(hour, ha).some(r => r.rKey === "psalm");
+  expandReadings(hour, ha).forEach(({ slotKey, rKey }) => {
     if (rKey === "psalm") return;
     if (!isAssignableSlot(rKey)) return;
     total++;
