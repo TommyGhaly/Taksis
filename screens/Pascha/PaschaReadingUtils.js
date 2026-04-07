@@ -64,7 +64,6 @@ export function isExpositionSlot(rKey) {
 export function hasLanguagePicker(rKey) {
   if (rKey === "psalm")        return false;
   if (rKey === "litanies")     return false;
-  if (rKey === "exposition")   return false;
   if (COPTIC_FIXED_KEYS.has(rKey)) return false;
   return ASSIGNABLE.includes(rKey);
 }
