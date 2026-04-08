@@ -54,6 +54,7 @@
     "expo-build-properties": "~0.14.8",
     "expo-camera": "~16.1.11",
     "expo-crypto": "~14.1.5",
+    "expo-dev-client": "~5.2.4",
     "expo-file-system": "~18.1.11",
     "expo-firebase": "^0.0.0-alpha.0",
     "expo-image": "~2.4.1",

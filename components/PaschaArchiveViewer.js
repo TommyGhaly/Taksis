@@ -180,7 +180,7 @@ const rr = StyleSheet.create({
 
 // ── Hour card ─────────────────────────────────────────────────────────────────
 const HourCard = ({ hour, hourAssignments }) => {
-  const rows              = expandReadings(hour);
+  const rows              = expandReadings(hour, hourAssignments);
   const assignableRows    = rows.filter(r => isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey));
   const { total, filled } = countSlots(hour, hourAssignments);
   const complete          = total > 0 && filled === total;
