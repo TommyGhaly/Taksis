@@ -180,12 +180,23 @@ export function expandReadings(hour, hourAssignments = {}) {
   const prophecies = r.prophecies
     ? Array.isArray(r.prophecies) ? r.prophecies : [r.prophecies]
     : [];
+
   prophecies.forEach((p, i) => {
     const slotBase = prophecies.length === 1 ? "prophecy" : `prophecy_${i}`;
     const idx = prophecies.length === 1 ? null : i;
     const hasCopticOption = p && typeof p === "object" && typeof p.reference === "string";
 
-    // Coptic row: only if JSON supports it AND admin toggled it on
+    // Vernacular row first — this is where the toggle lives
+    rows.push({
+      rKey: "prophecies",
+      slotKey: slotBase,
+      hasCopticOption,
+      index: idx, refText: refOf(p), language: langOf(p) || "english", location: "",
+      isCoptic: false,
+    });
+
+    // Coptic row immediately after — only visible when admin enables the toggle.
+    // Sitting below the toggle it belongs to makes the cause→effect clear.
     if (hasCopticOption && hourAssignments[prophecyCopticToggleKey(slotBase)] === true) {
       rows.push({
         rKey: "prophecies_coptic",
@@ -194,15 +205,6 @@ export function expandReadings(hour, hourAssignments = {}) {
         isCoptic: true,
       });
     }
-
-    // Vernacular row — always present; carries hasCopticOption so the admin UI can render a toggle
-    rows.push({
-      rKey: "prophecies",
-      slotKey: slotBase,
-      hasCopticOption,
-      index: idx, refText: refOf(p), language: langOf(p) || "english", location: "",
-      isCoptic: false,
-    });
   });
 
   // ── 2. Homily
