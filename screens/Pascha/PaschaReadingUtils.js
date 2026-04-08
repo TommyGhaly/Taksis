@@ -92,7 +92,6 @@ export function prophecyCopticToggleKey(vernacularSlotKey) {
 export function effectiveLanguage(row, hourAssignments) {
   if (COPTIC_FIXED_KEYS.has(row.rKey)) return "coptic";
   if (row.rKey === "psalm" && row.isCoptic) return "coptic";
-  if (row.rKey === "exposition")       return null;
   const override = hourAssignments[langFirestoreKey(row.slotKey)];
   if (override) return override;
   return row.language || "english";
@@ -184,7 +183,7 @@ export function expandReadings(hour, hourAssignments = {}) {
   prophecies.forEach((p, i) => {
     const slotBase = prophecies.length === 1 ? "prophecy" : `prophecy_${i}`;
     const idx = prophecies.length === 1 ? null : i;
-    const hasCopticOption = p && typeof p === "object" && "coptic_assignee" in p;
+    const hasCopticOption = p && typeof p === "object" && typeof p.reference === "string";
 
     // Coptic row: only if JSON supports it AND admin toggled it on
     if (hasCopticOption && hourAssignments[prophecyCopticToggleKey(slotBase)] === true) {
@@ -399,7 +398,9 @@ export function expandReadings(hour, hourAssignments = {}) {
   if (r.exposition !== undefined) {
     rows.push({
       rKey: "exposition", slotKey: "exposition", index: null,
-      refText: "", language: null, location: "",
+      refText: "",
+      language: (r.exposition && r.exposition.language) || "english",
+      location: "",
       isCoptic: false,
     });
   }

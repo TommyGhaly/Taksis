@@ -50,6 +50,11 @@ rm -rf ~/Library/Developer/Xcode/DerivedData/app-*
 echo "→ Pod install"
 cd ios && pod install --repo-update && cd ..
 
+echo "→ Patching fmt/base.h to disable consteval"
+FMT_BASE="ios/Pods/fmt/include/fmt/base.h"
+sed -i '' 's/#elif defined(__cpp_consteval)/#elif 0 \/\/ defined(__cpp_consteval)/' "$FMT_BASE"
+sed -i '' 's/#elif FMT_GCC_VERSION >= 1002 || FMT_CLANG_VERSION >= 1101/#elif 0 \/\/ disabled/' "$FMT_BASE"
+
 echo "→ Clearing stale Xcode bookmarks"
 killall -9 sharedfilelistd 2>/dev/null || true
 killall -9 scopedbookmarksagent 2>/dev/null || true
