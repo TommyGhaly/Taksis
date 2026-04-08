@@ -196,42 +196,39 @@ const ProphecyCopticToggle = ({ vernacularSlotKey, hourAssignments, onSave }) =>
     onSave(toggleKey, val ? true : firestore.FieldValue.delete());
   return (
     <View style={[pct.row, enabled && pct.rowOn]}>
+      {/* Left: icon + labels */}
       <View style={[pct.iconBox, enabled && pct.iconBoxOn]}>
         <Icon
           name={enabled ? "alpha-c-circle" : "alpha-c-circle-outline"}
-          size={20}
+          size={16}
           color={enabled ? COPTIC_COLOR : T3}
         />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[pct.label, enabled && pct.labelOn]}>Read in Coptic</Text>
-        <Text style={[pct.sublabel, enabled && pct.sublabelOn]}>
-          {enabled ? "Coptic reader slot added below" : "Tap to add a Coptic reader slot"}
-        </Text>
       </View>
+      {/* Right: switch only */}
       <Switch
         value={enabled}
         onValueChange={handleChange}
         trackColor={{ false: CARD3, true: COPTIC_TRACK }}
-        thumbColor={enabled ? COPTIC_COLOR : "#888"}
+        thumbColor={enabled ? COPTIC_COLOR : "#666"}
         ios_backgroundColor={CARD3}
+        style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
       />
     </View>
   );
 };
+
 const pct = StyleSheet.create({
-  row:       { flexDirection: "row", alignItems: "center", gap: 12,
-               paddingVertical: 10, paddingHorizontal: 12,
-               borderRadius: 12, marginBottom: 8,
-               backgroundColor: CARD2, borderWidth: 1, borderColor: "transparent" },
-  rowOn:     { backgroundColor: COPTIC_BG, borderColor: COPTIC_BORDER },
-  iconBox:   { width: 32, height: 32, borderRadius: 10, backgroundColor: CARD3,
+  row:       { flexDirection: "row", alignItems: "center", gap: 8,
+               paddingVertical: 6, paddingHorizontal: 2, marginBottom: 8 },
+  rowOn:     {},
+  iconBox:   { width: 24, height: 24, borderRadius: 6,
                justifyContent: "center", alignItems: "center" },
-  iconBoxOn: { backgroundColor: "rgba(245,158,11,0.20)" },
-  label:     { fontSize: 13, fontWeight: "700", color: T2, marginBottom: 2 },
+  iconBoxOn: {},
+  label:     { fontSize: 12, fontWeight: "600", color: T3 },
   labelOn:   { color: COPTIC_COLOR },
-  sublabel:  { fontSize: 11, color: T3, fontWeight: "400" },
-  sublabelOn:{ color: "rgba(245,158,11,0.65)" },
 });
 
 // ── Gospel grid ───────────────────────────────────────────────────────────────
