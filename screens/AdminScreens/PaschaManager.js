@@ -570,7 +570,7 @@ const HourModal = ({
                       <View style={[hm.trackFill, { width: `${pct}%` }, complete && { backgroundColor: GREEN }]} />
                     </View>
                     <ScrollView
-                      style={{ flex: 1 }}
+                      style={{ flexGrow: 1, maxHeight: sheetMax - 140 }}
                       contentContainerStyle={hm.body}
                       showsVerticalScrollIndicator
                       alwaysBounceVertical={false}
@@ -788,8 +788,8 @@ const HourModal = ({
 
 const hm = StyleSheet.create({
   backdrop:            { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },
-  sheet:               { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
-                         paddingBottom: Platform.OS === "ios" ? 34 : 20, flexDirection: "column" },
+  sheet: { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
+          paddingBottom: Platform.OS === "ios" ? 34 : 20, flexShrink: 1 },
   handle:              { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP, alignSelf: "center", marginTop: 12 },
   hdr:                 { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
   title:               { fontSize: 20, fontWeight: "800", color: T1, letterSpacing: -0.3 },
