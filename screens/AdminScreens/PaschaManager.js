@@ -38,7 +38,7 @@ const T3      = "rgba(255,255,255,0.30)";
 const COPTIC_COLOR  = "#f59e0b";
 const COPTIC_BG     = "rgba(245,158,11,0.10)";
 const COPTIC_BORDER = "rgba(245,158,11,0.28)";
-const COPTIC_TRACK  = "rgba(245,158,11,0.35)";
+const COPTIC_TRACK  = "rgba(245,158,11,0.45)";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function buildAllDays(shell) {
@@ -79,11 +79,21 @@ function useProfilePic(uid) {
   return uri;
 }
 
+// FIX 3: Avatar — default image fills correctly, defaultSource for instant placeholder
 const Avatar = ({ uid, size = 40, style }) => {
   const uri = useProfilePic(uid);
   return (
-    <View style={[{ width: size, height: size, borderRadius: size / 2, overflow: "hidden", backgroundColor: CARD2 }, style]}>
-      <Image source={uri ? { uri } : DEFAULT_AVATAR} style={{ width: size, height: size }} resizeMode="cover" />
+    <View style={[{
+      width: size, height: size, borderRadius: size / 2,
+      overflow: "hidden", backgroundColor: CARD2,
+      justifyContent: "center", alignItems: "center",
+    }, style]}>
+      <Image
+        source={uri ? { uri } : DEFAULT_AVATAR}
+        defaultSource={DEFAULT_AVATAR}
+        style={{ width: size, height: size, borderRadius: size / 2 }}
+        resizeMode="cover"
+      />
     </View>
   );
 };
@@ -94,9 +104,9 @@ const DayStatsRow = ({ day, daySchedule }) => {
   const hoursCount = (day.hours || []).length;
   const allDone = total > 0 && filled === total;
   const stats = [
-    { value: total,             label: "Readings" },
+    { value: total,                label: "Readings" },
     { value: `${filled}/${total}`, label: "Assigned", color: allDone ? GREEN : T1 },
-    { value: hoursCount,        label: "Hours" },
+    { value: hoursCount,           label: "Hours" },
   ];
   return (
     <View style={dsr.row}>
@@ -179,13 +189,18 @@ const LanguagePill = ({ row, hourAssignments, onSave }) => {
   );
 };
 const lp = StyleSheet.create({
-  pill:          { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: CARD2, borderWidth: 1, borderColor: SEP },
-  pillTxt:       { fontSize: 10, fontWeight: "700", color: T2, letterSpacing: 0.5 },
-  dropdown:      { position: "absolute", top: 30, right: 0, zIndex: 100, backgroundColor: CARD, borderRadius: 12, borderWidth: 1, borderColor: SEP, paddingVertical: 4, minWidth: 120, ...Platform.select({ ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12 }, android: { elevation: 8 } }) },
-  dropItem:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10 },
-  dropItemActive:{ backgroundColor: BLUEDIM },
-  dropTxt:       { fontSize: 14, color: T2, fontWeight: "500" },
-  dropTxtActive: { color: BLUE, fontWeight: "600" },
+  pill:           { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8,
+                    paddingVertical: 4, borderRadius: 8, backgroundColor: CARD2, borderWidth: 1, borderColor: SEP },
+  pillTxt:        { fontSize: 10, fontWeight: "700", color: T2, letterSpacing: 0.5 },
+  dropdown:       { position: "absolute", top: 30, right: 0, zIndex: 100, backgroundColor: CARD,
+                    borderRadius: 12, borderWidth: 1, borderColor: SEP, paddingVertical: 4, minWidth: 120,
+                    ...Platform.select({ ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.4, shadowRadius: 12 }, android: { elevation: 8 } }) },
+  dropItem:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                    paddingHorizontal: 14, paddingVertical: 10 },
+  dropItemActive: { backgroundColor: BLUEDIM },
+  dropTxt:        { fontSize: 14, color: T2, fontWeight: "500" },
+  dropTxtActive:  { color: BLUE, fontWeight: "600" },
 });
 
 // ── Prophecy Coptic Toggle ────────────────────────────────────────────────────
@@ -196,7 +211,6 @@ const ProphecyCopticToggle = ({ vernacularSlotKey, hourAssignments, onSave }) =>
     onSave(toggleKey, val ? true : firestore.FieldValue.delete());
   return (
     <View style={[pct.row, enabled && pct.rowOn]}>
-      {/* Left: icon + labels */}
       <View style={[pct.iconBox, enabled && pct.iconBoxOn]}>
         <Icon
           name={enabled ? "alpha-c-circle" : "alpha-c-circle-outline"}
@@ -207,22 +221,20 @@ const ProphecyCopticToggle = ({ vernacularSlotKey, hourAssignments, onSave }) =>
       <View style={{ flex: 1 }}>
         <Text style={[pct.label, enabled && pct.labelOn]}>Read in Coptic</Text>
       </View>
-      {/* Right: switch only */}
+      {/* FIX 1: No scale transform, better track/thumb colors */}
       <Switch
         value={enabled}
         onValueChange={handleChange}
-        trackColor={{ false: CARD3, true: COPTIC_TRACK }}
-        thumbColor={enabled ? COPTIC_COLOR : "#666"}
-        ios_backgroundColor={CARD3}
-        style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+        trackColor={{ false: "rgba(255,255,255,0.12)", true: COPTIC_TRACK }}
+        thumbColor={enabled ? COPTIC_COLOR : "rgba(255,255,255,0.55)"}
+        ios_backgroundColor="rgba(255,255,255,0.12)"
       />
     </View>
   );
 };
-
 const pct = StyleSheet.create({
-  row:       { flexDirection: "row", alignItems: "center", gap: 8,
-               paddingVertical: 6, paddingHorizontal: 2, marginBottom: 8 },
+  row:       { flexDirection: "row", alignItems: "center", gap: 10,
+               paddingVertical: 4, paddingHorizontal: 2, marginBottom: 8 },
   rowOn:     {},
   iconBox:   { width: 24, height: 24, borderRadius: 6,
                justifyContent: "center", alignItems: "center" },
@@ -267,17 +279,17 @@ const GospelGrid = ({ rows, hourAssignments, onOpenPicker }) => {
   );
 };
 const gg = StyleSheet.create({
-  grid:         { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
-  cell:         { width: "48%", backgroundColor: CARD2, borderRadius: 12, padding: 10, gap: 6 },
-  cellTop:      { flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  numBadge:     { width: 24, height: 24, borderRadius: 7, justifyContent: "center", alignItems: "center", flexShrink: 0 },
-  numTxt:       { fontSize: 11, fontWeight: "800" },
-  ref:          { fontSize: 12, color: T1, fontWeight: "600", lineHeight: 16 },
-  loc:          { fontSize: 10, color: T3, marginTop: 2, lineHeight: 14 },
-  assigneeRow:  { flexDirection: "row", alignItems: "center", gap: 6 },
-  assigneeName: { fontSize: 11, fontWeight: "600", color: GREEN, flex: 1 },
-  unassignedRow:{ flexDirection: "row", alignItems: "center", gap: 4 },
-  unassignedTxt:{ fontSize: 11, color: T3 },
+  grid:          { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
+  cell:          { width: "48%", backgroundColor: CARD2, borderRadius: 12, padding: 10, gap: 6 },
+  cellTop:       { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  numBadge:      { width: 24, height: 24, borderRadius: 7, justifyContent: "center", alignItems: "center", flexShrink: 0 },
+  numTxt:        { fontSize: 11, fontWeight: "800" },
+  ref:           { fontSize: 12, color: T1, fontWeight: "600", lineHeight: 16 },
+  loc:           { fontSize: 10, color: T3, marginTop: 2, lineHeight: 14 },
+  assigneeRow:   { flexDirection: "row", alignItems: "center", gap: 6 },
+  assigneeName:  { fontSize: 11, fontWeight: "600", color: GREEN, flex: 1 },
+  unassignedRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  unassignedTxt: { fontSize: 11, color: T3 },
 });
 
 // ── Psalm picker modal ────────────────────────────────────────────────────────
@@ -286,11 +298,11 @@ const PsalmPickerModal = ({
   loadingUsers, onSave, onClose,
 }) => {
   const { height: screenH } = useWindowDimensions();
-  const [tab, setTab]             = useState("deacons");
-  const [q, setQ]                 = useState("");
-  const [selected, setSelected]   = useState(new Set());
+  const [tab, setTab]               = useState("deacons");
+  const [q, setQ]                   = useState("");
+  const [selected, setSelected]     = useState(new Set());
   const [selectedMap, setSelectedMap] = useState({});
-  const [manual, setManual]       = useState("");
+  const [manual, setManual]         = useState("");
   const [manualOpen, setManualOpen] = useState(false);
 
   useEffect(() => {
@@ -471,9 +483,12 @@ const pm = StyleSheet.create({
   counterTxt: { fontSize: 13, fontWeight: "700", color: T2 },
   chipScroll: { maxHeight: 48, marginHorizontal: 20, marginBottom: 4 },
   chipRow:    { flexDirection: "row", gap: 6, alignItems: "center" },
-  chip:       { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(48,209,88,0.1)", borderWidth: 1, borderColor: "rgba(48,209,88,0.25)", borderRadius: 20, paddingVertical: 5, paddingHorizontal: 10 },
+  chip:       { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(48,209,88,0.1)",
+                borderWidth: 1, borderColor: "rgba(48,209,88,0.25)", borderRadius: 20,
+                paddingVertical: 5, paddingHorizontal: 10 },
   chipName:   { fontSize: 13, fontWeight: "600", color: GREEN, maxWidth: 100 },
-  checkbox:   { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: T3, justifyContent: "center", alignItems: "center" },
+  checkbox:   { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: T3,
+                justifyContent: "center", alignItems: "center" },
   checkboxOn: { backgroundColor: BLUE, borderColor: BLUE },
 });
 
@@ -784,66 +799,86 @@ const HourModal = ({
 };
 
 const hm = StyleSheet.create({
-  backdrop:            { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
-          paddingBottom: Platform.OS === "ios" ? 34 : 20, flexShrink: 1 },
-  handle:              { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP, alignSelf: "center", marginTop: 12 },
-  hdr:                 { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
-  title:               { fontSize: 20, fontWeight: "800", color: T1, letterSpacing: -0.3 },
-  sub:                 { fontSize: 13, color: T2, marginTop: 2 },
-  xBtn:                { width: 32, height: 32, borderRadius: 16, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
-  trackWrap:           { height: 2, backgroundColor: SEP, marginHorizontal: 20, borderRadius: 2, marginBottom: 6 },
-  trackFill:           { height: 2, backgroundColor: BLUE, borderRadius: 2 },
-  body:                { paddingHorizontal: 20, paddingBottom: 16 },
-  readingBlock:        { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: SEP },
-  readingBlockCoptic:  { backgroundColor: "rgba(245,158,11,0.03)" },
-  readingTop:          { flexDirection: "row", gap: 12, marginBottom: 10, alignItems: "flex-start" },
-  readingIcon:         { width: 32, height: 32, borderRadius: 9, justifyContent: "center", alignItems: "center", flexShrink: 0 },
-  readingLabel:        { fontSize: 10, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 4 },
-  readingRef:          { fontSize: 14, color: T1, lineHeight: 20 },
-  copticBadge:         { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: COPTIC_BG, borderWidth: 1, borderColor: COPTIC_BORDER },
-  copticBadgeTxt:      { fontSize: 9, fontWeight: "800", color: COPTIC_COLOR, letterSpacing: 0.5 },
-  assignBtn:           { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: CARD2, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
-  assignBtnFilled:     { backgroundColor: "rgba(48,209,88,0.08)", borderWidth: 1, borderColor: "rgba(48,209,88,0.2)" },
-  assignedName:        { flex: 1, fontSize: 14, color: GREEN, fontWeight: "600" },
-  unassignedTxt:       { flex: 1, fontSize: 14, color: T2 },
-  pickerHdr:           { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: SEP },
-  backBtn:             { width: 36, height: 36, borderRadius: 18, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
-  pickerIconBox:       { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
-  pickerType:          { fontSize: 17, fontWeight: "700" },
-  pickerRef:           { fontSize: 12, color: T2, marginTop: 2 },
-  selBanner:           { flexDirection: "row", alignItems: "center", marginHorizontal: 20, marginTop: 14, marginBottom: 2, borderRadius: 16, padding: 14, backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.25)" },
-  selName:             { fontSize: 15, fontWeight: "700", color: T1 },
-  selSub:              { fontSize: 12, color: T2, marginTop: 2 },
-  seg:                 { flexDirection: "row", marginHorizontal: 20, marginTop: 14, backgroundColor: CARD2, borderRadius: 12, padding: 3, position: "relative" },
-  segSlider:           { position: "absolute", top: 3, bottom: 3, left: 3, width: "50%", backgroundColor: CARD3, borderRadius: 10 },
-  segBtn:              { flex: 1, paddingVertical: 9, alignItems: "center", zIndex: 1 },
-  segTxt:              { fontSize: 13, fontWeight: "600", color: T3 },
-  segTxtOn:            { color: T1 },
-  searchRow:           { flexDirection: "row", alignItems: "center", backgroundColor: CARD2, borderRadius: 11, paddingHorizontal: 12, marginHorizontal: 20, marginTop: 10, marginBottom: 6 },
-  searchIn:            { flex: 1, color: T1, fontSize: 14, paddingVertical: 11, marginLeft: 8 },
-  center:              { height: 100, justifyContent: "center", alignItems: "center" },
-  empty:               { textAlign: "center", color: T3, fontSize: 14, paddingVertical: 24 },
-  pRow:                { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 13, marginBottom: 6, backgroundColor: CARD2 },
-  pRowOn:              { backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.25)" },
-  pRowName:            { fontSize: 14, color: T1, fontWeight: "500" },
-  pRowTag:             { fontSize: 9, color: BLUE, fontWeight: "800", marginTop: 2, letterSpacing: 0.6 },
-  radio:               { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: T3, justifyContent: "center", alignItems: "center" },
-  radioOn:             { borderColor: BLUE },
-  radioDot:            { width: 10, height: 10, borderRadius: 5, backgroundColor: BLUE },
-  addManual:           { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginTop: 4, marginBottom: 8, padding: 13, borderRadius: 12, backgroundColor: BLUEDIM },
-  addManualTxt:        { fontSize: 14, fontWeight: "500", color: BLUE },
-  manualBox:           { marginHorizontal: 20, marginTop: 6, marginBottom: 8 },
-  manualIn:            { backgroundColor: CARD2, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 12, color: T1, fontSize: 14, marginBottom: 8 },
-  manualBtns:          { flexDirection: "row", gap: 8 },
-  mCancel:             { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: CARD2, alignItems: "center" },
-  mCancelTxt:          { fontSize: 14, fontWeight: "600", color: T2 },
-  mAdd:                { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: BLUE, alignItems: "center" },
-  mAddTxt:             { fontSize: 14, fontWeight: "700", color: T1 },
-  pickerFooter:        { paddingHorizontal: 20, paddingTop: 10, borderTopWidth: 1, borderTopColor: SEP },
-  saveBtn:             { backgroundColor: BLUE, paddingVertical: 15, borderRadius: 14, alignItems: "center" },
-  saveBtnClear:        { backgroundColor: "rgba(255,69,58,0.1)", borderWidth: 1, borderColor: "rgba(255,69,58,0.2)" },
-  saveBtnTxt:          { fontSize: 15, fontWeight: "700", color: T1 },
+  backdrop:             { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },
+  sheet:                { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
+                          paddingBottom: Platform.OS === "ios" ? 34 : 20, flexShrink: 1 },
+  handle:               { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP,
+                          alignSelf: "center", marginTop: 12 },
+  hdr:                  { flexDirection: "row", alignItems: "flex-start", gap: 12,
+                          paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
+  title:                { fontSize: 20, fontWeight: "800", color: T1, letterSpacing: -0.3 },
+  sub:                  { fontSize: 13, color: T2, marginTop: 2 },
+  xBtn:                 { width: 32, height: 32, borderRadius: 16, backgroundColor: CARD2,
+                          justifyContent: "center", alignItems: "center" },
+  trackWrap:            { height: 2, backgroundColor: SEP, marginHorizontal: 20, borderRadius: 2, marginBottom: 6 },
+  trackFill:            { height: 2, backgroundColor: BLUE, borderRadius: 2 },
+  body:                 { paddingHorizontal: 20, paddingBottom: 16 },
+  readingBlock:         { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: SEP },
+  readingBlockCoptic:   { backgroundColor: "rgba(245,158,11,0.03)" },
+  readingTop:           { flexDirection: "row", gap: 12, marginBottom: 10, alignItems: "flex-start" },
+  readingIcon:          { width: 32, height: 32, borderRadius: 9, justifyContent: "center",
+                          alignItems: "center", flexShrink: 0 },
+  readingLabel:         { fontSize: 10, fontWeight: "800", letterSpacing: 0.8,
+                          textTransform: "uppercase", marginBottom: 4 },
+  readingRef:           { fontSize: 14, color: T1, lineHeight: 20 },
+  copticBadge:          { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5,
+                          backgroundColor: COPTIC_BG, borderWidth: 1, borderColor: COPTIC_BORDER },
+  copticBadgeTxt:       { fontSize: 9, fontWeight: "800", color: COPTIC_COLOR, letterSpacing: 0.5 },
+  assignBtn:            { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: CARD2,
+                          borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  assignBtnFilled:      { backgroundColor: "rgba(48,209,88,0.08)", borderWidth: 1,
+                          borderColor: "rgba(48,209,88,0.2)" },
+  assignedName:         { flex: 1, fontSize: 14, color: GREEN, fontWeight: "600" },
+  unassignedTxt:        { flex: 1, fontSize: 14, color: T2 },
+  pickerHdr:            { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20,
+                          paddingTop: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: SEP },
+  backBtn:              { width: 36, height: 36, borderRadius: 18, backgroundColor: CARD2,
+                          justifyContent: "center", alignItems: "center" },
+  pickerIconBox:        { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
+  pickerType:           { fontSize: 17, fontWeight: "700" },
+  pickerRef:            { fontSize: 12, color: T2, marginTop: 2 },
+  selBanner:            { flexDirection: "row", alignItems: "center", marginHorizontal: 20, marginTop: 14,
+                          marginBottom: 2, borderRadius: 16, padding: 14, backgroundColor: BLUEDIM,
+                          borderWidth: 1, borderColor: "rgba(10,132,255,0.25)" },
+  selName:              { fontSize: 15, fontWeight: "700", color: T1 },
+  selSub:               { fontSize: 12, color: T2, marginTop: 2 },
+  seg:                  { flexDirection: "row", marginHorizontal: 20, marginTop: 14, backgroundColor: CARD2,
+                          borderRadius: 12, padding: 3, position: "relative" },
+  segSlider:            { position: "absolute", top: 3, bottom: 3, left: 3, width: "50%",
+                          backgroundColor: CARD3, borderRadius: 10 },
+  segBtn:               { flex: 1, paddingVertical: 9, alignItems: "center", zIndex: 1 },
+  segTxt:               { fontSize: 13, fontWeight: "600", color: T3 },
+  segTxtOn:             { color: T1 },
+  searchRow:            { flexDirection: "row", alignItems: "center", backgroundColor: CARD2,
+                          borderRadius: 11, paddingHorizontal: 12, marginHorizontal: 20,
+                          marginTop: 10, marginBottom: 6 },
+  searchIn:             { flex: 1, color: T1, fontSize: 14, paddingVertical: 11, marginLeft: 8 },
+  center:               { height: 100, justifyContent: "center", alignItems: "center" },
+  empty:                { textAlign: "center", color: T3, fontSize: 14, paddingVertical: 24 },
+  pRow:                 { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 13,
+                          marginBottom: 6, backgroundColor: CARD2 },
+  pRowOn:               { backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.25)" },
+  pRowName:             { fontSize: 14, color: T1, fontWeight: "500" },
+  pRowTag:              { fontSize: 9, color: BLUE, fontWeight: "800", marginTop: 2, letterSpacing: 0.6 },
+  radio:                { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: T3,
+                          justifyContent: "center", alignItems: "center" },
+  radioOn:              { borderColor: BLUE },
+  radioDot:             { width: 10, height: 10, borderRadius: 5, backgroundColor: BLUE },
+  addManual:            { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20,
+                          marginTop: 4, marginBottom: 8, padding: 13, borderRadius: 12, backgroundColor: BLUEDIM },
+  addManualTxt:         { fontSize: 14, fontWeight: "500", color: BLUE },
+  manualBox:            { marginHorizontal: 20, marginTop: 6, marginBottom: 8 },
+  manualIn:             { backgroundColor: CARD2, borderRadius: 11, paddingHorizontal: 14,
+                          paddingVertical: 12, color: T1, fontSize: 14, marginBottom: 8 },
+  manualBtns:           { flexDirection: "row", gap: 8 },
+  mCancel:              { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: CARD2, alignItems: "center" },
+  mCancelTxt:           { fontSize: 14, fontWeight: "600", color: T2 },
+  mAdd:                 { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: BLUE, alignItems: "center" },
+  mAddTxt:              { fontSize: 14, fontWeight: "700", color: T1 },
+  pickerFooter:         { paddingHorizontal: 20, paddingTop: 10, borderTopWidth: 1, borderTopColor: SEP },
+  saveBtn:              { backgroundColor: BLUE, paddingVertical: 15, borderRadius: 14, alignItems: "center" },
+  saveBtnClear:         { backgroundColor: "rgba(255,69,58,0.1)", borderWidth: 1, borderColor: "rgba(255,69,58,0.2)" },
+  saveBtnTxt:           { fontSize: 15, fontWeight: "700", color: T1 },
 });
 
 // ── Day tab bar ───────────────────────────────────────────────────────────────
@@ -872,18 +907,19 @@ const DayTabBar = ({ allDays, selectedId, easterDate, schedule, onSelect }) => (
   </ScrollView>
 );
 const dt = StyleSheet.create({
-  bar:        { backgroundColor: BG },
-  content:    { paddingHorizontal: 12, paddingVertical: 8, gap: 5, flexDirection: "row" },
-  tab:        { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: CARD, alignItems: "center", minWidth: 62, height: 52 },
-  tabActive:  { backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.35)" },
-  dot:        { width: 5, height: 5, borderRadius: 2.5, marginBottom: 3 },
-  dotGray:    { backgroundColor: T3 },
-  dotBlue:    { backgroundColor: BLUE },
-  dotGreen:   { backgroundColor: GREEN },
-  label:      { fontSize: 11, fontWeight: "600", color: T2, textAlign: "center" },
-  labelActive:{ color: BLUE },
-  date:       { fontSize: 9, color: T3, marginTop: 2 },
-  dateActive: { color: "rgba(10,132,255,0.7)" },
+  bar:         { backgroundColor: BG },
+  content:     { paddingHorizontal: 12, paddingVertical: 8, gap: 5, flexDirection: "row" },
+  tab:         { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: CARD,
+                 alignItems: "center", minWidth: 62, height: 52 },
+  tabActive:   { backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.35)" },
+  dot:         { width: 5, height: 5, borderRadius: 2.5, marginBottom: 3 },
+  dotGray:     { backgroundColor: T3 },
+  dotBlue:     { backgroundColor: BLUE },
+  dotGreen:    { backgroundColor: GREEN },
+  label:       { fontSize: 11, fontWeight: "600", color: T2, textAlign: "center" },
+  labelActive: { color: BLUE },
+  date:        { fontSize: 9, color: T3, marginTop: 2 },
+  dateActive:  { color: "rgba(10,132,255,0.7)" },
 });
 
 // ── Hour tile ─────────────────────────────────────────────────────────────────
@@ -913,7 +949,7 @@ const HourTile = React.memo(({
     <>
       <TouchableOpacity onPress={() => setHourOpen(true)} activeOpacity={0.72} style={ht.tile}>
 
-        {/* Title row — left accent bar + name + status pill */}
+        {/* Title row */}
         <View style={ht.titleRow}>
           <View style={[ht.accent, complete ? ht.accentDone : started ? ht.accentPartial : ht.accentEmpty]} />
           <Text style={ht.name}>{hour.label}</Text>
@@ -930,7 +966,7 @@ const HourTile = React.memo(({
           }
         </View>
 
-        {/* Progress bar + percentage */}
+        {/* Progress bar */}
         <View style={ht.barRow}>
           <View style={ht.track}>
             <View style={[ht.trackFill, { flex: pct, backgroundColor: statusColor }]} />
@@ -949,7 +985,6 @@ const HourTile = React.memo(({
             const assignee  = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
             const typeLabel = rowDisplayLabel(row);
             const isLast    = i === assignableRows.length - 1;
-            // Language for non-coptic, non-psalm assignable rows
             const lang      = (!isCoptic && !isPsalm && hasLanguagePicker(row.rKey))
               ? langShort(effectiveLanguage(row, hourAssignments))
               : null;
@@ -961,7 +996,6 @@ const HourTile = React.memo(({
                   <Icon name={meta.icon} size={13} color={isCoptic ? COPTIC_COLOR : meta.color} />
                   <View style={ht.rLabelCol}>
                     <Text style={[ht.rType, { color: isCoptic ? COPTIC_COLOR : meta.color }]}>{typeLabel}</Text>
-                    {/* Language badge inline under type label */}
                     {lang ? (
                       <View style={ht.langBadge}>
                         <Text style={ht.langBadgeTxt}>{lang}</Text>
@@ -974,13 +1008,13 @@ const HourTile = React.memo(({
                   </View>
                 </View>
 
-                {/* Right side: assignee or reference */}
+                {/* FIX 2A: psalm reader avatars 20→28, overlap 6→10 */}
                 {isPsalm ? (
                   readers.length > 0
                     ? <View style={ht.assigneeRow}>
                         {readers.slice(0, 3).map((r, idx) => (
-                          <Avatar key={r.uid || r.name || idx} uid={r.uid} size={20}
-                            style={{ marginLeft: idx > 0 ? -6 : 0, borderWidth: 1.5, borderColor: CARD }} />
+                          <Avatar key={r.uid || r.name || idx} uid={r.uid} size={28}
+                            style={{ marginLeft: idx > 0 ? -10 : 0, borderWidth: 2, borderColor: CARD }} />
                         ))}
                         <Text style={ht.assigneeName} numberOfLines={1}>
                           {readers.length === 1 ? readers[0].name : `${readers.length} readers`}
@@ -988,6 +1022,7 @@ const HourTile = React.memo(({
                       </View>
                     : <Text style={ht.rRef} numberOfLines={1}>{row.refText || "—"}</Text>
                 ) : assignee ? (
+                  /* FIX 2B: initials circle 22→30 */
                   <View style={ht.assigneeRow}>
                     <View style={[ht.initials,
                       { backgroundColor: isCoptic ? "rgba(245,158,11,0.18)" : "rgba(10,132,255,0.18)" }]}>
@@ -1047,7 +1082,6 @@ const ht = StyleSheet.create({
                    borderWidth: 1, borderColor: SEP, overflow: "hidden" },
   titleRow:      { flexDirection: "row", alignItems: "center", paddingRight: 14,
                    paddingTop: 14, gap: 0 },
-  // Left accent — no border-radius since it's single-sided flush to edge
   accent:        { width: 3, alignSelf: "stretch", marginRight: 10, borderRadius: 0 },
   accentDone:    { backgroundColor: GREEN },
   accentPartial: { backgroundColor: BLUE },
@@ -1079,8 +1113,9 @@ const ht = StyleSheet.create({
   copticBadgeTxt:{ fontSize: 9, fontWeight: "700", color: COPTIC_COLOR, letterSpacing: 0.3 },
   rRef:          { fontSize: 12, color: T3, flex: 1, textAlign: "right" },
   assigneeRow:   { flexDirection: "row", alignItems: "center", gap: 5 },
-  initials:      { width: 22, height: 22, borderRadius: 11, justifyContent: "center", alignItems: "center" },
-  initialsText:  { fontSize: 9, fontWeight: "800" },
+  // FIX 2B: 22→30, fontSize 9→11
+  initials:      { width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center" },
+  initialsText:  { fontSize: 11, fontWeight: "800" },
   assigneeName:  { fontSize: 12, fontWeight: "600", color: GREEN, maxWidth: 110 },
 });
 
@@ -1134,7 +1169,9 @@ const SettingsSheet = ({
                   <Text style={ss.desc}>{myReadingsVisible ? "Members can see their assignments" : "Hidden from members"}</Text>
                 </View>
                 <Switch value={myReadingsVisible} onValueChange={onToggleMyReadings}
-                  trackColor={{ false: T3, true: BLUE }} thumbColor={T1} />
+                  trackColor={{ false: "rgba(255,255,255,0.12)", true: BLUE }}
+                  thumbColor={T1}
+                  ios_backgroundColor="rgba(255,255,255,0.12)" />
               </View>
             </View>
             <View style={ss.card}>
@@ -1147,7 +1184,9 @@ const SettingsSheet = ({
                   <Text style={ss.desc}>{fullScheduleVisible ? "Everyone can see all assignments" : "Hidden from members"}</Text>
                 </View>
                 <Switch value={fullScheduleVisible} onValueChange={onToggleFullSchedule}
-                  trackColor={{ false: T3, true: BLUE }} thumbColor={T1} />
+                  trackColor={{ false: "rgba(255,255,255,0.12)", true: BLUE }}
+                  thumbColor={T1}
+                  ios_backgroundColor="rgba(255,255,255,0.12)" />
               </View>
             </View>
             <View style={ss.card}>
@@ -1204,27 +1243,34 @@ const SettingsSheet = ({
   );
 };
 const ss = StyleSheet.create({
-  backdrop:      { flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "flex-end" },
-  sheet:         { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: "90%", paddingBottom: Platform.OS === "ios" ? 34 : 20 },
-  handle:        { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP, alignSelf: "center", marginTop: 12 },
-  hdr:           { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: SEP },
-  hdrTitle:      { fontSize: 20, fontWeight: "700", color: T1 },
-  xBtn:          { width: 32, height: 32, borderRadius: 16, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
-  card:          { backgroundColor: CARD2, borderRadius: 14, padding: 16 },
-  row:           { flexDirection: "row", alignItems: "center", gap: 12 },
-  iconBox:       { width: 40, height: 40, borderRadius: 11, justifyContent: "center", alignItems: "center" },
-  label:         { fontSize: 15, fontWeight: "600", color: T1 },
-  desc:          { fontSize: 13, color: T2, marginTop: 2 },
-  editBtn:       { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 9, backgroundColor: CARD },
-  editTxt:       { fontSize: 13, fontWeight: "600", color: BLUE },
-  divider:       { height: 1, backgroundColor: SEP, marginVertical: 12 },
-  dateRow:       { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
-  dateLabel:     { fontSize: 13, color: T2 },
-  dateVal:       { fontSize: 13, color: T1, fontWeight: "500" },
-  archivesBtn:   { flexDirection: "row", alignItems: "center", gap: 10, padding: 15, borderRadius: 14, borderWidth: 1, borderColor: "rgba(10,132,255,0.22)", backgroundColor: "rgba(10,132,255,0.07)" },
-  archivesBtnTxt:{ fontSize: 15, fontWeight: "600", color: BLUE },
-  archiveBtn:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,69,58,0.22)", backgroundColor: "rgba(255,69,58,0.06)" },
-  archiveTxt:    { fontSize: 15, fontWeight: "600", color: RED },
+  backdrop:       { flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "flex-end" },
+  sheet:          { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
+                    maxHeight: "90%", paddingBottom: Platform.OS === "ios" ? 34 : 20 },
+  handle:         { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP,
+                    alignSelf: "center", marginTop: 12 },
+  hdr:            { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                    paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: SEP },
+  hdrTitle:       { fontSize: 20, fontWeight: "700", color: T1 },
+  xBtn:           { width: 32, height: 32, borderRadius: 16, backgroundColor: CARD2,
+                    justifyContent: "center", alignItems: "center" },
+  card:           { backgroundColor: CARD2, borderRadius: 14, padding: 16 },
+  row:            { flexDirection: "row", alignItems: "center", gap: 12 },
+  iconBox:        { width: 40, height: 40, borderRadius: 11, justifyContent: "center", alignItems: "center" },
+  label:          { fontSize: 15, fontWeight: "600", color: T1 },
+  desc:           { fontSize: 13, color: T2, marginTop: 2 },
+  editBtn:        { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 9, backgroundColor: CARD },
+  editTxt:        { fontSize: 13, fontWeight: "600", color: BLUE },
+  divider:        { height: 1, backgroundColor: SEP, marginVertical: 12 },
+  dateRow:        { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
+  dateLabel:      { fontSize: 13, color: T2 },
+  dateVal:        { fontSize: 13, color: T1, fontWeight: "500" },
+  archivesBtn:    { flexDirection: "row", alignItems: "center", gap: 10, padding: 15, borderRadius: 14,
+                    borderWidth: 1, borderColor: "rgba(10,132,255,0.22)", backgroundColor: "rgba(10,132,255,0.07)" },
+  archivesBtnTxt: { fontSize: 15, fontWeight: "600", color: BLUE },
+  archiveBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+                    padding: 15, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,69,58,0.22)",
+                    backgroundColor: "rgba(255,69,58,0.06)" },
+  archiveTxt:     { fontSize: 15, fontWeight: "600", color: RED },
 });
 
 // ── Archive confirm ───────────────────────────────────────────────────────────
@@ -1296,16 +1342,21 @@ const ArchiveConfirm = ({ visible, year, onConfirm, onClose }) => {
 };
 const arc = StyleSheet.create({
   overlay:         { flex: 1, backgroundColor: "rgba(0,0,0,0.82)", justifyContent: "flex-end" },
-  sheet:           { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 24, paddingBottom: Platform.OS === "ios" ? 44 : 28, paddingTop: 12, alignItems: "center" },
-  handle:          { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP, alignSelf: "center", marginBottom: 20 },
-  iconWrap:        { width: 60, height: 60, borderRadius: 30, backgroundColor: "rgba(255,159,10,0.1)", justifyContent: "center", alignItems: "center", marginBottom: 14 },
+  sheet:           { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
+                     paddingHorizontal: 24, paddingBottom: Platform.OS === "ios" ? 44 : 28,
+                     paddingTop: 12, alignItems: "center" },
+  handle:          { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP,
+                     alignSelf: "center", marginBottom: 20 },
+  iconWrap:        { width: 60, height: 60, borderRadius: 30, backgroundColor: "rgba(255,159,10,0.1)",
+                     justifyContent: "center", alignItems: "center", marginBottom: 14 },
   title:           { fontSize: 20, fontWeight: "800", color: T1, marginBottom: 8, letterSpacing: -0.3 },
   body:            { fontSize: 14, color: T2, textAlign: "center", lineHeight: 21, marginBottom: 20 },
   divider:         { width: "100%", height: 1, backgroundColor: SEP, marginBottom: 20 },
   actions:         { flexDirection: "row", gap: 10, width: "100%" },
   cancelBtn:       { flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: CARD2, alignItems: "center" },
   cancelTxt:       { fontSize: 15, fontWeight: "600", color: T2 },
-  confirmBtn:      { flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: RED },
+  confirmBtn:      { flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center",
+                     gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: RED },
   confirmTxt:      { fontSize: 15, fontWeight: "700", color: T1 },
   progressSection: { width: "100%" },
   progressHeader:  { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
@@ -1553,9 +1604,7 @@ export default function PaschaManager() {
       )}
 
       {/* Stats strip */}
-      {selectedDay && (
-        <DayStatsRow day={selectedDay} daySchedule={ds} />
-      )}
+      {selectedDay && <DayStatsRow day={selectedDay} daySchedule={ds} />}
 
       {/* Hour tiles */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={mn.scroll}>
@@ -1601,21 +1650,27 @@ export default function PaschaManager() {
 }
 
 const mn = StyleSheet.create({
-  container:    { flex: 1, backgroundColor: BG },
-  loadingWrap:  { flex: 1, backgroundColor: BG, justifyContent: "center", alignItems: "center" },
-  header:       { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 },
-  eyebrow:      { fontSize: 11, fontWeight: "700", color: BLUE, letterSpacing: 1.5, marginBottom: 4 },
-  title:        { fontSize: 28, fontWeight: "800", color: T1, letterSpacing: -0.5 },
-  cogBtn:       { width: 40, height: 40, borderRadius: 20, backgroundColor: CARD, justifyContent: "center", alignItems: "center" },
-  nudge:        { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 6, padding: 12, borderRadius: 12, backgroundColor: "rgba(255,159,10,0.08)", borderWidth: 1, borderColor: "rgba(255,159,10,0.18)" },
-  nudgeTxt:     { flex: 1, fontSize: 13, color: ORANGE, fontWeight: "500" },
-  dayHdr:       { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12 },
-  dayHdrTop:    { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 10 },
-  dayTitle:     { fontSize: 20, fontWeight: "800", color: T1, letterSpacing: -0.3 },
-  dayDate:      { fontSize: 12, color: T2, marginTop: 2 },
-  progRow:      { flexDirection: "row", alignItems: "center", gap: 10 },
-  progTrack:    { flex: 1, height: 3, backgroundColor: CARD2, borderRadius: 2, overflow: "hidden" },
-  progFill:     { height: 3, backgroundColor: BLUE, borderRadius: 2 },
-  progPct:      { fontSize: 12, fontWeight: "700", color: T3, minWidth: 36, textAlign: "right" },
-  scroll:       { paddingHorizontal: 16, paddingBottom: 48, paddingTop: 4 },
+  container:   { flex: 1, backgroundColor: BG },
+  loadingWrap: { flex: 1, backgroundColor: BG, justifyContent: "center", alignItems: "center" },
+  header:      { flexDirection: "row", alignItems: "center", paddingHorizontal: 20,
+                 paddingTop: 18, paddingBottom: 10 },
+  eyebrow:     { fontSize: 11, fontWeight: "700", color: BLUE, letterSpacing: 1.5, marginBottom: 4 },
+  title:       { fontSize: 28, fontWeight: "800", color: T1, letterSpacing: -0.5 },
+  cogBtn:      { width: 40, height: 40, borderRadius: 20, backgroundColor: CARD,
+                 justifyContent: "center", alignItems: "center" },
+  nudge:       { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16,
+                 marginBottom: 6, padding: 12, borderRadius: 12,
+                 backgroundColor: "rgba(255,159,10,0.08)", borderWidth: 1,
+                 borderColor: "rgba(255,159,10,0.18)" },
+  nudgeTxt:    { flex: 1, fontSize: 13, color: ORANGE, fontWeight: "500" },
+  dayHdr:      { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12 },
+  dayHdrTop:   { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between",
+                 marginBottom: 10 },
+  dayTitle:    { fontSize: 20, fontWeight: "800", color: T1, letterSpacing: -0.3 },
+  dayDate:     { fontSize: 12, color: T2, marginTop: 2 },
+  progRow:     { flexDirection: "row", alignItems: "center", gap: 10 },
+  progTrack:   { flex: 1, height: 3, backgroundColor: CARD2, borderRadius: 2, overflow: "hidden" },
+  progFill:    { height: 3, backgroundColor: BLUE, borderRadius: 2 },
+  progPct:     { fontSize: 12, fontWeight: "700", color: T3, minWidth: 36, textAlign: "right" },
+  scroll:      { paddingHorizontal: 16, paddingBottom: 48, paddingTop: 4 },
 });
