@@ -105,36 +105,6 @@ const Avatar = ({ uid, size = 40, style }) => {
   );
 };
 
-// ── Day stats row ─────────────────────────────────────────────────────────────
-const DayStatsRow = ({ day, daySchedule }) => {
-  const { total, filled } = dayProgress(day, daySchedule);
-  const hoursCount = (day.hours || []).length;
-  const allDone = total > 0 && filled === total;
-  const stats = [
-    { value: total,                label: "Readings" },
-    { value: `${filled}/${total}`, label: "Assigned", color: allDone ? GREEN : T1 },
-    { value: hoursCount,           label: "Hours" },
-  ];
-  return (
-    <View style={dsr.row}>
-      {stats.map((s, i) => (
-        <View key={i} style={dsr.card}>
-          <Text style={[dsr.val, s.color && { color: s.color }]}>{s.value}</Text>
-          <Text style={dsr.lbl}>{s.label}</Text>
-        </View>
-      ))}
-    </View>
-  );
-};
-const dsr = StyleSheet.create({
-  row:  { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 14 },
-  card: { flex: 1, backgroundColor: CARD, borderRadius: 12, padding: 10,
-          borderWidth: 1, borderColor: SEP, alignItems: "center" },
-  val:  { fontSize: 18, fontWeight: "800", color: T1, letterSpacing: -0.3 },
-  lbl:  { fontSize: 10, fontWeight: "700", color: T3, marginTop: 3,
-          letterSpacing: 0.4, textTransform: "uppercase" },
-});
-
 // ── Psalm reader row ──────────────────────────────────────────────────────────
 const PsalmReadersRow = ({ readers = [], onOpen, label }) => {
   const has = readers.length > 0;
@@ -1601,9 +1571,6 @@ export default function PaschaManager() {
           </View>
         </View>
       )}
-
-      {/* Stats strip */}
-      {selectedDay && <DayStatsRow day={selectedDay} daySchedule={ds} />}
 
       {/* Hour tiles */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={mn.scroll}>
