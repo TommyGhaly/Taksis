@@ -79,9 +79,15 @@ function useProfilePic(uid) {
   return uri;
 }
 
-// FIX 3: Avatar — default image fills correctly, defaultSource for instant placeholder
+// FIX 3: Avatar — default image fallback and immediate placeholder
 const Avatar = ({ uid, size = 40, style }) => {
   const uri = useProfilePic(uid);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [uid, uri]);
+
   return (
     <View style={[{
       width: size, height: size, borderRadius: size / 2,
@@ -89,10 +95,11 @@ const Avatar = ({ uid, size = 40, style }) => {
       justifyContent: "center", alignItems: "center",
     }, style]}>
       <Image
-        source={uri ? { uri } : DEFAULT_AVATAR}
+        source={!failed && uri ? { uri } : DEFAULT_AVATAR}
         defaultSource={DEFAULT_AVATAR}
         style={{ width: size, height: size, borderRadius: size / 2 }}
         resizeMode="cover"
+        onError={() => setFailed(true)}
       />
     </View>
   );
@@ -221,25 +228,23 @@ const ProphecyCopticToggle = ({ vernacularSlotKey, hourAssignments, onSave }) =>
       <View style={{ flex: 1 }}>
         <Text style={[pct.label, enabled && pct.labelOn]}>Read in Coptic</Text>
       </View>
-      {/* FIX 1: No scale transform, better track/thumb colors */}
       <Switch
         value={enabled}
         onValueChange={handleChange}
-        trackColor={{ false: "rgba(255,255,255,0.12)", true: COPTIC_TRACK }}
-        thumbColor={enabled ? COPTIC_COLOR : "rgba(255,255,255,0.55)"}
-        ios_backgroundColor="rgba(255,255,255,0.12)"
+        trackColor={{ true: COPTIC_TRACK }}
       />
     </View>
   );
 };
 const pct = StyleSheet.create({
-  row:       { flexDirection: "row", alignItems: "center", gap: 10,
-               paddingVertical: 4, paddingHorizontal: 2, marginBottom: 8 },
-  rowOn:     {},
-  iconBox:   { width: 24, height: 24, borderRadius: 6,
-               justifyContent: "center", alignItems: "center" },
-  iconBoxOn: {},
-  label:     { fontSize: 12, fontWeight: "600", color: T3 },
+  row:       { flexDirection: "row", alignItems: "center", gap: 12,
+               paddingVertical: 10, paddingHorizontal: 12, marginBottom: 10,
+               borderRadius: 16, backgroundColor: CARD2, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
+  rowOn:     { backgroundColor: "rgba(245,158,11,0.12)", borderColor: COPTIC_BORDER },
+  iconBox:   { width: 32, height: 32, borderRadius: 10,
+               justifyContent: "center", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)" },
+  iconBoxOn: { backgroundColor: "rgba(245,158,11,0.18)" },
+  label:     { fontSize: 13, fontWeight: "700", color: T2 },
   labelOn:   { color: COPTIC_COLOR },
 });
 
@@ -1022,15 +1027,9 @@ const HourTile = React.memo(({
                       </View>
                     : <Text style={ht.rRef} numberOfLines={1}>{row.refText || "—"}</Text>
                 ) : assignee ? (
-                  /* FIX 2B: initials circle 22→30 */
                   <View style={ht.assigneeRow}>
-                    <View style={[ht.initials,
-                      { backgroundColor: isCoptic ? "rgba(245,158,11,0.18)" : "rgba(10,132,255,0.18)" }]}>
-                      <Text style={[ht.initialsText,
-                        { color: isCoptic ? COPTIC_COLOR : BLUE }]}>
-                        {nameInitials(assignee.name)}
-                      </Text>
-                    </View>
+                    <Avatar uid={assignee.uid} size={28}
+                      style={{ borderWidth: 2, borderColor: CARD }} />
                     <Text style={[ht.assigneeName, isCoptic && { color: COPTIC_COLOR }]} numberOfLines={1}>
                       {assignee.name}
                     </Text>
@@ -1079,9 +1078,9 @@ const HourTile = React.memo(({
 
 const ht = StyleSheet.create({
   tile:          { backgroundColor: CARD, borderRadius: 16, marginBottom: 10,
-                   borderWidth: 1, borderColor: SEP, overflow: "hidden" },
+                   borderWidth: 1, borderColor: SEP, overflow: "hidden", padding: 14 },
   titleRow:      { flexDirection: "row", alignItems: "center", paddingRight: 14,
-                   paddingTop: 14, gap: 0 },
+                   paddingTop: 4, gap: 12 },
   accent:        { width: 3, alignSelf: "stretch", marginRight: 10, borderRadius: 0 },
   accentDone:    { backgroundColor: GREEN },
   accentPartial: { backgroundColor: BLUE },
