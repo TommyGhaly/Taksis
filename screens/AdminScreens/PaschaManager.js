@@ -189,11 +189,7 @@ const ProphecyCopticToggle = ({ vernacularSlotKey, hourAssignments, onSave }) =>
   return (
     <View style={[pct.row, enabled && pct.rowOn]}>
       <View style={[pct.iconBox, enabled && pct.iconBoxOn]}>
-        <Icon
-          name={enabled ? "alpha-c-circle" : "alpha-c-circle-outline"}
-          size={16}
-          color={enabled ? COPTIC_COLOR : T3}
-        />
+        <Text style={[pct.alphaSymbol, enabled && pct.alphaSymbolOn]}>α</Text>
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[pct.label, enabled && pct.labelOn]}>Read in Coptic</Text>
@@ -214,6 +210,8 @@ const pct = StyleSheet.create({
   iconBox:   { width: 32, height: 32, borderRadius: 10,
                justifyContent: "center", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)" },
   iconBoxOn: { backgroundColor: "rgba(245,158,11,0.18)" },
+  alphaSymbol: { fontSize: 18, fontWeight: "700", color: T3 },
+  alphaSymbolOn: { color: COPTIC_COLOR },
   label:     { fontSize: 13, fontWeight: "700", color: T2 },
   labelOn:   { color: COPTIC_COLOR },
 });
@@ -1091,6 +1089,7 @@ const ht = StyleSheet.create({
 // ── Settings sheet ────────────────────────────────────────────────────────────
 const SettingsSheet = ({
   visible, myReadingsVisible, fullScheduleVisible, easterDate, year, allDays,
+  fontSizeScale, onSetFontSize,
   onToggleMyReadings, onToggleFullSchedule, onDateSave,
   onArchivePress, onViewArchives, onClose,
 }) => {
@@ -1112,7 +1111,7 @@ const SettingsSheet = ({
     { label: "Last Friday of Lent", offset: -9 },
     { label: "Palm Sunday",         offset: -7 },
     { label: "Holy Monday",         offset: -6 },
-    { label: "Good Friday",         offset: -2 },
+    { label: "Good Friday Eve",     offset: -2 },
     { label: "Easter Sunday",       offset:  0 },
   ];
 
@@ -1156,6 +1155,30 @@ const SettingsSheet = ({
                   trackColor={{ false: "rgba(255,255,255,0.12)", true: BLUE }}
                   thumbColor={T1}
                   ios_backgroundColor="rgba(255,255,255,0.12)" />
+              </View>
+            </View>
+            <View style={ss.card}>
+              <View style={ss.row}>
+                <View style={[ss.iconBox, { backgroundColor: "rgba(167,139,250,0.12)" }]}>
+                  <Icon name="format-size" size={19} color="#a78bfa" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={ss.label}>Font Size</Text>
+                  <Text style={ss.desc}>{fontSizeScale.charAt(0).toUpperCase() + fontSizeScale.slice(1)}</Text>
+                </View>
+              </View>
+              <View style={ss.fontSizeRow}>
+                {["small", "medium", "large"].map(size => (
+                  <TouchableOpacity
+                    key={size}
+                    onPress={() => onSetFontSize(size)}
+                    style={[ss.fontSizeBtn, fontSizeScale === size && ss.fontSizeBtnActive]}
+                    activeOpacity={0.7}>
+                    <Text style={[ss.fontSizeBtnTxt, fontSizeScale === size && ss.fontSizeBtnTxtActive]}>
+                      {size.charAt(0).toUpperCase() + size.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
             <View style={ss.card}>
@@ -1227,6 +1250,11 @@ const ss = StyleSheet.create({
   iconBox:        { width: 40, height: 40, borderRadius: 11, justifyContent: "center", alignItems: "center" },
   label:          { fontSize: 15, fontWeight: "600", color: T1 },
   desc:           { fontSize: 13, color: T2, marginTop: 2 },
+  fontSizeRow:    { flexDirection: "row", gap: 10, marginTop: 12 },
+  fontSizeBtn:    { flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: CARD, alignItems: "center" },
+  fontSizeBtnActive: { backgroundColor: "rgba(167,139,250,0.2)", borderWidth: 1, borderColor: "rgba(167,139,250,0.4)" },
+  fontSizeBtnTxt: { fontSize: 13, fontWeight: "600", color: T2 },
+  fontSizeBtnTxtActive: { color: "#a78bfa", fontWeight: "700" },
   editBtn:        { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 9, backgroundColor: CARD },
   editTxt:        { fontSize: 13, fontWeight: "600", color: BLUE },
   divider:        { height: 1, backgroundColor: SEP, marginVertical: 12 },
@@ -1338,6 +1366,7 @@ const arc = StyleSheet.create({
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function PaschaManager() {
   const isMounted = useRef(true);
+  const [uid, setUid]                                 = useState(null);
   const [churchId, setChurchId]                       = useState(null);
   const [scheduleShell, setScheduleShell]             = useState(null);
   const [assignees, setAssignees]                     = useState({});
@@ -1351,6 +1380,7 @@ export default function PaschaManager() {
   const [archiveOpen, setArchiveOpen]                 = useState(false);
   const [archiveViewOpen, setArchiveViewOpen]         = useState(false);
   const [selectedId, setSelectedId]                   = useState(null);
+  const [fontSizeScale, setFontSizeScale]             = useState("medium");
 
   const allDays  = useMemo(() => buildAllDays(scheduleShell), [scheduleShell]);
   const daysById = useMemo(() => Object.fromEntries(allDays.map(d => [d.id, d])), [allDays]);
@@ -1373,8 +1403,12 @@ export default function PaschaManager() {
     isMounted.current = true;
     const user = auth().currentUser;
     if (!user) return;
+    setUid(user.uid);
     const unsub = firestore().collection("users").doc(user.uid).onSnapshot(doc => {
-      if (isMounted.current && doc.exists) setChurchId(doc.data().church || null);
+      if (isMounted.current && doc.exists) {
+        setChurchId(doc.data().church || null);
+        setFontSizeScale(doc.data().paschaFontSize ?? "medium");
+      }
     });
     return () => { isMounted.current = false; unsub(); };
   }, []);
@@ -1598,6 +1632,14 @@ export default function PaschaManager() {
         easterDate={easterDate}
         year={year}
         allDays={allDays}
+        fontSizeScale={fontSizeScale}
+        onSetFontSize={async (size) => {
+          setFontSizeScale(size);
+          if (uid) {
+            await firestore().collection("users").doc(uid)
+              .update({ paschaFontSize: size }).catch(() => {});
+          }
+        }}
         onToggleMyReadings={v => { setMyReadingsVisible(v); writeConfig({ myReadingsVisible: v }); }}
         onToggleFullSchedule={v => { setFullScheduleVisible(v); writeConfig({ fullScheduleVisible: v }); }}
         onDateSave={date => { const iso = date.toISOString(); setEasterDate(iso); writeConfig({ easterDate: iso }); }}
