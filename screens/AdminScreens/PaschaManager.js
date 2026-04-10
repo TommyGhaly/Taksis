@@ -1484,7 +1484,12 @@ export default function PaschaManager() {
       await firestore()
         .collection("churches").doc(churchId)
         .collection("pascha").doc(`archive_${year}`)
-        .set({ schedule, easterDate, archivedAt: firestore.FieldValue.serverTimestamp() });
+        .set({
+          schedule,
+          easterDate,
+          shell: scheduleShell,
+          archivedAt: firestore.FieldValue.serverTimestamp(),
+        });
       await firestore()
         .collection("churches").doc(churchId)
         .collection("pascha").doc("schedule")
@@ -1495,8 +1500,7 @@ export default function PaschaManager() {
     } catch {
       Alert.alert("Error", "Archive failed.");
     }
-  }, [churchId, year, schedule, easterDate]);
-
+  }, [churchId, year, schedule, easterDate, scheduleShell]);
   const ds = selectedId ? (schedule[selectedId] || {}) : {};
 
   if (!scheduleShell) {
