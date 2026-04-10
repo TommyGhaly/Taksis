@@ -13,7 +13,6 @@ import {
   hasLanguagePicker, effectiveLanguage, langShort,
   READING_META,
 } from "../Pascha/PaschaReadingUtils";
-import { DAY_SHORT_LABELS } from "../Pascha/DayConstants";
 
 const DEFAULT_AVATAR = require("../../assets/default_profile.png");
 
@@ -33,14 +32,21 @@ const COPTIC_COLOR  = "#f59e0b";
 const COPTIC_BG     = "rgba(245,158,11,0.10)";
 const COPTIC_BORDER = "rgba(245,158,11,0.28)";
 
-// ── Derived day helpers ───────────────────────────────────────────────────────
+// Coptic rKeys — these always render orange regardless of anything else
+const COPTIC_RKEYS = new Set([
+  "prophecies_coptic",
+  "gospel_coptic",
+  "gospels_coptic",
+]);
+
+// ── Day helpers ───────────────────────────────────────────────────────────────
 function buildAllDays(shell) {
   if (!shell?.days) return [];
   return shell.days.map(d => ({
     id:           d.id,
     label:        d.label,
     easterOffset: d.easterOffset,
-    shortLabel:   d.shortLabel ?? (DAY_SHORT_LABELS[d.id] ?? d.label.split(" ").slice(0, 2).join(" ")),
+    shortLabel:   d.label,
     hours:        d.hours ?? [],
   }));
 }
@@ -95,6 +101,17 @@ function getVisibleHours(hours, daySchedule) {
   });
 }
 
+// ── Label builder ─────────────────────────────────────────────────────────────
+// READING_META already has "(Coptic)" baked into Coptic rKey labels,
+// so no special-casing needed here — just append the index if present.
+function buildReadingLabel(row) {
+  const meta = READING_META[row.rKey] || { label: row.rKey };
+  if (row.rKey === "homily")     return `Homily — ${row.author || row.refText}`;
+  if (row.rKey === "exposition") return "Exposition";
+  if (row.index != null)         return `${meta.label} ${row.index + 1}`;
+  return meta.label;
+}
+
 // ── Avatar ────────────────────────────────────────────────────────────────────
 function useProfilePic(uid) {
   const [uri, setUri] = useState(null);
@@ -132,9 +149,12 @@ const DayTabBar = ({ allDays, selectedId, easterDate, schedule, uid, onSelect })
         <TouchableOpacity key={day.id} onPress={() => onSelect(day.id)}
           style={[dt.tab, active && dt.tabActive]} activeOpacity={0.75}>
           {hasMe && <View style={dt.dot} />}
-          <Text style={[dt.label, active && dt.labelActive]} numberOfLines={2}
+          <Text
+            style={[dt.label, active && dt.labelActive]}
+            numberOfLines={2}
             adjustsFontSizeToFit
-            minimumFontScale={0.7}>{day.shortLabel}</Text>
+            minimumFontScale={0.7}
+          >{day.shortLabel}</Text>
           {dateStr && <Text style={[dt.date, active && dt.dateActive]}>{dateStr}</Text>}
         </TouchableOpacity>
       );
@@ -155,26 +175,16 @@ const dt = StyleSheet.create({
 
 // ── Reading Card ──────────────────────────────────────────────────────────────
 const ReadingCard = ({ row, hourAssignments, uid, isFullSchedule, isMine, hideNames }) => {
+  const isCopticRow = COPTIC_RKEYS.has(row.rKey);
   const meta        = READING_META[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
   const isPsalm     = isPsalmSlot(row.rKey);
-  const isHom       = row.rKey === "homily";
   const isExp       = row.rKey === "exposition";
-  const isCopticRow = row.isCoptic === true;
 
-  // ── Label (Coptic gospel gets its own distinct label) ──────────────────────
-  let label;
-  if (isHom) {
-    label = `Homily — ${row.author || row.refText}`;
-  } else if (isExp) {
-    label = "Exposition";
-  } else if (isCopticRow && (row.rKey === "gospel_coptic" || row.rKey === "gospels_coptic")) {
-    label = row.index != null ? `Gospel (Coptic) ${row.index + 1}` : "Gospel (Coptic)";
-  } else if (row.index != null) {
-    label = `${meta.label} ${row.index + 1}`;
-  } else {
-    label = meta.label;
-  }
+  // Coptic rows are always orange; vernacular rows use their meta color
+  const accentColor = isCopticRow ? COPTIC_COLOR : meta.color;
+  const accentBg    = isCopticRow ? COPTIC_BG    : meta.color + "1a";
 
+  const label     = buildReadingLabel(row);
   const readers   = isPsalm ? (hourAssignments.psalm_readers || []) : [];
   const assignee  = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
   const hasAssign = isPsalm ? readers.length > 0 : !!assignee;
@@ -184,51 +194,54 @@ const ReadingCard = ({ row, hourAssignments, uid, isFullSchedule, isMine, hideNa
   return (
     <View style={[rdc.card, isMine && rdc.cardMine, isCopticRow && rdc.cardCoptic]}>
       <View style={rdc.header}>
-        <View style={[rdc.iconWrap, { backgroundColor: isCopticRow ? COPTIC_BG : meta.color + "1a" }]}>
-          <Icon name={meta.icon} size={15} color={isCopticRow ? COPTIC_COLOR : meta.color} />
+        <View style={[rdc.iconWrap, { backgroundColor: accentBg }]}>
+          <Icon name={meta.icon} size={15} color={accentColor} />
         </View>
-        <Text style={[rdc.typeLabel, { color: isCopticRow ? COPTIC_COLOR : meta.color }]}>{label}</Text>
+
+        {/* Label — Coptic rKeys already say "Gospel (Coptic)" / "Prophecy (Coptic)" from READING_META */}
+        <Text style={[rdc.typeLabel, { color: accentColor }]}>{label}</Text>
+
+        {/* Orange COPTIC badge — visually separates the two gospel roles */}
         {isCopticRow && (
           <View style={rdc.copticBadge}>
             <Text style={rdc.copticBadgeTxt}>COPTIC</Text>
           </View>
         )}
+
         {showLang && (
           <View style={rdc.langBadge}>
             <Text style={rdc.langBadgeTxt}>{langShort(effectiveLanguage(row, hourAssignments))}</Text>
           </View>
         )}
+
         {isMine && <View style={rdc.youPill}><Text style={rdc.youTxt}>You</Text></View>}
       </View>
 
-      {!!row.refText && !isHom && !isExp && (
+      {!!row.refText && row.rKey !== "homily" && !isExp && (
         <Text style={rdc.ref}>{row.refText}</Text>
       )}
-      {!!row.location && <Text style={rdc.loc}>{row.location}</Text>}
+
+      {/* Location — surfaces station info for Palm Sunday procession gospels etc. */}
+      {!!row.location && (
+        <View style={rdc.locationRow}>
+          <Icon name="map-marker-outline" size={11} color={T3} />
+          <Text style={rdc.loc}>{row.location}</Text>
+        </View>
+      )}
 
       {hasAssign && showNames && (
         <View style={rdc.assigneeRow}>
           {isPsalm ? readers.map((r, i) => (
-            <View key={r.uid || i} style={[
-              rdc.chip,
-              r.uid === uid && rdc.chipMe,
-              isCopticRow && rdc.chipCoptic,
-            ]}>
+            <View key={r.uid || i} style={[rdc.chip, r.uid === uid && rdc.chipMe, isCopticRow && rdc.chipCoptic]}>
               <Avatar uid={r.uid} size={16} />
-              <Text style={[
-                rdc.chipName,
-                r.uid === uid && rdc.chipNameMe,
-                isCopticRow && rdc.chipNameCoptic,
-              ]} numberOfLines={1}>{r.name}</Text>
+              <Text style={[rdc.chipName, r.uid === uid && rdc.chipNameMe, isCopticRow && rdc.chipNameCoptic]}
+                numberOfLines={1}>{r.name}</Text>
             </View>
           )) : (
             <View style={[rdc.chip, isMine && rdc.chipMe, isCopticRow && rdc.chipCoptic]}>
               <Avatar uid={assignee.uid} size={16} />
-              <Text style={[
-                rdc.chipName,
-                isMine && rdc.chipNameMe,
-                isCopticRow && rdc.chipNameCoptic,
-              ]} numberOfLines={1}>{assignee.name}</Text>
+              <Text style={[rdc.chipName, isMine && rdc.chipNameMe, isCopticRow && rdc.chipNameCoptic]}
+                numberOfLines={1}>{assignee.name}</Text>
             </View>
           )}
         </View>
@@ -243,14 +256,15 @@ const rdc = StyleSheet.create({
   header:          { flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 8 },
   iconWrap:        { width: 30, height: 30, borderRadius: 9, justifyContent: "center", alignItems: "center" },
   typeLabel:       { fontSize: 11, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", flex: 1 },
-  copticBadge:     { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: "rgba(245,158,11,0.15)", borderWidth: 1, borderColor: COPTIC_BORDER },
+  copticBadge:     { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: "rgba(245,158,11,0.20)", borderWidth: 1, borderColor: COPTIC_BORDER },
   copticBadgeTxt:  { fontSize: 9, fontWeight: "800", color: COPTIC_COLOR, letterSpacing: 0.5 },
   langBadge:       { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, backgroundColor: GLASS2 },
   langBadgeTxt:    { fontSize: 9, fontWeight: "700", color: T3, letterSpacing: 0.3 },
   youPill:         { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: BLUE_D, borderWidth: 1, borderColor: "rgba(59,130,246,0.3)" },
   youTxt:          { fontSize: 9, fontWeight: "700", color: BLUE2, letterSpacing: 0.4 },
   ref:             { fontSize: 14, color: T1, fontWeight: "300", lineHeight: 21, marginBottom: 3 },
-  loc:             { fontSize: 11, color: T2, fontWeight: "400" },
+  locationRow:     { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 3 },
+  loc:             { fontSize: 11, color: T3, fontWeight: "400" },
   assigneeRow:     { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: SEP },
   chip:            { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: GLASS2, borderWidth: 1, borderColor: SEP, borderRadius: 20, paddingVertical: 3, paddingHorizontal: 8 },
   chipMe:          { backgroundColor: BLUE_D, borderColor: "rgba(59,130,246,0.3)" },
@@ -426,11 +440,10 @@ const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onHourPres
       (isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey)) && slotSet.has(r.slotKey));
     if (rows.length > 0) myHours.push({ hour: h, rows });
   });
-  const total    = myHours.reduce((a, h) => a + h.rows.length, 0);
-  const allTypes = [...new Set(myHours.flatMap(h => h.rows.map(r => {
-    const base = r.rKey.replace(/_coptic$/, "").replace(/_vernacular$/, "");
-    return READING_META[base] ? base : r.rKey;
-  })))];
+  const total = myHours.reduce((a, h) => a + h.rows.length, 0);
+
+  // Keep coptic and vernacular gospel as separate distinct pill types
+  const allTypes = [...new Set(myHours.flatMap(h => h.rows.map(r => r.rKey)))];
 
   const handleCardPress = () => {
     if (myHours.length > 0) onHourPress(day.id, myHours[0].hour.id);
@@ -453,9 +466,14 @@ const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onHourPres
           </View>
           <View style={tl.pillRow}>
             {allTypes.map(rKey => {
-              const m = READING_META[rKey] || { icon: "book-outline", color: T3, label: rKey };
+              const m           = READING_META[rKey] || { icon: "book-outline", color: T3, label: rKey };
+              const isCopticKey = COPTIC_RKEYS.has(rKey);
               return (
-                <View key={rKey} style={[tl.pill, { backgroundColor: m.color + "14", borderColor: m.color + "40" }]}>
+                <View key={rKey} style={[
+                  tl.pill,
+                  { backgroundColor: m.color + "18", borderColor: m.color + "45" },
+                  isCopticKey && tl.pillCoptic,
+                ]}>
                   <Icon name={m.icon} size={10} color={m.color} />
                   <Text style={[tl.pillTxt, { color: m.color }]}>{m.label}</Text>
                 </View>
@@ -491,6 +509,7 @@ const tl = StyleSheet.create({
   badgeNum:    { fontSize: 15, fontWeight: "300", color: BLUE2 },
   pillRow:     { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 16, paddingBottom: 12 },
   pill:        { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1 },
+  pillCoptic:  { borderWidth: 1.5 },
   pillTxt:     { fontSize: 10, fontWeight: "500", letterSpacing: 0.3 },
   hourRow:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 9 },
   hourLabel:   { fontSize: 13, color: T2, fontWeight: "400" },
@@ -513,7 +532,7 @@ export default function PaschaHomePage() {
 
   const isFullSchedule = fullScheduleOn;
 
-  const allDays = useMemo(() => buildAllDays(scheduleShell), [scheduleShell]);
+  const allDays  = useMemo(() => buildAllDays(scheduleShell), [scheduleShell]);
   const daysById = useMemo(() => Object.fromEntries(allDays.map(d => [d.id, d])), [allDays]);
   const schedule = useMemo(() => {
     const merged = {};
@@ -541,7 +560,6 @@ export default function PaschaHomePage() {
 
   useEffect(() => {
     if (!churchId) return;
-
     const unsubShell = firestore()
       .collection("churches").doc(churchId)
       .collection("pascha").doc("schedule_config")
@@ -549,7 +567,6 @@ export default function PaschaHomePage() {
         if (!isMounted.current) return;
         if (doc.exists) setScheduleShell(doc.data());
       });
-
     const unsubConfig = firestore()
       .collection("churches").doc(churchId)
       .collection("pascha").doc("config")
@@ -563,7 +580,6 @@ export default function PaschaHomePage() {
         setEasterDate(d.easterDate ?? null);
         setHideNames(d.paschaHideNames ?? false);
       });
-
     const unsubSchedule = firestore()
       .collection("churches").doc(churchId)
       .collection("pascha").doc("schedule")
@@ -571,7 +587,6 @@ export default function PaschaHomePage() {
         if (!isMounted.current) return;
         setAssignees(doc.exists ? doc.data() : {});
       });
-
     return () => { unsubShell(); unsubConfig(); unsubSchedule(); };
   }, [churchId]);
 
@@ -596,13 +611,11 @@ export default function PaschaHomePage() {
     );
   }
 
-  // ── Detail view ─────────────────────────────────────────────────────────────
   if (nav) {
     const dayDef = daysById[nav.dayId];
     if (!dayDef) { setNav(null); return null; }
     const daySchedule = schedule[nav.dayId] || {};
     const dateStr     = easterDate ? calcDate(easterDate, dayDef.easterOffset) : null;
-
     return (
       <View style={mn.container}>
         <StatusBar barStyle="light-content" />
@@ -620,10 +633,8 @@ export default function PaschaHomePage() {
             onPress={async () => {
               const next = !hideNames;
               setHideNames(next);
-              if (uid) {
-                await firestore().collection("users").doc(uid)
-                  .update({ paschaHideNames: next }).catch(() => {});
-              }
+              if (uid) await firestore().collection("users").doc(uid)
+                .update({ paschaHideNames: next }).catch(() => {});
             }}
             activeOpacity={0.75}>
             <Icon name={hideNames ? "account-off-outline" : "account-outline"} size={16}
@@ -631,14 +642,8 @@ export default function PaschaHomePage() {
           </TouchableOpacity>
         </View>
         <View style={{ height: 74 }}>
-          <DayTabBar
-            allDays={allDays}
-            selectedId={nav.dayId}
-            easterDate={easterDate}
-            schedule={schedule}
-            uid={uid}
-            onSelect={goToDay}
-          />
+          <DayTabBar allDays={allDays} selectedId={nav.dayId} easterDate={easterDate}
+            schedule={schedule} uid={uid} onSelect={goToDay} />
         </View>
         <HourPagerController
           key={`${nav.dayId}__${nav.hourId || "0"}`}
@@ -653,7 +658,6 @@ export default function PaschaHomePage() {
     );
   }
 
-  // ── Overview ────────────────────────────────────────────────────────────────
   return (
     <View style={mn.container}>
       <StatusBar barStyle="light-content" />
@@ -664,17 +668,10 @@ export default function PaschaHomePage() {
         </View>
       </View>
       <View style={{ height: 74 }}>
-        <DayTabBar
-          allDays={allDays}
-          selectedId={null}
-          easterDate={easterDate}
-          schedule={schedule}
-          uid={uid}
-          onSelect={goToDay}
-        />
+        <DayTabBar allDays={allDays} selectedId={null} easterDate={easterDate}
+          schedule={schedule} uid={uid} onSelect={goToDay} />
       </View>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
+      <ScrollView showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 56, paddingTop: 8 }}>
         {showContent && totalMyReadings > 0 && (
           <View style={ov.summaryRow}>
@@ -693,9 +690,7 @@ export default function PaschaHomePage() {
             <View style={ov.empty}>
               <View style={ov.emptyIconWrap}><Icon name="cross" size={28} color={T3} /></View>
               <Text style={ov.emptyTitle}>Not yet scheduled</Text>
-              <Text style={ov.emptySub}>
-                Your assigned readings will appear here once the schedule is set.
-              </Text>
+              <Text style={ov.emptySub}>Your assigned readings will appear here once the schedule is set.</Text>
             </View>
           ) : (
             <View style={{ paddingTop: 8 }}>

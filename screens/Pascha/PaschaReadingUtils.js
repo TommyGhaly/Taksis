@@ -19,21 +19,21 @@ export const VERNACULAR_OPTIONS = [
 ];
 
 export const READING_META = {
-  prophecies:         { label: "Prophecy",         icon: "fire",                color: "#e5c46b" },
-  prophecies_coptic:  { label: "Prophecy",         icon: "fire",                color: "#e5c46b" },
-  homily:             { label: "Homily",            icon: "microphone-outline",  color: "#f87171" },
-  pauline:            { label: "Pauline",           icon: "feather",             color: "#c084fc" },
-  catholic:           { label: "Catholic",          icon: "bookshelf",           color: "#67d3cb" },
-  praxis:             { label: "Praxis",            icon: "script-text-outline", color: "#fb923c" },
-  psalm:              { label: "Psalm",             icon: "music-note",          color: "#7ec8a0" },
-  gospel:             { label: "Gospel",            icon: "book-cross",          color: "#38bdf8" },
-  gospel_coptic:      { label: "Gospel (Coptic)",   icon: "book-cross",          color: "#38bdf8" },
-  gospel_vernacular:  { label: "Gospel",            icon: "book-cross",          color: "#7dd3fc" },
-  gospels:            { label: "Gospel",            icon: "book-cross",          color: "#38bdf8" },
-  gospels_coptic:     { label: "Gospel (Coptic)",   icon: "book-cross",          color: "#38bdf8" },
-  gospels_vernacular: { label: "Gospel",            icon: "book-cross",          color: "#7dd3fc" },
-  exposition:         { label: "Exposition",        icon: "comment-text-outline", color: "#a78bfa" },
-  litanies:           { label: "Litanies",          icon: "hands-pray",          color: "rgba(255,255,255,0.65)" },
+  prophecies:         { label: "Prophecy",              icon: "fire",                color: "#e5c46b" },
+  prophecies_coptic:  { label: "Prophecy (Coptic)",     icon: "fire",                color: "#f59e0b" },
+  homily:             { label: "Homily",                icon: "microphone-outline",  color: "#f87171" },
+  pauline:            { label: "Pauline",               icon: "feather",             color: "#c084fc" },
+  catholic:           { label: "Catholic",              icon: "bookshelf",           color: "#67d3cb" },
+  praxis:             { label: "Praxis",                icon: "script-text-outline", color: "#fb923c" },
+  psalm:              { label: "Psalm",                 icon: "music-note",          color: "#7ec8a0" },
+  gospel:             { label: "Gospel",                icon: "book-cross",          color: "#38bdf8" },
+  gospel_coptic:      { label: "Gospel (Coptic)",       icon: "book-cross",          color: "#f59e0b" },
+  gospel_vernacular:  { label: "Gospel",                icon: "book-cross",          color: "#7dd3fc" },
+  gospels:            { label: "Gospel",                icon: "book-cross",          color: "#38bdf8" },
+  gospels_coptic:     { label: "Gospel (Coptic)",       icon: "book-cross",          color: "#f59e0b" },
+  gospels_vernacular: { label: "Gospel",                icon: "book-cross",          color: "#7dd3fc" },
+  exposition:         { label: "Exposition",            icon: "comment-text-outline", color: "#a78bfa" },
+  litanies:           { label: "Litanies",              icon: "hands-pray",          color: "rgba(255,255,255,0.65)" },
 };
 
 export const ASSIGNABLE = [
@@ -196,7 +196,6 @@ export function expandReadings(hour, hourAssignments = {}) {
     });
 
     // Coptic row immediately after — only visible when admin enables the toggle.
-    // Sitting below the toggle it belongs to makes the cause→effect clear.
     if (hasCopticOption && hourAssignments[prophecyCopticToggleKey(slotBase)] === true) {
       rows.push({
         rKey: "prophecies_coptic",
