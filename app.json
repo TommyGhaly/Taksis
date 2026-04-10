@@ -53,7 +53,7 @@
       "entitlements": {
         "aps-environment": "production"
       },
-      "supportsTablet": false,
+      "supportsTablet": true,
       "usesAppleSignIn": true,
       "buildNumber": "1"
     },
