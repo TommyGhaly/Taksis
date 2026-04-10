@@ -18,6 +18,7 @@ import {
   langFirestoreKey, psalmReadersKey, prophecyCopticToggleKey,
   ASSIGNABLE, READING_META, MAX_PSALM_READERS, readingDisplay,
 } from "../Pascha/PaschaReadingUtils";
+import { DAY_SHORT_LABELS } from "../Pascha/DayConstants";
 
 const DEFAULT_AVATAR = require("../../assets/default_profile.png");
 
@@ -40,14 +41,17 @@ const COPTIC_BG     = "rgba(245,158,11,0.10)";
 const COPTIC_BORDER = "rgba(245,158,11,0.28)";
 const COPTIC_TRACK  = "rgba(245,158,11,0.45)";
 
-// ── Font scale ────────────────────────────────────────────────────────────────
-// Controlled via Firestore: churches/{churchId}/pascha/config → paschaTextScale (number)
-// e.g. 0.85 = small, 1.0 = default, 1.18 = large, 1.05 = slightly larger etc.
-// Change it in the Firestore console — no rebuild needed.
-const DEFAULT_TEXT_SCALE = 1.0;
+// ── Font size multiplier ──────────────────────────────────────────────────────
+// This value is initialized from the `pascha` doc in Firestore
+// (churches/{churchId}/pascha/config → fontSizeMultipliers map).
+// It is NOT editable in the app — change it in Firestore directly or via
+// an admin Cloud Function. Individual user preference ("small"/"medium"/"large")
+// is stored in users/{uid}.paschaFontSize and scales relative to this multiplier.
+const DEFAULT_FONT_MULTIPLIERS = { small: 0.85, medium: 1.0, large: 1.18 };
 
-function fs(base, scale) {
-  return Math.round(base * scale);
+function resolvedFontScale(fontSizeScale, fontSizeMultipliers) {
+  const map = fontSizeMultipliers ?? DEFAULT_FONT_MULTIPLIERS;
+  return map[fontSizeScale] ?? 1.0;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -57,7 +61,7 @@ function buildAllDays(shell) {
     id:           d.id,
     label:        d.label,
     easterOffset: d.easterOffset,
-    shortLabel:   d.label,
+    shortLabel:   d.shortLabel ?? (DAY_SHORT_LABELS[d.id] ?? d.label.split(" ").slice(0, 2).join(" ")),
     hours:        d.hours ?? [],
   }));
 }
@@ -67,6 +71,12 @@ function calcDate(easter, offset) {
   const d = new Date(easter);
   d.setDate(d.getDate() + offset);
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+function nameInitials(name) {
+  if (!name) return "?";
+  const parts = name.trim().split(" ");
+  return (parts[0][0] + (parts[1]?.[0] || "")).toUpperCase();
 }
 
 // ── Profile picture hook ──────────────────────────────────────────────────────
@@ -86,7 +96,11 @@ function useProfilePic(uid) {
 const Avatar = ({ uid, size = 40, style }) => {
   const uri = useProfilePic(uid);
   const [failed, setFailed] = useState(false);
-  useEffect(() => { setFailed(false); }, [uid, uri]);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [uid, uri]);
+
   return (
     <View style={[{
       width: size, height: size, borderRadius: size / 2,
@@ -105,7 +119,7 @@ const Avatar = ({ uid, size = 40, style }) => {
 };
 
 // ── Psalm reader row ──────────────────────────────────────────────────────────
-const PsalmReadersRow = ({ readers = [], onOpen, label, scale }) => {
+const PsalmReadersRow = ({ readers = [], onOpen, label }) => {
   const has = readers.length > 0;
   return (
     <TouchableOpacity style={[hm.assignBtn, has && hm.assignBtnFilled]} onPress={onOpen} activeOpacity={0.7}>
@@ -113,22 +127,20 @@ const PsalmReadersRow = ({ readers = [], onOpen, label, scale }) => {
         <>
           <View style={{ flexDirection: "row" }}>
             {readers.slice(0, 3).map((r, i) => (
-              <Avatar key={r.uid || r.name || i} uid={r.uid} size={Math.round(26 * scale)}
+              <Avatar key={r.uid || r.name || i} uid={r.uid} size={26}
                 style={{ marginLeft: i > 0 ? -8 : 0, borderWidth: 1.5, borderColor: CARD }} />
             ))}
           </View>
-          <Text style={[hm.assignedName, { fontSize: fs(14, scale) }]} numberOfLines={1}>
+          <Text style={hm.assignedName} numberOfLines={1}>
             {readers.length === 1 ? readers[0].name : `${readers.length} readers assigned`}
           </Text>
-          <Icon name="pencil-outline" size={fs(14, scale)} color={T2} />
+          <Icon name="pencil-outline" size={14} color={T2} />
         </>
       ) : (
         <>
-          <Icon name="account-multiple-plus-outline" size={fs(16, scale)} color={T2} />
-          <Text style={[hm.unassignedTxt, { fontSize: fs(14, scale) }]}>
-            {label || `Assign readers (up to ${MAX_PSALM_READERS})`}
-          </Text>
-          <Icon name="chevron-right" size={fs(14, scale)} color={T3} />
+          <Icon name="account-multiple-plus-outline" size={16} color={T2} />
+          <Text style={hm.unassignedTxt}>{label || `Assign readers (up to ${MAX_PSALM_READERS})`}</Text>
+          <Icon name="chevron-right" size={14} color={T3} />
         </>
       )}
     </TouchableOpacity>
@@ -195,26 +207,32 @@ const ProphecyCopticToggle = ({ vernacularSlotKey, hourAssignments, onSave }) =>
       <View style={{ flex: 1 }}>
         <Text style={[pct.label, enabled && pct.labelOn]}>Read in Coptic</Text>
       </View>
-      <Switch value={enabled} onValueChange={handleChange} trackColor={{ true: COPTIC_TRACK }} />
+      <Switch
+        value={enabled}
+        onValueChange={handleChange}
+        trackColor={{ false: "rgba(255,255,255,0.12)", true: COPTIC_TRACK }}
+        thumbColor={T1}
+        ios_backgroundColor="rgba(255,255,255,0.12)"
+      />
     </View>
   );
 };
 const pct = StyleSheet.create({
-  row:         { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10,
-                 paddingHorizontal: 12, marginBottom: 10, borderRadius: 16,
-                 backgroundColor: CARD2, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  rowOn:       { backgroundColor: "rgba(245,158,11,0.12)", borderColor: COPTIC_BORDER },
-  iconBox:     { width: 32, height: 32, borderRadius: 10, justifyContent: "center",
-                 alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)" },
-  iconBoxOn:   { backgroundColor: "rgba(245,158,11,0.18)" },
+  row:       { flexDirection: "row", alignItems: "center", gap: 12,
+               paddingVertical: 10, paddingHorizontal: 12, marginBottom: 10,
+               borderRadius: 16, backgroundColor: CARD2, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
+  rowOn:     { backgroundColor: "rgba(245,158,11,0.12)", borderColor: COPTIC_BORDER },
+  iconBox:   { width: 32, height: 32, borderRadius: 10,
+               justifyContent: "center", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)" },
+  iconBoxOn: { backgroundColor: "rgba(245,158,11,0.18)" },
   alphaSymbol: { fontSize: 18, fontWeight: "700", color: T3 },
   alphaSymbolOn: { color: COPTIC_COLOR },
-  label:       { fontSize: 13, fontWeight: "700", color: T2 },
-  labelOn:     { color: COPTIC_COLOR },
+  label:     { fontSize: 13, fontWeight: "700", color: T2 },
+  labelOn:   { color: COPTIC_COLOR },
 });
 
 // ── Gospel grid ───────────────────────────────────────────────────────────────
-const GospelGrid = ({ rows, hourAssignments, onOpenPicker, scale }) => {
+const GospelGrid = ({ rows, hourAssignments, onOpenPicker }) => {
   const meta = READING_META.gospels;
   return (
     <View style={gg.grid}>
@@ -224,22 +242,22 @@ const GospelGrid = ({ rows, hourAssignments, onOpenPicker, scale }) => {
           <TouchableOpacity key={row.slotKey} style={gg.cell} onPress={() => onOpenPicker(row)} activeOpacity={0.7}>
             <View style={gg.cellTop}>
               <View style={[gg.numBadge, { backgroundColor: meta.color + "22" }]}>
-                <Text style={[gg.numTxt, { color: meta.color, fontSize: fs(11, scale) }]}>{row.index + 1}</Text>
+                <Text style={[gg.numTxt, { color: meta.color }]}>{row.index + 1}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[gg.ref, { fontSize: fs(12, scale) }]} numberOfLines={1}>{row.refText}</Text>
-                {!!row.location && <Text style={[gg.loc, { fontSize: fs(10, scale) }]} numberOfLines={2}>{row.location}</Text>}
+                <Text style={gg.ref} numberOfLines={1}>{row.refText}</Text>
+                {!!row.location && <Text style={gg.loc} numberOfLines={2}>{row.location}</Text>}
               </View>
             </View>
             {assignee ? (
               <View style={gg.assigneeRow}>
-                <Avatar uid={assignee.uid} size={Math.round(18 * scale)} />
-                <Text style={[gg.assigneeName, { fontSize: fs(11, scale) }]} numberOfLines={1}>{assignee.name}</Text>
+                <Avatar uid={assignee.uid} size={18} />
+                <Text style={gg.assigneeName} numberOfLines={1}>{assignee.name}</Text>
               </View>
             ) : (
               <View style={gg.unassignedRow}>
-                <Icon name="account-plus-outline" size={fs(12, scale)} color={T3} />
-                <Text style={[gg.unassignedTxt, { fontSize: fs(11, scale) }]}>Assign</Text>
+                <Icon name="account-plus-outline" size={12} color={T3} />
+                <Text style={gg.unassignedTxt}>Assign</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -253,13 +271,13 @@ const gg = StyleSheet.create({
   cell:          { width: "48%", backgroundColor: CARD2, borderRadius: 12, padding: 10, gap: 6 },
   cellTop:       { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   numBadge:      { width: 24, height: 24, borderRadius: 7, justifyContent: "center", alignItems: "center", flexShrink: 0 },
-  numTxt:        { fontWeight: "800" },
-  ref:           { color: T1, fontWeight: "600", lineHeight: 16 },
-  loc:           { color: T3, marginTop: 2, lineHeight: 14 },
+  numTxt:        { fontSize: 11, fontWeight: "800" },
+  ref:           { fontSize: 12, color: T1, fontWeight: "600", lineHeight: 16 },
+  loc:           { fontSize: 10, color: T3, marginTop: 2, lineHeight: 14 },
   assigneeRow:   { flexDirection: "row", alignItems: "center", gap: 6 },
-  assigneeName:  { fontWeight: "600", color: GREEN, flex: 1 },
+  assigneeName:  { fontSize: 11, fontWeight: "600", color: GREEN, flex: 1 },
   unassignedRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  unassignedTxt: { color: T3 },
+  unassignedTxt: { fontSize: 11, color: T3 },
 });
 
 // ── Psalm picker modal ────────────────────────────────────────────────────────
@@ -339,7 +357,7 @@ const PsalmPickerModal = ({
                     <Icon name="music-note" size={17} color={READING_META.psalm.color} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={hm.pickerType}>{pickerLabel || "Psalm Readers"}</Text>
+                    <Text style={[hm.pickerType, { color: READING_META.psalm.color }]}>{pickerLabel || "Psalm Readers"}</Text>
                     {!!refText && <Text style={hm.pickerRef} numberOfLines={1}>{refText}</Text>}
                   </View>
                   <View style={pm.counter}>
@@ -465,11 +483,9 @@ const pm = StyleSheet.create({
 // ── HourModal ─────────────────────────────────────────────────────────────────
 const HourModal = ({
   visible, hour, hourAssignments, deacons, congregation,
-  loadingUsers, textScale,
-  onSaveReading, onSaveLanguage, onSaveCopticToggle, onOpenPsalmPicker, onClose,
+  loadingUsers, onSaveReading, onSaveLanguage, onSaveCopticToggle, onOpenPsalmPicker, onClose,
 }) => {
   const { height: screenH } = useWindowDimensions();
-  const scale = textScale;
   const [pickerSlot, setPickerSlot] = useState(null);
   const [pickerRow_, setPickerRow_] = useState(null);
   const [sel, setSel]               = useState(null);
@@ -536,12 +552,13 @@ const HourModal = ({
               <View style={[hm.sheet, { maxHeight: sheetMax }]}>
                 <View style={hm.handle} />
 
+                {/* ── Reading list ── */}
                 {!pickerSlot && (
                   <>
                     <View style={hm.hdr}>
                       <View style={{ flex: 1 }}>
-                        <Text style={[hm.title, { fontSize: fs(20, scale) }]}>{hour.label}</Text>
-                        <Text style={[hm.sub, complete && { color: GREEN }, { fontSize: fs(13, scale) }]}>
+                        <Text style={hm.title}>{hour.label}</Text>
+                        <Text style={[hm.sub, complete && { color: GREEN }]}>
                           {complete ? "All readings assigned" : `${filled} of ${total} assigned`}
                         </Text>
                       </View>
@@ -573,35 +590,30 @@ const HourModal = ({
 
                         if (isGospelLoc && !isFirstGospelGrid) return null;
 
-                        const iconSize  = Math.round(32 * scale);
-                        const iconInner = fs(15, scale);
-
                         return (
                           <View key={row.slotKey}
                             style={[hm.readingBlock, isCopticRow && hm.readingBlockCoptic,
                               i === rows.length - 1 && { borderBottomWidth: 0 }]}>
                             <View style={hm.readingTop}>
-                              <View style={[hm.readingIcon,
-                                { width: iconSize, height: iconSize, backgroundColor: isCopticRow ? COPTIC_BG : meta.color + "22" }]}>
-                                <Icon name={meta.icon} size={iconInner} color={isCopticRow ? COPTIC_COLOR : meta.color} />
+                              <View style={[hm.readingIcon, { backgroundColor: isCopticRow ? COPTIC_BG : meta.color + "22" }]}>
+                                <Icon name={meta.icon} size={15} color={isCopticRow ? COPTIC_COLOR : meta.color} />
                               </View>
                               <View style={{ flex: 1 }}>
                                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                  <Text style={[hm.readingLabel,
-                                    { color: isCopticRow ? COPTIC_COLOR : meta.color, fontSize: fs(10, scale) }]}>
+                                  <Text style={[hm.readingLabel, { color: isCopticRow ? COPTIC_COLOR : meta.color }]}>
                                     {isFirstGospelGrid ? "Gospels" : label}
                                   </Text>
                                   {isCopticRow && (
                                     <View style={hm.copticBadge}>
-                                      <Text style={[hm.copticBadgeTxt, { fontSize: fs(9, scale) }]}>COPTIC</Text>
+                                      <Text style={hm.copticBadgeTxt}>COPTIC</Text>
                                     </View>
                                   )}
                                 </View>
                                 {isFirstGospelGrid
-                                  ? <Text style={[hm.readingRef, { fontSize: fs(14, scale) }]}>12 stations</Text>
+                                  ? <Text style={hm.readingRef}>12 stations</Text>
                                   : (row.rKey === "homily" || isExp)
                                     ? null
-                                    : !!row.refText && <Text style={[hm.readingRef, { fontSize: fs(14, scale) }]}>{row.refText}</Text>
+                                    : !!row.refText && <Text style={hm.readingRef}>{row.refText}</Text>
                                 }
                               </View>
                               <LanguagePill row={row} hourAssignments={hourAssignments}
@@ -617,32 +629,27 @@ const HourModal = ({
                             )}
 
                             {isFirstGospelGrid && (
-                              <GospelGrid rows={gospelGridRows} hourAssignments={hourAssignments}
-                                onOpenPicker={openPicker} scale={scale} />
+                              <GospelGrid rows={gospelGridRows} hourAssignments={hourAssignments} onOpenPicker={openPicker} />
                             )}
                             {!isFirstGospelGrid && isPsalm && (
                               <PsalmReadersRow readers={readers}
                                 label={`Assign ${label.toLowerCase()} readers`}
-                                onOpen={() => onOpenPsalmPicker(row)}
-                                scale={scale} />
+                                onOpen={() => onOpenPsalmPicker(row)} />
                             )}
                             {!isFirstGospelGrid && !isPsalm && assignable && (
                               <TouchableOpacity onPress={() => openPicker(row)} activeOpacity={0.7}
-                                style={[hm.assignBtn, assignee && hm.assignBtnFilled,
-                                  { paddingVertical: Math.round(10 * scale) }]}>
+                                style={[hm.assignBtn, assignee && hm.assignBtnFilled]}>
                                 {assignee ? (
                                   <>
-                                    <Avatar uid={assignee.uid} size={Math.round(28 * scale)} />
-                                    <Text style={[hm.assignedName, { fontSize: fs(14, scale) }]} numberOfLines={1}>
-                                      {assignee.name}
-                                    </Text>
-                                    <Icon name="pencil-outline" size={fs(14, scale)} color={T2} />
+                                    <Avatar uid={assignee.uid} size={28} />
+                                    <Text style={hm.assignedName} numberOfLines={1}>{assignee.name}</Text>
+                                    <Icon name="pencil-outline" size={14} color={T2} />
                                   </>
                                 ) : (
                                   <>
-                                    <Icon name="account-plus-outline" size={fs(16, scale)} color={T2} />
-                                    <Text style={[hm.unassignedTxt, { fontSize: fs(14, scale) }]}>Assign reader</Text>
-                                    <Icon name="chevron-right" size={fs(14, scale)} color={T3} />
+                                    <Icon name="account-plus-outline" size={16} color={T2} />
+                                    <Text style={hm.unassignedTxt}>Assign reader</Text>
+                                    <Icon name="chevron-right" size={14} color={T3} />
                                   </>
                                 )}
                               </TouchableOpacity>
@@ -654,6 +661,7 @@ const HourModal = ({
                   </>
                 )}
 
+                {/* ── Picker view ── */}
                 {!!pickerSlot && pickerRow_ && (
                   <>
                     <View style={hm.pickerHdr}>
@@ -782,54 +790,74 @@ const hm = StyleSheet.create({
   backdrop:             { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },
   sheet:                { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
                           paddingBottom: Platform.OS === "ios" ? 34 : 20, flexShrink: 1 },
-  handle:               { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP, alignSelf: "center", marginTop: 12 },
-  hdr:                  { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
-  title:                { fontWeight: "800", color: T1, letterSpacing: -0.3 },
-  sub:                  { color: T2, marginTop: 2 },
-  xBtn:                 { width: 32, height: 32, borderRadius: 16, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
+  handle:               { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP,
+                          alignSelf: "center", marginTop: 12 },
+  hdr:                  { flexDirection: "row", alignItems: "flex-start", gap: 12,
+                          paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
+  title:                { fontSize: 20, fontWeight: "800", color: T1, letterSpacing: -0.3 },
+  sub:                  { fontSize: 13, color: T2, marginTop: 2 },
+  xBtn:                 { width: 32, height: 32, borderRadius: 16, backgroundColor: CARD2,
+                          justifyContent: "center", alignItems: "center" },
   trackWrap:            { height: 2, backgroundColor: SEP, marginHorizontal: 20, borderRadius: 2, marginBottom: 6 },
   trackFill:            { height: 2, backgroundColor: BLUE, borderRadius: 2 },
   body:                 { paddingHorizontal: 20, paddingBottom: 16 },
   readingBlock:         { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: SEP },
   readingBlockCoptic:   { backgroundColor: "rgba(245,158,11,0.03)" },
   readingTop:           { flexDirection: "row", gap: 12, marginBottom: 10, alignItems: "flex-start" },
-  readingIcon:          { borderRadius: 9, justifyContent: "center", alignItems: "center", flexShrink: 0 },
-  readingLabel:         { fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 4 },
-  readingRef:           { color: T1, lineHeight: 20 },
-  copticBadge:          { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: COPTIC_BG, borderWidth: 1, borderColor: COPTIC_BORDER },
-  copticBadgeTxt:       { fontWeight: "800", color: COPTIC_COLOR, letterSpacing: 0.5 },
-  assignBtn:            { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: CARD2, borderRadius: 12, paddingHorizontal: 12 },
-  assignBtnFilled:      { backgroundColor: "rgba(48,209,88,0.08)", borderWidth: 1, borderColor: "rgba(48,209,88,0.2)" },
-  assignedName:         { flex: 1, color: GREEN, fontWeight: "600" },
-  unassignedTxt:        { flex: 1, color: T2 },
-  pickerHdr:            { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: SEP },
-  backBtn:              { width: 36, height: 36, borderRadius: 18, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
+  readingIcon:          { width: 32, height: 32, borderRadius: 9, justifyContent: "center",
+                          alignItems: "center", flexShrink: 0 },
+  readingLabel:         { fontSize: 10, fontWeight: "800", letterSpacing: 0.8,
+                          textTransform: "uppercase", marginBottom: 4 },
+  readingRef:           { fontSize: 14, color: T1, lineHeight: 20 },
+  copticBadge:          { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5,
+                          backgroundColor: COPTIC_BG, borderWidth: 1, borderColor: COPTIC_BORDER },
+  copticBadgeTxt:       { fontSize: 9, fontWeight: "800", color: COPTIC_COLOR, letterSpacing: 0.5 },
+  assignBtn:            { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: CARD2,
+                          borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  assignBtnFilled:      { backgroundColor: "rgba(48,209,88,0.08)", borderWidth: 1,
+                          borderColor: "rgba(48,209,88,0.2)" },
+  assignedName:         { flex: 1, fontSize: 14, color: GREEN, fontWeight: "600" },
+  unassignedTxt:        { flex: 1, fontSize: 14, color: T2 },
+  pickerHdr:            { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20,
+                          paddingTop: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: SEP },
+  backBtn:              { width: 36, height: 36, borderRadius: 18, backgroundColor: CARD2,
+                          justifyContent: "center", alignItems: "center" },
   pickerIconBox:        { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
   pickerType:           { fontSize: 17, fontWeight: "700" },
   pickerRef:            { fontSize: 12, color: T2, marginTop: 2 },
-  selBanner:            { flexDirection: "row", alignItems: "center", marginHorizontal: 20, marginTop: 14, marginBottom: 2, borderRadius: 16, padding: 14, backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.25)" },
+  selBanner:            { flexDirection: "row", alignItems: "center", marginHorizontal: 20, marginTop: 14,
+                          marginBottom: 2, borderRadius: 16, padding: 14, backgroundColor: BLUEDIM,
+                          borderWidth: 1, borderColor: "rgba(10,132,255,0.25)" },
   selName:              { fontSize: 15, fontWeight: "700", color: T1 },
   selSub:               { fontSize: 12, color: T2, marginTop: 2 },
-  seg:                  { flexDirection: "row", marginHorizontal: 20, marginTop: 14, backgroundColor: CARD2, borderRadius: 12, padding: 3, position: "relative" },
-  segSlider:            { position: "absolute", top: 3, bottom: 3, left: 3, width: "50%", backgroundColor: CARD3, borderRadius: 10 },
+  seg:                  { flexDirection: "row", marginHorizontal: 20, marginTop: 14, backgroundColor: CARD2,
+                          borderRadius: 12, padding: 3, position: "relative" },
+  segSlider:            { position: "absolute", top: 3, bottom: 3, left: 3, width: "50%",
+                          backgroundColor: CARD3, borderRadius: 10 },
   segBtn:               { flex: 1, paddingVertical: 9, alignItems: "center", zIndex: 1 },
   segTxt:               { fontSize: 13, fontWeight: "600", color: T3 },
   segTxtOn:             { color: T1 },
-  searchRow:            { flexDirection: "row", alignItems: "center", backgroundColor: CARD2, borderRadius: 11, paddingHorizontal: 12, marginHorizontal: 20, marginTop: 10, marginBottom: 6 },
+  searchRow:            { flexDirection: "row", alignItems: "center", backgroundColor: CARD2,
+                          borderRadius: 11, paddingHorizontal: 12, marginHorizontal: 20,
+                          marginTop: 10, marginBottom: 6 },
   searchIn:             { flex: 1, color: T1, fontSize: 14, paddingVertical: 11, marginLeft: 8 },
   center:               { height: 100, justifyContent: "center", alignItems: "center" },
   empty:                { textAlign: "center", color: T3, fontSize: 14, paddingVertical: 24 },
-  pRow:                 { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 13, marginBottom: 6, backgroundColor: CARD2 },
+  pRow:                 { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 13,
+                          marginBottom: 6, backgroundColor: CARD2 },
   pRowOn:               { backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.25)" },
   pRowName:             { fontSize: 14, color: T1, fontWeight: "500" },
   pRowTag:              { fontSize: 9, color: BLUE, fontWeight: "800", marginTop: 2, letterSpacing: 0.6 },
-  radio:                { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: T3, justifyContent: "center", alignItems: "center" },
+  radio:                { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: T3,
+                          justifyContent: "center", alignItems: "center" },
   radioOn:              { borderColor: BLUE },
   radioDot:             { width: 10, height: 10, borderRadius: 5, backgroundColor: BLUE },
-  addManual:            { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginTop: 4, marginBottom: 8, padding: 13, borderRadius: 12, backgroundColor: BLUEDIM },
+  addManual:            { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20,
+                          marginTop: 4, marginBottom: 8, padding: 13, borderRadius: 12, backgroundColor: BLUEDIM },
   addManualTxt:         { fontSize: 14, fontWeight: "500", color: BLUE },
   manualBox:            { marginHorizontal: 20, marginTop: 6, marginBottom: 8 },
-  manualIn:             { backgroundColor: CARD2, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 12, color: T1, fontSize: 14, marginBottom: 8 },
+  manualIn:             { backgroundColor: CARD2, borderRadius: 11, paddingHorizontal: 14,
+                          paddingVertical: 12, color: T1, fontSize: 14, marginBottom: 8 },
   manualBtns:           { flexDirection: "row", gap: 8 },
   mCancel:              { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: CARD2, alignItems: "center" },
   mCancelTxt:           { fontSize: 14, fontWeight: "600", color: T2 },
@@ -859,12 +887,11 @@ const DayTabBar = ({ allDays, selectedId, easterDate, schedule, onSelect }) => (
         <TouchableOpacity key={day.id} onPress={() => onSelect(day.id)}
           style={[dt.tab, active && dt.tabActive]} activeOpacity={0.75}>
           <View style={[dt.dot, complete ? dt.dotGreen : started ? dt.dotBlue : dt.dotGray]} />
-          <Text
-            style={[dt.label, active && dt.labelActive]}
-            numberOfLines={2}
-            adjustsFontSizeToFit
-            minimumFontScale={0.7}
-          >{day.shortLabel}</Text>
+          <Text style={[dt.label, active && dt.labelActive]}
+          numberOfLines={2}
+          adjustsFontSizeToFit
+          minimumFontScale={0.7}>
+            {day.shortLabel}</Text>
           {dateStr && <Text style={[dt.date, active && dt.dateActive]}>{dateStr}</Text>}
         </TouchableOpacity>
       );
@@ -874,7 +901,8 @@ const DayTabBar = ({ allDays, selectedId, easterDate, schedule, onSelect }) => (
 const dt = StyleSheet.create({
   bar:         { backgroundColor: BG },
   content:     { paddingHorizontal: 12, paddingVertical: 8, gap: 5, flexDirection: "row" },
-  tab:         { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: CARD, alignItems: "center", minWidth: 62, height: 58 },
+  tab:         { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: CARD,
+                 alignItems: "center", minWidth: 62, height: 58 },
   tabActive:   { backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.35)" },
   dot:         { width: 5, height: 5, borderRadius: 2.5, marginBottom: 3 },
   dotGray:     { backgroundColor: T3 },
@@ -889,12 +917,10 @@ const dt = StyleSheet.create({
 // ── Hour tile ─────────────────────────────────────────────────────────────────
 const HourTile = React.memo(({
   hour, hourAssignments, dayId, deacons, congregation,
-  loadingUsers, textScale,
-  onSaveReading, onSavePsalmReaders, onSaveLanguage, onSaveCopticToggle,
+  loadingUsers, onSaveReading, onSavePsalmReaders, onSaveLanguage, onSaveCopticToggle,
 }) => {
   const [hourOpen, setHourOpen]             = useState(false);
   const [psalmPickerRow, setPsalmPickerRow] = useState(null);
-  const scale = textScale;
 
   const rows              = expandReadings(hour, hourAssignments);
   const assignableRows    = rows.filter(r => isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey));
@@ -911,56 +937,34 @@ const HourTile = React.memo(({
     return row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
   };
 
-  const avatarSize   = Math.round(28 * scale);
-  const iconSize     = fs(13, scale);
-  const typeSize     = fs(11, scale);
-  const refSize      = fs(12, scale);
-  const assigneeSize = fs(12, scale);
-  const hourNameSize = fs(15, scale);
-  const pillTxtSize  = fs(11, scale);
-  const pctTxtSize   = fs(11, scale);
-  const rRowPadV     = Math.round(9 * scale);
-  const tilePad      = Math.round(14 * scale);
-
   return (
     <>
-      <Pressable
-        onPress={() => setHourOpen(true)}
-        unstable_pressDelay={80}
-        delayLongPress={400}
-        android_ripple={{ color: "rgba(255,255,255,0.06)", borderless: false, radius: 500 }}
-        style={({ pressed }) => [
-          ht.tile,
-          { padding: tilePad },
-          pressed && Platform.OS === "ios" && { opacity: 0.78 },
-        ]}
-      >
+      <TouchableOpacity onPress={() => setHourOpen(true)} activeOpacity={0.72} style={ht.tile}>
+
         {/* Title row */}
         <View style={ht.titleRow}>
           <View style={[ht.accent, complete ? ht.accentDone : started ? ht.accentPartial : ht.accentEmpty]} />
-          <Text style={[ht.name, { fontSize: hourNameSize }]}>{hour.label}</Text>
+          <Text style={ht.name}>{hour.label}</Text>
           {complete
-            ? <View style={[ht.pill, { paddingHorizontal: Math.round(9 * scale), paddingVertical: Math.round(3 * scale) }]}>
-                <Icon name="check" size={fs(11, scale)} color={GREEN} />
-                <Text style={[ht.pillTxt, { color: GREEN, fontSize: pillTxtSize }]}>Done</Text>
+            ? <View style={ht.pill}>
+                <Icon name="check" size={11} color={GREEN} />
+                <Text style={[ht.pillTxt, { color: GREEN }]}>Done</Text>
               </View>
             : started
-              ? <View style={[ht.pill,
-                  { backgroundColor: "rgba(10,132,255,0.12)", borderColor: "rgba(10,132,255,0.3)",
-                    paddingHorizontal: Math.round(9 * scale), paddingVertical: Math.round(3 * scale) }]}>
-                  <Text style={[ht.pillTxt, { color: BLUE, fontSize: pillTxtSize }]}>{filled}/{total}</Text>
+              ? <View style={[ht.pill, { backgroundColor: "rgba(10,132,255,0.12)", borderColor: "rgba(10,132,255,0.3)" }]}>
+                  <Text style={[ht.pillTxt, { color: BLUE }]}>{filled}/{total}</Text>
                 </View>
               : null
           }
         </View>
 
         {/* Progress bar */}
-        <View style={[ht.barRow, { paddingVertical: Math.round(10 * scale) }]}>
+        <View style={ht.barRow}>
           <View style={ht.track}>
             <View style={[ht.trackFill, { flex: pct, backgroundColor: statusColor }]} />
             <View style={{ flex: 1 - pct }} />
           </View>
-          <Text style={[ht.pct, { fontSize: pctTxtSize }]}>{Math.round(pct * 100)}%</Text>
+          <Text style={ht.pct}>{Math.round(pct * 100)}%</Text>
         </View>
 
         {/* Reading rows */}
@@ -979,24 +983,18 @@ const HourTile = React.memo(({
 
             return (
               <View key={row.slotKey}
-                style={[ht.rRow,
-                  { paddingVertical: rRowPadV, paddingHorizontal: Math.round(14 * scale) },
-                  !isLast && ht.rRowBorder,
-                  isCoptic && ht.rRowCoptic,
-                ]}>
+                style={[ht.rRow, !isLast && ht.rRowBorder, isCoptic && ht.rRowCoptic]}>
                 <View style={ht.rLeft}>
-                  <Icon name={meta.icon} size={iconSize} color={isCoptic ? COPTIC_COLOR : meta.color} />
+                  <Icon name={meta.icon} size={13} color={isCoptic ? COPTIC_COLOR : meta.color} />
                   <View style={ht.rLabelCol}>
-                    <Text style={[ht.rType, { color: isCoptic ? COPTIC_COLOR : meta.color, fontSize: typeSize }]}>
-                      {typeLabel}
-                    </Text>
+                    <Text style={[ht.rType, { color: isCoptic ? COPTIC_COLOR : meta.color }]}>{typeLabel}</Text>
                     {lang ? (
                       <View style={ht.langBadge}>
-                        <Text style={[ht.langBadgeTxt, { fontSize: fs(9, scale) }]}>{lang}</Text>
+                        <Text style={ht.langBadgeTxt}>{lang}</Text>
                       </View>
                     ) : isCoptic ? (
                       <View style={ht.copticBadge}>
-                        <Text style={[ht.copticBadgeTxt, { fontSize: fs(9, scale) }]}>COPTIC</Text>
+                        <Text style={ht.copticBadgeTxt}>COPTIC</Text>
                       </View>
                     ) : null}
                   </View>
@@ -1006,22 +1004,24 @@ const HourTile = React.memo(({
                   readers.length > 0
                     ? <View style={ht.assigneeRow}>
                         {readers.slice(0, 3).map((r, idx) => (
-                          <Avatar key={r.uid || r.name || idx} uid={r.uid} size={avatarSize}
+                          <Avatar key={r.uid || r.name || idx} uid={r.uid} size={28}
                             style={{ marginLeft: idx > 0 ? -10 : 0, borderWidth: 2, borderColor: CARD }} />
                         ))}
-                        <Text style={[ht.assigneeName, { fontSize: assigneeSize }]} numberOfLines={1}>
+                        <Text style={ht.assigneeName} numberOfLines={1}>
                           {readers.length === 1 ? readers[0].name : `${readers.length} readers`}
                         </Text>
                       </View>
-                    : <Text style={[ht.rRef, { fontSize: refSize }]} numberOfLines={1}>{row.refText || "—"}</Text>
+                    : <Text style={ht.rRef} numberOfLines={1}>{row.refText || "—"}</Text>
                 ) : assignee ? (
                   <View style={ht.assigneeRow}>
-                    <Avatar uid={assignee.uid} size={avatarSize} style={{ borderWidth: 2, borderColor: CARD }} />
-                    <Text style={[ht.assigneeName, { fontSize: assigneeSize }, isCoptic && { color: COPTIC_COLOR }]}
-                      numberOfLines={1}>{assignee.name}</Text>
+                    <Avatar uid={assignee.uid} size={28}
+                      style={{ borderWidth: 2, borderColor: CARD }} />
+                    <Text style={[ht.assigneeName, isCoptic && { color: COPTIC_COLOR }]} numberOfLines={1}>
+                      {assignee.name}
+                    </Text>
                   </View>
                 ) : (
-                  <Text style={[ht.rRef, { fontSize: refSize }]} numberOfLines={1}>
+                  <Text style={ht.rRef} numberOfLines={1}>
                     {row.rKey === "homily" || row.rKey === "exposition" ? "Unassigned" : row.refText || "—"}
                   </Text>
                 )}
@@ -1029,7 +1029,7 @@ const HourTile = React.memo(({
             );
           })}
         </View>
-      </Pressable>
+      </TouchableOpacity>
 
       <HourModal
         visible={hourOpen}
@@ -1039,7 +1039,6 @@ const HourTile = React.memo(({
         deacons={deacons}
         congregation={congregation}
         loadingUsers={loadingUsers}
-        textScale={textScale}
         onSaveReading={onSaveReading}
         onSaveLanguage={onSaveLanguage}
         onSaveCopticToggle={onSaveCopticToggle}
@@ -1064,39 +1063,50 @@ const HourTile = React.memo(({
 });
 
 const ht = StyleSheet.create({
-  tile:          { backgroundColor: CARD, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: SEP, overflow: "hidden" },
-  titleRow:      { flexDirection: "row", alignItems: "center", paddingRight: 4, gap: 12 },
+  tile:          { backgroundColor: CARD, borderRadius: 16, marginBottom: 10,
+                   borderWidth: 1, borderColor: SEP, overflow: "hidden", padding: 14 },
+  titleRow:      { flexDirection: "row", alignItems: "center", paddingRight: 14,
+                   paddingTop: 4, gap: 12 },
   accent:        { width: 3, alignSelf: "stretch", marginRight: 10, borderRadius: 0 },
   accentDone:    { backgroundColor: GREEN },
   accentPartial: { backgroundColor: BLUE },
   accentEmpty:   { backgroundColor: "rgba(255,255,255,0.08)" },
-  name:          { fontWeight: "700", color: T1, flex: 1 },
-  pill:          { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 20,
-                   backgroundColor: "rgba(48,209,88,0.1)", borderWidth: 1, borderColor: "rgba(48,209,88,0.28)" },
-  pillTxt:       { fontWeight: "700" },
-  barRow:        { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14 },
-  track:         { flex: 1, flexDirection: "row", height: 3, borderRadius: 2, backgroundColor: CARD2, overflow: "hidden" },
+  name:          { fontSize: 15, fontWeight: "700", color: T1, flex: 1 },
+  pill:          { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 9,
+                   paddingVertical: 3, borderRadius: 20, backgroundColor: "rgba(48,209,88,0.1)",
+                   borderWidth: 1, borderColor: "rgba(48,209,88,0.28)" },
+  pillTxt:       { fontSize: 11, fontWeight: "700" },
+  barRow:        { flexDirection: "row", alignItems: "center", gap: 8,
+                   paddingHorizontal: 14, paddingVertical: 10 },
+  track:         { flex: 1, flexDirection: "row", height: 3, borderRadius: 2,
+                   backgroundColor: CARD2, overflow: "hidden" },
   trackFill:     { borderRadius: 2 },
-  pct:           { fontWeight: "700", color: T3, minWidth: 32, textAlign: "right" },
+  pct:           { fontSize: 11, fontWeight: "700", color: T3, minWidth: 32, textAlign: "right" },
   readingList:   { borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)" },
-  rRow:          { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  rRow:          { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                   paddingVertical: 9, paddingHorizontal: 14 },
   rRowBorder:    { borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" },
   rRowCoptic:    { backgroundColor: "rgba(245,158,11,0.04)" },
   rLeft:         { flexDirection: "row", alignItems: "center", gap: 7, flex: 1, marginRight: 8 },
   rLabelCol:     { flexDirection: "column", gap: 2 },
-  rType:         { fontWeight: "700" },
-  langBadge:     { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: CARD2, alignSelf: "flex-start" },
-  langBadgeTxt:  { fontWeight: "700", color: T3, letterSpacing: 0.3 },
-  copticBadge:   { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: COPTIC_BG, borderWidth: 1, borderColor: COPTIC_BORDER, alignSelf: "flex-start" },
-  copticBadgeTxt:{ fontWeight: "700", color: COPTIC_COLOR, letterSpacing: 0.3 },
-  rRef:          { color: T3, flex: 1, textAlign: "right" },
+  rType:         { fontSize: 11, fontWeight: "700" },
+  langBadge:     { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: CARD2,
+                   alignSelf: "flex-start" },
+  langBadgeTxt:  { fontSize: 9, fontWeight: "700", color: T3, letterSpacing: 0.3 },
+  copticBadge:   { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: COPTIC_BG,
+                   borderWidth: 1, borderColor: COPTIC_BORDER, alignSelf: "flex-start" },
+  copticBadgeTxt:{ fontSize: 9, fontWeight: "700", color: COPTIC_COLOR, letterSpacing: 0.3 },
+  rRef:          { fontSize: 12, color: T3, flex: 1, textAlign: "right" },
   assigneeRow:   { flexDirection: "row", alignItems: "center", gap: 5 },
-  assigneeName:  { fontWeight: "600", color: GREEN, maxWidth: 110 },
+  initials:      { width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center" },
+  initialsText:  { fontSize: 11, fontWeight: "800" },
+  assigneeName:  { fontSize: 12, fontWeight: "600", color: GREEN, maxWidth: 110 },
 });
 
 // ── Settings sheet ────────────────────────────────────────────────────────────
 const SettingsSheet = ({
   visible, myReadingsVisible, fullScheduleVisible, easterDate, year, allDays,
+  fontSizeScale, onSetFontSize,
   onToggleMyReadings, onToggleFullSchedule, onDateSave,
   onArchivePress, onViewArchives, onClose,
 }) => {
@@ -1134,6 +1144,7 @@ const SettingsSheet = ({
             </TouchableOpacity>
           </View>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 12 }}>
+            {/* ── My Readings toggle ── */}
             <View style={ss.card}>
               <View style={ss.row}>
                 <View style={[ss.iconBox, { backgroundColor: "rgba(48,209,88,0.12)" }]}>
@@ -1143,11 +1154,17 @@ const SettingsSheet = ({
                   <Text style={ss.label}>My Readings</Text>
                   <Text style={ss.desc}>{myReadingsVisible ? "Members can see their assignments" : "Hidden from members"}</Text>
                 </View>
-                <Switch value={myReadingsVisible} onValueChange={onToggleMyReadings}
-                  trackColor={{ false: "rgba(255,255,255,0.12)", true: BLUE }}
-                  thumbColor={T1} ios_backgroundColor="rgba(255,255,255,0.12)" />
+                <Switch
+                  value={myReadingsVisible}
+                  onValueChange={onToggleMyReadings}
+                  trackColor={{ false: "rgba(255,255,255,0.12)", true: "rgba(48,209,88,0.55)" }}
+                  thumbColor={T1}
+                  ios_backgroundColor="rgba(255,255,255,0.12)"
+                />
               </View>
             </View>
+
+            {/* ── Full Schedule toggle ── */}
             <View style={ss.card}>
               <View style={ss.row}>
                 <View style={[ss.iconBox, { backgroundColor: "rgba(10,132,255,0.12)" }]}>
@@ -1157,11 +1174,43 @@ const SettingsSheet = ({
                   <Text style={ss.label}>Full Schedule</Text>
                   <Text style={ss.desc}>{fullScheduleVisible ? "Everyone can see all assignments" : "Hidden from members"}</Text>
                 </View>
-                <Switch value={fullScheduleVisible} onValueChange={onToggleFullSchedule}
-                  trackColor={{ false: "rgba(255,255,255,0.12)", true: BLUE }}
-                  thumbColor={T1} ios_backgroundColor="rgba(255,255,255,0.12)" />
+                <Switch
+                  value={fullScheduleVisible}
+                  onValueChange={onToggleFullSchedule}
+                  trackColor={{ false: "rgba(255,255,255,0.12)", true: "rgba(10,132,255,0.55)" }}
+                  thumbColor={T1}
+                  ios_backgroundColor="rgba(255,255,255,0.12)"
+                />
               </View>
             </View>
+
+            {/* ── Font Size ── */}
+            <View style={ss.card}>
+              <View style={ss.row}>
+                <View style={[ss.iconBox, { backgroundColor: "rgba(167,139,250,0.12)" }]}>
+                  <Icon name="format-size" size={19} color="#a78bfa" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={ss.label}>Font Size</Text>
+                  <Text style={ss.desc}>{fontSizeScale.charAt(0).toUpperCase() + fontSizeScale.slice(1)}</Text>
+                </View>
+              </View>
+              <View style={ss.fontSizeRow}>
+                {["small", "medium", "large"].map(size => (
+                  <TouchableOpacity
+                    key={size}
+                    onPress={() => onSetFontSize(size)}
+                    style={[ss.fontSizeBtn, fontSizeScale === size && ss.fontSizeBtnActive]}
+                    activeOpacity={0.7}>
+                    <Text style={[ss.fontSizeBtnTxt, fontSizeScale === size && ss.fontSizeBtnTxtActive]}>
+                      {size.charAt(0).toUpperCase() + size.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* ── Easter date ── */}
             <View style={ss.card}>
               <View style={ss.row}>
                 <View style={[ss.iconBox, { backgroundColor: BLUEDIM }]}>
@@ -1200,6 +1249,7 @@ const SettingsSheet = ({
                 </>
               )}
             </View>
+
             <TouchableOpacity style={ss.archivesBtn} onPress={onViewArchives} activeOpacity={0.8}>
               <Icon name="archive-eye-outline" size={18} color={BLUE} />
               <Text style={ss.archivesBtnTxt}>View Archived Schedules</Text>
@@ -1216,27 +1266,40 @@ const SettingsSheet = ({
   );
 };
 const ss = StyleSheet.create({
-  backdrop:            { flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "flex-end" },
-  sheet:               { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: "90%", paddingBottom: Platform.OS === "ios" ? 34 : 20 },
-  handle:              { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP, alignSelf: "center", marginTop: 12 },
-  hdr:                 { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: SEP },
-  hdrTitle:            { fontSize: 20, fontWeight: "700", color: T1 },
-  xBtn:                { width: 32, height: 32, borderRadius: 16, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
-  card:                { backgroundColor: CARD2, borderRadius: 14, padding: 16 },
-  row:                 { flexDirection: "row", alignItems: "center", gap: 12 },
-  iconBox:             { width: 40, height: 40, borderRadius: 11, justifyContent: "center", alignItems: "center" },
-  label:               { fontSize: 15, fontWeight: "600", color: T1 },
-  desc:                { fontSize: 13, color: T2, marginTop: 2 },
-  editBtn:             { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 9, backgroundColor: CARD },
-  editTxt:             { fontSize: 13, fontWeight: "600", color: BLUE },
-  divider:             { height: 1, backgroundColor: SEP, marginVertical: 12 },
-  dateRow:             { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
-  dateLabel:           { fontSize: 13, color: T2 },
-  dateVal:             { fontSize: 13, color: T1, fontWeight: "500" },
-  archivesBtn:         { flexDirection: "row", alignItems: "center", gap: 10, padding: 15, borderRadius: 14, borderWidth: 1, borderColor: "rgba(10,132,255,0.22)", backgroundColor: "rgba(10,132,255,0.07)" },
-  archivesBtnTxt:      { fontSize: 15, fontWeight: "600", color: BLUE },
-  archiveBtn:          { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,69,58,0.22)", backgroundColor: "rgba(255,69,58,0.06)" },
-  archiveTxt:          { fontSize: 15, fontWeight: "600", color: RED },
+  backdrop:       { flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "flex-end" },
+  sheet:          { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
+                    maxHeight: "90%", paddingBottom: Platform.OS === "ios" ? 34 : 20 },
+  handle:         { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP,
+                    alignSelf: "center", marginTop: 12 },
+  hdr:            { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                    paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: SEP },
+  hdrTitle:       { fontSize: 20, fontWeight: "700", color: T1 },
+  xBtn:           { width: 32, height: 32, borderRadius: 16, backgroundColor: CARD2,
+                    justifyContent: "center", alignItems: "center" },
+  card:           { backgroundColor: CARD2, borderRadius: 14, padding: 16 },
+  // paddingRight gives the Switch breathing room so it doesn't clip the card edge
+  row:            { flexDirection: "row", alignItems: "center", gap: 12, paddingRight: 4 },
+  iconBox:        { width: 40, height: 40, borderRadius: 11, justifyContent: "center", alignItems: "center" },
+  label:          { fontSize: 15, fontWeight: "600", color: T1 },
+  desc:           { fontSize: 13, color: T2, marginTop: 2 },
+  fontSizeRow:    { flexDirection: "row", gap: 10, marginTop: 12 },
+  fontSizeBtn:    { flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: CARD, alignItems: "center" },
+  fontSizeBtnActive: { backgroundColor: "rgba(167,139,250,0.2)", borderWidth: 1, borderColor: "rgba(167,139,250,0.4)" },
+  fontSizeBtnTxt: { fontSize: 13, fontWeight: "600", color: T2 },
+  fontSizeBtnTxtActive: { color: "#a78bfa", fontWeight: "700" },
+  editBtn:        { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 9, backgroundColor: CARD },
+  editTxt:        { fontSize: 13, fontWeight: "600", color: BLUE },
+  divider:        { height: 1, backgroundColor: SEP, marginVertical: 12 },
+  dateRow:        { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
+  dateLabel:      { fontSize: 13, color: T2 },
+  dateVal:        { fontSize: 13, color: T1, fontWeight: "500" },
+  archivesBtn:    { flexDirection: "row", alignItems: "center", gap: 10, padding: 15, borderRadius: 14,
+                    borderWidth: 1, borderColor: "rgba(10,132,255,0.22)", backgroundColor: "rgba(10,132,255,0.07)" },
+  archivesBtnTxt: { fontSize: 15, fontWeight: "600", color: BLUE },
+  archiveBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+                    padding: 15, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,69,58,0.22)",
+                    backgroundColor: "rgba(255,69,58,0.06)" },
+  archiveTxt:     { fontSize: 15, fontWeight: "600", color: RED },
 });
 
 // ── Archive confirm ───────────────────────────────────────────────────────────
@@ -1269,7 +1332,8 @@ const ArchiveConfirm = ({ visible, year, onConfirm, onClose }) => {
         <View style={arc.sheet}>
           <View style={arc.handle} />
           <View style={arc.iconWrap}>
-            <Icon name={done ? "check-circle-outline" : "archive-clock-outline"} size={32} color={done ? GREEN : ORANGE} />
+            <Icon name={done ? "check-circle-outline" : "archive-clock-outline"} size={32}
+              color={done ? GREEN : ORANGE} />
           </View>
           <Text style={arc.title}>{done ? "Archived!" : `Archive ${year}?`}</Text>
           <Text style={arc.body}>
@@ -1307,16 +1371,21 @@ const ArchiveConfirm = ({ visible, year, onConfirm, onClose }) => {
 };
 const arc = StyleSheet.create({
   overlay:         { flex: 1, backgroundColor: "rgba(0,0,0,0.82)", justifyContent: "flex-end" },
-  sheet:           { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 24, paddingBottom: Platform.OS === "ios" ? 44 : 28, paddingTop: 12, alignItems: "center" },
-  handle:          { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP, alignSelf: "center", marginBottom: 20 },
-  iconWrap:        { width: 60, height: 60, borderRadius: 30, backgroundColor: "rgba(255,159,10,0.1)", justifyContent: "center", alignItems: "center", marginBottom: 14 },
+  sheet:           { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
+                     paddingHorizontal: 24, paddingBottom: Platform.OS === "ios" ? 44 : 28,
+                     paddingTop: 12, alignItems: "center" },
+  handle:          { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP,
+                     alignSelf: "center", marginBottom: 20 },
+  iconWrap:        { width: 60, height: 60, borderRadius: 30, backgroundColor: "rgba(255,159,10,0.1)",
+                     justifyContent: "center", alignItems: "center", marginBottom: 14 },
   title:           { fontSize: 20, fontWeight: "800", color: T1, marginBottom: 8, letterSpacing: -0.3 },
   body:            { fontSize: 14, color: T2, textAlign: "center", lineHeight: 21, marginBottom: 20 },
   divider:         { width: "100%", height: 1, backgroundColor: SEP, marginBottom: 20 },
   actions:         { flexDirection: "row", gap: 10, width: "100%" },
   cancelBtn:       { flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: CARD2, alignItems: "center" },
   cancelTxt:       { fontSize: 15, fontWeight: "600", color: T2 },
-  confirmBtn:      { flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: RED },
+  confirmBtn:      { flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center",
+                     gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: RED },
   confirmTxt:      { fontSize: 15, fontWeight: "700", color: T1 },
   progressSection: { width: "100%" },
   progressHeader:  { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
@@ -1343,9 +1412,10 @@ export default function PaschaManager() {
   const [archiveOpen, setArchiveOpen]                 = useState(false);
   const [archiveViewOpen, setArchiveViewOpen]         = useState(false);
   const [selectedId, setSelectedId]                   = useState(null);
-
-  // paschaTextScale from Firestore config — change it there, no rebuild needed
-  const [textScale, setTextScale] = useState(DEFAULT_TEXT_SCALE);
+  const [fontSizeScale, setFontSizeScale]             = useState("medium");
+  // fontSizeMultipliers is a map { small, medium, large } loaded from the pascha config doc.
+  // It is NOT editable in the UI — only via Firestore console / Cloud Function.
+  const [fontSizeMultipliers, setFontSizeMultipliers] = useState(DEFAULT_FONT_MULTIPLIERS);
 
   const allDays  = useMemo(() => buildAllDays(scheduleShell), [scheduleShell]);
   const daysById = useMemo(() => Object.fromEntries(allDays.map(d => [d.id, d])), [allDays]);
@@ -1364,6 +1434,9 @@ export default function PaschaManager() {
   const year        = easterDate ? new Date(easterDate).getFullYear() : new Date().getFullYear();
   const selectedDay = selectedId ? (daysById[selectedId] ?? null) : null;
 
+  // Resolved multiplier for the current user's preference
+  const activeFontMultiplier = resolvedFontScale(fontSizeScale, fontSizeMultipliers);
+
   useEffect(() => {
     isMounted.current = true;
     const user = auth().currentUser;
@@ -1372,6 +1445,7 @@ export default function PaschaManager() {
     const unsub = firestore().collection("users").doc(user.uid).onSnapshot(doc => {
       if (isMounted.current && doc.exists) {
         setChurchId(doc.data().church || null);
+        setFontSizeScale(doc.data().paschaFontSize ?? "medium");
       }
     });
     return () => { isMounted.current = false; unsub(); };
@@ -1398,9 +1472,10 @@ export default function PaschaManager() {
         setMyReadingsVisible(d.myReadingsVisible ?? false);
         setFullScheduleVisible(d.fullScheduleVisible ?? false);
         setEasterDate(d.easterDate ?? null);
-        // paschaTextScale: number in Firestore, e.g. 1.0, 0.9, 1.15
-        // Falls back to DEFAULT_TEXT_SCALE if the field doesn't exist yet
-        setTextScale(typeof d.paschaTextScale === "number" ? d.paschaTextScale : DEFAULT_TEXT_SCALE);
+        // Load the multiplier map if present, otherwise keep DEFAULT_FONT_MULTIPLIERS.
+        // To update: set fontSizeMultipliers: { small: 0.9, medium: 1.0, large: 1.2 }
+        // in Firestore at churches/{churchId}/pascha/config.
+        if (d.fontSizeMultipliers) setFontSizeMultipliers(d.fontSizeMultipliers);
       });
     const unsubSchedule = firestore()
       .collection("churches").doc(churchId)
@@ -1479,21 +1554,34 @@ export default function PaschaManager() {
     await writeSchedule(fields);
   }, [writeSchedule]);
 
+  // ── Archive: snapshot both the live assignments AND the schedule_config shell ──
+  // This makes the archive self-contained — PaschaArchiveViewer can reconstruct
+  // the full schedule (with reading references) without touching schedule_config.
   const doArchive = useCallback(async () => {
     try {
+      // Fetch the current shell so the archive is self-contained
+      const shellSnap = await firestore()
+        .collection("churches").doc(churchId)
+        .collection("pascha").doc("schedule_config")
+        .get();
+      const shellData = shellSnap.exists ? shellSnap.data() : null;
+
       await firestore()
         .collection("churches").doc(churchId)
         .collection("pascha").doc(`archive_${year}`)
         .set({
-          schedule,
-          easterDate,
-          shell: scheduleShell,
-          archivedAt: firestore.FieldValue.serverTimestamp(),
+          schedule:       schedule,
+          scheduleShell:  shellData,   // static reading structure at time of archive
+          easterDate:     easterDate,
+          archivedAt:     firestore.FieldValue.serverTimestamp(),
         });
+
+      // Clear only the assignees — schedule_config is untouched
       await firestore()
         .collection("churches").doc(churchId)
         .collection("pascha").doc("schedule")
         .set({});
+
       await new Promise(r => setTimeout(r, 600));
       setArchiveOpen(false);
       setSettingsOpen(false);
@@ -1501,6 +1589,7 @@ export default function PaschaManager() {
       Alert.alert("Error", "Archive failed.");
     }
   }, [churchId, year, schedule, easterDate, scheduleShell]);
+
   const ds = selectedId ? (schedule[selectedId] || {}) : {};
 
   if (!scheduleShell) {
@@ -1515,6 +1604,7 @@ export default function PaschaManager() {
     <View style={mn.container}>
       <StatusBar barStyle="light-content" />
 
+      {/* Header */}
       <View style={mn.header}>
         <View style={{ flex: 1 }}>
           <Text style={mn.eyebrow}>HOLY WEEK  ·  PASCHA</Text>
@@ -1525,6 +1615,7 @@ export default function PaschaManager() {
         </TouchableOpacity>
       </View>
 
+      {/* Easter date nudge */}
       {!easterDate && (
         <TouchableOpacity style={mn.nudge} onPress={() => setSettingsOpen(true)} activeOpacity={0.8}>
           <Icon name="alert-circle-outline" size={14} color={ORANGE} />
@@ -1533,17 +1624,26 @@ export default function PaschaManager() {
         </TouchableOpacity>
       )}
 
+      {/* Day tabs */}
       <View style={{ height: 68 }}>
-        <DayTabBar allDays={allDays} selectedId={selectedId} easterDate={easterDate}
-          schedule={schedule} onSelect={setSelectedId} />
+        <DayTabBar
+          allDays={allDays}
+          selectedId={selectedId}
+          easterDate={easterDate}
+          schedule={schedule}
+          onSelect={setSelectedId}
+        />
       </View>
 
+      {/* Day header */}
       {selectedDay && (
         <View style={mn.dayHdr}>
           <View style={mn.dayHdrTop}>
             <View>
               <Text style={mn.dayTitle}>{selectedDay.label}</Text>
-              {easterDate && <Text style={mn.dayDate}>{calcDate(easterDate, selectedDay.easterOffset)}</Text>}
+              {easterDate && (
+                <Text style={mn.dayDate}>{calcDate(easterDate, selectedDay.easterOffset)}</Text>
+              )}
             </View>
           </View>
           <View style={mn.progRow}>
@@ -1566,12 +1666,8 @@ export default function PaschaManager() {
         </View>
       )}
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={mn.scroll}
-        scrollEventThrottle={16}
-        keyboardShouldPersistTaps="handled"
-      >
+      {/* Hour tiles */}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={mn.scroll}>
         {(selectedDay?.hours || []).map(hour => (
           <HourTile
             key={hour.id}
@@ -1581,7 +1677,6 @@ export default function PaschaManager() {
             deacons={deacons}
             congregation={congregation}
             loadingUsers={loadingUsers}
-            textScale={textScale}
             onSaveReading={(hourId, slotKey, person) => saveReading(selectedId, hourId, slotKey, person)}
             onSavePsalmReaders={(hourId, readersKey, readers) => savePsalmReaders(selectedId, hourId, readersKey, readers)}
             onSaveLanguage={(hourId, slotKey, lang) => saveLanguage(selectedId, hourId, slotKey, lang)}
@@ -1597,6 +1692,14 @@ export default function PaschaManager() {
         easterDate={easterDate}
         year={year}
         allDays={allDays}
+        fontSizeScale={fontSizeScale}
+        onSetFontSize={async (size) => {
+          setFontSizeScale(size);
+          if (uid) {
+            await firestore().collection("users").doc(uid)
+              .update({ paschaFontSize: size }).catch(() => {});
+          }
+        }}
         onToggleMyReadings={v => { setMyReadingsVisible(v); writeConfig({ myReadingsVisible: v }); }}
         onToggleFullSchedule={v => { setFullScheduleVisible(v); writeConfig({ fullScheduleVisible: v }); }}
         onDateSave={date => { const iso = date.toISOString(); setEasterDate(iso); writeConfig({ easterDate: iso }); }}
@@ -1617,14 +1720,20 @@ export default function PaschaManager() {
 const mn = StyleSheet.create({
   container:   { flex: 1, backgroundColor: BG },
   loadingWrap: { flex: 1, backgroundColor: BG, justifyContent: "center", alignItems: "center" },
-  header:      { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 },
+  header:      { flexDirection: "row", alignItems: "center", paddingHorizontal: 20,
+                 paddingTop: 18, paddingBottom: 10 },
   eyebrow:     { fontSize: 11, fontWeight: "700", color: BLUE, letterSpacing: 1.5, marginBottom: 4 },
   title:       { fontSize: 28, fontWeight: "800", color: T1, letterSpacing: -0.5 },
-  cogBtn:      { width: 40, height: 40, borderRadius: 20, backgroundColor: CARD, justifyContent: "center", alignItems: "center" },
-  nudge:       { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 6, padding: 12, borderRadius: 12, backgroundColor: "rgba(255,159,10,0.08)", borderWidth: 1, borderColor: "rgba(255,159,10,0.18)" },
+  cogBtn:      { width: 40, height: 40, borderRadius: 20, backgroundColor: CARD,
+                 justifyContent: "center", alignItems: "center" },
+  nudge:       { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16,
+                 marginBottom: 6, padding: 12, borderRadius: 12,
+                 backgroundColor: "rgba(255,159,10,0.08)", borderWidth: 1,
+                 borderColor: "rgba(255,159,10,0.18)" },
   nudgeTxt:    { flex: 1, fontSize: 13, color: ORANGE, fontWeight: "500" },
   dayHdr:      { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12 },
-  dayHdrTop:   { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 10 },
+  dayHdrTop:   { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between",
+                 marginBottom: 10 },
   dayTitle:    { fontSize: 20, fontWeight: "800", color: T1, letterSpacing: -0.3 },
   dayDate:     { fontSize: 12, color: T2, marginTop: 2 },
   progRow:     { flexDirection: "row", alignItems: "center", gap: 10 },
