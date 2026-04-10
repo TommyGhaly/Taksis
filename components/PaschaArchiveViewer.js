@@ -12,6 +12,7 @@ import {
   isAssignableSlot, isPsalmSlot, hasLanguagePicker, effectiveLanguage, langShort,
   psalmReadersKey, READING_META,
 } from "../screens/Pascha/PaschaReadingUtils";
+import { DAY_SHORT_LABELS } from "../screens/Pascha/DayConstants";
 
 const DEFAULT_AVATAR = require("../assets/default_profile.png");
 const { width: SCREEN_W } = Dimensions.get("window");
@@ -40,7 +41,7 @@ function buildAllDays(shell) {
     id:           d.id,
     label:        d.label,
     easterOffset: d.easterOffset,
-    shortLabel:   d.shortLabel ?? d.label.split(" ").slice(0, 2).join(" "),
+    shortLabel:   d.shortLabel ?? (DAY_SHORT_LABELS[d.id] ?? d.label.split(" ").slice(0, 2).join(" ")),
     hours:        d.hours ?? [],
   }));
 }
@@ -58,18 +59,14 @@ function fmtDate(ts) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-// Archive docs store a merged schedule[dayId][hourId][slotKey].
-// We need to reconstruct allDays from the archived shell if present,
-// falling back to the schedule's keys.
 function allDaysFromArchive(arc) {
   if (arc.shell?.days) return buildAllDays(arc.shell);
-  // Legacy: no shell stored — derive day list from schedule keys
   const ids = Object.keys(arc.schedule || {});
   return ids.map(id => ({
     id,
     label:        id.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
     easterOffset: 0,
-    shortLabel:   id.split("_").slice(0, 2).join(" "),
+    shortLabel:   DAY_SHORT_LABELS[id] ?? id.split("_").slice(0, 2).join(" "),
     hours:        Object.keys((arc.schedule || {})[id] || {}).map(hid => ({ id: hid, label: hid, readings: {} })),
   }));
 }
@@ -296,7 +293,11 @@ const DayTabStrip = ({ days, selectedIndex, schedule, easterDate, onSelect }) =>
           <TouchableOpacity key={day.id} onPress={() => onSelect(i)}
             style={[ts.tab, active && ts.tabActive]} activeOpacity={0.75}>
             <View style={[ts.dot, complete ? ts.dotGreen : started ? ts.dotBlue : ts.dotGray]} />
-            <Text style={[ts.label, active && ts.labelActive]} numberOfLines={1}>{day.shortLabel}</Text>
+            <Text style={[ts.label, active && ts.labelActive]} numberOfLines={2}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}>
+              {day.shortLabel}
+            </Text>
           </TouchableOpacity>
         );
       })}

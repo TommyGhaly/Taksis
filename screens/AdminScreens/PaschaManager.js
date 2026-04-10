@@ -18,6 +18,7 @@ import {
   langFirestoreKey, psalmReadersKey, prophecyCopticToggleKey,
   ASSIGNABLE, READING_META, MAX_PSALM_READERS, readingDisplay,
 } from "../Pascha/PaschaReadingUtils";
+import { DAY_SHORT_LABELS } from "../Pascha/DayConstants";
 
 const DEFAULT_AVATAR = require("../../assets/default_profile.png");
 
@@ -47,7 +48,7 @@ function buildAllDays(shell) {
     id:           d.id,
     label:        d.label,
     easterOffset: d.easterOffset,
-    shortLabel:   d.shortLabel ?? d.label.split(" ").slice(0, 2).join(" "),
+    shortLabel:   d.shortLabel ?? (DAY_SHORT_LABELS[d.id] ?? d.label.split(" ").slice(0, 2).join(" ")),
     hours:        d.hours ?? [],
   }));
 }
@@ -79,7 +80,6 @@ function useProfilePic(uid) {
   return uri;
 }
 
-// FIX 3: Avatar — default image fallback and immediate placeholder
 const Avatar = ({ uid, size = 40, style }) => {
   const uri = useProfilePic(uid);
   const [failed, setFailed] = useState(false);
@@ -872,7 +872,11 @@ const DayTabBar = ({ allDays, selectedId, easterDate, schedule, onSelect }) => (
         <TouchableOpacity key={day.id} onPress={() => onSelect(day.id)}
           style={[dt.tab, active && dt.tabActive]} activeOpacity={0.75}>
           <View style={[dt.dot, complete ? dt.dotGreen : started ? dt.dotBlue : dt.dotGray]} />
-          <Text style={[dt.label, active && dt.labelActive]} numberOfLines={1}>{day.shortLabel}</Text>
+          <Text style={[dt.label, active && dt.labelActive]}
+          numberOfLines={2}
+          adjustsFontSizeToFit
+          minimumFontScale={0.7}>
+            {day.shortLabel}</Text>
           {dateStr && <Text style={[dt.date, active && dt.dateActive]}>{dateStr}</Text>}
         </TouchableOpacity>
       );
@@ -883,7 +887,7 @@ const dt = StyleSheet.create({
   bar:         { backgroundColor: BG },
   content:     { paddingHorizontal: 12, paddingVertical: 8, gap: 5, flexDirection: "row" },
   tab:         { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: CARD,
-                 alignItems: "center", minWidth: 62, height: 52 },
+                 alignItems: "center", minWidth: 62, height: 58 },
   tabActive:   { backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.35)" },
   dot:         { width: 5, height: 5, borderRadius: 2.5, marginBottom: 3 },
   dotGray:     { backgroundColor: T3 },
@@ -981,7 +985,6 @@ const HourTile = React.memo(({
                   </View>
                 </View>
 
-                {/* FIX 2A: psalm reader avatars 20→28, overlap 6→10 */}
                 {isPsalm ? (
                   readers.length > 0
                     ? <View style={ht.assigneeRow}>
@@ -1080,7 +1083,6 @@ const ht = StyleSheet.create({
   copticBadgeTxt:{ fontSize: 9, fontWeight: "700", color: COPTIC_COLOR, letterSpacing: 0.3 },
   rRef:          { fontSize: 12, color: T3, flex: 1, textAlign: "right" },
   assigneeRow:   { flexDirection: "row", alignItems: "center", gap: 5 },
-  // FIX 2B: 22→30, fontSize 9→11
   initials:      { width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center" },
   initialsText:  { fontSize: 11, fontWeight: "800" },
   assigneeName:  { fontSize: 12, fontWeight: "600", color: GREEN, maxWidth: 110 },

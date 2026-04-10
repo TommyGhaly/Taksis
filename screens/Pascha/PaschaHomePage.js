@@ -13,6 +13,7 @@ import {
   hasLanguagePicker, effectiveLanguage, langShort,
   READING_META,
 } from "../Pascha/PaschaReadingUtils";
+import { DAY_SHORT_LABELS } from "../Pascha/DayConstants";
 
 const DEFAULT_AVATAR = require("../../assets/default_profile.png");
 
@@ -39,7 +40,7 @@ function buildAllDays(shell) {
     id:           d.id,
     label:        d.label,
     easterOffset: d.easterOffset,
-    shortLabel:   d.shortLabel ?? d.label.split(" ").slice(0, 2).join(" "),
+    shortLabel:   d.shortLabel ?? (DAY_SHORT_LABELS[d.id] ?? d.label.split(" ").slice(0, 2).join(" ")),
     hours:        d.hours ?? [],
   }));
 }
@@ -55,7 +56,6 @@ function calcDate(easter, offset) {
 function getMySlots(hour, ha, uid) {
   if (!uid) return new Set();
   const slots = new Set();
-  // Pass ha so coptic prophecy rows appear only when admin toggled them on
   expandReadings(hour, ha).forEach(({ slotKey, rKey }) => {
     if (isPsalmSlot(rKey)) {
       if ((ha.psalm_readers || []).some(r => r.uid === uid)) slots.add(slotKey);
@@ -132,7 +132,9 @@ const DayTabBar = ({ allDays, selectedId, easterDate, schedule, uid, onSelect })
         <TouchableOpacity key={day.id} onPress={() => onSelect(day.id)}
           style={[dt.tab, active && dt.tabActive]} activeOpacity={0.75}>
           {hasMe && <View style={dt.dot} />}
-          <Text style={[dt.label, active && dt.labelActive]} numberOfLines={1}>{day.shortLabel}</Text>
+          <Text style={[dt.label, active && dt.labelActive]} numberOfLines={2}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}>{day.shortLabel}</Text>
           {dateStr && <Text style={[dt.date, active && dt.dateActive]}>{dateStr}</Text>}
         </TouchableOpacity>
       );
@@ -142,7 +144,7 @@ const DayTabBar = ({ allDays, selectedId, easterDate, schedule, uid, onSelect })
 const dt = StyleSheet.create({
   bar:         { backgroundColor: "transparent" },
   content:     { paddingHorizontal: 16, paddingVertical: 10, gap: 6, flexDirection: "row" },
-  tab:         { paddingHorizontal: 11, paddingVertical: 7, borderRadius: 12, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, alignItems: "center", minWidth: 64, height: 54 },
+  tab:         { paddingHorizontal: 11, paddingVertical: 7, borderRadius: 12, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, alignItems: "center", minWidth: 64, height: 58 },
   tabActive:   { backgroundColor: BLUE_D, borderColor: "rgba(59,130,246,0.4)" },
   dot:         { width: 4, height: 4, borderRadius: 2, backgroundColor: BLUE2, marginBottom: 3 },
   label:       { fontSize: 11, fontWeight: "500", color: T2, textAlign: "center" },
@@ -159,11 +161,19 @@ const ReadingCard = ({ row, hourAssignments, uid, isFullSchedule, isMine, hideNa
   const isExp       = row.rKey === "exposition";
   const isCopticRow = row.isCoptic === true;
 
+  // ── Label (Coptic gospel gets its own distinct label) ──────────────────────
   let label;
-  if (isHom)           label = `Homily — ${row.author || row.refText}`;
-  else if (isExp)      label = "Exposition";
-  else if (row.index != null) label = `${meta.label} ${row.index + 1}`;
-  else                 label = meta.label;
+  if (isHom) {
+    label = `Homily — ${row.author || row.refText}`;
+  } else if (isExp) {
+    label = "Exposition";
+  } else if (isCopticRow && (row.rKey === "gospel_coptic" || row.rKey === "gospels_coptic")) {
+    label = row.index != null ? `Gospel (Coptic) ${row.index + 1}` : "Gospel (Coptic)";
+  } else if (row.index != null) {
+    label = `${meta.label} ${row.index + 1}`;
+  } else {
+    label = meta.label;
+  }
 
   const readers   = isPsalm ? (hourAssignments.psalm_readers || []) : [];
   const assignee  = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
@@ -254,7 +264,6 @@ const rdc = StyleSheet.create({
 const HourPage = ({ hour, ha, uid, isFullSchedule, hideNames, pageWidth, pageLabel }) => {
   const mySlotSet  = getMySlots(hour, ha, uid);
   const hasMe      = mySlotSet.size > 0;
-  // Pass ha so coptic rows are gated properly
   const assignable = expandReadings(hour, ha).filter(r => isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey));
   return (
     <View style={{ width: pageWidth }}>
@@ -293,7 +302,6 @@ const HourPage = ({ hour, ha, uid, isFullSchedule, hideNames, pageWidth, pageLab
 // ── Hour Pager ────────────────────────────────────────────────────────────────
 const HourPagerController = ({ hours, daySchedule, uid, isFullSchedule, hideNames, targetHourId }) => {
   const { width } = useWindowDimensions();
-  // Pass per-hour assignments so getVisibleHours can gate coptic rows
   const visibleHours = useMemo(() => getVisibleHours(hours, daySchedule), [hours, daySchedule]);
 
   const targetIdx = useMemo(() => {
