@@ -42,28 +42,33 @@ const COPTIC_BORDER = "rgba(245,158,11,0.28)";
 const COPTIC_TRACK  = "rgba(245,158,11,0.45)";
 
 // ── Font size multiplier ──────────────────────────────────────────────────────
-// This value is initialized from the `pascha` doc in Firestore
-// (churches/{churchId}/pascha/config → fontSizeMultipliers map).
-// It is NOT editable in the app — change it in Firestore directly or via
-// an admin Cloud Function. Individual user preference ("small"/"medium"/"large")
-// is stored in users/{uid}.paschaFontSize and scales relative to this multiplier.
+// Loaded from churches/{churchId}/pascha/config → fontSizeMultipliers.
+// NOT editable in the app — update via Firestore console or Cloud Function.
+// Individual user preference ("small"/"medium"/"large") stays in users/{uid}.paschaFontSize.
 const DEFAULT_FONT_MULTIPLIERS = { small: 0.85, medium: 1.0, large: 1.18 };
 
 function resolvedFontScale(fontSizeScale, fontSizeMultipliers) {
-  const map = fontSizeMultipliers ?? DEFAULT_FONT_MULTIPLIERS;
-  return map[fontSizeScale] ?? 1.0;
+  const map = fontSizeMultipliers != null ? fontSizeMultipliers : DEFAULT_FONT_MULTIPLIERS;
+  const result = map[fontSizeScale];
+  return result != null ? result : 1.0;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function buildAllDays(shell) {
-  if (!shell?.days) return [];
-  return shell.days.map(d => ({
-    id:           d.id,
-    label:        d.label,
-    easterOffset: d.easterOffset,
-    shortLabel:   d.shortLabel ?? (DAY_SHORT_LABELS[d.id] ?? d.label.split(" ").slice(0, 2).join(" ")),
-    hours:        d.hours ?? [],
-  }));
+  if (!shell || !shell.days) return [];
+  return shell.days.map(function(d) {
+    return {
+      id:           d.id,
+      label:        d.label,
+      easterOffset: d.easterOffset,
+      shortLabel:   d.shortLabel != null
+        ? d.shortLabel
+        : (DAY_SHORT_LABELS[d.id] != null
+          ? DAY_SHORT_LABELS[d.id]
+          : d.label.split(" ").slice(0, 2).join(" ")),
+      hours: d.hours != null ? d.hours : [],
+    };
+  });
 }
 
 function calcDate(easter, offset) {
@@ -73,34 +78,27 @@ function calcDate(easter, offset) {
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
-function nameInitials(name) {
-  if (!name) return "?";
-  const parts = name.trim().split(" ");
-  return (parts[0][0] + (parts[1]?.[0] || "")).toUpperCase();
-}
-
 // ── Profile picture hook ──────────────────────────────────────────────────────
 function useProfilePic(uid) {
   const [uri, setUri] = useState(null);
-  useEffect(() => {
+  useEffect(function() {
     if (!uid) return;
     let cancelled = false;
-    storage().ref(`profilePictures/${uid}.png`).getDownloadURL()
-      .then(url => { if (!cancelled) setUri(url); })
-      .catch(() => {});
-    return () => { cancelled = true; };
+    storage().ref("profilePictures/" + uid + ".png").getDownloadURL()
+      .then(function(url) { if (!cancelled) setUri(url); })
+      .catch(function(_err) {});
+    return function() { cancelled = true; };
   }, [uid]);
   return uri;
 }
 
-const Avatar = ({ uid, size = 40, style }) => {
+const Avatar = function(props) {
+  const uid = props.uid;
+  const size = props.size != null ? props.size : 40;
+  const style = props.style;
   const uri = useProfilePic(uid);
   const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    setFailed(false);
-  }, [uid, uri]);
-
+  useEffect(function() { setFailed(false); }, [uid, uri]);
   return (
     <View style={[{
       width: size, height: size, borderRadius: size / 2,
@@ -108,38 +106,43 @@ const Avatar = ({ uid, size = 40, style }) => {
       justifyContent: "center", alignItems: "center",
     }, style]}>
       <Image
-        source={!failed && uri ? { uri } : DEFAULT_AVATAR}
+        source={!failed && uri ? { uri: uri } : DEFAULT_AVATAR}
         defaultSource={DEFAULT_AVATAR}
         style={{ width: size, height: size, borderRadius: size / 2 }}
         resizeMode="cover"
-        onError={() => setFailed(true)}
+        onError={function() { setFailed(true); }}
       />
     </View>
   );
 };
 
 // ── Psalm reader row ──────────────────────────────────────────────────────────
-const PsalmReadersRow = ({ readers = [], onOpen, label }) => {
+const PsalmReadersRow = function(props) {
+  const readers = props.readers != null ? props.readers : [];
+  const onOpen = props.onOpen;
+  const label = props.label;
   const has = readers.length > 0;
   return (
     <TouchableOpacity style={[hm.assignBtn, has && hm.assignBtnFilled]} onPress={onOpen} activeOpacity={0.7}>
       {has ? (
         <>
           <View style={{ flexDirection: "row" }}>
-            {readers.slice(0, 3).map((r, i) => (
-              <Avatar key={r.uid || r.name || i} uid={r.uid} size={26}
-                style={{ marginLeft: i > 0 ? -8 : 0, borderWidth: 1.5, borderColor: CARD }} />
-            ))}
+            {readers.slice(0, 3).map(function(r, i) {
+              return (
+                <Avatar key={r.uid || r.name || i} uid={r.uid} size={26}
+                  style={{ marginLeft: i > 0 ? -8 : 0, borderWidth: 1.5, borderColor: CARD }} />
+              );
+            })}
           </View>
           <Text style={hm.assignedName} numberOfLines={1}>
-            {readers.length === 1 ? readers[0].name : `${readers.length} readers assigned`}
+            {readers.length === 1 ? readers[0].name : (readers.length + " readers assigned")}
           </Text>
           <Icon name="pencil-outline" size={14} color={T2} />
         </>
       ) : (
         <>
           <Icon name="account-multiple-plus-outline" size={16} color={T2} />
-          <Text style={hm.unassignedTxt}>{label || `Assign readers (up to ${MAX_PSALM_READERS})`}</Text>
+          <Text style={hm.unassignedTxt}>{label || ("Assign readers (up to " + MAX_PSALM_READERS + ")")}</Text>
           <Icon name="chevron-right" size={14} color={T3} />
         </>
       )}
@@ -148,25 +151,28 @@ const PsalmReadersRow = ({ readers = [], onOpen, label }) => {
 };
 
 // ── Language pill ─────────────────────────────────────────────────────────────
-const LanguagePill = ({ row, hourAssignments, onSave }) => {
+const LanguagePill = function(props) {
+  const row = props.row;
+  const hourAssignments = props.hourAssignments;
+  const onSave = props.onSave;
   const [open, setOpen] = useState(false);
   if (!hasLanguagePicker(row.rKey)) return null;
   const current = effectiveLanguage(row, hourAssignments);
   const options = languageOptionsFor(row.rKey);
   return (
     <View style={{ position: "relative" }}>
-      <TouchableOpacity style={lp.pill} onPress={() => setOpen(v => !v)} activeOpacity={0.7}>
+      <TouchableOpacity style={lp.pill} onPress={function() { setOpen(function(v) { return !v; }); }} activeOpacity={0.7}>
         <Text style={lp.pillTxt}>{langShort(current)}</Text>
         <Icon name="chevron-down" size={11} color={T2} />
       </TouchableOpacity>
       {open && (
         <View style={lp.dropdown}>
-          {options.map(opt => {
+          {options.map(function(opt) {
             const active = opt.value === current;
             return (
               <TouchableOpacity key={opt.value}
                 style={[lp.dropItem, active && lp.dropItemActive]}
-                onPress={() => { onSave(row.slotKey, opt.value); setOpen(false); }}
+                onPress={function() { onSave(row.slotKey, opt.value); setOpen(false); }}
                 activeOpacity={0.7}>
                 <Text style={[lp.dropTxt, active && lp.dropTxtActive]}>{opt.label}</Text>
                 {active && <Icon name="check" size={13} color={BLUE} />}
@@ -194,15 +200,19 @@ const lp = StyleSheet.create({
 });
 
 // ── Prophecy Coptic Toggle ────────────────────────────────────────────────────
-const ProphecyCopticToggle = ({ vernacularSlotKey, hourAssignments, onSave }) => {
+const ProphecyCopticToggle = function(props) {
+  const vernacularSlotKey = props.vernacularSlotKey;
+  const hourAssignments = props.hourAssignments;
+  const onSave = props.onSave;
   const toggleKey = prophecyCopticToggleKey(vernacularSlotKey);
-  const enabled   = hourAssignments[toggleKey] === true;
-  const handleChange = val =>
+  const enabled = hourAssignments[toggleKey] === true;
+  const handleChange = function(val) {
     onSave(toggleKey, val ? true : firestore.FieldValue.delete());
+  };
   return (
     <View style={[pct.row, enabled && pct.rowOn]}>
       <View style={[pct.iconBox, enabled && pct.iconBoxOn]}>
-        <Text style={[pct.alphaSymbol, enabled && pct.alphaSymbolOn]}>α</Text>
+        <Text style={[pct.alphaSymbol, enabled && pct.alphaSymbolOn]}>{"\u03B1"}</Text>
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[pct.label, enabled && pct.labelOn]}>Read in Coptic</Text>
@@ -218,28 +228,32 @@ const ProphecyCopticToggle = ({ vernacularSlotKey, hourAssignments, onSave }) =>
   );
 };
 const pct = StyleSheet.create({
-  row:       { flexDirection: "row", alignItems: "center", gap: 12,
-               paddingVertical: 10, paddingHorizontal: 12, marginBottom: 10,
-               borderRadius: 16, backgroundColor: CARD2, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  rowOn:     { backgroundColor: "rgba(245,158,11,0.12)", borderColor: COPTIC_BORDER },
-  iconBox:   { width: 32, height: 32, borderRadius: 10,
-               justifyContent: "center", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)" },
-  iconBoxOn: { backgroundColor: "rgba(245,158,11,0.18)" },
-  alphaSymbol: { fontSize: 18, fontWeight: "700", color: T3 },
+  row:           { flexDirection: "row", alignItems: "center", gap: 12,
+                   paddingVertical: 10, paddingHorizontal: 12, marginBottom: 10,
+                   borderRadius: 16, backgroundColor: CARD2, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
+  rowOn:         { backgroundColor: "rgba(245,158,11,0.12)", borderColor: COPTIC_BORDER },
+  iconBox:       { width: 32, height: 32, borderRadius: 10,
+                   justifyContent: "center", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)" },
+  iconBoxOn:     { backgroundColor: "rgba(245,158,11,0.18)" },
+  alphaSymbol:   { fontSize: 18, fontWeight: "700", color: T3 },
   alphaSymbolOn: { color: COPTIC_COLOR },
-  label:     { fontSize: 13, fontWeight: "700", color: T2 },
-  labelOn:   { color: COPTIC_COLOR },
+  label:         { fontSize: 13, fontWeight: "700", color: T2 },
+  labelOn:       { color: COPTIC_COLOR },
 });
 
 // ── Gospel grid ───────────────────────────────────────────────────────────────
-const GospelGrid = ({ rows, hourAssignments, onOpenPicker }) => {
+const GospelGrid = function(props) {
+  const rows = props.rows;
+  const hourAssignments = props.hourAssignments;
+  const onOpenPicker = props.onOpenPicker;
   const meta = READING_META.gospels;
   return (
     <View style={gg.grid}>
-      {rows.map(row => {
+      {rows.map(function(row) {
         const assignee = hourAssignments[row.slotKey];
         return (
-          <TouchableOpacity key={row.slotKey} style={gg.cell} onPress={() => onOpenPicker(row)} activeOpacity={0.7}>
+          <TouchableOpacity key={row.slotKey} style={gg.cell}
+            onPress={function() { onOpenPicker(row); }} activeOpacity={0.7}>
             <View style={gg.cellTop}>
               <View style={[gg.numBadge, { backgroundColor: meta.color + "22" }]}>
                 <Text style={[gg.numTxt, { color: meta.color }]}>{row.index + 1}</Text>
@@ -281,10 +295,17 @@ const gg = StyleSheet.create({
 });
 
 // ── Psalm picker modal ────────────────────────────────────────────────────────
-const PsalmPickerModal = ({
-  visible, refText, pickerLabel, currentReaders, deacons, congregation,
-  loadingUsers, onSave, onClose,
-}) => {
+const PsalmPickerModal = function(props) {
+  const visible = props.visible;
+  const refText = props.refText;
+  const pickerLabel = props.pickerLabel;
+  const currentReaders = props.currentReaders;
+  const deacons = props.deacons;
+  const congregation = props.congregation;
+  const loadingUsers = props.loadingUsers;
+  const onSave = props.onSave;
+  const onClose = props.onClose;
+
   const { height: screenH } = useWindowDimensions();
   const [tab, setTab]               = useState("deacons");
   const [q, setQ]                   = useState("");
@@ -293,49 +314,59 @@ const PsalmPickerModal = ({
   const [manual, setManual]         = useState("");
   const [manualOpen, setManualOpen] = useState(false);
 
-  useEffect(() => {
+  useEffect(function() {
     if (!visible) return;
-    const map = {}, keys = new Set();
-    (currentReaders || []).forEach(r => { const k = r.uid || r.name; keys.add(k); map[k] = r; });
-    setSelected(keys); setSelectedMap(map);
-    setTab("deacons"); setQ(""); setManual(""); setManualOpen(false);
+    const map = {};
+    const keys = new Set();
+    (currentReaders || []).forEach(function(r) {
+      const k = r.uid || r.name;
+      keys.add(k);
+      map[k] = r;
+    });
+    setSelected(keys);
+    setSelectedMap(map);
+    setTab("deacons");
+    setQ("");
+    setManual("");
+    setManualOpen(false);
   }, [visible]);
 
   const sheetMax = screenH * 0.92;
   const listMax  = sheetMax - 280;
 
-  const source = useMemo(() => {
+  const source = useMemo(function() {
     const list = tab === "deacons" ? deacons : congregation;
-    return q ? list.filter(u => u.name.toLowerCase().includes(q.toLowerCase())) : list;
+    return q ? list.filter(function(u) { return u.name.toLowerCase().includes(q.toLowerCase()); }) : list;
   }, [tab, deacons, congregation, q]);
 
-  const toggle = item => {
+  const toggle = function(item) {
     const k = item.uid || item.name;
-    setSelected(prev => {
+    setSelected(function(prev) {
       const next = new Set(prev);
       if (next.has(k)) {
         next.delete(k);
-        setSelectedMap(m => { const n = { ...m }; delete n[k]; return n; });
+        setSelectedMap(function(m) { const n = Object.assign({}, m); delete n[k]; return n; });
       } else {
         if (next.size >= MAX_PSALM_READERS) return prev;
         next.add(k);
-        setSelectedMap(m => ({ ...m, [k]: item }));
+        setSelectedMap(function(m) { return Object.assign({}, m, { [k]: item }); });
       }
       return next;
     });
   };
 
-  const addManual = () => {
+  const addManual = function() {
     const name = manual.trim();
     if (!name || selected.size >= MAX_PSALM_READERS) return;
-    const item = { uid: `m_${Date.now()}`, name, isManual: true };
-    setSelected(prev => new Set([...prev, item.uid]));
-    setSelectedMap(m => ({ ...m, [item.uid]: item }));
-    setManual(""); setManualOpen(false);
+    const item = { uid: "m_" + Date.now(), name: name, isManual: true };
+    setSelected(function(prev) { return new Set(Array.from(prev).concat([item.uid])); });
+    setSelectedMap(function(m) { return Object.assign({}, m, { [item.uid]: item }); });
+    setManual("");
+    setManualOpen(false);
   };
 
-  const commit = () => {
-    onSave(Object.values(selectedMap).map(r => ({ uid: r.uid || null, name: r.name })));
+  const commit = function() {
+    onSave(Object.values(selectedMap).map(function(r) { return { uid: r.uid || null, name: r.name }; }));
     onClose();
   };
 
@@ -361,16 +392,17 @@ const PsalmPickerModal = ({
                     {!!refText && <Text style={hm.pickerRef} numberOfLines={1}>{refText}</Text>}
                   </View>
                   <View style={pm.counter}>
-                    <Text style={pm.counterTxt}>{selected.size}/{MAX_PSALM_READERS}</Text>
+                    <Text style={pm.counterTxt}>{selected.size + "/" + MAX_PSALM_READERS}</Text>
                   </View>
                 </View>
                 {selectedList.length > 0 && (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}
                     style={pm.chipScroll} contentContainerStyle={pm.chipRow}>
-                    {selectedList.map(r => {
+                    {selectedList.map(function(r) {
                       const k = r.uid || r.name;
                       return (
-                        <TouchableOpacity key={k} style={pm.chip} onPress={() => toggle(r)} activeOpacity={0.7}>
+                        <TouchableOpacity key={k} style={pm.chip}
+                          onPress={function() { toggle(r); }} activeOpacity={0.7}>
                           <Avatar uid={r.uid} size={20} />
                           <Text style={pm.chipName} numberOfLines={1}>{r.name}</Text>
                           <Icon name="close-circle" size={14} color={T2} />
@@ -381,19 +413,23 @@ const PsalmPickerModal = ({
                 )}
                 <View style={hm.seg}>
                   <View style={[hm.segSlider, tab === "all" && { left: "50%" }]} />
-                  {[["deacons", "Deacons"], ["all", "All Members"]].map(([k, l]) => (
-                    <TouchableOpacity key={k} onPress={() => { setTab(k); setQ(""); }}
-                      style={hm.segBtn} activeOpacity={0.8}>
-                      <Text style={[hm.segTxt, tab === k && hm.segTxtOn]}>{l}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  {[["deacons", "Deacons"], ["all", "All Members"]].map(function(pair) {
+                    const k = pair[0]; const l = pair[1];
+                    return (
+                      <TouchableOpacity key={k} onPress={function() { setTab(k); setQ(""); }}
+                        style={hm.segBtn} activeOpacity={0.8}>
+                        <Text style={[hm.segTxt, tab === k && hm.segTxtOn]}>{l}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
                 <View style={hm.searchRow}>
                   <Icon name="magnify" size={16} color={T3} />
                   <TextInput style={hm.searchIn} placeholder="Search..." placeholderTextColor={T3}
                     value={q} onChangeText={setQ} returnKeyType="search" />
                   {q.length > 0 && (
-                    <TouchableOpacity onPress={() => setQ("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <TouchableOpacity onPress={function() { setQ(""); }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                       <Icon name="close-circle" size={15} color={T3} />
                     </TouchableOpacity>
                   )}
@@ -402,19 +438,20 @@ const PsalmPickerModal = ({
                   ? <View style={hm.center}><ActivityIndicator color={BLUE} /></View>
                   : <FlatList
                       data={source}
-                      keyExtractor={i => i.uid || i.name}
+                      keyExtractor={function(i) { return i.uid || i.name; }}
                       style={{ maxHeight: listMax, paddingHorizontal: 20 }}
                       keyboardShouldPersistTaps="handled"
                       showsVerticalScrollIndicator
                       ListEmptyComponent={<Text style={hm.empty}>No results</Text>}
-                      renderItem={({ item }) => {
-                        const k     = item.uid || item.name;
-                        const on    = selected.has(k);
+                      renderItem={function(ri) {
+                        const item = ri.item;
+                        const k    = item.uid || item.name;
+                        const on   = selected.has(k);
                         const atMax = selected.size >= MAX_PSALM_READERS && !on;
                         return (
                           <TouchableOpacity
                             style={[hm.pRow, on && hm.pRowOn, atMax && { opacity: 0.4 }]}
-                            onPress={() => { if (!atMax) toggle(item); }}
+                            onPress={function() { if (!atMax) toggle(item); }}
                             activeOpacity={0.65}>
                             <Avatar uid={item.uid} size={38} />
                             <View style={{ flex: 1, marginLeft: 12 }}>
@@ -435,7 +472,8 @@ const PsalmPickerModal = ({
                       value={manual} onChangeText={setManual} autoFocus returnKeyType="done"
                       onSubmitEditing={addManual} />
                     <View style={hm.manualBtns}>
-                      <TouchableOpacity style={hm.mCancel} onPress={() => { setManualOpen(false); setManual(""); }}>
+                      <TouchableOpacity style={hm.mCancel}
+                        onPress={function() { setManualOpen(false); setManual(""); }}>
                         <Text style={hm.mCancelTxt}>Cancel</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={hm.mAdd} onPress={addManual}>
@@ -444,7 +482,8 @@ const PsalmPickerModal = ({
                     </View>
                   </View>
                 ) : selected.size < MAX_PSALM_READERS && (
-                  <TouchableOpacity style={hm.addManual} onPress={() => setManualOpen(true)} activeOpacity={0.7}>
+                  <TouchableOpacity style={hm.addManual}
+                    onPress={function() { setManualOpen(true); }} activeOpacity={0.7}>
                     <Icon name="account-plus-outline" size={16} color={BLUE} />
                     <Text style={hm.addManualTxt}>Add name manually</Text>
                   </TouchableOpacity>
@@ -454,7 +493,9 @@ const PsalmPickerModal = ({
                     style={[hm.saveBtn, selected.size === 0 && hm.saveBtnClear]}
                     onPress={commit} activeOpacity={0.8}>
                     <Text style={[hm.saveBtnTxt, selected.size === 0 && { color: RED }]}>
-                      {selected.size === 0 ? "Clear Readers" : `Confirm ${selected.size} Reader${selected.size > 1 ? "s" : ""}`}
+                      {selected.size === 0
+                        ? "Clear Readers"
+                        : ("Confirm " + selected.size + " Reader" + (selected.size > 1 ? "s" : ""))}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -481,10 +522,19 @@ const pm = StyleSheet.create({
 });
 
 // ── HourModal ─────────────────────────────────────────────────────────────────
-const HourModal = ({
-  visible, hour, hourAssignments, deacons, congregation,
-  loadingUsers, onSaveReading, onSaveLanguage, onSaveCopticToggle, onOpenPsalmPicker, onClose,
-}) => {
+const HourModal = function(props) {
+  const visible = props.visible;
+  const hour = props.hour;
+  const hourAssignments = props.hourAssignments;
+  const deacons = props.deacons;
+  const congregation = props.congregation;
+  const loadingUsers = props.loadingUsers;
+  const onSaveReading = props.onSaveReading;
+  const onSaveLanguage = props.onSaveLanguage;
+  const onSaveCopticToggle = props.onSaveCopticToggle;
+  const onOpenPsalmPicker = props.onOpenPsalmPicker;
+  const onClose = props.onClose;
+
   const { height: screenH } = useWindowDimensions();
   const [pickerSlot, setPickerSlot] = useState(null);
   const [pickerRow_, setPickerRow_] = useState(null);
@@ -494,52 +544,63 @@ const HourModal = ({
   const [manual, setManual]         = useState("");
   const [manualOpen, setManualOpen] = useState(false);
 
-  useEffect(() => {
+  useEffect(function() {
     if (!visible) { setPickerSlot(null); setPickerRow_(null); setSel(null); }
   }, [visible]);
 
   if (!hour) return null;
 
   const rows              = expandReadings(hour, hourAssignments);
-  const { total, filled } = countSlots(hour, hourAssignments);
+  const counts            = countSlots(hour, hourAssignments);
+  const total             = counts.total;
+  const filled            = counts.filled;
   const complete          = total > 0 && filled === total;
   const pct               = total > 0 ? Math.round(filled / total * 100) : 0;
   const sheetMax          = screenH * 0.92;
 
-  const gospelGridRows = rows.filter(r => (r.rKey === "gospel" || r.rKey === "gospels") && r.location);
-  const hasGospelGrid  = gospelGridRows.length > 0;
+  const gospelGridRows = rows.filter(function(r) {
+    return (r.rKey === "gospel" || r.rKey === "gospels") && r.location;
+  });
+  const hasGospelGrid = gospelGridRows.length > 0;
 
-  const openPicker = row => {
+  const openPicker = function(row) {
     setSel(hourAssignments[row.slotKey] || null);
     setTab("deacons"); setQ(""); setManual(""); setManualOpen(false);
     setPickerSlot(row.slotKey); setPickerRow_(row);
   };
-  const closePicker  = () => { setPickerSlot(null); setPickerRow_(null); };
-  const commitPicker = () => { onSaveReading(hour.id, pickerSlot, sel ?? null); closePicker(); };
+  const closePicker  = function() { setPickerSlot(null); setPickerRow_(null); };
+  const commitPicker = function() { onSaveReading(hour.id, pickerSlot, sel != null ? sel : null); closePicker(); };
 
-  const pickerMeta     = pickerRow_ ? (READING_META[pickerRow_.rKey] || { label: pickerRow_.rKey, icon: "book-outline", color: T2 }) : null;
-  const pickerColor    = pickerMeta?.color || T2;
-  const isCopticPicker = pickerRow_?.isCoptic === true;
+  const pickerMeta  = pickerRow_ != null
+    ? (READING_META[pickerRow_.rKey] || { label: pickerRow_.rKey, icon: "book-outline", color: T2 })
+    : null;
+  const pickerColor    = pickerMeta != null ? pickerMeta.color : T2;
+  const isCopticPicker = pickerRow_ != null && pickerRow_.isCoptic === true;
 
   let pickerLabel = "";
-  if (pickerRow_) {
-    if (pickerRow_.rKey === "homily")          pickerLabel = `Homily — ${pickerRow_.author || pickerRow_.refText}`;
-    else if (pickerRow_.rKey === "exposition") pickerLabel = "Exposition";
-    else if (pickerRow_.index != null)         pickerLabel = `${pickerMeta?.label} ${pickerRow_.index + 1}`;
-    else                                       pickerLabel = pickerMeta?.label || "";
+  if (pickerRow_ != null) {
+    if (pickerRow_.rKey === "homily") {
+      pickerLabel = "Homily \u2014 " + (pickerRow_.author || pickerRow_.refText);
+    } else if (pickerRow_.rKey === "exposition") {
+      pickerLabel = "Exposition";
+    } else if (pickerRow_.index != null) {
+      pickerLabel = pickerMeta.label + " " + (pickerRow_.index + 1);
+    } else {
+      pickerLabel = pickerMeta != null ? pickerMeta.label : "";
+    }
   }
 
-  const pickerScrollMax = sheetMax - (sel ? 330 : 270);
-  const pickerSource = useMemo(() => {
+  const pickerScrollMax = sheetMax - (sel != null ? 330 : 270);
+  const pickerSource = useMemo(function() {
     const list = tab === "deacons" ? deacons : congregation;
-    return q ? list.filter(u => u.name.toLowerCase().includes(q.toLowerCase())) : list;
+    return q ? list.filter(function(u) { return u.name.toLowerCase().includes(q.toLowerCase()); }) : list;
   }, [tab, deacons, congregation, q]);
 
-  const rowLabel = row => {
+  const rowLabel = function(row) {
     const meta = READING_META[row.rKey] || { label: row.rKey };
-    if (row.rKey === "homily")      return `Homily — ${row.author || row.refText}`;
-    if (row.rKey === "exposition")  return "Exposition";
-    return row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
+    if (row.rKey === "homily")     return "Homily \u2014 " + (row.author || row.refText);
+    if (row.rKey === "exposition") return "Exposition";
+    return row.index != null ? (meta.label + " " + (row.index + 1)) : meta.label;
   };
 
   return (
@@ -552,14 +613,13 @@ const HourModal = ({
               <View style={[hm.sheet, { maxHeight: sheetMax }]}>
                 <View style={hm.handle} />
 
-                {/* ── Reading list ── */}
                 {!pickerSlot && (
                   <>
                     <View style={hm.hdr}>
                       <View style={{ flex: 1 }}>
                         <Text style={hm.title}>{hour.label}</Text>
                         <Text style={[hm.sub, complete && { color: GREEN }]}>
-                          {complete ? "All readings assigned" : `${filled} of ${total} assigned`}
+                          {complete ? "All readings assigned" : (filled + " of " + total + " assigned")}
                         </Text>
                       </View>
                       <TouchableOpacity style={hm.xBtn} onPress={onClose} activeOpacity={0.7}>
@@ -567,7 +627,7 @@ const HourModal = ({
                       </TouchableOpacity>
                     </View>
                     <View style={hm.trackWrap}>
-                      <View style={[hm.trackFill, { width: `${pct}%` }, complete && { backgroundColor: GREEN }]} />
+                      <View style={[hm.trackFill, { width: pct + "%" }, complete && { backgroundColor: GREEN }]} />
                     </View>
                     <ScrollView
                       style={{ flexGrow: 1, maxHeight: sheetMax - 140 }}
@@ -576,7 +636,7 @@ const HourModal = ({
                       alwaysBounceVertical={false}
                       nestedScrollEnabled
                       keyboardShouldPersistTaps="handled">
-                      {rows.map((row, i) => {
+                      {rows.map(function(row, i) {
                         const meta        = READING_META[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
                         const assignable  = isAssignableSlot(row.rKey);
                         const isPsalm     = isPsalmSlot(row.rKey);
@@ -617,27 +677,28 @@ const HourModal = ({
                                 }
                               </View>
                               <LanguagePill row={row} hourAssignments={hourAssignments}
-                                onSave={(slotKey, lang) => onSaveLanguage(hour.id, slotKey, lang)} />
+                                onSave={function(slotKey, lang) { onSaveLanguage(hour.id, slotKey, lang); }} />
                             </View>
 
                             {row.rKey === "prophecies" && row.hasCopticOption && (
                               <ProphecyCopticToggle
                                 vernacularSlotKey={row.slotKey}
                                 hourAssignments={hourAssignments}
-                                onSave={(key, value) => onSaveCopticToggle(hour.id, key, value)}
+                                onSave={function(key, value) { onSaveCopticToggle(hour.id, key, value); }}
                               />
                             )}
 
                             {isFirstGospelGrid && (
-                              <GospelGrid rows={gospelGridRows} hourAssignments={hourAssignments} onOpenPicker={openPicker} />
+                              <GospelGrid rows={gospelGridRows} hourAssignments={hourAssignments}
+                                onOpenPicker={openPicker} />
                             )}
                             {!isFirstGospelGrid && isPsalm && (
                               <PsalmReadersRow readers={readers}
-                                label={`Assign ${label.toLowerCase()} readers`}
-                                onOpen={() => onOpenPsalmPicker(row)} />
+                                label={"Assign " + label.toLowerCase() + " readers"}
+                                onOpen={function() { onOpenPsalmPicker(row); }} />
                             )}
                             {!isFirstGospelGrid && !isPsalm && assignable && (
-                              <TouchableOpacity onPress={() => openPicker(row)} activeOpacity={0.7}
+                              <TouchableOpacity onPress={function() { openPicker(row); }} activeOpacity={0.7}
                                 style={[hm.assignBtn, assignee && hm.assignBtnFilled]}>
                                 {assignee ? (
                                   <>
@@ -661,8 +722,7 @@ const HourModal = ({
                   </>
                 )}
 
-                {/* ── Picker view ── */}
-                {!!pickerSlot && pickerRow_ && (
+                {!!pickerSlot && pickerRow_ != null && (
                   <>
                     <View style={hm.pickerHdr}>
                       <TouchableOpacity style={hm.backBtn} onPress={closePicker} activeOpacity={0.7}>
@@ -673,7 +733,7 @@ const HourModal = ({
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[hm.pickerType, { color: isCopticPicker ? COPTIC_COLOR : pickerColor }]}>
-                          {pickerLabel}{isCopticPicker ? "  •  Coptic" : ""}
+                          {pickerLabel}{isCopticPicker ? "  \u2022  Coptic" : ""}
                         </Text>
                         {!!pickerRow_.refText && pickerRow_.rKey !== "homily" && pickerRow_.rKey !== "exposition" && (
                           <Text style={hm.pickerRef} numberOfLines={1}>{pickerRow_.refText}</Text>
@@ -683,33 +743,40 @@ const HourModal = ({
                         )}
                       </View>
                     </View>
-                    {sel && (
+                    {sel != null && (
                       <View style={hm.selBanner}>
                         <Avatar uid={sel.uid} size={44} />
                         <View style={{ flex: 1, marginLeft: 12 }}>
                           <Text style={hm.selName}>{sel.name}</Text>
-                          <Text style={hm.selSub}>{sel.isDeacon ? "Deacon" : sel.isManual ? "Manual entry" : "Member"}</Text>
+                          <Text style={hm.selSub}>
+                            {sel.isDeacon ? "Deacon" : sel.isManual ? "Manual entry" : "Member"}
+                          </Text>
                         </View>
-                        <TouchableOpacity onPress={() => setSel(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <TouchableOpacity onPress={function() { setSel(null); }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                           <Icon name="close-circle" size={20} color={RED} />
                         </TouchableOpacity>
                       </View>
                     )}
                     <View style={hm.seg}>
                       <View style={[hm.segSlider, tab === "all" && { left: "50%" }]} />
-                      {[["deacons", "Deacons"], ["all", "All Members"]].map(([k, l]) => (
-                        <TouchableOpacity key={k} onPress={() => { setTab(k); setQ(""); }}
-                          style={hm.segBtn} activeOpacity={0.8}>
-                          <Text style={[hm.segTxt, tab === k && hm.segTxtOn]}>{l}</Text>
-                        </TouchableOpacity>
-                      ))}
+                      {[["deacons", "Deacons"], ["all", "All Members"]].map(function(pair) {
+                        const k = pair[0]; const l = pair[1];
+                        return (
+                          <TouchableOpacity key={k} onPress={function() { setTab(k); setQ(""); }}
+                            style={hm.segBtn} activeOpacity={0.8}>
+                            <Text style={[hm.segTxt, tab === k && hm.segTxtOn]}>{l}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
                     </View>
                     <View style={hm.searchRow}>
                       <Icon name="magnify" size={16} color={T3} />
                       <TextInput style={hm.searchIn} placeholder="Search..." placeholderTextColor={T3}
                         value={q} onChangeText={setQ} returnKeyType="search" />
                       {q.length > 0 && (
-                        <TouchableOpacity onPress={() => setQ("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <TouchableOpacity onPress={function() { setQ(""); }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                           <Icon name="close-circle" size={15} color={T3} />
                         </TouchableOpacity>
                       )}
@@ -718,16 +785,19 @@ const HourModal = ({
                       ? <View style={hm.center}><ActivityIndicator color={BLUE} /></View>
                       : <FlatList
                           data={pickerSource}
-                          keyExtractor={i => i.uid || i.name}
+                          keyExtractor={function(i) { return i.uid || i.name; }}
                           style={{ maxHeight: pickerScrollMax, paddingHorizontal: 20 }}
                           keyboardShouldPersistTaps="handled"
                           showsVerticalScrollIndicator
                           ListEmptyComponent={<Text style={hm.empty}>No results</Text>}
-                          renderItem={({ item }) => {
-                            const on = sel?.uid ? sel.uid === item.uid : sel?.name === item.name;
+                          renderItem={function(ri) {
+                            const item = ri.item;
+                            const on = sel != null
+                              ? (sel.uid ? sel.uid === item.uid : sel.name === item.name)
+                              : false;
                             return (
                               <TouchableOpacity style={[hm.pRow, on && hm.pRowOn]}
-                                onPress={() => setSel(on ? null : item)} activeOpacity={0.65}>
+                                onPress={function() { setSel(on ? null : item); }} activeOpacity={0.65}>
                                 <Avatar uid={item.uid} size={38} />
                                 <View style={{ flex: 1, marginLeft: 12 }}>
                                   <Text style={hm.pRowName}>{item.name}</Text>
@@ -745,33 +815,41 @@ const HourModal = ({
                       <View style={hm.manualBox}>
                         <TextInput style={hm.manualIn} placeholder="Full name..." placeholderTextColor={T3}
                           value={manual} onChangeText={setManual} autoFocus returnKeyType="done"
-                          onSubmitEditing={() => {
+                          onSubmitEditing={function() {
                             const n = manual.trim();
-                            if (n) { setSel({ uid: `m_${Date.now()}`, name: n, isManual: true }); setManual(""); setManualOpen(false); }
+                            if (n) {
+                              setSel({ uid: "m_" + Date.now(), name: n, isManual: true });
+                              setManual(""); setManualOpen(false);
+                            }
                           }} />
                         <View style={hm.manualBtns}>
-                          <TouchableOpacity style={hm.mCancel} onPress={() => { setManualOpen(false); setManual(""); }}>
+                          <TouchableOpacity style={hm.mCancel}
+                            onPress={function() { setManualOpen(false); setManual(""); }}>
                             <Text style={hm.mCancelTxt}>Cancel</Text>
                           </TouchableOpacity>
-                          <TouchableOpacity style={hm.mAdd} onPress={() => {
+                          <TouchableOpacity style={hm.mAdd} onPress={function() {
                             const n = manual.trim();
-                            if (n) { setSel({ uid: `m_${Date.now()}`, name: n, isManual: true }); setManual(""); setManualOpen(false); }
+                            if (n) {
+                              setSel({ uid: "m_" + Date.now(), name: n, isManual: true });
+                              setManual(""); setManualOpen(false);
+                            }
                           }}>
                             <Text style={hm.mAddTxt}>Add</Text>
                           </TouchableOpacity>
                         </View>
                       </View>
                     ) : (
-                      <TouchableOpacity style={hm.addManual} onPress={() => setManualOpen(true)} activeOpacity={0.7}>
+                      <TouchableOpacity style={hm.addManual}
+                        onPress={function() { setManualOpen(true); }} activeOpacity={0.7}>
                         <Icon name="account-plus-outline" size={16} color={BLUE} />
                         <Text style={hm.addManualTxt}>Add name manually</Text>
                       </TouchableOpacity>
                     )}
                     <View style={hm.pickerFooter}>
-                      <TouchableOpacity style={[hm.saveBtn, !sel && hm.saveBtnClear]}
+                      <TouchableOpacity style={[hm.saveBtn, sel == null && hm.saveBtnClear]}
                         onPress={commitPicker} activeOpacity={0.8}>
-                        <Text style={[hm.saveBtnTxt, !sel && { color: RED }]}>
-                          {sel ? `Assign  ${sel.name}` : "Clear Assignment"}
+                        <Text style={[hm.saveBtnTxt, sel == null && { color: RED }]}>
+                          {sel != null ? ("Assign  " + sel.name) : "Clear Assignment"}
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -787,117 +865,123 @@ const HourModal = ({
 };
 
 const hm = StyleSheet.create({
-  backdrop:             { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },
-  sheet:                { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
-                          paddingBottom: Platform.OS === "ios" ? 34 : 20, flexShrink: 1 },
-  handle:               { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP,
-                          alignSelf: "center", marginTop: 12 },
-  hdr:                  { flexDirection: "row", alignItems: "flex-start", gap: 12,
-                          paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
-  title:                { fontSize: 20, fontWeight: "800", color: T1, letterSpacing: -0.3 },
-  sub:                  { fontSize: 13, color: T2, marginTop: 2 },
-  xBtn:                 { width: 32, height: 32, borderRadius: 16, backgroundColor: CARD2,
-                          justifyContent: "center", alignItems: "center" },
-  trackWrap:            { height: 2, backgroundColor: SEP, marginHorizontal: 20, borderRadius: 2, marginBottom: 6 },
-  trackFill:            { height: 2, backgroundColor: BLUE, borderRadius: 2 },
-  body:                 { paddingHorizontal: 20, paddingBottom: 16 },
-  readingBlock:         { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: SEP },
-  readingBlockCoptic:   { backgroundColor: "rgba(245,158,11,0.03)" },
-  readingTop:           { flexDirection: "row", gap: 12, marginBottom: 10, alignItems: "flex-start" },
-  readingIcon:          { width: 32, height: 32, borderRadius: 9, justifyContent: "center",
-                          alignItems: "center", flexShrink: 0 },
-  readingLabel:         { fontSize: 10, fontWeight: "800", letterSpacing: 0.8,
-                          textTransform: "uppercase", marginBottom: 4 },
-  readingRef:           { fontSize: 14, color: T1, lineHeight: 20 },
-  copticBadge:          { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5,
-                          backgroundColor: COPTIC_BG, borderWidth: 1, borderColor: COPTIC_BORDER },
-  copticBadgeTxt:       { fontSize: 9, fontWeight: "800", color: COPTIC_COLOR, letterSpacing: 0.5 },
-  assignBtn:            { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: CARD2,
-                          borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
-  assignBtnFilled:      { backgroundColor: "rgba(48,209,88,0.08)", borderWidth: 1,
-                          borderColor: "rgba(48,209,88,0.2)" },
-  assignedName:         { flex: 1, fontSize: 14, color: GREEN, fontWeight: "600" },
-  unassignedTxt:        { flex: 1, fontSize: 14, color: T2 },
-  pickerHdr:            { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20,
-                          paddingTop: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: SEP },
-  backBtn:              { width: 36, height: 36, borderRadius: 18, backgroundColor: CARD2,
-                          justifyContent: "center", alignItems: "center" },
-  pickerIconBox:        { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
-  pickerType:           { fontSize: 17, fontWeight: "700" },
-  pickerRef:            { fontSize: 12, color: T2, marginTop: 2 },
-  selBanner:            { flexDirection: "row", alignItems: "center", marginHorizontal: 20, marginTop: 14,
-                          marginBottom: 2, borderRadius: 16, padding: 14, backgroundColor: BLUEDIM,
-                          borderWidth: 1, borderColor: "rgba(10,132,255,0.25)" },
-  selName:              { fontSize: 15, fontWeight: "700", color: T1 },
-  selSub:               { fontSize: 12, color: T2, marginTop: 2 },
-  seg:                  { flexDirection: "row", marginHorizontal: 20, marginTop: 14, backgroundColor: CARD2,
-                          borderRadius: 12, padding: 3, position: "relative" },
-  segSlider:            { position: "absolute", top: 3, bottom: 3, left: 3, width: "50%",
-                          backgroundColor: CARD3, borderRadius: 10 },
-  segBtn:               { flex: 1, paddingVertical: 9, alignItems: "center", zIndex: 1 },
-  segTxt:               { fontSize: 13, fontWeight: "600", color: T3 },
-  segTxtOn:             { color: T1 },
-  searchRow:            { flexDirection: "row", alignItems: "center", backgroundColor: CARD2,
-                          borderRadius: 11, paddingHorizontal: 12, marginHorizontal: 20,
-                          marginTop: 10, marginBottom: 6 },
-  searchIn:             { flex: 1, color: T1, fontSize: 14, paddingVertical: 11, marginLeft: 8 },
-  center:               { height: 100, justifyContent: "center", alignItems: "center" },
-  empty:                { textAlign: "center", color: T3, fontSize: 14, paddingVertical: 24 },
-  pRow:                 { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 13,
-                          marginBottom: 6, backgroundColor: CARD2 },
-  pRowOn:               { backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.25)" },
-  pRowName:             { fontSize: 14, color: T1, fontWeight: "500" },
-  pRowTag:              { fontSize: 9, color: BLUE, fontWeight: "800", marginTop: 2, letterSpacing: 0.6 },
-  radio:                { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: T3,
-                          justifyContent: "center", alignItems: "center" },
-  radioOn:              { borderColor: BLUE },
-  radioDot:             { width: 10, height: 10, borderRadius: 5, backgroundColor: BLUE },
-  addManual:            { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20,
-                          marginTop: 4, marginBottom: 8, padding: 13, borderRadius: 12, backgroundColor: BLUEDIM },
-  addManualTxt:         { fontSize: 14, fontWeight: "500", color: BLUE },
-  manualBox:            { marginHorizontal: 20, marginTop: 6, marginBottom: 8 },
-  manualIn:             { backgroundColor: CARD2, borderRadius: 11, paddingHorizontal: 14,
-                          paddingVertical: 12, color: T1, fontSize: 14, marginBottom: 8 },
-  manualBtns:           { flexDirection: "row", gap: 8 },
-  mCancel:              { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: CARD2, alignItems: "center" },
-  mCancelTxt:           { fontSize: 14, fontWeight: "600", color: T2 },
-  mAdd:                 { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: BLUE, alignItems: "center" },
-  mAddTxt:              { fontSize: 14, fontWeight: "700", color: T1 },
-  pickerFooter:         { paddingHorizontal: 20, paddingTop: 10, borderTopWidth: 1, borderTopColor: SEP },
-  saveBtn:              { backgroundColor: BLUE, paddingVertical: 15, borderRadius: 14, alignItems: "center" },
-  saveBtnClear:         { backgroundColor: "rgba(255,69,58,0.1)", borderWidth: 1, borderColor: "rgba(255,69,58,0.2)" },
-  saveBtnTxt:           { fontSize: 15, fontWeight: "700", color: T1 },
+  backdrop:           { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },
+  sheet:              { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
+                        paddingBottom: Platform.OS === "ios" ? 34 : 20, flexShrink: 1 },
+  handle:             { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP,
+                        alignSelf: "center", marginTop: 12 },
+  hdr:                { flexDirection: "row", alignItems: "flex-start", gap: 12,
+                        paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
+  title:              { fontSize: 20, fontWeight: "800", color: T1, letterSpacing: -0.3 },
+  sub:                { fontSize: 13, color: T2, marginTop: 2 },
+  xBtn:               { width: 32, height: 32, borderRadius: 16, backgroundColor: CARD2,
+                        justifyContent: "center", alignItems: "center" },
+  trackWrap:          { height: 2, backgroundColor: SEP, marginHorizontal: 20, borderRadius: 2, marginBottom: 6 },
+  trackFill:          { height: 2, backgroundColor: BLUE, borderRadius: 2 },
+  body:               { paddingHorizontal: 20, paddingBottom: 16 },
+  readingBlock:       { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: SEP },
+  readingBlockCoptic: { backgroundColor: "rgba(245,158,11,0.03)" },
+  readingTop:         { flexDirection: "row", gap: 12, marginBottom: 10, alignItems: "flex-start" },
+  readingIcon:        { width: 32, height: 32, borderRadius: 9, justifyContent: "center",
+                        alignItems: "center", flexShrink: 0 },
+  readingLabel:       { fontSize: 10, fontWeight: "800", letterSpacing: 0.8,
+                        textTransform: "uppercase", marginBottom: 4 },
+  readingRef:         { fontSize: 14, color: T1, lineHeight: 20 },
+  copticBadge:        { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5,
+                        backgroundColor: COPTIC_BG, borderWidth: 1, borderColor: COPTIC_BORDER },
+  copticBadgeTxt:     { fontSize: 9, fontWeight: "800", color: COPTIC_COLOR, letterSpacing: 0.5 },
+  assignBtn:          { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: CARD2,
+                        borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  assignBtnFilled:    { backgroundColor: "rgba(48,209,88,0.08)", borderWidth: 1,
+                        borderColor: "rgba(48,209,88,0.2)" },
+  assignedName:       { flex: 1, fontSize: 14, color: GREEN, fontWeight: "600" },
+  unassignedTxt:      { flex: 1, fontSize: 14, color: T2 },
+  pickerHdr:          { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20,
+                        paddingTop: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: SEP },
+  backBtn:            { width: 36, height: 36, borderRadius: 18, backgroundColor: CARD2,
+                        justifyContent: "center", alignItems: "center" },
+  pickerIconBox:      { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
+  pickerType:         { fontSize: 17, fontWeight: "700" },
+  pickerRef:          { fontSize: 12, color: T2, marginTop: 2 },
+  selBanner:          { flexDirection: "row", alignItems: "center", marginHorizontal: 20, marginTop: 14,
+                        marginBottom: 2, borderRadius: 16, padding: 14, backgroundColor: BLUEDIM,
+                        borderWidth: 1, borderColor: "rgba(10,132,255,0.25)" },
+  selName:            { fontSize: 15, fontWeight: "700", color: T1 },
+  selSub:             { fontSize: 12, color: T2, marginTop: 2 },
+  seg:                { flexDirection: "row", marginHorizontal: 20, marginTop: 14, backgroundColor: CARD2,
+                        borderRadius: 12, padding: 3, position: "relative" },
+  segSlider:          { position: "absolute", top: 3, bottom: 3, left: 3, width: "50%",
+                        backgroundColor: CARD3, borderRadius: 10 },
+  segBtn:             { flex: 1, paddingVertical: 9, alignItems: "center", zIndex: 1 },
+  segTxt:             { fontSize: 13, fontWeight: "600", color: T3 },
+  segTxtOn:           { color: T1 },
+  searchRow:          { flexDirection: "row", alignItems: "center", backgroundColor: CARD2,
+                        borderRadius: 11, paddingHorizontal: 12, marginHorizontal: 20,
+                        marginTop: 10, marginBottom: 6 },
+  searchIn:           { flex: 1, color: T1, fontSize: 14, paddingVertical: 11, marginLeft: 8 },
+  center:             { height: 100, justifyContent: "center", alignItems: "center" },
+  empty:              { textAlign: "center", color: T3, fontSize: 14, paddingVertical: 24 },
+  pRow:               { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 13,
+                        marginBottom: 6, backgroundColor: CARD2 },
+  pRowOn:             { backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.25)" },
+  pRowName:           { fontSize: 14, color: T1, fontWeight: "500" },
+  pRowTag:            { fontSize: 9, color: BLUE, fontWeight: "800", marginTop: 2, letterSpacing: 0.6 },
+  radio:              { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: T3,
+                        justifyContent: "center", alignItems: "center" },
+  radioOn:            { borderColor: BLUE },
+  radioDot:           { width: 10, height: 10, borderRadius: 5, backgroundColor: BLUE },
+  addManual:          { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20,
+                        marginTop: 4, marginBottom: 8, padding: 13, borderRadius: 12, backgroundColor: BLUEDIM },
+  addManualTxt:       { fontSize: 14, fontWeight: "500", color: BLUE },
+  manualBox:          { marginHorizontal: 20, marginTop: 6, marginBottom: 8 },
+  manualIn:           { backgroundColor: CARD2, borderRadius: 11, paddingHorizontal: 14,
+                        paddingVertical: 12, color: T1, fontSize: 14, marginBottom: 8 },
+  manualBtns:         { flexDirection: "row", gap: 8 },
+  mCancel:            { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: CARD2, alignItems: "center" },
+  mCancelTxt:         { fontSize: 14, fontWeight: "600", color: T2 },
+  mAdd:               { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: BLUE, alignItems: "center" },
+  mAddTxt:            { fontSize: 14, fontWeight: "700", color: T1 },
+  pickerFooter:       { paddingHorizontal: 20, paddingTop: 10, borderTopWidth: 1, borderTopColor: SEP },
+  saveBtn:            { backgroundColor: BLUE, paddingVertical: 15, borderRadius: 14, alignItems: "center" },
+  saveBtnClear:       { backgroundColor: "rgba(255,69,58,0.1)", borderWidth: 1, borderColor: "rgba(255,69,58,0.2)" },
+  saveBtnTxt:         { fontSize: 15, fontWeight: "700", color: T1 },
 });
 
 // ── Day tab bar ───────────────────────────────────────────────────────────────
-const DayTabBar = ({ allDays, selectedId, easterDate, schedule, onSelect }) => (
-  <ScrollView horizontal showsHorizontalScrollIndicator={false}
-    contentContainerStyle={dt.content} style={dt.bar}>
-    {allDays.map(day => {
-      const ds               = schedule[day.id] || {};
-      const { total, filled } = dayProgress(day, ds);
-      const complete         = total > 0 && filled === total;
-      const started          = filled > 0 && !complete;
-      const active           = day.id === selectedId;
-      const dateStr          = easterDate
-        ? new Date(new Date(easterDate).setDate(new Date(easterDate).getDate() + day.easterOffset))
-            .toLocaleDateString("en-US", { month: "short", day: "numeric" })
-        : null;
-      return (
-        <TouchableOpacity key={day.id} onPress={() => onSelect(day.id)}
-          style={[dt.tab, active && dt.tabActive]} activeOpacity={0.75}>
-          <View style={[dt.dot, complete ? dt.dotGreen : started ? dt.dotBlue : dt.dotGray]} />
-          <Text style={[dt.label, active && dt.labelActive]}
-          numberOfLines={2}
-          adjustsFontSizeToFit
-          minimumFontScale={0.7}>
-            {day.shortLabel}</Text>
-          {dateStr && <Text style={[dt.date, active && dt.dateActive]}>{dateStr}</Text>}
-        </TouchableOpacity>
-      );
-    })}
-  </ScrollView>
-);
+const DayTabBar = function(props) {
+  const allDays = props.allDays;
+  const selectedId = props.selectedId;
+  const easterDate = props.easterDate;
+  const schedule = props.schedule;
+  const onSelect = props.onSelect;
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      contentContainerStyle={dt.content} style={dt.bar}>
+      {allDays.map(function(day) {
+        const ds = schedule[day.id] || {};
+        const prog = dayProgress(day, ds);
+        const complete = prog.total > 0 && prog.filled === prog.total;
+        const started  = prog.filled > 0 && !complete;
+        const active   = day.id === selectedId;
+        const dateStr  = easterDate
+          ? new Date(new Date(easterDate).setDate(new Date(easterDate).getDate() + day.easterOffset))
+              .toLocaleDateString("en-US", { month: "short", day: "numeric" })
+          : null;
+        return (
+          <TouchableOpacity key={day.id} onPress={function() { onSelect(day.id); }}
+            style={[dt.tab, active && dt.tabActive]} activeOpacity={0.75}>
+            <View style={[dt.dot, complete ? dt.dotGreen : started ? dt.dotBlue : dt.dotGray]} />
+            <Text style={[dt.label, active && dt.labelActive]}
+              numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
+              {day.shortLabel}
+            </Text>
+            {dateStr && <Text style={[dt.date, active && dt.dateActive]}>{dateStr}</Text>}
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+};
 const dt = StyleSheet.create({
   bar:         { backgroundColor: BG },
   content:     { paddingHorizontal: 12, paddingVertical: 8, gap: 5, flexDirection: "row" },
@@ -915,33 +999,41 @@ const dt = StyleSheet.create({
 });
 
 // ── Hour tile ─────────────────────────────────────────────────────────────────
-const HourTile = React.memo(({
-  hour, hourAssignments, dayId, deacons, congregation,
-  loadingUsers, onSaveReading, onSavePsalmReaders, onSaveLanguage, onSaveCopticToggle,
-}) => {
+const HourTile = React.memo(function(props) {
+  const hour = props.hour;
+  const hourAssignments = props.hourAssignments;
+  const dayId = props.dayId;
+  const deacons = props.deacons;
+  const congregation = props.congregation;
+  const loadingUsers = props.loadingUsers;
+  const onSaveReading = props.onSaveReading;
+  const onSavePsalmReaders = props.onSavePsalmReaders;
+  const onSaveLanguage = props.onSaveLanguage;
+  const onSaveCopticToggle = props.onSaveCopticToggle;
+
   const [hourOpen, setHourOpen]             = useState(false);
   const [psalmPickerRow, setPsalmPickerRow] = useState(null);
 
-  const rows              = expandReadings(hour, hourAssignments);
-  const assignableRows    = rows.filter(r => isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey));
-  const { total, filled } = countSlots(hour, hourAssignments);
-  const complete          = total > 0 && filled === total;
-  const started           = filled > 0 && !complete;
-  const pct               = total > 0 ? filled / total : 0;
-  const statusColor       = complete ? GREEN : started ? BLUE : "rgba(255,255,255,0.1)";
+  const rows           = expandReadings(hour, hourAssignments);
+  const assignableRows = rows.filter(function(r) { return isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey); });
+  const counts         = countSlots(hour, hourAssignments);
+  const total          = counts.total;
+  const filled         = counts.filled;
+  const complete       = total > 0 && filled === total;
+  const started        = filled > 0 && !complete;
+  const pct            = total > 0 ? filled / total : 0;
+  const statusColor    = complete ? GREEN : started ? BLUE : "rgba(255,255,255,0.1)";
 
-  const rowDisplayLabel = row => {
+  const rowDisplayLabel = function(row) {
     const meta = READING_META[row.rKey] || { label: row.rKey };
-    if (row.rKey === "homily")     return `Homily — ${row.author || row.refText}`;
+    if (row.rKey === "homily")     return "Homily \u2014 " + (row.author || row.refText);
     if (row.rKey === "exposition") return "Exposition";
-    return row.index != null ? `${meta.label} ${row.index + 1}` : meta.label;
+    return row.index != null ? (meta.label + " " + (row.index + 1)) : meta.label;
   };
 
   return (
     <>
-      <TouchableOpacity onPress={() => setHourOpen(true)} activeOpacity={0.72} style={ht.tile}>
-
-        {/* Title row */}
+      <TouchableOpacity onPress={function() { setHourOpen(true); }} activeOpacity={0.72} style={ht.tile}>
         <View style={ht.titleRow}>
           <View style={[ht.accent, complete ? ht.accentDone : started ? ht.accentPartial : ht.accentEmpty]} />
           <Text style={ht.name}>{hour.label}</Text>
@@ -952,24 +1044,20 @@ const HourTile = React.memo(({
               </View>
             : started
               ? <View style={[ht.pill, { backgroundColor: "rgba(10,132,255,0.12)", borderColor: "rgba(10,132,255,0.3)" }]}>
-                  <Text style={[ht.pillTxt, { color: BLUE }]}>{filled}/{total}</Text>
+                  <Text style={[ht.pillTxt, { color: BLUE }]}>{filled + "/" + total}</Text>
                 </View>
               : null
           }
         </View>
-
-        {/* Progress bar */}
         <View style={ht.barRow}>
           <View style={ht.track}>
             <View style={[ht.trackFill, { flex: pct, backgroundColor: statusColor }]} />
             <View style={{ flex: 1 - pct }} />
           </View>
-          <Text style={ht.pct}>{Math.round(pct * 100)}%</Text>
+          <Text style={ht.pct}>{Math.round(pct * 100) + "%"}</Text>
         </View>
-
-        {/* Reading rows */}
         <View style={ht.readingList}>
-          {assignableRows.map((row, i) => {
+          {assignableRows.map(function(row, i) {
             const meta      = READING_META[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
             const isPsalm   = isPsalmSlot(row.rKey);
             const isCoptic  = row.isCoptic === true;
@@ -980,7 +1068,6 @@ const HourTile = React.memo(({
             const lang      = (!isCoptic && !isPsalm && hasLanguagePicker(row.rKey))
               ? langShort(effectiveLanguage(row, hourAssignments))
               : null;
-
             return (
               <View key={row.slotKey}
                 style={[ht.rRow, !isLast && ht.rRowBorder, isCoptic && ht.rRowCoptic]}>
@@ -988,41 +1075,37 @@ const HourTile = React.memo(({
                   <Icon name={meta.icon} size={13} color={isCoptic ? COPTIC_COLOR : meta.color} />
                   <View style={ht.rLabelCol}>
                     <Text style={[ht.rType, { color: isCoptic ? COPTIC_COLOR : meta.color }]}>{typeLabel}</Text>
-                    {lang ? (
-                      <View style={ht.langBadge}>
-                        <Text style={ht.langBadgeTxt}>{lang}</Text>
-                      </View>
+                    {lang != null ? (
+                      <View style={ht.langBadge}><Text style={ht.langBadgeTxt}>{lang}</Text></View>
                     ) : isCoptic ? (
-                      <View style={ht.copticBadge}>
-                        <Text style={ht.copticBadgeTxt}>COPTIC</Text>
-                      </View>
+                      <View style={ht.copticBadge}><Text style={ht.copticBadgeTxt}>COPTIC</Text></View>
                     ) : null}
                   </View>
                 </View>
-
                 {isPsalm ? (
                   readers.length > 0
                     ? <View style={ht.assigneeRow}>
-                        {readers.slice(0, 3).map((r, idx) => (
-                          <Avatar key={r.uid || r.name || idx} uid={r.uid} size={28}
-                            style={{ marginLeft: idx > 0 ? -10 : 0, borderWidth: 2, borderColor: CARD }} />
-                        ))}
+                        {readers.slice(0, 3).map(function(r, idx) {
+                          return (
+                            <Avatar key={r.uid || r.name || idx} uid={r.uid} size={28}
+                              style={{ marginLeft: idx > 0 ? -10 : 0, borderWidth: 2, borderColor: CARD }} />
+                          );
+                        })}
                         <Text style={ht.assigneeName} numberOfLines={1}>
-                          {readers.length === 1 ? readers[0].name : `${readers.length} readers`}
+                          {readers.length === 1 ? readers[0].name : (readers.length + " readers")}
                         </Text>
                       </View>
-                    : <Text style={ht.rRef} numberOfLines={1}>{row.refText || "—"}</Text>
-                ) : assignee ? (
+                    : <Text style={ht.rRef} numberOfLines={1}>{row.refText || "\u2014"}</Text>
+                ) : assignee != null ? (
                   <View style={ht.assigneeRow}>
-                    <Avatar uid={assignee.uid} size={28}
-                      style={{ borderWidth: 2, borderColor: CARD }} />
+                    <Avatar uid={assignee.uid} size={28} style={{ borderWidth: 2, borderColor: CARD }} />
                     <Text style={[ht.assigneeName, isCoptic && { color: COPTIC_COLOR }]} numberOfLines={1}>
                       {assignee.name}
                     </Text>
                   </View>
                 ) : (
                   <Text style={ht.rRef} numberOfLines={1}>
-                    {row.rKey === "homily" || row.rKey === "exposition" ? "Unassigned" : row.refText || "—"}
+                    {row.rKey === "homily" || row.rKey === "exposition" ? "Unassigned" : (row.refText || "\u2014")}
                   </Text>
                 )}
               </View>
@@ -1042,86 +1125,96 @@ const HourTile = React.memo(({
         onSaveReading={onSaveReading}
         onSaveLanguage={onSaveLanguage}
         onSaveCopticToggle={onSaveCopticToggle}
-        onOpenPsalmPicker={row => { setHourOpen(false); setPsalmPickerRow(row); }}
-        onClose={() => setHourOpen(false)}
+        onOpenPsalmPicker={function(row) { setHourOpen(false); setPsalmPickerRow(row); }}
+        onClose={function() { setHourOpen(false); }}
       />
       <PsalmPickerModal
         visible={!!psalmPickerRow}
-        refText={psalmPickerRow?.refText || ""}
-        pickerLabel={psalmPickerRow ? rowDisplayLabel(psalmPickerRow) : ""}
-        currentReaders={psalmPickerRow ? (hourAssignments[psalmReadersKey(psalmPickerRow)] || []) : []}
+        refText={psalmPickerRow != null ? (psalmPickerRow.refText || "") : ""}
+        pickerLabel={psalmPickerRow != null ? rowDisplayLabel(psalmPickerRow) : ""}
+        currentReaders={psalmPickerRow != null ? (hourAssignments[psalmReadersKey(psalmPickerRow)] || []) : []}
         deacons={deacons}
         congregation={congregation}
         loadingUsers={loadingUsers}
-        onSave={readers => {
-          if (psalmPickerRow) onSavePsalmReaders(hour.id, psalmReadersKey(psalmPickerRow), readers);
+        onSave={function(readers) {
+          if (psalmPickerRow != null) {
+            onSavePsalmReaders(hour.id, psalmReadersKey(psalmPickerRow), readers);
+          }
         }}
-        onClose={() => { setPsalmPickerRow(null); setHourOpen(true); }}
+        onClose={function() { setPsalmPickerRow(null); setHourOpen(true); }}
       />
     </>
   );
 });
 
 const ht = StyleSheet.create({
-  tile:          { backgroundColor: CARD, borderRadius: 16, marginBottom: 10,
-                   borderWidth: 1, borderColor: SEP, overflow: "hidden", padding: 14 },
-  titleRow:      { flexDirection: "row", alignItems: "center", paddingRight: 14,
-                   paddingTop: 4, gap: 12 },
-  accent:        { width: 3, alignSelf: "stretch", marginRight: 10, borderRadius: 0 },
-  accentDone:    { backgroundColor: GREEN },
-  accentPartial: { backgroundColor: BLUE },
-  accentEmpty:   { backgroundColor: "rgba(255,255,255,0.08)" },
-  name:          { fontSize: 15, fontWeight: "700", color: T1, flex: 1 },
-  pill:          { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 9,
-                   paddingVertical: 3, borderRadius: 20, backgroundColor: "rgba(48,209,88,0.1)",
-                   borderWidth: 1, borderColor: "rgba(48,209,88,0.28)" },
-  pillTxt:       { fontSize: 11, fontWeight: "700" },
-  barRow:        { flexDirection: "row", alignItems: "center", gap: 8,
-                   paddingHorizontal: 14, paddingVertical: 10 },
-  track:         { flex: 1, flexDirection: "row", height: 3, borderRadius: 2,
-                   backgroundColor: CARD2, overflow: "hidden" },
-  trackFill:     { borderRadius: 2 },
-  pct:           { fontSize: 11, fontWeight: "700", color: T3, minWidth: 32, textAlign: "right" },
-  readingList:   { borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)" },
-  rRow:          { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                   paddingVertical: 9, paddingHorizontal: 14 },
-  rRowBorder:    { borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" },
-  rRowCoptic:    { backgroundColor: "rgba(245,158,11,0.04)" },
-  rLeft:         { flexDirection: "row", alignItems: "center", gap: 7, flex: 1, marginRight: 8 },
-  rLabelCol:     { flexDirection: "column", gap: 2 },
-  rType:         { fontSize: 11, fontWeight: "700" },
-  langBadge:     { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: CARD2,
-                   alignSelf: "flex-start" },
-  langBadgeTxt:  { fontSize: 9, fontWeight: "700", color: T3, letterSpacing: 0.3 },
-  copticBadge:   { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: COPTIC_BG,
-                   borderWidth: 1, borderColor: COPTIC_BORDER, alignSelf: "flex-start" },
-  copticBadgeTxt:{ fontSize: 9, fontWeight: "700", color: COPTIC_COLOR, letterSpacing: 0.3 },
-  rRef:          { fontSize: 12, color: T3, flex: 1, textAlign: "right" },
-  assigneeRow:   { flexDirection: "row", alignItems: "center", gap: 5 },
-  initials:      { width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center" },
-  initialsText:  { fontSize: 11, fontWeight: "800" },
-  assigneeName:  { fontSize: 12, fontWeight: "600", color: GREEN, maxWidth: 110 },
+  tile:           { backgroundColor: CARD, borderRadius: 16, marginBottom: 10,
+                    borderWidth: 1, borderColor: SEP, overflow: "hidden", padding: 14 },
+  titleRow:       { flexDirection: "row", alignItems: "center", paddingRight: 14, paddingTop: 4, gap: 12 },
+  accent:         { width: 3, alignSelf: "stretch", marginRight: 10, borderRadius: 0 },
+  accentDone:     { backgroundColor: GREEN },
+  accentPartial:  { backgroundColor: BLUE },
+  accentEmpty:    { backgroundColor: "rgba(255,255,255,0.08)" },
+  name:           { fontSize: 15, fontWeight: "700", color: T1, flex: 1 },
+  pill:           { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 9,
+                    paddingVertical: 3, borderRadius: 20, backgroundColor: "rgba(48,209,88,0.1)",
+                    borderWidth: 1, borderColor: "rgba(48,209,88,0.28)" },
+  pillTxt:        { fontSize: 11, fontWeight: "700" },
+  barRow:         { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 10 },
+  track:          { flex: 1, flexDirection: "row", height: 3, borderRadius: 2, backgroundColor: CARD2, overflow: "hidden" },
+  trackFill:      { borderRadius: 2 },
+  pct:            { fontSize: 11, fontWeight: "700", color: T3, minWidth: 32, textAlign: "right" },
+  readingList:    { borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)" },
+  rRow:           { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                    paddingVertical: 9, paddingHorizontal: 14 },
+  rRowBorder:     { borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" },
+  rRowCoptic:     { backgroundColor: "rgba(245,158,11,0.04)" },
+  rLeft:          { flexDirection: "row", alignItems: "center", gap: 7, flex: 1, marginRight: 8 },
+  rLabelCol:      { flexDirection: "column", gap: 2 },
+  rType:          { fontSize: 11, fontWeight: "700" },
+  langBadge:      { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: CARD2, alignSelf: "flex-start" },
+  langBadgeTxt:   { fontSize: 9, fontWeight: "700", color: T3, letterSpacing: 0.3 },
+  copticBadge:    { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: COPTIC_BG,
+                    borderWidth: 1, borderColor: COPTIC_BORDER, alignSelf: "flex-start" },
+  copticBadgeTxt: { fontSize: 9, fontWeight: "700", color: COPTIC_COLOR, letterSpacing: 0.3 },
+  rRef:           { fontSize: 12, color: T3, flex: 1, textAlign: "right" },
+  assigneeRow:    { flexDirection: "row", alignItems: "center", gap: 5 },
+  assigneeName:   { fontSize: 12, fontWeight: "600", color: GREEN, maxWidth: 110 },
 });
 
 // ── Settings sheet ────────────────────────────────────────────────────────────
-const SettingsSheet = ({
-  visible, myReadingsVisible, fullScheduleVisible, easterDate, year, allDays,
-  fontSizeScale, onSetFontSize,
-  onToggleMyReadings, onToggleFullSchedule, onDateSave,
-  onArchivePress, onViewArchives, onClose,
-}) => {
+const SettingsSheet = function(props) {
+  const visible = props.visible;
+  const myReadingsVisible = props.myReadingsVisible;
+  const fullScheduleVisible = props.fullScheduleVisible;
+  const easterDate = props.easterDate;
+  const year = props.year;
+  const fontSizeScale = props.fontSizeScale;
+  const onSetFontSize = props.onSetFontSize;
+  const onToggleMyReadings = props.onToggleMyReadings;
+  const onToggleFullSchedule = props.onToggleFullSchedule;
+  const onDateSave = props.onDateSave;
+  const onArchivePress = props.onArchivePress;
+  const onViewArchives = props.onViewArchives;
+  const onClose = props.onClose;
+
   const [pickerDate, setPickerDate] = useState(new Date());
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  useEffect(() => {
-    if (visible) { setPickerOpen(false); setPickerDate(easterDate ? new Date(easterDate) : new Date()); }
+  useEffect(function() {
+    if (visible) {
+      setPickerOpen(false);
+      setPickerDate(easterDate ? new Date(easterDate) : new Date());
+    }
   }, [visible, easterDate]);
 
-  const handleChange = (event, selected) => {
+  const handleChange = function(event, selected) {
     if (Platform.OS === "android") {
       setPickerOpen(false);
       if (event.type !== "dismissed" && selected) onDateSave(selected);
-    } else if (selected) setPickerDate(selected);
+    } else if (selected) {
+      setPickerDate(selected);
+    }
   };
 
   const keyDays = [
@@ -1144,7 +1237,7 @@ const SettingsSheet = ({
             </TouchableOpacity>
           </View>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 12 }}>
-            {/* ── My Readings toggle ── */}
+
             <View style={ss.card}>
               <View style={ss.row}>
                 <View style={[ss.iconBox, { backgroundColor: "rgba(48,209,88,0.12)" }]}>
@@ -1164,7 +1257,6 @@ const SettingsSheet = ({
               </View>
             </View>
 
-            {/* ── Full Schedule toggle ── */}
             <View style={ss.card}>
               <View style={ss.row}>
                 <View style={[ss.iconBox, { backgroundColor: "rgba(10,132,255,0.12)" }]}>
@@ -1184,7 +1276,6 @@ const SettingsSheet = ({
               </View>
             </View>
 
-            {/* ── Font Size ── */}
             <View style={ss.card}>
               <View style={ss.row}>
                 <View style={[ss.iconBox, { backgroundColor: "rgba(167,139,250,0.12)" }]}>
@@ -1196,21 +1287,20 @@ const SettingsSheet = ({
                 </View>
               </View>
               <View style={ss.fontSizeRow}>
-                {["small", "medium", "large"].map(size => (
-                  <TouchableOpacity
-                    key={size}
-                    onPress={() => onSetFontSize(size)}
-                    style={[ss.fontSizeBtn, fontSizeScale === size && ss.fontSizeBtnActive]}
-                    activeOpacity={0.7}>
-                    <Text style={[ss.fontSizeBtnTxt, fontSizeScale === size && ss.fontSizeBtnTxtActive]}>
-                      {size.charAt(0).toUpperCase() + size.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {["small", "medium", "large"].map(function(size) {
+                  return (
+                    <TouchableOpacity key={size} onPress={function() { onSetFontSize(size); }}
+                      style={[ss.fontSizeBtn, fontSizeScale === size && ss.fontSizeBtnActive]}
+                      activeOpacity={0.7}>
+                      <Text style={[ss.fontSizeBtnTxt, fontSizeScale === size && ss.fontSizeBtnTxtActive]}>
+                        {size.charAt(0).toUpperCase() + size.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
 
-            {/* ── Easter date ── */}
             <View style={ss.card}>
               <View style={ss.row}>
                 <View style={[ss.iconBox, { backgroundColor: BLUEDIM }]}>
@@ -1218,11 +1308,11 @@ const SettingsSheet = ({
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={ss.label}>Easter Sunday</Text>
-                  <Text style={ss.desc}>{easterDate ? calcDate(easterDate, 0) : "Not set — tap Edit"}</Text>
+                  <Text style={ss.desc}>{easterDate ? calcDate(easterDate, 0) : "Not set \u2014 tap Edit"}</Text>
                 </View>
-                <Pressable style={ss.editBtn} onPress={() => {
+                <Pressable style={ss.editBtn} onPress={function() {
                   if (pickerOpen && Platform.OS === "ios") { onDateSave(pickerDate); setPickerOpen(false); }
-                  else setPickerOpen(v => !v);
+                  else setPickerOpen(function(v) { return !v; });
                 }}>
                   <Text style={ss.editTxt}>{pickerOpen ? "Done" : "Edit"}</Text>
                 </Pressable>
@@ -1238,14 +1328,16 @@ const SettingsSheet = ({
               {easterDate && !pickerOpen && (
                 <>
                   <View style={ss.divider} />
-                  {keyDays.map(({ label, offset }) => (
-                    <View key={label} style={ss.dateRow}>
-                      <Text style={ss.dateLabel}>{label}</Text>
-                      <Text style={[ss.dateVal, offset === 0 && { color: BLUE, fontWeight: "700" }]}>
-                        {calcDate(easterDate, offset)}
-                      </Text>
-                    </View>
-                  ))}
+                  {keyDays.map(function(kd) {
+                    return (
+                      <View key={kd.label} style={ss.dateRow}>
+                        <Text style={ss.dateLabel}>{kd.label}</Text>
+                        <Text style={[ss.dateVal, kd.offset === 0 && { color: BLUE, fontWeight: "700" }]}>
+                          {calcDate(easterDate, kd.offset)}
+                        </Text>
+                      </View>
+                    );
+                  })}
                 </>
               )}
             </View>
@@ -1257,7 +1349,7 @@ const SettingsSheet = ({
             </TouchableOpacity>
             <TouchableOpacity style={ss.archiveBtn} onPress={onArchivePress} activeOpacity={0.8}>
               <Icon name="archive-outline" size={18} color={RED} />
-              <Text style={ss.archiveTxt}>Archive {year} Schedule</Text>
+              <Text style={ss.archiveTxt}>{"Archive " + year + " Schedule"}</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -1266,63 +1358,70 @@ const SettingsSheet = ({
   );
 };
 const ss = StyleSheet.create({
-  backdrop:       { flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "flex-end" },
-  sheet:          { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
-                    maxHeight: "90%", paddingBottom: Platform.OS === "ios" ? 34 : 20 },
-  handle:         { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP,
-                    alignSelf: "center", marginTop: 12 },
-  hdr:            { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                    paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: SEP },
-  hdrTitle:       { fontSize: 20, fontWeight: "700", color: T1 },
-  xBtn:           { width: 32, height: 32, borderRadius: 16, backgroundColor: CARD2,
-                    justifyContent: "center", alignItems: "center" },
-  card:           { backgroundColor: CARD2, borderRadius: 14, padding: 16 },
-  // paddingRight gives the Switch breathing room so it doesn't clip the card edge
-  row:            { flexDirection: "row", alignItems: "center", gap: 12, paddingRight: 4 },
-  iconBox:        { width: 40, height: 40, borderRadius: 11, justifyContent: "center", alignItems: "center" },
-  label:          { fontSize: 15, fontWeight: "600", color: T1 },
-  desc:           { fontSize: 13, color: T2, marginTop: 2 },
-  fontSizeRow:    { flexDirection: "row", gap: 10, marginTop: 12 },
-  fontSizeBtn:    { flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: CARD, alignItems: "center" },
-  fontSizeBtnActive: { backgroundColor: "rgba(167,139,250,0.2)", borderWidth: 1, borderColor: "rgba(167,139,250,0.4)" },
-  fontSizeBtnTxt: { fontSize: 13, fontWeight: "600", color: T2 },
+  backdrop:             { flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "flex-end" },
+  sheet:                { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
+                          maxHeight: "90%", paddingBottom: Platform.OS === "ios" ? 34 : 20 },
+  handle:               { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP,
+                          alignSelf: "center", marginTop: 12 },
+  hdr:                  { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                          paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: SEP },
+  hdrTitle:             { fontSize: 20, fontWeight: "700", color: T1 },
+  xBtn:                 { width: 32, height: 32, borderRadius: 16, backgroundColor: CARD2,
+                          justifyContent: "center", alignItems: "center" },
+  card:                 { backgroundColor: CARD2, borderRadius: 14, padding: 16 },
+  row:                  { flexDirection: "row", alignItems: "center", gap: 12, paddingRight: 4 },
+  iconBox:              { width: 40, height: 40, borderRadius: 11, justifyContent: "center", alignItems: "center" },
+  label:                { fontSize: 15, fontWeight: "600", color: T1 },
+  desc:                 { fontSize: 13, color: T2, marginTop: 2 },
+  fontSizeRow:          { flexDirection: "row", gap: 10, marginTop: 12 },
+  fontSizeBtn:          { flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: CARD, alignItems: "center" },
+  fontSizeBtnActive:    { backgroundColor: "rgba(167,139,250,0.2)", borderWidth: 1, borderColor: "rgba(167,139,250,0.4)" },
+  fontSizeBtnTxt:       { fontSize: 13, fontWeight: "600", color: T2 },
   fontSizeBtnTxtActive: { color: "#a78bfa", fontWeight: "700" },
-  editBtn:        { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 9, backgroundColor: CARD },
-  editTxt:        { fontSize: 13, fontWeight: "600", color: BLUE },
-  divider:        { height: 1, backgroundColor: SEP, marginVertical: 12 },
-  dateRow:        { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
-  dateLabel:      { fontSize: 13, color: T2 },
-  dateVal:        { fontSize: 13, color: T1, fontWeight: "500" },
-  archivesBtn:    { flexDirection: "row", alignItems: "center", gap: 10, padding: 15, borderRadius: 14,
-                    borderWidth: 1, borderColor: "rgba(10,132,255,0.22)", backgroundColor: "rgba(10,132,255,0.07)" },
-  archivesBtnTxt: { fontSize: 15, fontWeight: "600", color: BLUE },
-  archiveBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-                    padding: 15, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,69,58,0.22)",
-                    backgroundColor: "rgba(255,69,58,0.06)" },
-  archiveTxt:     { fontSize: 15, fontWeight: "600", color: RED },
+  editBtn:              { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 9, backgroundColor: CARD },
+  editTxt:              { fontSize: 13, fontWeight: "600", color: BLUE },
+  divider:              { height: 1, backgroundColor: SEP, marginVertical: 12 },
+  dateRow:              { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
+  dateLabel:            { fontSize: 13, color: T2 },
+  dateVal:              { fontSize: 13, color: T1, fontWeight: "500" },
+  archivesBtn:          { flexDirection: "row", alignItems: "center", gap: 10, padding: 15, borderRadius: 14,
+                          borderWidth: 1, borderColor: "rgba(10,132,255,0.22)", backgroundColor: "rgba(10,132,255,0.07)" },
+  archivesBtnTxt:       { fontSize: 15, fontWeight: "600", color: BLUE },
+  archiveBtn:           { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+                          padding: 15, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,69,58,0.22)",
+                          backgroundColor: "rgba(255,69,58,0.06)" },
+  archiveTxt:           { fontSize: 15, fontWeight: "600", color: RED },
 });
 
 // ── Archive confirm ───────────────────────────────────────────────────────────
-const ArchiveConfirm = ({ visible, year, onConfirm, onClose }) => {
+const ArchiveConfirm = function(props) {
+  const visible = props.visible;
+  const year = props.year;
+  const onConfirm = props.onConfirm;
+  const onClose = props.onClose;
+
   const [archiving, setArchiving] = useState(false);
   const [progress, setProgress]   = useState(0);
   const [done, setDone]           = useState(false);
 
-  useEffect(() => {
+  useEffect(function() {
     if (!visible) { setArchiving(false); setProgress(0); setDone(false); }
   }, [visible]);
 
-  const handleConfirm = async () => {
+  const handleConfirm = function() {
     setArchiving(true); setProgress(0);
     const steps = [15, 35, 55, 72, 88];
-    let i = 0;
-    const tick = setInterval(() => {
-      if (i < steps.length) { setProgress(steps[i]); i++; }
+    let idx = 0;
+    const tick = setInterval(function() {
+      if (idx < steps.length) { setProgress(steps[idx]); idx++; }
       else clearInterval(tick);
     }, 350);
-    await onConfirm();
-    clearInterval(tick);
-    setProgress(100); setDone(true);
+    onConfirm().then(function() {
+      clearInterval(tick);
+      setProgress(100); setDone(true);
+    }).catch(function(_err) {
+      clearInterval(tick);
+    });
   };
 
   return (
@@ -1335,10 +1434,10 @@ const ArchiveConfirm = ({ visible, year, onConfirm, onClose }) => {
             <Icon name={done ? "check-circle-outline" : "archive-clock-outline"} size={32}
               color={done ? GREEN : ORANGE} />
           </View>
-          <Text style={arc.title}>{done ? "Archived!" : `Archive ${year}?`}</Text>
+          <Text style={arc.title}>{done ? "Archived!" : ("Archive " + year + "?")}</Text>
           <Text style={arc.body}>
             {done
-              ? `The ${year} schedule has been saved and assignees cleared.`
+              ? ("The " + year + " schedule has been saved and assignees cleared.")
               : "Reader assignments will be saved to an archive. The schedule structure stays intact for next year."}
           </Text>
           <View style={arc.divider} />
@@ -1346,11 +1445,11 @@ const ArchiveConfirm = ({ visible, year, onConfirm, onClose }) => {
             <View style={arc.progressSection}>
               <View style={arc.progressHeader}>
                 <Icon name="archive-arrow-down-outline" size={14} color={done ? GREEN : ORANGE} />
-                <Text style={arc.progressLabel}>{done ? "Complete" : "Saving archive…"}</Text>
-                <Text style={[arc.progressPct, done && { color: GREEN }]}>{progress}%</Text>
+                <Text style={arc.progressLabel}>{done ? "Complete" : "Saving archive\u2026"}</Text>
+                <Text style={[arc.progressPct, done && { color: GREEN }]}>{progress + "%"}</Text>
               </View>
               <View style={arc.progressTrack}>
-                <View style={[arc.progressFill, { width: `${progress}%`, backgroundColor: done ? GREEN : ORANGE }]} />
+                <View style={[arc.progressFill, { width: progress + "%", backgroundColor: done ? GREEN : ORANGE }]} />
               </View>
             </View>
           ) : (
@@ -1360,7 +1459,7 @@ const ArchiveConfirm = ({ visible, year, onConfirm, onClose }) => {
               </TouchableOpacity>
               <TouchableOpacity style={arc.confirmBtn} onPress={handleConfirm} activeOpacity={0.8}>
                 <Icon name="archive-arrow-down-outline" size={16} color={T1} />
-                <Text style={arc.confirmTxt}>Archive & Clear</Text>
+                <Text style={arc.confirmTxt}>Archive &amp; Clear</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1413,184 +1512,195 @@ export default function PaschaManager() {
   const [archiveViewOpen, setArchiveViewOpen]         = useState(false);
   const [selectedId, setSelectedId]                   = useState(null);
   const [fontSizeScale, setFontSizeScale]             = useState("medium");
-  // fontSizeMultipliers is a map { small, medium, large } loaded from the pascha config doc.
-  // It is NOT editable in the UI — only via Firestore console / Cloud Function.
+  // Loaded from Firestore config doc. NOT editable in app.
   const [fontSizeMultipliers, setFontSizeMultipliers] = useState(DEFAULT_FONT_MULTIPLIERS);
 
-  const allDays  = useMemo(() => buildAllDays(scheduleShell), [scheduleShell]);
-  const daysById = useMemo(() => Object.fromEntries(allDays.map(d => [d.id, d])), [allDays]);
+  const allDays  = useMemo(function() { return buildAllDays(scheduleShell); }, [scheduleShell]);
+  const daysById = useMemo(function() {
+    const map = {};
+    allDays.forEach(function(d) { map[d.id] = d; });
+    return map;
+  }, [allDays]);
 
-  const schedule = useMemo(() => {
+  const schedule = useMemo(function() {
     const merged = {};
-    allDays.forEach(day => {
+    allDays.forEach(function(day) {
       merged[day.id] = {};
-      (day.hours || []).forEach(h => {
-        merged[day.id][h.id] = { ...(assignees[day.id]?.[h.id] ?? {}) };
+      (day.hours || []).forEach(function(h) {
+        const ha = assignees[day.id];
+        merged[day.id][h.id] = Object.assign({}, ha != null && ha[h.id] != null ? ha[h.id] : {});
       });
     });
     return merged;
   }, [allDays, assignees]);
 
   const year        = easterDate ? new Date(easterDate).getFullYear() : new Date().getFullYear();
-  const selectedDay = selectedId ? (daysById[selectedId] ?? null) : null;
+  const selectedDay = selectedId != null ? (daysById[selectedId] || null) : null;
+  // activeFontMultiplier available for use when threading font size into reading components
+  const activeFontMultiplier = resolvedFontScale(fontSizeScale, fontSizeMultipliers); // eslint-disable-line no-unused-vars
 
-  // Resolved multiplier for the current user's preference
-  const activeFontMultiplier = resolvedFontScale(fontSizeScale, fontSizeMultipliers);
-
-  useEffect(() => {
+  useEffect(function() {
     isMounted.current = true;
     const user = auth().currentUser;
-    if (!user) return;
+    if (!user) return function() { isMounted.current = false; };
     setUid(user.uid);
-    const unsub = firestore().collection("users").doc(user.uid).onSnapshot(doc => {
+    const unsub = firestore().collection("users").doc(user.uid).onSnapshot(function(doc) {
       if (isMounted.current && doc.exists) {
         setChurchId(doc.data().church || null);
-        setFontSizeScale(doc.data().paschaFontSize ?? "medium");
+        setFontSizeScale(doc.data().paschaFontSize != null ? doc.data().paschaFontSize : "medium");
       }
     });
-    return () => { isMounted.current = false; unsub(); };
+    return function() { isMounted.current = false; unsub(); };
   }, []);
 
-  useEffect(() => {
+  useEffect(function() {
     if (!churchId) return;
+    isMounted.current = true;
     const unsubShell = firestore()
       .collection("churches").doc(churchId)
       .collection("pascha").doc("schedule_config")
-      .onSnapshot(doc => {
+      .onSnapshot(function(doc) {
         if (!isMounted.current) return;
         if (doc.exists) {
           setScheduleShell(doc.data());
-          setSelectedId(prev => prev ?? doc.data()?.days?.[0]?.id ?? null);
+          setSelectedId(function(prev) {
+            if (prev != null) return prev;
+            const days = doc.data().days;
+            return days != null && days[0] != null ? days[0].id : null;
+          });
         }
       });
     const unsubConfig = firestore()
       .collection("churches").doc(churchId)
       .collection("pascha").doc("config")
-      .onSnapshot(doc => {
+      .onSnapshot(function(doc) {
         if (!isMounted.current || !doc.exists) return;
         const d = doc.data();
-        setMyReadingsVisible(d.myReadingsVisible ?? false);
-        setFullScheduleVisible(d.fullScheduleVisible ?? false);
-        setEasterDate(d.easterDate ?? null);
-        // Load the multiplier map if present, otherwise keep DEFAULT_FONT_MULTIPLIERS.
-        // To update: set fontSizeMultipliers: { small: 0.9, medium: 1.0, large: 1.2 }
-        // in Firestore at churches/{churchId}/pascha/config.
+        setMyReadingsVisible(d.myReadingsVisible != null ? d.myReadingsVisible : false);
+        setFullScheduleVisible(d.fullScheduleVisible != null ? d.fullScheduleVisible : false);
+        setEasterDate(d.easterDate != null ? d.easterDate : null);
         if (d.fontSizeMultipliers) setFontSizeMultipliers(d.fontSizeMultipliers);
       });
     const unsubSchedule = firestore()
       .collection("churches").doc(churchId)
       .collection("pascha").doc("schedule")
-      .onSnapshot(doc => {
+      .onSnapshot(function(doc) {
         if (!isMounted.current) return;
         setAssignees(doc.exists ? doc.data() : {});
       });
-    return () => { unsubShell(); unsubConfig(); unsubSchedule(); };
+    return function() { unsubShell(); unsubConfig(); unsubSchedule(); };
   }, [churchId]);
 
-  useEffect(() => {
+  useEffect(function() {
     if (!churchId) return;
     setLoadingUsers(true);
-    const unsubC = firestore().collection("churches").doc(churchId).onSnapshot(doc => {
+    const unsubC = firestore().collection("churches").doc(churchId).onSnapshot(function(doc) {
       if (!isMounted.current || !doc.exists) return;
       setDeacons(
         (doc.data().deacons || [])
-          .filter(d => d.name && d.uid)
-          .map(d => ({ ...d, isDeacon: true }))
-          .sort((a, b) => a.name.localeCompare(b.name))
+          .filter(function(d) { return d.name && d.uid; })
+          .map(function(d) { return Object.assign({}, d, { isDeacon: true }); })
+          .sort(function(a, b) { return a.name.localeCompare(b.name); })
       );
     });
-    const unsubU = firestore().collection("users").where("church", "==", churchId).onSnapshot(snap => {
+    const unsubU = firestore().collection("users").where("church", "==", churchId).onSnapshot(function(snap) {
       if (!isMounted.current) return;
       setCongregation(
-        snap.docs.map(d => ({ uid: d.id, ...d.data() }))
-          .filter(u => u.name)
-          .sort((a, b) => a.name.localeCompare(b.name))
+        snap.docs.map(function(d) { return Object.assign({ uid: d.id }, d.data()); })
+          .filter(function(u) { return u.name; })
+          .sort(function(a, b) { return a.name.localeCompare(b.name); })
       );
       setLoadingUsers(false);
     });
-    return () => { unsubC(); unsubU(); };
+    return function() { unsubC(); unsubU(); };
   }, [churchId]);
 
-  const writeConfig = useCallback(async fields => {
-    if (!churchId) return;
+  const writeConfig = useCallback(function(fields) {
+    if (!churchId) return Promise.resolve();
     const ref = firestore().collection("churches").doc(churchId).collection("pascha").doc("config");
-    await ref.update(fields).catch(async err => {
-      if (err.code === "firestore/not-found") await ref.set(fields);
-      else Alert.alert("Error", "Failed to save.");
+    return ref.update(fields).catch(function(err) {
+      if (err.code === "firestore/not-found") return ref.set(fields);
+      Alert.alert("Error", "Failed to save.");
+      return Promise.resolve();
     });
   }, [churchId]);
 
-  const writeSchedule = useCallback(async fields => {
-    if (!churchId) return;
+  const writeSchedule = useCallback(function(fields) {
+    if (!churchId) return Promise.resolve();
     const ref = firestore().collection("churches").doc(churchId).collection("pascha").doc("schedule");
-    await ref.update(fields).catch(async err => {
-      if (err.code === "firestore/not-found") await ref.set(fields);
-      else Alert.alert("Error", "Failed to save.");
+    return ref.update(fields).catch(function(err) {
+      if (err.code === "firestore/not-found") return ref.set(fields);
+      Alert.alert("Error", "Failed to save.");
+      return Promise.resolve();
     });
   }, [churchId]);
 
-  const saveReading = useCallback(async (dayId, hourId, slotKey, person) => {
-    const value = person ? { uid: person.uid ?? null, name: person.name } : firestore.FieldValue.delete();
-    await writeSchedule({ [`${dayId}.${hourId}.${slotKey}`]: value });
-  }, [writeSchedule]);
-
-  const savePsalmReaders = useCallback(async (dayId, hourId, readersKey, readers) => {
-    const value = readers.length > 0
-      ? readers.map(r => ({ uid: r.uid ?? null, name: r.name }))
+  const saveReading = useCallback(function(dayId, hourId, slotKey, person) {
+    const value = person
+      ? { uid: person.uid != null ? person.uid : null, name: person.name }
       : firestore.FieldValue.delete();
-    await writeSchedule({ [`${dayId}.${hourId}.${readersKey}`]: value });
+    return writeSchedule({ [dayId + "." + hourId + "." + slotKey]: value });
   }, [writeSchedule]);
 
-  const saveLanguage = useCallback(async (dayId, hourId, slotKey, lang) => {
-    await writeSchedule({ [`${dayId}.${hourId}.${langFirestoreKey(slotKey)}`]: lang });
+  const savePsalmReaders = useCallback(function(dayId, hourId, readersKey, readers) {
+    const value = readers.length > 0
+      ? readers.map(function(r) { return { uid: r.uid != null ? r.uid : null, name: r.name }; })
+      : firestore.FieldValue.delete();
+    return writeSchedule({ [dayId + "." + hourId + "." + readersKey]: value });
   }, [writeSchedule]);
 
-  const saveCopticToggle = useCallback(async (dayId, hourId, toggleKey, value) => {
-    const fields = { [`${dayId}.${hourId}.${toggleKey}`]: value };
+  const saveLanguage = useCallback(function(dayId, hourId, slotKey, lang) {
+    return writeSchedule({ [dayId + "." + hourId + "." + langFirestoreKey(slotKey)]: lang });
+  }, [writeSchedule]);
+
+  const saveCopticToggle = useCallback(function(dayId, hourId, toggleKey, value) {
+    const fields = {};
+    fields[dayId + "." + hourId + "." + toggleKey] = value;
     if (value !== true) {
       const vernacularSlot = toggleKey.replace(/_coptic_enabled$/, "");
-      fields[`${dayId}.${hourId}.${vernacularSlot}_coptic`] = firestore.FieldValue.delete();
+      fields[dayId + "." + hourId + "." + vernacularSlot + "_coptic"] = firestore.FieldValue.delete();
     }
-    await writeSchedule(fields);
+    return writeSchedule(fields);
   }, [writeSchedule]);
 
-  // ── Archive: snapshot both the live assignments AND the schedule_config shell ──
-  // This makes the archive self-contained — PaschaArchiveViewer can reconstruct
-  // the full schedule (with reading references) without touching schedule_config.
-  const doArchive = useCallback(async () => {
-    try {
-      // Fetch the current shell so the archive is self-contained
-      const shellSnap = await firestore()
-        .collection("churches").doc(churchId)
-        .collection("pascha").doc("schedule_config")
-        .get();
-      const shellData = shellSnap.exists ? shellSnap.data() : null;
+  // Archive: snapshot both live assignments AND schedule_config shell so the
+  // archive is self-contained and PaschaArchiveViewer can reconstruct it fully.
+  const doArchive = useCallback(function() {
+    return firestore()
+      .collection("churches").doc(churchId)
+      .collection("pascha").doc("schedule_config")
+      .get()
+      .then(function(shellSnap) {
+        const shellData = shellSnap.exists ? shellSnap.data() : null;
+        return firestore()
+          .collection("churches").doc(churchId)
+          .collection("pascha").doc("archive_" + year)
+          .set({
+            schedule:      schedule,
+            scheduleShell: shellData,
+            easterDate:    easterDate,
+            archivedAt:    firestore.FieldValue.serverTimestamp(),
+          });
+      })
+      .then(function() {
+        return firestore()
+          .collection("churches").doc(churchId)
+          .collection("pascha").doc("schedule")
+          .set({});
+      })
+      .then(function() {
+        return new Promise(function(resolve) { setTimeout(resolve, 600); });
+      })
+      .then(function() {
+        setArchiveOpen(false);
+        setSettingsOpen(false);
+      })
+      .catch(function(_err) {
+        Alert.alert("Error", "Archive failed.");
+      });
+  }, [churchId, year, schedule, easterDate]);
 
-      await firestore()
-        .collection("churches").doc(churchId)
-        .collection("pascha").doc(`archive_${year}`)
-        .set({
-          schedule:       schedule,
-          scheduleShell:  shellData,   // static reading structure at time of archive
-          easterDate:     easterDate,
-          archivedAt:     firestore.FieldValue.serverTimestamp(),
-        });
-
-      // Clear only the assignees — schedule_config is untouched
-      await firestore()
-        .collection("churches").doc(churchId)
-        .collection("pascha").doc("schedule")
-        .set({});
-
-      await new Promise(r => setTimeout(r, 600));
-      setArchiveOpen(false);
-      setSettingsOpen(false);
-    } catch {
-      Alert.alert("Error", "Archive failed.");
-    }
-  }, [churchId, year, schedule, easterDate, scheduleShell]);
-
-  const ds = selectedId ? (schedule[selectedId] || {}) : {};
+  const ds = selectedId != null ? (schedule[selectedId] || {}) : {};
 
   if (!scheduleShell) {
     return (
@@ -1604,27 +1714,24 @@ export default function PaschaManager() {
     <View style={mn.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* Header */}
       <View style={mn.header}>
         <View style={{ flex: 1 }}>
-          <Text style={mn.eyebrow}>HOLY WEEK  ·  PASCHA</Text>
+          <Text style={mn.eyebrow}>{"HOLY WEEK \u00B7 PASCHA"}</Text>
           <Text style={mn.title}>Schedule</Text>
         </View>
-        <TouchableOpacity style={mn.cogBtn} onPress={() => setSettingsOpen(true)} activeOpacity={0.7}>
+        <TouchableOpacity style={mn.cogBtn} onPress={function() { setSettingsOpen(true); }} activeOpacity={0.7}>
           <Icon name="cog-outline" size={20} color={T2} />
         </TouchableOpacity>
       </View>
 
-      {/* Easter date nudge */}
       {!easterDate && (
-        <TouchableOpacity style={mn.nudge} onPress={() => setSettingsOpen(true)} activeOpacity={0.8}>
+        <TouchableOpacity style={mn.nudge} onPress={function() { setSettingsOpen(true); }} activeOpacity={0.8}>
           <Icon name="alert-circle-outline" size={14} color={ORANGE} />
           <Text style={mn.nudgeTxt}>Set Easter date in Settings</Text>
           <Icon name="chevron-right" size={13} color={ORANGE} />
         </TouchableOpacity>
       )}
 
-      {/* Day tabs */}
       <View style={{ height: 68 }}>
         <DayTabBar
           allDays={allDays}
@@ -1635,8 +1742,7 @@ export default function PaschaManager() {
         />
       </View>
 
-      {/* Day header */}
-      {selectedDay && (
+      {selectedDay != null && (
         <View style={mn.dayHdr}>
           <View style={mn.dayHdrTop}>
             <View>
@@ -1648,41 +1754,43 @@ export default function PaschaManager() {
           </View>
           <View style={mn.progRow}>
             <View style={mn.progTrack}>
-              <View style={[mn.progFill,
-                { width: `${dayProgress(selectedDay, ds).total > 0
-                    ? Math.round(dayProgress(selectedDay, ds).filled / dayProgress(selectedDay, ds).total * 100)
-                    : 0}%` },
-                dayProgress(selectedDay, ds).filled === dayProgress(selectedDay, ds).total
-                  && dayProgress(selectedDay, ds).total > 0
-                  && { backgroundColor: GREEN },
-              ]} />
+              {(function() {
+                const dp = dayProgress(selectedDay, ds);
+                const pctVal = dp.total > 0 ? Math.round(dp.filled / dp.total * 100) : 0;
+                const allDone = dp.filled === dp.total && dp.total > 0;
+                return (
+                  <View style={[mn.progFill, { width: pctVal + "%" }, allDone && { backgroundColor: GREEN }]} />
+                );
+              })()}
             </View>
             <Text style={mn.progPct}>
-              {dayProgress(selectedDay, ds).total > 0
-                ? `${Math.round(dayProgress(selectedDay, ds).filled / dayProgress(selectedDay, ds).total * 100)}%`
-                : "0%"}
+              {(function() {
+                const dp = dayProgress(selectedDay, ds);
+                return dp.total > 0 ? (Math.round(dp.filled / dp.total * 100) + "%") : "0%";
+              })()}
             </Text>
           </View>
         </View>
       )}
 
-      {/* Hour tiles */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={mn.scroll}>
-        {(selectedDay?.hours || []).map(hour => (
-          <HourTile
-            key={hour.id}
-            hour={hour}
-            hourAssignments={ds[hour.id] || {}}
-            dayId={selectedId}
-            deacons={deacons}
-            congregation={congregation}
-            loadingUsers={loadingUsers}
-            onSaveReading={(hourId, slotKey, person) => saveReading(selectedId, hourId, slotKey, person)}
-            onSavePsalmReaders={(hourId, readersKey, readers) => savePsalmReaders(selectedId, hourId, readersKey, readers)}
-            onSaveLanguage={(hourId, slotKey, lang) => saveLanguage(selectedId, hourId, slotKey, lang)}
-            onSaveCopticToggle={(hourId, toggleKey, value) => saveCopticToggle(selectedId, hourId, toggleKey, value)}
-          />
-        ))}
+        {(selectedDay != null ? (selectedDay.hours || []) : []).map(function(hour) {
+          return (
+            <HourTile
+              key={hour.id}
+              hour={hour}
+              hourAssignments={ds[hour.id] || {}}
+              dayId={selectedId}
+              deacons={deacons}
+              congregation={congregation}
+              loadingUsers={loadingUsers}
+              onSaveReading={function(hourId, slotKey, person) { return saveReading(selectedId, hourId, slotKey, person); }}
+              onSavePsalmReaders={function(hourId, readersKey, readers) { return savePsalmReaders(selectedId, hourId, readersKey, readers); }}
+              onSaveLanguage={function(hourId, slotKey, lang) { return saveLanguage(selectedId, hourId, slotKey, lang); }}
+              onSaveCopticToggle={function(hourId, toggleKey, value) { return saveCopticToggle(selectedId, hourId, toggleKey, value); }}
+            />
+          );
+        })}
       </ScrollView>
 
       <SettingsSheet
@@ -1691,28 +1799,38 @@ export default function PaschaManager() {
         fullScheduleVisible={fullScheduleVisible}
         easterDate={easterDate}
         year={year}
-        allDays={allDays}
         fontSizeScale={fontSizeScale}
-        onSetFontSize={async (size) => {
+        onSetFontSize={function(size) {
           setFontSizeScale(size);
           if (uid) {
-            await firestore().collection("users").doc(uid)
-              .update({ paschaFontSize: size }).catch(() => {});
+            firestore().collection("users").doc(uid)
+              .update({ paschaFontSize: size }).catch(function(_err) {});
           }
         }}
-        onToggleMyReadings={v => { setMyReadingsVisible(v); writeConfig({ myReadingsVisible: v }); }}
-        onToggleFullSchedule={v => { setFullScheduleVisible(v); writeConfig({ fullScheduleVisible: v }); }}
-        onDateSave={date => { const iso = date.toISOString(); setEasterDate(iso); writeConfig({ easterDate: iso }); }}
-        onViewArchives={() => { setSettingsOpen(false); setArchiveViewOpen(true); }}
-        onArchivePress={() => { setSettingsOpen(false); setArchiveOpen(true); }}
-        onClose={() => setSettingsOpen(false)}
+        onToggleMyReadings={function(v) { setMyReadingsVisible(v); writeConfig({ myReadingsVisible: v }); }}
+        onToggleFullSchedule={function(v) { setFullScheduleVisible(v); writeConfig({ fullScheduleVisible: v }); }}
+        onDateSave={function(date) {
+          const iso = date.toISOString();
+          setEasterDate(iso);
+          writeConfig({ easterDate: iso });
+        }}
+        onViewArchives={function() { setSettingsOpen(false); setArchiveViewOpen(true); }}
+        onArchivePress={function() { setSettingsOpen(false); setArchiveOpen(true); }}
+        onClose={function() { setSettingsOpen(false); }}
       />
 
-      <ArchiveConfirm visible={archiveOpen} year={year} onConfirm={doArchive}
-        onClose={() => setArchiveOpen(false)} />
+      <ArchiveConfirm
+        visible={archiveOpen}
+        year={year}
+        onConfirm={doArchive}
+        onClose={function() { setArchiveOpen(false); }}
+      />
 
-      <PaschaArchiveViewer visible={archiveViewOpen} churchId={churchId}
-        onClose={() => setArchiveViewOpen(false)} />
+      <PaschaArchiveViewer
+        visible={archiveViewOpen}
+        churchId={churchId}
+        onClose={function() { setArchiveViewOpen(false); }}
+      />
     </View>
   );
 }
