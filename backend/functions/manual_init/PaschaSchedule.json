@@ -7,6 +7,20 @@
       "easterOffset": -9,
       "hours": [
         {
+          "id": "matins",
+          "label": "Matins",
+          "readings": {
+            "prophecies": [
+              { "reference": "Genesis 49:33 - 50:26", "language": "english", "assignee": null },
+              { "reference": "Proverbs 11:27 - 12:22", "language": "english", "assignee": null },
+              { "reference": "Isaiah 66:10-24",        "language": "english", "assignee": null },
+              { "reference": "Job 42:7-17",            "language": "english", "assignee": null }
+            ],
+            "gospel": { "reference": "Luke 16:19-31", "language": "english", "assignee": null }
+          },
+          "readings_format": null
+        },
+        {
           "id": "unction_first",
           "label": "First Prayer of Unction",
           "readings": {

@@ -18,7 +18,6 @@ import {
   langFirestoreKey, psalmReadersKey, prophecyCopticToggleKey,
   ASSIGNABLE, READING_META, MAX_PSALM_READERS, readingDisplay,
 } from "../Pascha/PaschaReadingUtils";
-import { DAY_SHORT_LABELS } from "../Pascha/DayConstants";
 
 const DEFAULT_AVATAR = require("../../assets/default_profile.png");
 
@@ -42,7 +41,10 @@ const COPTIC_BORDER = "rgba(245,158,11,0.28)";
 const COPTIC_TRACK  = "rgba(245,158,11,0.45)";
 
 // ── Font scale ────────────────────────────────────────────────────────────────
-const FONT_SCALE = { small: 0.85, medium: 1, large: 1.18 };
+// Controlled via Firestore: churches/{churchId}/pascha/config → paschaTextScale (number)
+// e.g. 0.85 = small, 1.0 = default, 1.18 = large, 1.05 = slightly larger etc.
+// Change it in the Firestore console — no rebuild needed.
+const DEFAULT_TEXT_SCALE = 1.0;
 
 function fs(base, scale) {
   return Math.round(base * scale);
@@ -463,11 +465,11 @@ const pm = StyleSheet.create({
 // ── HourModal ─────────────────────────────────────────────────────────────────
 const HourModal = ({
   visible, hour, hourAssignments, deacons, congregation,
-  loadingUsers, fontSizeScale,
+  loadingUsers, textScale,
   onSaveReading, onSaveLanguage, onSaveCopticToggle, onOpenPsalmPicker, onClose,
 }) => {
   const { height: screenH } = useWindowDimensions();
-  const scale = FONT_SCALE[fontSizeScale] ?? 1;
+  const scale = textScale;
   const [pickerSlot, setPickerSlot] = useState(null);
   const [pickerRow_, setPickerRow_] = useState(null);
   const [sel, setSel]               = useState(null);
@@ -887,12 +889,12 @@ const dt = StyleSheet.create({
 // ── Hour tile ─────────────────────────────────────────────────────────────────
 const HourTile = React.memo(({
   hour, hourAssignments, dayId, deacons, congregation,
-  loadingUsers, fontSizeScale,
+  loadingUsers, textScale,
   onSaveReading, onSavePsalmReaders, onSaveLanguage, onSaveCopticToggle,
 }) => {
   const [hourOpen, setHourOpen]             = useState(false);
   const [psalmPickerRow, setPsalmPickerRow] = useState(null);
-  const scale = FONT_SCALE[fontSizeScale] ?? 1;
+  const scale = textScale;
 
   const rows              = expandReadings(hour, hourAssignments);
   const assignableRows    = rows.filter(r => isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey));
@@ -922,12 +924,6 @@ const HourTile = React.memo(({
 
   return (
     <>
-      {/*
-        Pressable with unstable_pressDelay gives the ScrollView time to
-        recognise a scroll gesture before committing to a press. This prevents
-        the tile from "capturing" the touch and freezing scroll when the user
-        presses and then starts to drag.
-      */}
       <Pressable
         onPress={() => setHourOpen(true)}
         unstable_pressDelay={80}
@@ -1043,7 +1039,7 @@ const HourTile = React.memo(({
         deacons={deacons}
         congregation={congregation}
         loadingUsers={loadingUsers}
-        fontSizeScale={fontSizeScale}
+        textScale={textScale}
         onSaveReading={onSaveReading}
         onSaveLanguage={onSaveLanguage}
         onSaveCopticToggle={onSaveCopticToggle}
@@ -1101,7 +1097,6 @@ const ht = StyleSheet.create({
 // ── Settings sheet ────────────────────────────────────────────────────────────
 const SettingsSheet = ({
   visible, myReadingsVisible, fullScheduleVisible, easterDate, year, allDays,
-  fontSizeScale, onSetFontSize,
   onToggleMyReadings, onToggleFullSchedule, onDateSave,
   onArchivePress, onViewArchives, onClose,
 }) => {
@@ -1169,28 +1164,6 @@ const SettingsSheet = ({
             </View>
             <View style={ss.card}>
               <View style={ss.row}>
-                <View style={[ss.iconBox, { backgroundColor: "rgba(167,139,250,0.12)" }]}>
-                  <Icon name="format-size" size={19} color="#a78bfa" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={ss.label}>Font Size</Text>
-                  <Text style={ss.desc}>{fontSizeScale.charAt(0).toUpperCase() + fontSizeScale.slice(1)}</Text>
-                </View>
-              </View>
-              <View style={ss.fontSizeRow}>
-                {["small", "medium", "large"].map(size => (
-                  <TouchableOpacity key={size} onPress={() => onSetFontSize(size)}
-                    style={[ss.fontSizeBtn, fontSizeScale === size && ss.fontSizeBtnActive]}
-                    activeOpacity={0.7}>
-                    <Text style={[ss.fontSizeBtnTxt, fontSizeScale === size && ss.fontSizeBtnTxtActive]}>
-                      {size.charAt(0).toUpperCase() + size.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-            <View style={ss.card}>
-              <View style={ss.row}>
                 <View style={[ss.iconBox, { backgroundColor: BLUEDIM }]}>
                   <Icon name="calendar-star" size={19} color={BLUE} />
                 </View>
@@ -1254,11 +1227,6 @@ const ss = StyleSheet.create({
   iconBox:             { width: 40, height: 40, borderRadius: 11, justifyContent: "center", alignItems: "center" },
   label:               { fontSize: 15, fontWeight: "600", color: T1 },
   desc:                { fontSize: 13, color: T2, marginTop: 2 },
-  fontSizeRow:         { flexDirection: "row", gap: 10, marginTop: 12 },
-  fontSizeBtn:         { flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: CARD, alignItems: "center" },
-  fontSizeBtnActive:   { backgroundColor: "rgba(167,139,250,0.2)", borderWidth: 1, borderColor: "rgba(167,139,250,0.4)" },
-  fontSizeBtnTxt:      { fontSize: 13, fontWeight: "600", color: T2 },
-  fontSizeBtnTxtActive:{ color: "#a78bfa", fontWeight: "700" },
   editBtn:             { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 9, backgroundColor: CARD },
   editTxt:             { fontSize: 13, fontWeight: "600", color: BLUE },
   divider:             { height: 1, backgroundColor: SEP, marginVertical: 12 },
@@ -1375,7 +1343,9 @@ export default function PaschaManager() {
   const [archiveOpen, setArchiveOpen]                 = useState(false);
   const [archiveViewOpen, setArchiveViewOpen]         = useState(false);
   const [selectedId, setSelectedId]                   = useState(null);
-  const [fontSizeScale, setFontSizeScale]             = useState("medium");
+
+  // paschaTextScale from Firestore config — change it there, no rebuild needed
+  const [textScale, setTextScale] = useState(DEFAULT_TEXT_SCALE);
 
   const allDays  = useMemo(() => buildAllDays(scheduleShell), [scheduleShell]);
   const daysById = useMemo(() => Object.fromEntries(allDays.map(d => [d.id, d])), [allDays]);
@@ -1402,7 +1372,6 @@ export default function PaschaManager() {
     const unsub = firestore().collection("users").doc(user.uid).onSnapshot(doc => {
       if (isMounted.current && doc.exists) {
         setChurchId(doc.data().church || null);
-        setFontSizeScale(doc.data().paschaFontSize ?? "medium");
       }
     });
     return () => { isMounted.current = false; unsub(); };
@@ -1429,6 +1398,9 @@ export default function PaschaManager() {
         setMyReadingsVisible(d.myReadingsVisible ?? false);
         setFullScheduleVisible(d.fullScheduleVisible ?? false);
         setEasterDate(d.easterDate ?? null);
+        // paschaTextScale: number in Firestore, e.g. 1.0, 0.9, 1.15
+        // Falls back to DEFAULT_TEXT_SCALE if the field doesn't exist yet
+        setTextScale(typeof d.paschaTextScale === "number" ? d.paschaTextScale : DEFAULT_TEXT_SCALE);
       });
     const unsubSchedule = firestore()
       .collection("churches").doc(churchId)
@@ -1590,11 +1562,6 @@ export default function PaschaManager() {
         </View>
       )}
 
-      {/*
-        keyboardShouldPersistTaps="handled" prevents the keyboard from
-        dismissing scroll. scrollEventThrottle={16} keeps scroll callbacks
-        at 60fps so the ScrollView stays responsive during fast drags.
-      */}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={mn.scroll}
@@ -1610,7 +1577,7 @@ export default function PaschaManager() {
             deacons={deacons}
             congregation={congregation}
             loadingUsers={loadingUsers}
-            fontSizeScale={fontSizeScale}
+            textScale={textScale}
             onSaveReading={(hourId, slotKey, person) => saveReading(selectedId, hourId, slotKey, person)}
             onSavePsalmReaders={(hourId, readersKey, readers) => savePsalmReaders(selectedId, hourId, readersKey, readers)}
             onSaveLanguage={(hourId, slotKey, lang) => saveLanguage(selectedId, hourId, slotKey, lang)}
@@ -1626,12 +1593,6 @@ export default function PaschaManager() {
         easterDate={easterDate}
         year={year}
         allDays={allDays}
-        fontSizeScale={fontSizeScale}
-        onSetFontSize={async (size) => {
-          setFontSizeScale(size);
-          if (uid) await firestore().collection("users").doc(uid)
-            .update({ paschaFontSize: size }).catch(() => {});
-        }}
         onToggleMyReadings={v => { setMyReadingsVisible(v); writeConfig({ myReadingsVisible: v }); }}
         onToggleFullSchedule={v => { setFullScheduleVisible(v); writeConfig({ fullScheduleVisible: v }); }}
         onDateSave={date => { const iso = date.toISOString(); setEasterDate(iso); writeConfig({ easterDate: iso }); }}
