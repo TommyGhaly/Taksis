@@ -214,17 +214,18 @@ var ProphecyCopticToggle = function(props) {
     onSave(toggleKey, val ? true : firestore.FieldValue.delete());
   };
   return (
-    <View style={[pct.row, enabled && pct.rowOn]}>
-      <View style={[pct.iconBox, enabled && pct.iconBoxOn]}>
-        <Text style={[pct.alphaSymbol, enabled && pct.alphaSymbolOn]}>{"\u03B1"}</Text>
+    <View style={pct.row}>
+      <View style={pct.iconBox}>
+        <Icon name="translate" size={15} color={COPTIC_COLOR} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[pct.label, enabled && pct.labelOn, { fontSize: sf(13, fs) }]}>Read in Coptic</Text>
+        <Text style={[pct.label, { fontSize: sf(15, fs) }]}>Read in Coptic</Text>
+        <Text style={[pct.desc, { fontSize: sf(13, fs) }]}>{enabled ? "Coptic reading enabled" : "Vernacular only"}</Text>
       </View>
       <Switch
         value={enabled}
         onValueChange={handleChange}
-        trackColor={{ false: "rgba(255,255,255,0.12)", true: COPTIC_TRACK }}
+        trackColor={{ false: "rgba(255,255,255,0.12)", true: "rgba(245,158,11,0.55)" }}
         thumbColor={T1}
         ios_backgroundColor="rgba(255,255,255,0.12)"
       />
@@ -232,17 +233,13 @@ var ProphecyCopticToggle = function(props) {
   );
 };
 var pct = StyleSheet.create({
-  row:           { flexDirection: "row", alignItems: "center", gap: 12,
-                   paddingVertical: 10, paddingHorizontal: 12, marginBottom: 10,
-                   borderRadius: 16, backgroundColor: CARD2, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  rowOn:         { backgroundColor: "rgba(245,158,11,0.12)", borderColor: COPTIC_BORDER },
-  iconBox:       { width: 32, height: 32, borderRadius: 10,
-                   justifyContent: "center", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)" },
-  iconBoxOn:     { backgroundColor: "rgba(245,158,11,0.18)" },
-  alphaSymbol:   { fontSize: 18, fontWeight: "700", color: T3 },
-  alphaSymbolOn: { color: COPTIC_COLOR },
-  label:         { fontSize: 13, fontWeight: "700", color: T2 },
-  labelOn:       { color: COPTIC_COLOR },
+  row:     { flexDirection: "row", alignItems: "center", gap: 12,
+             paddingVertical: 12, paddingHorizontal: 16, marginBottom: 10,
+             borderRadius: 14, backgroundColor: CARD2, borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.06)" },
+  iconBox: { width: 32, height: 32, borderRadius: 9, backgroundColor: COPTIC_BG,
+             justifyContent: "center", alignItems: "center", flexShrink: 0 },
+  label:   { fontSize: 15, fontWeight: "600", color: T1 },
+  desc:    { fontSize: 13, color: T2, marginTop: 2 },
 });
 
 // ── Gospel grid ───────────────────────────────────────────────────────────────
@@ -528,7 +525,8 @@ var pmS = StyleSheet.create({
 
 // ── HourModal ─────────────────────────────────────────────────────────────────
 var HourModal = function(props) {
-  var visible = props.visible;
+  props = props || {};
+  var visible = !!props.visible;
   var hour = props.hour;
   var hourAssignments = props.hourAssignments;
   var deacons = props.deacons;
@@ -550,13 +548,21 @@ var HourModal = function(props) {
   var _manual = useState(""); var manual = _manual[0]; var setManual = _manual[1];
   var _manualOpen = useState(false); var manualOpen = _manualOpen[0]; var setManualOpen = _manualOpen[1];
 
+  var pickerSource = useMemo(function() {
+    var list = tab === "deacons" ? deacons : congregation;
+    return q ? list.filter(function(u) { return u.name.toLowerCase().includes(q.toLowerCase()); }) : list;
+  }, [tab, deacons, congregation, q]);
+
   useEffect(function() {
     if (!visible) { setPickerSlot(null); setPickerRow_(null); setSel(null); }
   }, [visible]);
 
-  if (!hour) return null;
+  if (!visible || !hour) return null;
 
   var rows              = expandReadings(hour, hourAssignments);
+  if (!hour.readings) {
+    console.warn("HourModal: hour.readings is not defined for hour", hour.id, "hour object keys:", Object.keys(hour));
+  }
   var counts            = countSlots(hour, hourAssignments);
   var total             = counts.total;
   var filled            = counts.filled;
@@ -564,10 +570,17 @@ var HourModal = function(props) {
   var pctVal            = total > 0 ? Math.round(filled / total * 100) : 0;
   var sheetMax          = screenH * 0.92;
 
-  var gospelGridRows = rows.filter(function(r) {
-    return (r.rKey === "gospel" || r.rKey === "gospels") && r.location;
-  });
+  var gospelGridRows = rows
+    .filter(function(r) {
+      return (r.rKey === "gospel" || r.rKey === "gospels") && r.location;
+    })
+    .sort(function(a, b) {
+      var ai = a.index != null && !isNaN(a.index) ? a.index : 9999;
+      var bi = b.index != null && !isNaN(b.index) ? b.index : 9999;
+      return ai - bi;
+    });
   var hasGospelGrid = gospelGridRows.length > 0;
+  var firstGospelGridSlotKey = hasGospelGrid ? gospelGridRows[0].slotKey : null;
 
   var openPicker = function(row) {
     setSel(hourAssignments[row.slotKey] || null);
@@ -597,10 +610,6 @@ var HourModal = function(props) {
   }
 
   var pickerScrollMax = sheetMax - (sel != null ? 330 : 270);
-  var pickerSource = useMemo(function() {
-    var list = tab === "deacons" ? deacons : congregation;
-    return q ? list.filter(function(u) { return u.name.toLowerCase().includes(q.toLowerCase()); }) : list;
-  }, [tab, deacons, congregation, q]);
 
   var rowLabel = function(row) {
     var meta = READING_META[row.rKey] || { label: row.rKey };
@@ -610,13 +619,11 @@ var HourModal = function(props) {
   };
 
   return (
-    <Modal visible={visible} animationType="none" transparent
-      onRequestClose={pickerSlot ? closePicker : onClose} statusBarTranslucent>
-      <TouchableWithoutFeedback onPress={pickerSlot ? closePicker : onClose}>
-        <View style={hm.backdrop}>
-          <TouchableWithoutFeedback>
-            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ width: "100%" }}>
-              <View style={[hm.sheet, { maxHeight: sheetMax }]}>
+    <Modal visible={visible} animationType="none" transparent onRequestClose={onClose} statusBarTranslucent>
+      <View style={hm.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={pickerSlot ? closePicker : onClose} />
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={hm.kav}>
+          <View style={[hm.sheet, { maxHeight: sheetMax }]}>
                 <View style={hm.handle} />
 
                 {!pickerSlot && (
@@ -636,10 +643,9 @@ var HourModal = function(props) {
                       <View style={[hm.trackFill, { width: pctVal + "%" }, complete && { backgroundColor: GREEN }]} />
                     </View>
                     <ScrollView
-                      style={{ flexGrow: 1, maxHeight: sheetMax - 140 }}
+                      style={{ maxHeight: Math.max(220, sheetMax - 165) }}
                       contentContainerStyle={hm.body}
                       showsVerticalScrollIndicator
-                      alwaysBounceVertical={false}
                       nestedScrollEnabled
                       keyboardShouldPersistTaps="handled">
                       {rows.map(function(row, i) {
@@ -648,7 +654,7 @@ var HourModal = function(props) {
                         var isPsalm     = isPsalmSlot(row.rKey);
                         var isExp       = row.rKey === "exposition";
                         var isGospelLoc = (row.rKey === "gospel" || row.rKey === "gospels") && row.location;
-                        var isFirstGospelGrid = hasGospelGrid && row.rKey === "gospels" && row.index === 0;
+                        var isFirstGospelGrid = firstGospelGridSlotKey != null && row.slotKey === firstGospelGridSlotKey;
                         var isCopticRow = row.isCoptic === true;
                         var assignee    = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
                         var label       = rowLabel(row);
@@ -863,17 +869,16 @@ var HourModal = function(props) {
                     </View>
                   </>
                 )}
-              </View>
-            </KeyboardAvoidingView>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };
 
 var hm = StyleSheet.create({
   backdrop:           { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },
+  kav:                { flex: 1, width: "100%", justifyContent: "flex-end" },
   sheet:              { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
                         paddingBottom: Platform.OS === "ios" ? 34 : 20, flexShrink: 1 },
   handle:             { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP,
@@ -963,8 +968,21 @@ var DayTabBar = function(props) {
   var schedule = props.schedule;
   var onSelect = props.onSelect;
   var fs = props.fontScale != null ? props.fontScale : 1;
+  var scrollRef = useRef(null);
+  var tabLayouts = useRef({});
+  var screenW = useWindowDimensions().width;
+
+  useEffect(function() {
+    if (!selectedId || !scrollRef.current) return;
+    var layout = tabLayouts.current[selectedId];
+    if (!layout) return;
+    var centeredX = layout.x - (screenW / 2) + (layout.width / 2);
+    var x = Math.max(0, centeredX);
+    scrollRef.current.scrollTo({ x: x, animated: true });
+  }, [selectedId, screenW]);
+
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}
+    <ScrollView ref={scrollRef} horizontal showsHorizontalScrollIndicator={false}
       contentContainerStyle={dt.content} style={dt.bar}>
       {allDays.map(function(day) {
         var ds = schedule[day.id] || {};
@@ -977,7 +995,9 @@ var DayTabBar = function(props) {
               .toLocaleDateString("en-US", { month: "short", day: "numeric" })
           : null;
         return (
-          <TouchableOpacity key={day.id} onPress={function() { onSelect(day.id); }}
+          <TouchableOpacity key={day.id}
+            onPress={function() { onSelect(day.id); }}
+            onLayout={function(e) { tabLayouts.current[day.id] = e.nativeEvent.layout; }}
             style={[dt.tab, active && dt.tabActive]} activeOpacity={0.75}>
             <View style={[dt.dot, complete ? dt.dotGreen : started ? dt.dotBlue : dt.dotGray]} />
             <Text style={[dt.label, active && dt.labelActive, { fontSize: sf(11, fs) }]}
@@ -1019,12 +1039,19 @@ var HourTile = React.memo(function(props) {
   var onSavePsalmReaders = props.onSavePsalmReaders;
   var onSaveLanguage = props.onSaveLanguage;
   var onSaveCopticToggle = props.onSaveCopticToggle;
+  var onOpenHour = props.onOpenHour;
   var fs = props.fontScale != null ? props.fontScale : 1;
 
-  var _hourOpen = useState(false); var hourOpen = _hourOpen[0]; var setHourOpen = _hourOpen[1];
-  var _psalmPickerRow = useState(null); var psalmPickerRow = _psalmPickerRow[0]; var setPsalmPickerRow = _psalmPickerRow[1];
-
-  var rows           = expandReadings(hour, hourAssignments);
+  var rows = expandReadings(hour, hourAssignments);
+  if (hour) {
+    var hasReadings = !!hour.readings;
+    var readingKeys = hasReadings ? Object.keys(hour.readings).filter(k => hour.readings[k]) : [];
+    if (rows.length === 0) {
+      console.warn("HourTile [" + hour.id + "]: No rows from expandReadings. readings=" + hasReadings + 
+        ", non-null reading keys=[" + readingKeys.join(", ") + "]" +
+        ", hour keys=[" + Object.keys(hour).join(", ") + "]");
+    }
+  }
   var assignableRows = rows.filter(function(r) { return isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey); });
   var counts         = countSlots(hour, hourAssignments);
   var total          = counts.total;
@@ -1043,7 +1070,7 @@ var HourTile = React.memo(function(props) {
 
   return (
     <>
-      <TouchableOpacity onPress={function() { setHourOpen(true); }} activeOpacity={0.72} style={ht.tile}>
+      <TouchableOpacity onPress={function() { if (onOpenHour) onOpenHour(hour); }} activeOpacity={0.72} style={ht.tile}>
         <View style={ht.titleRow}>
           <View style={[ht.accent, complete ? ht.accentDone : started ? ht.accentPartial : ht.accentEmpty]} />
           <Text style={[ht.name, { fontSize: sf(15, fs) }]}>{hour.label}</Text>
@@ -1123,37 +1150,6 @@ var HourTile = React.memo(function(props) {
           })}
         </View>
       </TouchableOpacity>
-
-      <HourModal
-        visible={hourOpen}
-        hour={hour}
-        hourAssignments={hourAssignments}
-        dayId={dayId}
-        deacons={deacons}
-        congregation={congregation}
-        loadingUsers={loadingUsers}
-        fontScale={fs}
-        onSaveReading={onSaveReading}
-        onSaveLanguage={onSaveLanguage}
-        onSaveCopticToggle={onSaveCopticToggle}
-        onOpenPsalmPicker={function(row) { setHourOpen(false); setPsalmPickerRow(row); }}
-        onClose={function() { setHourOpen(false); }}
-      />
-      <PsalmPickerModal
-        visible={!!psalmPickerRow}
-        refText={psalmPickerRow != null ? (psalmPickerRow.refText || "") : ""}
-        pickerLabel={psalmPickerRow != null ? rowDisplayLabel(psalmPickerRow) : ""}
-        currentReaders={psalmPickerRow != null ? (hourAssignments[psalmReadersKey(psalmPickerRow)] || []) : []}
-        deacons={deacons}
-        congregation={congregation}
-        loadingUsers={loadingUsers}
-        onSave={function(readers) {
-          if (psalmPickerRow != null) {
-            onSavePsalmReaders(hour.id, psalmReadersKey(psalmPickerRow), readers);
-          }
-        }}
-        onClose={function() { setPsalmPickerRow(null); setHourOpen(true); }}
-      />
     </>
   );
 });
@@ -1526,6 +1522,9 @@ export default function PaschaManager() {
   var _fontSizeScale = useState("medium"); var fontSizeScale = _fontSizeScale[0]; var setFontSizeScale = _fontSizeScale[1];
   var _fontSizeMultipliers = useState(DEFAULT_FONT_MULTIPLIERS);
   var fontSizeMultipliers = _fontSizeMultipliers[0]; var setFontSizeMultipliers = _fontSizeMultipliers[1];
+  var _hourOpen = useState(null); var hourOpen = _hourOpen[0]; var setHourOpen = _hourOpen[1];
+  var _psalmPickerRow = useState(null); var psalmPickerRow = _psalmPickerRow[0]; var setPsalmPickerRow = _psalmPickerRow[1];
+  var hourOpenForPsalmRef = useRef(null);
 
   var allDays  = useMemo(function() { return buildAllDays(scheduleShell); }, [scheduleShell]);
   var daysById = useMemo(function() {
@@ -1711,19 +1710,17 @@ export default function PaschaManager() {
 
   var ds = selectedId != null ? (schedule[selectedId] || {}) : {};
 
-  if (!scheduleShell) {
-    return (
-      <View style={mn.loadingWrap}>
-        <ActivityIndicator color={BLUE} size="large" />
-      </View>
-    );
-  }
-
   return (
     <View style={mn.container}>
       <StatusBar barStyle="light-content" />
 
-      <View style={mn.header}>
+      {!scheduleShell ? (
+        <View style={mn.loadingWrap}>
+          <ActivityIndicator color={BLUE} size="large" />
+        </View>
+      ) : (
+        <>
+          <View style={mn.header}>
         <View style={{ flex: 1 }}>
           <Text style={mn.eyebrow}>{"HOLY WEEK \u00B7 PASCHA"}</Text>
           <Text style={[mn.title, { fontSize: sf(28, activeFontMultiplier) }]}>Schedule</Text>
@@ -1799,10 +1796,62 @@ export default function PaschaManager() {
               onSavePsalmReaders={function(hourId, readersKey, readers) { return savePsalmReaders(selectedId, hourId, readersKey, readers); }}
               onSaveLanguage={function(hourId, slotKey, lang) { return saveLanguage(selectedId, hourId, slotKey, lang); }}
               onSaveCopticToggle={function(hourId, toggleKey, value) { return saveCopticToggle(selectedId, hourId, toggleKey, value); }}
+              onOpenHour={function(hour) { setHourOpen(hour); }}
             />
           );
         })}
       </ScrollView>
+        </>
+      )}
+
+      <HourModal
+        visible={!!hourOpen}
+        hour={hourOpen}
+        hourAssignments={hourOpen ? (ds[hourOpen.id] || {}) : {}}
+        dayId={selectedId}
+        deacons={deacons}
+        congregation={congregation}
+        loadingUsers={loadingUsers}
+        fontScale={activeFontMultiplier}
+        onSaveReading={function(hourId, slotKey, person) { return saveReading(selectedId, hourId, slotKey, person); }}
+        onSaveLanguage={function(hourId, slotKey, lang) { return saveLanguage(selectedId, hourId, slotKey, lang); }}
+        onSaveCopticToggle={function(hourId, toggleKey, value) { return saveCopticToggle(selectedId, hourId, toggleKey, value); }}
+        onOpenPsalmPicker={function(row) {
+          hourOpenForPsalmRef.current = hourOpen;
+          setHourOpen(null);
+          setPsalmPickerRow(row);
+        }}
+        onClose={function() { setHourOpen(null); }}
+      />
+
+      <PsalmPickerModal
+        visible={!!psalmPickerRow}
+        refText={psalmPickerRow != null ? (psalmPickerRow.refText || "") : ""}
+        pickerLabel={psalmPickerRow != null ? (function() {
+          var meta = READING_META[psalmPickerRow.rKey] || { label: psalmPickerRow.rKey };
+          if (psalmPickerRow.rKey === "homily")     return "Homily \u2014 " + (psalmPickerRow.author || psalmPickerRow.refText);
+          if (psalmPickerRow.rKey === "exposition") return "Exposition";
+          return psalmPickerRow.index != null ? (meta.label + " " + (psalmPickerRow.index + 1)) : meta.label;
+        })() : ""}
+        currentReaders={psalmPickerRow != null && hourOpenForPsalmRef.current != null
+          ? ((ds[hourOpenForPsalmRef.current.id] || {})[psalmReadersKey(psalmPickerRow)] || [])
+          : []}
+        deacons={deacons}
+        congregation={congregation}
+        loadingUsers={loadingUsers}
+        onSave={function(readers) {
+          var h = hourOpenForPsalmRef.current;
+          if (psalmPickerRow != null && h != null) {
+            savePsalmReaders(selectedId, h.id, psalmReadersKey(psalmPickerRow), readers);
+          }
+        }}
+        onClose={function() {
+          var restore = hourOpenForPsalmRef.current;
+          hourOpenForPsalmRef.current = null;
+          setPsalmPickerRow(null);
+          if (restore != null) setHourOpen(restore);
+        }}
+      />
 
       <SettingsSheet
         visible={settingsOpen}
