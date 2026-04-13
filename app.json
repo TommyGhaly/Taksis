@@ -2,6 +2,7 @@
   "expo": {
     "name": "Ⲧⲁⲝⲓⲥ",
     "slug": "taksis",
+    "scheme": "taksis",
     "version": "4.0.6",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -40,6 +41,7 @@
       }
     },
     "ios": {
+      "scheme": "exp+taksis",
       "googleServicesFile": "./GoogleService-Info.plist",
       "bundleIdentifier": "com.tghaly.taksis",
       "infoPlist": {
