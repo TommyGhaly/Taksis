@@ -215,31 +215,30 @@ var ProphecyCopticToggle = function(props) {
   };
   return (
     <View style={pct.row}>
-      <View style={pct.iconBox}>
-        <Icon name="translate" size={15} color={COPTIC_COLOR} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[pct.label, { fontSize: sf(15, fs) }]}>Read in Coptic</Text>
-        <Text style={[pct.desc, { fontSize: sf(13, fs) }]}>{enabled ? "Coptic reading enabled" : "Vernacular only"}</Text>
+      <View style={pct.labelRow}>
+        <View style={pct.alphaBox}>
+          <Text style={[pct.alpha, { fontSize: sf(18, fs) }]}>{"ⲁ"}</Text>
+        </View>
+        <Text style={[pct.label, { fontSize: sf(16, fs) }]}>Read in Coptic</Text>
       </View>
       <Switch
         value={enabled}
         onValueChange={handleChange}
-        trackColor={{ false: "rgba(255,255,255,0.12)", true: "rgba(245,158,11,0.55)" }}
-        thumbColor={T1}
-        ios_backgroundColor="rgba(255,255,255,0.12)"
+        trackColor={{ true: COPTIC_COLOR }}
       />
     </View>
   );
 };
 var pct = StyleSheet.create({
-  row:     { flexDirection: "row", alignItems: "center", gap: 12,
-             paddingVertical: 12, paddingHorizontal: 16, marginBottom: 10,
-             borderRadius: 14, backgroundColor: CARD2, borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.06)" },
-  iconBox: { width: 32, height: 32, borderRadius: 9, backgroundColor: COPTIC_BG,
-             justifyContent: "center", alignItems: "center", flexShrink: 0 },
-  label:   { fontSize: 15, fontWeight: "600", color: T1 },
-  desc:    { fontSize: 13, color: T2, marginTop: 2 },
+  row:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+              paddingVertical: 14, paddingHorizontal: 16, marginBottom: 8,
+              borderRadius: 14, backgroundColor: "rgba(255,255,255,0.05)",
+              borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.06)" },
+  labelRow: { flexDirection: "row", alignItems: "center", flex: 1, marginRight: 12, gap: 10 },
+  alphaBox: { width: 32, height: 32, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.05)",
+              justifyContent: "center", alignItems: "center", flexShrink: 0 },
+  alpha:    { fontWeight: "800", color: COPTIC_COLOR },
+  label:    { color: T1, fontWeight: "500", flex: 1 },
 });
 
 // ── Gospel grid ───────────────────────────────────────────────────────────────
