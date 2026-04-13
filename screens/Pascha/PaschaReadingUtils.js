@@ -412,8 +412,9 @@ export function expandReadings(hour, hourAssignments = {}) {
 // ─── countSlots ───────────────────────────────────────────────────────────────
 export function countSlots(hour, ha) {
   let total = 0, filled = 0;
-  const hasPsalm = expandReadings(hour, ha).some(r => r.rKey === "psalm");
-  expandReadings(hour, ha).forEach(({ slotKey, rKey }) => {
+  const rows = expandReadings(hour, ha);
+  const hasPsalm = rows.some(r => r.rKey === "psalm");
+  rows.forEach(({ slotKey, rKey }) => {
     if (rKey === "psalm") return;
     if (!isAssignableSlot(rKey)) return;
     total++;
