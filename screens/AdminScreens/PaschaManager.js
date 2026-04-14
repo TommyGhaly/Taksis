@@ -1273,9 +1273,7 @@ var SettingsSheet = function(props) {
                 <Switch
                   value={myReadingsVisible}
                   onValueChange={onToggleMyReadings}
-                  trackColor={{ false: "rgba(255,255,255,0.12)", true: "rgba(48,209,88,0.55)" }}
-                  thumbColor={T1}
-                  ios_backgroundColor="rgba(255,255,255,0.12)"
+                  trackColor={{ true: GREEN }}
                 />
               </View>
             </View>
@@ -1292,9 +1290,7 @@ var SettingsSheet = function(props) {
                 <Switch
                   value={fullScheduleVisible}
                   onValueChange={onToggleFullSchedule}
-                  trackColor={{ false: "rgba(255,255,255,0.12)", true: "rgba(10,132,255,0.55)" }}
-                  thumbColor={T1}
-                  ios_backgroundColor="rgba(255,255,255,0.12)"
+                  trackColor={{ true: BLUE }}
                 />
               </View>
             </View>

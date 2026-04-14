@@ -3,7 +3,7 @@
     "name": "Ⲧⲁⲝⲓⲥ",
     "slug": "taksis",
     "scheme": "taksis",
-    "version": "4.0.6",
+    "version": "4.0.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
