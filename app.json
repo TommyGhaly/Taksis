@@ -62,7 +62,7 @@
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.tghaly.taksis",
-      "versionCode": 56,
+      "versionCode": 57,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
