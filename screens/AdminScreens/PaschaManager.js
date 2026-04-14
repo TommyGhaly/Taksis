@@ -546,6 +546,9 @@ var HourModal = function(props) {
   var _q = useState(""); var q = _q[0]; var setQ = _q[1];
   var _manual = useState(""); var manual = _manual[0]; var setManual = _manual[1];
   var _manualOpen = useState(false); var manualOpen = _manualOpen[0]; var setManualOpen = _manualOpen[1];
+  var bodyScrollRef    = useRef(null);
+  var bodyScrollYRef   = useRef(0);
+  var restoreScrollRef = useRef(false);
 
   var pickerSource = useMemo(function() {
     var list = tab === "deacons" ? deacons : congregation;
@@ -555,6 +558,17 @@ var HourModal = function(props) {
   useEffect(function() {
     if (!visible) { setPickerSlot(null); setPickerRow_(null); setSel(null); }
   }, [visible]);
+
+  useEffect(function() {
+    if (pickerSlot) return;
+    if (!restoreScrollRef.current) return;
+    restoreScrollRef.current = false;
+    requestAnimationFrame(function() {
+      if (bodyScrollRef.current && bodyScrollYRef.current > 0) {
+        bodyScrollRef.current.scrollTo({ y: bodyScrollYRef.current, animated: false });
+      }
+    });
+  }, [pickerSlot]);
 
   if (!visible || !hour) return null;
 
@@ -586,7 +600,7 @@ var HourModal = function(props) {
     setTab("deacons"); setQ(""); setManual(""); setManualOpen(false);
     setPickerSlot(row.slotKey); setPickerRow_(row);
   };
-  var closePicker  = function() { setPickerSlot(null); setPickerRow_(null); };
+  var closePicker  = function() { restoreScrollRef.current = true; setPickerSlot(null); setPickerRow_(null); };
   var commitPicker = function() { onSaveReading(hour.id, pickerSlot, sel != null ? sel : null); closePicker(); };
 
   var pickerMeta  = pickerRow_ != null
@@ -642,10 +656,13 @@ var HourModal = function(props) {
                       <View style={[hm.trackFill, { width: pctVal + "%" }, complete && { backgroundColor: GREEN }]} />
                     </View>
                     <ScrollView
+                      ref={bodyScrollRef}
                       style={{ maxHeight: Math.max(220, sheetMax - 165) }}
                       contentContainerStyle={hm.body}
                       showsVerticalScrollIndicator
                       nestedScrollEnabled
+                      scrollEventThrottle={16}
+                      onScroll={function(e) { bodyScrollYRef.current = e != null && e.nativeEvent ? e.nativeEvent.contentOffset.y : 0; }}
                       keyboardShouldPersistTaps="handled">
                       {rows.map(function(row, i) {
                         var meta        = READING_META[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
@@ -1817,7 +1834,6 @@ export default function PaschaManager() {
         onSaveCopticToggle={function(hourId, toggleKey, value) { return saveCopticToggle(selectedId, hourId, toggleKey, value); }}
         onOpenPsalmPicker={function(row) {
           hourOpenForPsalmRef.current = hourOpen;
-          setHourOpen(null);
           setPsalmPickerRow(row);
         }}
         onClose={function() { setHourOpen(null); }}
@@ -1845,10 +1861,7 @@ export default function PaschaManager() {
           }
         }}
         onClose={function() {
-          var restore = hourOpenForPsalmRef.current;
-          hourOpenForPsalmRef.current = null;
           setPsalmPickerRow(null);
-          if (restore != null) setHourOpen(restore);
         }}
       />
 
