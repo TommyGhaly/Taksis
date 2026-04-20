@@ -216,28 +216,31 @@ var ProphecyCopticToggle = function(props) {
     <View style={pct.row}>
       <View style={pct.labelRow}>
         <View style={pct.alphaBox}>
-          <Text style={[pct.alpha, { fontSize: sf(18, fs) }]}>{"ⲁ"}</Text>
+          <Text style={[pct.alpha, { fontSize: sf(10, fs), lineHeight: sf(10, fs) }]}>{"ⲁ"}</Text>
         </View>
-        <Text style={[pct.label, { fontSize: sf(16, fs) }]}>Read in Coptic</Text>
+        <Text style={[pct.label, { fontSize: sf(11, fs) }]}>Read in Coptic</Text>
       </View>
       <Switch
         value={enabled}
         onValueChange={handleChange}
         trackColor={{ true: COPTIC_COLOR }}
+        style={pct.toggle}
       />
     </View>
   );
 };
 var pct = StyleSheet.create({
   row:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-              paddingVertical: 14, paddingHorizontal: 16, marginBottom: 8,
-              borderRadius: 14, backgroundColor: "rgba(255,255,255,0.05)",
+              paddingVertical: 3, paddingHorizontal: 8, marginTop: 8, marginBottom: 6,
+              borderRadius: 9, backgroundColor: "rgba(255,255,255,0.05)",
               borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.06)" },
-  labelRow: { flexDirection: "row", alignItems: "center", flex: 1, marginRight: 12, gap: 10 },
-  alphaBox: { width: 32, height: 32, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.05)",
+  labelRow: { flexDirection: "row", alignItems: "center", flex: 1, marginRight: 8, gap: 6 },
+  alphaBox: { width: 22, height: 22, borderRadius: 6, backgroundColor: "rgba(255,255,255,0.03)",
+              borderWidth: 1, borderColor: "rgba(255,255,255,0.2)",
               justifyContent: "center", alignItems: "center", flexShrink: 0 },
-  alpha:    { fontWeight: "800", color: COPTIC_COLOR },
-  label:    { color: T1, fontWeight: "500", flex: 1 },
+  alpha:    { fontWeight: "600", color: T3, textAlign: "center", textAlignVertical: "center", includeFontPadding: false },
+  label:    { color: T2, fontWeight: "400", flex: 1 },
+  toggle:   { transform: [{ scaleX: 0.88 }, { scaleY: 0.88 }] },
 });
 
 // ── Gospel grid ───────────────────────────────────────────────────────────────
@@ -564,15 +567,6 @@ var HourModal = function(props) {
                             onSave={function(slotKey, lang) { onSaveLanguage(hour.id, slotKey, lang); }} />
                         </View>
 
-                        {row.rKey === "prophecies" && row.hasCopticOption && (
-                          <ProphecyCopticToggle
-                            vernacularSlotKey={row.slotKey}
-                            hourAssignments={hourAssignments}
-                            fontScale={fs}
-                            onSave={function(key, value) { onSaveCopticToggle(hour.id, key, value); }}
-                          />
-                        )}
-
                         {isFirstGospelGrid && (
                           <GospelGrid rows={gospelGridRows} hourAssignments={hourAssignments}
                             onOpenPicker={openPicker} fontScale={fs} />
@@ -600,6 +594,14 @@ var HourModal = function(props) {
                               </>
                             )}
                           </TouchableOpacity>
+                        )}
+                        {row.rKey === "prophecies" && row.hasCopticOption && (
+                          <ProphecyCopticToggle
+                            vernacularSlotKey={row.slotKey}
+                            hourAssignments={hourAssignments}
+                            fontScale={fs}
+                            onSave={function(key, value) { onSaveCopticToggle(hour.id, key, value); }}
+                          />
                         )}
                       </View>
                     );
