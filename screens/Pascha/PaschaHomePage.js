@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
-  View, Text, TouchableOpacity, ScrollView,
-  StyleSheet, Image, ActivityIndicator, StatusBar,
+  View, Text, TouchableOpacity, ScrollView, Switch, Modal,
+  StyleSheet, Image, ActivityIndicator, StatusBar, Platform,
   useWindowDimensions,
 } from "react-native";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
@@ -18,6 +18,8 @@ const DEFAULT_AVATAR = require("../../assets/default_profile.png");
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 const BG      = "#0f0f0f";
+const CARD    = "#1c1c1e";
+const CARD2   = "#2c2c2e";
 const GLASS   = "rgba(255,255,255,0.055)";
 const GLASS2  = "rgba(255,255,255,0.09)";
 const GLASS_B = "rgba(255,255,255,0.1)";
@@ -38,6 +40,19 @@ const COPTIC_RKEYS = new Set([
   "gospel_coptic",
   "gospels_coptic",
 ]);
+
+// ── Font size multiplier (mirrors PaschaManager) ──────────────────────────────
+const DEFAULT_FONT_MULTIPLIERS = { small: 0.85, medium: 1.0, large: 1.18 };
+
+function resolvedFontScale(fontSizeScale, fontSizeMultipliers) {
+  const map = fontSizeMultipliers != null ? fontSizeMultipliers : DEFAULT_FONT_MULTIPLIERS;
+  const result = map[fontSizeScale];
+  return result != null ? result : 1.0;
+}
+
+function sf(base, multiplier) {
+  return Math.round(base * multiplier * 10) / 10;
+}
 
 // ── Day helpers ───────────────────────────────────────────────────────────────
 function buildAllDays(shell) {
@@ -101,9 +116,6 @@ function getVisibleHours(hours, daySchedule) {
   });
 }
 
-// ── Label builder ─────────────────────────────────────────────────────────────
-// READING_META already has "(Coptic)" baked into Coptic rKey labels,
-// so no special-casing needed here — just append the index if present.
 function buildReadingLabel(row) {
   const meta = READING_META[row.rKey] || { label: row.rKey };
   if (row.rKey === "homily")     return `Homily — ${row.author || row.refText}`;
@@ -134,8 +146,94 @@ const Avatar = ({ uid, size = 26 }) => {
   );
 };
 
+// ── Settings Sheet (home page variant: font size + hide names only) ───────────
+const HomeSettingsSheet = ({ visible, fontSizeScale, hideNames, onSetFontSize, onToggleHideNames, onClose }) => (
+  <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
+    <View style={ss.backdrop}>
+      <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
+      <View style={ss.sheet}>
+        <View style={ss.handle} />
+        <View style={ss.hdr}>
+          <Text style={ss.hdrTitle}>Settings</Text>
+          <TouchableOpacity style={ss.xBtn} onPress={onClose} activeOpacity={0.7}>
+            <Icon name="close" size={17} color={T2} />
+          </TouchableOpacity>
+        </View>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 12 }}>
+
+          <View style={ss.card}>
+            <View style={ss.row}>
+              <View style={[ss.iconBox, { backgroundColor: BLUE_D }]}>
+                <Icon name={hideNames ? "account-off-outline" : "account-outline"} size={19} color={BLUE2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={ss.label}>Hide Reader Names</Text>
+                <Text style={ss.desc}>
+                  {hideNames ? "Reader names are hidden" : "Reader names are visible"}
+                </Text>
+              </View>
+              <Switch
+                value={hideNames}
+                onValueChange={onToggleHideNames}
+                trackColor={{ true: BLUE }}
+              />
+            </View>
+          </View>
+
+          <View style={ss.card}>
+            <View style={ss.row}>
+              <View style={[ss.iconBox, { backgroundColor: "rgba(167,139,250,0.12)" }]}>
+                <Icon name="format-size" size={19} color="#a78bfa" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={ss.label}>Font Size</Text>
+                <Text style={ss.desc}>{fontSizeScale.charAt(0).toUpperCase() + fontSizeScale.slice(1)}</Text>
+              </View>
+            </View>
+            <View style={ss.fontSizeRow}>
+              {["small", "medium", "large"].map(size => (
+                <TouchableOpacity key={size} onPress={() => onSetFontSize(size)}
+                  style={[ss.fontSizeBtn, fontSizeScale === size && ss.fontSizeBtnActive]}
+                  activeOpacity={0.7}>
+                  <Text style={[ss.fontSizeBtnTxt, fontSizeScale === size && ss.fontSizeBtnTxtActive,
+                    { fontSize: size === "small" ? 12 : size === "large" ? 16 : 13 }]}>
+                    {size.charAt(0).toUpperCase() + size.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+        </ScrollView>
+      </View>
+    </View>
+  </Modal>
+);
+const ss = StyleSheet.create({
+  backdrop:             { flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "flex-end" },
+  sheet:                { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
+                          maxHeight: "90%", paddingBottom: Platform.OS === "ios" ? 34 : 20 },
+  handle:               { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP,
+                          alignSelf: "center", marginTop: 12 },
+  hdr:                  { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                          paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: SEP },
+  hdrTitle:             { fontSize: 20, fontWeight: "700", color: T1 },
+  xBtn:                 { width: 32, height: 32, borderRadius: 16, backgroundColor: CARD2,
+                          justifyContent: "center", alignItems: "center" },
+  card:                 { backgroundColor: CARD2, borderRadius: 14, padding: 16 },
+  row:                  { flexDirection: "row", alignItems: "center", gap: 12, paddingRight: 4 },
+  iconBox:              { width: 40, height: 40, borderRadius: 11, justifyContent: "center", alignItems: "center" },
+  label:                { fontSize: 15, fontWeight: "600", color: T1 },
+  desc:                 { fontSize: 13, color: T2, marginTop: 2 },
+  fontSizeRow:          { flexDirection: "row", gap: 10, marginTop: 12 },
+  fontSizeBtn:          { flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: CARD, alignItems: "center" },
+  fontSizeBtnActive:    { backgroundColor: "rgba(167,139,250,0.2)", borderWidth: 1, borderColor: "rgba(167,139,250,0.4)" },
+  fontSizeBtnTxt:       { fontSize: 13, fontWeight: "600", color: T2 },
+  fontSizeBtnTxtActive: { color: "#a78bfa", fontWeight: "700" },
+});
+
 // ── Day Tab Bar ───────────────────────────────────────────────────────────────
-const DayTabBar = ({ allDays, selectedId, easterDate, schedule, uid, onSelect }) => (
+const DayTabBar = ({ allDays, selectedId, easterDate, schedule, uid, onSelect, fontScale = 1 }) => (
   <ScrollView horizontal showsHorizontalScrollIndicator={false}
     contentContainerStyle={dt.content} style={dt.bar}>
     {allDays.map(day => {
@@ -150,12 +248,12 @@ const DayTabBar = ({ allDays, selectedId, easterDate, schedule, uid, onSelect })
           style={[dt.tab, active && dt.tabActive]} activeOpacity={0.75}>
           {hasMe && <View style={dt.dot} />}
           <Text
-            style={[dt.label, active && dt.labelActive]}
+            style={[dt.label, active && dt.labelActive, { fontSize: sf(11, fontScale) }]}
             numberOfLines={2}
             adjustsFontSizeToFit
             minimumFontScale={0.7}
           >{day.shortLabel}</Text>
-          {dateStr && <Text style={[dt.date, active && dt.dateActive]}>{dateStr}</Text>}
+          {dateStr && <Text style={[dt.date, active && dt.dateActive, { fontSize: sf(9, fontScale) }]}>{dateStr}</Text>}
         </TouchableOpacity>
       );
     })}
@@ -174,13 +272,12 @@ const dt = StyleSheet.create({
 });
 
 // ── Reading Card ──────────────────────────────────────────────────────────────
-const ReadingCard = ({ row, hourAssignments, uid, isFullSchedule, isMine, hideNames }) => {
+const ReadingCard = ({ row, hourAssignments, uid, isFullSchedule, isMine, hideNames, fontScale = 1 }) => {
   const isCopticRow = COPTIC_RKEYS.has(row.rKey);
   const meta        = READING_META[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
   const isPsalm     = isPsalmSlot(row.rKey);
   const isExp       = row.rKey === "exposition";
 
-  // Coptic rows are always orange; vernacular rows use their meta color
   const accentColor = isCopticRow ? COPTIC_COLOR : meta.color;
   const accentBg    = isCopticRow ? COPTIC_BG    : meta.color + "1a";
 
@@ -198,34 +295,31 @@ const ReadingCard = ({ row, hourAssignments, uid, isFullSchedule, isMine, hideNa
           <Icon name={meta.icon} size={15} color={accentColor} />
         </View>
 
-        {/* Label — Coptic rKeys already say "Gospel (Coptic)" / "Prophecy (Coptic)" from READING_META */}
-        <Text style={[rdc.typeLabel, { color: accentColor }]}>{label}</Text>
+        <Text style={[rdc.typeLabel, { color: accentColor, fontSize: sf(11, fontScale) }]}>{label}</Text>
 
-        {/* Orange COPTIC badge — visually separates the two gospel roles */}
         {isCopticRow && (
           <View style={rdc.copticBadge}>
-            <Text style={rdc.copticBadgeTxt}>COPTIC</Text>
+            <Text style={[rdc.copticBadgeTxt, { fontSize: sf(9, fontScale) }]}>COPTIC</Text>
           </View>
         )}
 
         {showLang && (
           <View style={rdc.langBadge}>
-            <Text style={rdc.langBadgeTxt}>{langShort(effectiveLanguage(row, hourAssignments))}</Text>
+            <Text style={[rdc.langBadgeTxt, { fontSize: sf(9, fontScale) }]}>{langShort(effectiveLanguage(row, hourAssignments))}</Text>
           </View>
         )}
 
-        {isMine && <View style={rdc.youPill}><Text style={rdc.youTxt}>You</Text></View>}
+        {isMine && <View style={rdc.youPill}><Text style={[rdc.youTxt, { fontSize: sf(9, fontScale) }]}>You</Text></View>}
       </View>
 
       {!!row.refText && row.rKey !== "homily" && !isExp && (
-        <Text style={rdc.ref}>{row.refText}</Text>
+        <Text style={[rdc.ref, { fontSize: sf(14, fontScale) }]}>{row.refText}</Text>
       )}
 
-      {/* Location — surfaces station info for Palm Sunday procession gospels etc. */}
       {!!row.location && (
         <View style={rdc.locationRow}>
           <Icon name="map-marker-outline" size={11} color={T3} />
-          <Text style={rdc.loc}>{row.location}</Text>
+          <Text style={[rdc.loc, { fontSize: sf(11, fontScale) }]}>{row.location}</Text>
         </View>
       )}
 
@@ -234,13 +328,15 @@ const ReadingCard = ({ row, hourAssignments, uid, isFullSchedule, isMine, hideNa
           {isPsalm ? readers.map((r, i) => (
             <View key={r.uid || i} style={[rdc.chip, r.uid === uid && rdc.chipMe, isCopticRow && rdc.chipCoptic]}>
               <Avatar uid={r.uid} size={16} />
-              <Text style={[rdc.chipName, r.uid === uid && rdc.chipNameMe, isCopticRow && rdc.chipNameCoptic]}
+              <Text style={[rdc.chipName, r.uid === uid && rdc.chipNameMe, isCopticRow && rdc.chipNameCoptic,
+                { fontSize: sf(11, fontScale) }]}
                 numberOfLines={1}>{r.name}</Text>
             </View>
           )) : (
             <View style={[rdc.chip, isMine && rdc.chipMe, isCopticRow && rdc.chipCoptic]}>
               <Avatar uid={assignee.uid} size={16} />
-              <Text style={[rdc.chipName, isMine && rdc.chipNameMe, isCopticRow && rdc.chipNameCoptic]}
+              <Text style={[rdc.chipName, isMine && rdc.chipNameMe, isCopticRow && rdc.chipNameCoptic,
+                { fontSize: sf(11, fontScale) }]}
                 numberOfLines={1}>{assignee.name}</Text>
             </View>
           )}
@@ -275,7 +371,7 @@ const rdc = StyleSheet.create({
 });
 
 // ── Single Hour Page ──────────────────────────────────────────────────────────
-const HourPage = ({ hour, ha, uid, isFullSchedule, hideNames, pageWidth, pageLabel }) => {
+const HourPage = ({ hour, ha, uid, isFullSchedule, hideNames, pageWidth, pageLabel, fontScale = 1 }) => {
   const mySlotSet  = getMySlots(hour, ha, uid);
   const hasMe      = mySlotSet.size > 0;
   const assignable = expandReadings(hour, ha).filter(r => isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey));
@@ -284,18 +380,18 @@ const HourPage = ({ hour, ha, uid, isFullSchedule, hideNames, pageWidth, pageLab
       <View style={pg.hourHeader}>
         <View style={[pg.hourAccent, { backgroundColor: hasMe ? BLUE : "rgba(255,255,255,0.15)" }]} />
         <View style={{ flex: 1 }}>
-          <Text style={pg.hourLabel}>{hour.label}</Text>
+          <Text style={[pg.hourLabel, { fontSize: sf(17, fontScale) }]}>{hour.label}</Text>
           {hasMe && (
-            <Text style={pg.hourSub}>
+            <Text style={[pg.hourSub, { fontSize: sf(12, fontScale) }]}>
               {mySlotSet.size} reading{mySlotSet.size !== 1 ? "s" : ""} for you
             </Text>
           )}
         </View>
-        <Text style={pg.pageCount}>{pageLabel}</Text>
+        <Text style={[pg.pageCount, { fontSize: sf(11, fontScale) }]}>{pageLabel}</Text>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={pg.cardsScroll}>
         {assignable.length === 0
-          ? <View style={pg.emptyHour}><Text style={pg.emptyHourTxt}>No assigned readings</Text></View>
+          ? <View style={pg.emptyHour}><Text style={[pg.emptyHourTxt, { fontSize: sf(13, fontScale) }]}>No assigned readings</Text></View>
           : assignable.map(row => (
             <ReadingCard
               key={row.slotKey}
@@ -305,6 +401,7 @@ const HourPage = ({ hour, ha, uid, isFullSchedule, hideNames, pageWidth, pageLab
               isFullSchedule={isFullSchedule}
               isMine={mySlotSet.has(row.slotKey)}
               hideNames={hideNames}
+              fontScale={fontScale}
             />
           ))
         }
@@ -314,7 +411,7 @@ const HourPage = ({ hour, ha, uid, isFullSchedule, hideNames, pageWidth, pageLab
 };
 
 // ── Hour Pager ────────────────────────────────────────────────────────────────
-const HourPagerController = ({ hours, daySchedule, uid, isFullSchedule, hideNames, targetHourId }) => {
+const HourPagerController = ({ hours, daySchedule, uid, isFullSchedule, hideNames, targetHourId, fontScale = 1 }) => {
   const { width } = useWindowDimensions();
   const visibleHours = useMemo(() => getVisibleHours(hours, daySchedule), [hours, daySchedule]);
 
@@ -343,7 +440,7 @@ const HourPagerController = ({ hours, daySchedule, uid, isFullSchedule, hideName
     return (
       <View style={pg.empty}>
         <Icon name="cross" size={28} color={T3} />
-        <Text style={pg.emptyTxt}>No readings assigned for this day</Text>
+        <Text style={[pg.emptyTxt, { fontSize: sf(14, fontScale) }]}>No readings assigned for this day</Text>
       </View>
     );
   }
@@ -399,6 +496,7 @@ const HourPagerController = ({ hours, daySchedule, uid, isFullSchedule, hideName
             hideNames={hideNames}
             pageWidth={width}
             pageLabel={`${clamped + 1} / ${visibleHours.length}`}
+            fontScale={fontScale}
           />
         ))}
       </ScrollView>
@@ -429,7 +527,7 @@ const pg = StyleSheet.create({
 });
 
 // ── Timeline Day Card ─────────────────────────────────────────────────────────
-const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onHourPress }) => {
+const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onHourPress, fontScale = 1 }) => {
   const dateStr = easterDate ? calcDate(easterDate, day.easterOffset) : null;
   const myHours = [];
   (day.hours || []).forEach(h => {
@@ -442,7 +540,6 @@ const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onHourPres
   });
   const total = myHours.reduce((a, h) => a + h.rows.length, 0);
 
-  // Keep coptic and vernacular gospel as separate distinct pill types
   const allTypes = [...new Set(myHours.flatMap(h => h.rows.map(r => r.rKey)))];
 
   const handleCardPress = () => {
@@ -459,10 +556,10 @@ const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onHourPres
         <TouchableOpacity onPress={handleCardPress} activeOpacity={0.78}>
           <View style={tl.cardHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={tl.dayLabel}>{day.label}</Text>
-              {dateStr && <Text style={tl.dateStr}>{dateStr}</Text>}
+              <Text style={[tl.dayLabel, { fontSize: sf(16, fontScale) }]}>{day.label}</Text>
+              {dateStr && <Text style={[tl.dateStr, { fontSize: sf(12, fontScale) }]}>{dateStr}</Text>}
             </View>
-            <View style={tl.badge}><Text style={tl.badgeNum}>{total}</Text></View>
+            <View style={tl.badge}><Text style={[tl.badgeNum, { fontSize: sf(15, fontScale) }]}>{total}</Text></View>
           </View>
           <View style={tl.pillRow}>
             {allTypes.map(rKey => {
@@ -475,7 +572,7 @@ const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onHourPres
                   isCopticKey && tl.pillCoptic,
                 ]}>
                   <Icon name={m.icon} size={10} color={m.color} />
-                  <Text style={[tl.pillTxt, { color: m.color }]}>{m.label}</Text>
+                  <Text style={[tl.pillTxt, { color: m.color, fontSize: sf(10, fontScale) }]}>{m.label}</Text>
                 </View>
               );
             })}
@@ -485,9 +582,9 @@ const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onHourPres
           <TouchableOpacity key={hour.id}
             style={[tl.hourRow, hi > 0 && { borderTopWidth: 1, borderTopColor: SEP }]}
             onPress={() => onHourPress(day.id, hour.id)} activeOpacity={0.7}>
-            <Text style={tl.hourLabel}>{hour.label}</Text>
+            <Text style={[tl.hourLabel, { fontSize: sf(13, fontScale) }]}>{hour.label}</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <Text style={tl.hourCount}>{rows.length} {rows.length === 1 ? "reading" : "readings"}</Text>
+              <Text style={[tl.hourCount, { fontSize: sf(12, fontScale) }]}>{rows.length} {rows.length === 1 ? "reading" : "readings"}</Text>
               <Icon name="chevron-right" size={13} color={BLUE2} />
             </View>
           </TouchableOpacity>
@@ -529,8 +626,12 @@ export default function PaschaHomePage() {
   const [myReadingsOn, setMyReadingsOn]     = useState(false);
   const [hideNames, setHideNames]   = useState(false);
   const [nav, setNav]               = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [fontSizeScale, setFontSizeScale] = useState("medium");
+  const [fontSizeMultipliers, setFontSizeMultipliers] = useState(DEFAULT_FONT_MULTIPLIERS);
 
   const isFullSchedule = fullScheduleOn;
+  const fontScale = resolvedFontScale(fontSizeScale, fontSizeMultipliers);
 
   const allDays  = useMemo(() => buildAllDays(scheduleShell), [scheduleShell]);
   const daysById = useMemo(() => Object.fromEntries(allDays.map(d => [d.id, d])), [allDays]);
@@ -552,8 +653,10 @@ export default function PaschaHomePage() {
     setUid(user.uid);
     const unsub = firestore().collection("users").doc(user.uid).onSnapshot(doc => {
       if (!isMounted.current || !doc.exists) return;
-      setChurchId(doc.data().church || null);
-      setHideNames(doc.data().paschaHideNames ?? false);
+      const data = doc.data();
+      setChurchId(data.church || null);
+      setHideNames(data.paschaHideNames ?? false);
+      setFontSizeScale(data.paschaFontSize ?? "medium");
     });
     return () => { isMounted.current = false; unsub(); };
   }, []);
@@ -578,7 +681,7 @@ export default function PaschaHomePage() {
         setFullScheduleOn(d.fullScheduleVisible ?? false);
         setMyReadingsOn(d.myReadingsVisible ?? false);
         setEasterDate(d.easterDate ?? null);
-        setHideNames(d.paschaHideNames ?? false);
+        if (d.fontSizeMultipliers) setFontSizeMultipliers(d.fontSizeMultipliers);
       });
     const unsubSchedule = firestore()
       .collection("churches").doc(churchId)
@@ -589,6 +692,22 @@ export default function PaschaHomePage() {
       });
     return () => { unsubShell(); unsubConfig(); unsubSchedule(); };
   }, [churchId]);
+
+  const persistHideNames = useCallback(async (next) => {
+    setHideNames(next);
+    if (uid) {
+      await firestore().collection("users").doc(uid)
+        .update({ paschaHideNames: next }).catch(() => {});
+    }
+  }, [uid]);
+
+  const persistFontSize = useCallback(async (size) => {
+    setFontSizeScale(size);
+    if (uid) {
+      await firestore().collection("users").doc(uid)
+        .update({ paschaFontSize: size }).catch(() => {});
+    }
+  }, [uid]);
 
   const myReadingsData = useMemo(
     () => collectMyReadings(allDays, schedule, uid),
@@ -624,26 +743,19 @@ export default function PaschaHomePage() {
             <Icon name="arrow-left" size={18} color={T1} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={mn.eyebrow}>{isFullSchedule ? "FULL SCHEDULE" : "MY READINGS"}</Text>
-            <Text style={mn.title} numberOfLines={1}>{dayDef.label}</Text>
-            {dateStr && <Text style={mn.subtitle}>{dateStr}</Text>}
+            <Text style={[mn.eyebrow, { fontSize: sf(11, fontScale) }]}>
+              {isFullSchedule ? "FULL SCHEDULE" : "MY READINGS"}
+            </Text>
+            <Text style={[mn.title, { fontSize: sf(26, fontScale) }]} numberOfLines={1}>{dayDef.label}</Text>
+            {dateStr && <Text style={[mn.subtitle, { fontSize: sf(13, fontScale) }]}>{dateStr}</Text>}
           </View>
-          <TouchableOpacity
-            style={[mn.nameToggleBtn, hideNames && mn.nameToggleBtnActive]}
-            onPress={async () => {
-              const next = !hideNames;
-              setHideNames(next);
-              if (uid) await firestore().collection("users").doc(uid)
-                .update({ paschaHideNames: next }).catch(() => {});
-            }}
-            activeOpacity={0.75}>
-            <Icon name={hideNames ? "account-off-outline" : "account-outline"} size={16}
-              color={hideNames ? BLUE2 : T2} />
+          <TouchableOpacity style={mn.cogBtn} onPress={() => setSettingsOpen(true)} activeOpacity={0.7}>
+            <Icon name="cog-outline" size={18} color={T2} />
           </TouchableOpacity>
         </View>
         <View style={{ height: 74 }}>
           <DayTabBar allDays={allDays} selectedId={nav.dayId} easterDate={easterDate}
-            schedule={schedule} uid={uid} onSelect={goToDay} />
+            schedule={schedule} uid={uid} onSelect={goToDay} fontScale={fontScale} />
         </View>
         <HourPagerController
           key={`${nav.dayId}__${nav.hourId || "0"}`}
@@ -653,6 +765,15 @@ export default function PaschaHomePage() {
           isFullSchedule={isFullSchedule}
           hideNames={hideNames}
           targetHourId={nav.hourId}
+          fontScale={fontScale}
+        />
+        <HomeSettingsSheet
+          visible={settingsOpen}
+          fontSizeScale={fontSizeScale}
+          hideNames={hideNames}
+          onSetFontSize={persistFontSize}
+          onToggleHideNames={persistHideNames}
+          onClose={() => setSettingsOpen(false)}
         />
       </View>
     );
@@ -663,13 +784,16 @@ export default function PaschaHomePage() {
       <StatusBar barStyle="light-content" />
       <View style={mn.header}>
         <View style={{ flex: 1 }}>
-          <Text style={mn.eyebrow}>HOLY WEEK  ·  PASCHA</Text>
-          <Text style={mn.title}>{isFullSchedule ? "Schedule" : "My Readings"}</Text>
+          <Text style={[mn.eyebrow, { fontSize: sf(11, fontScale) }]}>HOLY WEEK  ·  PASCHA</Text>
+          <Text style={[mn.title, { fontSize: sf(26, fontScale) }]}>{isFullSchedule ? "Schedule" : "My Readings"}</Text>
         </View>
+        <TouchableOpacity style={mn.cogBtn} onPress={() => setSettingsOpen(true)} activeOpacity={0.7}>
+          <Icon name="cog-outline" size={20} color={T2} />
+        </TouchableOpacity>
       </View>
       <View style={{ height: 74 }}>
         <DayTabBar allDays={allDays} selectedId={null} easterDate={easterDate}
-          schedule={schedule} uid={uid} onSelect={goToDay} />
+          schedule={schedule} uid={uid} onSelect={goToDay} fontScale={fontScale} />
       </View>
       <ScrollView showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 56, paddingTop: 8 }}>
@@ -677,7 +801,7 @@ export default function PaschaHomePage() {
           <View style={ov.summaryRow}>
             <View style={ov.summaryPill}>
               <Icon name="cross" size={12} color={BLUE2} />
-              <Text style={ov.summaryTxt}>
+              <Text style={[ov.summaryTxt, { fontSize: sf(12, fontScale) }]}>
                 {totalMyReadings} reading{totalMyReadings !== 1 ? "s" : ""}
                 {" · "}
                 {myReadingsData.length} day{myReadingsData.length !== 1 ? "s" : ""}
@@ -689,8 +813,8 @@ export default function PaschaHomePage() {
           totalMyReadings === 0 ? (
             <View style={ov.empty}>
               <View style={ov.emptyIconWrap}><Icon name="cross" size={28} color={T3} /></View>
-              <Text style={ov.emptyTitle}>Not yet scheduled</Text>
-              <Text style={ov.emptySub}>Your assigned readings will appear here once the schedule is set.</Text>
+              <Text style={[ov.emptyTitle, { fontSize: sf(18, fontScale) }]}>Not yet scheduled</Text>
+              <Text style={[ov.emptySub, { fontSize: sf(14, fontScale) }]}>Your assigned readings will appear here once the schedule is set.</Text>
             </View>
           ) : (
             <View style={{ paddingTop: 8 }}>
@@ -703,6 +827,7 @@ export default function PaschaHomePage() {
                   uid={uid}
                   isLast={i === myReadingsData.length - 1}
                   onHourPress={goToHour}
+                  fontScale={fontScale}
                 />
               ))}
             </View>
@@ -710,11 +835,19 @@ export default function PaschaHomePage() {
         ) : (
           <View style={ov.empty}>
             <View style={ov.emptyIconWrap}><Icon name="cross" size={28} color={T3} /></View>
-            <Text style={ov.emptyTitle}>Schedule not yet available</Text>
-            <Text style={ov.emptySub}>Check back closer to Holy Week.</Text>
+            <Text style={[ov.emptyTitle, { fontSize: sf(18, fontScale) }]}>Schedule not yet available</Text>
+            <Text style={[ov.emptySub, { fontSize: sf(14, fontScale) }]}>Check back closer to Holy Week.</Text>
           </View>
         )}
       </ScrollView>
+      <HomeSettingsSheet
+        visible={settingsOpen}
+        fontSizeScale={fontSizeScale}
+        hideNames={hideNames}
+        onSetFontSize={persistFontSize}
+        onToggleHideNames={persistHideNames}
+        onClose={() => setSettingsOpen(false)}
+      />
     </View>
   );
 }
@@ -733,9 +866,8 @@ const mn = StyleSheet.create({
   loadingWrap:         { flex: 1, backgroundColor: BG, justifyContent: "center", alignItems: "center" },
   header:              { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 18, paddingBottom: 8, gap: 12 },
   backBtn:             { width: 36, height: 36, borderRadius: 18, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, justifyContent: "center", alignItems: "center" },
+  cogBtn:              { width: 40, height: 40, borderRadius: 20, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, justifyContent: "center", alignItems: "center" },
   eyebrow:             { fontSize: 11, fontWeight: "500", color: BLUE, letterSpacing: 1.8, marginBottom: 2 },
   title:               { fontSize: 26, fontWeight: "200", color: T1, letterSpacing: -0.6 },
   subtitle:            { fontSize: 13, color: "rgba(241,245,249,0.45)", fontWeight: "400", marginTop: 2 },
-  nameToggleBtn:       { width: 36, height: 36, borderRadius: 18, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, justifyContent: "center", alignItems: "center" },
-  nameToggleBtnActive: { backgroundColor: BLUE_D, borderColor: "rgba(59,130,246,0.4)" },
 });
