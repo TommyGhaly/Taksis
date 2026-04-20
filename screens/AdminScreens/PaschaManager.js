@@ -240,7 +240,7 @@ var pct = StyleSheet.create({
               justifyContent: "center", alignItems: "center", flexShrink: 0 },
   alpha:    { fontWeight: "600", color: T3, textAlign: "center", textAlignVertical: "center", includeFontPadding: false },
   label:    { color: T2, fontWeight: "400", flex: 1 },
-  toggle:   { transform: [{ scaleX: 0.88 }, { scaleY: 0.88 }] },
+  toggle:   { transform: [{ scaleX: 0.88 }, { scaleY: 0.88 }], marginRight: 8 },
 });
 
 // ── Gospel grid ───────────────────────────────────────────────────────────────
