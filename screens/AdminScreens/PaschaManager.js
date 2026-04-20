@@ -50,7 +50,6 @@ function resolvedFontScale(fontSizeScale, fontSizeMultipliers) {
   return result != null ? result : 1.0;
 }
 
-// Helper: scale a base font size by multiplier, rounding to 1 decimal
 function sf(base, multiplier) {
   return Math.round(base * multiplier * 10) / 10;
 }
@@ -130,7 +129,7 @@ var PsalmReadersRow = function(props) {
       {has ? (
         <>
           <View style={{ flexDirection: "row" }}>
-            {readers.slice(0, 3).map(function(r, i) {
+            {readers.slice(0, 4).map(function(r, i) {
               return (
                 <Avatar key={r.uid || r.name || i} uid={r.uid} size={26}
                   style={{ marginLeft: i > 0 ? -8 : 0, borderWidth: 1.5, borderColor: CARD }} />
@@ -295,115 +294,483 @@ var gg = StyleSheet.create({
   unassignedTxt: { fontSize: 11, color: T3 },
 });
 
-// ── Psalm picker modal ────────────────────────────────────────────────────────
-var PsalmPickerModal = function(props) {
-  var visible = props.visible;
-  var refText = props.refText;
-  var pickerLabel = props.pickerLabel;
-  var currentReaders = props.currentReaders;
+// ── HourModal ─────────────────────────────────────────────────────────────────
+var HourModal = function(props) {
+  props = props || {};
+  var visible = !!props.visible;
+  var hour = props.hour;
+  var hourAssignments = props.hourAssignments;
   var deacons = props.deacons;
   var congregation = props.congregation;
   var loadingUsers = props.loadingUsers;
-  var onSave = props.onSave;
+  var onSaveReading = props.onSaveReading;
+  var onSavePsalmReaders = props.onSavePsalmReaders;
+  var onSaveLanguage = props.onSaveLanguage;
+  var onSaveCopticToggle = props.onSaveCopticToggle;
   var onClose = props.onClose;
+  var fs = props.fontScale != null ? props.fontScale : 1;
 
   var screenH = useWindowDimensions().height;
+
+  // single-reader picker state
+  var _pickerSlot = useState(null); var pickerSlot = _pickerSlot[0]; var setPickerSlot = _pickerSlot[1];
+  var _pickerRow_ = useState(null); var pickerRow_ = _pickerRow_[0]; var setPickerRow_ = _pickerRow_[1];
+  var _sel = useState(null); var sel = _sel[0]; var setSel = _sel[1];
+
+  // multi-reader (psalm) picker state
+  var _psalmRow = useState(null); var psalmRow = _psalmRow[0]; var setPsalmRow = _psalmRow[1];
+  var _psalmSelected = useState(new Set()); var psalmSelected = _psalmSelected[0]; var setPsalmSelected = _psalmSelected[1];
+  var _psalmSelectedMap = useState({}); var psalmSelectedMap = _psalmSelectedMap[0]; var setPsalmSelectedMap = _psalmSelectedMap[1];
+
+  // shared picker state
   var _tab = useState("deacons"); var tab = _tab[0]; var setTab = _tab[1];
   var _q = useState(""); var q = _q[0]; var setQ = _q[1];
-  var _selected = useState(new Set()); var selected = _selected[0]; var setSelected = _selected[1];
-  var _selectedMap = useState({}); var selectedMap = _selectedMap[0]; var setSelectedMap = _selectedMap[1];
   var _manual = useState(""); var manual = _manual[0]; var setManual = _manual[1];
   var _manualOpen = useState(false); var manualOpen = _manualOpen[0]; var setManualOpen = _manualOpen[1];
 
-  useEffect(function() {
-    if (!visible) return;
-    var map = {};
-    var keys = new Set();
-    (currentReaders || []).forEach(function(r) {
-      var k = r.uid || r.name;
-      keys.add(k);
-      map[k] = r;
-    });
-    setSelected(keys);
-    setSelectedMap(map);
-    setTab("deacons");
-    setQ("");
-    setManual("");
-    setManualOpen(false);
-  }, [visible]);
+  var bodyScrollRef    = useRef(null);
+  var bodyScrollYRef   = useRef(0);
+  var restoreScrollRef = useRef(false);
 
-  var sheetMax = screenH * 0.92;
-  var listMax  = sheetMax - 280;
+  var inPicker      = !!pickerSlot;
+  var inPsalmPicker = !!psalmRow;
+  var inAnyPicker   = inPicker || inPsalmPicker;
 
-  var source = useMemo(function() {
+  var pickerSource = useMemo(function() {
     var list = tab === "deacons" ? deacons : congregation;
     return q ? list.filter(function(u) { return u.name.toLowerCase().includes(q.toLowerCase()); }) : list;
   }, [tab, deacons, congregation, q]);
 
-  var toggle = function(item) {
+  useEffect(function() {
+    if (!visible) {
+      setPickerSlot(null); setPickerRow_(null); setSel(null);
+      setPsalmRow(null); setPsalmSelected(new Set()); setPsalmSelectedMap({});
+      setTab("deacons"); setQ(""); setManual(""); setManualOpen(false);
+    }
+  }, [visible]);
+
+  useEffect(function() {
+    if (inAnyPicker) return;
+    if (!restoreScrollRef.current) return;
+    restoreScrollRef.current = false;
+    requestAnimationFrame(function() {
+      if (bodyScrollRef.current && bodyScrollYRef.current > 0) {
+        bodyScrollRef.current.scrollTo({ y: bodyScrollYRef.current, animated: false });
+      }
+    });
+  }, [inAnyPicker]);
+
+  if (!visible || !hour) return null;
+
+  var rows              = expandReadings(hour, hourAssignments);
+  if (!hour.readings) {
+    console.warn("HourModal: hour.readings is not defined for hour", hour.id, "hour object keys:", Object.keys(hour));
+  }
+  var counts            = countSlots(hour, hourAssignments);
+  var total             = counts.total;
+  var filled            = counts.filled;
+  var complete          = total > 0 && filled === total;
+  var pctVal            = total > 0 ? Math.round(filled / total * 100) : 0;
+  var sheetMax          = screenH * 0.92;
+
+  var gospelGridRows = rows
+    .filter(function(r) {
+      return (r.rKey === "gospel" || r.rKey === "gospels") && r.location;
+    })
+    .sort(function(a, b) {
+      var ai = a.index != null && !isNaN(a.index) ? a.index : 9999;
+      var bi = b.index != null && !isNaN(b.index) ? b.index : 9999;
+      return ai - bi;
+    });
+  var hasGospelGrid = gospelGridRows.length > 0;
+  var firstGospelGridSlotKey = hasGospelGrid ? gospelGridRows[0].slotKey : null;
+
+  var rowLabel = function(row) {
+    var meta = READING_META[row.rKey] || { label: row.rKey };
+    if (row.rKey === "homily")     return "Homily \u2014 " + (row.author || row.refText);
+    if (row.rKey === "exposition") return "Exposition";
+    return row.index != null ? (meta.label + " " + (row.index + 1)) : meta.label;
+  };
+
+  // single-reader picker ───
+  var openPicker = function(row) {
+    setSel(hourAssignments[row.slotKey] || null);
+    setTab("deacons"); setQ(""); setManual(""); setManualOpen(false);
+    setPickerSlot(row.slotKey); setPickerRow_(row);
+  };
+  var closePicker  = function() { restoreScrollRef.current = true; setPickerSlot(null); setPickerRow_(null); };
+  var commitPicker = function() { onSaveReading(hour.id, pickerSlot, sel != null ? sel : null); closePicker(); };
+
+  // psalm (multi) picker ───
+  var openPsalmPicker = function(row) {
+    var currentReaders = hourAssignments[psalmReadersKey(row)] || [];
+    var map = {};
+    var keys = new Set();
+    currentReaders.forEach(function(r) {
+      var k = r.uid || r.name;
+      keys.add(k);
+      map[k] = r;
+    });
+    setPsalmSelected(keys);
+    setPsalmSelectedMap(map);
+    setTab("deacons"); setQ(""); setManual(""); setManualOpen(false);
+    setPsalmRow(row);
+  };
+  var closePsalmPicker = function() { restoreScrollRef.current = true; setPsalmRow(null); };
+  var togglePsalm = function(item) {
     var k = item.uid || item.name;
-    setSelected(function(prev) {
+    setPsalmSelected(function(prev) {
       var next = new Set(prev);
       if (next.has(k)) {
         next.delete(k);
-        setSelectedMap(function(m) { var n = Object.assign({}, m); delete n[k]; return n; });
+        setPsalmSelectedMap(function(m) { var n = Object.assign({}, m); delete n[k]; return n; });
       } else {
         if (next.size >= MAX_PSALM_READERS) return prev;
         next.add(k);
-        setSelectedMap(function(m) { return Object.assign({}, m, { [k]: item }); });
+        setPsalmSelectedMap(function(m) { return Object.assign({}, m, { [k]: item }); });
       }
       return next;
     });
   };
-
-  var addManual = function() {
+  var addPsalmManual = function() {
     var name = manual.trim();
-    if (!name || selected.size >= MAX_PSALM_READERS) return;
+    if (!name || psalmSelected.size >= MAX_PSALM_READERS) return;
     var item = { uid: "m_" + Date.now(), name: name, isManual: true };
-    setSelected(function(prev) { return new Set(Array.from(prev).concat([item.uid])); });
-    setSelectedMap(function(m) { return Object.assign({}, m, { [item.uid]: item }); });
+    var k = item.uid;
+    setPsalmSelected(function(prev) { return new Set(Array.from(prev).concat([k])); });
+    setPsalmSelectedMap(function(m) { return Object.assign({}, m, { [k]: item }); });
     setManual("");
     setManualOpen(false);
   };
-
-  var commit = function() {
-    onSave(Object.values(selectedMap).map(function(r) { return { uid: r.uid || null, name: r.name }; }));
-    onClose();
+  var commitPsalm = function() {
+    var readers = Object.values(psalmSelectedMap).map(function(r) {
+      return { uid: r.uid || null, name: r.name };
+    });
+    onSavePsalmReaders(hour.id, psalmReadersKey(psalmRow), readers);
+    closePsalmPicker();
   };
 
-  var selectedList = Object.values(selectedMap);
+  var pickerMeta  = pickerRow_ != null
+    ? (READING_META[pickerRow_.rKey] || { label: pickerRow_.rKey, icon: "book-outline", color: T2 })
+    : null;
+  var pickerColor    = pickerMeta != null ? pickerMeta.color : T2;
+  var isCopticPicker = pickerRow_ != null && pickerRow_.isCoptic === true;
+
+  var pickerLabel = "";
+  if (pickerRow_ != null) {
+    if (pickerRow_.rKey === "homily") {
+      pickerLabel = "Homily \u2014 " + (pickerRow_.author || pickerRow_.refText);
+    } else if (pickerRow_.rKey === "exposition") {
+      pickerLabel = "Exposition";
+    } else if (pickerRow_.index != null) {
+      pickerLabel = pickerMeta.label + " " + (pickerRow_.index + 1);
+    } else {
+      pickerLabel = pickerMeta != null ? pickerMeta.label : "";
+    }
+  }
+
+  var psalmMeta  = psalmRow != null
+    ? (READING_META[psalmRow.rKey] || { label: psalmRow.rKey, icon: "music-note", color: T2 })
+    : null;
+  var psalmLabel = "";
+  if (psalmRow != null) {
+    psalmLabel = psalmRow.index != null
+      ? (psalmMeta.label + " " + (psalmRow.index + 1))
+      : psalmMeta.label;
+  }
+  var psalmSelectedList = Object.values(psalmSelectedMap);
+
+  var pickerScrollMax      = sheetMax - (sel != null ? 330 : 270);
+  var psalmPickerScrollMax = sheetMax - (psalmSelectedList.length > 0 ? 340 : 280);
 
   return (
-    <Modal visible={visible} animationType="none" transparent onRequestClose={onClose} statusBarTranslucent>
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={hm.backdrop}>
-          <TouchableWithoutFeedback>
-            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ width: "100%" }}>
-              <View style={[hm.sheet, { maxHeight: sheetMax }]}>
-                <View style={hm.handle} />
-                <View style={hm.pickerHdr}>
-                  <TouchableOpacity style={hm.backBtn} onPress={onClose} activeOpacity={0.7}>
-                    <Icon name="close" size={19} color={T1} />
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} statusBarTranslucent>
+      <View style={hm.backdrop}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={inPicker ? closePicker : inPsalmPicker ? closePsalmPicker : onClose}
+        />
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={hm.kav}>
+          <View style={[hm.sheet, { maxHeight: sheetMax }]}>
+            <View style={hm.handle} />
+
+            {/* ── MAIN HOUR VIEW ─────────────────────────────────────────── */}
+            {!inAnyPicker && (
+              <>
+                <View style={hm.hdr}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[hm.title, { fontSize: sf(20, fs) }]}>{hour.label}</Text>
+                    <Text style={[hm.sub, complete && { color: GREEN }, { fontSize: sf(13, fs) }]}>
+                      {complete ? "All readings assigned" : (filled + " of " + total + " assigned")}
+                    </Text>
+                  </View>
+                  <TouchableOpacity style={hm.xBtn} onPress={onClose} activeOpacity={0.7}>
+                    <Icon name="close" size={17} color={T2} />
                   </TouchableOpacity>
-                  <View style={[hm.pickerIconBox, { backgroundColor: READING_META.psalm.color + "22" }]}>
-                    <Icon name="music-note" size={17} color={READING_META.psalm.color} />
+                </View>
+                <View style={hm.trackWrap}>
+                  <View style={[hm.trackFill, { width: pctVal + "%" }, complete && { backgroundColor: GREEN }]} />
+                </View>
+                <ScrollView
+                  ref={bodyScrollRef}
+                  style={{ maxHeight: Math.max(220, sheetMax - 165) }}
+                  contentContainerStyle={hm.body}
+                  showsVerticalScrollIndicator
+                  nestedScrollEnabled
+                  scrollEventThrottle={16}
+                  onScroll={function(e) { bodyScrollYRef.current = e != null && e.nativeEvent ? e.nativeEvent.contentOffset.y : 0; }}
+                  keyboardShouldPersistTaps="handled">
+                  {rows.map(function(row, i) {
+                    var meta        = READING_META[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
+                    var assignable  = isAssignableSlot(row.rKey);
+                    var isPsalm     = isPsalmSlot(row.rKey);
+                    var isExp       = row.rKey === "exposition";
+                    var isGospelLoc = (row.rKey === "gospel" || row.rKey === "gospels") && row.location;
+                    var isFirstGospelGrid = firstGospelGridSlotKey != null && row.slotKey === firstGospelGridSlotKey;
+                    var isCopticRow = row.isCoptic === true;
+                    var assignee    = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
+                    var label       = rowLabel(row);
+                    var readers     = isPsalm ? (hourAssignments[psalmReadersKey(row)] || []) : [];
+
+                    if (isGospelLoc && !isFirstGospelGrid) return null;
+
+                    return (
+                      <View key={row.slotKey}
+                        style={[hm.readingBlock, isCopticRow && hm.readingBlockCoptic,
+                          i === rows.length - 1 && { borderBottomWidth: 0 }]}>
+                        <View style={hm.readingTop}>
+                          <View style={[hm.readingIcon, { backgroundColor: isCopticRow ? COPTIC_BG : meta.color + "22" }]}>
+                            <Icon name={meta.icon} size={15} color={isCopticRow ? COPTIC_COLOR : meta.color} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                              <Text style={[hm.readingLabel, { color: isCopticRow ? COPTIC_COLOR : meta.color, fontSize: sf(10, fs) }]}>
+                                {isFirstGospelGrid ? "Gospels" : label}
+                              </Text>
+                              {isCopticRow && (
+                                <View style={hm.copticBadge}>
+                                  <Text style={hm.copticBadgeTxt}>COPTIC</Text>
+                                </View>
+                              )}
+                            </View>
+                            {isFirstGospelGrid
+                              ? <Text style={[hm.readingRef, { fontSize: sf(14, fs) }]}>12 stations</Text>
+                              : (row.rKey === "homily" || isExp)
+                                ? null
+                                : !!row.refText && <Text style={[hm.readingRef, { fontSize: sf(14, fs) }]}>{row.refText}</Text>
+                            }
+                          </View>
+                          <LanguagePill row={row} hourAssignments={hourAssignments}
+                            onSave={function(slotKey, lang) { onSaveLanguage(hour.id, slotKey, lang); }} />
+                        </View>
+
+                        {row.rKey === "prophecies" && row.hasCopticOption && (
+                          <ProphecyCopticToggle
+                            vernacularSlotKey={row.slotKey}
+                            hourAssignments={hourAssignments}
+                            fontScale={fs}
+                            onSave={function(key, value) { onSaveCopticToggle(hour.id, key, value); }}
+                          />
+                        )}
+
+                        {isFirstGospelGrid && (
+                          <GospelGrid rows={gospelGridRows} hourAssignments={hourAssignments}
+                            onOpenPicker={openPicker} fontScale={fs} />
+                        )}
+                        {!isFirstGospelGrid && isPsalm && (
+                          <PsalmReadersRow readers={readers}
+                            label={"Assign " + label.toLowerCase() + " readers"}
+                            fontScale={fs}
+                            onOpen={function() { openPsalmPicker(row); }} />
+                        )}
+                        {!isFirstGospelGrid && !isPsalm && assignable && (
+                          <TouchableOpacity onPress={function() { openPicker(row); }} activeOpacity={0.7}
+                            style={[hm.assignBtn, assignee && hm.assignBtnFilled]}>
+                            {assignee ? (
+                              <>
+                                <Avatar uid={assignee.uid} size={28} />
+                                <Text style={[hm.assignedName, { fontSize: sf(14, fs) }]} numberOfLines={1}>{assignee.name}</Text>
+                                <Icon name="pencil-outline" size={14} color={T2} />
+                              </>
+                            ) : (
+                              <>
+                                <Icon name="account-plus-outline" size={16} color={T2} />
+                                <Text style={[hm.unassignedTxt, { fontSize: sf(14, fs) }]}>Assign reader</Text>
+                                <Icon name="chevron-right" size={14} color={T3} />
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </>
+            )}
+
+            {/* ── SINGLE-READER PICKER VIEW ──────────────────────────────── */}
+            {inPicker && pickerRow_ != null && (
+              <>
+                <View style={hm.pickerHdr}>
+                  <TouchableOpacity style={hm.backBtn} onPress={closePicker} activeOpacity={0.7}>
+                    <Icon name="arrow-left" size={19} color={T1} />
+                  </TouchableOpacity>
+                  <View style={[hm.pickerIconBox, { backgroundColor: isCopticPicker ? COPTIC_BG : pickerColor + "22" }]}>
+                    <Icon name={pickerMeta.icon} size={17} color={isCopticPicker ? COPTIC_COLOR : pickerColor} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[hm.pickerType, { color: READING_META.psalm.color }]}>{pickerLabel || "Psalm Readers"}</Text>
-                    {!!refText && <Text style={hm.pickerRef} numberOfLines={1}>{refText}</Text>}
-                  </View>
-                  <View style={pmS.counter}>
-                    <Text style={pmS.counterTxt}>{selected.size + "/" + MAX_PSALM_READERS}</Text>
+                    <Text style={[hm.pickerType, { color: isCopticPicker ? COPTIC_COLOR : pickerColor }]}>
+                      {pickerLabel}{isCopticPicker ? "  \u2022  Coptic" : ""}
+                    </Text>
+                    {!!pickerRow_.refText && pickerRow_.rKey !== "homily" && pickerRow_.rKey !== "exposition" && (
+                      <Text style={hm.pickerRef} numberOfLines={1}>{pickerRow_.refText}</Text>
+                    )}
+                    {!!pickerRow_.location && (
+                      <Text style={hm.pickerRef} numberOfLines={1}>{pickerRow_.location}</Text>
+                    )}
                   </View>
                 </View>
-                {selectedList.length > 0 && (
+                {sel != null && (
+                  <View style={hm.selBanner}>
+                    <Avatar uid={sel.uid} size={44} />
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={hm.selName}>{sel.name}</Text>
+                      <Text style={hm.selSub}>
+                        {sel.isDeacon ? "Deacon" : sel.isManual ? "Manual entry" : "Member"}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={function() { setSel(null); }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Icon name="close-circle" size={20} color={RED} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                <View style={hm.seg}>
+                  <View style={[hm.segSlider, tab === "all" && { left: "50%" }]} />
+                  {[["deacons", "Deacons"], ["all", "All Members"]].map(function(pair) {
+                    var k = pair[0]; var l = pair[1];
+                    return (
+                      <TouchableOpacity key={k} onPress={function() { setTab(k); setQ(""); }}
+                        style={hm.segBtn} activeOpacity={0.8}>
+                        <Text style={[hm.segTxt, tab === k && hm.segTxtOn]}>{l}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <View style={hm.searchRow}>
+                  <Icon name="magnify" size={16} color={T3} />
+                  <TextInput style={hm.searchIn} placeholder="Search..." placeholderTextColor={T3}
+                    value={q} onChangeText={setQ} returnKeyType="search" />
+                  {q.length > 0 && (
+                    <TouchableOpacity onPress={function() { setQ(""); }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Icon name="close-circle" size={15} color={T3} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {loadingUsers
+                  ? <View style={hm.center}><ActivityIndicator color={BLUE} /></View>
+                  : <FlatList
+                      data={pickerSource}
+                      keyExtractor={function(i) { return i.uid || i.name; }}
+                      style={{ maxHeight: pickerScrollMax, paddingHorizontal: 20 }}
+                      keyboardShouldPersistTaps="handled"
+                      showsVerticalScrollIndicator
+                      ListEmptyComponent={<Text style={hm.empty}>No results</Text>}
+                      renderItem={function(ri) {
+                        var item = ri.item;
+                        var on = sel != null
+                          ? (sel.uid ? sel.uid === item.uid : sel.name === item.name)
+                          : false;
+                        return (
+                          <TouchableOpacity style={[hm.pRow, on && hm.pRowOn]}
+                            onPress={function() { setSel(on ? null : item); }} activeOpacity={0.65}>
+                            <Avatar uid={item.uid} size={38} />
+                            <View style={{ flex: 1, marginLeft: 12 }}>
+                              <Text style={hm.pRowName}>{item.name}</Text>
+                              {item.isDeacon && <Text style={hm.pRowTag}>DEACON</Text>}
+                            </View>
+                            <View style={[hm.radio, on && hm.radioOn]}>
+                              {on && <View style={hm.radioDot} />}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      }}
+                    />
+                }
+                {manualOpen ? (
+                  <View style={hm.manualBox}>
+                    <TextInput style={hm.manualIn} placeholder="Full name..." placeholderTextColor={T3}
+                      value={manual} onChangeText={setManual} autoFocus returnKeyType="done"
+                      onSubmitEditing={function() {
+                        var n = manual.trim();
+                        if (n) {
+                          setSel({ uid: "m_" + Date.now(), name: n, isManual: true });
+                          setManual(""); setManualOpen(false);
+                        }
+                      }} />
+                    <View style={hm.manualBtns}>
+                      <TouchableOpacity style={hm.mCancel}
+                        onPress={function() { setManualOpen(false); setManual(""); }}>
+                        <Text style={hm.mCancelTxt}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={hm.mAdd} onPress={function() {
+                        var n = manual.trim();
+                        if (n) {
+                          setSel({ uid: "m_" + Date.now(), name: n, isManual: true });
+                          setManual(""); setManualOpen(false);
+                        }
+                      }}>
+                        <Text style={hm.mAddTxt}>Add</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={hm.addManual}
+                    onPress={function() { setManualOpen(true); }} activeOpacity={0.7}>
+                    <Icon name="account-plus-outline" size={16} color={BLUE} />
+                    <Text style={hm.addManualTxt}>Add name manually</Text>
+                  </TouchableOpacity>
+                )}
+                <View style={hm.pickerFooter}>
+                  <TouchableOpacity style={[hm.saveBtn, sel == null && hm.saveBtnClear]}
+                    onPress={commitPicker} activeOpacity={0.8}>
+                    <Text style={[hm.saveBtnTxt, sel == null && { color: RED }]}>
+                      {sel != null ? ("Assign  " + sel.name) : "Clear Assignment"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
+            {/* ── PSALM (MULTI) PICKER VIEW ──────────────────────────────── */}
+            {inPsalmPicker && psalmRow != null && (
+              <>
+                <View style={hm.pickerHdr}>
+                  <TouchableOpacity style={hm.backBtn} onPress={closePsalmPicker} activeOpacity={0.7}>
+                    <Icon name="arrow-left" size={19} color={T1} />
+                  </TouchableOpacity>
+                  <View style={[hm.pickerIconBox, { backgroundColor: psalmMeta.color + "22" }]}>
+                    <Icon name={psalmMeta.icon || "music-note"} size={17} color={psalmMeta.color} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[hm.pickerType, { color: psalmMeta.color }]}>{psalmLabel}</Text>
+                    {!!psalmRow.refText && (
+                      <Text style={hm.pickerRef} numberOfLines={1}>{psalmRow.refText}</Text>
+                    )}
+                  </View>
+                  <View style={pmS.counter}>
+                    <Text style={pmS.counterTxt}>{psalmSelected.size + "/" + MAX_PSALM_READERS}</Text>
+                  </View>
+                </View>
+                {psalmSelectedList.length > 0 && (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}
                     style={pmS.chipScroll} contentContainerStyle={pmS.chipRow}>
-                    {selectedList.map(function(r) {
+                    {psalmSelectedList.map(function(r) {
                       var k = r.uid || r.name;
                       return (
                         <TouchableOpacity key={k} style={pmS.chip}
-                          onPress={function() { toggle(r); }} activeOpacity={0.7}>
+                          onPress={function() { togglePsalm(r); }} activeOpacity={0.7}>
                           <Avatar uid={r.uid} size={20} />
                           <Text style={pmS.chipName} numberOfLines={1}>{r.name}</Text>
                           <Icon name="close-circle" size={14} color={T2} />
@@ -438,21 +805,21 @@ var PsalmPickerModal = function(props) {
                 {loadingUsers
                   ? <View style={hm.center}><ActivityIndicator color={BLUE} /></View>
                   : <FlatList
-                      data={source}
+                      data={pickerSource}
                       keyExtractor={function(i) { return i.uid || i.name; }}
-                      style={{ maxHeight: listMax, paddingHorizontal: 20 }}
+                      style={{ maxHeight: psalmPickerScrollMax, paddingHorizontal: 20 }}
                       keyboardShouldPersistTaps="handled"
                       showsVerticalScrollIndicator
                       ListEmptyComponent={<Text style={hm.empty}>No results</Text>}
                       renderItem={function(ri) {
                         var item = ri.item;
                         var k    = item.uid || item.name;
-                        var on   = selected.has(k);
-                        var atMax = selected.size >= MAX_PSALM_READERS && !on;
+                        var on   = psalmSelected.has(k);
+                        var atMax = psalmSelected.size >= MAX_PSALM_READERS && !on;
                         return (
                           <TouchableOpacity
                             style={[hm.pRow, on && hm.pRowOn, atMax && { opacity: 0.4 }]}
-                            onPress={function() { if (!atMax) toggle(item); }}
+                            onPress={function() { if (!atMax) togglePsalm(item); }}
                             activeOpacity={0.65}>
                             <Avatar uid={item.uid} size={38} />
                             <View style={{ flex: 1, marginLeft: 12 }}>
@@ -471,18 +838,18 @@ var PsalmPickerModal = function(props) {
                   <View style={hm.manualBox}>
                     <TextInput style={hm.manualIn} placeholder="Full name..." placeholderTextColor={T3}
                       value={manual} onChangeText={setManual} autoFocus returnKeyType="done"
-                      onSubmitEditing={addManual} />
+                      onSubmitEditing={addPsalmManual} />
                     <View style={hm.manualBtns}>
                       <TouchableOpacity style={hm.mCancel}
                         onPress={function() { setManualOpen(false); setManual(""); }}>
                         <Text style={hm.mCancelTxt}>Cancel</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={hm.mAdd} onPress={addManual}>
+                      <TouchableOpacity style={hm.mAdd} onPress={addPsalmManual}>
                         <Text style={hm.mAddTxt}>Add</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
-                ) : selected.size < MAX_PSALM_READERS && (
+                ) : psalmSelected.size < MAX_PSALM_READERS && (
                   <TouchableOpacity style={hm.addManual}
                     onPress={function() { setManualOpen(true); }} activeOpacity={0.7}>
                     <Icon name="account-plus-outline" size={16} color={BLUE} />
@@ -491,400 +858,18 @@ var PsalmPickerModal = function(props) {
                 )}
                 <View style={hm.pickerFooter}>
                   <TouchableOpacity
-                    style={[hm.saveBtn, selected.size === 0 && hm.saveBtnClear]}
-                    onPress={commit} activeOpacity={0.8}>
-                    <Text style={[hm.saveBtnTxt, selected.size === 0 && { color: RED }]}>
-                      {selected.size === 0
+                    style={[hm.saveBtn, psalmSelected.size === 0 && hm.saveBtnClear]}
+                    onPress={commitPsalm} activeOpacity={0.8}>
+                    <Text style={[hm.saveBtnTxt, psalmSelected.size === 0 && { color: RED }]}>
+                      {psalmSelected.size === 0
                         ? "Clear Readers"
-                        : ("Confirm " + selected.size + " Reader" + (selected.size > 1 ? "s" : ""))}
+                        : ("Confirm " + psalmSelected.size + " Reader" + (psalmSelected.size > 1 ? "s" : ""))}
                     </Text>
                   </TouchableOpacity>
                 </View>
-              </View>
-            </KeyboardAvoidingView>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
-  );
-};
-var pmS = StyleSheet.create({
-  counter:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: CARD2 },
-  counterTxt: { fontSize: 13, fontWeight: "700", color: T2 },
-  chipScroll: { maxHeight: 48, marginHorizontal: 20, marginBottom: 4 },
-  chipRow:    { flexDirection: "row", gap: 6, alignItems: "center" },
-  chip:       { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(48,209,88,0.1)",
-                borderWidth: 1, borderColor: "rgba(48,209,88,0.25)", borderRadius: 20,
-                paddingVertical: 5, paddingHorizontal: 10 },
-  chipName:   { fontSize: 13, fontWeight: "600", color: GREEN, maxWidth: 100 },
-  checkbox:   { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: T3,
-                justifyContent: "center", alignItems: "center" },
-  checkboxOn: { backgroundColor: BLUE, borderColor: BLUE },
-});
+              </>
+            )}
 
-// ── HourModal ─────────────────────────────────────────────────────────────────
-var HourModal = function(props) {
-  props = props || {};
-  var visible = !!props.visible;
-  var hour = props.hour;
-  var hourAssignments = props.hourAssignments;
-  var deacons = props.deacons;
-  var congregation = props.congregation;
-  var loadingUsers = props.loadingUsers;
-  var onSaveReading = props.onSaveReading;
-  var onSaveLanguage = props.onSaveLanguage;
-  var onSaveCopticToggle = props.onSaveCopticToggle;
-  var onOpenPsalmPicker = props.onOpenPsalmPicker;
-  var onClose = props.onClose;
-  var fs = props.fontScale != null ? props.fontScale : 1;
-
-  var screenH = useWindowDimensions().height;
-  var _pickerSlot = useState(null); var pickerSlot = _pickerSlot[0]; var setPickerSlot = _pickerSlot[1];
-  var _pickerRow_ = useState(null); var pickerRow_ = _pickerRow_[0]; var setPickerRow_ = _pickerRow_[1];
-  var _sel = useState(null); var sel = _sel[0]; var setSel = _sel[1];
-  var _tab = useState("deacons"); var tab = _tab[0]; var setTab = _tab[1];
-  var _q = useState(""); var q = _q[0]; var setQ = _q[1];
-  var _manual = useState(""); var manual = _manual[0]; var setManual = _manual[1];
-  var _manualOpen = useState(false); var manualOpen = _manualOpen[0]; var setManualOpen = _manualOpen[1];
-  var bodyScrollRef    = useRef(null);
-  var bodyScrollYRef   = useRef(0);
-  var restoreScrollRef = useRef(false);
-
-  var pickerSource = useMemo(function() {
-    var list = tab === "deacons" ? deacons : congregation;
-    return q ? list.filter(function(u) { return u.name.toLowerCase().includes(q.toLowerCase()); }) : list;
-  }, [tab, deacons, congregation, q]);
-
-  useEffect(function() {
-    if (!visible) { setPickerSlot(null); setPickerRow_(null); setSel(null); }
-  }, [visible]);
-
-  useEffect(function() {
-    if (pickerSlot) return;
-    if (!restoreScrollRef.current) return;
-    restoreScrollRef.current = false;
-    requestAnimationFrame(function() {
-      if (bodyScrollRef.current && bodyScrollYRef.current > 0) {
-        bodyScrollRef.current.scrollTo({ y: bodyScrollYRef.current, animated: false });
-      }
-    });
-  }, [pickerSlot]);
-
-  if (!visible || !hour) return null;
-
-  var rows              = expandReadings(hour, hourAssignments);
-  if (!hour.readings) {
-    console.warn("HourModal: hour.readings is not defined for hour", hour.id, "hour object keys:", Object.keys(hour));
-  }
-  var counts            = countSlots(hour, hourAssignments);
-  var total             = counts.total;
-  var filled            = counts.filled;
-  var complete          = total > 0 && filled === total;
-  var pctVal            = total > 0 ? Math.round(filled / total * 100) : 0;
-  var sheetMax          = screenH * 0.92;
-
-  var gospelGridRows = rows
-    .filter(function(r) {
-      return (r.rKey === "gospel" || r.rKey === "gospels") && r.location;
-    })
-    .sort(function(a, b) {
-      var ai = a.index != null && !isNaN(a.index) ? a.index : 9999;
-      var bi = b.index != null && !isNaN(b.index) ? b.index : 9999;
-      return ai - bi;
-    });
-  var hasGospelGrid = gospelGridRows.length > 0;
-  var firstGospelGridSlotKey = hasGospelGrid ? gospelGridRows[0].slotKey : null;
-
-  var openPicker = function(row) {
-    setSel(hourAssignments[row.slotKey] || null);
-    setTab("deacons"); setQ(""); setManual(""); setManualOpen(false);
-    setPickerSlot(row.slotKey); setPickerRow_(row);
-  };
-  var closePicker  = function() { restoreScrollRef.current = true; setPickerSlot(null); setPickerRow_(null); };
-  var commitPicker = function() { onSaveReading(hour.id, pickerSlot, sel != null ? sel : null); closePicker(); };
-
-  var pickerMeta  = pickerRow_ != null
-    ? (READING_META[pickerRow_.rKey] || { label: pickerRow_.rKey, icon: "book-outline", color: T2 })
-    : null;
-  var pickerColor    = pickerMeta != null ? pickerMeta.color : T2;
-  var isCopticPicker = pickerRow_ != null && pickerRow_.isCoptic === true;
-
-  var pickerLabel = "";
-  if (pickerRow_ != null) {
-    if (pickerRow_.rKey === "homily") {
-      pickerLabel = "Homily \u2014 " + (pickerRow_.author || pickerRow_.refText);
-    } else if (pickerRow_.rKey === "exposition") {
-      pickerLabel = "Exposition";
-    } else if (pickerRow_.index != null) {
-      pickerLabel = pickerMeta.label + " " + (pickerRow_.index + 1);
-    } else {
-      pickerLabel = pickerMeta != null ? pickerMeta.label : "";
-    }
-  }
-
-  var pickerScrollMax = sheetMax - (sel != null ? 330 : 270);
-
-  var rowLabel = function(row) {
-    var meta = READING_META[row.rKey] || { label: row.rKey };
-    if (row.rKey === "homily")     return "Homily \u2014 " + (row.author || row.refText);
-    if (row.rKey === "exposition") return "Exposition";
-    return row.index != null ? (meta.label + " " + (row.index + 1)) : meta.label;
-  };
-
-  return (
-    <Modal visible={visible} animationType="none" transparent onRequestClose={onClose} statusBarTranslucent>
-      <View style={hm.backdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={pickerSlot ? closePicker : onClose} />
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={hm.kav}>
-          <View style={[hm.sheet, { maxHeight: sheetMax }]}>
-                <View style={hm.handle} />
-
-                {!pickerSlot && (
-                  <>
-                    <View style={hm.hdr}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[hm.title, { fontSize: sf(20, fs) }]}>{hour.label}</Text>
-                        <Text style={[hm.sub, complete && { color: GREEN }, { fontSize: sf(13, fs) }]}>
-                          {complete ? "All readings assigned" : (filled + " of " + total + " assigned")}
-                        </Text>
-                      </View>
-                      <TouchableOpacity style={hm.xBtn} onPress={onClose} activeOpacity={0.7}>
-                        <Icon name="close" size={17} color={T2} />
-                      </TouchableOpacity>
-                    </View>
-                    <View style={hm.trackWrap}>
-                      <View style={[hm.trackFill, { width: pctVal + "%" }, complete && { backgroundColor: GREEN }]} />
-                    </View>
-                    <ScrollView
-                      ref={bodyScrollRef}
-                      style={{ maxHeight: Math.max(220, sheetMax - 165) }}
-                      contentContainerStyle={hm.body}
-                      showsVerticalScrollIndicator
-                      nestedScrollEnabled
-                      scrollEventThrottle={16}
-                      onScroll={function(e) { bodyScrollYRef.current = e != null && e.nativeEvent ? e.nativeEvent.contentOffset.y : 0; }}
-                      keyboardShouldPersistTaps="handled">
-                      {rows.map(function(row, i) {
-                        var meta        = READING_META[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
-                        var assignable  = isAssignableSlot(row.rKey);
-                        var isPsalm     = isPsalmSlot(row.rKey);
-                        var isExp       = row.rKey === "exposition";
-                        var isGospelLoc = (row.rKey === "gospel" || row.rKey === "gospels") && row.location;
-                        var isFirstGospelGrid = firstGospelGridSlotKey != null && row.slotKey === firstGospelGridSlotKey;
-                        var isCopticRow = row.isCoptic === true;
-                        var assignee    = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
-                        var label       = rowLabel(row);
-                        var readers     = isPsalm ? (hourAssignments[psalmReadersKey(row)] || []) : [];
-
-                        if (isGospelLoc && !isFirstGospelGrid) return null;
-
-                        return (
-                          <View key={row.slotKey}
-                            style={[hm.readingBlock, isCopticRow && hm.readingBlockCoptic,
-                              i === rows.length - 1 && { borderBottomWidth: 0 }]}>
-                            <View style={hm.readingTop}>
-                              <View style={[hm.readingIcon, { backgroundColor: isCopticRow ? COPTIC_BG : meta.color + "22" }]}>
-                                <Icon name={meta.icon} size={15} color={isCopticRow ? COPTIC_COLOR : meta.color} />
-                              </View>
-                              <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                  <Text style={[hm.readingLabel, { color: isCopticRow ? COPTIC_COLOR : meta.color, fontSize: sf(10, fs) }]}>
-                                    {isFirstGospelGrid ? "Gospels" : label}
-                                  </Text>
-                                  {isCopticRow && (
-                                    <View style={hm.copticBadge}>
-                                      <Text style={hm.copticBadgeTxt}>COPTIC</Text>
-                                    </View>
-                                  )}
-                                </View>
-                                {isFirstGospelGrid
-                                  ? <Text style={[hm.readingRef, { fontSize: sf(14, fs) }]}>12 stations</Text>
-                                  : (row.rKey === "homily" || isExp)
-                                    ? null
-                                    : !!row.refText && <Text style={[hm.readingRef, { fontSize: sf(14, fs) }]}>{row.refText}</Text>
-                                }
-                              </View>
-                              <LanguagePill row={row} hourAssignments={hourAssignments}
-                                onSave={function(slotKey, lang) { onSaveLanguage(hour.id, slotKey, lang); }} />
-                            </View>
-
-                            {row.rKey === "prophecies" && row.hasCopticOption && (
-                              <ProphecyCopticToggle
-                                vernacularSlotKey={row.slotKey}
-                                hourAssignments={hourAssignments}
-                                fontScale={fs}
-                                onSave={function(key, value) { onSaveCopticToggle(hour.id, key, value); }}
-                              />
-                            )}
-
-                            {isFirstGospelGrid && (
-                              <GospelGrid rows={gospelGridRows} hourAssignments={hourAssignments}
-                                onOpenPicker={openPicker} fontScale={fs} />
-                            )}
-                            {!isFirstGospelGrid && isPsalm && (
-                              <PsalmReadersRow readers={readers}
-                                label={"Assign " + label.toLowerCase() + " readers"}
-                                fontScale={fs}
-                                onOpen={function() { onOpenPsalmPicker(row); }} />
-                            )}
-                            {!isFirstGospelGrid && !isPsalm && assignable && (
-                              <TouchableOpacity onPress={function() { openPicker(row); }} activeOpacity={0.7}
-                                style={[hm.assignBtn, assignee && hm.assignBtnFilled]}>
-                                {assignee ? (
-                                  <>
-                                    <Avatar uid={assignee.uid} size={28} />
-                                    <Text style={[hm.assignedName, { fontSize: sf(14, fs) }]} numberOfLines={1}>{assignee.name}</Text>
-                                    <Icon name="pencil-outline" size={14} color={T2} />
-                                  </>
-                                ) : (
-                                  <>
-                                    <Icon name="account-plus-outline" size={16} color={T2} />
-                                    <Text style={[hm.unassignedTxt, { fontSize: sf(14, fs) }]}>Assign reader</Text>
-                                    <Icon name="chevron-right" size={14} color={T3} />
-                                  </>
-                                )}
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                        );
-                      })}
-                    </ScrollView>
-                  </>
-                )}
-
-                {!!pickerSlot && pickerRow_ != null && (
-                  <>
-                    <View style={hm.pickerHdr}>
-                      <TouchableOpacity style={hm.backBtn} onPress={closePicker} activeOpacity={0.7}>
-                        <Icon name="arrow-left" size={19} color={T1} />
-                      </TouchableOpacity>
-                      <View style={[hm.pickerIconBox, { backgroundColor: isCopticPicker ? COPTIC_BG : pickerColor + "22" }]}>
-                        <Icon name={pickerMeta.icon} size={17} color={isCopticPicker ? COPTIC_COLOR : pickerColor} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[hm.pickerType, { color: isCopticPicker ? COPTIC_COLOR : pickerColor }]}>
-                          {pickerLabel}{isCopticPicker ? "  \u2022  Coptic" : ""}
-                        </Text>
-                        {!!pickerRow_.refText && pickerRow_.rKey !== "homily" && pickerRow_.rKey !== "exposition" && (
-                          <Text style={hm.pickerRef} numberOfLines={1}>{pickerRow_.refText}</Text>
-                        )}
-                        {!!pickerRow_.location && (
-                          <Text style={hm.pickerRef} numberOfLines={1}>{pickerRow_.location}</Text>
-                        )}
-                      </View>
-                    </View>
-                    {sel != null && (
-                      <View style={hm.selBanner}>
-                        <Avatar uid={sel.uid} size={44} />
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                          <Text style={hm.selName}>{sel.name}</Text>
-                          <Text style={hm.selSub}>
-                            {sel.isDeacon ? "Deacon" : sel.isManual ? "Manual entry" : "Member"}
-                          </Text>
-                        </View>
-                        <TouchableOpacity onPress={function() { setSel(null); }}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                          <Icon name="close-circle" size={20} color={RED} />
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                    <View style={hm.seg}>
-                      <View style={[hm.segSlider, tab === "all" && { left: "50%" }]} />
-                      {[["deacons", "Deacons"], ["all", "All Members"]].map(function(pair) {
-                        var k = pair[0]; var l = pair[1];
-                        return (
-                          <TouchableOpacity key={k} onPress={function() { setTab(k); setQ(""); }}
-                            style={hm.segBtn} activeOpacity={0.8}>
-                            <Text style={[hm.segTxt, tab === k && hm.segTxtOn]}>{l}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                    <View style={hm.searchRow}>
-                      <Icon name="magnify" size={16} color={T3} />
-                      <TextInput style={hm.searchIn} placeholder="Search..." placeholderTextColor={T3}
-                        value={q} onChangeText={setQ} returnKeyType="search" />
-                      {q.length > 0 && (
-                        <TouchableOpacity onPress={function() { setQ(""); }}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                          <Icon name="close-circle" size={15} color={T3} />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                    {loadingUsers
-                      ? <View style={hm.center}><ActivityIndicator color={BLUE} /></View>
-                      : <FlatList
-                          data={pickerSource}
-                          keyExtractor={function(i) { return i.uid || i.name; }}
-                          style={{ maxHeight: pickerScrollMax, paddingHorizontal: 20 }}
-                          keyboardShouldPersistTaps="handled"
-                          showsVerticalScrollIndicator
-                          ListEmptyComponent={<Text style={hm.empty}>No results</Text>}
-                          renderItem={function(ri) {
-                            var item = ri.item;
-                            var on = sel != null
-                              ? (sel.uid ? sel.uid === item.uid : sel.name === item.name)
-                              : false;
-                            return (
-                              <TouchableOpacity style={[hm.pRow, on && hm.pRowOn]}
-                                onPress={function() { setSel(on ? null : item); }} activeOpacity={0.65}>
-                                <Avatar uid={item.uid} size={38} />
-                                <View style={{ flex: 1, marginLeft: 12 }}>
-                                  <Text style={hm.pRowName}>{item.name}</Text>
-                                  {item.isDeacon && <Text style={hm.pRowTag}>DEACON</Text>}
-                                </View>
-                                <View style={[hm.radio, on && hm.radioOn]}>
-                                  {on && <View style={hm.radioDot} />}
-                                </View>
-                              </TouchableOpacity>
-                            );
-                          }}
-                        />
-                    }
-                    {manualOpen ? (
-                      <View style={hm.manualBox}>
-                        <TextInput style={hm.manualIn} placeholder="Full name..." placeholderTextColor={T3}
-                          value={manual} onChangeText={setManual} autoFocus returnKeyType="done"
-                          onSubmitEditing={function() {
-                            var n = manual.trim();
-                            if (n) {
-                              setSel({ uid: "m_" + Date.now(), name: n, isManual: true });
-                              setManual(""); setManualOpen(false);
-                            }
-                          }} />
-                        <View style={hm.manualBtns}>
-                          <TouchableOpacity style={hm.mCancel}
-                            onPress={function() { setManualOpen(false); setManual(""); }}>
-                            <Text style={hm.mCancelTxt}>Cancel</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={hm.mAdd} onPress={function() {
-                            var n = manual.trim();
-                            if (n) {
-                              setSel({ uid: "m_" + Date.now(), name: n, isManual: true });
-                              setManual(""); setManualOpen(false);
-                            }
-                          }}>
-                            <Text style={hm.mAddTxt}>Add</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    ) : (
-                      <TouchableOpacity style={hm.addManual}
-                        onPress={function() { setManualOpen(true); }} activeOpacity={0.7}>
-                        <Icon name="account-plus-outline" size={16} color={BLUE} />
-                        <Text style={hm.addManualTxt}>Add name manually</Text>
-                      </TouchableOpacity>
-                    )}
-                    <View style={hm.pickerFooter}>
-                      <TouchableOpacity style={[hm.saveBtn, sel == null && hm.saveBtnClear]}
-                        onPress={commitPicker} activeOpacity={0.8}>
-                        <Text style={[hm.saveBtnTxt, sel == null && { color: RED }]}>
-                          {sel != null ? ("Assign  " + sel.name) : "Clear Assignment"}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                )}
           </View>
         </KeyboardAvoidingView>
       </View>
@@ -974,6 +959,20 @@ var hm = StyleSheet.create({
   saveBtn:            { backgroundColor: BLUE, paddingVertical: 15, borderRadius: 14, alignItems: "center" },
   saveBtnClear:       { backgroundColor: "rgba(255,69,58,0.1)", borderWidth: 1, borderColor: "rgba(255,69,58,0.2)" },
   saveBtnTxt:         { fontSize: 15, fontWeight: "700", color: T1 },
+});
+
+var pmS = StyleSheet.create({
+  counter:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: CARD2 },
+  counterTxt: { fontSize: 13, fontWeight: "700", color: T2 },
+  chipScroll: { maxHeight: 48, marginHorizontal: 20, marginBottom: 4 },
+  chipRow:    { flexDirection: "row", gap: 6, alignItems: "center" },
+  chip:       { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(48,209,88,0.1)",
+                borderWidth: 1, borderColor: "rgba(48,209,88,0.25)", borderRadius: 20,
+                paddingVertical: 5, paddingHorizontal: 10 },
+  chipName:   { fontSize: 13, fontWeight: "600", color: GREEN, maxWidth: 100 },
+  checkbox:   { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: T3,
+                justifyContent: "center", alignItems: "center" },
+  checkboxOn: { backgroundColor: BLUE, borderColor: BLUE },
 });
 
 // ── Day tab bar ───────────────────────────────────────────────────────────────
@@ -1138,7 +1137,7 @@ var HourTile = React.memo(function(props) {
                 {isPsalm ? (
                   readers.length > 0
                     ? <View style={ht.assigneeRow}>
-                        {readers.slice(0, 3).map(function(r, idx) {
+                        {readers.slice(0, 4).map(function(r, idx) {
                           return (
                             <Avatar key={r.uid || r.name || idx} uid={r.uid} size={28}
                               style={{ marginLeft: idx > 0 ? -10 : 0, borderWidth: 2, borderColor: CARD }} />
@@ -1249,7 +1248,7 @@ var SettingsSheet = function(props) {
   ];
 
   return (
-    <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={ss.backdrop}>
         <View style={ss.sheet}>
           <View style={ss.handle} />
@@ -1445,7 +1444,7 @@ var ArchiveConfirm = function(props) {
   };
 
   return (
-    <Modal visible={visible} animationType="none" transparent
+    <Modal visible={visible} animationType="fade" transparent
       onRequestClose={!archiving ? onClose : undefined} statusBarTranslucent>
       <View style={arc.overlay}>
         <View style={arc.sheet}>
@@ -1535,8 +1534,6 @@ export default function PaschaManager() {
   var _fontSizeMultipliers = useState(DEFAULT_FONT_MULTIPLIERS);
   var fontSizeMultipliers = _fontSizeMultipliers[0]; var setFontSizeMultipliers = _fontSizeMultipliers[1];
   var _hourOpen = useState(null); var hourOpen = _hourOpen[0]; var setHourOpen = _hourOpen[1];
-  var _psalmPickerRow = useState(null); var psalmPickerRow = _psalmPickerRow[0]; var setPsalmPickerRow = _psalmPickerRow[1];
-  var hourOpenForPsalmRef = useRef(null);
 
   var allDays  = useMemo(function() { return buildAllDays(scheduleShell); }, [scheduleShell]);
   var daysById = useMemo(function() {
@@ -1733,86 +1730,86 @@ export default function PaschaManager() {
       ) : (
         <>
           <View style={mn.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={mn.eyebrow}>{"HOLY WEEK \u00B7 PASCHA"}</Text>
-          <Text style={[mn.title, { fontSize: sf(28, activeFontMultiplier) }]}>Schedule</Text>
-        </View>
-        <TouchableOpacity style={mn.cogBtn} onPress={function() { setSettingsOpen(true); }} activeOpacity={0.7}>
-          <Icon name="cog-outline" size={20} color={T2} />
-        </TouchableOpacity>
-      </View>
-
-      {!easterDate && (
-        <TouchableOpacity style={mn.nudge} onPress={function() { setSettingsOpen(true); }} activeOpacity={0.8}>
-          <Icon name="alert-circle-outline" size={14} color={ORANGE} />
-          <Text style={mn.nudgeTxt}>Set Easter date in Settings</Text>
-          <Icon name="chevron-right" size={13} color={ORANGE} />
-        </TouchableOpacity>
-      )}
-
-      <View style={{ height: 68 }}>
-        <DayTabBar
-          allDays={allDays}
-          selectedId={selectedId}
-          easterDate={easterDate}
-          schedule={schedule}
-          onSelect={setSelectedId}
-          fontScale={activeFontMultiplier}
-        />
-      </View>
-
-      {selectedDay != null && (
-        <View style={mn.dayHdr}>
-          <View style={mn.dayHdrTop}>
-            <View>
-              <Text style={[mn.dayTitle, { fontSize: sf(20, activeFontMultiplier) }]}>{selectedDay.label}</Text>
-              {easterDate && (
-                <Text style={[mn.dayDate, { fontSize: sf(12, activeFontMultiplier) }]}>{calcDate(easterDate, selectedDay.easterOffset)}</Text>
-              )}
+            <View style={{ flex: 1 }}>
+              <Text style={mn.eyebrow}>{"HOLY WEEK \u00B7 PASCHA"}</Text>
+              <Text style={[mn.title, { fontSize: sf(28, activeFontMultiplier) }]}>Schedule</Text>
             </View>
+            <TouchableOpacity style={mn.cogBtn} onPress={function() { setSettingsOpen(true); }} activeOpacity={0.7}>
+              <Icon name="cog-outline" size={20} color={T2} />
+            </TouchableOpacity>
           </View>
-          <View style={mn.progRow}>
-            <View style={mn.progTrack}>
-              {(function() {
-                var dp = dayProgress(selectedDay, ds);
-                var pctVal = dp.total > 0 ? Math.round(dp.filled / dp.total * 100) : 0;
-                var allDone = dp.filled === dp.total && dp.total > 0;
-                return (
-                  <View style={[mn.progFill, { width: pctVal + "%" }, allDone && { backgroundColor: GREEN }]} />
-                );
-              })()}
-            </View>
-            <Text style={[mn.progPct, { fontSize: sf(12, activeFontMultiplier) }]}>
-              {(function() {
-                var dp = dayProgress(selectedDay, ds);
-                return dp.total > 0 ? (Math.round(dp.filled / dp.total * 100) + "%") : "0%";
-              })()}
-            </Text>
-          </View>
-        </View>
-      )}
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={mn.scroll}>
-        {(selectedDay != null ? (selectedDay.hours || []) : []).map(function(hour) {
-          return (
-            <HourTile
-              key={hour.id}
-              hour={hour}
-              hourAssignments={ds[hour.id] || {}}
-              dayId={selectedId}
-              deacons={deacons}
-              congregation={congregation}
-              loadingUsers={loadingUsers}
+          {!easterDate && (
+            <TouchableOpacity style={mn.nudge} onPress={function() { setSettingsOpen(true); }} activeOpacity={0.8}>
+              <Icon name="alert-circle-outline" size={14} color={ORANGE} />
+              <Text style={mn.nudgeTxt}>Set Easter date in Settings</Text>
+              <Icon name="chevron-right" size={13} color={ORANGE} />
+            </TouchableOpacity>
+          )}
+
+          <View style={{ height: 68 }}>
+            <DayTabBar
+              allDays={allDays}
+              selectedId={selectedId}
+              easterDate={easterDate}
+              schedule={schedule}
+              onSelect={setSelectedId}
               fontScale={activeFontMultiplier}
-              onSaveReading={function(hourId, slotKey, person) { return saveReading(selectedId, hourId, slotKey, person); }}
-              onSavePsalmReaders={function(hourId, readersKey, readers) { return savePsalmReaders(selectedId, hourId, readersKey, readers); }}
-              onSaveLanguage={function(hourId, slotKey, lang) { return saveLanguage(selectedId, hourId, slotKey, lang); }}
-              onSaveCopticToggle={function(hourId, toggleKey, value) { return saveCopticToggle(selectedId, hourId, toggleKey, value); }}
-              onOpenHour={function(hour) { setHourOpen(hour); }}
             />
-          );
-        })}
-      </ScrollView>
+          </View>
+
+          {selectedDay != null && (
+            <View style={mn.dayHdr}>
+              <View style={mn.dayHdrTop}>
+                <View>
+                  <Text style={[mn.dayTitle, { fontSize: sf(20, activeFontMultiplier) }]}>{selectedDay.label}</Text>
+                  {easterDate && (
+                    <Text style={[mn.dayDate, { fontSize: sf(12, activeFontMultiplier) }]}>{calcDate(easterDate, selectedDay.easterOffset)}</Text>
+                  )}
+                </View>
+              </View>
+              <View style={mn.progRow}>
+                <View style={mn.progTrack}>
+                  {(function() {
+                    var dp = dayProgress(selectedDay, ds);
+                    var pctVal = dp.total > 0 ? Math.round(dp.filled / dp.total * 100) : 0;
+                    var allDone = dp.filled === dp.total && dp.total > 0;
+                    return (
+                      <View style={[mn.progFill, { width: pctVal + "%" }, allDone && { backgroundColor: GREEN }]} />
+                    );
+                  })()}
+                </View>
+                <Text style={[mn.progPct, { fontSize: sf(12, activeFontMultiplier) }]}>
+                  {(function() {
+                    var dp = dayProgress(selectedDay, ds);
+                    return dp.total > 0 ? (Math.round(dp.filled / dp.total * 100) + "%") : "0%";
+                  })()}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={mn.scroll}>
+            {(selectedDay != null ? (selectedDay.hours || []) : []).map(function(hour) {
+              return (
+                <HourTile
+                  key={hour.id}
+                  hour={hour}
+                  hourAssignments={ds[hour.id] || {}}
+                  dayId={selectedId}
+                  deacons={deacons}
+                  congregation={congregation}
+                  loadingUsers={loadingUsers}
+                  fontScale={activeFontMultiplier}
+                  onSaveReading={function(hourId, slotKey, person) { return saveReading(selectedId, hourId, slotKey, person); }}
+                  onSavePsalmReaders={function(hourId, readersKey, readers) { return savePsalmReaders(selectedId, hourId, readersKey, readers); }}
+                  onSaveLanguage={function(hourId, slotKey, lang) { return saveLanguage(selectedId, hourId, slotKey, lang); }}
+                  onSaveCopticToggle={function(hourId, toggleKey, value) { return saveCopticToggle(selectedId, hourId, toggleKey, value); }}
+                  onOpenHour={function(hour) { setHourOpen(hour); }}
+                />
+              );
+            })}
+          </ScrollView>
         </>
       )}
 
@@ -1826,39 +1823,10 @@ export default function PaschaManager() {
         loadingUsers={loadingUsers}
         fontScale={activeFontMultiplier}
         onSaveReading={function(hourId, slotKey, person) { return saveReading(selectedId, hourId, slotKey, person); }}
+        onSavePsalmReaders={function(hourId, readersKey, readers) { return savePsalmReaders(selectedId, hourId, readersKey, readers); }}
         onSaveLanguage={function(hourId, slotKey, lang) { return saveLanguage(selectedId, hourId, slotKey, lang); }}
         onSaveCopticToggle={function(hourId, toggleKey, value) { return saveCopticToggle(selectedId, hourId, toggleKey, value); }}
-        onOpenPsalmPicker={function(row) {
-          hourOpenForPsalmRef.current = hourOpen;
-          setPsalmPickerRow(row);
-        }}
         onClose={function() { setHourOpen(null); }}
-      />
-
-      <PsalmPickerModal
-        visible={!!psalmPickerRow}
-        refText={psalmPickerRow != null ? (psalmPickerRow.refText || "") : ""}
-        pickerLabel={psalmPickerRow != null ? (function() {
-          var meta = READING_META[psalmPickerRow.rKey] || { label: psalmPickerRow.rKey };
-          if (psalmPickerRow.rKey === "homily")     return "Homily \u2014 " + (psalmPickerRow.author || psalmPickerRow.refText);
-          if (psalmPickerRow.rKey === "exposition") return "Exposition";
-          return psalmPickerRow.index != null ? (meta.label + " " + (psalmPickerRow.index + 1)) : meta.label;
-        })() : ""}
-        currentReaders={psalmPickerRow != null && hourOpenForPsalmRef.current != null
-          ? ((ds[hourOpenForPsalmRef.current.id] || {})[psalmReadersKey(psalmPickerRow)] || [])
-          : []}
-        deacons={deacons}
-        congregation={congregation}
-        loadingUsers={loadingUsers}
-        onSave={function(readers) {
-          var h = hourOpenForPsalmRef.current;
-          if (psalmPickerRow != null && h != null) {
-            savePsalmReaders(selectedId, h.id, psalmReadersKey(psalmPickerRow), readers);
-          }
-        }}
-        onClose={function() {
-          setPsalmPickerRow(null);
-        }}
       />
 
       <SettingsSheet

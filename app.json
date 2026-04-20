@@ -3,7 +3,7 @@
     "name": "Ⲧⲁⲝⲓⲥ",
     "slug": "taksis",
     "scheme": "taksis",
-    "version": "4.0.7",
+    "version": "4.0.8",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -62,7 +62,7 @@
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.tghaly.taksis",
-      "versionCode": 57,
+      "versionCode": 58,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
