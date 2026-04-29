@@ -34,6 +34,7 @@ import DeaconEdits from "./AdminScreens/DeaconEdits";
 import TrafficManager from "./AdminScreens/TrafficManager";
 import PaschaManager from "./AdminScreens/PaschaManager";
 import PaschaHomePage from "./Pascha/PaschaHomePage";
+import DatabaseManager from "./AdminScreens/DatabaseManager";
 import UnavailableRequestModal from "../components/unavailableRequestModal";
 import CustomDrawerContent from "../components/customDrawer";
 import firestore from "@react-native-firebase/firestore";
@@ -124,6 +125,11 @@ const screenConfigs = {
     component: AlhanAdmin,
     name: "Alhan Manager",
     drawerName: "Alhan Management",
+  },
+  databaseManager: {
+    component: DatabaseManager,
+    name: "Database Manager",
+    drawerName: "Database Manager",
   },
   adminManager: {
     component: AdminManager,
@@ -282,6 +288,7 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId, sho
         case "paschaManager":           return userRoles.paschaAdmin;
         case "servantsManager":         return userRoles.ssAdmin;
         case "alhanManager":            return userRoles.alhanAdmin;
+        case "databaseManager":         return userRoles.superAdmin;
         case "adminManager":            return userRoles.superAdmin;
         default:                        return false;
       }
@@ -345,6 +352,9 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId, sho
       )}
       {shouldShowInDrawer("alhanManager") && (
         <Drawer.Screen name="Alhan Management" component={AlhanAdmin} />
+      )}
+      {shouldShowInDrawer("databaseManager") && (
+        <Drawer.Screen name="Database Manager" component={DatabaseManager} />
       )}
       {shouldShowInDrawer("adminManager") && (
         <Drawer.Screen name="Admin Manager" component={AdminManager} />
