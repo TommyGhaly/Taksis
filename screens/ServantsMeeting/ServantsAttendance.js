@@ -12,7 +12,11 @@ import {
   Platform,
   Modal,
   FlatList,
+  TextInput,
+  Keyboard,
+  Animated,
 } from "react-native";
+import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
@@ -74,12 +78,42 @@ const ServantsAttendance = () => {
   const [dateModalVisible, setDateModalVisible] = useState(false);
   const [previousSundays, setPreviousSundays] = useState([]);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   
   const headerHeightRef = useRef(0);
   const sectionListRef = useRef(null);
   const isMounted = useRef(true);
   const servantsUnsubscribe = useRef(null);
   const cacheKeys = useRef({ user: null, servants: null, profilePics: null });
+  const searchInputRef = useRef(null);
+  const keyboardOffset = useRef(new Animated.Value(0)).current;
+
+  // Lift the floating search bar above the keyboard
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      Animated.timing(keyboardOffset, {
+        toValue: e.endCoordinates.height,
+        duration: Platform.OS === "ios" ? e.duration || 250 : 200,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, (e) => {
+      Animated.timing(keyboardOffset, {
+        toValue: 0,
+        duration: Platform.OS === "ios" ? e.duration || 250 : 200,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [keyboardOffset]);
 
   useEffect(() => {
     isMounted.current = true;
@@ -241,17 +275,24 @@ const ServantsAttendance = () => {
       attendance: servant[dateKey] !== undefined ? servant[dateKey] : null,
     }));
     processedServants.sort((a, b) => a.name.localeCompare(b.name));
-    const grouped = processedServants.reduce((acc, servant) => {
+
+    // Filter by searchQuery before grouping
+    const lower = searchQuery.trim().toLowerCase();
+    const filteredServants = lower
+      ? processedServants.filter((s) => (s.name || "").toLowerCase().includes(lower))
+      : processedServants;
+
+    const grouped = filteredServants.reduce((acc, servant) => {
       const firstLetter = servant.name.charAt(0).toUpperCase() || "Other";
       if (!acc[firstLetter]) acc[firstLetter] = [];
       acc[firstLetter].push(servant);
       return acc;
     }, {});
     const sectionData = Object.keys(grouped).sort().map((letter) => ({ title: letter, data: grouped[letter] }));
-    setServants(processedServants);
+    setServants(filteredServants);
     setSections(sectionData);
     setAvailableLetters(Object.keys(grouped).sort());
-  }, [selectedDate, rawServantsData]);
+  }, [selectedDate, rawServantsData, searchQuery]);
 
   const scrollToSection = (letter) => {
     const sectionIndex = sections.findIndex((s) => s.title === letter);
@@ -412,9 +453,22 @@ const ServantsAttendance = () => {
         </View>
       )}
 
-      <TouchableOpacity style={styles.headerContainer} onPress={() => setDateModalVisible(true)} activeOpacity={0.7}>
-        <Text style={styles.headerText}>{dateKey}</Text>
-        <Ionicons name="calendar-outline" size={22} color="rgba(255,255,255,0.6)" style={styles.calendarIcon} />
+      {/* ---------- Week selector (dropdown style) ---------- */}
+      <TouchableOpacity
+        style={styles.weekSelector}
+        onPress={() => setDateModalVisible(true)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.weekSelectorLeft}>
+          <Ionicons name="calendar-outline" size={20} color="#147EFB" />
+          <View style={styles.weekSelectorTextWrap}>
+            <Text style={styles.weekSelectorLabel}>Week of</Text>
+            <Text style={styles.weekSelectorDate}>{dateKey}</Text>
+          </View>
+        </View>
+        <View style={styles.weekSelectorRight}>
+          <Text style={styles.weekSelectorChange}>Change</Text>
+        </View>
       </TouchableOpacity>
 
       <View style={styles.listWrapper}>
@@ -428,14 +482,18 @@ const ServantsAttendance = () => {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Ionicons name="people-outline" size={64} color="rgba(255,255,255,0.3)" />
-              <Text style={styles.noStudentsText}>Church has no servants</Text>
+              <Text style={styles.noStudentsText}>
+                {searchQuery.trim() ? "No servants match your search" : "Church has no servants"}
+              </Text>
             </View>
           }
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={true}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
           onScrollToIndexFailed={() => {}}
         />
-        {sections.length > 0 && (
+        {sections.length > 0 && !searchQuery.trim() && (
           <View style={{ position: "absolute", top: 85 * scale, right: 0, width: 30 }}>
             <AlphabetIndexBar
               onLetterChange={scrollToSection}
@@ -444,6 +502,39 @@ const ServantsAttendance = () => {
           </View>
         )}
       </View>
+
+      {/* ---------- Floating bottom search bar with system material ---------- */}
+      <Animated.View
+        style={[
+          styles.floatingBarWrapper,
+          { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] },
+        ]}
+        pointerEvents="box-none"
+      >
+        <BlurView
+          tint="systemChromeMaterialDark"
+          intensity={80}
+          style={styles.floatingBlur}
+        >
+          <View style={styles.floatingInner}>
+            <View style={styles.searchContainer}>
+              <Ionicons name="search" size={16} color="rgba(255,255,255,0.55)" style={styles.searchIcon} />
+              <TextInput
+                ref={searchInputRef}
+                style={styles.searchBar}
+                placeholder="Search servants"
+                placeholderTextColor="rgba(255,255,255,0.55)"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+                clearButtonMode="while-editing"
+              />
+            </View>
+          </View>
+        </BlurView>
+      </Animated.View>
 
       <Modal visible={dateModalVisible} transparent animationType="fade">
         <View style={styles.modalContainer}>
@@ -477,27 +568,56 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     backgroundColor: "#121212",
   },
-  headerContainer: {
+
+  // ---------- Week selector (dropdown) ----------
+  weekSelector: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 14,
+    justifyContent: "space-between",
     backgroundColor: "#1a1a1a",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: "rgba(255, 255, 255, 0.08)",
   },
-  headerText: {
-    fontSize: 24,
-    fontWeight: "600",
-    color: "#fff",
-    letterSpacing: 0.5,
+  weekSelectorLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
   },
-  calendarIcon: {
+  weekSelectorTextWrap: {
     marginLeft: 12,
   },
+  weekSelectorLabel: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.5)",
+    fontWeight: "500",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  weekSelectorDate: {
+    fontSize: 16,
+    color: "#fff",
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  weekSelectorRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(20, 126, 251, 0.15)",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  weekSelectorChange: {
+    fontSize: 13,
+    color: "#147EFB",
+    fontWeight: "600",
+    marginRight: 4,
+  },
+
   listWrapper: {
     flex: 1,
     position: "relative",
@@ -505,7 +625,7 @@ const styles = StyleSheet.create({
   listContainer: {
     flexGrow: 1,
     paddingRight: 32,
-    paddingBottom: 20,
+    paddingBottom: 110, // leave room for the floating bar
   },
   servantCard: {
     backgroundColor: "#1a1a1a",
@@ -572,6 +692,51 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#fff",
   },
+
+  // ---------- Floating bottom search ----------
+  floatingBarWrapper: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    bottom: Platform.OS === "ios" ? 28 : 16,
+    borderRadius: 18,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  floatingBlur: {
+    borderRadius: 18,
+    overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: Platform.OS === "android" ? "rgba(28,28,30,0.92)" : "transparent",
+  },
+  floatingInner: {
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  searchContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 38,
+  },
+  searchIcon: {
+    marginRight: 6,
+  },
+  searchBar: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 15,
+    paddingVertical: 0,
+  },
+
   loadingContainer: {
     flex: 1,
     justifyContent: "center",

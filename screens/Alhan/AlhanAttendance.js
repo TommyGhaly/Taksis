@@ -13,15 +13,18 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
+  Animated,
+  ScrollView,
 } from "react-native";
-import { Picker } from "@react-native-picker/picker";
+import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import storage from "@react-native-firebase/storage";
 import * as Haptics from "react-native-haptic-feedback";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const CacheUtils = {
   async get(key) {
@@ -34,7 +37,7 @@ const CacheUtils = {
         }
       }
     } catch (error) {
-      console.log('Cache read error:', error);
+      console.log("Cache read error:", error);
     }
     return null;
   },
@@ -42,41 +45,94 @@ const CacheUtils = {
     try {
       await AsyncStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
     } catch (error) {
-      console.log('Cache write error:', error);
+      console.log("Cache write error:", error);
     }
   },
   async remove(key) {
     try {
       await AsyncStorage.removeItem(key);
     } catch (error) {
-      console.log('Cache remove error:', error);
+      console.log("Cache remove error:", error);
     }
-  }
+  },
+};
+
+// ---------- Input formatting helpers ----------
+const formatPhoneInput = (raw) => {
+  const digits = (raw || "").replace(/\D/g, "").slice(0, 10);
+  if (digits.length === 0) return "";
+  if (digits.length < 4) return `(${digits}`;
+  if (digits.length < 7) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+};
+
+const formatBirthdayInput = (raw) => {
+  const digits = (raw || "").replace(/\D/g, "").slice(0, 8);
+  if (digits.length === 0) return "";
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
 };
 
 const AlhanAttendance = () => {
   const navigation = useNavigation();
   const user = auth().currentUser;
-  
+
   const [userData, setUserData] = useState(null);
   const [studentsByGrade, setStudentsByGrade] = useState({});
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [loading, setLoading] = useState(true);
+
+  // Add-student modal state
   const [modalVisible, setModalVisible] = useState(false);
   const [newStudentName, setNewStudentName] = useState("");
   const [newStudentGrade, setNewStudentGrade] = useState("");
+  const [newStudentPhone, setNewStudentPhone] = useState("");
+  const [newStudentBirthday, setNewStudentBirthday] = useState("");
+  const [newStudentAddress, setNewStudentAddress] = useState("");
+  const [newStudentDescription, setNewStudentDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
   const [selectedDate, setSelectedDate] = useState(null);
   const [dateModalVisible, setDateModalVisible] = useState(false);
   const [previousSaturdays, setPreviousSaturdays] = useState([]);
   const [isNavigating, setIsNavigating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  
+
   const sectionListRef = useRef(null);
   const isMounted = useRef(true);
   const studentUnsubscribes = useRef([]);
   const userUnsubscribe = useRef(null);
   const cacheKeys = useRef({ user: null, students: {}, profilePics: null });
+  const searchInputRef = useRef(null);
+  const keyboardOffset = useRef(new Animated.Value(0)).current;
+
+  // Lift the floating search bar above the keyboard
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      Animated.timing(keyboardOffset, {
+        toValue: e.endCoordinates.height,
+        duration: Platform.OS === "ios" ? e.duration || 250 : 200,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, (e) => {
+      Animated.timing(keyboardOffset, {
+        toValue: 0,
+        duration: Platform.OS === "ios" ? e.duration || 250 : 200,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [keyboardOffset]);
 
   useEffect(() => {
     isMounted.current = true;
@@ -89,7 +145,7 @@ const AlhanAttendance = () => {
       cacheKeys.current = {
         user: `alhan_user_${user.uid}`,
         students: {},
-        profilePics: `alhan_profile_pics_${user.uid}`
+        profilePics: `alhan_profile_pics_${user.uid}`,
       };
       loadCachedData();
       await generatePreviousSaturdays();
@@ -102,7 +158,7 @@ const AlhanAttendance = () => {
     return () => {
       isMounted.current = false;
       if (userUnsubscribe.current) userUnsubscribe.current();
-      studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
+      studentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
       studentUnsubscribes.current = [];
     };
   }, [user]);
@@ -111,12 +167,11 @@ const AlhanAttendance = () => {
     try {
       const [cachedUser, cachedProfilePics] = await Promise.all([
         CacheUtils.get(cacheKeys.current.user),
-        CacheUtils.get(cacheKeys.current.profilePics)
+        CacheUtils.get(cacheKeys.current.profilePics),
       ]);
       if (cachedUser && isMounted.current) {
         setUserData(cachedUser);
         if (cachedUser.alhanGrades?.length > 0) {
-          setNewStudentGrade(cachedUser.alhanGrades[0]);
           const cachedStudents = {};
           await Promise.all(
             cachedUser.alhanGrades.map(async (grade) => {
@@ -133,7 +188,7 @@ const AlhanAttendance = () => {
       }
       if (cachedProfilePics && isMounted.current) setProfilePictureUrls(cachedProfilePics);
     } catch (error) {
-      console.log('Error loading cached data:', error);
+      console.log("Error loading cached data:", error);
     }
   };
 
@@ -151,14 +206,6 @@ const AlhanAttendance = () => {
           const newUserData = doc.data();
           setUserData(newUserData);
           await CacheUtils.set(cacheKeys.current.user, newUserData);
-          if (newUserData.alhanGrades?.length > 0) {
-            setNewStudentGrade(prevGrade => {
-              if (newUserData.alhanGrades.includes(prevGrade)) return prevGrade;
-              return newUserData.alhanGrades[0];
-            });
-          } else {
-            setNewStudentGrade("");
-          }
         },
         (error) => {
           if (isMounted.current) Alert.alert("Error", error.message);
@@ -169,18 +216,18 @@ const AlhanAttendance = () => {
   useEffect(() => {
     if (!userData?.church || !userData?.alhanGrades?.length) {
       setStudentsByGrade({});
-      studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
+      studentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
       studentUnsubscribes.current = [];
       return;
     }
-    setStudentsByGrade(prevStudents => {
+    setStudentsByGrade((prevStudents) => {
       const updatedStudents = {};
-      userData.alhanGrades.forEach(grade => {
+      userData.alhanGrades.forEach((grade) => {
         if (prevStudents[grade]) updatedStudents[grade] = prevStudents[grade];
       });
       return updatedStudents;
     });
-    studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
+    studentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
     studentUnsubscribes.current = [];
     const newUnsubscribes = userData.alhanGrades.map((grade) => {
       const cacheKey = `alhan_students_${user.uid}_${grade}`;
@@ -207,7 +254,7 @@ const AlhanAttendance = () => {
     studentUnsubscribes.current = newUnsubscribes;
     fetchProfilePictureUrls();
     return () => {
-      studentUnsubscribes.current.forEach(unsubscribe => unsubscribe());
+      studentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
       studentUnsubscribes.current = [];
     };
   }, [userData?.church, userData?.alhanGrades?.join(",")]);
@@ -230,7 +277,6 @@ const AlhanAttendance = () => {
         })
       );
 
-      // Fetch profile pictures progressively instead of blocking on Promise.all
       const fetchBatch = async (batch) => {
         const batchUrls = {};
         await Promise.all(
@@ -248,17 +294,15 @@ const AlhanAttendance = () => {
         return batchUrls;
       };
 
-      // Fetch in batches of 10 to progressively update UI
       const batchSize = 10;
       for (let i = 0; i < allStudents.length; i += batchSize) {
         const batch = allStudents.slice(i, i + batchSize);
         const batchUrls = await fetchBatch(batch);
         if (isMounted.current) {
-          setProfilePictureUrls(prev => ({ ...prev, ...batchUrls }));
+          setProfilePictureUrls((prev) => ({ ...prev, ...batchUrls }));
         }
       }
 
-      // Cache all URLs at once
       if (isMounted.current) {
         await CacheUtils.set(cacheKeys.current.profilePics, profilePictureUrls);
       }
@@ -327,20 +371,38 @@ const AlhanAttendance = () => {
       .update({ [dateKey]: status });
   };
 
+  // Open the add-student modal pre-locked to the tapped grade
+  const openAddStudentModal = (grade) => {
+    Haptics.trigger("impactLight");
+    setNewStudentGrade(grade);
+    setNewStudentName("");
+    setNewStudentPhone("");
+    setNewStudentBirthday("");
+    setNewStudentAddress("");
+    setNewStudentDescription("");
+    setModalVisible(true);
+  };
+
   const addStudent = async () => {
     if (!newStudentName.trim()) {
       Alert.alert("Error", "Please enter a student name");
       return;
     }
     if (!newStudentGrade) {
-      Alert.alert("Error", "Please select a grade");
+      Alert.alert("Error", "No grade selected");
       return;
     }
     if (!userData?.alhanGrades?.includes(newStudentGrade)) {
       Alert.alert("Error", "You are no longer assigned to this grade");
-      setNewStudentGrade(userData?.alhanGrades?.[0] || "");
       return;
     }
+    // Validate birthday format if provided: MM-DD-YYYY
+    const trimmedBirthday = newStudentBirthday.trim();
+    if (trimmedBirthday && !/^\d{2}-\d{2}-\d{4}$/.test(trimmedBirthday)) {
+      Alert.alert("Invalid Birthday", "Please use the format MM-DD-YYYY, or leave it blank.");
+      return;
+    }
+
     setSubmitting(true);
     const newStudentRef = firestore()
       .collection("churches")
@@ -351,16 +413,19 @@ const AlhanAttendance = () => {
       .doc();
     try {
       await newStudentRef.set({
-        name: newStudentName,
+        name: newStudentName.trim(),
         uid: newStudentRef.id,
-        phone: "",
-        address: "",
-        description: "",
-        birthday: "",
+        phone: newStudentPhone.trim(),
+        address: newStudentAddress.trim(),
+        description: newStudentDescription.trim(),
+        birthday: trimmedBirthday,
       });
       setModalVisible(false);
       setNewStudentName("");
-      setNewStudentGrade(userData?.alhanGrades[0] || "");
+      setNewStudentPhone("");
+      setNewStudentBirthday("");
+      setNewStudentAddress("");
+      setNewStudentDescription("");
       await CacheUtils.remove(cacheKeys.current.students[newStudentGrade]);
     } catch (error) {
       Alert.alert("Error", "Failed to add student");
@@ -390,32 +455,35 @@ const AlhanAttendance = () => {
       data: filteredStudentsByGrade[grade] || [],
     }));
     if (searchQuery.trim()) {
-      return sections.filter(section => section.data.length > 0);
+      return sections.filter((section) => section.data.length > 0);
     }
     return sections;
   }, [userData?.alhanGrades, filteredStudentsByGrade, searchQuery]);
 
-  const scrollToGrade = useCallback((grade) => {
-    if (!sectionListRef.current) return;
-    const sectionIndex = gradeSections.findIndex((section) => section.title === grade);
-    if (sectionIndex >= 0) {
-      setTimeout(() => {
-        if (sectionListRef.current && isMounted.current) {
-          try {
-            sectionListRef.current.scrollToLocation({
-              sectionIndex,
-              itemIndex: 1,
-              animated: true,
-              viewPosition: 0,
-              viewOffset: 0,
-            });
-          } catch (error) {
-            console.log("Scroll to location failed");
+  const scrollToGrade = useCallback(
+    (grade) => {
+      if (!sectionListRef.current) return;
+      const sectionIndex = gradeSections.findIndex((section) => section.title === grade);
+      if (sectionIndex >= 0) {
+        setTimeout(() => {
+          if (sectionListRef.current && isMounted.current) {
+            try {
+              sectionListRef.current.scrollToLocation({
+                sectionIndex,
+                itemIndex: 1,
+                animated: true,
+                viewPosition: 0,
+                viewOffset: 0,
+              });
+            } catch (error) {
+              console.log("Scroll to location failed");
+            }
           }
-        }
-      }, 150);
-    }
-  }, [gradeSections]);
+        }, 150);
+      }
+    },
+    [gradeSections]
+  );
 
   const handleDateSelect = (date) => {
     setSelectedDate(date);
@@ -431,7 +499,7 @@ const AlhanAttendance = () => {
     () =>
       ({ item }) => {
         if (searchQuery.trim()) {
-          const hasStudents = gradeSections.some(section => section.title === item && section.data.length > 0);
+          const hasStudents = gradeSections.some((section) => section.title === item && section.data.length > 0);
           if (!hasStudents) return null;
         }
         return (
@@ -462,13 +530,19 @@ const AlhanAttendance = () => {
           <View style={styles.studentHeader}>
             <Image
               style={styles.profilePicture}
-              source={profilePictureUrls[student.uid] ? { uri: profilePictureUrls[student.uid] } : require("../../assets/default_profile.png")}
+              source={
+                profilePictureUrls[student.uid]
+                  ? { uri: profilePictureUrls[student.uid] }
+                  : require("../../assets/default_profile.png")
+              }
               resizeMode="cover"
               defaultSource={require("../../assets/default_profile.png")}
               onError={() => setProfilePictureUrls((prev) => ({ ...prev, [student.uid]: null }))}
             />
             <View style={styles.studentInfo}>
-              <Text style={styles.studentName}>{student.name} - {formatGrade(student.grade)}</Text>
+              <Text style={styles.studentName}>
+                {student.name} - {formatGrade(student.grade)}
+              </Text>
               <TouchableOpacity
                 hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                 onPress={() => {
@@ -503,7 +577,11 @@ const AlhanAttendance = () => {
                   styles.attendanceStatus,
                   {
                     backgroundColor:
-                      student[dateKey] === true ? "#147EFB" : student[dateKey] === false ? "#ff3b30" : "rgba(255,255,255,0.1)",
+                      student[dateKey] === true
+                        ? "#147EFB"
+                        : student[dateKey] === false
+                        ? "#ff3b30"
+                        : "rgba(255,255,255,0.1)",
                   },
                 ]}
               >
@@ -515,14 +593,20 @@ const AlhanAttendance = () => {
           ) : (
             <View style={styles.attendanceButtons}>
               <TouchableOpacity
-                style={[styles.attendanceButton, { backgroundColor: student[dateKey] === false ? "#ff3b30" : "rgba(255,255,255,0.08)" }]}
+                style={[
+                  styles.attendanceButton,
+                  { backgroundColor: student[dateKey] === false ? "#ff3b30" : "rgba(255,255,255,0.08)" },
+                ]}
                 onPress={() => handleAttendance(student, false)}
                 activeOpacity={0.7}
               >
                 <Text style={styles.attendanceButtonText}>Absent</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.attendanceButton, { backgroundColor: student[dateKey] === true ? "#147EFB" : "rgba(255,255,255,0.08)" }]}
+                style={[
+                  styles.attendanceButton,
+                  { backgroundColor: student[dateKey] === true ? "#147EFB" : "rgba(255,255,255,0.08)" },
+                ]}
                 onPress={() => handleAttendance(student, true)}
                 activeOpacity={0.7}
               >
@@ -564,16 +648,27 @@ const AlhanAttendance = () => {
         </View>
       )}
 
-      <View style={styles.headerRow}>
-        <TouchableOpacity style={styles.titleContainer} onPress={() => setDateModalVisible(true)} activeOpacity={0.7}>
-          <Text style={styles.title}>{dateKey}</Text>
-          <Ionicons name="calendar-outline" size={18} color="rgba(255,255,255,0.6)" style={styles.calendarIcon} />
-        </TouchableOpacity>
-      </View>
+      {/* ---------- Week selector ---------- */}
+      <TouchableOpacity
+        style={styles.weekSelector}
+        onPress={() => setDateModalVisible(true)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.weekSelectorLeft}>
+          <Ionicons name="calendar-outline" size={20} color="#147EFB" />
+          <View style={styles.weekSelectorTextWrap}>
+            <Text style={styles.weekSelectorLabel}>Week of</Text>
+            <Text style={styles.weekSelectorDate}>{dateKey}</Text>
+          </View>
+        </View>
+        <View style={styles.weekSelectorRight}>
+          <Text style={styles.weekSelectorChange}>Change</Text>
+        </View>
+      </TouchableOpacity>
 
       <View style={styles.gradesContainer}>
         <FlatList
-          data={searchQuery.trim() ? gradeSections.map(section => section.title) : userData.alhanGrades}
+          data={searchQuery.trim() ? gradeSections.map((section) => section.title) : userData.alhanGrades}
           renderItem={renderGrade}
           keyExtractor={(item) => item}
           horizontal
@@ -582,53 +677,91 @@ const AlhanAttendance = () => {
         />
       </View>
 
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={16} color="rgba(255,255,255,0.4)" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchBar}
-          placeholder="Search students..."
-          placeholderTextColor="rgba(255,255,255,0.4)"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          autoCorrect={false}
-          autoCapitalize="none"
-        />
-      </View>
-
       <SectionList
         ref={sectionListRef}
         sections={gradeSections}
         keyExtractor={(item) => item.uid}
         renderSectionHeader={({ section: { title } }) => (
-          <Text style={styles.gradeHeader}>{formatGrade(title)}</Text>
+          <View style={styles.gradeHeaderRow}>
+            <Text style={styles.gradeHeader}>{formatGrade(title)}</Text>
+            <TouchableOpacity
+              style={styles.addPill}
+              onPress={() => openAddStudentModal(title)}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="add" size={14} color="#147EFB" />
+              <Text style={styles.addPillText}>Add</Text>
+            </TouchableOpacity>
+          </View>
         )}
         renderItem={renderStudent}
         ListEmptyComponent={
           <Text style={styles.noStudentsText}>
-            {searchQuery.trim() ? 'No students found matching your search' : 'No students in this grade'}
+            {searchQuery.trim() ? "No students found matching your search" : "No students in this grade"}
           </Text>
         }
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={true}
         extraData={profilePictureUrls}
+        contentContainerStyle={styles.sectionListContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         onScrollToIndexFailed={(info) => {
-          const wait = new Promise(resolve => setTimeout(resolve, 500));
+          const wait = new Promise((resolve) => setTimeout(resolve, 500));
           wait.then(() => {
             if (sectionListRef.current && info.index >= 0 && info.index < gradeSections.length) {
-              sectionListRef.current.scrollToLocation({ sectionIndex: info.index, itemIndex: 1, animated: false, viewPosition: 0 });
+              sectionListRef.current.scrollToLocation({
+                sectionIndex: info.index,
+                itemIndex: 1,
+                animated: false,
+                viewPosition: 0,
+              });
             }
           });
         }}
       />
 
-      <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)} activeOpacity={0.7}>
-        <Ionicons name="add" size={20} color="#fff" style={{ marginRight: 6 }} />
-        <Text style={styles.addButtonText}>Add Student</Text>
-      </TouchableOpacity>
+      {/* ---------- Floating bottom search bar ---------- */}
+      <Animated.View
+        style={[
+          styles.floatingBarWrapper,
+          { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] },
+        ]}
+        pointerEvents="box-none"
+      >
+        <BlurView
+          tint="systemChromeMaterialDark"
+          intensity={80}
+          style={styles.floatingBlur}
+        >
+          <View style={styles.floatingInner}>
+            <View style={styles.searchContainer}>
+              <Ionicons name="search" size={16} color="rgba(255,255,255,0.55)" style={styles.searchIcon} />
+              <TextInput
+                ref={searchInputRef}
+                style={styles.searchBar}
+                placeholder="Search students"
+                placeholderTextColor="rgba(255,255,255,0.55)"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+                clearButtonMode="while-editing"
+              />
+            </View>
+          </View>
+        </BlurView>
+      </Animated.View>
 
-      <Modal visible={modalVisible} transparent animationType="fade">
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalContainer}>
-          <View style={styles.modalContent}>
+      {/* ---------- Add Student modal ---------- */}
+      <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalContainer}
+        >
+          <View style={styles.modalContentLarge}>
             {submitting ? (
               <View style={styles.modalLoadingContainer}>
                 <ActivityIndicator size="large" color="#147EFB" />
@@ -636,28 +769,143 @@ const AlhanAttendance = () => {
               </View>
             ) : (
               <>
-                <Text style={styles.modalTitle}>Add New Student</Text>
-                <Text style={styles.modalSubtitle}>Enter the student's details below</Text>
-                <View style={styles.inputContainer}>
+                <Text style={styles.modalTitle}>Add Student</Text>
+                <Text style={styles.modalSubtitle}>Name and grade are saved — everything else is optional</Text>
+
+                <ScrollView
+                  style={styles.modalScroll}
+                  contentContainerStyle={styles.modalScrollContent}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
+                  {/* Name (required) */}
+                  <View style={styles.fieldLabelRow}>
+                    <Text style={styles.fieldLabel}>Name</Text>
+                    <View style={styles.requiredBadge}>
+                      <Text style={styles.requiredBadgeText}>Required</Text>
+                    </View>
+                  </View>
                   <TextInput
                     style={styles.input}
                     autoCapitalize="words"
+                    autoFocus
                     placeholder="Student name"
                     placeholderTextColor="rgba(255,255,255,0.4)"
                     value={newStudentName}
                     onChangeText={setNewStudentName}
+                    returnKeyType="next"
                   />
-                  <Picker
-                    selectedValue={newStudentGrade}
-                    onValueChange={(itemValue) => setNewStudentGrade(itemValue)}
-                    style={styles.picker}
-                    itemStyle={styles.pickerItem}
+
+                  {/* Grade — segmented chip selector */}
+                  <View style={[styles.fieldLabelRow, { marginTop: 18 }]}>
+                    <Text style={styles.fieldLabel}>Grade</Text>
+                    <Text style={styles.fieldHint}>Tap to change</Text>
+                  </View>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.gradeChipsScroll}
+                    keyboardShouldPersistTaps="handled"
                   >
-                    {userData?.alhanGrades?.map((grade) => (
-                      <Picker.Item key={grade} label={formatGrade(grade)} value={grade} />
-                    ))}
-                  </Picker>
-                </View>
+                    {userData?.alhanGrades?.map((grade) => {
+                      const isSelected = grade === newStudentGrade;
+                      return (
+                        <TouchableOpacity
+                          key={grade}
+                          style={[styles.gradeChip, isSelected && styles.gradeChipSelected]}
+                          onPress={() => {
+                            Haptics.trigger("selection");
+                            setNewStudentGrade(grade);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          {isSelected && (
+                            <Ionicons
+                              name="checkmark"
+                              size={14}
+                              color="#147EFB"
+                              style={styles.gradeChipIcon}
+                            />
+                          )}
+                          <Text style={[styles.gradeChipText, isSelected && styles.gradeChipTextSelected]}>
+                            {formatGrade(grade)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+
+                  {/* Phone (optional) */}
+                  <View style={[styles.fieldLabelRow, { marginTop: 18 }]}>
+                    <Text style={styles.fieldLabel}>Phone</Text>
+                    <View style={styles.optionalBadge}>
+                      <Text style={styles.optionalBadgeText}>Optional</Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="(555) 123-4567"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    value={newStudentPhone}
+                    onChangeText={(t) => setNewStudentPhone(formatPhoneInput(t))}
+                    keyboardType="phone-pad"
+                    returnKeyType="next"
+                  />
+
+                  {/* Birthday (optional) */}
+                  <View style={[styles.fieldLabelRow, { marginTop: 18 }]}>
+                    <Text style={styles.fieldLabel}>Birthday</Text>
+                    <View style={styles.optionalBadge}>
+                      <Text style={styles.optionalBadgeText}>Optional</Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="MM-DD-YYYY"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    value={newStudentBirthday}
+                    onChangeText={(t) => setNewStudentBirthday(formatBirthdayInput(t))}
+                    keyboardType="number-pad"
+                    maxLength={10}
+                    returnKeyType="next"
+                  />
+
+                  {/* Address (optional) */}
+                  <View style={[styles.fieldLabelRow, { marginTop: 18 }]}>
+                    <Text style={styles.fieldLabel}>Address</Text>
+                    <View style={styles.optionalBadge}>
+                      <Text style={styles.optionalBadgeText}>Optional</Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="123 Main St, City, State"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    value={newStudentAddress}
+                    onChangeText={setNewStudentAddress}
+                    autoCapitalize="words"
+                    returnKeyType="next"
+                  />
+
+                  {/* Description (optional) */}
+                  <View style={[styles.fieldLabelRow, { marginTop: 18 }]}>
+                    <Text style={styles.fieldLabel}>Description</Text>
+                    <View style={styles.optionalBadge}>
+                      <Text style={styles.optionalBadgeText}>Optional</Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={[styles.input, styles.inputMultiline]}
+                    placeholder="Notes about the student"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    value={newStudentDescription}
+                    onChangeText={setNewStudentDescription}
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
+                  />
+                </ScrollView>
+
                 <TouchableOpacity
                   style={[styles.modalButton, submitting && { opacity: 0.5 }]}
                   onPress={addStudent}
@@ -666,7 +914,11 @@ const AlhanAttendance = () => {
                 >
                   <Text style={styles.modalButtonText}>Add Student</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setModalVisible(false)} disabled={submitting} style={styles.cancelTouchable}>
+                <TouchableOpacity
+                  onPress={() => setModalVisible(false)}
+                  disabled={submitting}
+                  style={styles.cancelTouchable}
+                >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
               </>
@@ -675,6 +927,7 @@ const AlhanAttendance = () => {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* ---------- Week picker modal ---------- */}
       <Modal visible={dateModalVisible} transparent animationType="fade">
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
@@ -707,29 +960,57 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     backgroundColor: "#121212",
   },
-  headerRow: {
-    marginBottom: 8,
-  },
-  titleContainer: {
+
+  // ---------- Week selector ----------
+  weekSelector: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 10,
+    justifyContent: "space-between",
     backgroundColor: "#1a1a1a",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: "rgba(255, 255, 255, 0.08)",
   },
-  title: {
-    fontSize: 18,
-    fontWeight: "600",
+  weekSelectorLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  weekSelectorTextWrap: {
+    marginLeft: 12,
+  },
+  weekSelectorLabel: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.5)",
+    fontWeight: "500",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  weekSelectorDate: {
+    fontSize: 16,
     color: "#fff",
-    letterSpacing: 0.3,
+    fontWeight: "600",
+    marginTop: 2,
   },
-  calendarIcon: {
-    marginLeft: 8,
+  weekSelectorRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(20, 126, 251, 0.15)",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
   },
+  weekSelectorChange: {
+    fontSize: 13,
+    color: "#147EFB",
+    fontWeight: "600",
+    marginRight: 4,
+  },
+
+  // ---------- Grade tags ----------
   gradesContainer: {
     height: 34,
     marginBottom: 8,
@@ -751,16 +1032,40 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
   },
+
+  // ---------- Floating bottom search ----------
+  floatingBarWrapper: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    bottom: Platform.OS === "ios" ? 28 : 16,
+    borderRadius: 18,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  floatingBlur: {
+    borderRadius: 18,
+    overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: Platform.OS === "android" ? "rgba(28,28,30,0.92)" : "transparent",
+  },
+  floatingInner: {
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
   searchContainer: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1a1a1a",
-    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 10,
     paddingHorizontal: 10,
-    height: 34,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    height: 38,
   },
   searchIcon: {
     marginRight: 6,
@@ -768,16 +1073,42 @@ const styles = StyleSheet.create({
   searchBar: {
     flex: 1,
     color: "#fff",
-    fontSize: 13,
+    fontSize: 15,
     paddingVertical: 0,
+  },
+
+  // ---------- List ----------
+  sectionListContent: {
+    paddingBottom: 110, // leave room for the floating bar
+  },
+  gradeHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#121212",
+    paddingVertical: 6,
+    marginBottom: 10,
   },
   gradeHeader: {
     fontSize: 18,
     fontWeight: "600",
     color: "#4d9cff",
-    marginBottom: 10,
-    backgroundColor: "#121212",
-    paddingVertical: 6,
+  },
+  addPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(20, 126, 251, 0.15)",
+    borderRadius: 999,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "rgba(20, 126, 251, 0.3)",
+  },
+  addPillText: {
+    fontSize: 12,
+    color: "#147EFB",
+    fontWeight: "600",
+    marginLeft: 3,
   },
   studentContainer: {
     backgroundColor: "#1a1a1a",
@@ -841,6 +1172,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#fff",
   },
+
+  // ---------- Misc / modals ----------
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -872,21 +1205,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginVertical: 20,
   },
-  addButton: {
-    backgroundColor: "#147EFB",
-    borderRadius: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    marginTop: 12,
-    marginBottom: 16,
-  },
-  addButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#fff",
-  },
   modalContainer: {
     flex: 1,
     justifyContent: "center",
@@ -903,67 +1221,162 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 255, 255, 0.06)",
     alignItems: "center",
   },
+  // Larger variant for the multi-field add-student modal
+  modalContentLarge: {
+    width: "90%",
+    maxWidth: 420,
+    maxHeight: "85%",
+    paddingTop: 24,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    backgroundColor: "#1a1a1a",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+  },
+  modalScroll: {
+    width: "100%",
+    marginBottom: 16,
+  },
+  modalScrollContent: {
+    paddingBottom: 4,
+  },
   modalLoadingContainer: {
     alignItems: "center",
-    paddingVertical: 20,
+    paddingVertical: 40,
   },
   modalTitle: {
     fontSize: 22,
     color: "#fff",
     fontWeight: "600",
-    marginBottom: 8,
-  },
-  modalSubtitle: {
-    fontSize: 15,
-    color: "rgba(255,255,255,0.6)",
-    marginBottom: 24,
+    marginBottom: 4,
     textAlign: "center",
   },
-  inputContainer: {
-    width: "100%",
-    marginBottom: 20,
+  modalSubtitle: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.55)",
+    marginBottom: 18,
+    textAlign: "center",
+  },
+  fieldLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    color: "#fff",
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
+  fieldHint: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.4)",
+    fontWeight: "500",
+  },
+  requiredBadge: {
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(255, 59, 48, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 59, 48, 0.3)",
+  },
+  requiredBadgeText: {
+    fontSize: 10,
+    color: "#ff453a",
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  optionalBadge: {
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  optionalBadgeText: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.5)",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   input: {
     width: "100%",
-    padding: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     backgroundColor: "rgba(255,255,255,0.05)",
     color: "#fff",
-    borderRadius: 14,
-    marginBottom: 12,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.06)",
-    fontSize: 16,
+    fontSize: 15,
   },
-  picker: {
-    width: "100%",
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderRadius: 14,
+  inputMultiline: {
+    minHeight: 70,
+    paddingTop: 12,
+  },
+  gradeChipsScroll: {
+    flexDirection: "row",
+    paddingVertical: 2,
+    paddingRight: 4,
+    gap: 8,
+  },
+  gradeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: "rgba(255,255,255,0.08)",
   },
-  pickerItem: {
-    color: "#fff",
-    fontSize: 16,
+  gradeChipSelected: {
+    backgroundColor: "rgba(20, 126, 251, 0.18)",
+    borderColor: "#147EFB",
+    shadowColor: "#147EFB",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  gradeChipIcon: {
+    marginRight: 5,
+  },
+  gradeChipText: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.65)",
+    fontWeight: "600",
+  },
+  gradeChipTextSelected: {
+    color: "#147EFB",
+    fontWeight: "700",
   },
   modalButton: {
     width: "100%",
     backgroundColor: "#147EFB",
     borderRadius: 14,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   modalButtonText: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "600",
     color: "#fff",
   },
   cancelTouchable: {
     paddingVertical: 8,
+    alignItems: "center",
   },
   cancelButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     color: "#ff3b30",
     fontWeight: "600",
   },
