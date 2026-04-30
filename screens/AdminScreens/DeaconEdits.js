@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -15,7 +15,11 @@ import {
   Platform,
   ScrollView,
   RefreshControl,
+  TextInput,
+  Keyboard,
+  Animated,
 } from "react-native";
+import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
@@ -65,12 +69,42 @@ const DeaconEdits = () => {
   const [isLoadingDeacons, setIsLoadingDeacons] = useState(true);
   const [userDataLoading, setUserDataLoading] = useState(true);
   const [syncModalVisible, setSyncModalVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   
   const sectionListRef = useRef(null);
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerHeightRef = useRef(0);
   const deaconsListenerRef = useRef(null);
   const userListenerRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const keyboardOffset = useRef(new Animated.Value(0)).current;
+
+  // Lift the floating search bar above the keyboard
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      Animated.timing(keyboardOffset, {
+        toValue: e.endCoordinates.height,
+        duration: Platform.OS === "ios" ? e.duration || 250 : 200,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, (e) => {
+      Animated.timing(keyboardOffset, {
+        toValue: 0,
+        duration: Platform.OS === "ios" ? e.duration || 250 : 200,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [keyboardOffset]);
 
   // Set up real-time listener for user document to detect church changes
   useEffect(() => {
@@ -188,34 +222,47 @@ const DeaconEdits = () => {
             deaconList.find((d) => d.uid === deacon.uid)?.name || "",
         }));
 
-      // Group by first letter - categorize non-alphabet characters as #
-      const grouped = sortedDeacons.reduce((acc, deacon) => {
-        const firstChar = deacon.name.charAt(0).toUpperCase();
-        const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
-        if (!acc[firstLetter]) acc[firstLetter] = [];
-        acc[firstLetter].push(deacon);
-        return acc;
-      }, {});
-
-      // Convert to SectionList format - put # at the end
-      const sectionData = Object.keys(grouped)
-        .sort((a, b) => {
-          // Put # at the end, sort other letters alphabetically
-          if (a === '#') return 1;
-          if (b === '#') return -1;
-          return a.localeCompare(b);
-        })
-        .map((letter) => ({
-          title: letter,
-          data: grouped[letter],
-        }));
-
       setDeacons(sortedDeacons);
-      setSections(sectionData);
     } catch (error) {
       console.error('Error processing deacon list:', error);
     }
   }, []);
+
+  // Build sections from deacons + searchQuery
+  useEffect(() => {
+    if (deacons.length === 0) {
+      setSections([]);
+      return;
+    }
+
+    const lower = searchQuery.trim().toLowerCase();
+    const filtered = lower
+      ? deacons.filter((d) => (d.name || "").toLowerCase().includes(lower))
+      : deacons;
+
+    // Group by first letter - categorize non-alphabet characters as #
+    const grouped = filtered.reduce((acc, deacon) => {
+      const firstChar = (deacon.name || "").charAt(0).toUpperCase();
+      const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
+      if (!acc[firstLetter]) acc[firstLetter] = [];
+      acc[firstLetter].push(deacon);
+      return acc;
+    }, {});
+
+    // Convert to SectionList format - put # at the end
+    const sectionData = Object.keys(grouped)
+      .sort((a, b) => {
+        if (a === '#') return 1;
+        if (b === '#') return -1;
+        return a.localeCompare(b);
+      })
+      .map((letter) => ({
+        title: letter,
+        data: grouped[letter],
+      }));
+
+    setSections(sectionData);
+  }, [deacons, searchQuery]);
 
   // Subscribe to deacons when church changes
   useEffect(() => {
@@ -525,10 +572,10 @@ const DeaconEdits = () => {
           contentContainerStyle={styles.centered}
         >
           <Text style={[styles.noData, { fontSize: 16 * scale }]}>
-            No deacons found.
+            {searchQuery.trim() ? "No deacons match your search." : "No deacons found."}
           </Text>
           <Text style={[styles.noDataSubtext, { fontSize: 14 * scale }]}>
-            Pull down to refresh
+            {searchQuery.trim() ? "Try a different name." : "Pull down to refresh"}
           </Text>
         </ScrollView>
       ) : (
@@ -543,6 +590,8 @@ const DeaconEdits = () => {
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
             extraData={profilePictureUrls}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
             onScrollToIndexFailed={() => {
               // Do nothing when scroll fails - stay in current position
             }}
@@ -556,14 +605,49 @@ const DeaconEdits = () => {
             }
           />
           {/* Wrap the AlphabetIndexBar in an absolutely positioned View */}
-          <View style={{ position: 'absolute', top: 150 * scale, right: 0, width: 30 }}>
-            <AlphabetIndexBar 
-              onLetterChange={scrollToSection} 
-              availableLetters={sections.map(s => s.title)}
-            />
-          </View>
+          {!searchQuery.trim() && (
+            <View style={{ position: 'absolute', top: 100 * scale, right: 0, width: 30 }}>
+              <AlphabetIndexBar 
+                onLetterChange={scrollToSection} 
+                availableLetters={sections.map(s => s.title)}
+              />
+            </View>
+          )}
         </View>
       )}
+
+      {/* ---------- Floating bottom search bar with system material ---------- */}
+      <Animated.View
+        style={[
+          styles.floatingBarWrapper,
+          { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] },
+        ]}
+        pointerEvents="box-none"
+      >
+        <BlurView
+          tint="systemChromeMaterialDark"
+          intensity={80}
+          style={styles.floatingBlur}
+        >
+          <View style={styles.floatingInner}>
+            <View style={styles.searchContainer}>
+              <Ionicons name="search" size={16} color="rgba(255,255,255,0.55)" style={styles.searchIcon} />
+              <TextInput
+                ref={searchInputRef}
+                style={styles.searchBar}
+                placeholder="Search deacons"
+                placeholderTextColor="rgba(255,255,255,0.55)"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+                clearButtonMode="while-editing"
+              />
+            </View>
+          </View>
+        </BlurView>
+      </Animated.View>
 
       {selectedDeacon && (
         <IndividualProfile
@@ -624,7 +708,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   listContainer: {
-    paddingBottom: 20,
+    paddingBottom: 110, // leave room for the floating bar
     flexGrow: 1,
     paddingRight: 32,
   },
@@ -724,6 +808,50 @@ const styles = StyleSheet.create({
     fontSize: 22 * scale,
     fontWeight: "600",
     color: "#fff",
+  },
+
+  // ---------- Floating bottom search ----------
+  floatingBarWrapper: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    bottom: Platform.OS === "ios" ? 28 : 16,
+    borderRadius: 18,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  floatingBlur: {
+    borderRadius: 18,
+    overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: Platform.OS === "android" ? "rgba(28,28,30,0.92)" : "transparent",
+  },
+  floatingInner: {
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  searchContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 38,
+  },
+  searchIcon: {
+    marginRight: 6,
+  },
+  searchBar: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 15,
+    paddingVertical: 0,
   },
 });
 
