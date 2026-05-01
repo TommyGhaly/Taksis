@@ -15,7 +15,11 @@ import {
   Platform,
   ScrollView,
   PanResponder,
+  TextInput,
+  Keyboard,
+  Animated,
 } from "react-native";
+import { BlurView } from "expo-blur";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
@@ -142,6 +146,7 @@ const ServantsAdmin = () => {
   const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [currentLetter, setCurrentLetter] = useState(null);
   const [indexBarLayout, setIndexBarLayout] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
   
   // Refs
   const headerHeightRef = useRef(0);
@@ -155,6 +160,35 @@ const ServantsAdmin = () => {
     servants: null,
     profilePics: null
   });
+  const searchInputRef = useRef(null);
+  const keyboardOffset = useRef(new Animated.Value(0)).current;
+
+  // Lift the floating search bar above the keyboard
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      Animated.timing(keyboardOffset, {
+        toValue: e.endCoordinates.height,
+        duration: Platform.OS === "ios" ? e.duration || 250 : 200,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, (e) => {
+      Animated.timing(keyboardOffset, {
+        toValue: 0,
+        duration: Platform.OS === "ios" ? e.duration || 250 : 200,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [keyboardOffset]);
 
   // Initialize and load cached data immediately
   useEffect(() => {
@@ -218,8 +252,6 @@ const ServantsAdmin = () => {
 
       if (cachedServants && isMounted.current) {
         setServants(cachedServants);
-        // Process sections from cached servants
-        processSections(cachedServants);
       }
 
       if (cachedProfilePics && isMounted.current) {
@@ -334,7 +366,6 @@ const ServantsAdmin = () => {
             }));
 
           setServants(servantList);
-          processSections(servantList);
           
           // Cache servants data
           await CacheUtils.set(cacheKeys.current.servants, servantList);
@@ -352,10 +383,21 @@ const ServantsAdmin = () => {
     };
   };
 
-  // Process sections from servants list
-  const processSections = (servantList) => {
+  // Build sections from servants + searchQuery
+  useEffect(() => {
+    if (servants.length === 0) {
+      setSections([]);
+      setAvailableLetters([]);
+      return;
+    }
+
+    const lower = searchQuery.trim().toLowerCase();
+    const filtered = lower
+      ? servants.filter((s) => (s.name || "").toLowerCase().includes(lower))
+      : servants;
+
     // Group by first letter (A-Z or #)
-    const grouped = servantList.reduce((acc, servant) => {
+    const grouped = filtered.reduce((acc, servant) => {
       const firstChar = (servant.name || '').charAt(0).toUpperCase();
       const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
       if (!acc[firstLetter]) acc[firstLetter] = [];
@@ -380,7 +422,7 @@ const ServantsAdmin = () => {
 
     setSections(sectionData);
     setAvailableLetters(letters);
-  };
+  }, [servants, searchQuery]);
 
   // Handle remove photo
   const handleRemovePhoto = async () => {
@@ -697,7 +739,7 @@ const ServantsAdmin = () => {
       </Text>
       {sections.length === 0 ? (
         <Text style={[styles.noData, { fontSize: 16 * scale }]}>
-          No servants found.
+          {searchQuery.trim() ? "No servants match your search." : "No servants found."}
         </Text>
       ) : (
         <View style={styles.listWrapper}>
@@ -711,11 +753,13 @@ const ServantsAdmin = () => {
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
             extraData={profilePictureUrls}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
             onScrollToIndexFailed={(info) => {
               // Do nothing when scroll fails - stay in current position
             }}
           />
-          {sections.length > 0 && (
+          {sections.length > 0 && !searchQuery.trim() && (
             <View style={{ position: 'absolute', top: 100 * scale, right: 0, width: 30 }}>
               <AlphabetIndexBar 
                 onLetterChange={scrollToSection} 
@@ -725,6 +769,40 @@ const ServantsAdmin = () => {
           )}
         </View>
       )}
+
+      {/* ---------- Floating bottom search bar with system material ---------- */}
+      <Animated.View
+        style={[
+          styles.floatingBarWrapper,
+          { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] },
+        ]}
+        pointerEvents="box-none"
+      >
+        <BlurView
+          tint="systemChromeMaterialDark"
+          intensity={80}
+          style={styles.floatingBlur}
+        >
+          <View style={styles.floatingInner}>
+            <View style={styles.searchContainer}>
+              <Ionicons name="search" size={16} color="rgba(255,255,255,0.55)" style={styles.searchIcon} />
+              <TextInput
+                ref={searchInputRef}
+                style={styles.searchBar}
+                placeholder="Search servants"
+                placeholderTextColor="rgba(255,255,255,0.55)"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+                clearButtonMode="while-editing"
+              />
+            </View>
+          </View>
+        </BlurView>
+      </Animated.View>
+
       {selectedServant && (
         <Modal visible={modalVisible} animationType="fade" transparent={true}>
           <View style={styles.modalOverlay}>
@@ -875,7 +953,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   listContainer: {
-    paddingBottom: 20,
+    paddingBottom: 110, // leave room for the floating bar
     flexGrow: 1,
     paddingRight: 32,
   },
@@ -991,6 +1069,51 @@ const styles = StyleSheet.create({
   indexTextActive: {
     color: "#fff",
   },
+
+  // ---------- Floating bottom search ----------
+  floatingBarWrapper: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    bottom: Platform.OS === "ios" ? 28 : 16,
+    borderRadius: 18,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  floatingBlur: {
+    borderRadius: 18,
+    overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: Platform.OS === "android" ? "rgba(28,28,30,0.92)" : "transparent",
+  },
+  floatingInner: {
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  searchContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 38,
+  },
+  searchIcon: {
+    marginRight: 6,
+  },
+  searchBar: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 15,
+    paddingVertical: 0,
+  },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.7)",
