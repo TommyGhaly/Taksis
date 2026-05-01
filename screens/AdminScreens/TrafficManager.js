@@ -4,8 +4,9 @@ import React, {
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet,
   FlatList, Modal, TextInput, Alert, ActivityIndicator, Linking,
-  KeyboardAvoidingView, Platform, Keyboard, Dimensions, Switch,
+  KeyboardAvoidingView, Platform, Keyboard, Dimensions, Switch, Animated,
 } from "react-native";
+import { BlurView } from "expo-blur";
 import { Image } from "expo-image";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
@@ -265,6 +266,8 @@ const TrafficManager = () => {
   const [loading, setLoading] = useState(true);
 
   const [carSearch, setCarSearch] = useState("");
+  const searchInputRef = useRef(null);
+  const keyboardOffset = useRef(new Animated.Value(0)).current;
 
   // Scanner
   const [scannerVisible, setScannerVisible] = useState(false);
@@ -302,6 +305,33 @@ const TrafficManager = () => {
   // ── Review queue (migration + malformed car detection) ─────────────────────
   const [reviewQueue, setReviewQueue] = useState([]);
   const [reviewVisible, setReviewVisible] = useState(false);
+
+  // ── Lift floating bar above keyboard ───────────────────────────────────────
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      Animated.timing(keyboardOffset, {
+        toValue: e.endCoordinates.height,
+        duration: Platform.OS === "ios" ? e.duration || 250 : 200,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, (e) => {
+      Animated.timing(keyboardOffset, {
+        toValue: 0,
+        duration: Platform.OS === "ios" ? e.duration || 250 : 200,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [keyboardOffset]);
 
   // ── Listeners ──────────────────────────────────────────────────────────────
 
@@ -731,15 +761,6 @@ const TrafficManager = () => {
         </View>
       </View>
 
-      {/* Search */}
-      {cars.length > 0 ? (
-        <View style={[s.searchBox, { marginHorizontal: 16, marginBottom: 8 }]}>
-          <Icon name="magnify" size={20} color="rgba(255,255,255,0.4)" />
-          <TextInput style={s.searchInput} placeholder="Search by plate, owner, make..." placeholderTextColor="rgba(255,255,255,0.3)" value={carSearch} onChangeText={setCarSearch} />
-          {carSearch.length > 0 ? <TouchableOpacity onPress={() => setCarSearch("")}><Icon name="close-circle" size={18} color="rgba(255,255,255,0.4)" /></TouchableOpacity> : null}
-        </View>
-      ) : null}
-
       {/* Car list */}
       {cars.length === 0 ? (
         <View style={s.emptyState}>
@@ -754,13 +775,47 @@ const TrafficManager = () => {
       ) : (
         <FlatList data={filteredCars} keyExtractor={(item) => item.id} renderItem={renderCarItem}
           contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
           ListEmptyComponent={<View style={{ alignItems: "center", marginTop: 40 }}><Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 15 }}>No results</Text></View>} />
       )}
 
+      {/* ── Floating bottom search + scan button ── */}
       {cars.length > 0 && (
-        <TouchableOpacity style={s.fab} onPress={openScanner} activeOpacity={0.9}>
-          <Icon name="camera-outline" size={24} color="#fff" />
-        </TouchableOpacity>
+        <Animated.View
+          style={[
+            s.floatingBarWrapper,
+            { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] },
+          ]}
+          pointerEvents="box-none"
+        >
+          <BlurView
+            tint="systemChromeMaterialDark"
+            intensity={80}
+            style={s.floatingBlur}
+          >
+            <View style={s.floatingInner}>
+              <View style={s.floatingSearchContainer}>
+                <Icon name="magnify" size={16} color="rgba(255,255,255,0.55)" style={s.floatingSearchIcon} />
+                <TextInput
+                  ref={searchInputRef}
+                  style={s.floatingSearchInput}
+                  placeholder="Search by plate, owner, make..."
+                  placeholderTextColor="rgba(255,255,255,0.55)"
+                  value={carSearch}
+                  onChangeText={setCarSearch}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  returnKeyType="search"
+                  clearButtonMode="while-editing"
+                />
+              </View>
+              <TouchableOpacity style={s.floatingScanBtn} onPress={openScanner} activeOpacity={0.8}>
+                <Icon name="camera-outline" size={18} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </BlurView>
+        </Animated.View>
       )}
 
       {/* ── Plate Scanner ── */}
@@ -996,7 +1051,7 @@ const s = StyleSheet.create({
   headerScanBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#147efb", justifyContent: "center", alignItems: "center" },
   searchBox: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 12 },
   searchInput: { flex: 1, color: "#fff", fontSize: 15, paddingVertical: 12, marginLeft: 8 },
-  listContent: { paddingHorizontal: 16, paddingBottom: 100 },
+  listContent: { paddingHorizontal: 16, paddingBottom: 110 },
   carCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#1c1c1e", padding: 14, borderRadius: 16, marginTop: 8, gap: 10 },
   carStatusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.2)" },
   carStatusDotPresent: { backgroundColor: "#34c759" },
@@ -1016,7 +1071,62 @@ const s = StyleSheet.create({
   emptySubtitle: { fontSize: 14, color: "rgba(255,255,255,0.4)", marginTop: 4 },
   emptyBtn: { flexDirection: "row", alignItems: "center", backgroundColor: "#147efb", paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, marginTop: 24, gap: 8 },
   emptyBtnText: { fontSize: 15, fontWeight: "600", color: "#fff" },
-  fab: { position: "absolute", bottom: 24, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: "#147efb", justifyContent: "center", alignItems: "center" },
+
+  // ---------- Floating bottom search + scan ----------
+  floatingBarWrapper: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    bottom: Platform.OS === "ios" ? 28 : 16,
+    borderRadius: 18,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  floatingBlur: {
+    borderRadius: 18,
+    overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: Platform.OS === "android" ? "rgba(28,28,30,0.92)" : "transparent",
+  },
+  floatingInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  floatingSearchContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 38,
+  },
+  floatingSearchIcon: {
+    marginRight: 6,
+  },
+  floatingSearchInput: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 15,
+    paddingVertical: 0,
+  },
+  floatingScanBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#147efb",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
   bottomOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
   centerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.8)", justifyContent: "center", alignItems: "center", padding: 24 },
   subSheetOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)" },
