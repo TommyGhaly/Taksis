@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -10,35 +10,167 @@ import {
   Dimensions,
   Platform,
   KeyboardAvoidingView,
+  ScrollView,
+  ActivityIndicator,
+  Animated,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import auth from "@react-native-firebase/auth";
 import firestore from "@react-native-firebase/firestore";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import * as AppleAuthentication from "expo-apple-authentication";
+import * as d from "expo-auth-session";
+import * as WebBrowser from "expo-web-browser";
+import * as Crypto from "expo-crypto";
 import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
-import * as AppleAuthentication from "expo-apple-authentication";
-import * as Crypto from "expo-crypto";
 import { useUser } from "../UserContext";
 
-// Get screen dimensions for dynamic scaling
-const { width, height } = Dimensions.get("window");
+WebBrowser.maybeCompleteAuthSession();
 
-// Reference dimensions (based on a standard mobile screen, e.g., iPhone X)
+const { width, height } = Dimensions.get("window");
 const REFERENCE_WIDTH = 375;
 const REFERENCE_HEIGHT = 812;
-
-// Scaling functions
 const scale = (size) => (width / REFERENCE_WIDTH) * size;
 const verticalScale = (size) => (height / REFERENCE_HEIGHT) * size;
 const moderateScale = (size, factor = 0.5) =>
   size + (scale(size) - size) * factor;
+
+// ---------- Microsoft OAuth config (TODO: fill in before going live) ----------
+// Register an app at https://portal.azure.com → Azure Active Directory →
+// App registrations. Add a redirect URI matching the one printed by
+// AuthSession.makeRedirectUri at runtime, and grant the openid/profile/email
+// scopes. Then drop the client id below and uncomment the discovery block.
+const MICROSOFT_CLIENT_ID = "827479e7-3afb-41ad-b426-31e2d42f9b44";
+const MICROSOFT_TENANT = "common"; // 'common' supports any MSA + work account
+const microsoftDiscovery = {
+  authorizationEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/authorize`,
+  tokenEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/token`,
+};
+
+// ---------- Floating-label input ----------
+const FloatingInput = React.forwardRef(({
+  label,
+  value,
+  onChangeText,
+  secureTextEntry,
+  showToggle,
+  onToggleSecure,
+  isSecureVisible,
+  autoCapitalize,
+  keyboardType,
+  textContentType,
+  error,
+  onBlur,
+  onFocus,
+  returnKeyType,
+  onSubmitEditing,
+  blurOnSubmit,
+  ...rest
+}, ref) => {
+  const [focused, setFocused] = useState(false);
+  const animated = useRef(new Animated.Value(value ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(animated, {
+      toValue: focused || value ? 1 : 0,
+      duration: 160,
+      useNativeDriver: false,
+    }).start();
+  }, [focused, value, animated]);
+
+  const labelStyle = {
+    position: "absolute",
+    left: scale(14),
+    top: animated.interpolate({
+      inputRange: [0, 1],
+      outputRange: [verticalScale(16), verticalScale(6)],
+    }),
+    fontSize: animated.interpolate({
+      inputRange: [0, 1],
+      outputRange: [moderateScale(15), moderateScale(11)],
+    }),
+    color: animated.interpolate({
+      inputRange: [0, 1],
+      outputRange: ["rgba(255,255,255,0.45)", "rgba(255,255,255,0.55)"],
+    }),
+  };
+
+  const borderColor = error
+    ? "#ff453a"
+    : focused
+      ? "#147efb"
+      : "rgba(255,255,255,0.1)";
+
+  return (
+    <View style={{ marginBottom: verticalScale(12) }}>
+      <View style={[styles.inputWrap, { borderColor }]}>
+        <Animated.Text style={labelStyle} pointerEvents="none">
+          {label}
+        </Animated.Text>
+        <TextInput
+          ref={ref}
+          value={value}
+          onChangeText={onChangeText}
+          secureTextEntry={secureTextEntry && !isSecureVisible}
+          autoCapitalize={autoCapitalize}
+          keyboardType={keyboardType}
+          textContentType={textContentType}
+          autoCorrect={false}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus && onFocus(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            onBlur && onBlur(e);
+          }}
+          returnKeyType={returnKeyType}
+          onSubmitEditing={onSubmitEditing}
+          blurOnSubmit={blurOnSubmit}
+          style={styles.input}
+          placeholderTextColor="rgba(255,255,255,0.3)"
+          {...rest}
+        />
+        {showToggle ? (
+          <Pressable
+            onPress={onToggleSecure}
+            style={styles.eyeBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons
+              name={isSecureVisible ? "eye-off-outline" : "eye-outline"}
+              size={20}
+              color="rgba(255,255,255,0.4)"
+            />
+          </Pressable>
+        ) : null}
+      </View>
+      {error ? (
+        <View style={styles.errorRow}>
+          <Ionicons name="alert-circle" size={12} color="#ff453a" />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+});
 
 const SignUp = ({ navigation }) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const { signUp, setSignUp } = useUser();
+  const [showPwd, setShowPwd] = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+  const [loading, setLoading] = useState(null); // 'email' | 'google' | 'apple' | 'microsoft' | null
+  const [touched, setTouched] = useState({ name: false, email: false, password: false, confirm: false });
+  const { setSignUp } = useUser();
+
+  // Refs for chained returnKey navigation between fields
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+  const confirmRef = useRef(null);
 
   useEffect(() => {
     setSignUp(true);
@@ -49,79 +181,107 @@ const SignUp = ({ navigation }) => {
       "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
   });
 
+  // Microsoft auth request — auto-built from the discovery doc above
+  const [msRequest, msResponse, msPromptAsync] = AuthSession.useAuthRequest(
+    {
+      clientId: MICROSOFT_CLIENT_ID,
+      scopes: ["openid", "profile", "email"],
+      redirectUri: AuthSession.makeRedirectUri(),
+      responseType: AuthSession.ResponseType.IdToken,
+      extraParams: { nonce: "ms_signup_" + Date.now() },
+    },
+    microsoftDiscovery
+  );
+
+  // ---------- Validation (live, but only surfaces after a field is touched) ----------
+  const validation = useMemo(() => {
+    const errs = {};
+    const trimmed = name.trim();
+    const words = trimmed.split(/\s+/).filter(Boolean);
+    if (touched.name) {
+      if (!trimmed) errs.name = "Required";
+      else if (words.length < 2) errs.name = "Enter your first and last name";
+    }
+    if (touched.email) {
+      if (!email) errs.email = "Required";
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Enter a valid email";
+    }
+    if (touched.password) {
+      if (!password) errs.password = "Required";
+      else if (password.length < 8) errs.password = "At least 8 characters";
+    }
+    if (touched.confirm) {
+      if (!confirmPassword) errs.confirm = "Required";
+      else if (confirmPassword !== password) errs.confirm = "Passwords don't match";
+    }
+    return errs;
+  }, [name, email, password, confirmPassword, touched]);
+
+  const isValid =
+    name.trim().split(/\s+/).filter(Boolean).length >= 2 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
+    password.length >= 8 &&
+    confirmPassword === password;
+
+  // Password strength meter (0-3)
+  const pwdStrength = useMemo(() => {
+    let s = 0;
+    if (password.length >= 8) s++;
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) s++;
+    if (/\d/.test(password) || /[^A-Za-z0-9]/.test(password)) s++;
+    return s;
+  }, [password]);
+
+  // ---------- Handlers ----------
+  const writeUserToDb = async (user, fullName) => {
+    const userRef = firestore().collection("users").doc(user.uid);
+    await userRef.set(
+      {
+        uid: user.uid,
+        name: fullName || user.displayName || "",
+        email: user.email || "",
+        admin: false,
+        rank: "Chanter (Epsaltos)",
+        experience: 1,
+        frequency: 1,
+        alhanGrades: [],
+        ssGrades: [],
+        nextWeekServe: "N/A",
+      },
+      { merge: true }
+    );
+  };
+
   const handleSignUp = async () => {
-    // Validate name has exactly two words
-    if (!name) {
-      Alert.alert("Error", "Please input a name before continuing.");
-      return;
-    }
-    const words = name.trim().split(/\s+/).filter((word) => word.length > 0);
-    if (!(words.length >= 2)) {
-      Alert.alert("Error", "Please input your first and last name.");
-      return;
-    }
-    if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match!");
-      return;
-    }
+    setTouched({ name: true, email: true, password: true, confirm: true });
+    if (!isValid) return;
+    setLoading("email");
     try {
-      const userCredential = await auth().createUserWithEmailAndPassword(
-        email,
-        password
-      );
+      const userCredential = await auth().createUserWithEmailAndPassword(email, password);
       const user = userCredential.user;
       if (user) {
-        // Write Firestore doc immediately (do not depend on auth().currentUser reload timing)
         await writeUserToDb(user, name);
         await user.updateProfile({ displayName: name });
         navigation.navigate("InputPhoto");
       }
     } catch (error) {
       Alert.alert("Sign Up Error", error.message);
-    }
-  };
-
-  const writeUserToDb = async (user, fullName) => {
-    try {
-      const userRef = firestore().collection("users").doc(user.uid);
-      await userRef.set(
-        {
-          uid: user.uid,
-          name: fullName || user.displayName || "",
-          email: user.email || "",
-          admin: false,
-          rank: "Chanter (Epsaltos)",
-          experience: 1,
-          frequency: 1,
-          alhanGrades: [],
-          ssGrades: [],
-          nextWeekServe: "N/A",
-        },
-        { merge: true },
-      );
-    } catch (error) {
-      Alert.alert(
-        "Database Error",
-        error?.message || "Failed to write user data to database.",
-      );
+    } finally {
+      setLoading(null);
     }
   };
 
   const onGoogleButtonPress = async () => {
     setSignUp(true);
+    setLoading("google");
     try {
-      await GoogleSignin.hasPlayServices({
-        showPlayServicesUpdateDialog: true,
-      });
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       const { idToken } = await GoogleSignin.signIn();
       const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-      const userCredential = await auth().signInWithCredential(
-        googleCredential
-      );
+      const userCredential = await auth().signInWithCredential(googleCredential);
       const user = auth().currentUser;
-      const user_ref = firestore().collection("users").doc(user.uid);
-      const user_doc = await user_ref.get();
-      if (user_doc.exists) {
+      const userDoc = await firestore().collection("users").doc(user.uid).get();
+      if (userDoc.exists) {
         await auth().signOut();
         navigation.navigate("SignIn");
         Alert.alert(
@@ -133,7 +293,12 @@ const SignUp = ({ navigation }) => {
       await writeUserToDb(userCredential.user, userCredential.user.displayName);
       navigation.navigate("InputPhoto");
     } catch (error) {
-      Alert.alert("Sign Up Error", error?.message || "Google sign up failed.");
+      if (error?.code !== "12501") {
+        // not the user-cancelled code
+        Alert.alert("Sign Up Error", error?.message || "Google sign up failed.");
+      }
+    } finally {
+      setLoading(null);
     }
   };
 
@@ -148,6 +313,7 @@ const SignUp = ({ navigation }) => {
   };
 
   const onAppleButtonPress = async () => {
+    setLoading("apple");
     try {
       const rawNonce = generateNonce();
       const hashedNonce = await Crypto.digestStringAsync(
@@ -164,16 +330,12 @@ const SignUp = ({ navigation }) => {
       if (!appleAuthRequestResponse.identityToken) {
         throw new Error("Apple Sign-In failed - No identity token received.");
       }
-      const { identityToken, fullName, email } = appleAuthRequestResponse;
-      const appleCredential = auth.AppleAuthProvider.credential(
-        identityToken,
-        rawNonce
-      );
+      const { identityToken, fullName } = appleAuthRequestResponse;
+      const appleCredential = auth.AppleAuthProvider.credential(identityToken, rawNonce);
       const userCredential = await auth().signInWithCredential(appleCredential);
       const user = auth().currentUser;
-      const user_ref = firestore().collection("users").doc(user.uid);
-      const user_doc = await user_ref.get();
-      if (user_doc.exists) {
+      const userDoc = await firestore().collection("users").doc(user.uid).get();
+      if (userDoc.exists) {
         await auth().signOut();
         navigation.navigate("SignIn");
         Alert.alert(
@@ -183,227 +345,517 @@ const SignUp = ({ navigation }) => {
         return;
       }
       const formattedFullName = fullName
-        ? `${fullName.givenName} ${fullName.familyName}`
+        ? `${fullName.givenName || ""} ${fullName.familyName || ""}`.trim()
         : "";
       await writeUserToDb(userCredential.user, formattedFullName);
       navigation.navigate("InputPhoto");
     } catch (error) {
-      Alert.alert("Sign Up Error", error?.message || "Apple sign up failed.");
+      if (error?.code !== "ERR_REQUEST_CANCELED") {
+        Alert.alert("Sign Up Error", error?.message || "Apple sign up failed.");
+      }
+    } finally {
+      setLoading(null);
     }
   };
+
+  // Microsoft handler — fires the Azure AD OAuth flow, exchanges the id_token
+  // for a Firebase credential. Configure MICROSOFT_CLIENT_ID at the top first.
+  const onMicrosoftButtonPress = async () => {
+    if (MICROSOFT_CLIENT_ID === "TODO_FILL_IN_MS_CLIENT_ID") {
+      Alert.alert(
+        "Not configured",
+        "Microsoft sign-in needs an Azure app registration. Update MICROSOFT_CLIENT_ID in SignUp.js."
+      );
+      return;
+    }
+    if (!msRequest) return;
+    setSignUp(true);
+    setLoading("microsoft");
+    try {
+      const result = await msPromptAsync();
+      if (result.type !== "success") {
+        if (result.type !== "cancel") {
+          Alert.alert("Sign Up Error", "Microsoft sign-in did not complete.");
+        }
+        return;
+      }
+      const idToken = result.params.id_token;
+      if (!idToken) throw new Error("No identity token returned from Microsoft.");
+
+      const provider = new auth.OAuthProvider("microsoft.com");
+      const credential = provider.credential({ idToken });
+      const userCredential = await auth().signInWithCredential(credential);
+      const user = auth().currentUser;
+      const userDoc = await firestore().collection("users").doc(user.uid).get();
+      if (userDoc.exists) {
+        await auth().signOut();
+        navigation.navigate("SignIn");
+        Alert.alert(
+          "Already signed up.",
+          "This email is already signed up for this app. Please sign in instead."
+        );
+        return;
+      }
+      await writeUserToDb(userCredential.user, userCredential.user.displayName || "");
+      navigation.navigate("InputPhoto");
+    } catch (error) {
+      Alert.alert("Sign Up Error", error?.message || "Microsoft sign up failed.");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const isLoading = loading !== null;
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 80}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
     >
-      <View style={styles.header}>
-        <View style={styles.backArrow}>
-          <BackArrow />
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Top: back arrow + the unchanged progress bar */}
+        <View style={styles.topRow}>
+          <View style={styles.backArrow}>
+            <BackArrow />
+          </View>
+          <View style={styles.progressBarContainer}>
+            <ProgressBar startPercentage={0} endPercentage={1} />
+          </View>
         </View>
-        <View style={styles.progressBar}>
-          <ProgressBar startPercentage={0} endPercentage={1} />
+
+        {/* Headline */}
+        <View style={styles.heading}>
+          <Text style={styles.title}>Create account</Text>
+          <Text style={styles.subtitle}>
+            Sign up to join your church community on Taksis.
+          </Text>
         </View>
-        <Text style={styles.titleText}>Sign Up</Text>
-      </View>
 
-      <View style={styles.content}>
-        <TextInput
-          value={name}
-          autoCapitalize="words"
-          style={styles.input}
-          placeholder="Enter your first and last name"
-          placeholderTextColor="#B0BEC5"
-          onChangeText={(text) => setName(text)}
-        />
-        <TextInput
-          value={email}
-          autoCapitalize="none"
-          style={styles.input}
-          placeholder="Enter your email"
-          placeholderTextColor="#B0BEC5"
-          onChangeText={(text) => setEmail(text)}
-        />
-        <TextInput
-          value={password}
-          autoCapitalize="none"
-          secureTextEntry={true}
-          style={styles.input}
-          placeholder="Enter your password"
-          placeholderTextColor="#B0BEC5"
-          onChangeText={(text) => setPassword(text)}
-        />
-        <TextInput
-          value={confirmPassword}
-          autoCapitalize="none"
-          secureTextEntry={true}
-          style={styles.input}
-          placeholder="Confirm your password"
-          placeholderTextColor="#B0BEC5"
-          onChangeText={(text) => setConfirmPassword(text)}
-        />
-      </View>
+        {/* Form */}
+        <View style={styles.form}>
+          <FloatingInput
+            label="Full name"
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="words"
+            textContentType="name"
+            error={validation.name}
+            onBlur={() => setTouched((t) => ({ ...t, name: true }))}
+            returnKeyType="next"
+            onSubmitEditing={() => emailRef.current?.focus()}
+            blurOnSubmit={false}
+          />
+          <FloatingInput
+            ref={emailRef}
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            error={validation.email}
+            onBlur={() => setTouched((t) => ({ ...t, email: true }))}
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            blurOnSubmit={false}
+          />
+          <FloatingInput
+            ref={passwordRef}
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            showToggle
+            isSecureVisible={showPwd}
+            onToggleSecure={() => setShowPwd((s) => !s)}
+            autoCapitalize="none"
+            textContentType="newPassword"
+            error={validation.password}
+            onBlur={() => setTouched((t) => ({ ...t, password: true }))}
+            returnKeyType="next"
+            onSubmitEditing={() => confirmRef.current?.focus()}
+            blurOnSubmit={false}
+          />
 
-      <View style={styles.footer}>
-        <Pressable style={styles.continueButton} onPress={handleSignUp}>
-          <Text style={styles.continueText}>Continue</Text>
+          {/* Password strength meter — only shows once they start typing */}
+          {password.length > 0 && (
+            <View style={styles.strengthRow}>
+              {[0, 1, 2].map((i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.strengthBar,
+                    {
+                      backgroundColor:
+                        i < pwdStrength
+                          ? pwdStrength === 1
+                            ? "#ff453a"
+                            : pwdStrength === 2
+                              ? "#ff9f0a"
+                              : "#34c759"
+                          : "rgba(255,255,255,0.08)",
+                    },
+                  ]}
+                />
+              ))}
+              <Text style={styles.strengthLabel}>
+                {pwdStrength === 0 ? "Too short" : pwdStrength === 1 ? "Weak" : pwdStrength === 2 ? "Okay" : "Strong"}
+              </Text>
+            </View>
+          )}
+
+          <FloatingInput
+            ref={confirmRef}
+            label="Confirm password"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+            showToggle
+            isSecureVisible={showConfirmPwd}
+            onToggleSecure={() => setShowConfirmPwd((s) => !s)}
+            autoCapitalize="none"
+            textContentType="newPassword"
+            error={validation.confirm}
+            onBlur={() => setTouched((t) => ({ ...t, confirm: true }))}
+            returnKeyType="done"
+            onSubmitEditing={handleSignUp}
+          />
+        </View>
+
+        {/* Continue button */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.continueButton,
+            (!isValid || isLoading) && styles.continueButtonDisabled,
+            pressed && { opacity: 0.85 },
+          ]}
+          onPress={handleSignUp}
+          disabled={!isValid || isLoading}
+        >
+          {loading === "email" ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Text style={styles.continueText}>Continue</Text>
+              <Ionicons name="arrow-forward" size={18} color="#fff" />
+            </>
+          )}
         </Pressable>
+
+        {/* Divider */}
         <View style={styles.dividerContainer}>
           <View style={styles.divider} />
-          <Text style={styles.orText}>or</Text>
+          <Text style={styles.orText}>or sign up with</Text>
           <View style={styles.divider} />
         </View>
-        <Pressable style={styles.googleButton} onPress={onGoogleButtonPress}>
-          <Image
-            style={styles.googleIcon}
-            resizeMode="contain"
-            source={require("../assets/googleLogo.png")}
+
+        {/* Social row */}
+        <View style={styles.socialRow}>
+          <SocialButton
+            onPress={onGoogleButtonPress}
+            disabled={isLoading}
+            isLoading={loading === "google"}
+            icon={
+              <Image
+                style={styles.googleIcon}
+                resizeMode="contain"
+                source={require("../assets/googleLogo.png")}
+              />
+            }
+            label="Google"
           />
-          <Text style={styles.socialText}>Sign up with Google</Text>
-        </Pressable>
-        <View style={styles.appleButtonContainer}>
-          <AppleAuthentication.AppleAuthenticationButton
-            buttonType={
-              AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP
-            }
-            buttonStyle={
-              AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
-            }
-            cornerRadius={moderateScale(12)}
-            style={styles.appleButton}
-            onPress={onAppleButtonPress}
+
+          {Platform.OS === "ios" && AppleAuthentication ? (
+            <SocialButton
+              onPress={onAppleButtonPress}
+              disabled={isLoading}
+              isLoading={loading === "apple"}
+              icon={<Ionicons name="logo-apple" size={26} color="#fff" />}
+              label="Apple"
+            />
+          ) : null}
+
+          <SocialButton
+            onPress={onMicrosoftButtonPress}
+            disabled={isLoading}
+            isLoading={loading === "microsoft"}
+            icon={<MicrosoftLogo />}
+            label="Microsoft"
           />
         </View>
-      </View>
+
+        {/* Sign in link */}
+        <View style={styles.signInRow}>
+          <Text style={styles.signInPrompt}>Already have an account?</Text>
+          <Pressable onPress={() => navigation.navigate("SignIn")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.signInLink}>Sign in</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 };
 
+// ---------- Helper components ----------
+
+// SocialButton: an icon-first square button used for the provider row.
+const SocialButton = ({ onPress, icon, label, disabled, isLoading }) => (
+  <Pressable
+    onPress={onPress}
+    disabled={disabled}
+    style={({ pressed }) => [
+      styles.socialButton,
+      disabled && { opacity: 0.5 },
+      pressed && { transform: [{ scale: 0.97 }] },
+    ]}
+  >
+    {isLoading ? (
+      <ActivityIndicator color="#fff" />
+    ) : (
+      <>
+        <View style={styles.socialIconWrap}>{icon}</View>
+        <Text style={styles.socialLabel}>{label}</Text>
+      </>
+    )}
+  </Pressable>
+);
+
+// Microsoft 4-square logo, drawn inline so we don't need an asset
+const MicrosoftLogo = () => (
+  <View style={styles.msLogo}>
+    <View style={[styles.msSquare, { backgroundColor: "#f25022" }]} />
+    <View style={[styles.msSquare, { backgroundColor: "#7fba00" }]} />
+    <View style={[styles.msSquare, { backgroundColor: "#00a4ef" }]} />
+    <View style={[styles.msSquare, { backgroundColor: "#ffb900" }]} />
+  </View>
+);
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
-    paddingHorizontal: scale(16),
-    paddingTop: verticalScale(60), // Reduced from 80 to move everything higher
-    paddingBottom: verticalScale(30), // Reduced from 40 to move everything higher
+    backgroundColor: "#121212",
   },
-  header: {
-    marginBottom: verticalScale(24), // Reduced from 32 to move content higher
+  scrollContent: {
+    paddingHorizontal: scale(20),
+    paddingTop: verticalScale(50),
+    paddingBottom: verticalScale(32),
+    flexGrow: 1,
+  },
+
+  // ---------- Top row ----------
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scale(12),
+    marginBottom: verticalScale(24),
   },
   backArrow: {
-    marginBottom: verticalScale(12), // Reduced from 16
+    // Keep the back arrow's intrinsic size, just align it
   },
-  progressBar: {
+  progressBarContainer: {
+    flex: 1,
     height: verticalScale(6),
-    width: "100%",
     backgroundColor: "#2A2A2A",
     borderRadius: moderateScale(3),
-    marginBottom: verticalScale(16), // Reduced from 20
   },
-  titleText: {
-    fontSize: moderateScale(36),
+
+  // ---------- Heading ----------
+  heading: {
+    marginBottom: verticalScale(28),
+  },
+  title: {
+    fontSize: moderateScale(34),
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-    fontWeight: "600",
-    color: "#E0E0E0",
-    lineHeight: moderateScale(42),
-    textAlign: "left",
+    fontWeight: "700",
+    color: "#fff",
+    letterSpacing: -0.5,
+    lineHeight: moderateScale(40),
   },
-  content: {
-    marginBottom: verticalScale(20), // Reduced from 24
+  subtitle: {
+    fontSize: moderateScale(15),
+    color: "rgba(255,255,255,0.55)",
+    marginTop: verticalScale(8),
+    lineHeight: moderateScale(21),
   },
-  input: {
-    height: verticalScale(52),
-    borderColor: "#8e8e93",
+
+  // ---------- Form ----------
+  form: {
+    marginBottom: verticalScale(8),
+  },
+  inputWrap: {
+    height: verticalScale(58),
     borderWidth: 1,
     borderRadius: moderateScale(12),
-    paddingHorizontal: scale(15),
-    fontSize: moderateScale(18),
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-    color: "#8e8e93",
-    backgroundColor: "#000",
-    marginBottom: verticalScale(12), // Reduced from 16
-  },
-  footer: {
-    paddingTop: 0,
-    paddingBottom: verticalScale(24), // Reduced from 32
+    backgroundColor: "#1a1a1a",
+    paddingHorizontal: scale(14),
+    paddingTop: verticalScale(14),
+    flexDirection: "row",
     alignItems: "center",
   },
+  input: {
+    flex: 1,
+    fontSize: moderateScale(15),
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+    color: "#fff",
+    paddingVertical: 0,
+    paddingTop: verticalScale(8),
+  },
+  eyeBtn: {
+    padding: scale(4),
+    marginLeft: scale(4),
+  },
+  errorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: verticalScale(4),
+    marginLeft: scale(4),
+  },
+  errorText: {
+    fontSize: moderateScale(12),
+    color: "#ff453a",
+  },
+
+  // Strength meter
+  strengthRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scale(6),
+    marginTop: verticalScale(-4),
+    marginBottom: verticalScale(10),
+    paddingHorizontal: scale(2),
+  },
+  strengthBar: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+  },
+  strengthLabel: {
+    fontSize: moderateScale(11),
+    color: "rgba(255,255,255,0.5)",
+    marginLeft: scale(8),
+    minWidth: scale(50),
+  },
+
+  // ---------- Continue button ----------
   continueButton: {
-    height: verticalScale(52),
+    height: verticalScale(54),
     width: "100%",
-    backgroundColor: "#147EFB",
-    borderRadius: moderateScale(12),
+    backgroundColor: "#147efb",
+    borderRadius: moderateScale(14),
+    flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: verticalScale(12), // Reduced from 16 to move button higher
+    gap: scale(8),
+    marginTop: verticalScale(12),
+    marginBottom: verticalScale(20),
+    shadowColor: "#147efb",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
     elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: moderateScale(4),
+  },
+  continueButtonDisabled: {
+    backgroundColor: "rgba(20,126,251,0.4)",
+    shadowOpacity: 0,
+    elevation: 0,
   },
   continueText: {
-    fontSize: moderateScale(18),
+    fontSize: moderateScale(16),
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
     fontWeight: "600",
-    color: "#FFF",
+    color: "#fff",
     letterSpacing: -0.2,
   },
+
+  // ---------- Divider ----------
   dividerContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: verticalScale(12), // Reduced from 16 to move divider closer to button
+    marginBottom: verticalScale(16),
   },
   divider: {
     flex: 1,
     height: 1,
-    backgroundColor: "#B0BEC5",
-    opacity: 0.3,
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
   orText: {
-    marginHorizontal: scale(10),
-    fontSize: moderateScale(16),
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-    color: "#B0BEC5",
+    marginHorizontal: scale(12),
+    fontSize: moderateScale(12),
+    color: "rgba(255,255,255,0.4)",
+    fontWeight: "500",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  googleButton: {
-    height: verticalScale(52),
-    width: "100%",
-    backgroundColor: "#2A2A2A",
-    borderRadius: moderateScale(12),
+
+  // ---------- Social row ----------
+  socialRow: {
     flexDirection: "row",
+    gap: scale(10),
+    marginBottom: verticalScale(28),
+  },
+  socialButton: {
+    flex: 1,
+    height: verticalScale(64),
+    backgroundColor: "#1a1a1a",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: moderateScale(14),
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: verticalScale(16), // Reduced from 16
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: moderateScale(4),
+    gap: verticalScale(4),
+  },
+  socialIconWrap: {
+    height: 26,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  socialLabel: {
+    fontSize: moderateScale(11),
+    color: "rgba(255,255,255,0.7)",
+    fontWeight: "500",
   },
   googleIcon: {
     width: moderateScale(24),
     height: moderateScale(24),
-    marginRight: scale(12),
   },
-  socialText: {
-    fontSize: moderateScale(20),
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+
+  // Microsoft inline logo (4 squares, 2x2 grid)
+  msLogo: {
+    width: 22,
+    height: 22,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 2,
+  },
+  msSquare: {
+    width: 10,
+    height: 10,
+    borderRadius: 1,
+  },
+
+  // ---------- Sign in link ----------
+  signInRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: scale(6),
+    marginTop: "auto",
+    paddingTop: verticalScale(12),
+  },
+  signInPrompt: {
+    fontSize: moderateScale(14),
+    color: "rgba(255,255,255,0.5)",
+  },
+  signInLink: {
+    fontSize: moderateScale(14),
+    color: "#147efb",
     fontWeight: "600",
-    color: "#E0E0E0",
-    letterSpacing: -0.2,
-  },
-  appleButtonContainer: {
-    borderWidth: 1,
-    borderColor: "#8e8e93",
-    borderRadius: moderateScale(12),
-    overflow: "hidden",
-    width: "100%",
-  },
-  appleButton: {
-    height: verticalScale(52),
-    width: "100%",
   },
 });
 
