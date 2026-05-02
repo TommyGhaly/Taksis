@@ -46,6 +46,7 @@
       "bundleIdentifier": "com.tghaly.taksis",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "NSFaceIDUsageDescription": "Authenticate to access database administration.",
         "UIBackgroundModes": [
           "remote-notification"
         ],
