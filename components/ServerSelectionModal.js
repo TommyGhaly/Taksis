@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   FlatList,
   Image,
   StyleSheet,
+  TextInput,
 } from "react-native";
 
 // Date format constants
@@ -97,14 +98,19 @@ const ServerSelectionModal = ({
   nextServeData = {},
   selectedWeek,
   title = "Select Server",
-  showNextServe = false, // For readers, show secondary "serving in X weeks" info
+  showNextServe = false,
 }) => {
+  const [query, setQuery] = useState("");
+
+  const filteredServers = query.trim()
+    ? servers.filter(s => s.name?.toLowerCase().includes(query.toLowerCase()))
+    : servers;
+
   const renderItem = ({ item }) => {
     const weeksSinceLastServe = calculateWeeksBetween(lastServeData[item.uid], selectedWeek);
     const indicatorColor = getColorForWeeks(weeksSinceLastServe);
     const displayText = getWeeksDisplayText(weeksSinceLastServe);
     
-    // Secondary info for readers
     let secondaryInfo = null;
     if (showNextServe && nextServeData[item.uid]) {
       const weeksUntilNext = calculateWeeksBetween(selectedWeek, nextServeData[item.uid]);
@@ -164,21 +170,47 @@ const ServerSelectionModal = ({
       >
         <TouchableOpacity activeOpacity={1} style={styles.modalWrapper}>
           <View style={styles.modalContent}>
+            {/* Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{title}</Text>
               <TouchableOpacity style={styles.modalCloseButton} onPress={onClose}>
                 <Text style={styles.modalCloseX}>×</Text>
               </TouchableOpacity>
             </View>
+
+            {/* Search bar */}
+            <View style={styles.searchContainer}>
+              <Text style={styles.searchIcon}>⌕</Text>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search..."
+                placeholderTextColor="#555"
+                value={query}
+                onChangeText={setQuery}
+                clearButtonMode="while-editing"
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+              {query.length > 0 && (
+                <TouchableOpacity onPress={() => setQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={styles.clearBtn}>×</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* List */}
             <FlatList
-              data={servers}
+              data={filteredServers}
               keyExtractor={(item) => item.uid}
               showsVerticalScrollIndicator={false}
               renderItem={renderItem}
+              keyboardShouldPersistTaps="handled"
               ItemSeparatorComponent={() => <View style={styles.separator} />}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>No servers available</Text>
+                  <Text style={styles.emptyText}>
+                    {query.trim() ? `No results for "${query}"` : "No servers available"}
+                  </Text>
                 </View>
               }
             />
@@ -192,58 +224,89 @@ const ServerSelectionModal = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     justifyContent: "center",
     alignItems: "center",
   },
   modalWrapper: {
-    width: "90%",
-    maxHeight: "70%",
+    width: "88%",
+    maxHeight: "60%",
   },
   modalContent: {
-    backgroundColor: "#1e1e1e",
-    borderRadius: 16,
+    backgroundColor: "#161616",
+    borderRadius: 20,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.07)",
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#2a2a2a",
-    backgroundColor: "#252525",
+    borderBottomColor: "rgba(255,255,255,0.07)",
   },
   modalTitle: {
     color: "#fff",
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: "700",
+    letterSpacing: -0.3,
   },
   modalCloseButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#333",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     justifyContent: "center",
   },
   modalCloseX: {
-    color: "#999",
-    fontSize: 24,
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 20,
     fontWeight: "300",
+    lineHeight: 22,
   },
+
+  // Search bar
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    marginHorizontal: 14,
+    marginTop: 12,
+    marginBottom: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.07)",
+    paddingHorizontal: 12,
+    height: 38,
+    gap: 8,
+  },
+  searchIcon: {
+    fontSize: 16,
+    color: "rgba(255,255,255,0.3)",
+    marginTop: -1,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#fff",
+    paddingVertical: 0,
+  },
+  clearBtn: {
+    fontSize: 18,
+    color: "rgba(255,255,255,0.3)",
+    fontWeight: "300",
+    lineHeight: 20,
+  },
+
   modalItemContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 18,
-    paddingHorizontal: 24,
+    paddingVertical: 11,
+    paddingHorizontal: 18,
   },
   modalItemContent: {
     flexDirection: "row",
@@ -254,58 +317,56 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   profilePic: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: "#2a2a2a",
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: "#2a2a2a",
   },
   statusIndicator: {
     position: "absolute",
-    bottom: -2,
-    right: -2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    bottom: -1,
+    right: -1,
+    width: 13,
+    height: 13,
+    borderRadius: 7,
     borderWidth: 2,
-    borderColor: "#1e1e1e",
+    borderColor: "#161616",
   },
   serverInfo: {
-    marginLeft: 14,
+    marginLeft: 13,
     flex: 1,
   },
   modalItem: {
     color: "#fff",
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: "600",
   },
   serveInfoContainer: {
     marginTop: 2,
   },
   primaryServeText: {
-    fontSize: 13,
-    marginTop: 2,
-    fontWeight: "600",
+    fontSize: 12,
+    marginTop: 1,
+    fontWeight: "500",
   },
   secondaryServeText: {
     fontSize: 11,
     marginTop: 1,
-    color: "#888",
+    color: "rgba(255,255,255,0.3)",
     fontWeight: "400",
   },
   separator: {
     height: 1,
-    backgroundColor: "#2a2a2a",
-    marginHorizontal: 20,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    marginHorizontal: 18,
   },
   emptyContainer: {
-    padding: 40,
+    padding: 32,
     alignItems: "center",
   },
   emptyText: {
-    color: "#666",
-    fontSize: 16,
+    color: "rgba(255,255,255,0.3)",
+    fontSize: 14,
   },
 });
 

@@ -19,7 +19,7 @@ import auth from "@react-native-firebase/auth";
 import firestore from "@react-native-firebase/firestore";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
-import * as d from "expo-auth-session";
+import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import * as Crypto from "expo-crypto";
 import BackArrow from "../components/backArrow";
@@ -36,13 +36,8 @@ const verticalScale = (size) => (height / REFERENCE_HEIGHT) * size;
 const moderateScale = (size, factor = 0.5) =>
   size + (scale(size) - size) * factor;
 
-// ---------- Microsoft OAuth config (TODO: fill in before going live) ----------
-// Register an app at https://portal.azure.com → Azure Active Directory →
-// App registrations. Add a redirect URI matching the one printed by
-// AuthSession.makeRedirectUri at runtime, and grant the openid/profile/email
-// scopes. Then drop the client id below and uncomment the discovery block.
 const MICROSOFT_CLIENT_ID = "827479e7-3afb-41ad-b426-31e2d42f9b44";
-const MICROSOFT_TENANT = "common"; // 'common' supports any MSA + work account
+const MICROSOFT_TENANT = "common";
 const microsoftDiscovery = {
   authorizationEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/authorize`,
   tokenEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/token`,
@@ -92,7 +87,7 @@ const FloatingInput = React.forwardRef(({
     }),
     color: animated.interpolate({
       inputRange: [0, 1],
-      outputRange: ["rgba(255,255,255,0.45)", "rgba(255,255,255,0.55)"],
+      outputRange: ["rgba(255,255,255,0.35)", "rgba(255,255,255,0.5)"],
     }),
   };
 
@@ -100,7 +95,7 @@ const FloatingInput = React.forwardRef(({
     ? "#ff453a"
     : focused
       ? "#147efb"
-      : "rgba(255,255,255,0.1)";
+      : "rgba(255,255,255,0.08)";
 
   return (
     <View style={{ marginBottom: verticalScale(12) }}>
@@ -141,7 +136,7 @@ const FloatingInput = React.forwardRef(({
             <Ionicons
               name={isSecureVisible ? "eye-off-outline" : "eye-outline"}
               size={20}
-              color="rgba(255,255,255,0.4)"
+              color="rgba(255,255,255,0.35)"
             />
           </Pressable>
         ) : null}
@@ -163,11 +158,10 @@ const SignUp = ({ navigation }) => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
-  const [loading, setLoading] = useState(null); // 'email' | 'google' | 'apple' | 'microsoft' | null
+  const [loading, setLoading] = useState(null);
   const [touched, setTouched] = useState({ name: false, email: false, password: false, confirm: false });
   const { setSignUp } = useUser();
 
-  // Refs for chained returnKey navigation between fields
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
   const confirmRef = useRef(null);
@@ -181,7 +175,6 @@ const SignUp = ({ navigation }) => {
       "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
   });
 
-  // Microsoft auth request — auto-built from the discovery doc above
   const [msRequest, msResponse, msPromptAsync] = AuthSession.useAuthRequest(
     {
       clientId: MICROSOFT_CLIENT_ID,
@@ -193,7 +186,6 @@ const SignUp = ({ navigation }) => {
     microsoftDiscovery
   );
 
-  // ---------- Validation (live, but only surfaces after a field is touched) ----------
   const validation = useMemo(() => {
     const errs = {};
     const trimmed = name.trim();
@@ -223,7 +215,6 @@ const SignUp = ({ navigation }) => {
     password.length >= 8 &&
     confirmPassword === password;
 
-  // Password strength meter (0-3)
   const pwdStrength = useMemo(() => {
     let s = 0;
     if (password.length >= 8) s++;
@@ -232,7 +223,6 @@ const SignUp = ({ navigation }) => {
     return s;
   }, [password]);
 
-  // ---------- Handlers ----------
   const writeUserToDb = async (user, fullName) => {
     const userRef = firestore().collection("users").doc(user.uid);
     await userRef.set(
@@ -294,7 +284,6 @@ const SignUp = ({ navigation }) => {
       navigation.navigate("InputPhoto");
     } catch (error) {
       if (error?.code !== "12501") {
-        // not the user-cancelled code
         Alert.alert("Sign Up Error", error?.message || "Google sign up failed.");
       }
     } finally {
@@ -358,8 +347,6 @@ const SignUp = ({ navigation }) => {
     }
   };
 
-  // Microsoft handler — fires the Azure AD OAuth flow, exchanges the id_token
-  // for a Firebase credential. Configure MICROSOFT_CLIENT_ID at the top first.
   const onMicrosoftButtonPress = async () => {
     if (MICROSOFT_CLIENT_ID === "TODO_FILL_IN_MS_CLIENT_ID") {
       Alert.alert(
@@ -418,14 +405,14 @@ const SignUp = ({ navigation }) => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Top: back arrow + the unchanged progress bar */}
-        <View style={styles.topRow}>
-          <View style={styles.backArrow}>
-            <BackArrow />
-          </View>
-          <View style={styles.progressBarContainer}>
-            <ProgressBar startPercentage={0} endPercentage={1} />
-          </View>
+        {/* Back arrow */}
+        <View style={styles.backArrowContainer}>
+          <BackArrow />
+        </View>
+
+        {/* Progress bar — full width, matching InputPhoto */}
+        <View style={styles.progressBarContainer}>
+          <ProgressBar startPercentage={0} endPercentage={1} />
         </View>
 
         {/* Headline */}
@@ -482,7 +469,7 @@ const SignUp = ({ navigation }) => {
             blurOnSubmit={false}
           />
 
-          {/* Password strength meter — only shows once they start typing */}
+          {/* Password strength meter */}
           {password.length > 0 && (
             <View style={styles.strengthRow}>
               {[0, 1, 2].map((i) => (
@@ -504,7 +491,13 @@ const SignUp = ({ navigation }) => {
                 />
               ))}
               <Text style={styles.strengthLabel}>
-                {pwdStrength === 0 ? "Too short" : pwdStrength === 1 ? "Weak" : pwdStrength === 2 ? "Okay" : "Strong"}
+                {pwdStrength === 0
+                  ? "Too short"
+                  : pwdStrength === 1
+                    ? "Weak"
+                    : pwdStrength === 2
+                      ? "Okay"
+                      : "Strong"}
               </Text>
             </View>
           )}
@@ -532,7 +525,7 @@ const SignUp = ({ navigation }) => {
           style={({ pressed }) => [
             styles.continueButton,
             (!isValid || isLoading) && styles.continueButtonDisabled,
-            pressed && { opacity: 0.85 },
+            pressed && isValid && { opacity: 0.85 },
           ]}
           onPress={handleSignUp}
           disabled={!isValid || isLoading}
@@ -592,7 +585,10 @@ const SignUp = ({ navigation }) => {
         {/* Sign in link */}
         <View style={styles.signInRow}>
           <Text style={styles.signInPrompt}>Already have an account?</Text>
-          <Pressable onPress={() => navigation.navigate("SignIn")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Pressable
+            onPress={() => navigation.navigate("SignIn")}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             <Text style={styles.signInLink}>Sign in</Text>
           </Pressable>
         </View>
@@ -603,7 +599,6 @@ const SignUp = ({ navigation }) => {
 
 // ---------- Helper components ----------
 
-// SocialButton: an icon-first square button used for the provider row.
 const SocialButton = ({ onPress, icon, label, disabled, isLoading }) => (
   <Pressable
     onPress={onPress}
@@ -625,7 +620,6 @@ const SocialButton = ({ onPress, icon, label, disabled, isLoading }) => (
   </Pressable>
 );
 
-// Microsoft 4-square logo, drawn inline so we don't need an asset
 const MicrosoftLogo = () => (
   <View style={styles.msLogo}>
     <View style={[styles.msSquare, { backgroundColor: "#f25022" }]} />
@@ -638,30 +632,25 @@ const MicrosoftLogo = () => (
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: "#000",
   },
   scrollContent: {
     paddingHorizontal: scale(20),
-    paddingTop: verticalScale(50),
+    paddingTop: verticalScale(60),
     paddingBottom: verticalScale(32),
     flexGrow: 1,
   },
 
-  // ---------- Top row ----------
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: scale(12),
-    marginBottom: verticalScale(24),
-  },
-  backArrow: {
-    // Keep the back arrow's intrinsic size, just align it
+  // ---------- Progress bar (full-width, matches InputPhoto) ----------
+  backArrowContainer: {
+    marginBottom: verticalScale(16),
   },
   progressBarContainer: {
-    flex: 1,
     height: verticalScale(6),
     backgroundColor: "#2A2A2A",
     borderRadius: moderateScale(3),
+    marginBottom: verticalScale(32),
+    overflow: "hidden",
   },
 
   // ---------- Heading ----------
@@ -670,15 +659,14 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: moderateScale(34),
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
     fontWeight: "700",
-    color: "#fff",
+    color: "#E0E0E0",
     letterSpacing: -0.5,
     lineHeight: moderateScale(40),
   },
   subtitle: {
     fontSize: moderateScale(15),
-    color: "rgba(255,255,255,0.55)",
+    color: "rgba(255,255,255,0.5)",
     marginTop: verticalScale(8),
     lineHeight: moderateScale(21),
   },
@@ -691,7 +679,7 @@ const styles = StyleSheet.create({
     height: verticalScale(58),
     borderWidth: 1,
     borderRadius: moderateScale(12),
-    backgroundColor: "#1a1a1a",
+    backgroundColor: "#111",
     paddingHorizontal: scale(14),
     paddingTop: verticalScale(14),
     flexDirection: "row",
@@ -700,8 +688,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: moderateScale(15),
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
-    color: "#fff",
+    color: "#E0E0E0",
     paddingVertical: 0,
     paddingTop: verticalScale(8),
   },
@@ -737,37 +724,36 @@ const styles = StyleSheet.create({
   },
   strengthLabel: {
     fontSize: moderateScale(11),
-    color: "rgba(255,255,255,0.5)",
+    color: "rgba(255,255,255,0.45)",
     marginLeft: scale(8),
     minWidth: scale(50),
   },
 
   // ---------- Continue button ----------
   continueButton: {
-    height: verticalScale(54),
+    height: verticalScale(52),
     width: "100%",
-    backgroundColor: "#147efb",
-    borderRadius: moderateScale(14),
+    backgroundColor: "#147EFB",
+    borderRadius: moderateScale(12),
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     gap: scale(8),
     marginTop: verticalScale(12),
     marginBottom: verticalScale(20),
-    shadowColor: "#147efb",
+    elevation: 4,
+    shadowColor: "#147EFB",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
-    elevation: 4,
   },
   continueButtonDisabled: {
-    backgroundColor: "rgba(20,126,251,0.4)",
+    backgroundColor: "#555",
     shadowOpacity: 0,
     elevation: 0,
   },
   continueText: {
     fontSize: moderateScale(16),
-    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
     fontWeight: "600",
     color: "#fff",
     letterSpacing: -0.2,
@@ -787,7 +773,7 @@ const styles = StyleSheet.create({
   orText: {
     marginHorizontal: scale(12),
     fontSize: moderateScale(12),
-    color: "rgba(255,255,255,0.4)",
+    color: "rgba(255,255,255,0.35)",
     fontWeight: "500",
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -802,7 +788,7 @@ const styles = StyleSheet.create({
   socialButton: {
     flex: 1,
     height: verticalScale(64),
-    backgroundColor: "#1a1a1a",
+    backgroundColor: "#1A1A1A",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
     borderRadius: moderateScale(14),
@@ -817,7 +803,7 @@ const styles = StyleSheet.create({
   },
   socialLabel: {
     fontSize: moderateScale(11),
-    color: "rgba(255,255,255,0.7)",
+    color: "rgba(255,255,255,0.65)",
     fontWeight: "500",
   },
   googleIcon: {
@@ -825,7 +811,7 @@ const styles = StyleSheet.create({
     height: moderateScale(24),
   },
 
-  // Microsoft inline logo (4 squares, 2x2 grid)
+  // Microsoft inline logo
   msLogo: {
     width: 22,
     height: 22,
@@ -850,11 +836,11 @@ const styles = StyleSheet.create({
   },
   signInPrompt: {
     fontSize: moderateScale(14),
-    color: "rgba(255,255,255,0.5)",
+    color: "rgba(255,255,255,0.45)",
   },
   signInLink: {
     fontSize: moderateScale(14),
-    color: "#147efb",
+    color: "#147EFB",
     fontWeight: "600",
   },
 });

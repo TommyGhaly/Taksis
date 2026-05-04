@@ -16,6 +16,7 @@ import { DAY_SHORT_LABELS } from "../screens/Pascha/DayConstants";
 
 var DEFAULT_AVATAR = require("../assets/default_profile.png");
 var SCREEN_W = Dimensions.get("window").width;
+var IS_TABLET = SCREEN_W >= 768;
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 var BG      = "#0f0f0f";
@@ -135,10 +136,10 @@ var ReadingRow = function(props) {
   return (
     <View style={[rrS.row, !isLast && rrS.border]}>
       <View style={[rrS.iconBox, { backgroundColor: isCopticRow ? COPTIC_BG : meta.color + "20" }]}>
-        <Icon name={meta.icon} size={12} color={isCopticRow ? COPTIC_COLOR : meta.color} />
+        <Icon name={meta.icon} size={11} color={isCopticRow ? COPTIC_COLOR : meta.color} />
       </View>
       <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
           <Text style={[rrS.type, { color: isCopticRow ? COPTIC_COLOR : meta.color }]}>{label}</Text>
           {isCopticRow
             ? <View style={rrS.copticBadge}><Text style={rrS.copticBadgeTxt}>COPTIC</Text></View>
@@ -156,11 +157,11 @@ var ReadingRow = function(props) {
       <View style={rrS.assigneeCol}>
         {hasAssign ? (
           isPsalm ? (
-            <View style={{ gap: 4, alignItems: "flex-end" }}>
+            <View style={{ gap: 3, alignItems: "flex-end" }}>
               {psalmReaders.map(function(r, i) {
                 return (
                   <View key={r.uid || r.name || i} style={[rrS.chip, isCopticRow && rrS.chipCoptic]}>
-                    <Avatar uid={r.uid} size={18} />
+                    <Avatar uid={r.uid} size={16} />
                     <Text style={[rrS.chipName, isCopticRow && rrS.chipNameCoptic]} numberOfLines={1}>{r.name}</Text>
                   </View>
                 );
@@ -168,7 +169,7 @@ var ReadingRow = function(props) {
             </View>
           ) : (
             <View style={[rrS.chip, isCopticRow && rrS.chipCoptic]}>
-              <Avatar uid={assignee.uid} size={18} />
+              <Avatar uid={assignee.uid} size={16} />
               <Text style={[rrS.chipName, isCopticRow && rrS.chipNameCoptic]} numberOfLines={1}>{assignee.name}</Text>
             </View>
           )
@@ -180,19 +181,19 @@ var ReadingRow = function(props) {
   );
 };
 const rrS = StyleSheet.create({
-row:            { flexDirection: "row", alignItems: "flex-start", paddingVertical: 12, gap: 12 },
+row:            { flexDirection: "row", alignItems: "flex-start", paddingVertical: IS_TABLET ? 12 : 9, gap: 10 },
 border:         { borderBottomWidth: 1, borderBottomColor: SEP },
-iconBox:        { width: 28, height: 28, borderRadius: 8, justifyContent: "center", alignItems: "center", flexShrink: 0, marginTop: 1 },
-type:           { fontSize: 11, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
+iconBox:        { width: IS_TABLET ? 28 : 24, height: IS_TABLET ? 28 : 24, borderRadius: 7, justifyContent: "center", alignItems: "center", flexShrink: 0, marginTop: 1 },
+type:           { fontSize: IS_TABLET ? 11 : 10, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
 copticBadge:    { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4, backgroundColor: COPTIC_BG, borderWidth: 1, borderColor: COPTIC_BORDER },
 copticBadgeTxt: { fontSize: 9, fontWeight: "800", color: COPTIC_COLOR, letterSpacing: 0.3 },
 langBadge:      { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4, backgroundColor: CARD3 },
 langBadgeTxt:   { fontSize: 9, fontWeight: "700", color: T3, letterSpacing: 0.3 },
-ref:            { fontSize: 13, color: T2, marginTop: 3, lineHeight: 19 },
-assigneeCol:    { alignItems: "flex-end", flexShrink: 0, maxWidth: "45%" },
-chip:           { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(48,209,88,0.08)", borderWidth: 1, borderColor: "rgba(48,209,88,0.18)", borderRadius: 20, paddingVertical: 4, paddingHorizontal: 8 },
+ref:            { fontSize: IS_TABLET ? 13 : 12, color: T2, marginTop: 2, lineHeight: IS_TABLET ? 19 : 17 },
+assigneeCol:    { alignItems: "flex-end", flexShrink: 0, maxWidth: "42%" },
+chip:           { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(48,209,88,0.08)", borderWidth: 1, borderColor: "rgba(48,209,88,0.18)", borderRadius: 20, paddingVertical: IS_TABLET ? 4 : 3, paddingHorizontal: IS_TABLET ? 8 : 6 },
 chipCoptic:     { backgroundColor: COPTIC_BG, borderColor: COPTIC_BORDER },
-chipName:       { fontSize: 12, fontWeight: "600", color: GREEN, maxWidth: 100 },
+chipName:       { fontSize: IS_TABLET ? 12 : 11, fontWeight: "600", color: GREEN, maxWidth: 90 },
 chipNameCoptic: { color: COPTIC_COLOR },
 unassigned:     { fontSize: 14, color: T3 },
 });
@@ -239,14 +240,14 @@ var HourCard = function(props) {
   );
 };
 const hcS = StyleSheet.create({
-card:      { backgroundColor: CARD2, borderRadius: 16, marginBottom: 12, overflow: "hidden" },
-cardTop:   { flexDirection: "row", alignItems: "center", padding: 16, gap: 12 },
-accent:    { width: 4, alignSelf: "stretch", borderRadius: 2, flexShrink: 0 },
-label:     { flex: 1, fontSize: 15, fontWeight: "700", color: T1 },
-badge:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: CARD3 },
+card:      { backgroundColor: CARD2, borderRadius: IS_TABLET ? 16 : 12, marginBottom: IS_TABLET ? 12 : 8, overflow: "hidden" },
+cardTop:   { flexDirection: "row", alignItems: "center", padding: IS_TABLET ? 16 : 12, gap: 10 },
+accent:    { width: 3, alignSelf: "stretch", borderRadius: 2, flexShrink: 0 },
+label:     { flex: 1, fontSize: IS_TABLET ? 15 : 13, fontWeight: "700", color: T1 },
+badge:     { paddingHorizontal: IS_TABLET ? 10 : 8, paddingVertical: IS_TABLET ? 4 : 3, borderRadius: 10, backgroundColor: CARD3 },
 badgeGreen:{ backgroundColor: "rgba(48,209,88,0.1)", borderWidth: 1, borderColor: "rgba(48,209,88,0.25)" },
-badgeTxt:  { fontSize: 12, fontWeight: "700", color: T2 },
-body:      { borderTopWidth: 1, borderTopColor: SEP, paddingHorizontal: 16, paddingBottom: 10 },
+badgeTxt:  { fontSize: IS_TABLET ? 12 : 11, fontWeight: "700", color: T2 },
+body:      { borderTopWidth: 1, borderTopColor: SEP, paddingHorizontal: IS_TABLET ? 16 : 12, paddingBottom: IS_TABLET ? 10 : 8 },
 });
 
 // ── Day tab strip ─────────────────────────────────────────────────────────────
@@ -260,7 +261,7 @@ var DayTabStrip = function(props) {
 
   useEffect(function() {
     if (scrollRef.current) {
-      scrollRef.current.scrollTo({ x: Math.max(0, selectedIndex * 78 - 80), animated: true });
+      scrollRef.current.scrollTo({ x: Math.max(0, selectedIndex * (IS_TABLET ? 78 : 68) - 80), animated: true });
     }
   }, [selectedIndex]);
 
@@ -290,16 +291,16 @@ var DayTabStrip = function(props) {
 };
 const tsS = StyleSheet.create({
 bar:         { backgroundColor: BG, borderBottomWidth: 1, borderBottomColor: SEP },
-content:     { paddingHorizontal: 14, paddingVertical: 12, gap: 10, flexDirection: "row" },
-tab:         { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, backgroundColor: CARD, alignItems: "center", justifyContent: "center", minWidth: 80, minHeight: 70 },
+content:     { paddingHorizontal: IS_TABLET ? 14 : 10, paddingVertical: IS_TABLET ? 12 : 8, gap: IS_TABLET ? 10 : 7, flexDirection: "row" },
+tab:         { paddingHorizontal: IS_TABLET ? 14 : 10, paddingVertical: IS_TABLET ? 10 : 7, borderRadius: 12, backgroundColor: CARD, alignItems: "center", justifyContent: "center", minWidth: IS_TABLET ? 80 : 66, minHeight: IS_TABLET ? 70 : 56 },
 tabActive:   { backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.35)" },
-dot:         { width: 8, height: 8, borderRadius: 4, marginBottom: 6 },
+dot:         { width: IS_TABLET ? 8 : 6, height: IS_TABLET ? 8 : 6, borderRadius: 4, marginBottom: IS_TABLET ? 6 : 4 },
 dotGray:     { backgroundColor: T3 },
 dotBlue:     { backgroundColor: BLUE },
 dotGreen:    { backgroundColor: GREEN },
-label:       { fontSize: 13, fontWeight: "600", color: T2, textAlign: "center", lineHeight: 17 },
+label:       { fontSize: IS_TABLET ? 13 : 11, fontWeight: "600", color: T2, textAlign: "center", lineHeight: IS_TABLET ? 17 : 14 },
 labelActive: { color: BLUE, fontWeight: "700" },
-date:        { fontSize: 10, color: T3, marginTop: 4 },
+date:        { fontSize: IS_TABLET ? 10 : 9, color: T3, marginTop: IS_TABLET ? 4 : 2 },
 dateActive:  { color: "rgba(10,132,255,0.7)" },
 });
 
@@ -322,8 +323,8 @@ var YearCard = function(props) {
   return (
     <TouchableOpacity style={ycS.card} onPress={onPress} activeOpacity={0.75}>
       <View style={ycS.top}>
-        <View style={ycS.iconBox}><Icon name="cross" size={20} color={ORANGE} /></View>
-        <View style={{ flex: 1, marginLeft: 14 }}>
+        <View style={ycS.iconBox}><Icon name="cross" size={IS_TABLET ? 20 : 17} color={ORANGE} /></View>
+        <View style={{ flex: 1, marginLeft: IS_TABLET ? 14 : 12 }}>
           <Text style={ycS.year}>{"Pascha " + arc.year}</Text>
           {arc.archivedAt && <Text style={ycS.sub}>{"Archived " + fmtDate(arc.archivedAt)}</Text>}
         </View>
@@ -351,18 +352,18 @@ var YearCard = function(props) {
   );
 };
 const ycS = StyleSheet.create({
-card:     { backgroundColor: CARD, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: SEP, marginBottom: 14 },
-top:      { flexDirection: "row", alignItems: "center", marginBottom: 14 },
-iconBox:  { width: 46, height: 46, borderRadius: 14, backgroundColor: "rgba(255,159,10,0.1)", justifyContent: "center", alignItems: "center", flexShrink: 0 },
-year:     { fontSize: 19, fontWeight: "800", color: T1, letterSpacing: -0.3 },
-sub:      { fontSize: 13, color: T3, marginTop: 3 },
+card:     { backgroundColor: CARD, borderRadius: IS_TABLET ? 20 : 16, padding: IS_TABLET ? 18 : 14, borderWidth: 1, borderColor: SEP, marginBottom: IS_TABLET ? 14 : 10 },
+top:      { flexDirection: "row", alignItems: "center", marginBottom: IS_TABLET ? 14 : 10 },
+iconBox:  { width: IS_TABLET ? 46 : 38, height: IS_TABLET ? 46 : 38, borderRadius: IS_TABLET ? 14 : 11, backgroundColor: "rgba(255,159,10,0.1)", justifyContent: "center", alignItems: "center", flexShrink: 0 },
+year:     { fontSize: IS_TABLET ? 19 : 16, fontWeight: "800", color: T1, letterSpacing: -0.3 },
+sub:      { fontSize: IS_TABLET ? 13 : 11, color: T3, marginTop: 3 },
 donePill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20, backgroundColor: "rgba(48,209,88,0.1)", borderWidth: 1, borderColor: "rgba(48,209,88,0.25)" },
 doneTxt:  { fontSize: 11, fontWeight: "700", color: GREEN },
-pct:      { fontSize: 14, fontWeight: "700", color: T2 },
-trackWrap:{ height: 5, backgroundColor: CARD2, borderRadius: 3, marginBottom: 12 },
-trackFill:{ height: 5, backgroundColor: BLUE, borderRadius: 3 },
-dots:     { flexDirection: "row", gap: 6, flexWrap: "wrap" },
-dot:      { width: 8, height: 8, borderRadius: 4, backgroundColor: CARD3 },
+pct:      { fontSize: IS_TABLET ? 14 : 13, fontWeight: "700", color: T2 },
+trackWrap:{ height: 4, backgroundColor: CARD2, borderRadius: 3, marginBottom: IS_TABLET ? 12 : 9 },
+trackFill:{ height: 4, backgroundColor: BLUE, borderRadius: 3 },
+dots:     { flexDirection: "row", gap: IS_TABLET ? 6 : 5, flexWrap: "wrap" },
+dot:      { width: IS_TABLET ? 8 : 7, height: IS_TABLET ? 8 : 7, borderRadius: 4, backgroundColor: CARD3 },
 dotGreen: { backgroundColor: GREEN },
 dotBlue:  { backgroundColor: BLUE },
 });
@@ -413,9 +414,7 @@ var PaschaArchiveViewer = function(props) {
     ? (selected.schedule != null && selected.schedule[currentDay.id] != null ? selected.schedule[currentDay.id] : {})
     : {};
 
-  var handleDaySelect = function(i) {
-    setDayIndex(i);
-  };
+  var handleDaySelect = function(i) { setDayIndex(i); };
 
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={onClose} statusBarTranslucent>
@@ -425,10 +424,10 @@ var PaschaArchiveViewer = function(props) {
           <View style={avS.hdr}>
             {selectedYear ? (
               <TouchableOpacity style={avS.backBtn} onPress={function() { setSelectedYear(null); }} activeOpacity={0.7}>
-                <Icon name="arrow-left" size={18} color={T1} />
+                <Icon name="arrow-left" size={IS_TABLET ? 18 : 16} color={T1} />
               </TouchableOpacity>
             ) : (
-              <View style={avS.iconBox}><Icon name="archive-outline" size={19} color={ORANGE} /></View>
+              <View style={avS.iconBox}><Icon name="archive-outline" size={IS_TABLET ? 19 : 17} color={ORANGE} /></View>
             )}
             <View style={{ flex: 1 }}>
               <Text style={avS.title}>{selectedYear ? ("Pascha " + selectedYear) : "Archived Schedules"}</Text>
@@ -446,7 +445,7 @@ var PaschaArchiveViewer = function(props) {
             </View>
           ) : archives.length === 0 ? (
             <View style={avS.center}>
-              <View style={avS.emptyIconWrap}><Icon name="archive-off-outline" size={34} color={T3} /></View>
+              <View style={avS.emptyIconWrap}><Icon name="archive-off-outline" size={IS_TABLET ? 34 : 28} color={T3} /></View>
               <Text style={avS.emptyTitle}>No Archives Yet</Text>
               <Text style={avS.emptySub}>Archive a schedule from Settings to see it here.</Text>
             </View>
@@ -473,7 +472,7 @@ var PaschaArchiveViewer = function(props) {
               {currentDay != null ? (
                 <ScrollView
                   showsVerticalScrollIndicator={false}
-                  contentContainerStyle={{ padding: 18, paddingTop: 20, paddingBottom: 32 }}
+                  contentContainerStyle={avS.dayScroll}
                   key={currentDay.id}
                 >
                   <View style={avS.dayHeader}>
@@ -528,28 +527,29 @@ var PaschaArchiveViewer = function(props) {
 
 const avS = StyleSheet.create({
 overlay:       { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" },
-sheet:         { backgroundColor: BG, borderTopLeftRadius: 30, borderTopRightRadius: 30, height: "92%", paddingBottom: Platform.OS === "ios" ? 36 : 24 },
-handle:        { width: 42, height: 5, borderRadius: 3, backgroundColor: SEP, alignSelf: "center", marginTop: 14 },
-hdr:           { flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 22, paddingTop: 18, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: SEP },
-iconBox:       { width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(255,159,10,0.12)", justifyContent: "center", alignItems: "center" },
-backBtn:       { width: 40, height: 40, borderRadius: 20, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
-title:         { fontSize: 22, fontWeight: "800", color: T1, letterSpacing: -0.3 },
-sub:           { fontSize: 13, color: T2, marginTop: 3 },
-xBtn:          { width: 36, height: 36, borderRadius: 18, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
-center:        { flex: 1, justifyContent: "center", alignItems: "center", padding: 36, gap: 18 },
-loadingTxt:    { fontSize: 15, color: T2 },
-emptyIconWrap: { width: 80, height: 80, borderRadius: 40, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
-emptyTitle:    { fontSize: 21, fontWeight: "700", color: T1 },
-emptySub:      { fontSize: 15, color: T2, textAlign: "center", lineHeight: 23 },
-sectionLabel:  { fontSize: 13, fontWeight: "700", color: T3, letterSpacing: 1, textTransform: "uppercase", marginBottom: 14 },
-list:          { padding: 18 },
-dayHeader:     { flexDirection: "row", alignItems: "flex-start", marginBottom: 14 },
-dayLabel:      { fontSize: 22, fontWeight: "800", color: T1, letterSpacing: -0.3 },
-dayDate:       { fontSize: 13, color: T2, marginTop: 4 },
+sheet:         { backgroundColor: BG, borderTopLeftRadius: 30, borderTopRightRadius: 30, height: IS_TABLET ? "92%" : "96%", paddingBottom: Platform.OS === "ios" ? 36 : 24 },
+handle:        { width: 42, height: 5, borderRadius: 3, backgroundColor: SEP, alignSelf: "center", marginTop: 12 },
+hdr:           { flexDirection: "row", alignItems: "center", gap: IS_TABLET ? 14 : 12, paddingHorizontal: IS_TABLET ? 22 : 16, paddingTop: IS_TABLET ? 18 : 14, paddingBottom: IS_TABLET ? 16 : 12, borderBottomWidth: 1, borderBottomColor: SEP },
+iconBox:       { width: IS_TABLET ? 40 : 34, height: IS_TABLET ? 40 : 34, borderRadius: IS_TABLET ? 12 : 10, backgroundColor: "rgba(255,159,10,0.12)", justifyContent: "center", alignItems: "center" },
+backBtn:       { width: IS_TABLET ? 40 : 34, height: IS_TABLET ? 40 : 34, borderRadius: IS_TABLET ? 20 : 17, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
+title:         { fontSize: IS_TABLET ? 22 : 18, fontWeight: "800", color: T1, letterSpacing: -0.3 },
+sub:           { fontSize: IS_TABLET ? 13 : 12, color: T2, marginTop: 2 },
+xBtn:          { width: IS_TABLET ? 36 : 32, height: IS_TABLET ? 36 : 32, borderRadius: IS_TABLET ? 18 : 16, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
+center:        { flex: 1, justifyContent: "center", alignItems: "center", padding: IS_TABLET ? 36 : 24, gap: IS_TABLET ? 18 : 14 },
+loadingTxt:    { fontSize: IS_TABLET ? 15 : 14, color: T2 },
+emptyIconWrap: { width: IS_TABLET ? 80 : 64, height: IS_TABLET ? 80 : 64, borderRadius: IS_TABLET ? 40 : 32, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
+emptyTitle:    { fontSize: IS_TABLET ? 21 : 18, fontWeight: "700", color: T1 },
+emptySub:      { fontSize: IS_TABLET ? 15 : 13, color: T2, textAlign: "center", lineHeight: IS_TABLET ? 23 : 20 },
+sectionLabel:  { fontSize: IS_TABLET ? 13 : 11, fontWeight: "700", color: T3, letterSpacing: 1, textTransform: "uppercase", marginBottom: IS_TABLET ? 14 : 10 },
+list:          { padding: IS_TABLET ? 18 : 14 },
+dayScroll:     { padding: IS_TABLET ? 18 : 14, paddingTop: IS_TABLET ? 20 : 14, paddingBottom: 32 },
+dayHeader:     { flexDirection: "row", alignItems: "flex-start", marginBottom: IS_TABLET ? 14 : 10 },
+dayLabel:      { fontSize: IS_TABLET ? 22 : 18, fontWeight: "800", color: T1, letterSpacing: -0.3 },
+dayDate:       { fontSize: IS_TABLET ? 13 : 12, color: T2, marginTop: 3 },
 dayDonePill:   { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, backgroundColor: "rgba(48,209,88,0.1)", borderWidth: 1, borderColor: "rgba(48,209,88,0.25)" },
 dayDoneTxt:    { fontSize: 12, fontWeight: "700", color: GREEN },
-dayPct:        { fontSize: 16, fontWeight: "700", color: T2 },
-dayTrackWrap:  { height: 4, backgroundColor: CARD2, borderRadius: 2, marginBottom: 18 },
+dayPct:        { fontSize: IS_TABLET ? 16 : 14, fontWeight: "700", color: T2 },
+dayTrackWrap:  { height: 4, backgroundColor: CARD2, borderRadius: 2, marginBottom: IS_TABLET ? 18 : 12 },
 dayTrackFill:  { height: 4, backgroundColor: BLUE, borderRadius: 2 },
 });
 

@@ -49,7 +49,7 @@
     "events": "^1.1.1",
     "expo": "^53.0.0",
     "expo-apple-authentication": "~7.2.4",
-    "expo-auth-session": "^55.0.15",
+    "expo-auth-session": "~6.2.1",
     "expo-background-fetch": "~13.1.6",
     "expo-blur": "~14.1.5",
     "expo-build-properties": "~0.14.8",
@@ -186,5 +186,8 @@
     "tty": "tty-browserify",
     "vm": "vm-browserify",
     "tls": false
+  },
+  "resolutions": {
+    "expo-crypto": "~14.1.5"
   }
 }
