@@ -36,6 +36,7 @@ const verticalScale = (size) => (height / REFERENCE_HEIGHT) * size;
 const moderateScale = (size, factor = 0.5) =>
   size + (scale(size) - size) * factor;
 
+const FIREBASE_WEB_API_KEY = "AIzaSyBWxEgHXcJx19Rklr7P6HhhweT9_I70WkA";
 const MICROSOFT_CLIENT_ID = "149615d2-4f88-4222-b69c-f3b82f2b8901";
 const MICROSOFT_TENANT = "waylandcopticchurch.org";
 const microsoftDiscovery = {
@@ -46,6 +47,29 @@ const redirectUri = AuthSession.makeRedirectUri({
   scheme: "taksis",
   path: "redirect",
 });
+
+// Exchange Microsoft id_token for Firebase session via REST
+const signInWithMicrosoftREST = async (idToken) => {
+  const response = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${FIREBASE_WEB_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        postBody: `id_token=${idToken}&providerId=microsoft.com`,
+        requestUri: redirectUri,
+        returnIdpCredential: true,
+        returnSecureToken: true,
+      }),
+    }
+  );
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error.message || "Firebase REST sign-in failed.");
+  }
+  await auth().signInWithCustomToken(data.idToken);
+  return auth().currentUser;
+};
 
 // ---------- Floating-label input ----------
 const FloatingInput = React.forwardRef(({
@@ -170,7 +194,6 @@ const SignUp = ({ navigation }) => {
     webClientId: "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
   });
 
-  // Use code flow so we can exchange for tokens server-side via PKCE
   const [msRequest, , msPromptAsync] = AuthSession.useAuthRequest(
     {
       clientId: MICROSOFT_CLIENT_ID,
@@ -342,14 +365,13 @@ const SignUp = ({ navigation }) => {
     setLoading("microsoft");
     try {
       const result = await msPromptAsync();
-
       if (result.type === "cancel" || result.type === "dismiss") return;
       if (result.type !== "success") {
         Alert.alert("Sign Up Error", "Microsoft sign-in did not complete.");
         return;
       }
 
-      // Exchange the auth code for tokens
+      // Exchange code for tokens
       const tokenResponse = await AuthSession.exchangeCodeAsync(
         {
           clientId: MICROSOFT_CLIENT_ID,
@@ -361,21 +383,10 @@ const SignUp = ({ navigation }) => {
       );
 
       const idToken = tokenResponse.idToken;
-      const accessToken = tokenResponse.accessToken;
+      if (!idToken) throw new Error("No ID token returned from Microsoft.");
 
-      if (!idToken && !accessToken) {
-        throw new Error("No tokens returned from Microsoft.");
-      }
-
-      // Build Firebase credential — try idToken first, fall back to accessToken
-      const credential = auth.OAuthProvider.credential(
-        "microsoft.com",
-        idToken ?? null,
-        accessToken ?? null
-      );
-
-      const userCredential = await auth().signInWithCredential(credential);
-      const user = auth().currentUser;
+      // Use Firebase REST API — bypasses broken native credential methods
+      const user = await signInWithMicrosoftREST(idToken);
 
       const userDoc = await firestore().collection("users").doc(user.uid).get();
       if (userDoc.exists) {
@@ -385,7 +396,7 @@ const SignUp = ({ navigation }) => {
         return;
       }
 
-      await writeUserToDb(userCredential.user, userCredential.user.displayName || "");
+      await writeUserToDb(user, user.displayName || "");
       navigation.navigate("InputPhoto");
     } catch (error) {
       Alert.alert("Sign Up Error", error?.message || "Microsoft sign up failed.");
