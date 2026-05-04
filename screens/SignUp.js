@@ -19,10 +19,14 @@ import auth from "@react-native-firebase/auth";
 import firestore from "@react-native-firebase/firestore";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
+import * as AuthSession from "expo-auth-session";
+import * as WebBrowser from "expo-web-browser";
 import * as Crypto from "expo-crypto";
 import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
 import { useUser } from "../UserContext";
+
+WebBrowser.maybeCompleteAuthSession();
 
 const { width, height } = Dimensions.get("window");
 const REFERENCE_WIDTH = 375;
@@ -31,6 +35,17 @@ const scale = (size) => (width / REFERENCE_WIDTH) * size;
 const verticalScale = (size) => (height / REFERENCE_HEIGHT) * size;
 const moderateScale = (size, factor = 0.5) =>
   size + (scale(size) - size) * factor;
+
+const MICROSOFT_CLIENT_ID = "149615d2-4f88-4222-b69c-f3b82f2b8901";
+const MICROSOFT_TENANT = "waylandcopticchurch.org";
+const microsoftDiscovery = {
+  authorizationEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/authorize`,
+  tokenEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/token`,
+};
+const redirectUri = AuthSession.makeRedirectUri({
+  scheme: "taksis",
+  path: "redirect",
+});
 
 // ---------- Floating-label input ----------
 const FloatingInput = React.forwardRef(({
@@ -154,6 +169,19 @@ const SignUp = ({ navigation }) => {
   GoogleSignin.configure({
     webClientId: "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
   });
+
+  // Use code flow so we can exchange for tokens server-side via PKCE
+  const [msRequest, , msPromptAsync] = AuthSession.useAuthRequest(
+    {
+      clientId: MICROSOFT_CLIENT_ID,
+      scopes: ["openid", "profile", "email", "offline_access"],
+      redirectUri,
+      responseType: AuthSession.ResponseType.Code,
+      usePKCE: true,
+      extraParams: { prompt: "select_account" },
+    },
+    microsoftDiscovery
+  );
 
   const validation = useMemo(() => {
     const errs = {};
@@ -306,19 +334,48 @@ const SignUp = ({ navigation }) => {
   };
 
   const onMicrosoftButtonPress = async () => {
+    if (!msRequest) {
+      Alert.alert("Not ready", "Microsoft sign-in is not ready yet. Try again.");
+      return;
+    }
     setSignUp(true);
     setLoading("microsoft");
     try {
-      const provider = new auth.OAuthProvider("microsoft.com");
-      provider.addScope("email");
-      provider.addScope("profile");
-      provider.setCustomParameters({
-        prompt: "select_account",
-        tenant: "waylandcopticchurch.org",
-      });
+      const result = await msPromptAsync();
 
-      const userCredential = await auth().signInWithProvider(provider);
-      const user = userCredential.user;
+      if (result.type === "cancel" || result.type === "dismiss") return;
+      if (result.type !== "success") {
+        Alert.alert("Sign Up Error", "Microsoft sign-in did not complete.");
+        return;
+      }
+
+      // Exchange the auth code for tokens
+      const tokenResponse = await AuthSession.exchangeCodeAsync(
+        {
+          clientId: MICROSOFT_CLIENT_ID,
+          code: result.params.code,
+          redirectUri,
+          extraParams: { code_verifier: msRequest.codeVerifier },
+        },
+        microsoftDiscovery
+      );
+
+      const idToken = tokenResponse.idToken;
+      const accessToken = tokenResponse.accessToken;
+
+      if (!idToken && !accessToken) {
+        throw new Error("No tokens returned from Microsoft.");
+      }
+
+      // Build Firebase credential — try idToken first, fall back to accessToken
+      const credential = auth.OAuthProvider.credential(
+        "microsoft.com",
+        idToken ?? null,
+        accessToken ?? null
+      );
+
+      const userCredential = await auth().signInWithCredential(credential);
+      const user = auth().currentUser;
 
       const userDoc = await firestore().collection("users").doc(user.uid).get();
       if (userDoc.exists) {
@@ -328,12 +385,10 @@ const SignUp = ({ navigation }) => {
         return;
       }
 
-      await writeUserToDb(user, user.displayName || "");
+      await writeUserToDb(userCredential.user, userCredential.user.displayName || "");
       navigation.navigate("InputPhoto");
     } catch (error) {
-      if (error?.code !== "auth/cancelled-popup-request") {
-        Alert.alert("Sign Up Error", error?.message || "Microsoft sign up failed.");
-      }
+      Alert.alert("Sign Up Error", error?.message || "Microsoft sign up failed.");
     } finally {
       setLoading(null);
     }

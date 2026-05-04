@@ -20,8 +20,12 @@ import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import BackArrow from "../components/backArrow";
 import { useUser } from "../UserContext";
 import * as AppleAuthentication from "expo-apple-authentication";
+import * as AuthSession from "expo-auth-session";
+import * as WebBrowser from "expo-web-browser";
 import * as Crypto from "expo-crypto";
 import { Ionicons } from "@expo/vector-icons";
+
+WebBrowser.maybeCompleteAuthSession();
 
 const { width, height } = Dimensions.get("window");
 const REFERENCE_WIDTH = 375;
@@ -30,6 +34,17 @@ const scale = (size) => (width / REFERENCE_WIDTH) * size;
 const verticalScale = (size) => (height / REFERENCE_HEIGHT) * size;
 const moderateScale = (size, factor = 0.5) =>
   size + (scale(size) - size) * factor;
+
+const MICROSOFT_CLIENT_ID = "149615d2-4f88-4222-b69c-f3b82f2b8901";
+const MICROSOFT_TENANT = "waylandcopticchurch.org";
+const microsoftDiscovery = {
+  authorizationEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/authorize`,
+  tokenEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/token`,
+};
+const redirectUri = AuthSession.makeRedirectUri({
+  scheme: "taksis",
+  path: "redirect",
+});
 
 // ---------- Floating-label input ----------
 const FloatingInput = React.forwardRef(({
@@ -134,6 +149,18 @@ const SignIn = ({ navigation }) => {
     webClientId: "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
   });
 
+  const [msRequest, , msPromptAsync] = AuthSession.useAuthRequest(
+    {
+      clientId: MICROSOFT_CLIENT_ID,
+      scopes: ["openid", "profile", "email", "offline_access"],
+      redirectUri,
+      responseType: AuthSession.ResponseType.Code,
+      usePKCE: true,
+      extraParams: { prompt: "select_account" },
+    },
+    microsoftDiscovery
+  );
+
   const handleSignIn = async () => {
     if (!email || !password) return;
     setLoading("email");
@@ -186,20 +213,47 @@ const SignIn = ({ navigation }) => {
   };
 
   const handleMicrosoft = async () => {
+    if (!msRequest) {
+      Alert.alert("Not ready", "Microsoft sign-in is not ready yet. Try again.");
+      return;
+    }
     setLoading("microsoft");
     try {
-      const provider = new auth.OAuthProvider("microsoft.com");
-      provider.addScope("email");
-      provider.addScope("profile");
-      provider.setCustomParameters({
-        prompt: "select_account",
-        tenant: "waylandcopticchurch.org",
-      });
-      await auth().signInWithProvider(provider);
-    } catch (e) {
-      if (e?.code !== "auth/cancelled-popup-request") {
-        Alert.alert("Microsoft sign-in failed", e?.message || "Sign-in did not complete.");
+      const result = await msPromptAsync();
+
+      if (result.type === "cancel" || result.type === "dismiss") return;
+      if (result.type !== "success") {
+        Alert.alert("Sign-in Error", "Microsoft sign-in did not complete.");
+        return;
       }
+
+      // Exchange the auth code for tokens
+      const tokenResponse = await AuthSession.exchangeCodeAsync(
+        {
+          clientId: MICROSOFT_CLIENT_ID,
+          code: result.params.code,
+          redirectUri,
+          extraParams: { code_verifier: msRequest.codeVerifier },
+        },
+        microsoftDiscovery
+      );
+
+      const idToken = tokenResponse.idToken;
+      const accessToken = tokenResponse.accessToken;
+
+      if (!idToken && !accessToken) {
+        throw new Error("No tokens returned from Microsoft.");
+      }
+
+      const credential = auth.OAuthProvider.credential(
+        "microsoft.com",
+        idToken ?? null,
+        accessToken ?? null
+      );
+
+      await auth().signInWithCredential(credential);
+    } catch (e) {
+      Alert.alert("Microsoft sign-in failed", e?.message || "Sign-in did not complete.");
     } finally {
       setLoading(null);
     }
