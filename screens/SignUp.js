@@ -179,14 +179,15 @@ const SignUp = ({ navigation }) => {
       "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
   });
 
+  // Use Token (access_token) response type — avoids nonce complexity and works
+  // with @react-native-firebase's OAuthProvider.credential(providerId, idToken, accessToken)
   const [msRequest, msResponse, msPromptAsync] = AuthSession.useAuthRequest(
     {
       clientId: MICROSOFT_CLIENT_ID,
       scopes: ["openid", "profile", "email"],
-      redirectUri: redirectUri,
-      responseType: AuthSession.ResponseType.IdToken,
+      redirectUri,
+      responseType: AuthSession.ResponseType.Token,
       extraParams: {
-        nonce: "ms_signup_" + Date.now(),
         prompt: "select_account",
       },
     },
@@ -355,31 +356,36 @@ const SignUp = ({ navigation }) => {
   };
 
   const onMicrosoftButtonPress = async () => {
-    if (MICROSOFT_CLIENT_ID === "TODO_FILL_IN_MS_CLIENT_ID") {
-      Alert.alert(
-        "Not configured",
-        "Microsoft sign-in needs an Azure app registration. Update MICROSOFT_CLIENT_ID in SignUp.js."
-      );
-      return;
-    }
     if (!msRequest) return;
     setSignUp(true);
     setLoading("microsoft");
     try {
       const result = await msPromptAsync();
-      if (result.type !== "success") {
-        if (result.type !== "cancel") {
-          Alert.alert("Sign Up Error", "Microsoft sign-in did not complete.");
-        }
+
+      if (result.type === "cancel" || result.type === "dismiss") {
         return;
       }
-    const idToken = result.params.id_token;
-      if (!idToken) throw new Error("No identity token returned from Microsoft.");
 
-      // ✅ Correct way with @react-native-firebase/auth
-      const credential = auth.OAuthProvider.credential("microsoft.com", idToken);
+      if (result.type !== "success") {
+        Alert.alert("Sign Up Error", "Microsoft sign-in did not complete.");
+        return;
+      }
+
+      const accessToken = result.params?.access_token;
+      if (!accessToken) {
+        throw new Error("No access token returned from Microsoft.");
+      }
+
+      // @react-native-firebase OAuthProvider.credential(providerId, idToken, accessToken)
+      // Pass null for idToken, supply the access token as the third argument.
+      const credential = auth.OAuthProvider.credential(
+        "microsoft.com",
+        null,
+        accessToken
+      );
       const userCredential = await auth().signInWithCredential(credential);
       const user = auth().currentUser;
+
       const userDoc = await firestore().collection("users").doc(user.uid).get();
       if (userDoc.exists) {
         await auth().signOut();
@@ -390,6 +396,7 @@ const SignUp = ({ navigation }) => {
         );
         return;
       }
+
       await writeUserToDb(userCredential.user, userCredential.user.displayName || "");
       navigation.navigate("InputPhoto");
     } catch (error) {
@@ -417,7 +424,7 @@ const SignUp = ({ navigation }) => {
           <BackArrow />
         </View>
 
-        {/* Progress bar — full width, matching InputPhoto */}
+        {/* Progress bar */}
         <View style={styles.progressBarContainer}>
           <ProgressBar startPercentage={0} endPercentage={1} />
         </View>
@@ -647,8 +654,6 @@ const styles = StyleSheet.create({
     paddingBottom: verticalScale(32),
     flexGrow: 1,
   },
-
-  // ---------- Progress bar (full-width, matches InputPhoto) ----------
   backArrowContainer: {
     marginBottom: verticalScale(16),
   },
@@ -659,8 +664,6 @@ const styles = StyleSheet.create({
     marginBottom: verticalScale(32),
     overflow: "hidden",
   },
-
-  // ---------- Heading ----------
   heading: {
     marginBottom: verticalScale(28),
   },
@@ -677,8 +680,6 @@ const styles = StyleSheet.create({
     marginTop: verticalScale(8),
     lineHeight: moderateScale(21),
   },
-
-  // ---------- Form ----------
   form: {
     marginBottom: verticalScale(8),
   },
@@ -714,8 +715,6 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(12),
     color: "#ff453a",
   },
-
-  // Strength meter
   strengthRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -735,8 +734,6 @@ const styles = StyleSheet.create({
     marginLeft: scale(8),
     minWidth: scale(50),
   },
-
-  // ---------- Continue button ----------
   continueButton: {
     height: verticalScale(52),
     width: "100%",
@@ -765,8 +762,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     letterSpacing: -0.2,
   },
-
-  // ---------- Divider ----------
   dividerContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -785,8 +780,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-
-  // ---------- Social row ----------
   socialRow: {
     flexDirection: "row",
     gap: scale(10),
@@ -817,8 +810,6 @@ const styles = StyleSheet.create({
     width: moderateScale(24),
     height: moderateScale(24),
   },
-
-  // Microsoft inline logo
   msLogo: {
     width: 22,
     height: 22,
@@ -831,8 +822,6 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 1,
   },
-
-  // ---------- Sign in link ----------
   signInRow: {
     flexDirection: "row",
     justifyContent: "center",
