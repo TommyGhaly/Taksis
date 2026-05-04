@@ -793,7 +793,7 @@ const EditSchedule = () => {
 
       {!isViewingArchived && (
         <TouchableOpacity style={styles.addButton} onPress={handleAddServer}>
-          <Text style={styles.addButtonText}>Add Server</Text>
+          <Text style={styles.addButtonText}>Add Extra Altar Server</Text>
         </TouchableOpacity>
       )}
 
