@@ -635,7 +635,7 @@ const MicrosoftLogo = () => (
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: "#000",
   },
   scrollContent: {
     paddingHorizontal: scale(20),
@@ -682,7 +682,7 @@ const styles = StyleSheet.create({
     height: verticalScale(58),
     borderWidth: 1,
     borderRadius: moderateScale(12),
-    backgroundColor: "#1A1A1A",
+    backgroundColor: "#111",
     paddingHorizontal: scale(14),
     paddingTop: verticalScale(14),
     flexDirection: "row",
