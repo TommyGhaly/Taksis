@@ -38,6 +38,10 @@ const microsoftDiscovery = {
   authorizationEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/authorize`,
   tokenEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/token`,
 };
+const redirectUri = AuthSession.makeRedirectUri({
+  scheme: "taksis",
+  path: "redirect",
+});
 
 // ---------- Floating-label input ----------
 const FloatingInput = React.forwardRef(({
@@ -146,7 +150,7 @@ const SignIn = ({ navigation }) => {
     {
       clientId: MICROSOFT_CLIENT_ID,
       scopes: ["openid", "profile", "email"],
-      redirectUri: AuthSession.makeRedirectUri(),
+      redirectUri: redirectUri,
       responseType: AuthSession.ResponseType.IdToken,
       extraParams: {
         nonce: "ms_signin_" + Date.now(),
@@ -155,7 +159,6 @@ const SignIn = ({ navigation }) => {
     },
     microsoftDiscovery
   );
-
   const handleSignIn = async () => {
     if (!email || !password) return;
     setLoading("email");
