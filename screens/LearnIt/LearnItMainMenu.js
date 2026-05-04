@@ -48,7 +48,7 @@ const LearnItMainMenu = ({ navigation }) => {
 
       <View style={styles.content}>
         <View style={styles.headerContainer}>
-          <Text style={styles.headerSubtext}>TAKSIS</Text>
+          <Text style={styles.headerSubtext}>Ⲧⲁⲝⲓⲥ</Text>
           <Text style={styles.headerText}>Learn It</Text>
           <View style={styles.headerDivider} />
         </View>

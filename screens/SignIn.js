@@ -252,7 +252,7 @@ const SignIn = ({ navigation }) => {
             resizeMode="contain"
           />
           <Text style={styles.title}>Welcome back</Text>
-          <Text style={styles.subtitle}>Sign in to continue to Taksis.</Text>
+          <Text style={styles.subtitle}>Sign in to continue to Ⲧⲁⲝⲓⲥ.</Text>
         </View>
 
         {/* Form */}

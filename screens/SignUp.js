@@ -419,7 +419,7 @@ const SignUp = ({ navigation }) => {
         <View style={styles.heading}>
           <Text style={styles.title}>Create account</Text>
           <Text style={styles.subtitle}>
-            Sign up to join your church community on Taksis.
+            Sign up to join your church community on Ⲧⲁⲝⲓⲥ.
           </Text>
         </View>
 

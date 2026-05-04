@@ -127,7 +127,7 @@ export default function CustomDrawerContent(props) {
           <Icon name="cross-outline" size={Math.round(17 * scale)} color={ACCENT} />
         </View>
         <View>
-          <Text style={styles.appName}>Taksis</Text>
+          <Text style={styles.appName}>Ⲧⲁⲝⲓⲥ</Text>
           <Text style={styles.appTagline}>Manage your service</Text>
         </View>
       </View>

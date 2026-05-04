@@ -377,7 +377,7 @@ function ForceUpdateModal({ visible }) {
           </View>
           <Text style={updateStyles.title}>Update Required</Text>
           <Text style={updateStyles.message}>
-            A new version of Taksis is available. Please update to continue using the app.
+            A new version of Ⲧⲁⲝⲓⲥ is available. Please update to continue using the app.
           </Text>
           <TouchableOpacity
             style={updateStyles.button}
