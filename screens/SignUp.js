@@ -373,11 +373,11 @@ const SignUp = ({ navigation }) => {
         }
         return;
       }
-      const idToken = result.params.id_token;
+    const idToken = result.params.id_token;
       if (!idToken) throw new Error("No identity token returned from Microsoft.");
 
-      const provider = new auth.OAuthProvider("microsoft.com");
-      const credential = provider.credential({ idToken });
+      // ✅ Correct way with @react-native-firebase/auth
+      const credential = auth.OAuthProvider.credential("microsoft.com", idToken);
       const userCredential = await auth().signInWithCredential(credential);
       const user = auth().currentUser;
       const userDoc = await firestore().collection("users").doc(user.uid).get();
