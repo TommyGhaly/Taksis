@@ -142,7 +142,7 @@ export default function CustomDrawerContent(props) {
       {/* Footer */}
       <View style={styles.divider} />
       <View style={styles.footerRow}>
-        <Text style={styles.footerLabel}>Taksis</Text>
+        <Text style={styles.footerLabel}>Ⲧⲁⲝⲓⲥ</Text>
         <Text style={styles.footerSub}>By TG</Text>
       </View>
     </View>

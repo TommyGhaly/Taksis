@@ -33,7 +33,7 @@ const moderateScale = (size, factor = 0.5) =>
   size + (scale(size) - size) * factor;
 
 const MICROSOFT_CLIENT_ID = "827479e7-3afb-41ad-b426-31e2d42f9b44";
-const MICROSOFT_TENANT = "common";
+const MICROSOFT_TENANT = "waylandcopticchurch.org";
 const microsoftDiscovery = {
   authorizationEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/authorize`,
   tokenEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/token`,
@@ -148,7 +148,10 @@ const SignIn = ({ navigation }) => {
       scopes: ["openid", "profile", "email"],
       redirectUri: AuthSession.makeRedirectUri(),
       responseType: AuthSession.ResponseType.IdToken,
-      extraParams: { nonce: "ms_signin_" + Date.now() },
+      extraParams: {
+        nonce: "ms_signin_" + Date.now(),
+        prompt: "select_account",
+      },
     },
     microsoftDiscovery
   );
