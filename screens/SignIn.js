@@ -15,12 +15,11 @@ import {
   ActivityIndicator,
   Animated,
 } from "react-native";
-import auth from "@react-native-firebase/auth";
+import auth, { OAuthProvider, getAuth, signInWithProvider } from "@react-native-firebase/auth";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import BackArrow from "../components/backArrow";
 import { useUser } from "../UserContext";
 import * as AppleAuthentication from "expo-apple-authentication";
-import * as AuthSession from "expo-auth-session";
 import * as Crypto from "expo-crypto";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -31,17 +30,6 @@ const scale = (size) => (width / REFERENCE_WIDTH) * size;
 const verticalScale = (size) => (height / REFERENCE_HEIGHT) * size;
 const moderateScale = (size, factor = 0.5) =>
   size + (scale(size) - size) * factor;
-
-const MICROSOFT_CLIENT_ID = "149615d2-4f88-4222-b69c-f3b82f2b8901";
-const MICROSOFT_TENANT = "waylandcopticchurch.org";
-const microsoftDiscovery = {
-  authorizationEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/authorize`,
-  tokenEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/token`,
-};
-const redirectUri = AuthSession.makeRedirectUri({
-  scheme: "taksis",
-  path: "redirect",
-});
 
 // ---------- Floating-label input ----------
 const FloatingInput = React.forwardRef(({
@@ -146,19 +134,6 @@ const SignIn = ({ navigation }) => {
     webClientId: "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
   });
 
-  const [msRequest, msResponse, msPromptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: MICROSOFT_CLIENT_ID,
-      scopes: ["openid", "profile", "email"],
-      redirectUri: redirectUri,
-      responseType: AuthSession.ResponseType.IdToken,
-      extraParams: {
-        nonce: "ms_signin_" + Date.now(),
-        prompt: "select_account",
-      },
-    },
-    microsoftDiscovery
-  );
   const handleSignIn = async () => {
     if (!email || !password) return;
     setLoading("email");
@@ -211,21 +186,20 @@ const SignIn = ({ navigation }) => {
   };
 
   const handleMicrosoft = async () => {
-    if (!msRequest) return;
     setLoading("microsoft");
     try {
-      const result = await msPromptAsync();
-      if (result.type !== "success") {
-        if (result.type !== "cancel") Alert.alert("Microsoft sign-in failed", "Did not complete.");
-        return;
-      }
-      const idToken = result.params.id_token;
-      if (!idToken) throw new Error("No identity token from Microsoft.");
-      const provider = new auth.OAuthProvider("microsoft.com");
-      const cred = provider.credential({ idToken });
-      await auth().signInWithCredential(cred);
+      const provider = new OAuthProvider("microsoft.com");
+      provider.addScope("email");
+      provider.addScope("profile");
+      provider.setCustomParameters({
+        prompt: "select_account",
+        tenant: "waylandcopticchurch.org",
+      });
+      await signInWithProvider(getAuth(), provider);
     } catch (e) {
-      Alert.alert("Microsoft sign-in failed", e?.message);
+      if (e?.code !== "auth/cancelled-popup-request") {
+        Alert.alert("Microsoft sign-in failed", e?.message || "Sign-in did not complete.");
+      }
     } finally {
       setLoading(null);
     }
@@ -425,12 +399,9 @@ const styles = StyleSheet.create({
     paddingBottom: verticalScale(32),
     flexGrow: 1,
   },
-
   backArrowContainer: {
     marginBottom: verticalScale(16),
   },
-
-  // ---------- Heading ----------
   heading: {
     marginBottom: verticalScale(28),
   },
@@ -453,8 +424,6 @@ const styles = StyleSheet.create({
     marginTop: verticalScale(8),
     lineHeight: moderateScale(21),
   },
-
-  // ---------- Form ----------
   form: {
     marginBottom: verticalScale(4),
   },
@@ -479,8 +448,6 @@ const styles = StyleSheet.create({
     padding: scale(4),
     marginLeft: scale(4),
   },
-
-  // ---------- Forgot password ----------
   forgotRow: {
     flexDirection: "row",
     justifyContent: "center",
@@ -497,8 +464,6 @@ const styles = StyleSheet.create({
     color: "#147EFB",
     fontWeight: "600",
   },
-
-  // ---------- Continue button ----------
   continueButton: {
     height: verticalScale(52),
     width: "100%",
@@ -526,8 +491,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     letterSpacing: -0.2,
   },
-
-  // ---------- Divider ----------
   dividerContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -546,8 +509,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-
-  // ---------- Social row ----------
   socialRow: {
     flexDirection: "row",
     gap: scale(10),
@@ -590,8 +551,6 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 1,
   },
-
-  // ---------- Sign up link ----------
   signUpRow: {
     flexDirection: "row",
     justifyContent: "center",
