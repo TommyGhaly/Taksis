@@ -32,7 +32,7 @@ const verticalScale = (size) => (height / REFERENCE_HEIGHT) * size;
 const moderateScale = (size, factor = 0.5) =>
   size + (scale(size) - size) * factor;
 
-const MICROSOFT_CLIENT_ID = "827479e7-3afb-41ad-b426-31e2d42f9b44";
+const MICROSOFT_CLIENT_ID = "149615d2-4f88-4222-b69c-f3b82f2b8901";
 const MICROSOFT_TENANT = "waylandcopticchurch.org";
 const microsoftDiscovery = {
   authorizationEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/authorize`,
