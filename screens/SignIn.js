@@ -15,7 +15,7 @@ import {
   ActivityIndicator,
   Animated,
 } from "react-native";
-import auth, { OAuthProvider, getAuth, signInWithProvider } from "@react-native-firebase/auth";
+import auth from "@react-native-firebase/auth";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import BackArrow from "../components/backArrow";
 import { useUser } from "../UserContext";
@@ -188,14 +188,14 @@ const SignIn = ({ navigation }) => {
   const handleMicrosoft = async () => {
     setLoading("microsoft");
     try {
-      const provider = new OAuthProvider("microsoft.com");
+      const provider = new auth.OAuthProvider("microsoft.com");
       provider.addScope("email");
       provider.addScope("profile");
       provider.setCustomParameters({
         prompt: "select_account",
         tenant: "waylandcopticchurch.org",
       });
-      await signInWithProvider(getAuth(), provider);
+      await auth().signInWithProvider(provider);
     } catch (e) {
       if (e?.code !== "auth/cancelled-popup-request") {
         Alert.alert("Microsoft sign-in failed", e?.message || "Sign-in did not complete.");
@@ -219,12 +219,10 @@ const SignIn = ({ navigation }) => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Back arrow */}
         <View style={styles.backArrowContainer}>
           <BackArrow />
         </View>
 
-        {/* Icon + heading */}
         <View style={styles.heading}>
           <Image
             source={require("../assets/lastSupperIcon.png")}
@@ -235,7 +233,6 @@ const SignIn = ({ navigation }) => {
           <Text style={styles.subtitle}>Sign in to continue to Ⲧⲁⲝⲓⲥ.</Text>
         </View>
 
-        {/* Form */}
         <View style={styles.form}>
           <FloatingInput
             label="Email"
@@ -264,7 +261,6 @@ const SignIn = ({ navigation }) => {
           />
         </View>
 
-        {/* Forgot password */}
         <Pressable
           style={styles.forgotRow}
           onPress={() => navigation.navigate("PasswordReset")}
@@ -274,7 +270,6 @@ const SignIn = ({ navigation }) => {
           <Text style={styles.forgotLink}> Set new password</Text>
         </Pressable>
 
-        {/* Continue button */}
         <Pressable
           style={({ pressed }) => [
             styles.continueButton,
@@ -294,14 +289,12 @@ const SignIn = ({ navigation }) => {
           )}
         </Pressable>
 
-        {/* Divider */}
         <View style={styles.dividerContainer}>
           <View style={styles.divider} />
           <Text style={styles.orText}>or sign in with</Text>
           <View style={styles.divider} />
         </View>
 
-        {/* Social buttons */}
         <View style={styles.socialRow}>
           <SocialButton
             onPress={handleGoogle}
@@ -336,7 +329,6 @@ const SignIn = ({ navigation }) => {
           />
         </View>
 
-        {/* Sign up link */}
         <View style={styles.signUpRow}>
           <Text style={styles.signUpPrompt}>Don't have an account?</Text>
           <Pressable
@@ -389,22 +381,15 @@ const generateNonce = (length = 32) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
+  container: { flex: 1, backgroundColor: "#000" },
   scrollContent: {
     paddingHorizontal: scale(20),
     paddingTop: verticalScale(60),
     paddingBottom: verticalScale(32),
     flexGrow: 1,
   },
-  backArrowContainer: {
-    marginBottom: verticalScale(16),
-  },
-  heading: {
-    marginBottom: verticalScale(28),
-  },
+  backArrowContainer: { marginBottom: verticalScale(16) },
+  heading: { marginBottom: verticalScale(28) },
   icon: {
     width: scale(220),
     height: scale(220) * (499 / 1089),
@@ -424,9 +409,7 @@ const styles = StyleSheet.create({
     marginTop: verticalScale(8),
     lineHeight: moderateScale(21),
   },
-  form: {
-    marginBottom: verticalScale(4),
-  },
+  form: { marginBottom: verticalScale(4) },
   inputWrap: {
     height: verticalScale(58),
     borderWidth: 1,
@@ -444,10 +427,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     paddingTop: verticalScale(8),
   },
-  eyeBtn: {
-    padding: scale(4),
-    marginLeft: scale(4),
-  },
+  eyeBtn: { padding: scale(4), marginLeft: scale(4) },
   forgotRow: {
     flexDirection: "row",
     justifyContent: "center",
@@ -455,15 +435,8 @@ const styles = StyleSheet.create({
     marginBottom: verticalScale(20),
     marginTop: verticalScale(4),
   },
-  forgotText: {
-    fontSize: moderateScale(14),
-    color: "rgba(255,255,255,0.45)",
-  },
-  forgotLink: {
-    fontSize: moderateScale(14),
-    color: "#147EFB",
-    fontWeight: "600",
-  },
+  forgotText: { fontSize: moderateScale(14), color: "rgba(255,255,255,0.45)" },
+  forgotLink: { fontSize: moderateScale(14), color: "#147EFB", fontWeight: "600" },
   continueButton: {
     height: verticalScale(52),
     width: "100%",
@@ -480,11 +453,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
   },
-  continueButtonDisabled: {
-    backgroundColor: "#555",
-    shadowOpacity: 0,
-    elevation: 0,
-  },
+  continueButtonDisabled: { backgroundColor: "#555", shadowOpacity: 0, elevation: 0 },
   continueText: {
     fontSize: moderateScale(16),
     fontWeight: "600",
@@ -496,11 +465,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: verticalScale(16),
   },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.08)",
-  },
+  divider: { flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.08)" },
   orText: {
     marginHorizontal: scale(12),
     fontSize: moderateScale(12),
@@ -525,32 +490,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: verticalScale(4),
   },
-  socialIconWrap: {
-    height: 26,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  socialLabel: {
-    fontSize: moderateScale(11),
-    color: "rgba(255,255,255,0.65)",
-    fontWeight: "500",
-  },
-  googleIcon: {
-    width: moderateScale(24),
-    height: moderateScale(24),
-  },
-  msLogo: {
-    width: 22,
-    height: 22,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 2,
-  },
-  msSquare: {
-    width: 10,
-    height: 10,
-    borderRadius: 1,
-  },
+  socialIconWrap: { height: 26, justifyContent: "center", alignItems: "center" },
+  socialLabel: { fontSize: moderateScale(11), color: "rgba(255,255,255,0.65)", fontWeight: "500" },
+  googleIcon: { width: moderateScale(24), height: moderateScale(24) },
+  msLogo: { width: 22, height: 22, flexDirection: "row", flexWrap: "wrap", gap: 2 },
+  msSquare: { width: 10, height: 10, borderRadius: 1 },
   signUpRow: {
     flexDirection: "row",
     justifyContent: "center",
@@ -559,15 +503,8 @@ const styles = StyleSheet.create({
     marginTop: "auto",
     paddingTop: verticalScale(12),
   },
-  signUpPrompt: {
-    fontSize: moderateScale(14),
-    color: "rgba(255,255,255,0.45)",
-  },
-  signUpLink: {
-    fontSize: moderateScale(14),
-    color: "#147EFB",
-    fontWeight: "600",
-  },
+  signUpPrompt: { fontSize: moderateScale(14), color: "rgba(255,255,255,0.45)" },
+  signUpLink: { fontSize: moderateScale(14), color: "#147EFB", fontWeight: "600" },
 });
 
 export default SignIn;
