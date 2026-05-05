@@ -1,18 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import {
-  StyleSheet,
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  Alert,
-  Image,
-  Dimensions,
-  Platform,
-  KeyboardAvoidingView,
-  ScrollView,
-  ActivityIndicator,
-  Animated,
+  StyleSheet, View, Text, TextInput, Pressable, Alert, Image,
+  Dimensions, Platform, KeyboardAvoidingView, ScrollView, ActivityIndicator, Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import auth from "@react-native-firebase/auth";
@@ -20,7 +9,6 @@ import firestore from "@react-native-firebase/firestore";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
-import MSALClient from "react-native-msal";
 import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
 import { useUser } from "../UserContext";
@@ -30,61 +18,12 @@ const REFERENCE_WIDTH = 375;
 const REFERENCE_HEIGHT = 812;
 const scale = (size) => (width / REFERENCE_WIDTH) * size;
 const verticalScale = (size) => (height / REFERENCE_HEIGHT) * size;
-const moderateScale = (size, factor = 0.5) =>
-  size + (scale(size) - size) * factor;
+const moderateScale = (size, factor = 0.5) => size + (scale(size) - size) * factor;
 
-const FIREBASE_WEB_API_KEY = "AIzaSyBWxEgHXcJx19Rklr7P6HhhweT9_I70WkA";
-const MICROSOFT_CLIENT_ID = "149615d2-4f88-4222-b69c-f3b82f2b8901";
-const MICROSOFT_TENANT = "waylandcopticchurch.org";
-
-const msalConfig = {
-  auth: {
-    clientId: MICROSOFT_CLIENT_ID,
-    authority: `https://login.microsoftonline.com/${MICROSOFT_TENANT}`,
-  },
-};
-
-const signInWithMicrosoftREST = async (idToken) => {
-  const response = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${FIREBASE_WEB_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        postBody: `id_token=${idToken}&providerId=microsoft.com`,
-        requestUri: "https://taksis-a8ba7.firebaseapp.com/__/auth/handler",
-        returnIdpCredential: true,
-        returnSecureToken: true,
-      }),
-    }
-  );
-  const data = await response.json();
-  if (data.error) {
-    throw new Error(data.error.message || "Firebase REST sign-in failed.");
-  }
-  await auth().signInWithCustomToken(data.idToken);
-  return auth().currentUser;
-};
-
-// ---------- Floating-label input ----------
 const FloatingInput = React.forwardRef(({
-  label,
-  value,
-  onChangeText,
-  secureTextEntry,
-  showToggle,
-  onToggleSecure,
-  isSecureVisible,
-  autoCapitalize,
-  keyboardType,
-  textContentType,
-  error,
-  onBlur,
-  onFocus,
-  returnKeyType,
-  onSubmitEditing,
-  blurOnSubmit,
-  ...rest
+  label, value, onChangeText, secureTextEntry, showToggle, onToggleSecure,
+  isSecureVisible, autoCapitalize, keyboardType, textContentType, error,
+  onBlur, onFocus, returnKeyType, onSubmitEditing, blurOnSubmit, ...rest
 }, ref) => {
   const [focused, setFocused] = useState(false);
   const animated = useRef(new Animated.Value(value ? 1 : 0)).current;
@@ -100,61 +39,31 @@ const FloatingInput = React.forwardRef(({
   const labelStyle = {
     position: "absolute",
     left: scale(14),
-    top: animated.interpolate({
-      inputRange: [0, 1],
-      outputRange: [verticalScale(16), verticalScale(6)],
-    }),
-    fontSize: animated.interpolate({
-      inputRange: [0, 1],
-      outputRange: [moderateScale(15), moderateScale(11)],
-    }),
-    color: animated.interpolate({
-      inputRange: [0, 1],
-      outputRange: ["rgba(255,255,255,0.35)", "rgba(255,255,255,0.5)"],
-    }),
+    top: animated.interpolate({ inputRange: [0, 1], outputRange: [verticalScale(16), verticalScale(6)] }),
+    fontSize: animated.interpolate({ inputRange: [0, 1], outputRange: [moderateScale(15), moderateScale(11)] }),
+    color: animated.interpolate({ inputRange: [0, 1], outputRange: ["rgba(255,255,255,0.35)", "rgba(255,255,255,0.5)"] }),
   };
 
-  const borderColor = error
-    ? "#ff453a"
-    : focused
-      ? "#147efb"
-      : "rgba(255,255,255,0.08)";
+  const borderColor = error ? "#ff453a" : focused ? "#147efb" : "rgba(255,255,255,0.08)";
 
   return (
     <View style={{ marginBottom: verticalScale(12) }}>
       <View style={[styles.inputWrap, { borderColor }]}>
-        <Animated.Text style={labelStyle} pointerEvents="none">
-          {label}
-        </Animated.Text>
+        <Animated.Text style={labelStyle} pointerEvents="none">{label}</Animated.Text>
         <TextInput
-          ref={ref}
-          value={value}
-          onChangeText={onChangeText}
+          ref={ref} value={value} onChangeText={onChangeText}
           secureTextEntry={secureTextEntry && !isSecureVisible}
-          autoCapitalize={autoCapitalize}
-          keyboardType={keyboardType}
-          textContentType={textContentType}
-          autoCorrect={false}
+          autoCapitalize={autoCapitalize} keyboardType={keyboardType}
+          textContentType={textContentType} autoCorrect={false}
           onFocus={(e) => { setFocused(true); onFocus && onFocus(e); }}
           onBlur={(e) => { setFocused(false); onBlur && onBlur(e); }}
-          returnKeyType={returnKeyType}
-          onSubmitEditing={onSubmitEditing}
-          blurOnSubmit={blurOnSubmit}
-          style={styles.input}
-          placeholderTextColor="rgba(255,255,255,0.3)"
-          {...rest}
+          returnKeyType={returnKeyType} onSubmitEditing={onSubmitEditing}
+          blurOnSubmit={blurOnSubmit} style={styles.input}
+          placeholderTextColor="rgba(255,255,255,0.3)" {...rest}
         />
         {showToggle ? (
-          <Pressable
-            onPress={onToggleSecure}
-            style={styles.eyeBtn}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons
-              name={isSecureVisible ? "eye-off-outline" : "eye-outline"}
-              size={20}
-              color="rgba(255,255,255,0.35)"
-            />
+          <Pressable onPress={onToggleSecure} style={styles.eyeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name={isSecureVisible ? "eye-off-outline" : "eye-outline"} size={20} color="rgba(255,255,255,0.35)" />
           </Pressable>
         ) : null}
       </View>
@@ -227,20 +136,8 @@ const SignUp = ({ navigation }) => {
   }, [password]);
 
   const writeUserToDb = async (user, fullName) => {
-    const userRef = firestore().collection("users").doc(user.uid);
-    await userRef.set(
-      {
-        uid: user.uid,
-        name: fullName || user.displayName || "",
-        email: user.email || "",
-        admin: false,
-        rank: "Chanter (Epsaltos)",
-        experience: 1,
-        frequency: 1,
-        alhanGrades: [],
-        ssGrades: [],
-        nextWeekServe: "N/A",
-      },
+    await firestore().collection("users").doc(user.uid).set(
+      { uid: user.uid, name: fullName || user.displayName || "", email: user.email || "", admin: false, rank: "Chanter (Epsaltos)", experience: 1, frequency: 1, alhanGrades: [], ssGrades: [], nextWeekServe: "N/A" },
       { merge: true }
     );
   };
@@ -283,9 +180,7 @@ const SignUp = ({ navigation }) => {
       await writeUserToDb(userCredential.user, userCredential.user.displayName);
       navigation.navigate("InputPhoto");
     } catch (error) {
-      if (error?.code !== "12501") {
-        Alert.alert("Sign Up Error", error?.message || "Google sign up failed.");
-      }
+      if (error?.code !== "12501") Alert.alert("Sign Up Error", error?.message || "Google sign up failed.");
     } finally {
       setLoading(null);
     }
@@ -300,20 +195,12 @@ const SignUp = ({ navigation }) => {
     setLoading("apple");
     try {
       const rawNonce = generateNonce();
-      const hashedNonce = await Crypto.digestStringAsync(
-        Crypto.CryptoDigestAlgorithm.SHA256,
-        rawNonce
-      );
+      const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
       const appleAuthRequestResponse = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
+        requestedScopes: [AppleAuthentication.AppleAuthenticationScope.FULL_NAME, AppleAuthentication.AppleAuthenticationScope.EMAIL],
         nonce: hashedNonce,
       });
-      if (!appleAuthRequestResponse.identityToken) {
-        throw new Error("Apple Sign-In failed - No identity token received.");
-      }
+      if (!appleAuthRequestResponse.identityToken) throw new Error("Apple Sign-In failed - No identity token received.");
       const { identityToken, fullName } = appleAuthRequestResponse;
       const appleCredential = auth.AppleAuthProvider.credential(identityToken, rawNonce);
       const userCredential = await auth().signInWithCredential(appleCredential);
@@ -325,49 +212,11 @@ const SignUp = ({ navigation }) => {
         Alert.alert("Already signed up.", "This email is already signed up. Please sign in instead.");
         return;
       }
-      const formattedFullName = fullName
-        ? `${fullName.givenName || ""} ${fullName.familyName || ""}`.trim()
-        : "";
+      const formattedFullName = fullName ? `${fullName.givenName || ""} ${fullName.familyName || ""}`.trim() : "";
       await writeUserToDb(userCredential.user, formattedFullName);
       navigation.navigate("InputPhoto");
     } catch (error) {
-      if (error?.code !== "ERR_REQUEST_CANCELED") {
-        Alert.alert("Sign Up Error", error?.message || "Apple sign up failed.");
-      }
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const onMicrosoftButtonPress = async () => {
-    setSignUp(true);
-    setLoading("microsoft");
-    try {
-      const client = new MSALClient(msalConfig);
-      await client.init();
-      const result = await client.acquireToken({
-        scopes: ["openid", "profile", "email"],
-        prompt: "select_account",
-      });
-      const idToken = result.idToken;
-      if (!idToken) throw new Error("No ID token from Microsoft.");
-
-      const user = await signInWithMicrosoftREST(idToken);
-
-      const userDoc = await firestore().collection("users").doc(user.uid).get();
-      if (userDoc.exists) {
-        await auth().signOut();
-        navigation.navigate("SignIn");
-        Alert.alert("Already signed up.", "This email is already signed up. Please sign in instead.");
-        return;
-      }
-
-      await writeUserToDb(user, user.displayName || "");
-      navigation.navigate("InputPhoto");
-    } catch (error) {
-      if (error?.message !== "User cancelled") {
-        Alert.alert("Sign Up Error", error?.message || "Microsoft sign up failed.");
-      }
+      if (error?.code !== "ERR_REQUEST_CANCELED") Alert.alert("Sign Up Error", error?.message || "Apple sign up failed.");
     } finally {
       setLoading(null);
     }
@@ -376,132 +225,36 @@ const SignUp = ({ navigation }) => {
   const isLoading = loading !== null;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.backArrowContainer}>
-          <BackArrow />
-        </View>
-
-        <View style={styles.progressBarContainer}>
-          <ProgressBar startPercentage={0} endPercentage={1} />
-        </View>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <View style={styles.backArrowContainer}><BackArrow /></View>
+        <View style={styles.progressBarContainer}><ProgressBar startPercentage={0} endPercentage={1} /></View>
 
         <View style={styles.heading}>
           <Text style={styles.title}>Create account</Text>
-          <Text style={styles.subtitle}>
-            Sign up to join your church community on Ⲧⲁⲝⲓⲥ.
-          </Text>
+          <Text style={styles.subtitle}>Sign up to join your church community on Ⲧⲁⲝⲓⲥ.</Text>
         </View>
 
         <View style={styles.form}>
-          <FloatingInput
-            label="Full name"
-            value={name}
-            onChangeText={setName}
-            autoCapitalize="words"
-            textContentType="name"
-            error={validation.name}
-            onBlur={() => setTouched((t) => ({ ...t, name: true }))}
-            returnKeyType="next"
-            onSubmitEditing={() => emailRef.current?.focus()}
-            blurOnSubmit={false}
-          />
-          <FloatingInput
-            ref={emailRef}
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            textContentType="emailAddress"
-            error={validation.email}
-            onBlur={() => setTouched((t) => ({ ...t, email: true }))}
-            returnKeyType="next"
-            onSubmitEditing={() => passwordRef.current?.focus()}
-            blurOnSubmit={false}
-          />
-          <FloatingInput
-            ref={passwordRef}
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            showToggle
-            isSecureVisible={showPwd}
-            onToggleSecure={() => setShowPwd((s) => !s)}
-            autoCapitalize="none"
-            textContentType="newPassword"
-            error={validation.password}
-            onBlur={() => setTouched((t) => ({ ...t, password: true }))}
-            returnKeyType="next"
-            onSubmitEditing={() => confirmRef.current?.focus()}
-            blurOnSubmit={false}
-          />
+          <FloatingInput label="Full name" value={name} onChangeText={setName} autoCapitalize="words" textContentType="name" error={validation.name} onBlur={() => setTouched((t) => ({ ...t, name: true }))} returnKeyType="next" onSubmitEditing={() => emailRef.current?.focus()} blurOnSubmit={false} />
+          <FloatingInput ref={emailRef} label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" textContentType="emailAddress" error={validation.email} onBlur={() => setTouched((t) => ({ ...t, email: true }))} returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} blurOnSubmit={false} />
+          <FloatingInput ref={passwordRef} label="Password" value={password} onChangeText={setPassword} secureTextEntry showToggle isSecureVisible={showPwd} onToggleSecure={() => setShowPwd((s) => !s)} autoCapitalize="none" textContentType="newPassword" error={validation.password} onBlur={() => setTouched((t) => ({ ...t, password: true }))} returnKeyType="next" onSubmitEditing={() => confirmRef.current?.focus()} blurOnSubmit={false} />
 
           {password.length > 0 && (
             <View style={styles.strengthRow}>
               {[0, 1, 2].map((i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.strengthBar,
-                    {
-                      backgroundColor:
-                        i < pwdStrength
-                          ? pwdStrength === 1 ? "#ff453a" : pwdStrength === 2 ? "#ff9f0a" : "#34c759"
-                          : "rgba(255,255,255,0.08)",
-                    },
-                  ]}
-                />
+                <View key={i} style={[styles.strengthBar, { backgroundColor: i < pwdStrength ? pwdStrength === 1 ? "#ff453a" : pwdStrength === 2 ? "#ff9f0a" : "#34c759" : "rgba(255,255,255,0.08)" }]} />
               ))}
-              <Text style={styles.strengthLabel}>
-                {pwdStrength === 0 ? "Too short" : pwdStrength === 1 ? "Weak" : pwdStrength === 2 ? "Okay" : "Strong"}
-              </Text>
+              <Text style={styles.strengthLabel}>{pwdStrength === 0 ? "Too short" : pwdStrength === 1 ? "Weak" : pwdStrength === 2 ? "Okay" : "Strong"}</Text>
             </View>
           )}
 
-          <FloatingInput
-            ref={confirmRef}
-            label="Confirm password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-            showToggle
-            isSecureVisible={showConfirmPwd}
-            onToggleSecure={() => setShowConfirmPwd((s) => !s)}
-            autoCapitalize="none"
-            textContentType="newPassword"
-            error={validation.confirm}
-            onBlur={() => setTouched((t) => ({ ...t, confirm: true }))}
-            returnKeyType="done"
-            onSubmitEditing={handleSignUp}
-          />
+          <FloatingInput ref={confirmRef} label="Confirm password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry showToggle isSecureVisible={showConfirmPwd} onToggleSecure={() => setShowConfirmPwd((s) => !s)} autoCapitalize="none" textContentType="newPassword" error={validation.confirm} onBlur={() => setTouched((t) => ({ ...t, confirm: true }))} returnKeyType="done" onSubmitEditing={handleSignUp} />
         </View>
 
-        <Pressable
-          style={({ pressed }) => [
-            styles.continueButton,
-            (!isValid || isLoading) && styles.continueButtonDisabled,
-            pressed && isValid && { opacity: 0.85 },
-          ]}
-          onPress={handleSignUp}
-          disabled={!isValid || isLoading}
-        >
-          {loading === "email" ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <Text style={styles.continueText}>Continue</Text>
-              <Ionicons name="arrow-forward" size={18} color="#fff" />
-            </>
+        <Pressable style={({ pressed }) => [styles.continueButton, (!isValid || isLoading) && styles.continueButtonDisabled, pressed && isValid && { opacity: 0.85 }]} onPress={handleSignUp} disabled={!isValid || isLoading}>
+          {loading === "email" ? <ActivityIndicator color="#fff" /> : (
+            <><Text style={styles.continueText}>Continue</Text><Ionicons name="arrow-forward" size={18} color="#fff" /></>
           )}
         </Pressable>
 
@@ -512,45 +265,15 @@ const SignUp = ({ navigation }) => {
         </View>
 
         <View style={styles.socialRow}>
-          <SocialButton
-            onPress={onGoogleButtonPress}
-            disabled={isLoading}
-            isLoading={loading === "google"}
-            icon={
-              <Image
-                style={styles.googleIcon}
-                resizeMode="contain"
-                source={require("../assets/googleLogo.png")}
-              />
-            }
-            label="Google"
-          />
-
+          <SocialButton onPress={onGoogleButtonPress} disabled={isLoading} isLoading={loading === "google"} icon={<Image style={styles.googleIcon} resizeMode="contain" source={require("../assets/googleLogo.png")} />} label="Google" />
           {Platform.OS === "ios" && AppleAuthentication ? (
-            <SocialButton
-              onPress={onAppleButtonPress}
-              disabled={isLoading}
-              isLoading={loading === "apple"}
-              icon={<Ionicons name="logo-apple" size={26} color="#fff" />}
-              label="Apple"
-            />
+            <SocialButton onPress={onAppleButtonPress} disabled={isLoading} isLoading={loading === "apple"} icon={<Ionicons name="logo-apple" size={26} color="#fff" />} label="Apple" />
           ) : null}
-
-          <SocialButton
-            onPress={onMicrosoftButtonPress}
-            disabled={isLoading}
-            isLoading={loading === "microsoft"}
-            icon={<MicrosoftLogo />}
-            label="Microsoft"
-          />
         </View>
 
         <View style={styles.signInRow}>
           <Text style={styles.signInPrompt}>Already have an account?</Text>
-          <Pressable
-            onPress={() => navigation.navigate("SignIn")}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
+          <Pressable onPress={() => navigation.navigate("SignIn")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Text style={styles.signInLink}>Sign in</Text>
           </Pressable>
         </View>
@@ -559,177 +282,43 @@ const SignUp = ({ navigation }) => {
   );
 };
 
-// ---------- Helper components ----------
-
 const SocialButton = ({ onPress, icon, label, disabled, isLoading }) => (
-  <Pressable
-    onPress={onPress}
-    disabled={disabled}
-    style={({ pressed }) => [
-      styles.socialButton,
-      disabled && { opacity: 0.5 },
-      pressed && { transform: [{ scale: 0.97 }] },
-    ]}
-  >
-    {isLoading ? (
-      <ActivityIndicator color="#fff" />
-    ) : (
-      <>
-        <View style={styles.socialIconWrap}>{icon}</View>
-        <Text style={styles.socialLabel}>{label}</Text>
-      </>
+  <Pressable onPress={onPress} disabled={disabled} style={({ pressed }) => [styles.socialButton, disabled && { opacity: 0.5 }, pressed && { transform: [{ scale: 0.97 }] }]}>
+    {isLoading ? <ActivityIndicator color="#fff" /> : (
+      <><View style={styles.socialIconWrap}>{icon}</View><Text style={styles.socialLabel}>{label}</Text></>
     )}
   </Pressable>
 );
 
-const MicrosoftLogo = () => (
-  <View style={styles.msLogo}>
-    <View style={[styles.msSquare, { backgroundColor: "#f25022" }]} />
-    <View style={[styles.msSquare, { backgroundColor: "#7fba00" }]} />
-    <View style={[styles.msSquare, { backgroundColor: "#00a4ef" }]} />
-    <View style={[styles.msSquare, { backgroundColor: "#ffb900" }]} />
-  </View>
-);
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
-  scrollContent: {
-    paddingHorizontal: scale(20),
-    paddingTop: verticalScale(60),
-    paddingBottom: verticalScale(32),
-    flexGrow: 1,
-  },
+  scrollContent: { paddingHorizontal: scale(20), paddingTop: verticalScale(60), paddingBottom: verticalScale(32), flexGrow: 1 },
   backArrowContainer: { marginBottom: verticalScale(16) },
-  progressBarContainer: {
-    height: verticalScale(6),
-    backgroundColor: "#2A2A2A",
-    borderRadius: moderateScale(3),
-    marginBottom: verticalScale(32),
-    overflow: "hidden",
-  },
+  progressBarContainer: { height: verticalScale(6), backgroundColor: "#2A2A2A", borderRadius: moderateScale(3), marginBottom: verticalScale(32), overflow: "hidden" },
   heading: { marginBottom: verticalScale(28) },
-  title: {
-    fontSize: moderateScale(34),
-    fontWeight: "700",
-    color: "#E0E0E0",
-    letterSpacing: -0.5,
-    lineHeight: moderateScale(40),
-  },
-  subtitle: {
-    fontSize: moderateScale(15),
-    color: "rgba(255,255,255,0.5)",
-    marginTop: verticalScale(8),
-    lineHeight: moderateScale(21),
-  },
+  title: { fontSize: moderateScale(34), fontWeight: "700", color: "#E0E0E0", letterSpacing: -0.5, lineHeight: moderateScale(40) },
+  subtitle: { fontSize: moderateScale(15), color: "rgba(255,255,255,0.5)", marginTop: verticalScale(8), lineHeight: moderateScale(21) },
   form: { marginBottom: verticalScale(8) },
-  inputWrap: {
-    height: verticalScale(58),
-    borderWidth: 1,
-    borderRadius: moderateScale(12),
-    backgroundColor: "#111",
-    paddingHorizontal: scale(14),
-    paddingTop: verticalScale(14),
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  input: {
-    flex: 1,
-    fontSize: moderateScale(15),
-    color: "#E0E0E0",
-    paddingVertical: 0,
-    paddingTop: verticalScale(8),
-  },
+  inputWrap: { height: verticalScale(58), borderWidth: 1, borderRadius: moderateScale(12), backgroundColor: "#111", paddingHorizontal: scale(14), paddingTop: verticalScale(14), flexDirection: "row", alignItems: "center" },
+  input: { flex: 1, fontSize: moderateScale(15), color: "#E0E0E0", paddingVertical: 0, paddingTop: verticalScale(8) },
   eyeBtn: { padding: scale(4), marginLeft: scale(4) },
-  errorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: verticalScale(4),
-    marginLeft: scale(4),
-  },
+  errorRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: verticalScale(4), marginLeft: scale(4) },
   errorText: { fontSize: moderateScale(12), color: "#ff453a" },
-  strengthRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: scale(6),
-    marginTop: verticalScale(-4),
-    marginBottom: verticalScale(10),
-    paddingHorizontal: scale(2),
-  },
+  strengthRow: { flexDirection: "row", alignItems: "center", gap: scale(6), marginTop: verticalScale(-4), marginBottom: verticalScale(10), paddingHorizontal: scale(2) },
   strengthBar: { flex: 1, height: 4, borderRadius: 2 },
-  strengthLabel: {
-    fontSize: moderateScale(11),
-    color: "rgba(255,255,255,0.45)",
-    marginLeft: scale(8),
-    minWidth: scale(50),
-  },
-  continueButton: {
-    height: verticalScale(52),
-    width: "100%",
-    backgroundColor: "#147EFB",
-    borderRadius: moderateScale(12),
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: scale(8),
-    marginTop: verticalScale(12),
-    marginBottom: verticalScale(20),
-    elevation: 4,
-    shadowColor: "#147EFB",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-  },
+  strengthLabel: { fontSize: moderateScale(11), color: "rgba(255,255,255,0.45)", marginLeft: scale(8), minWidth: scale(50) },
+  continueButton: { height: verticalScale(52), width: "100%", backgroundColor: "#147EFB", borderRadius: moderateScale(12), flexDirection: "row", justifyContent: "center", alignItems: "center", gap: scale(8), marginTop: verticalScale(12), marginBottom: verticalScale(20), elevation: 4, shadowColor: "#147EFB", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8 },
   continueButtonDisabled: { backgroundColor: "#555", shadowOpacity: 0, elevation: 0 },
-  continueText: {
-    fontSize: moderateScale(16),
-    fontWeight: "600",
-    color: "#fff",
-    letterSpacing: -0.2,
-  },
-  dividerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: verticalScale(16),
-  },
+  continueText: { fontSize: moderateScale(16), fontWeight: "600", color: "#fff", letterSpacing: -0.2 },
+  dividerContainer: { flexDirection: "row", alignItems: "center", marginBottom: verticalScale(16) },
   divider: { flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.08)" },
-  orText: {
-    marginHorizontal: scale(12),
-    fontSize: moderateScale(12),
-    color: "rgba(255,255,255,0.35)",
-    fontWeight: "500",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  socialRow: {
-    flexDirection: "row",
-    gap: scale(10),
-    marginBottom: verticalScale(28),
-  },
-  socialButton: {
-    flex: 1,
-    height: verticalScale(64),
-    backgroundColor: "#1A1A1A",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    borderRadius: moderateScale(14),
-    justifyContent: "center",
-    alignItems: "center",
-    gap: verticalScale(4),
-  },
+  orText: { marginHorizontal: scale(12), fontSize: moderateScale(12), color: "rgba(255,255,255,0.35)", fontWeight: "500", textTransform: "uppercase", letterSpacing: 0.5 },
+  socialRow: { flexDirection: "row", gap: scale(10), marginBottom: verticalScale(28) },
+  socialButton: { flex: 1, height: verticalScale(64), backgroundColor: "#1A1A1A", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: moderateScale(14), justifyContent: "center", alignItems: "center", gap: verticalScale(4) },
   socialIconWrap: { height: 26, justifyContent: "center", alignItems: "center" },
   socialLabel: { fontSize: moderateScale(11), color: "rgba(255,255,255,0.65)", fontWeight: "500" },
   googleIcon: { width: moderateScale(24), height: moderateScale(24) },
-  msLogo: { width: 22, height: 22, flexDirection: "row", flexWrap: "wrap", gap: 2 },
-  msSquare: { width: 10, height: 10, borderRadius: 1 },
-  signInRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: scale(6),
-    marginTop: "auto",
-    paddingTop: verticalScale(12),
-  },
+  signInRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: scale(6), marginTop: "auto", paddingTop: verticalScale(12) },
   signInPrompt: { fontSize: moderateScale(14), color: "rgba(255,255,255,0.45)" },
   signInLink: { fontSize: moderateScale(14), color: "#147EFB", fontWeight: "600" },
 });
