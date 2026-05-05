@@ -174,11 +174,13 @@ const SignIn = ({ navigation }) => {
   const [msRequest, , msPromptAsync] = AuthSession.useAuthRequest(
     {
       clientId: MICROSOFT_CLIENT_ID,
-      scopes: ["openid", "profile", "email", "offline_access"],
+      scopes: ["openid", "profile", "email"],
       redirectUri,
-      responseType: AuthSession.ResponseType.Code,
-      usePKCE: true,
-      extraParams: { prompt: "select_account" },
+      responseType: AuthSession.ResponseType.IdToken,
+      extraParams: {
+        nonce: "taksis_nonce_123",
+        prompt: "select_account",
+      },
     },
     microsoftDiscovery
   );
@@ -247,22 +249,8 @@ const SignIn = ({ navigation }) => {
         Alert.alert("Sign-in Error", "Microsoft sign-in did not complete.");
         return;
       }
-
-      // Exchange code for tokens
-      const tokenResponse = await AuthSession.exchangeCodeAsync(
-        {
-          clientId: MICROSOFT_CLIENT_ID,
-          code: result.params.code,
-          redirectUri,
-          extraParams: { code_verifier: msRequest.codeVerifier },
-        },
-        microsoftDiscovery
-      );
-
-      const idToken = tokenResponse.idToken;
+      const idToken = result.params.id_token;
       if (!idToken) throw new Error("No ID token returned from Microsoft.");
-
-      // Use Firebase REST API to sign in with the Microsoft id_token
       await signInWithMicrosoftREST(idToken);
     } catch (e) {
       Alert.alert("Microsoft sign-in failed", e?.message || "Sign-in did not complete.");
