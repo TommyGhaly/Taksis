@@ -194,11 +194,13 @@ const SignUp = ({ navigation }) => {
   const [msRequest, , msPromptAsync] = AuthSession.useAuthRequest(
     {
       clientId: MICROSOFT_CLIENT_ID,
-      scopes: ["openid", "profile", "email", "offline_access"],
+      scopes: ["openid", "profile", "email"],
       redirectUri,
-      responseType: AuthSession.ResponseType.Code,
-      usePKCE: true,
-      extraParams: { prompt: "select_account" },
+      responseType: AuthSession.ResponseType.IdToken,
+      extraParams: {
+        nonce: "taksis_nonce_123",
+        prompt: "select_account",
+      },
     },
     microsoftDiscovery
   );
@@ -367,24 +369,9 @@ const SignUp = ({ navigation }) => {
         Alert.alert("Sign Up Error", "Microsoft sign-in did not complete.");
         return;
       }
-
-      // Exchange code for tokens
-      const tokenResponse = await AuthSession.exchangeCodeAsync(
-        {
-          clientId: MICROSOFT_CLIENT_ID,
-          code: result.params.code,
-          redirectUri,
-          extraParams: { code_verifier: msRequest.codeVerifier },
-        },
-        microsoftDiscovery
-      );
-
-      const idToken = tokenResponse.idToken;
+      const idToken = result.params.id_token;
       if (!idToken) throw new Error("No ID token returned from Microsoft.");
-
-      // Use Firebase REST API — bypasses broken native credential methods
       const user = await signInWithMicrosoftREST(idToken);
-
       const userDoc = await firestore().collection("users").doc(user.uid).get();
       if (userDoc.exists) {
         await auth().signOut();
@@ -392,7 +379,6 @@ const SignUp = ({ navigation }) => {
         Alert.alert("Already signed up.", "This email is already signed up. Please sign in instead.");
         return;
       }
-
       await writeUserToDb(user, user.displayName || "");
       navigation.navigate("InputPhoto");
     } catch (error) {
