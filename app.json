@@ -33,8 +33,7 @@
             "android16KbPageSize": true
           }
         }
-      ],
-      "react-native-msal"
+      ]
     ],
     "extra": {
       "eas": {
