@@ -19,14 +19,11 @@ import auth from "@react-native-firebase/auth";
 import firestore from "@react-native-firebase/firestore";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
-import * as AuthSession from "expo-auth-session";
-import * as WebBrowser from "expo-web-browser";
 import * as Crypto from "expo-crypto";
+import MSALClient from "react-native-msal";
 import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
 import { useUser } from "../UserContext";
-
-WebBrowser.maybeCompleteAuthSession();
 
 const { width, height } = Dimensions.get("window");
 const REFERENCE_WIDTH = 375;
@@ -39,13 +36,14 @@ const moderateScale = (size, factor = 0.5) =>
 const FIREBASE_WEB_API_KEY = "AIzaSyBWxEgHXcJx19Rklr7P6HhhweT9_I70WkA";
 const MICROSOFT_CLIENT_ID = "149615d2-4f88-4222-b69c-f3b82f2b8901";
 const MICROSOFT_TENANT = "waylandcopticchurch.org";
-const microsoftDiscovery = {
-  authorizationEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/authorize`,
-  tokenEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/token`,
-};
-const redirectUri = "https://taksis-a8ba7.web.app/__/auth/handler";
 
-// Exchange Microsoft id_token for Firebase session via REST
+const msalConfig = {
+  auth: {
+    clientId: MICROSOFT_CLIENT_ID,
+    authority: `https://login.microsoftonline.com/${MICROSOFT_TENANT}`,
+  },
+};
+
 const signInWithMicrosoftREST = async (idToken) => {
   const response = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${FIREBASE_WEB_API_KEY}`,
@@ -54,7 +52,7 @@ const signInWithMicrosoftREST = async (idToken) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         postBody: `id_token=${idToken}&providerId=microsoft.com`,
-        requestUri: redirectUri,
+        requestUri: "https://taksis-a8ba7.firebaseapp.com/__/auth/handler",
         returnIdpCredential: true,
         returnSecureToken: true,
       }),
@@ -190,20 +188,6 @@ const SignUp = ({ navigation }) => {
   GoogleSignin.configure({
     webClientId: "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
   });
-
-  const [msRequest, , msPromptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: MICROSOFT_CLIENT_ID,
-      scopes: ["openid", "profile", "email"],
-      redirectUri,
-      responseType: AuthSession.ResponseType.IdToken,
-      extraParams: {
-        nonce: "taksis_nonce_123",
-        prompt: "select_account",
-      },
-    },
-    microsoftDiscovery
-  );
 
   const validation = useMemo(() => {
     const errs = {};
@@ -356,22 +340,20 @@ const SignUp = ({ navigation }) => {
   };
 
   const onMicrosoftButtonPress = async () => {
-    if (!msRequest) {
-      Alert.alert("Not ready", "Microsoft sign-in is not ready yet. Try again.");
-      return;
-    }
     setSignUp(true);
     setLoading("microsoft");
     try {
-      const result = await msPromptAsync();
-      if (result.type === "cancel" || result.type === "dismiss") return;
-      if (result.type !== "success") {
-        Alert.alert("Sign Up Error", "Microsoft sign-in did not complete.");
-        return;
-      }
-      const idToken = result.params.id_token;
-      if (!idToken) throw new Error("No ID token returned from Microsoft.");
+      const client = new MSALClient(msalConfig);
+      await client.init();
+      const result = await client.acquireToken({
+        scopes: ["openid", "profile", "email"],
+        prompt: "select_account",
+      });
+      const idToken = result.idToken;
+      if (!idToken) throw new Error("No ID token from Microsoft.");
+
       const user = await signInWithMicrosoftREST(idToken);
+
       const userDoc = await firestore().collection("users").doc(user.uid).get();
       if (userDoc.exists) {
         await auth().signOut();
@@ -379,10 +361,13 @@ const SignUp = ({ navigation }) => {
         Alert.alert("Already signed up.", "This email is already signed up. Please sign in instead.");
         return;
       }
+
       await writeUserToDb(user, user.displayName || "");
       navigation.navigate("InputPhoto");
     } catch (error) {
-      Alert.alert("Sign Up Error", error?.message || "Microsoft sign up failed.");
+      if (error?.message !== "User cancelled") {
+        Alert.alert("Sign Up Error", error?.message || "Microsoft sign up failed.");
+      }
     } finally {
       setLoading(null);
     }
