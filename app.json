@@ -34,12 +34,7 @@
           }
         }
       ],
-      [
-        "react-native-msal",
-        {
-          "androidPackageSignatureHash": "placeholder"
-        }
-      ]
+      "react-native-msal"
     ],
     "extra": {
       "eas": {
@@ -57,12 +52,7 @@
           "remote-notification"
         ],
         "NSCameraUsageDescription": "Allow Ⲧⲁⲝⲓⲥ to access your camera for taking photos for profile identification.",
-        "NSPhotoLibraryUsageDescription": "Allow Ⲧⲁⲝⲓⲥ to access your photo library for uploading profile pictures.",
-        "CFBundleURLTypes": [
-          {
-            "CFBundleURLSchemes": ["msauth.com.tghaly.taksis"]
-          }
-        ]
+        "NSPhotoLibraryUsageDescription": "Allow Ⲧⲁⲝⲓⲥ to access your photo library for uploading profile pictures."
       },
       "entitlements": {
         "aps-environment": "production"
