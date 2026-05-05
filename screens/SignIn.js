@@ -42,7 +42,7 @@ const microsoftDiscovery = {
   authorizationEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/authorize`,
   tokenEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/token`,
 };
-const redirectUri = "https://taksis-a8ba7.firebaseapp.com/__/auth/handler";
+const redirectUri = "https://taksis-a8ba7.web.app/__/auth/handler";
 
 // ---------- Floating-label input ----------
 const FloatingInput = React.forwardRef(({
