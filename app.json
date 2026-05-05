@@ -34,7 +34,12 @@
           }
         }
       ],
-      "react-native-msal"
+      [
+        "react-native-msal",
+        {
+          "androidPackageSignatureHash": "placeholder"
+        }
+      ]
     ],
     "extra": {
       "eas": {
