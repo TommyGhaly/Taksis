@@ -95,3 +95,8 @@ web-build/
 android/app/taksis-release.keystore
 
 credentials.json
+
+
+.claude
+.agents
+.firebase
