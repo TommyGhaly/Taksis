@@ -20,12 +20,9 @@ import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import BackArrow from "../components/backArrow";
 import { useUser } from "../UserContext";
 import * as AppleAuthentication from "expo-apple-authentication";
-import * as AuthSession from "expo-auth-session";
-import * as WebBrowser from "expo-web-browser";
 import * as Crypto from "expo-crypto";
 import { Ionicons } from "@expo/vector-icons";
-
-WebBrowser.maybeCompleteAuthSession();
+import MSALClient from "react-native-msal";
 
 const { width, height } = Dimensions.get("window");
 const REFERENCE_WIDTH = 375;
@@ -38,11 +35,35 @@ const moderateScale = (size, factor = 0.5) =>
 const FIREBASE_WEB_API_KEY = "AIzaSyBWxEgHXcJx19Rklr7P6HhhweT9_I70WkA";
 const MICROSOFT_CLIENT_ID = "149615d2-4f88-4222-b69c-f3b82f2b8901";
 const MICROSOFT_TENANT = "waylandcopticchurch.org";
-const microsoftDiscovery = {
-  authorizationEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/authorize`,
-  tokenEndpoint: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/token`,
+
+const msalConfig = {
+  auth: {
+    clientId: MICROSOFT_CLIENT_ID,
+    authority: `https://login.microsoftonline.com/${MICROSOFT_TENANT}`,
+  },
 };
-const redirectUri = "https://taksis-a8ba7.web.app/__/auth/handler";
+
+const signInWithMicrosoftREST = async (idToken) => {
+  const response = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${FIREBASE_WEB_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        postBody: `id_token=${idToken}&providerId=microsoft.com`,
+        requestUri: "https://taksis-a8ba7.firebaseapp.com/__/auth/handler",
+        returnIdpCredential: true,
+        returnSecureToken: true,
+      }),
+    }
+  );
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error.message || "Firebase REST sign-in failed.");
+  }
+  await auth().signInWithCustomToken(data.idToken);
+  return auth().currentUser;
+};
 
 // ---------- Floating-label input ----------
 const FloatingInput = React.forwardRef(({
@@ -133,30 +154,6 @@ const FloatingInput = React.forwardRef(({
   );
 });
 
-// Exchange Microsoft id_token for a Firebase custom token via REST
-const signInWithMicrosoftREST = async (idToken) => {
-  const response = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${FIREBASE_WEB_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        postBody: `id_token=${idToken}&providerId=microsoft.com`,
-        requestUri: redirectUri,
-        returnIdpCredential: true,
-        returnSecureToken: true,
-      }),
-    }
-  );
-  const data = await response.json();
-  if (data.error) {
-    throw new Error(data.error.message || "Firebase REST sign-in failed.");
-  }
-  // data.idToken is a Firebase ID token — sign in natively with it
-  await auth().signInWithCustomToken(data.idToken);
-  return auth().currentUser;
-};
-
 const SignIn = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -170,20 +167,6 @@ const SignIn = ({ navigation }) => {
   GoogleSignin.configure({
     webClientId: "642693016544-lt9t0svc4b7ej4koble04ks3vsujea97.apps.googleusercontent.com",
   });
-
-  const [msRequest, , msPromptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: MICROSOFT_CLIENT_ID,
-      scopes: ["openid", "profile", "email"],
-      redirectUri,
-      responseType: AuthSession.ResponseType.IdToken,
-      extraParams: {
-        nonce: "taksis_nonce_123",
-        prompt: "select_account",
-      },
-    },
-    microsoftDiscovery
-  );
 
   const handleSignIn = async () => {
     if (!email || !password) return;
@@ -237,23 +220,21 @@ const SignIn = ({ navigation }) => {
   };
 
   const handleMicrosoft = async () => {
-    if (!msRequest) {
-      Alert.alert("Not ready", "Microsoft sign-in is not ready yet. Try again.");
-      return;
-    }
     setLoading("microsoft");
     try {
-      const result = await msPromptAsync();
-      if (result.type === "cancel" || result.type === "dismiss") return;
-      if (result.type !== "success") {
-        Alert.alert("Sign-in Error", "Microsoft sign-in did not complete.");
-        return;
-      }
-      const idToken = result.params.id_token;
-      if (!idToken) throw new Error("No ID token returned from Microsoft.");
+      const client = new MSALClient(msalConfig);
+      await client.init();
+      const result = await client.acquireToken({
+        scopes: ["openid", "profile", "email"],
+        prompt: "select_account",
+      });
+      const idToken = result.idToken;
+      if (!idToken) throw new Error("No ID token from Microsoft.");
       await signInWithMicrosoftREST(idToken);
     } catch (e) {
-      Alert.alert("Microsoft sign-in failed", e?.message || "Sign-in did not complete.");
+      if (e?.message !== "User cancelled") {
+        Alert.alert("Microsoft sign-in failed", e?.message || "Sign-in did not complete.");
+      }
     } finally {
       setLoading(null);
     }
