@@ -61,7 +61,7 @@ rm -rf android/.gradle
 
 # ── Build AAB ────────────────────────────────────────────────
 cd android
-./gradlew bundleRelease -x test
+./gradlew app:bundleRelease -x test
 cd ..
 
 echo ""
