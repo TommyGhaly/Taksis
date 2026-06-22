@@ -490,14 +490,15 @@ const EditSchedule = () => {
       await callFunction(
         user,
         "https://switch-server-hy6oofbihq-uc.a.run.app",
-        {
-          church: churchId,
-          week: week,
-          firstServer: oldReader.uid,
-          secondServer: newReader.uid,
-        },
+        { church: churchId, week: week, firstServer: oldReader.uid, secondServer: newReader.uid },
         "Failed to assign reader.",
       );
+      const todayStr = formatDate(new Date(), DATE_FORMATS.SCHEDULE);
+      if (todayStr === selectedWeek) {
+        await firestore().collection("users").doc(oldReader.uid).update({
+          switched_weeks: FieldValue.arrayUnion(selectedWeek),
+        });
+      }
     } catch (err) {
       console.error("Error assigning reader:", err);
     }
@@ -512,14 +513,15 @@ const EditSchedule = () => {
       await callFunction(
         user,
         "https://switch-server-hy6oofbihq-uc.a.run.app",
-        {
-          church: churchId,
-          week: week,
-          firstServer: oldServer.uid,
-          secondServer: newServer.uid,
-        },
+        { church: churchId, week: week, firstServer: oldServer.uid, secondServer: newServer.uid },
         "Failed to assign server.",
       );
+      const todayStr = formatDate(new Date(), DATE_FORMATS.SCHEDULE);
+      if (todayStr === selectedWeek) {
+        await firestore().collection("users").doc(oldServer.uid).update({
+          switched_weeks: FieldValue.arrayUnion(selectedWeek),
+        });
+      }
     } catch (err) {
       console.error("Error assigning server:", err);
     }
