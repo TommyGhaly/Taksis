@@ -110,19 +110,69 @@ const AttendanceCard = ({ deacon, profilePictureUrl, onPillPress }) => {
     setSaving(true);
     try {
       const batch = firestore().batch();
-      const userRef = firestore().collection("users").doc(deacon.uid);
-      batch.update(userRef, { experience: tempExp, frequency: tempFreq });
-      if (deacon.churchId) {
-        const churchRef = firestore().collection("churches").doc(deacon.churchId);
-        const churchDoc = await churchRef.get();
-        if (churchDoc.exists) {
-          const deacons = churchDoc.data().deacons || [];
-          const updated = deacons.map((d) =>
-            d.uid === deacon.uid ? { ...d, experience: tempExp, frequency: tempFreq } : d
-          );
-          batch.update(churchRef, { deacons: updated });
+      const churchRef = firestore().collection("churches").doc(deacon.churchId);
+      const churchDoc = await churchRef.get();
+      if (!churchDoc.exists) throw new Error("Church not found");
+      const churchData = churchDoc.data();
+      const deacons = churchData.deacons || [];
+
+      const syncDeacon = (uid, experience, frequency) => {
+        const idx = deacons.findIndex((d) => d.uid === uid);
+        if (idx !== -1) deacons[idx] = { ...deacons[idx], experience, frequency };
+      };
+
+      // Check if this is a child (no own user doc — parent has children[])
+      const userDoc = await firestore().collection("users").doc(deacon.uid).get();
+      const isChild = !userDoc.exists;
+
+      if (isChild) {
+        // Find parent
+        const allUsersSnap = await firestore()
+          .collection("users")
+          .where("church", "==", deacon.churchId)
+          .get();
+        let parentRef = null, parentData = null;
+        for (const doc of allUsersSnap.docs) {
+          const d = doc.data();
+          if ((d.children || []).some((c) => c.uid === deacon.uid)) {
+            parentRef = doc.ref;
+            parentData = d;
+            break;
+          }
         }
+        if (parentRef && parentData) {
+          const updatedChildren = (parentData.children || []).map((c) =>
+            c.uid === deacon.uid
+              ? { ...c, experience: tempExp ?? 0, frequency: tempFreq ?? 0 }
+              : c
+          );
+          // If frequency changed, sync across parent + all siblings
+          if ((deacon.frequency ?? 0) !== tempFreq) {
+            const syncedChildren = updatedChildren.map((c) => ({ ...c, frequency: tempFreq ?? 0 }));
+            batch.update(parentRef, { frequency: tempFreq ?? 0, children: syncedChildren });
+            syncDeacon(parentData.uid || parentRef.id, deacons.find(d => d.uid === (parentData.uid || parentRef.id))?.experience ?? 0, tempFreq ?? 0);
+            syncedChildren.forEach((c) => syncDeacon(c.uid, c.experience ?? 0, tempFreq ?? 0));
+          } else {
+            batch.update(parentRef, { children: updatedChildren });
+          }
+          syncDeacon(deacon.uid, tempExp ?? 0, tempFreq ?? 0);
+        }
+      } else {
+        // Regular user
+        const userRef = firestore().collection("users").doc(deacon.uid);
+        batch.update(userRef, { experience: tempExp ?? 0, frequency: tempFreq ?? 0 });
+
+        // Sync children if frequency changed
+        const userData = userDoc.data();
+        if ((userData.children?.length > 0) && (deacon.frequency ?? 0) !== tempFreq) {
+          const syncedChildren = (userData.children || []).map((c) => ({ ...c, frequency: tempFreq ?? 0 }));
+          batch.update(userRef, { children: syncedChildren });
+          syncedChildren.forEach((c) => syncDeacon(c.uid, c.experience ?? 0, tempFreq ?? 0));
+        }
+        syncDeacon(deacon.uid, tempExp ?? 0, tempFreq ?? 0);
       }
+
+      batch.update(churchRef, { deacons });
       await batch.commit();
       ReactNativeHapticFeedback.trigger("notificationSuccess", hapticOptions);
       triggerPulse();
@@ -187,7 +237,7 @@ const AttendanceCard = ({ deacon, profilePictureUrl, onPillPress }) => {
           step={0.25}
           thumbTintColor="#147efb"
           minimumTrackTintColor="#147efb"
-          maximumTrackTintColor="rgba(255,255,255,0.12)"
+          maximumTrackTintColor="#333"
           style={aStyles.slider}
         />
         <View style={aStyles.sliderRow}>
@@ -200,9 +250,9 @@ const AttendanceCard = ({ deacon, profilePictureUrl, onPillPress }) => {
           minimumValue={0}
           maximumValue={10}
           step={0.25}
-          thumbTintColor="#4d9cff"
-          minimumTrackTintColor="#4d9cff"
-          maximumTrackTintColor="rgba(255,255,255,0.12)"
+          thumbTintColor="#147efb"
+          minimumTrackTintColor="#147efb"
+          maximumTrackTintColor="#333"
           style={aStyles.slider}
         />
         <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
@@ -240,7 +290,7 @@ const PillModal = ({ visible, type, deacon, onClose }) => {
   });
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={pmStyles.overlay}>
         <TouchableOpacity style={pmStyles.dismissArea} activeOpacity={1} onPress={onClose} />
         <View style={pmStyles.sheet}>
