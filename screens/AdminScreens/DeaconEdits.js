@@ -25,40 +25,291 @@ import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
+import Slider from "@react-native-community/slider";
 import IndividualProfile from "../../components/individualProfile";
 import AlphabetIndexBar from "../../components/AlphabetIndexBar";
 import DeaconSyncModal from "../../components/DeaconSyncModal";
 
-// Import caching system
 import { useFirestoreDocument } from "../../hooks/useFirebaseCache";
 import { FirestoreCache, StorageCache } from "../../utils/cacheManager";
 
-// Haptic feedback options
 const hapticOptions = {
   enableVibrateFallback: true,
   ignoreAndroidSystemSettings: false,
 };
 
-// Function to format numbers
 const formatNumber = (num) => {
   if (!num && num !== 0) return "N/A";
-  if (num % 1 === 0) {
-    return num.toString();
-  }
+  if (num % 1 === 0) return num.toString();
   return num.toFixed(2).replace(/\.?0+$/, "");
 };
 
-// Responsive design helper
+// Parse "MM-DD-YY" date strings into a readable label
+const formatDateStr = (str) => {
+  if (!str) return str;
+  const parts = str.split("-").map(Number);
+  if (parts.length !== 3) return str;
+  const [month, day, year] = parts;
+  const date = new Date(2000 + year, month - 1, day);
+  if (isNaN(date.getTime())) return str;
+  return date.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+// How many weeks back counts as "recent" (12 weeks ≈ 3 months)
+const RECENT_WEEKS = 12;
+const filterRecent = (dateStrArray) => {
+  if (!Array.isArray(dateStrArray)) return [];
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - RECENT_WEEKS * 7);
+  return dateStrArray.filter((str) => {
+    const parts = str.split("-").map(Number);
+    if (parts.length !== 3) return false;
+    const [month, day, year] = parts;
+    const d = new Date(2000 + year, month - 1, day);
+    return d >= cutoff;
+  });
+};
+
+// Returns { color, bg, border } based on 0-1=neutral, 2-3=amber, 4+=red
+const pillTheme = (count) => {
+  if (count >= 4) return { color: "#ff3b30", bg: "rgba(255,59,48,0.12)", border: "rgba(255,59,48,0.3)" };
+  if (count >= 2) return { color: "#ff9f0a", bg: "rgba(255,159,10,0.12)", border: "rgba(255,159,10,0.28)" };
+  return { color: "rgba(255,255,255,0.35)", bg: "rgba(255,255,255,0.06)", border: "rgba(255,255,255,0.1)" };
+};
+
 const { width, height } = Dimensions.get("window");
 const isTablet = Platform.isPad || (width >= 768 && height >= 768);
 const scale = isTablet ? 1.2 : 1;
 const paddingHorizontal = isTablet ? 32 : 16;
-const indexBarWidth = isTablet ? 32 : 24;
 
+// ─── Attendance card ──────────────────────────────────────────────────────────
+const AttendanceCard = ({ deacon, profilePictureUrl, onPillPress }) => {
+  const [tempExp, setTempExp] = useState(deacon.experience ?? 0);
+  const [tempFreq, setTempFreq] = useState(deacon.frequency ?? 0);
+  const [saving, setSaving] = useState(false);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  const recentUnavailable = filterRecent(deacon.unavailableWeeks);
+  const recentSwitched = filterRecent(deacon.switched_weeks);
+  const unavailTheme = pillTheme(recentUnavailable.length);
+  const switchedTheme = pillTheme(recentSwitched.length);
+
+  const triggerPulse = () => {
+    Animated.sequence([
+      Animated.timing(pulseAnim, { toValue: 0.88, duration: 100, useNativeDriver: true }),
+      Animated.spring(pulseAnim, { toValue: 1, friction: 4, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const batch = firestore().batch();
+      const userRef = firestore().collection("users").doc(deacon.uid);
+      batch.update(userRef, { experience: tempExp, frequency: tempFreq });
+      if (deacon.churchId) {
+        const churchRef = firestore().collection("churches").doc(deacon.churchId);
+        const churchDoc = await churchRef.get();
+        if (churchDoc.exists) {
+          const deacons = churchDoc.data().deacons || [];
+          const updated = deacons.map((d) =>
+            d.uid === deacon.uid ? { ...d, experience: tempExp, frequency: tempFreq } : d
+          );
+          batch.update(churchRef, { deacons: updated });
+        }
+      }
+      await batch.commit();
+      ReactNativeHapticFeedback.trigger("notificationSuccess", hapticOptions);
+      triggerPulse();
+    } catch {
+      Alert.alert("Error", "Failed to save. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <View style={aStyles.card}>
+      {/* Top row: avatar + name + pills */}
+      <View style={aStyles.topRow}>
+        <Image
+          style={aStyles.avatar}
+          source={
+            profilePictureUrl
+              ? { uri: profilePictureUrl }
+              : require("../../assets/default_profile.png")
+          }
+          defaultSource={require("../../assets/default_profile.png")}
+        />
+        <View style={aStyles.nameBlock}>
+          <Text style={aStyles.name} numberOfLines={1}>{deacon.name || "Unknown"}</Text>
+          <View style={aStyles.pillRow}>
+            <TouchableOpacity
+              style={[aStyles.pill, { backgroundColor: unavailTheme.bg, borderColor: unavailTheme.border }]}
+              onPress={() => onPillPress("unavailable", deacon)}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="close-circle-outline" size={12} color={unavailTheme.color} />
+              <Text style={[aStyles.pillText, { color: unavailTheme.color }]}>
+                {recentUnavailable.length} unavailable
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[aStyles.pill, { backgroundColor: switchedTheme.bg, borderColor: switchedTheme.border }]}
+              onPress={() => onPillPress("switched", deacon)}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="swap-horizontal-outline" size={12} color={switchedTheme.color} />
+              <Text style={[aStyles.pillText, { color: switchedTheme.color }]}>
+                {recentSwitched.length} switched
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* Sliders */}
+      <View style={aStyles.sliderBlock}>
+        <View style={aStyles.sliderRow}>
+          <Text style={aStyles.sliderLabel}>Experience</Text>
+          <Text style={aStyles.sliderValue}>{formatNumber(tempExp)}</Text>
+        </View>
+        <Slider
+          value={tempExp}
+          onValueChange={setTempExp}
+          minimumValue={0}
+          maximumValue={10}
+          step={0.25}
+          thumbTintColor="#147efb"
+          minimumTrackTintColor="#147efb"
+          maximumTrackTintColor="rgba(255,255,255,0.12)"
+          style={aStyles.slider}
+        />
+        <View style={aStyles.sliderRow}>
+          <Text style={aStyles.sliderLabel}>Frequency</Text>
+          <Text style={aStyles.sliderValue}>{formatNumber(tempFreq)}</Text>
+        </View>
+        <Slider
+          value={tempFreq}
+          onValueChange={setTempFreq}
+          minimumValue={0}
+          maximumValue={10}
+          step={0.25}
+          thumbTintColor="#4d9cff"
+          minimumTrackTintColor="#4d9cff"
+          maximumTrackTintColor="rgba(255,255,255,0.12)"
+          style={aStyles.slider}
+        />
+        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+          <TouchableOpacity
+            style={[aStyles.saveBtn, saving && { opacity: 0.5 }]}
+            onPress={handleSave}
+            disabled={saving}
+            activeOpacity={0.8}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={aStyles.saveBtnText}>Save</Text>
+            )}
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </View>
+  );
+};
+
+// ─── Pill detail modal ────────────────────────────────────────────────────────
+const PillModal = ({ visible, type, deacon, onClose }) => {
+  if (!deacon) return null;
+  const isUnavail = type === "unavailable";
+  const dates = isUnavail ? (deacon.unavailableWeeks || []) : (deacon.switched_weeks || []);
+  const accentColor = isUnavail ? pillTheme(filterRecent(dates).length).color : pillTheme(filterRecent(dates).length).color;
+
+  const sorted = [...dates].sort((a, b) => {
+    const parse = (s) => {
+      const [m, d, y] = s.split("-").map(Number);
+      return new Date(2000 + y, m - 1, d).getTime();
+    };
+    return parse(b) - parse(a);
+  });
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={pmStyles.overlay}>
+        <TouchableOpacity style={pmStyles.dismissArea} activeOpacity={1} onPress={onClose} />
+        <View style={pmStyles.sheet}>
+          {/* Drag handle */}
+          <View style={pmStyles.handle} />
+
+          <View style={pmStyles.header}>
+            <View style={pmStyles.headerLeft}>
+              <Ionicons
+                name={isUnavail ? "close-circle-outline" : "swap-horizontal-outline"}
+                size={18}
+                color={accentColor}
+              />
+              <Text style={pmStyles.title}>
+                {isUnavail ? "Marked Unavailable" : "Switched Off"}
+              </Text>
+            </View>
+            <TouchableOpacity style={pmStyles.closeBtn} onPress={onClose}>
+              <Text style={pmStyles.closeX}>×</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={pmStyles.subtitleRow}>
+            <Text style={pmStyles.subtitle}>{deacon.name}</Text>
+            <View style={[pmStyles.countBadge, { backgroundColor: `${accentColor}20`, borderColor: `${accentColor}40` }]}>
+              <Text style={[pmStyles.countText, { color: accentColor }]}>{sorted.length} total</Text>
+            </View>
+          </View>
+
+          {sorted.length === 0 ? (
+            <Text style={pmStyles.empty}>No records found.</Text>
+          ) : (
+            <FlatList
+              data={sorted}
+              keyExtractor={(item, i) => `${item}-${i}`}
+              showsVerticalScrollIndicator={true}
+              bounces={true}
+              style={pmStyles.list}
+              contentContainerStyle={{ paddingBottom: 16 }}
+              renderItem={({ item }) => {
+                const isRecent = filterRecent([item]).length > 0;
+                const dotColor = isRecent ? accentColor : "rgba(255,255,255,0.2)";
+                return (
+                  <View style={pmStyles.dateRow}>
+                    <View style={[pmStyles.dot, { backgroundColor: dotColor }]} />
+                    <Text style={[pmStyles.dateText, !isRecent && pmStyles.dateTextOld]}>
+                      {formatDateStr(item)}
+                    </Text>
+                    {isRecent && (
+                      <View style={[pmStyles.recentBadge, { backgroundColor: `${accentColor}18`, borderColor: `${accentColor}35` }]}>
+                        <Text style={[pmStyles.recentText, { color: accentColor }]}>recent</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              }}
+              ItemSeparatorComponent={() => <View style={pmStyles.sep} />}
+            />
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
 const DeaconEdits = () => {
   const user = auth().currentUser;
-  
-  // State for managing church and user data
+
   const [currentChurch, setCurrentChurch] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [deacons, setDeacons] = useState([]);
@@ -70,20 +321,25 @@ const DeaconEdits = () => {
   const [userDataLoading, setUserDataLoading] = useState(true);
   const [syncModalVisible, setSyncModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  
+
+  // Attendance mode
+  const [attendanceMode, setAttendanceMode] = useState(false);
+  const [attendanceData, setAttendanceData] = useState({}); // uid -> { unavailableWeeks, switched_weeks }
+  const [pillModal, setPillModal] = useState({ visible: false, type: null, deacon: null });
+
   const sectionListRef = useRef(null);
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerHeightRef = useRef(0);
   const deaconsListenerRef = useRef(null);
   const userListenerRef = useRef(null);
+  const attendanceListenersRef = useRef([]);
   const searchInputRef = useRef(null);
   const keyboardOffset = useRef(new Animated.Value(0)).current;
 
-  // Lift the floating search bar above the keyboard
+  // Keyboard animation
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
     const showSub = Keyboard.addListener(showEvent, (e) => {
       Animated.timing(keyboardOffset, {
         toValue: e.endCoordinates.height,
@@ -91,7 +347,6 @@ const DeaconEdits = () => {
         useNativeDriver: false,
       }).start();
     });
-
     const hideSub = Keyboard.addListener(hideEvent, (e) => {
       Animated.timing(keyboardOffset, {
         toValue: 0,
@@ -99,331 +354,175 @@ const DeaconEdits = () => {
         useNativeDriver: false,
       }).start();
     });
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
+    return () => { showSub.remove(); hideSub.remove(); };
   }, [keyboardOffset]);
 
-  // Set up real-time listener for user document to detect church changes
+  // User listener
   useEffect(() => {
-    if (!user?.uid) {
-      setUserDataLoading(false);
-      return;
-    }
-
-    console.log('Setting up user listener for:', user.uid);
-    
-    // Clean up any existing listener
-    if (userListenerRef.current) {
-      userListenerRef.current();
-      userListenerRef.current = null;
-    }
-
-    // Set up real-time listener for user document
+    if (!user?.uid) { setUserDataLoading(false); return; }
+    if (userListenerRef.current) { userListenerRef.current(); userListenerRef.current = null; }
     userListenerRef.current = firestore()
-      .collection('users')
-      .doc(user.uid)
+      .collection("users").doc(user.uid)
       .onSnapshot(
         (doc) => {
-          console.log('User document updated');
           if (doc.exists) {
-            const userData = doc.data();
-            const newChurch = userData?.church || null;
-            console.log('User church:', newChurch, 'Current church:', currentChurch);
-            
-            // Update church if it changed
-            if (newChurch !== currentChurch) {
-              console.log('Church changed from', currentChurch, 'to', newChurch);
-              setCurrentChurch(newChurch);
-            }
+            const newChurch = doc.data()?.church || null;
+            if (newChurch !== currentChurch) setCurrentChurch(newChurch);
           }
           setUserDataLoading(false);
         },
-        (error) => {
-          console.error('Error listening to user document:', error);
-          setUserDataLoading(false);
-        }
+        () => setUserDataLoading(false)
       );
-
-    return () => {
-      if (userListenerRef.current) {
-        userListenerRef.current();
-        userListenerRef.current = null;
-      }
-    };
+    return () => { if (userListenerRef.current) { userListenerRef.current(); userListenerRef.current = null; } };
   }, [user?.uid]);
 
   // Process deacon list
   const processDeaconList = useCallback(async (deaconList, churchData) => {
     try {
-      console.log('Processing', deaconList.length, 'deacons');
-      
-      // Fetch phone numbers from users collection with lazy caching
-      const deaconListWithPhone = await Promise.all(
+      const withPhone = await Promise.all(
         deaconList.map(async (deacon) => {
-          if (deacon.uid) {
+          if (!deacon.uid) return { ...deacon, phone: "Not provided" };
+          try {
+            let userData = null;
             try {
-              // Try cache first for user data
-              let userData = null;
-              try {
-                userData = await FirestoreCache.getDocument(
-                  'users', 
-                  deacon.uid, 
-                  { forceRefresh: false }
-                );
-              } catch (cacheError) {
-                // Fallback to direct fetch
-                const userDoc = await firestore()
-                  .collection("users")
-                  .doc(deacon.uid)
-                  .get();
-                userData = userDoc.exists ? userDoc.data() : null;
-                
-                // Cache the fetched data
-                if (userData) {
-                  setTimeout(() => {
-                    FirestoreCache.setDocument('users', deacon.uid, userData).catch(() => {});
-                  }, 50);
-                }
-              }
-
-              return {
-                ...deacon,
-                phone: userData
-                  ? userData.phone || userData.number || "Not provided"
-                  : "Not provided",
-              };
-            } catch (error) {
-              return { ...deacon, phone: "Not provided" };
+              userData = await FirestoreCache.getDocument("users", deacon.uid, { forceRefresh: false });
+            } catch {
+              const doc = await firestore().collection("users").doc(deacon.uid).get();
+              userData = doc.exists ? doc.data() : null;
+              if (userData) setTimeout(() => FirestoreCache.setDocument("users", deacon.uid, userData).catch(() => {}), 50);
             }
+            return {
+              ...deacon,
+              phone: userData ? userData.phone || userData.number || "Not provided" : "Not provided",
+            };
+          } catch {
+            return { ...deacon, phone: "Not provided" };
           }
-          return { ...deacon, phone: "Not provided" };
         })
       );
 
-      // Sort and group deacons
-      const sortedDeacons = deaconListWithPhone
-        .map((deacon) => ({
-          ...deacon,
-          name: (deacon.name || "").trim().toLowerCase(),
-        }))
+      const sorted = withPhone
+        .map((d) => ({ ...d, name: (d.name || "").trim().toLowerCase() }))
         .sort((a, b) => {
-          const nameComparison = a.name.localeCompare(b.name);
-          if (nameComparison === 0) {
-            return a.uid.localeCompare(b.uid);
-          }
-          return nameComparison;
+          const c = a.name.localeCompare(b.name);
+          return c !== 0 ? c : a.uid.localeCompare(b.uid);
         })
-        .map((deacon) => ({
-          ...deacon,
-          name:
-            deaconList.find((d) => d.uid === deacon.uid)?.name || "",
-        }));
+        .map((d) => ({ ...d, name: deaconList.find((x) => x.uid === d.uid)?.name || "" }));
 
-      setDeacons(sortedDeacons);
-    } catch (error) {
-      console.error('Error processing deacon list:', error);
+      setDeacons(sorted);
+    } catch (err) {
+      console.error("Error processing deacons:", err);
     }
   }, []);
 
-  // Build sections from deacons + searchQuery
+  // Build sections
   useEffect(() => {
-    if (deacons.length === 0) {
-      setSections([]);
-      return;
-    }
-
+    if (deacons.length === 0) { setSections([]); return; }
     const lower = searchQuery.trim().toLowerCase();
-    const filtered = lower
-      ? deacons.filter((d) => (d.name || "").toLowerCase().includes(lower))
-      : deacons;
-
-    // Group by first letter - categorize non-alphabet characters as #
-    const grouped = filtered.reduce((acc, deacon) => {
-      const firstChar = (deacon.name || "").charAt(0).toUpperCase();
-      const firstLetter = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
-      if (!acc[firstLetter]) acc[firstLetter] = [];
-      acc[firstLetter].push(deacon);
+    const filtered = lower ? deacons.filter((d) => (d.name || "").toLowerCase().includes(lower)) : deacons;
+    const grouped = filtered.reduce((acc, d) => {
+      const c = (d.name || "").charAt(0).toUpperCase();
+      const key = /^[A-Z]$/.test(c) ? c : "#";
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(d);
       return acc;
     }, {});
-
-    // Convert to SectionList format - put # at the end
-    const sectionData = Object.keys(grouped)
-      .sort((a, b) => {
-        if (a === '#') return 1;
-        if (b === '#') return -1;
-        return a.localeCompare(b);
-      })
-      .map((letter) => ({
-        title: letter,
-        data: grouped[letter],
-      }));
-
-    setSections(sectionData);
+    setSections(
+      Object.keys(grouped)
+        .sort((a, b) => a === "#" ? 1 : b === "#" ? -1 : a.localeCompare(b))
+        .map((title) => ({ title, data: grouped[title] }))
+    );
   }, [deacons, searchQuery]);
 
-  // Subscribe to deacons when church changes
+  // Church / deacons listener
   useEffect(() => {
-    // Clean up previous listener
-    if (deaconsListenerRef.current) {
-      console.log('Cleaning up previous deacons listener');
-      deaconsListenerRef.current();
-      deaconsListenerRef.current = null;
-    }
-
-    if (!currentChurch) {
-      console.log('No church set, clearing deacons');
-      setDeacons([]);
-      setSections([]);
-      setProfilePictureUrls({});
-      setIsLoadingDeacons(false);
-      return;
-    }
-
-    console.log('Setting up deacons listener for church:', currentChurch);
+    if (deaconsListenerRef.current) { deaconsListenerRef.current(); deaconsListenerRef.current = null; }
+    if (!currentChurch) { setDeacons([]); setSections([]); setProfilePictureUrls({}); setIsLoadingDeacons(false); return; }
     setIsLoadingDeacons(true);
-
-    // Set up real-time listener for church deacons
     deaconsListenerRef.current = firestore()
-      .collection("churches")
-      .doc(currentChurch)
+      .collection("churches").doc(currentChurch)
       .onSnapshot(
         async (doc) => {
-          console.log('Church document updated, exists:', doc.exists);
           if (doc.exists) {
             const churchData = doc.data();
-            const deaconData = churchData.deacons || [];
-            console.log('Found', deaconData.length, 'deacons');
-            
+            const deaconData = (churchData.deacons || []).map((d) => ({ ...d, churchId: currentChurch }));
             await processDeaconList(deaconData, churchData);
-            
-            // Lazy cache update after processing
             setTimeout(async () => {
-              try {
-                await FirestoreCache.setDocument('churches', currentChurch, churchData);
-              } catch (error) {
-                console.log('Cache update error (non-critical):', error);
-              }
+              try { await FirestoreCache.setDocument("churches", currentChurch, churchData); } catch {}
             }, 100);
           } else {
-            console.log('Church document does not exist');
-            setDeacons([]);
-            setSections([]);
+            setDeacons([]); setSections([]);
           }
           setIsLoadingDeacons(false);
         },
-        (error) => {
-          console.error('Firestore listener error:', error);
+        (err) => {
+          console.error("Listener error:", err);
           Alert.alert("Error", "Failed to fetch deacons.");
           setIsLoadingDeacons(false);
         }
       );
-
-    return () => {
-      if (deaconsListenerRef.current) {
-        deaconsListenerRef.current();
-        deaconsListenerRef.current = null;
-      }
-    };
+    return () => { if (deaconsListenerRef.current) { deaconsListenerRef.current(); deaconsListenerRef.current = null; } };
   }, [currentChurch, processDeaconList]);
 
-  // Fetch profile pictures
+  // Profile pictures
   useEffect(() => {
-    if (!currentChurch || deacons.length === 0) {
-      setProfilePictureUrls({});
-      return;
-    }
-
-    const fetchProfilePictureUrls = async () => {
-      const urls = {};
-      const profilePromises = deacons.map(async (deacon) => {
-        if (deacon.uid) {
+    if (!currentChurch || deacons.length === 0) { setProfilePictureUrls({}); return; }
+    const fetch = async () => {
+      await Promise.all(
+        deacons.map(async (d) => {
+          if (!d.uid) return;
+          const path = `profilePictures/${d.uid}.png`;
           try {
-            const storagePath = `profilePictures/${deacon.uid}.png`;
-            // Try cache first
-            const cachedUrl = await StorageCache.getDownloadURL(storagePath);
-            urls[deacon.uid] = typeof cachedUrl === "string" && cachedUrl.trim() ? cachedUrl : null;
-            setProfilePictureUrls(prev => ({ ...prev, [deacon.uid]: urls[deacon.uid] }));
-          } catch (error) {
-            // Cache failed, try direct fetch
+            const url = await StorageCache.getDownloadURL(path);
+            if (typeof url === "string" && url.trim())
+              setProfilePictureUrls((prev) => ({ ...prev, [d.uid]: url }));
+          } catch {
             try {
-              const url = await storage()
-                .ref(`profilePictures/${deacon.uid}.png`)
-                .getDownloadURL();
-              urls[deacon.uid] = typeof url === "string" && url.trim() ? url : null;
-              setProfilePictureUrls(prev => ({ ...prev, [deacon.uid]: urls[deacon.uid] }));
-              
-              // Store in cache for next time
-              setTimeout(() => {
-                StorageCache.getDownloadURL(`profilePictures/${deacon.uid}.png`, { forceRefresh: true }).catch(() => {});
-              }, 50);
-            } catch (storageError) {
-              urls[deacon.uid] = null;
-              setProfilePictureUrls(prev => ({ ...prev, [deacon.uid]: null }));
+              const url = await storage().ref(path).getDownloadURL();
+              if (typeof url === "string" && url.trim())
+                setProfilePictureUrls((prev) => ({ ...prev, [d.uid]: url }));
+            } catch {
+              setProfilePictureUrls((prev) => ({ ...prev, [d.uid]: null }));
             }
           }
-        }
-      });
-      
-      await Promise.all(profilePromises);
+        })
+      );
     };
-
-    fetchProfilePictureUrls();
+    fetch();
   }, [currentChurch, deacons]);
 
-  // Pull to refresh handler
-  const onRefresh = useCallback(async () => {
-    console.log('Pull to refresh triggered');
-    setIsRefreshing(true);
-    
-    try {
-      // Force refresh user data to get latest church
-      if (user?.uid) {
-        const userDoc = await firestore()
-          .collection('users')
-          .doc(user.uid)
-          .get();
-        
-        if (userDoc.exists) {
-          const userData = userDoc.data();
-          const latestChurch = userData?.church || null;
-          console.log('Refreshed church:', latestChurch);
-          
-          // Update church if different
-          if (latestChurch !== currentChurch) {
-            setCurrentChurch(latestChurch);
-          } else if (latestChurch) {
-            // If church is same, force refresh the deacons data
-            const churchDoc = await firestore()
-              .collection('churches')
-              .doc(latestChurch)
-              .get();
-              
-            if (churchDoc.exists) {
-              const churchData = churchDoc.data();
-              const deaconData = churchData.deacons || [];
-              await processDeaconList(deaconData, churchData);
-            }
-          }
-          
-          // Clear caches to ensure fresh data
-          if (latestChurch) {
-            await FirestoreCache.clearDocument('churches', latestChurch);
-            await FirestoreCache.clearDocument('users', user.uid);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error refreshing data:', error);
-      Alert.alert("Error", "Failed to refresh data. Please try again.");
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [user?.uid, currentChurch, processDeaconList]);
+  // Attendance data listeners — only when mode is active
+  useEffect(() => {
+    // Clean up previous listeners
+    attendanceListenersRef.current.forEach((u) => u());
+    attendanceListenersRef.current = [];
 
-  // Open edit modal
+    if (!attendanceMode || deacons.length === 0) return;
+
+    const unsubs = deacons.map((d) => {
+      if (!d.uid) return () => {};
+      return firestore()
+        .collection("users").doc(d.uid)
+        .onSnapshot(
+          (doc) => {
+            if (doc.exists) {
+              const data = doc.data();
+              setAttendanceData((prev) => ({
+                ...prev,
+                [d.uid]: {
+                  unavailableWeeks: data.unavailableWeeks || [],
+                  switched_weeks: data.switched_weeks || [],
+                },
+              }));
+            }
+          },
+          () => {}
+        );
+    });
+    attendanceListenersRef.current = unsubs;
+    return () => { unsubs.forEach((u) => u()); attendanceListenersRef.current = []; };
+  }, [attendanceMode, deacons]);
+
   const openEditModal = (deacon) => {
     if (!deacon?.uid) return;
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
@@ -431,54 +530,96 @@ const DeaconEdits = () => {
     setModalVisible(true);
   };
 
-  // Handle cancel
   const handleCancel = () => {
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setModalVisible(false);
     setSelectedDeacon(null);
   };
 
-  // Scroll to section
   const scrollToSection = (letter) => {
-    const sectionIndex = sections.findIndex((s) => s.title === letter);
-    
-    if (sectionIndex < 0 || !sectionListRef.current) {
-      return;
-    }
-
+    const idx = sections.findIndex((s) => s.title === letter);
+    if (idx < 0 || !sectionListRef.current) return;
     sectionListRef.current.scrollToLocation({
-      sectionIndex,
-      itemIndex: 1,
-      animated: false,
-      viewPosition: 0,
-      viewOffset: 0,
+      sectionIndex: idx, itemIndex: 1, animated: false, viewPosition: 0, viewOffset: 0,
     });
   };
 
-  // Render section header
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      if (user?.uid) {
+        const doc = await firestore().collection("users").doc(user.uid).get();
+        if (doc.exists) {
+          const church = doc.data()?.church || null;
+          if (church !== currentChurch) {
+            setCurrentChurch(church);
+          } else if (church) {
+            const cDoc = await firestore().collection("churches").doc(church).get();
+            if (cDoc.exists) await processDeaconList(cDoc.data().deacons || [], cDoc.data());
+          }
+          if (church) {
+            await FirestoreCache.clearDocument("churches", church);
+            await FirestoreCache.clearDocument("users", user.uid);
+          }
+        }
+      }
+    } catch { Alert.alert("Error", "Failed to refresh."); }
+    finally { setIsRefreshing(false); }
+  }, [user?.uid, currentChurch, processDeaconList]);
+
+  // Merge attendance data into deacon objects for the attendance view
+  const deaconsWithAttendance = useMemo(() => {
+    return deacons.map((d) => ({
+      ...d,
+      unavailableWeeks: attendanceData[d.uid]?.unavailableWeeks || [],
+      switched_weeks: attendanceData[d.uid]?.switched_weeks || [],
+    }));
+  }, [deacons, attendanceData]);
+
+  // Build sections for attendance mode (same structure, different data)
+  const attendanceSections = useMemo(() => {
+    const lower = searchQuery.trim().toLowerCase();
+    const filtered = lower
+      ? deaconsWithAttendance.filter((d) => (d.name || "").toLowerCase().includes(lower))
+      : deaconsWithAttendance;
+    const grouped = filtered.reduce((acc, d) => {
+      const c = (d.name || "").charAt(0).toUpperCase();
+      const key = /^[A-Z]$/.test(c) ? c : "#";
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(d);
+      return acc;
+    }, {});
+    return Object.keys(grouped)
+      .sort((a, b) => a === "#" ? 1 : b === "#" ? -1 : a.localeCompare(b))
+      .map((title) => ({ title, data: grouped[title] }));
+  }, [deaconsWithAttendance, searchQuery]);
+
+  const activeSections = attendanceMode ? attendanceSections : sections;
+
   const renderSectionHeader = ({ section: { title } }) => (
     <View
       style={styles.sectionHeader}
-      onLayout={(event) => {
-        const { height } = event.nativeEvent.layout;
-        if (height > 0 && headerHeightRef.current !== height) {
-          headerHeightRef.current = height;
-          setHeaderHeight(height);
-        }
+      onLayout={(e) => {
+        const h = e.nativeEvent.layout.height;
+        if (h > 0 && headerHeightRef.current !== h) { headerHeightRef.current = h; setHeaderHeight(h); }
       }}
     >
       <Text style={styles.sectionHeaderText}>{title}</Text>
     </View>
   );
 
-  // Render deacon item
   const renderDeacon = ({ item }) => {
+    if (attendanceMode) {
+      return (
+        <AttendanceCard
+          deacon={item}
+          profilePictureUrl={profilePictureUrls[item.uid]}
+          onPillPress={(type, deacon) => setPillModal({ visible: true, type, deacon })}
+        />
+      );
+    }
     return (
-      <TouchableOpacity
-        style={styles.deaconItem}
-        onPress={() => openEditModal(item)}
-        activeOpacity={0.7}
-      >
+      <TouchableOpacity style={styles.deaconItem} onPress={() => openEditModal(item)} activeOpacity={0.7}>
         <View style={styles.deaconImageContainer}>
           <Image
             style={styles.deaconImage}
@@ -488,43 +629,26 @@ const DeaconEdits = () => {
                 : require("../../assets/default_profile.png")
             }
             defaultSource={require("../../assets/default_profile.png")}
-            onError={() => {
-              setProfilePictureUrls((prev) => ({
-                ...prev,
-                [item.uid]: null,
-              }));
-            }}
+            onError={() => setProfilePictureUrls((prev) => ({ ...prev, [item.uid]: null }))}
           />
         </View>
         <View style={styles.deaconInfo}>
           <Text style={styles.deaconName}>{item.name || "Unknown"}</Text>
           <Text style={styles.deaconDetail}>Age: {formatNumber(item.age)}</Text>
-          <Text style={styles.deaconDetail}>
-            Phone: {item.phone !== undefined && item.phone !== null ? item.phone : "Not provided"}
-          </Text>
-          <Text style={styles.deaconDetail}>
-            Experience: {formatNumber(item.experience)}
-          </Text>
-          <Text style={styles.deaconDetail}>
-            Frequency: {formatNumber(item.frequency)}
-          </Text>
+          <Text style={styles.deaconDetail}>Phone: {item.phone !== undefined && item.phone !== null ? item.phone : "Not provided"}</Text>
+          <Text style={styles.deaconDetail}>Experience: {formatNumber(item.experience)}</Text>
+          <Text style={styles.deaconDetail}>Frequency: {formatNumber(item.frequency)}</Text>
         </View>
         <Ionicons name="pencil" size={20 * scale} color="#147efb" />
       </TouchableOpacity>
     );
   };
 
-  // Show loading state
   if (userDataLoading || isLoadingDeacons) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator
-          size={isTablet ? "large" : "small"}
-          color="#147efb"
-        />
-        <Text style={[styles.loadingText, { fontSize: 16 * scale }]}>
-          Loading...
-        </Text>
+        <ActivityIndicator size={isTablet ? "large" : "small"} color="#147efb" />
+        <Text style={[styles.loadingText, { fontSize: 16 * scale }]}>Loading...</Text>
         <Text style={[styles.loadingSubtext, { fontSize: 14 * scale }]}>
           {userDataLoading ? "Getting your data ready" : "Loading deacons..."}
         </Text>
@@ -532,43 +656,60 @@ const DeaconEdits = () => {
     );
   }
 
-  // Show no church state
   if (!currentChurch) {
     return (
       <View style={styles.centered}>
         <Text style={[styles.errorText, { fontSize: 18 * scale }]}>No Church Selected</Text>
-        <Text style={[styles.errorSubtext, { fontSize: 14 * scale }]}>
-          Please select a church in your profile settings.
-        </Text>
+        <Text style={[styles.errorSubtext, { fontSize: 14 * scale }]}>Please select a church in your profile settings.</Text>
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
-      {/* Header with Sync button */}
+      {/* Header */}
       <View style={styles.pageHeader}>
         <Text style={styles.pageTitle}>Deacons</Text>
-        <TouchableOpacity
-          style={styles.syncButton}
-          onPress={() => setSyncModalVisible(true)}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="sync" size={16} color="#147efb" />
-          <Text style={styles.syncButtonText}>Sync</Text>
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            style={[styles.headerBtn, attendanceMode && styles.headerBtnActive]}
+            onPress={() => {
+              ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+              setAttendanceMode((v) => !v);
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="bar-chart-outline"
+              size={15}
+              color={attendanceMode ? "#fff" : "#ff9f0a"}
+            />
+            <Text style={[styles.headerBtnText, { color: attendanceMode ? "#fff" : "#ff9f0a" }, attendanceMode && { color: "#fff" }]}>
+              Attendance
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => setSyncModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="sync" size={15} color="#147efb" />
+            <Text style={[styles.headerBtnText, { color: "#147efb" }]}>Sync</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {sections.length === 0 ? (
+      {/* Mode label */}
+      {attendanceMode && (
+        <View style={styles.modeBanner}>
+          <Ionicons name="bar-chart-outline" size={13} color="#ff9f0a" />
+          <Text style={styles.modeBannerText}>Attendance Monitor — last 12 weeks</Text>
+        </View>
+      )}
+
+      {activeSections.length === 0 ? (
         <ScrollView
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={onRefresh}
-              tintColor="#147efb"
-              colors={["#147efb"]}
-            />
-          }
+          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#147efb" colors={["#147efb"]} />}
           contentContainerStyle={styles.centered}
         >
           <Text style={[styles.noData, { fontSize: 16 * scale }]}>
@@ -582,53 +723,36 @@ const DeaconEdits = () => {
         <View style={styles.listWrapper}>
           <SectionList
             ref={sectionListRef}
-            sections={sections}
+            sections={activeSections}
             renderItem={renderDeacon}
             renderSectionHeader={renderSectionHeader}
             keyExtractor={(item) => item.uid || Math.random().toString()}
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
-            extraData={profilePictureUrls}
+            extraData={[profilePictureUrls, attendanceData, attendanceMode]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
-            onScrollToIndexFailed={() => {
-              // Do nothing when scroll fails - stay in current position
-            }}
-            refreshControl={
-              <RefreshControl
-                refreshing={isRefreshing}
-                onRefresh={onRefresh}
-                tintColor="#147efb"
-                colors={["#147efb"]}
-              />
-            }
+            onScrollToIndexFailed={() => {}}
+            refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#147efb" colors={["#147efb"]} />}
           />
-          {/* Wrap the AlphabetIndexBar in an absolutely positioned View */}
           {!searchQuery.trim() && (
-            <View style={{ position: 'absolute', top: 100 * scale, right: 0, width: 30 }}>
-              <AlphabetIndexBar 
-                onLetterChange={scrollToSection} 
-                availableLetters={sections.map(s => s.title)}
+            <View style={{ position: "absolute", top: 100 * scale, right: 0, width: 30 }}>
+              <AlphabetIndexBar
+                onLetterChange={scrollToSection}
+                availableLetters={activeSections.map((s) => s.title)}
               />
             </View>
           )}
         </View>
       )}
 
-      {/* ---------- Floating bottom search bar with system material ---------- */}
+      {/* Floating search bar */}
       <Animated.View
-        style={[
-          styles.floatingBarWrapper,
-          { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] },
-        ]}
+        style={[styles.floatingBarWrapper, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
         pointerEvents="box-none"
       >
-        <BlurView
-          tint="systemChromeMaterialDark"
-          intensity={80}
-          style={styles.floatingBlur}
-        >
+        <BlurView tint="systemChromeMaterialDark" intensity={80} style={styles.floatingBlur}>
           <View style={styles.floatingInner}>
             <View style={styles.searchContainer}>
               <Ionicons name="search" size={16} color="rgba(255,255,255,0.55)" style={styles.searchIcon} />
@@ -649,6 +773,7 @@ const DeaconEdits = () => {
         </BlurView>
       </Animated.View>
 
+      {/* Standard edit modal */}
       {selectedDeacon && (
         <IndividualProfile
           userId={selectedDeacon.uid}
@@ -666,94 +791,251 @@ const DeaconEdits = () => {
         onClose={() => setSyncModalVisible(false)}
         churchId={currentChurch}
       />
+
+      {/* Pill detail modal */}
+      <PillModal
+        visible={pillModal.visible}
+        type={pillModal.type}
+        deacon={pillModal.deacon}
+        onClose={() => setPillModal({ visible: false, type: null, deacon: null })}
+      />
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#121212",
-    paddingTop: 20,
+// ─── Attendance card styles ───────────────────────────────────────────────────
+const aStyles = StyleSheet.create({
+  card: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    overflow: "hidden",
   },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 8,
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 10,
+  },
+  nameBlock: {
+    flex: 1,
+  },
+  name: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#fff",
+    marginBottom: 4,
+  },
+  pillRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  pillText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  sliderBlock: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
+    paddingHorizontal: 12,
+    paddingTop: 6,
+    paddingBottom: 8,
+  },
+  sliderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 0,
+  },
+  sliderLabel: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: "rgba(255,255,255,0.45)",
+  },
+  sliderValue: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  slider: {
+    width: "100%",
+    height: 28,
+    marginBottom: 0,
+  },
+  saveBtn: {
+    backgroundColor: "#147efb",
+    borderRadius: 8,
+    paddingVertical: 7,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  saveBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+});
+
+// ─── Pill modal styles ────────────────────────────────────────────────────────
+const pmStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  dismissArea: {
+    flex: 1,
+  },
+  sheet: {
+    height: height * 0.5,
+    backgroundColor: "#1a1a1a",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    overflow: "hidden",
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+  },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  title: { fontSize: 17, fontWeight: "600", color: "#fff" },
+  closeBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeX: { color: "rgba(255,255,255,0.6)", fontSize: 20, fontWeight: "300", marginTop: -1 },
+  subtitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
+  subtitle: { fontSize: 13, color: "rgba(255,255,255,0.4)" },
+  countBadge: {
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  countText: { fontSize: 12, fontWeight: "600" },
+  list: { flex: 1 },
+  empty: {
+    color: "rgba(255,255,255,0.35)",
+    fontSize: 14,
+    textAlign: "center",
+    paddingVertical: 40,
+  },
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    gap: 10,
+  },
+  dot: { width: 7, height: 7, borderRadius: 3.5 },
+  dateText: { flex: 1, fontSize: 14, color: "rgba(255,255,255,0.85)" },
+  dateTextOld: { color: "rgba(255,255,255,0.4)" },
+  recentBadge: {
+    borderRadius: 6,
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  recentText: { fontSize: 11, fontWeight: "600" },
+  sep: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    marginHorizontal: 18,
+  },
+});
+
+// ─── Main screen styles ───────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#121212", paddingTop: 20 },
   pageHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  pageTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#fff",
-  },
-  syncButton: {
+  pageTitle: { fontSize: 28, fontWeight: "700", color: "#fff" },
+  headerButtons: { flexDirection: "row", gap: 8 },
+  headerBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(20,126,251,0.1)",
-    paddingHorizontal: 14,
+    gap: 5,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "rgba(20,126,251,0.2)",
+    borderColor: "rgba(255,255,255,0.1)",
   },
-  syncButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#147efb",
+  headerBtnActive: {
+    backgroundColor: "rgba(255,159,10,0.2)",
+    borderColor: "rgba(255,159,10,0.35)",
   },
-  listWrapper: {
-    flex: 1,
-    position: 'relative',
-  },
-  listContainer: {
-    paddingBottom: 110, // leave room for the floating bar
-    flexGrow: 1,
-    paddingRight: 32,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
+  headerBtnText: { fontSize: 13, fontWeight: "600" },
+  modeBanner: {
+    flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#121212",
+    gap: 6,
+    backgroundColor: "rgba(255,159,10,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255,159,10,0.2)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
   },
-  loadingText: {
-    marginTop: 12,
-    color: "rgba(255,255,255,0.6)",
-    fontSize: 16 * scale,
-  },
-  loadingSubtext: {
-    marginTop: 6,
-    color: "rgba(255,255,255,0.4)",
-    textAlign: "center",
-    fontSize: 14 * scale,
-  },
-  errorText: {
-    color: "#ff6b6b",
-    marginBottom: 10,
-    textAlign: "center",
-    fontSize: 18 * scale,
-  },
-  errorSubtext: {
-    color: "rgba(255,255,255,0.5)",
-    textAlign: "center",
-    marginBottom: 20,
-    fontSize: 14 * scale,
-  },
-  retryButton: {
-    backgroundColor: "#147EFB",
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 14,
-    minWidth: 120,
-  },
-  retryButtonText: {
-    color: "#fff",
-    textAlign: "center",
-    fontWeight: "600",
-    fontSize: 16,
-  },
+  modeBannerText: { fontSize: 12, fontWeight: "500", color: "#ff9f0a" },
+  listWrapper: { flex: 1, position: "relative" },
+  listContainer: { paddingBottom: 110, flexGrow: 1, paddingRight: 32 },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#121212" },
+  loadingText: { marginTop: 12, color: "rgba(255,255,255,0.6)" },
+  loadingSubtext: { marginTop: 6, color: "rgba(255,255,255,0.4)", textAlign: "center" },
+  errorText: { color: "#ff6b6b", marginBottom: 10, textAlign: "center" },
+  errorSubtext: { color: "rgba(255,255,255,0.5)", textAlign: "center", marginBottom: 20 },
   deaconItem: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -762,59 +1044,21 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 16 * scale,
     marginBottom: 12 * scale,
-    marginRight: 0,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: "rgba(255,255,255,0.06)",
   },
-  deaconImageContainer: {
-    marginRight: 14 * scale,
-  },
-  deaconImage: {
-    width: 48 * scale,
-    height: 48 * scale,
-    borderRadius: 24 * scale,
-  },
-  deaconInfo: {
-    flex: 1,
-  },
-  deaconName: {
-    fontSize: 17 * scale,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  deaconDetail: {
-    fontSize: 14 * scale,
-    color: "rgba(255,255,255,0.5)",
-    marginTop: 4 * scale,
-  },
-  noData: {
-    textAlign: "center",
-    color: "rgba(255,255,255,0.5)",
-    marginTop: 20,
-    fontSize: 16 * scale,
-  },
-  noDataSubtext: {
-    textAlign: "center",
-    color: "rgba(255,255,255,0.4)",
-    marginTop: 10,
-    fontSize: 14 * scale,
-  },
-  sectionHeader: {
-    backgroundColor: "transparent",
-    paddingVertical: 8 * scale,
-    paddingHorizontal: 4,
-  },
-  sectionHeaderText: {
-    fontSize: 22 * scale,
-    fontWeight: "600",
-    color: "#fff",
-  },
-
-  // ---------- Floating bottom search ----------
+  deaconImageContainer: { marginRight: 14 * scale },
+  deaconImage: { width: 48 * scale, height: 48 * scale, borderRadius: 24 * scale },
+  deaconInfo: { flex: 1 },
+  deaconName: { fontSize: 17 * scale, fontWeight: "600", color: "#fff" },
+  deaconDetail: { fontSize: 14 * scale, color: "rgba(255,255,255,0.5)", marginTop: 4 * scale },
+  noData: { textAlign: "center", color: "rgba(255,255,255,0.5)", marginTop: 20 },
+  noDataSubtext: { textAlign: "center", color: "rgba(255,255,255,0.4)", marginTop: 10 },
+  sectionHeader: { backgroundColor: "transparent", paddingVertical: 8 * scale, paddingHorizontal: 4 },
+  sectionHeaderText: { fontSize: 22 * scale, fontWeight: "600", color: "#fff" },
   floatingBarWrapper: {
     position: "absolute",
-    left: 12,
-    right: 12,
+    left: 12, right: 12,
     bottom: Platform.OS === "ios" ? 28 : 16,
     borderRadius: 18,
     overflow: "hidden",
@@ -831,10 +1075,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.12)",
     backgroundColor: Platform.OS === "android" ? "rgba(28,28,30,0.92)" : "transparent",
   },
-  floatingInner: {
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-  },
+  floatingInner: { paddingHorizontal: 10, paddingVertical: 10 },
   searchContainer: {
     flex: 1,
     flexDirection: "row",
@@ -844,15 +1085,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     height: 38,
   },
-  searchIcon: {
-    marginRight: 6,
-  },
-  searchBar: {
-    flex: 1,
-    color: "#fff",
-    fontSize: 15,
-    paddingVertical: 0,
-  },
+  searchIcon: { marginRight: 6 },
+  searchBar: { flex: 1, color: "#fff", fontSize: 15, paddingVertical: 0 },
 });
 
 export default DeaconEdits;

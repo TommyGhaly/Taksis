@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { LogBox } from "react-native";
 import { StyleSheet, Text, View, ScrollView, RefreshControl } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -21,6 +22,10 @@ import PasswordReset from "./screens/PasswordReset";
 import ChurchRegistration from "./screens/ChurchRegistration";
 import MainContainer from "./screens/MainContainer";
 
+LogBox.ignoreLogs([
+  "This method is deprecated",
+  "rnfirebase.io/migrating-to-v22",
+]);
 const Stack = createNativeStackNavigator();
 
 function NetworkWrapper({ children }) {

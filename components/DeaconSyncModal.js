@@ -6,8 +6,6 @@
  * Deacon sources:
  *   1. Any user doc with church === churchId AND isDeacon === true
  *   2. ALL children from ANY user doc where church === churchId
- *      (children are embedded objects in the parent's children[] array,
- *       each child has uid, name, age, experience, frequency, rank, etc.)
  */
 
 import React, { useState, useCallback, useRef, useEffect } from "react";
@@ -32,13 +30,10 @@ const fid = (d) => `${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate
 const gw = (s,n=5) => { const r=[],w=ws(s); for(let i=0;i<n;i++){const d=new Date(w);d.setDate(w.getDate()+i*7);r.push(fid(d));}return r; };
 const nd = (s) => { if(!s)return""; const[m,d,y]=s.split("-").map(Number); return new Date(2000+y,m-1,d).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}); };
 
-/**
- * Fetch all deacons for a church:
- *  - Users with isDeacon: true AND church === churchId
- *  - ALL children[] entries from ANY user with church === churchId
- */
+// Generate a Firestore-style random UID client-side
+const genUid = () => firestore().collection("_").doc().id;
+
 async function fetchAllDeacons(churchId) {
-  // Get all users in this church
   const allUsersSnap = await firestore()
     .collection("users")
     .where("church", "==", churchId)
@@ -62,18 +57,10 @@ async function fetchAllDeacons(churchId) {
 
   for (const doc of allUsersSnap.docs) {
     const data = doc.data();
-
-    // 1. If user is a deacon, add them
-    if (data.isDeacon === true) {
-      add(doc.id, data);
-    }
-
-    // 2. ALL children of ANY church member are deacons
+    if (data.isDeacon === true) add(doc.id, data);
     if (Array.isArray(data.children)) {
       for (const child of data.children) {
-        if (child.uid) {
-          add(child.uid, child);
-        }
+        if (child.uid) add(child.uid, child);
       }
     }
   }
@@ -99,10 +86,7 @@ function diffList(current, expected) {
   const eSet = new Set(expected.map(u => u.uid));
   const eMap = new Map(expected.map(u => [u.uid, u]));
 
-  // Fields synced from user doc → deacon array (one-way)
   const SYNC_FIELDS = ["name", "age", "experience", "frequency", "rank"];
-
-  // Fields that must exist on every deacon array entry (with defaults)
   const REQUIRED_FIELDS = {
     weeksSince: 4,
     lastWeeksSince: 4,
@@ -115,11 +99,10 @@ function diffList(current, expected) {
 
   const stale = [];
   for (const entry of current) {
-    if (!eSet.has(entry.uid)) continue; // will be caught by toRemove
+    if (!eSet.has(entry.uid)) continue;
     const source = eMap.get(entry.uid);
     const mismatched = [];
 
-    // Check user-doc-synced fields
     if (source) {
       for (const f of SYNC_FIELDS) {
         const srcVal = source[f] ?? DEFAULTS[f] ?? 0;
@@ -130,7 +113,6 @@ function diffList(current, expected) {
       }
     }
 
-    // Check required fields are present (not undefined/null)
     for (const [f, defaultVal] of Object.entries(REQUIRED_FIELDS)) {
       if (entry[f] === undefined || entry[f] === null) {
         mismatched.push({ field: f, from: "missing", to: defaultVal });
@@ -152,11 +134,15 @@ function diffList(current, expected) {
 function diffSched(data, uids, names) {
   const scheduled = new Set(), unknowns = [];
   const check = (uid, name, loc) => {
-    if (!uid) return;
+    if (!uid) {
+      // Empty UID in a reading slot — flag as unknown so it gets a generated UID
+      unknowns.push({ uid: "", name: name || "N/A", loc });
+      return;
+    }
     scheduled.add(uid);
     if (!uids.has(uid)) unknowns.push({ uid, name, loc });
   };
-  for (const k of READING_KEYS) { const e = data[k]; check(e?.uid, e?.name, k); }
+  for (const k of READING_KEYS) { const e = data[k]; if (e !== undefined) check(e?.uid, e?.name, k); }
   for (const e of (data.altar || [])) check(e?.uid, e?.name, "altar");
   for (const e of (data.extra || [])) check(e?.uid, e?.name, "extra");
 
@@ -175,10 +161,7 @@ async function applyListFix(churchId, current, toAdd, toRemove, stale) {
       const s = staleMap.get(d.uid);
       if (!s) return d;
       const patched = { ...d };
-      for (const f of s.fields) {
-        // f.to is either the user-doc value or the default for missing fields
-        patched[f.field] = f.to;
-      }
+      for (const f of s.fields) patched[f.field] = f.to;
       return patched;
     });
 
@@ -188,14 +171,40 @@ async function applyListFix(churchId, current, toAdd, toRemove, stale) {
 }
 
 async function applySchedFix(churchId, wid, data, unknowns, missing, names) {
-  const up = {}, unk = new Set(unknowns.map(u => u.uid));
-  for (const k of READING_KEYS) { if (data[k]?.uid && unk.has(data[k].uid)) up[k] = { uid: "", name: "N/A" }; }
-  const a = data.altar || [], fa = a.filter(e => !e?.uid || !unk.has(e.uid));
-  if (fa.length !== a.length) up.altar = fa;
-  let ex = (data.extra || []).filter(e => !e?.uid || !unk.has(e.uid));
-  for (const m of missing) { if (!ex.find(e => e.uid === m.uid)) ex.push({ uid: m.uid, name: names.get(m.uid) || m.name || "Unknown" }); }
+  const up = {};
+
+  // Build a set of UIDs to replace (unknown non-empty UIDs)
+  const unkSet = new Set(unknowns.filter(u => u.uid !== "").map(u => u.uid));
+
+  // Readings: replace any slot with an unknown UID or an empty UID with a fresh generated UID
+  for (const k of READING_KEYS) {
+    const entry = data[k];
+    if (!entry) continue;
+    const needsFix = !entry.uid || unkSet.has(entry.uid);
+    if (needsFix) up[k] = { uid: genUid(), name: "N/A" };
+  }
+
+  // Altar: replace unknown/empty UIDs with generated UIDs in-place (keep position)
+  const altar = data.altar || [];
+  let altarChanged = false;
+  const fixedAltar = altar.map(e => {
+    if (!e?.uid || unkSet.has(e.uid)) {
+      altarChanged = true;
+      return { ...(e || {}), uid: genUid(), name: "N/A" };
+    }
+    return e;
+  });
+  if (altarChanged) up.altar = fixedAltar;
+
+  // Extra: remove unknowns, add missing deacons
+  let ex = (data.extra || []).filter(e => e?.uid && !unkSet.has(e.uid));
+  for (const m of missing) {
+    if (!ex.find(e => e.uid === m.uid))
+      ex.push({ uid: m.uid, name: names.get(m.uid) || m.name || "Unknown" });
+  }
   ex.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   up.extra = ex;
+
   await firestore().collection("churches").doc(churchId).collection("schedule").doc(wid).update(up);
 }
 
@@ -225,8 +234,6 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
   const [idx, setIdx] = useState(0);
   const ref = useRef({});
 
-  // ── Auto-scan on open ──────────────────────────────────────────────────────
-
   useEffect(() => {
     if (visible && churchId) {
       setPhase(P.SCAN); setError(null); setLog([]);
@@ -235,8 +242,6 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
       scan();
     }
   }, [visible, churchId]);
-
-  // ── Scan ───────────────────────────────────────────────────────────────────
 
   const scan = useCallback(async () => {
     try {
@@ -279,8 +284,6 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
     }
   }, [churchId]);
 
-  // ── Fix list ───────────────────────────────────────────────────────────────
-
   const doFixList = useCallback(async () => {
     setBusy(true); setError(null);
     try {
@@ -299,15 +302,13 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
   const skipList = () => { setLog(prev => [...prev, "Deacon list: skipped"]); afterList(); };
   const afterList = () => { if (schedDiffs.length > 0) { setIdx(0); setPhase(P.SCHED); } else setPhase(P.DONE); };
 
-  // ── Fix schedule ───────────────────────────────────────────────────────────
-
   const doFixSched = useCallback(async () => {
     const sd = schedDiffs[idx]; if (!sd) return;
     setBusy(true); setError(null);
     try {
       await applySchedFix(churchId, sd.weekId, ref.current.sData[sd.weekId], sd.unknowns, sd.missing, ref.current.names);
       const p = [];
-      if (sd.unknowns.length) p.push(`${sd.unknowns.length} removed`);
+      if (sd.unknowns.length) p.push(`${sd.unknowns.length} fixed`);
       if (sd.missing.length) p.push(`${sd.missing.length} → extras`);
       setLog(prev => [...prev, `${nd(sd.weekId)}: ${p.join(", ")}`]);
       next();
@@ -324,15 +325,13 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
         const sd = schedDiffs[i];
         await applySchedFix(churchId, sd.weekId, ref.current.sData[sd.weekId], sd.unknowns, sd.missing, ref.current.names);
         const p = [];
-        if (sd.unknowns.length) p.push(`${sd.unknowns.length} removed`);
+        if (sd.unknowns.length) p.push(`${sd.unknowns.length} fixed`);
         if (sd.missing.length) p.push(`${sd.missing.length} → extras`);
         setLog(prev => [...prev, `${nd(sd.weekId)}: ${p.join(", ")}`]);
       }
       setPhase(P.DONE);
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   }, [churchId, schedDiffs, idx]);
-
-  // ── Close ──────────────────────────────────────────────────────────────────
 
   const close = () => {
     setPhase(P.SCAN); setListDiff(null); setSchedDiffs([]);
@@ -351,7 +350,6 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
       <View style={st.backdrop}>
         <View style={st.dialog}>
 
-          {/* Close button — always visible */}
           <TouchableOpacity style={st.closeBtn} onPress={close} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Icon name="close" size={18} color="rgba(255,255,255,0.3)" />
           </TouchableOpacity>
@@ -370,9 +368,7 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
             <>
               <View style={st.header}>
                 <Text style={st.label}>DEACON LIST</Text>
-                <Text style={st.headerTitle}>
-                  {lc} issue{lc !== 1 ? "s" : ""} found
-                </Text>
+                <Text style={st.headerTitle}>{lc} issue{lc !== 1 ? "s" : ""} found</Text>
               </View>
 
               <FlatList
@@ -407,18 +403,19 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
           {phase === P.SCHED && cs && (
             <>
               <View style={st.header}>
-                <Text style={st.label}>
-                  SCHEDULE {idx + 1} OF {schedDiffs.length}
-                </Text>
+                <Text style={st.label}>SCHEDULE {idx + 1} OF {schedDiffs.length}</Text>
                 <Text style={st.headerTitle}>{nd(cs.weekId)}</Text>
-                <Text style={st.headerSub}>
-                  {sc} issue{sc !== 1 ? "s" : ""}
-                </Text>
+                <Text style={st.headerSub}>{sc} issue{sc !== 1 ? "s" : ""}</Text>
               </View>
 
               <FlatList
                 data={[
-                  ...cs.unknowns.map((u, i) => ({ k: `u${u.uid}${i}`, n: u.name, a: "Remove", c: "#ff453a" })),
+                  ...cs.unknowns.map((u, i) => ({
+                    k: `u${u.uid}${i}`,
+                    n: u.name || "N/A",
+                    a: u.uid ? "Replace UID" : "Generate UID",
+                    c: "#ff9f0a",
+                  })),
                   ...cs.missing.map(m => ({ k: `m${m.uid}`, n: m.name, a: "→ Extras", c: "#30d158" })),
                 ]}
                 keyExtractor={i => i.k}
@@ -501,44 +498,26 @@ const st = StyleSheet.create({
     width: "100%", minHeight: 200, maxHeight: SH * 0.72,
     paddingTop: 24, paddingBottom: 22, paddingHorizontal: 22,
   },
-
-  // Close
   closeBtn: { position: "absolute", top: 16, right: 16, zIndex: 1 },
-
-  // Scanning
   center: { alignItems: "center", justifyContent: "center", paddingVertical: 48 },
   scanTitle: { fontSize: 18, fontWeight: "600", color: "#fff", marginTop: 18 },
   scanText: { fontSize: 14, color: "rgba(255,255,255,0.4)", marginTop: 6 },
-
-  // Header area
   header: { marginBottom: 12 },
-  label: {
-    fontSize: 11, fontWeight: "700", letterSpacing: 1,
-    color: "rgba(255,255,255,0.25)", marginBottom: 6,
-  },
+  label: { fontSize: 11, fontWeight: "700", letterSpacing: 1, color: "rgba(255,255,255,0.25)", marginBottom: 6 },
   headerTitle: { fontSize: 22, fontWeight: "700", color: "#fff" },
   headerSub: { fontSize: 14, color: "rgba(255,255,255,0.4)", marginTop: 2 },
-
-  // List
   list: { flexGrow: 0, maxHeight: SH * 0.38, marginBottom: 16 },
   listContent: { paddingVertical: 4 },
   sep: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.06)" },
-
-  // Row
   row: { flexDirection: "row", alignItems: "center", paddingVertical: 12 },
   dot: { width: 7, height: 7, borderRadius: 4, marginRight: 14 },
   rowName: { flex: 1, fontSize: 16, color: "#fff" },
   rowTag: { fontSize: 12, fontWeight: "600", maxWidth: "45%", textAlign: "right" },
-
-  // Error
   err: { fontSize: 13, color: "#ff453a", marginBottom: 10 },
-
-  // Footer buttons
   footer: { flexDirection: "row", gap: 10 },
   mainBtn: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8, backgroundColor: "#147efb",
-    paddingVertical: 15, borderRadius: 12,
+    gap: 8, backgroundColor: "#147efb", paddingVertical: 15, borderRadius: 12,
   },
   mainBtnText: { fontSize: 16, fontWeight: "600", color: "#fff" },
   ghostBtn: {
@@ -546,12 +525,8 @@ const st = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.06)",
   },
   ghostBtnText: { fontSize: 16, fontWeight: "500", color: "rgba(255,255,255,0.35)" },
-
-  // Fix all link
   linkBtn: { alignItems: "center", paddingVertical: 14 },
   linkBtnText: { fontSize: 14, color: "#147efb", fontWeight: "500" },
-
-  // Done
   doneWrap: { flex: 1, justifyContent: "space-between" },
   doneTop: { alignItems: "center", flex: 1 },
   doneIcon: { alignItems: "center", marginBottom: 12 },
@@ -562,8 +537,6 @@ const st = StyleSheet.create({
     width: "100%", marginTop: 12,
   },
   doneBtnText: { fontSize: 16, fontWeight: "600", color: "#fff" },
-
-  // Log
   logList: { maxHeight: SH * 0.25, width: "100%", marginBottom: 8 },
   logRow: { flexDirection: "row", paddingVertical: 4 },
   logBullet: { fontSize: 13, color: "rgba(255,255,255,0.3)", marginRight: 8, marginTop: 1 },
