@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 cd "$(dirname "$0")"
 
 # ── Environment ──────────────────────────────────────────────
@@ -29,28 +30,77 @@ sleep 2
 rm -rf android
 npx expo prebuild --platform android
 
-# ── local.properties (SDK path) ──────────────────────────────
+# ── local.properties ─────────────────────────────────────────
 echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
-# ── Release signing config ───────────────────────────────────
-BUILD_GRADLE="android/app/build.gradle"
+# ── Write keystore.properties ─────────────────────────────────
+# Referenced by build.gradle below — keeps credentials out of build.gradle
+cat > android/keystore.properties << 'EOF'
+storeFile=../../credentials/android/keystore.jks
+storePassword=3d8f00ea8699e1f5e18bbe7ae63fdc07
+keyAlias=d1987fae5a897e3130f253f75cde0f14
+keyPassword=86b054c4d3a9739013c56e30ac5e816b
+EOF
 
-sed -i '' '/signingConfigs {/,/^    }/ {
-    /debug {/,/^        }/ {
-        /^        }/a\
-\        release {\
-\            storeFile file('\''../../credentials/android/keystore.jks'\'')\
-\            storePassword '\''3d8f00ea8699e1f5e18bbe7ae63fdc07'\''\
-\            keyAlias '\''d1987fae5a897e3130f253f75cde0f14'\''\
-\            keyPassword '\''86b054c4d3a9739013c56e30ac5e816b'\''\
-\        }
+# ── Patch app/build.gradle with signing config ───────────────
+# Uses Python for reliable multi-line injection — no fragile sed anchors.
+python3 << 'PYEOF'
+import re, sys
+
+path = "android/app/build.gradle"
+with open(path, "r") as f:
+    src = f.read()
+
+# 1. Inject keystoreProperties loader + signingConfigs block
+#    after the first `android {` line, only if not already present.
+if "keystoreProperties" not in src:
+    loader = '''
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withReader('UTF-8') { reader -> keystoreProperties.load(reader) }
+}
+
+'''
+    src = re.sub(r'(android\s*\{)', loader + r'\1', src, count=1)
+
+# 2. Inject signingConfigs block inside android { ... }
+#    only if release signingConfig not already present.
+if "signingConfigs" not in src:
+    signing_block = '''
+    signingConfigs {
+        release {
+            storeFile file(keystoreProperties['storeFile'])
+            storePassword keystoreProperties['storePassword']
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+        }
     }
-}' "$BUILD_GRADLE"
+'''
+    # Insert before the first `buildTypes {` block
+    src = re.sub(r'(\s*buildTypes\s*\{)', signing_block + r'\1', src, count=1)
 
-sed -i '' 's/signingConfig signingConfigs\.debug/signingConfig signingConfigs.release/' "$BUILD_GRADLE"
-sed -i '' '/debug {/{n;s/signingConfig signingConfigs\.release/signingConfig signingConfigs.debug/;}' "$BUILD_GRADLE"
+# 3. Point the release buildType at the release signingConfig
+#    Replace `signingConfig signingConfigs.debug` inside the release block.
+#    Find the release { ... } block and swap the signingConfig line.
+def patch_release_block(text):
+    # Match `release {` block and replace signingConfig inside it
+    pattern = re.compile(
+        r'(release\s*\{[^}]*?)'           # release { ... (non-greedy)
+        r'(signingConfig\s+signingConfigs\.\w+)',
+        re.DOTALL
+    )
+    return pattern.sub(r'\1signingConfig signingConfigs.release', text)
 
-# ── Nuke ALL Gradle caches + RN plugin build artifacts ───────
+src = patch_release_block(src)
+
+with open(path, "w") as f:
+    f.write(src)
+
+print("✅ build.gradle patched")
+PYEOF
+
+# ── Nuke Gradle caches + build artifacts ─────────────────────
 rm -rf ~/.gradle/caches
 rm -rf ~/.gradle/daemon
 rm -rf ~/.gradle/native
@@ -58,6 +108,15 @@ rm -rf node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/build
 rm -rf android/build
 rm -rf android/app/build
 rm -rf android/.gradle
+
+# ── Kill iCloud duplicates before Gradle runs ─────────────────
+# iCloud creates "File 2.java", "File 3.java" etc. when the project
+# lives on Desktop. Delete them right before the build so they don't
+# cause javac failures. The pattern matches any " N.java" suffix.
+echo "🧹 Removing iCloud duplicate .java files..."
+find android -name "* [0-9].java" -delete 2>/dev/null || true
+find node_modules/expo/android/build/generated -name "* [0-9].java" -delete 2>/dev/null || true
+echo "✅ Done"
 
 # ── Build AAB ────────────────────────────────────────────────
 cd android
