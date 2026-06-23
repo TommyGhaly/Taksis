@@ -269,6 +269,18 @@ const IndividualServant = () => {
                 .collection("Servants Meeting").doc(servantID)
                 .delete();
 
+              // Only delete the stored photo for MANUAL servants. The manual
+              // photo lives solely at profilePictures/{manual_id}.png and is
+              // referenced nowhere else, so removing the servant should clean
+              // it up. For real users, profilePictures/{uid}.png is their
+              // app-wide profile picture and must NOT be deleted just because
+              // they were taken off this list.
+              if (manual) {
+                try {
+                  await storage().ref(`profilePictures/${servantID}.png`).delete();
+                } catch {}
+              }
+
               if (!manual) {
                 // Offer to revoke role only for real users
                 Alert.alert(

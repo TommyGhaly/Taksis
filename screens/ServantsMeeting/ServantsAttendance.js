@@ -16,6 +16,7 @@ import {
   Keyboard,
   Animated,
   ScrollView,
+  RefreshControl,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
@@ -72,6 +73,16 @@ const getNextSunday = () => {
   const nextSunday = new Date(today);
   nextSunday.setDate(today.getDate() + (7 - currentDay));
   return formatDate(nextSunday);
+};
+
+// Pretty label for a MM-DD-YYYY date string (e.g. "Sun, Jun 22")
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const prettyDate = (dateStr) => {
+  if (!dateStr) return "";
+  const [mm, dd, yyyy] = dateStr.split("-").map((n) => parseInt(n, 10));
+  const d = new Date(yyyy, mm - 1, dd);
+  return `${DAYS[d.getDay()]}, ${MONTHS[mm - 1]} ${dd}`;
 };
 
 // ── Merge logic ───────────────────────────────────────────────────────────────
@@ -157,6 +168,7 @@ const ServantsAttendance = () => {
   const [rawServantsData, setRawServantsData] = useState([]);
   const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [sections, setSections] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
   const [dateModalVisible, setDateModalVisible] = useState(false);
@@ -168,6 +180,7 @@ const ServantsAttendance = () => {
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPhotoUid, setNewPhotoUid] = useState(null);
+  const [tempPhotoUploaded, setTempPhotoUploaded] = useState(false); // a photo exists in storage under newPhotoUid
   const [showPhotoInput, setShowPhotoInput] = useState(false);
   const [addingServant, setAddingServant] = useState(false);
 
@@ -176,6 +189,9 @@ const ServantsAttendance = () => {
   const cacheKeys = useRef({ user: null, servants: null, profilePics: null });
   const searchInputRef = useRef(null);
   const keyboardOffset = useRef(new Animated.Value(0)).current;
+  // Tracks which UID sets we've already fetched photos for, so a re-render
+  // with the same roster doesn't refetch.
+  const fetchedUidKey = useRef("");
 
   // Keyboard animation
   useEffect(() => {
@@ -263,15 +279,30 @@ const ServantsAttendance = () => {
           const data = snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data() }));
           setRawServantsData(data);
           await CacheUtils.set(cacheKeys.current.servants, data);
-          fetchProfilePictures(data);
+          // NOTE: profile picture fetching is intentionally NOT called here.
+          // Attendance toggles mutate docs and fire this snapshot constantly;
+          // photos are fetched by a separate effect keyed on the UID set so
+          // they don't reload on every present/absent tap.
         }, () => { if (isMounted.current) Alert.alert("Error", "Failed to load servants."); });
     } catch (e) { if (isMounted.current) Alert.alert("Error", e.message); }
   };
 
-  const fetchProfilePictures = async (servantsData) => {
+  // Stable key representing exactly which servants exist (order-independent).
+  // Changes only when someone is added/removed — NOT when attendance changes.
+  const uidKey = useMemo(
+    () => rawServantsData.map((s) => s.uid).sort().join(","),
+    [rawServantsData]
+  );
+
+  // Fetch photos for any UID we don't already have a url cached for.
+  // `force` re-checks storage for every servant (used by pull-to-refresh).
+  const fetchProfilePictures = useCallback(async (servantsData, force = false) => {
     try {
       const urls = { ...profilePictureUrls };
-      const toFetch = servantsData.filter((s) => !urls[s.uid]);
+      const toFetch = force
+        ? servantsData
+        : servantsData.filter((s) => urls[s.uid] === undefined);
+      if (toFetch.length === 0) return;
       const batchSize = 10;
       for (let i = 0; i < toFetch.length; i += batchSize) {
         const batch = toFetch.slice(i, i + batchSize);
@@ -289,11 +320,32 @@ const ServantsAttendance = () => {
       }
       if (isMounted.current) await CacheUtils.set(cacheKeys.current.profilePics, urls);
     } catch {}
-  };
+  }, [profilePictureUrls]);
+
+  // Mount + roster-change photo fetch. Only runs when the UID set changes,
+  // so present/absent toggles never trigger a photo reload.
+  useEffect(() => {
+    if (rawServantsData.length === 0) return;
+    if (fetchedUidKey.current === uidKey) return;
+    fetchedUidKey.current = uidKey;
+    fetchProfilePictures(rawServantsData, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uidKey]);
+
+  // Pull-to-refresh: force re-check storage for every servant in case a
+  // photo changed server-side, plus re-pull the roster from cache/listener.
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchProfilePictures(rawServantsData, true);
+    } finally {
+      if (isMounted.current) setRefreshing(false);
+    }
+  }, [rawServantsData, fetchProfilePictures]);
 
   // Build sections
   useEffect(() => {
-    if (rawServantsData.length === 0) return;
+    if (rawServantsData.length === 0) { setSections([]); return; }
     const dateKey = selectedDate || getNextSunday();
     const processed = rawServantsData
       .map((s) => ({ ...s, attendance: s[dateKey] !== undefined ? s[dateKey] : null }))
@@ -333,20 +385,53 @@ const ServantsAttendance = () => {
     const tempUid = `manual_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     setNewPhotoUid(tempUid);
     setNewName("");
+    setTempPhotoUploaded(false);
     setAddModalVisible(true);
   };
 
+  // Cancelling without saving: delete any photo already uploaded under the
+  // temp uid so we don't leave an orphaned file in storage.
+  const cancelAddModal = useCallback(async () => {
+    setAddModalVisible(false);
+    setNewName("");
+    if (tempPhotoUploaded && newPhotoUid) {
+      const uid = newPhotoUid;
+      try {
+        await storage().ref(`profilePictures/${uid}.png`).delete();
+      } catch {}
+      if (isMounted.current) {
+        setProfilePictureUrls((prev) => {
+          const next = { ...prev };
+          delete next[uid];
+          return next;
+        });
+      }
+    }
+    setTempPhotoUploaded(false);
+  }, [tempPhotoUploaded, newPhotoUid]);
+
   const handleAddServant = async () => {
-    if (!newName.trim()) { Alert.alert("Name required", "Please enter a name."); return; }
+    const trimmed = newName.trim().replace(/\s+/g, " ");
+    const words = trimmed.split(" ").filter(Boolean);
+    if (words.length < 2) {
+      Alert.alert("Full name required", "Please enter both a first and last name.");
+      return;
+    }
     setAddingServant(true);
     try {
       const docId = newPhotoUid; // already has manual_ prefix
+
+      // The photo (if any) was uploaded to profilePictures/{docId}.png when the
+      // user confirmed in PhotoInput. Since the temp uid IS the docId, it's
+      // already at the correct path — no move needed.
       await firestore()
         .collection("churches").doc(userData.church)
         .collection("Servants Meeting").doc(docId)
-        .set({ uid: docId, name: newName.trim(), manual: true });
+        .set({ uid: docId, name: trimmed, manual: true });
+
       setAddModalVisible(false);
       setNewName("");
+      setTempPhotoUploaded(false); // committed — do not delete on next open
     } catch (e) {
       Alert.alert("Error", "Failed to add servant. " + e.message);
     } finally {
@@ -359,7 +444,6 @@ const ServantsAttendance = () => {
   const renderServant = useMemo(
     () =>
       ({ item: servant }) => {
-        const dateKey = selectedDate || getNextSunday();
         const isPastDate = selectedDate && selectedDate !== getNextSunday();
         const manual = isManual(servant.uid);
 
@@ -383,33 +467,18 @@ const ServantsAttendance = () => {
                       </View>
                     )}
                   </View>
-                  {manual ? (
-                    <TouchableOpacity
-                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                      onPress={() => {
-                        if (!userData) return;
-                        setIsNavigating(true);
-                        navigation.navigate("IndividualServant", { church: userData.church, servantID: servant.uid });
-                        setTimeout(() => setIsNavigating(false), 1000);
-                      }}
-                      disabled={isNavigating}
-                    >
-                      <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity
-                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                      onPress={() => {
-                        if (!userData) return;
-                        setIsNavigating(true);
-                        navigation.navigate("IndividualServant", { church: userData.church, servantID: servant.uid });
-                        setTimeout(() => setIsNavigating(false), 1000);
-                      }}
-                      disabled={isNavigating}
-                    >
-                      <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity
+                    hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                    onPress={() => {
+                      if (!userData) return;
+                      setIsNavigating(true);
+                      navigation.navigate("IndividualServant", { church: userData.church, servantID: servant.uid });
+                      setTimeout(() => setIsNavigating(false), 1000);
+                    }}
+                    disabled={isNavigating}
+                  >
+                    <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+                  </TouchableOpacity>
                 </View>
 
                 {isPastDate ? (
@@ -445,7 +514,7 @@ const ServantsAttendance = () => {
           </View>
         );
       },
-    [profilePictureUrls, userData, selectedDate, isNavigating, rawServantsData]
+    [profilePictureUrls, userData, selectedDate, isNavigating]
   );
 
   const renderSectionHeader = useMemo(
@@ -466,6 +535,7 @@ const ServantsAttendance = () => {
   }
 
   const dateKey = selectedDate || getNextSunday();
+  const isCurrentWeek = !selectedDate || selectedDate === getNextSunday();
 
   return (
     <View style={styles.container}>
@@ -480,12 +550,15 @@ const ServantsAttendance = () => {
         <View style={styles.weekSelectorLeft}>
           <Ionicons name="calendar-outline" size={20} color="#147EFB" />
           <View style={styles.weekSelectorTextWrap}>
-            <Text style={styles.weekSelectorLabel}>Week of</Text>
-            <Text style={styles.weekSelectorDate}>{dateKey}</Text>
+            <Text style={styles.weekSelectorLabel}>
+              {isCurrentWeek ? "This Week" : "Viewing"}
+            </Text>
+            <Text style={styles.weekSelectorDate}>{prettyDate(dateKey)}</Text>
           </View>
         </View>
         <View style={styles.weekSelectorRight}>
           <Text style={styles.weekSelectorChange}>Change</Text>
+          <Ionicons name="chevron-down" size={14} color="#147EFB" style={{ marginLeft: 4 }} />
         </View>
       </TouchableOpacity>
 
@@ -497,6 +570,14 @@ const ServantsAttendance = () => {
           renderSectionHeader={renderSectionHeader}
           keyExtractor={(item) => item.uid}
           contentContainerStyle={[styles.listContainer, { paddingRight: 30 }]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#147EFB"
+              colors={["#147EFB"]}
+            />
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Ionicons name="people-outline" size={64} color="rgba(255,255,255,0.3)" />
@@ -548,48 +629,94 @@ const ServantsAttendance = () => {
       </Animated.View>
 
       {/* ── Date picker modal ── */}
-      <Modal visible={dateModalVisible} transparent animationType="fade">
+      <Modal visible={dateModalVisible} transparent animationType="fade" onRequestClose={() => setDateModalVisible(false)}>
         <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Week</Text>
-            <Text style={styles.modalSubtitle}>View attendance for a previous week</Text>
-            <TouchableOpacity style={styles.modalButton} onPress={() => { setSelectedDate(null); setDateModalVisible(false); }} activeOpacity={0.7}>
-              <Text style={styles.modalButtonText}>Jump to This Week</Text>
+          <View style={styles.weekModalCard}>
+            {/* Header */}
+            <View style={styles.weekModalHeader}>
+              <View>
+                <Text style={styles.weekModalTitle}>Select a week</Text>
+                <Text style={styles.weekModalSubtitle}>Tap any Sunday to view its attendance</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.weekModalClose}
+                onPress={() => setDateModalVisible(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={20} color="rgba(255,255,255,0.6)" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Jump to this week */}
+            <TouchableOpacity
+              style={[styles.thisWeekRow, isCurrentWeek && styles.weekRowSelected]}
+              onPress={() => { setSelectedDate(null); setDateModalVisible(false); }}
+              activeOpacity={0.7}
+            >
+              <View style={styles.thisWeekIcon}>
+                <Ionicons name="today-outline" size={18} color="#147EFB" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.thisWeekTitle}>This week</Text>
+                <Text style={styles.thisWeekDate}>{prettyDate(getNextSunday())}</Text>
+              </View>
+              {isCurrentWeek && <Ionicons name="checkmark-circle" size={20} color="#147EFB" />}
             </TouchableOpacity>
-            <FlatList
-              data={previousSundays}
-              keyExtractor={(item) => item}
-              style={styles.dateList}
-              showsVerticalScrollIndicator={false}
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.dateItem} onPress={() => { setSelectedDate(item); setDateModalVisible(false); }} activeOpacity={0.7}>
-                  <Text style={styles.dateText}>{item}</Text>
-                </TouchableOpacity>
-              )}
-            />
-            <TouchableOpacity onPress={() => setDateModalVisible(false)} style={styles.cancelTouchable}>
-              <Text style={styles.cancelButtonText}>Close</Text>
-            </TouchableOpacity>
+
+            <View style={styles.weekModalDivider}>
+              <Text style={styles.weekModalDividerText}>Previous weeks</Text>
+            </View>
+
+            {/* Scrollable list with fade hint */}
+            <View style={styles.weekListWrap}>
+              <FlatList
+                data={previousSundays}
+                keyExtractor={(item) => item}
+                style={styles.dateList}
+                showsVerticalScrollIndicator={true}
+                indicatorStyle="white"
+                renderItem={({ item }) => {
+                  const selected = selectedDate === item;
+                  return (
+                    <TouchableOpacity
+                      style={[styles.weekRow, selected && styles.weekRowSelected]}
+                      onPress={() => { setSelectedDate(item); setDateModalVisible(false); }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.weekRowText, selected && styles.weekRowTextSelected]}>
+                        {prettyDate(item)}
+                      </Text>
+                      {selected ? (
+                        <Ionicons name="checkmark-circle" size={20} color="#147EFB" />
+                      ) : (
+                        <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.25)" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+              {/* bottom fade to signal more content scrolls */}
+              <View pointerEvents="none" style={styles.weekListFade} />
+            </View>
           </View>
         </View>
       </Modal>
 
       {/* ── Add manual servant modal ── */}
-      <Modal visible={addModalVisible} transparent animationType="slide" onRequestClose={() => setAddModalVisible(false)}>
-        <View style={styles.sheetOverlay}>
-          <TouchableOpacity style={styles.sheetDismiss} activeOpacity={1} onPress={() => setAddModalVisible(false)} />
-          <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
+      <Modal visible={addModalVisible} transparent animationType="fade" onRequestClose={cancelAddModal}>
+        <View style={styles.sheetOverlayCentered}>
+          <TouchableOpacity style={styles.sheetDismiss} activeOpacity={1} onPress={cancelAddModal} />
+          <View style={styles.centeredCard}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Add Servant Manually</Text>
-              <TouchableOpacity style={styles.sheetClose} onPress={() => setAddModalVisible(false)}>
+              <TouchableOpacity style={styles.sheetClose} onPress={cancelAddModal}>
                 <Text style={styles.sheetCloseX}>×</Text>
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.sheetBody} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               {/* Photo */}
-              <TouchableOpacity style={styles.photoPickerRow} onPress={() => setShowPhotoInput(true)} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.photoPickerRow} onPress={() => { setAddModalVisible(false); setTimeout(() => setShowPhotoInput(true), Platform.OS === "ios" ? 350 : 0); }} activeOpacity={0.8}>
                 <View style={styles.photoPickerCircle}>
                   {profilePictureUrls[newPhotoUid] ? (
                     <Image source={{ uri: profilePictureUrls[newPhotoUid] }} style={styles.photoPickerImage} />
@@ -603,10 +730,10 @@ const ServantsAttendance = () => {
               </TouchableOpacity>
 
               {/* Name */}
-              <Text style={styles.inputLabel}>Name *</Text>
+              <Text style={styles.inputLabel}>Full name *</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="Full name"
+                placeholder="First and last name"
                 placeholderTextColor="rgba(255,255,255,0.3)"
                 value={newName}
                 onChangeText={setNewName}
@@ -617,13 +744,13 @@ const ServantsAttendance = () => {
               <View style={styles.sheetNote}>
                 <Ionicons name="information-circle-outline" size={14} color="rgba(255,255,255,0.35)" />
                 <Text style={styles.sheetNoteText}>
-                  This servant will appear with a Manual badge. Once they join the app you can sync their record to their account.
+                  Enter both a first and last name. This servant appears with a Manual badge; once they join the app you can sync their record to their account.
                 </Text>
               </View>
             </ScrollView>
 
             <View style={styles.sheetFooter}>
-              <TouchableOpacity style={styles.sheetCancelBtn} onPress={() => setAddModalVisible(false)} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.sheetCancelBtn} onPress={cancelAddModal} activeOpacity={0.8}>
                 <Text style={styles.sheetCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -643,19 +770,16 @@ const ServantsAttendance = () => {
         </View>
       </Modal>
 
-      {/* Photo picker (reuses existing PhotoInput component) */}
+      {/* Photo picker (reuses existing PhotoInput component, unchanged) */}
       {showPhotoInput && newPhotoUid && (
         <PhotoInput
           visible={showPhotoInput}
           userId={newPhotoUid}
-          onClose={async () => {
-            setShowPhotoInput(false);
-            // Refresh photo URL for this manual uid
-            try {
-              const url = await storage().ref(`profilePictures/${newPhotoUid}.png`).getDownloadURL();
-              if (url) setProfilePictureUrls((prev) => ({ ...prev, [newPhotoUid]: url }));
-            } catch {}
+          onUploadSuccess={(url) => {
+            setTempPhotoUploaded(true);
+            if (url) setProfilePictureUrls((prev) => ({ ...prev, [newPhotoUid]: url }));
           }}
+          onClose={() => { setShowPhotoInput(false); setAddModalVisible(true); }}
         />
       )}
     </View>
@@ -754,31 +878,71 @@ const styles = StyleSheet.create({
   noStudentsText: { fontSize: 16, color: "rgba(255,255,255,0.5)", textAlign: "center", marginTop: 16 },
   navigatingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "center", alignItems: "center", zIndex: 1000 },
 
-  // Date modal
-  modalContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.7)" },
-  modalContent: { width: "85%", maxWidth: 360, padding: 28, backgroundColor: "#1a1a1a", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", alignItems: "center" },
-  modalTitle: { fontSize: 22, color: "#fff", fontWeight: "600", marginBottom: 8 },
-  modalSubtitle: { fontSize: 15, color: "rgba(255,255,255,0.6)", marginBottom: 24, textAlign: "center" },
-  modalButton: { width: "100%", backgroundColor: "#147EFB", borderRadius: 14, paddingVertical: 16, alignItems: "center", marginBottom: 12 },
-  modalButtonText: { fontSize: 17, fontWeight: "600", color: "#fff" },
-  cancelTouchable: { paddingVertical: 8 },
-  cancelButtonText: { fontSize: 16, color: "#ff3b30", fontWeight: "600" },
-  dateList: { width: "100%", maxHeight: 280, marginBottom: 16 },
-  dateItem: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
-  dateText: { fontSize: 16, color: "#fff", textAlign: "center" },
+  // ── Week picker modal (redesigned) ──
+  modalContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.7)", paddingHorizontal: 20 },
+  weekModalCard: {
+    width: "100%", maxWidth: 400, backgroundColor: "#1a1a1a", borderRadius: 18,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden",
+    maxHeight: height * 0.78,
+  },
+  weekModalHeader: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
+    paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16,
+  },
+  weekModalTitle: { fontSize: 20, color: "#fff", fontWeight: "700" },
+  weekModalSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 4 },
+  weekModalClose: {
+    width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center", justifyContent: "center",
+  },
 
-  // Bottom sheet (shared by add + sync)
-  sheetOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
-  sheetDismiss: { flex: 1 },
-  sheet: {
-    backgroundColor: "#1a1a1a", borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+  thisWeekRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    marginHorizontal: 16, marginBottom: 4, paddingVertical: 14, paddingHorizontal: 14,
+    borderRadius: 12, backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.06)",
+  },
+  thisWeekIcon: {
+    width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(20,126,251,0.15)",
+    alignItems: "center", justifyContent: "center",
+  },
+  thisWeekTitle: { fontSize: 15, color: "#fff", fontWeight: "600" },
+  thisWeekDate: { fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 1 },
+
+  weekModalDivider: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 6 },
+  weekModalDividerText: {
+    fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: "600",
+    textTransform: "uppercase", letterSpacing: 0.6,
+  },
+
+  weekListWrap: { position: "relative", flexShrink: 1 },
+  dateList: { width: "100%", paddingHorizontal: 16 },
+  weekRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingVertical: 14, paddingHorizontal: 14, marginBottom: 8,
+    borderRadius: 12, backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.06)",
+  },
+  weekRowSelected: { backgroundColor: "rgba(20,126,251,0.15)", borderColor: "rgba(20,126,251,0.4)" },
+  weekRowText: { fontSize: 15, color: "#fff", fontWeight: "500" },
+  weekRowTextSelected: { color: "#fff", fontWeight: "700" },
+  weekListFade: {
+    position: "absolute", left: 0, right: 0, bottom: 0, height: 28,
+    // subtle fade so it's obvious the list scrolls
+    backgroundColor: "transparent",
+    borderBottomLeftRadius: 18, borderBottomRightRadius: 18,
+  },
+
+  // Centered card (add manual servant — no slide animation)
+  sheetOverlayCentered: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", paddingHorizontal: 20 },
+  sheetDismiss: { ...StyleSheet.absoluteFillObject },
+  centeredCard: {
+    width: "100%", maxWidth: 400, backgroundColor: "#1a1a1a", borderRadius: 20,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden",
     maxHeight: height * 0.82,
   },
-  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)", alignSelf: "center", marginTop: 10, marginBottom: 4 },
   sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
   sheetTitle: { fontSize: 18, fontWeight: "700", color: "#fff" },
-  sheetSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 2 },
   sheetClose: { width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(255,255,255,0.08)", alignItems: "center", justifyContent: "center" },
   sheetCloseX: { color: "rgba(255,255,255,0.6)", fontSize: 20, fontWeight: "300", marginTop: -1 },
   sheetBody: { paddingHorizontal: 20, paddingTop: 16 },
@@ -797,19 +961,6 @@ const styles = StyleSheet.create({
   textInput: { backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, color: "#fff", fontSize: 15, marginBottom: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
   sheetNote: { flexDirection: "row", gap: 8, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 12, marginBottom: 8 },
   sheetNoteText: { flex: 1, color: "rgba(255,255,255,0.35)", fontSize: 12, lineHeight: 17 },
-
-  // Sync modal
-  syncSearchWrap: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12, marginHorizontal: 16, marginVertical: 12, paddingHorizontal: 12, height: 42, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  syncSearchInput: { flex: 1, color: "#fff", fontSize: 15, paddingVertical: 0 },
-  syncLoading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
-  syncLoadingText: { color: "rgba(255,255,255,0.4)", fontSize: 14 },
-  syncEmpty: { color: "rgba(255,255,255,0.35)", textAlign: "center", fontSize: 14, paddingVertical: 32 },
-  syncUserRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 13, gap: 12 },
-  syncUserAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(20,126,251,0.15)", alignItems: "center", justifyContent: "center" },
-  syncUserAvatarText: { color: "#147efb", fontSize: 16, fontWeight: "700" },
-  syncUserName: { color: "#fff", fontSize: 15, fontWeight: "600" },
-  syncUserPhone: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 },
-  syncSep: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.06)", marginHorizontal: 16 },
 });
 
 export default ServantsAttendance;

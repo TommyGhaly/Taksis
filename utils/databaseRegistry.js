@@ -63,7 +63,7 @@ export const KNOWN_COLLECTIONS = [
         subcollections: GRADE_SUBTREE,
         dynamicChildren: 'students',
       },
-      "Servant's Meeting": {},
+      "Servants Meeting": {},
       'archive': {
         // archive docs are weeks keyed mm-dd-yy
         sortBy: '__date_mmddyy__',
