@@ -16,6 +16,7 @@ import {
   Keyboard,
   Animated,
   ScrollView,
+  Dimensions,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
@@ -25,6 +26,8 @@ import storage from "@react-native-firebase/storage";
 import * as Haptics from "react-native-haptic-feedback";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const { height } = Dimensions.get("window");
 
 const CacheUtils = {
   async get(key) {
@@ -72,6 +75,18 @@ const formatBirthdayInput = (raw) => {
   if (digits.length <= 2) return digits;
   if (digits.length <= 4) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
   return `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
+};
+
+// Pretty label for a MM-DD-YYYY date string (e.g. "Sat, Jun 21")
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const prettyDate = (dateStr) => {
+  if (!dateStr) return "";
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return dateStr;
+  const [mm, dd, yyyy] = parts.map((n) => parseInt(n, 10));
+  const d = new Date(yyyy, mm - 1, dd);
+  return `${DAYS[d.getDay()]}, ${MONTHS[mm - 1]} ${dd}`;
 };
 
 const AlhanAttendance = () => {
@@ -491,7 +506,7 @@ const AlhanAttendance = () => {
   };
 
   const handleJumpToCurrentWeek = () => {
-    setSelectedDate(getNextSaturday());
+    setSelectedDate(null);
     setDateModalVisible(false);
   };
 
@@ -509,16 +524,6 @@ const AlhanAttendance = () => {
         );
       },
     [searchQuery, gradeSections, scrollToGrade]
-  );
-
-  const renderDate = useMemo(
-    () =>
-      ({ item }) => (
-        <TouchableOpacity style={styles.dateItem} onPress={() => handleDateSelect(item)} activeOpacity={0.7}>
-          <Text style={styles.dateText}>{item}</Text>
-        </TouchableOpacity>
-      ),
-    []
   );
 
   const renderStudent = useCallback(
@@ -639,6 +644,7 @@ const AlhanAttendance = () => {
   }
 
   const dateKey = selectedDate || getNextSaturday();
+  const isCurrentWeek = !selectedDate || selectedDate === getNextSaturday();
 
   return (
     <View style={styles.container}>
@@ -657,12 +663,13 @@ const AlhanAttendance = () => {
         <View style={styles.weekSelectorLeft}>
           <Ionicons name="calendar-outline" size={20} color="#147EFB" />
           <View style={styles.weekSelectorTextWrap}>
-            <Text style={styles.weekSelectorLabel}>Week of</Text>
-            <Text style={styles.weekSelectorDate}>{dateKey}</Text>
+            <Text style={styles.weekSelectorLabel}>{isCurrentWeek ? "This Week" : "Viewing"}</Text>
+            <Text style={styles.weekSelectorDate}>{prettyDate(dateKey)}</Text>
           </View>
         </View>
         <View style={styles.weekSelectorRight}>
           <Text style={styles.weekSelectorChange}>Change</Text>
+          <Ionicons name="chevron-down" size={14} color="#147EFB" style={{ marginLeft: 4 }} />
         </View>
       </TouchableOpacity>
 
@@ -928,24 +935,73 @@ const AlhanAttendance = () => {
       </Modal>
 
       {/* ---------- Week picker modal ---------- */}
-      <Modal visible={dateModalVisible} transparent animationType="fade">
+      <Modal visible={dateModalVisible} transparent animationType="fade" onRequestClose={() => setDateModalVisible(false)}>
         <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Week</Text>
-            <Text style={styles.modalSubtitle}>View attendance for a previous week</Text>
-            <TouchableOpacity style={styles.modalButton} onPress={handleJumpToCurrentWeek} activeOpacity={0.7}>
-              <Text style={styles.modalButtonText}>Jump to This Week</Text>
+          <View style={styles.weekModalCard}>
+            {/* Header */}
+            <View style={styles.weekModalHeader}>
+              <View>
+                <Text style={styles.weekModalTitle}>Select a week</Text>
+                <Text style={styles.weekModalSubtitle}>Tap any Saturday to view its attendance</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.weekModalClose}
+                onPress={() => setDateModalVisible(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={20} color="rgba(255,255,255,0.6)" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Jump to this week */}
+            <TouchableOpacity
+              style={[styles.thisWeekRow, isCurrentWeek && styles.weekRowSelected]}
+              onPress={handleJumpToCurrentWeek}
+              activeOpacity={0.7}
+            >
+              <View style={styles.thisWeekIcon}>
+                <Ionicons name="today-outline" size={18} color="#147EFB" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.thisWeekTitle}>This week</Text>
+                <Text style={styles.thisWeekDate}>{prettyDate(getNextSaturday())}</Text>
+              </View>
+              {isCurrentWeek && <Ionicons name="checkmark-circle" size={20} color="#147EFB" />}
             </TouchableOpacity>
-            <FlatList
-              data={previousSaturdays}
-              renderItem={renderDate}
-              keyExtractor={(item) => item}
-              style={styles.dateList}
-              showsVerticalScrollIndicator={false}
-            />
-            <TouchableOpacity onPress={() => setDateModalVisible(false)} style={styles.cancelTouchable}>
-              <Text style={styles.cancelButtonText}>Close</Text>
-            </TouchableOpacity>
+
+            <View style={styles.weekModalDivider}>
+              <Text style={styles.weekModalDividerText}>Previous weeks</Text>
+            </View>
+
+            {/* Scrollable list */}
+            <View style={styles.weekListWrap}>
+              <FlatList
+                data={previousSaturdays}
+                keyExtractor={(item) => item}
+                style={styles.dateList}
+                showsVerticalScrollIndicator={true}
+                indicatorStyle="white"
+                renderItem={({ item }) => {
+                  const selected = selectedDate === item;
+                  return (
+                    <TouchableOpacity
+                      style={[styles.weekRow, selected && styles.weekRowSelected]}
+                      onPress={() => handleDateSelect(item)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.weekRowText, selected && styles.weekRowTextSelected]}>
+                        {prettyDate(item)}
+                      </Text>
+                      {selected ? (
+                        <Ionicons name="checkmark-circle" size={20} color="#147EFB" />
+                      ) : (
+                        <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.25)" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            </View>
           </View>
         </View>
       </Modal>
@@ -1007,8 +1063,84 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#147EFB",
     fontWeight: "600",
-    marginRight: 4,
   },
+
+  // ---------- Week picker modal (redesigned) ----------
+  weekModalCard: {
+    width: "90%",
+    maxWidth: 400,
+    backgroundColor: "#1a1a1a",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    overflow: "hidden",
+    maxHeight: height * 0.78,
+  },
+  weekModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+  },
+  weekModalTitle: { fontSize: 20, color: "#fff", fontWeight: "700" },
+  weekModalSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 4 },
+  weekModalClose: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  thisWeekRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginHorizontal: 16,
+    marginBottom: 4,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  thisWeekIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(20,126,251,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  thisWeekTitle: { fontSize: 15, color: "#fff", fontWeight: "600" },
+  thisWeekDate: { fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 1 },
+  weekModalDivider: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 6 },
+  weekModalDividerText: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.4)",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  weekListWrap: { position: "relative", flexShrink: 1 },
+  weekRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  weekRowSelected: { backgroundColor: "rgba(20,126,251,0.15)", borderColor: "rgba(20,126,251,0.4)" },
+  weekRowText: { fontSize: 15, color: "#fff", fontWeight: "500" },
+  weekRowTextSelected: { color: "#fff", fontWeight: "700" },
 
   // ---------- Grade tags ----------
   gradesContainer: {
@@ -1079,7 +1211,7 @@ const styles = StyleSheet.create({
 
   // ---------- List ----------
   sectionListContent: {
-    paddingBottom: 110, // leave room for the floating bar
+    paddingBottom: 110,
   },
   gradeHeaderRow: {
     flexDirection: "row",
@@ -1382,18 +1514,7 @@ const styles = StyleSheet.create({
   },
   dateList: {
     width: "100%",
-    maxHeight: 280,
-    marginBottom: 16,
-  },
-  dateItem: {
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.06)",
-  },
-  dateText: {
-    fontSize: 16,
-    color: "#fff",
-    textAlign: "center",
+    paddingHorizontal: 16,
   },
   navigatingOverlay: {
     ...StyleSheet.absoluteFillObject,

@@ -5,13 +5,14 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
   ActivityIndicator, Alert, StyleSheet, SafeAreaView, Modal,
-  KeyboardAvoidingView, Platform, Keyboard, Animated, AppState,
+  KeyboardAvoidingView, Platform, Keyboard, Animated, AppState, Image,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
+import storage from '@react-native-firebase/storage';
 import {
   KNOWN_COLLECTIONS, AUDIT_COLLECTION, BULK_HARD_CEILING,
   resolveCollectionNode, declaredSubcollectionsForDoc,
@@ -45,9 +46,14 @@ const TYPE_TINT = {
   array: C.t4, map: C.t4, null: C.t4,
 };
 
+// Synthetic root entry for the storage browser. Not a Firestore collection —
+// handled by its own view branch.
+const STORAGE_ROOT_PREFIX = 'profilePictures';
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 25;
+const STORAGE_PAGE_SIZE = 50;
 
 const detectType = (v) => {
   if (v === null || v === undefined) return 'null';
@@ -85,6 +91,13 @@ const formatTimestamp = (date) => {
   else if (abs2 < 31536000) rel = `${Math.round(abs2/2592000)}mo ago`;
   else rel = `${Math.round(abs2/31536000)}y ago`;
   return { abs, rel };
+};
+
+const formatBytes = (n) => {
+  if (n == null || Number.isNaN(n)) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 const writeAudit = async (action, path, before, after, meta = {}) => {
@@ -581,6 +594,7 @@ export default function DatabaseManagerScreen() {
   useEffect(() => { if (gateState === 'locked') runBiometric(); }, [gateState, runBiometric]);
 
   const goCollection = (path, label) => { setStack([{ type: 'collection', path, label: label || path }]); setView('collection'); };
+  const goStorage = () => { setStack([{ type: 'storage', path: STORAGE_ROOT_PREFIX, label: 'Profile Pictures' }]); setView('storage'); };
   const goDocument = (path, label) => { setStack((s) => [...s, { type: 'document', path, label }]); setView('document'); };
   const goSubcollection = (path, label) => { setStack((s) => [...s, { type: 'collection', path, label }]); setView('collection'); };
   const goBack = () => {
@@ -637,10 +651,13 @@ export default function DatabaseManagerScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <Header view={view} stack={stack} onBack={view !== 'root' ? goBack : null} />
-      {view === 'root' && <RootList onPick={goCollection} />}
+      {view === 'root' && <RootList onPick={goCollection} onPickStorage={goStorage} />}
       {view === 'collection' && (
         <CollectionView key={current.path} collectionPath={current.path} label={current.label}
           onOpenDoc={(docPath, id) => goDocument(docPath, id)} />
+      )}
+      {view === 'storage' && (
+        <StorageView key={current.path} prefix={current.path} />
       )}
       {view === 'document' && (
         <DocumentView key={current.path} docPath={current.path} label={current.label}
@@ -685,12 +702,28 @@ function Header({ view, stack, onBack }) {
 
 // ── Root list ─────────────────────────────────────────────────────────────────
 
-function RootList({ onPick }) {
+function RootList({ onPick, onPickStorage }) {
   return (
     <FlatList
       data={KNOWN_COLLECTIONS}
       keyExtractor={(c) => c.path}
       contentContainerStyle={styles.rootList}
+      ListFooterComponent={
+        <>
+          <Text style={styles.rootSectionLabel}>Storage</Text>
+          <TouchableOpacity style={styles.collectionCard} onPress={onPickStorage} activeOpacity={0.8}>
+            <View style={[styles.collectionIconWrap, { backgroundColor: 'rgba(20,126,251,0.12)' }]}>
+              <Ionicons name="images" size={20} color={C.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.collectionTitle}>Profile Pictures</Text>
+              <Text style={styles.collectionPath}>/{STORAGE_ROOT_PREFIX}</Text>
+              <Text style={styles.collectionMeta}>Cloud Storage · browse &amp; delete</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.t5} />
+          </TouchableOpacity>
+        </>
+      }
       renderItem={({ item }) => {
         const subCount = item.subcollections ? Object.keys(item.subcollections).length : 0;
         return (
@@ -768,7 +801,11 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
         else {
           const probe = await collRef.orderBy(firestore.FieldPath.documentId()).limit(PAGE_SIZE).get();
           probeDocs = probe.docs;
-          activeSort = probe.docs.some((d) => typeof d.data()?.name === 'string') ? 'name' : '__id__';
+          // Only sort by `name` when EVERY probed doc has a string `name`.
+          // orderBy('name') silently drops docs missing the field, so a single
+          // stray `name` must not switch the whole collection into name-sort —
+          // that's what was hiding most grade docs (containers have no `name`).
+          activeSort = probe.docs.length > 0 && probe.docs.every((d) => typeof d.data()?.name === 'string') ? 'name' : '__id__';
         }
         setSortField(activeSort);
       }
@@ -1009,6 +1046,307 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
               <TextInput
                 style={styles.searchBar}
                 placeholder="Search by ID or any field"
+                placeholderTextColor={C.t3}
+                value={search}
+                onChangeText={setSearch}
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+                clearButtonMode="while-editing"
+              />
+            </View>
+          </View>
+        </BlurView>
+      </Animated.View>
+
+      <TypedConfirmModal state={confirmState} onCancel={() => setConfirmState(null)} />
+    </View>
+  );
+}
+
+// ── Storage view ──────────────────────────────────────────────────────────────
+// Browses Cloud Storage objects under a prefix (profilePictures/). The client
+// Storage SDK CAN enumerate objects (unlike Firestore subcollections), so we
+// paginate with list({ maxResults, pageToken }). Thumbnails load lazily per
+// row. Single + bulk delete; deletes ONLY the storage object (no Firestore).
+
+function StorageItemRow({ item, selectMode, isSelected, onPress, onLongPress, onDelete }) {
+  const [url, setUrl] = useState(null);
+  const [meta, setMeta] = useState(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const u = await item.ref.getDownloadURL();
+        if (alive) setUrl(u);
+      } catch { if (alive) setFailed(true); }
+      try {
+        const m = await item.ref.getMetadata();
+        if (alive) setMeta(m);
+      } catch { /* metadata is best-effort */ }
+    })();
+    return () => { alive = false; };
+  }, [item.fullPath]);
+
+  const sizeLabel = meta?.size != null ? formatBytes(Number(meta.size)) : '';
+  const updated = meta?.updated ? formatTimestamp(new Date(meta.updated)).rel : '';
+  const sub = [sizeLabel, updated].filter(Boolean).join(' · ');
+
+  return (
+    <TouchableOpacity
+      style={[styles.storageCard, isSelected && styles.docCardSelected]}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      activeOpacity={0.8}
+    >
+      {selectMode && (
+        <View style={[styles.checkbox, isSelected && styles.checkboxActive]}>
+          {isSelected && <Ionicons name="checkmark" size={14} color="#fff" />}
+        </View>
+      )}
+      <View style={styles.thumbWrap}>
+        {url && !failed ? (
+          <Image source={{ uri: url }} style={styles.thumb} resizeMode="cover" onError={() => setFailed(true)} />
+        ) : (
+          <Ionicons name={failed ? 'image-outline' : 'hourglass-outline'} size={20} color={C.t4} />
+        )}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.storageName} numberOfLines={1}>{item.name}</Text>
+        {sub ? <Text style={styles.storageMeta} numberOfLines={1}>{sub}</Text> : (
+          <Text style={styles.storageMeta} numberOfLines={1}>{item.fullPath}</Text>
+        )}
+      </View>
+      {!selectMode && (
+        <TouchableOpacity style={styles.storageDeleteBtn} onPress={onDelete} activeOpacity={0.8} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="trash-outline" size={16} color={C.danger} />
+        </TouchableOpacity>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+function StorageView({ prefix }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [search, setSearch] = useState('');
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+  const [confirmState, setConfirmState] = useState(null);
+
+  const keyboardOffset = useRef(new Animated.Value(0)).current;
+  const loadingRef = useRef(false);
+  const pageTokenRef = useRef(undefined);
+  const seenRef = useRef(new Set());
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      Animated.timing(keyboardOffset, { toValue: e.endCoordinates.height, duration: Platform.OS === 'ios' ? e.duration || 250 : 200, useNativeDriver: false }).start();
+    });
+    const hideSub = Keyboard.addListener(hideEvent, (e) => {
+      Animated.timing(keyboardOffset, { toValue: 0, duration: Platform.OS === 'ios' ? e.duration || 250 : 200, useNativeDriver: false }).start();
+    });
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, [keyboardOffset]);
+
+  const loadPage = useCallback(async (reset = false) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true; setLoading(true);
+    try {
+      const ref = storage().ref(prefix);
+      const opts = { maxResults: STORAGE_PAGE_SIZE };
+      if (!reset && pageTokenRef.current) opts.pageToken = pageTokenRef.current;
+      const res = await ref.list(opts);
+      if (reset) seenRef.current = new Set();
+      const newItems = [];
+      for (const r of res.items) {
+        if (seenRef.current.has(r.fullPath)) continue;
+        seenRef.current.add(r.fullPath);
+        newItems.push({ name: r.name, fullPath: r.fullPath, ref: r });
+      }
+      setItems((prev) => (reset ? newItems : [...prev, ...newItems]));
+      pageTokenRef.current = res.nextPageToken || undefined;
+      setDone(!res.nextPageToken);
+    } catch (e) {
+      Alert.alert('Storage load error', e.message);
+      setDone(true);
+    } finally {
+      loadingRef.current = false; setLoading(false);
+    }
+  }, [prefix]);
+
+  useEffect(() => {
+    setItems([]); setDone(false); setSelected(new Set()); setSelectMode(false);
+    pageTokenRef.current = undefined; seenRef.current = new Set(); loadingRef.current = false;
+    loadPage(true);
+  }, [prefix]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((it) => it.name.toLowerCase().includes(q) || it.fullPath.toLowerCase().includes(q));
+  }, [items, search]);
+
+  // Keep paging while a search is active and more pages remain (cap to avoid
+  // unbounded scans on very large buckets).
+  const SEARCH_SCAN_CAP = 1000;
+  useEffect(() => {
+    if (!search.trim() || done || loading || items.length >= SEARCH_SCAN_CAP) return;
+    loadPage(false);
+  }, [search, items.length, done, loading, loadPage]);
+
+  const toggleSelect = (path) => setSelected((s) => { const n = new Set(s); n.has(path) ? n.delete(path) : n.add(path); return n; });
+  const selectAllVisible = () => setSelected(new Set(filtered.map((it) => it.fullPath)));
+
+  const deleteByPaths = async (paths) => {
+    // Delete with limited concurrency to be gentle on the network.
+    const failures = [];
+    for (const group of chunk(paths, 10)) {
+      await Promise.all(group.map(async (p) => {
+        try { await storage().ref(p).delete(); }
+        catch (e) { failures.push({ p, e }); }
+      }));
+    }
+    return failures;
+  };
+
+  const confirmDeleteSingle = (item) => {
+    setConfirmState({
+      phrase: item.name,
+      title: 'Delete picture',
+      message: `${item.fullPath}\n\nThis permanently deletes the file from Cloud Storage. This cannot be undone.`,
+      sampleIds: [], totalCount: 1,
+      onConfirm: async () => {
+        const failures = await deleteByPaths([item.fullPath]);
+        await writeAudit('storageDelete', item.fullPath, null, null, {});
+        setConfirmState(null);
+        if (failures.length) { Alert.alert('Delete failed', failures[0].e.message); return; }
+        setItems((prev) => prev.filter((it) => it.fullPath !== item.fullPath));
+        seenRef.current.delete(item.fullPath);
+      },
+    });
+  };
+
+  const runBulkDelete = () => {
+    const paths = Array.from(selected);
+    if (paths.length === 0) return;
+    if (paths.length > BULK_HARD_CEILING) { Alert.alert('Too many', `Hard cap is ${BULK_HARD_CEILING} per bulk op.`); return; }
+    setConfirmState({
+      phrase: `DELETE-${paths.length}`,
+      title: `Delete ${paths.length} picture${paths.length === 1 ? '' : 's'}`,
+      message: `From /${prefix}.\n\nThis permanently deletes the files from Cloud Storage. This cannot be undone.`,
+      sampleIds: paths.slice(0, 5).map((p) => p.split('/').pop()), totalCount: paths.length,
+      onConfirm: async () => {
+        const failures = await deleteByPaths(paths);
+        await writeAudit('storageBulkDelete', prefix, null, null, { count: paths.length, failures: failures.length });
+        const failedSet = new Set(failures.map((f) => f.p));
+        setItems((prev) => prev.filter((it) => failedSet.has(it.fullPath) || !selected.has(it.fullPath)));
+        for (const p of paths) if (!failedSet.has(p)) seenRef.current.delete(p);
+        setSelected(new Set()); setSelectMode(false); setConfirmState(null);
+        if (failures.length) Alert.alert('Partially done', `Deleted ${paths.length - failures.length} of ${paths.length}. ${failures.length} failed.`);
+        else Alert.alert('Done', `Deleted ${paths.length} picture${paths.length === 1 ? '' : 's'}.`);
+      },
+    });
+  };
+
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={styles.actionBar}>
+        <View style={styles.actionBarLeft}>
+          <Text style={styles.actionBarLabel}>
+            {filtered.length}{search ? ` of ${items.length}` : ''} {filtered.length === 1 ? 'file' : 'files'}{!done && !search ? '+' : ''}
+          </Text>
+          <View style={styles.sortBadge}>
+            <Ionicons name="cloud-outline" size={10} color={C.accentSoft} />
+            <Text style={styles.sortBadgeText}>storage</Text>
+          </View>
+        </View>
+        <View style={styles.actionBarRight}>
+          <TouchableOpacity
+            style={[styles.iconBtn, selectMode && styles.iconBtnActive]}
+            onPress={() => { setSelectMode((m) => !m); setSelected(new Set()); }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name={selectMode ? 'close' : 'checkbox-outline'} size={18} color={selectMode ? '#fff' : C.accent} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {selectMode && (
+        <View style={styles.bulkBar}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bulkCount}>{selected.size} selected</Text>
+            {filtered.length > selected.size && (
+              <TouchableOpacity onPress={selectAllVisible} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.bulkSelectAll}>Select all visible ({filtered.length})</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <TouchableOpacity
+            style={[styles.bulkDeleteBtn, selected.size === 0 && { opacity: 0.4 }]}
+            disabled={selected.size === 0} onPress={runBulkDelete} activeOpacity={0.8}
+          >
+            <Ionicons name="trash-outline" size={16} color="#fff" />
+            <Text style={styles.bulkDeleteText}>Delete</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <FlatList
+        data={filtered}
+        keyExtractor={(it) => it.fullPath}
+        contentContainerStyle={styles.docList}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        renderItem={({ item }) => {
+          const isSelected = selected.has(item.fullPath);
+          return (
+            <StorageItemRow
+              item={item}
+              selectMode={selectMode}
+              isSelected={isSelected}
+              onPress={() => { if (selectMode) toggleSelect(item.fullPath); }}
+              onLongPress={() => { setSelectMode(true); toggleSelect(item.fullPath); }}
+              onDelete={() => confirmDeleteSingle(item)}
+            />
+          );
+        }}
+        onEndReachedThreshold={0.5}
+        onEndReached={() => !done && loadPage(false)}
+        ListEmptyComponent={!loading ? (
+          <View style={styles.emptyState}>
+            <Ionicons name={search ? 'search' : 'images-outline'} size={40} color="rgba(255,255,255,0.1)" />
+            <Text style={styles.emptyText}>{search ? (done || items.length >= SEARCH_SCAN_CAP ? 'No files match your search' : 'Searching…') : 'No files in storage'}</Text>
+          </View>
+        ) : null}
+        ListFooterComponent={
+          loading ? (
+            <View style={styles.footerStatus}>
+              <ActivityIndicator color={C.accent} size="small" />
+              <Text style={styles.footerStatusText}>{search ? `Searching… ${items.length} scanned` : 'Loading…'}</Text>
+            </View>
+          ) : done && filtered.length > 0 ? (
+            <Text style={styles.endMarker}>End of storage</Text>
+          ) : null
+        }
+      />
+
+      <Animated.View
+        style={[styles.floatingBarWrapper, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
+        pointerEvents="box-none"
+      >
+        <BlurView tint="systemChromeMaterialDark" intensity={80} style={styles.floatingBlur}>
+          <View style={styles.floatingInner}>
+            <View style={styles.searchContainer}>
+              <Ionicons name="search" size={16} color={C.t3} style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchBar}
+                placeholder="Search by filename"
                 placeholderTextColor={C.t3}
                 value={search}
                 onChangeText={setSearch}
@@ -1810,6 +2148,7 @@ const styles = StyleSheet.create({
   headerSub: { color: C.t4, fontSize: 11, marginTop: 3 },
 
   rootList: { padding: 16, paddingBottom: 40 },
+  rootSectionLabel: { color: C.t4, fontSize: 12, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', marginTop: 18, marginBottom: 10, marginLeft: 4 },
   collectionCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: C.hair, gap: 14 },
   collectionIconWrap: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.fill, alignItems: 'center', justifyContent: 'center' },
   collectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -1853,6 +2192,14 @@ const styles = StyleSheet.create({
   docKvKey: { color: C.t3, fontSize: 11, fontWeight: '500', minWidth: 60, maxWidth: 100 },
   docKvVal: { color: C.t2, fontSize: 12, flex: 1 },
   docMore: { color: C.t5, fontSize: 11, marginTop: 3 },
+
+  // Storage rows
+  storageCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.card, borderRadius: 12, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: C.hair },
+  thumbWrap: { width: 48, height: 48, borderRadius: 10, backgroundColor: C.fill, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  thumb: { width: 48, height: 48 },
+  storageName: { color: C.t1, fontSize: 13, fontWeight: '600', fontFamily: C.code },
+  storageMeta: { color: C.t4, fontSize: 11, marginTop: 3 },
+  storageDeleteBtn: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: C.fill },
 
   emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 40 },
   emptyText: { color: C.t4, fontSize: 14, marginTop: 12 },

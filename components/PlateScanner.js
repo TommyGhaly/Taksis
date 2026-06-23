@@ -5,7 +5,9 @@
  *
  * If the detected plate matches an existing car (via knownPlates prop),
  * it fires onPlateScanned immediately — no confirmation, no review.
- * Otherwise, requires 3 consecutive frames before confirming.
+ * Otherwise, it confirms once a candidate has been seen enough times across a
+ * rolling window of recent frames (tolerant of OCR glyph flicker), then shows
+ * a review sheet.
  *
  * Props:
  *   visible, onPlateScanned, onClose, onManualEntry, knownPlates
@@ -34,45 +36,151 @@ function cleanPlate(r) {
 
 const PLATE_RE = /^[A-Z0-9]{4,8}$/;
 
+// Tokens that frequently appear ON a plate or its frame but are NOT the plate
+// number. We drop these before scoring so they don't win or pollute combos.
+const NON_PLATE_TOKENS = new Set([
+  // State names (spaces removed, uppercased)
+  "ALABAMA", "ALASKA", "ARIZONA", "ARKANSAS", "CALIFORNIA", "COLORADO",
+  "CONNECTICUT", "DELAWARE", "FLORIDA", "GEORGIA", "HAWAII", "IDAHO",
+  "ILLINOIS", "INDIANA", "IOWA", "KANSAS", "KENTUCKY", "LOUISIANA",
+  "MAINE", "MARYLAND", "MASSACHUSETTS", "MICHIGAN", "MINNESOTA",
+  "MISSISSIPPI", "MISSOURI", "MONTANA", "NEBRASKA", "NEVADA",
+  "NEWHAMPSHIRE", "NEWJERSEY", "NEWMEXICO", "NEWYORK", "NORTHCAROLINA",
+  "NORTHDAKOTA", "OHIO", "OKLAHOMA", "OREGON", "PENNSYLVANIA",
+  "RHODEISLAND", "SOUTHCAROLINA", "SOUTHDAKOTA", "TENNESSEE", "TEXAS",
+  "UTAH", "VERMONT", "VIRGINIA", "WASHINGTON", "WESTVIRGINIA",
+  "WISCONSIN", "WYOMING",
+  // Common slogans / words seen on plates and frames
+  "DMV", "USA", "THE", "STATE", "GARDEN", "SUNSHINE", "EMPIRE",
+  "GOLDEN", "LONE", "STAR", "LAND", "ENCHANTMENT", "FIRST", "LIBERTY",
+  "GREAT", "LAKES", "OCEAN", "GRANITE", "TREASURE", "EVERGREEN",
+  "PEACH", "BEAUTIFUL", "FAMOUS", "POTATOES", "WILD", "WONDERFUL",
+  "LIVE", "FREE", "DIE", "COM", "WWW", "DEALER",
+]);
+
+const MONTH_ABBR = new Set([
+  "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+  "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
+]);
+
+// Is this token almost certainly NOT a plate? (registration stickers, frame
+// branding, bare years, state names, etc.)
+function isJunkToken(c) {
+  if (!c) return true;
+  if (NON_PLATE_TOKENS.has(c)) return true;
+  if (MONTH_ABBR.has(c)) return true;
+  // Bare 4-digit year (sticker), e.g. 2024–2029
+  if (/^20\d{2}$/.test(c)) return true;
+  // Pure-alpha tokens longer than 7 are almost always words, not plates
+  if (/^[A-Z]{8,}$/.test(c)) return true;
+  return false;
+}
+
 function scorePlate(t) {
   let s = 0;
   if (t.length >= 5 && t.length <= 8) s += 3;
   if (/[A-Z]/.test(t) && /[0-9]/.test(t)) s += 3;
-  if (/^[A-Z]{3}[0-9]{4}$/.test(t)) s += 5;
+  // Common US state layouts
+  if (/^[A-Z]{3}[0-9]{3,4}$/.test(t)) s += 5;   // ABC1234 / ABC123
+  if (/^[0-9][A-Z]{3}[0-9]{3}$/.test(t)) s += 5; // 7ABC123 (CA)
   if (/^[0-9]{1,4}[A-Z]{2,3}$/.test(t)) s += 4;
-  if (/^[A-Z]{1,2}[0-9]{2,4}[A-Z]{1,2}$/.test(t)) s += 4;
+  if (/^[A-Z]{1,2}[0-9]{2,5}$/.test(t)) s += 4;
+  if (/^[A-Z]{2}[0-9]{4,5}$/.test(t)) s += 4;
+  // Mixed alnum at all, reasonable length — baseline so plain plates qualify
+  if (t.length >= 5 && t.length <= 7 && /[A-Z]/.test(t) && /[0-9]/.test(t)) s += 1;
   return s;
 }
 
-function extractPlate(result) {
+// Glyph-normalization: collapse OCR-confusable characters to a single canonical
+// form so the SAME physical plate read slightly differently across frames maps
+// to one key. Used ONLY for grouping/counting — never shown to the user.
+function normalizeGlyphs(c) {
+  return c
+    .replace(/O/g, "0")
+    .replace(/Q/g, "0")
+    .replace(/D/g, "0")
+    .replace(/I/g, "1")
+    .replace(/L/g, "1")
+    .replace(/B/g, "8")
+    .replace(/S/g, "5")
+    .replace(/Z/g, "2")
+    .replace(/G/g, "6")
+    .replace(/T/g, "7");
+}
+
+// Pull every plate-shaped candidate out of one OCR result. Returns an array of
+// { t (raw cleaned), s (score) }. Includes recombined adjacent tokens so plates
+// split across lines/blocks (e.g. "ABC" + "1234") are recovered.
+function extractCandidates(result) {
   const cands = [];
+  const seen = new Set();
+
   const tryAdd = (raw) => {
     const c = cleanPlate(raw);
-    if (PLATE_RE.test(c)) cands.push({ t: c, s: scorePlate(c) });
+    if (!PLATE_RE.test(c)) return;
+    if (isJunkToken(c)) return;
+    if (seen.has(c)) return;
+    seen.add(c);
+    cands.push({ t: c, s: scorePlate(c) });
+  };
+
+  // Also feed cleaned fragments that are individually too short/long but might
+  // recombine into a valid plate with a neighbor.
+  const fragments = [];
+  const pushFragment = (raw) => {
+    const c = cleanPlate(raw);
+    if (c && c.length >= 1 && c.length <= 8) fragments.push(c);
+  };
+
+  const handleLineGroup = (texts) => {
+    // Single tokens
+    for (const txt of texts) {
+      tryAdd(txt);
+      txt.split(/\s+/).forEach((w) => { tryAdd(w); pushFragment(w); });
+    }
+    // Recombine adjacent fragments (handles "ABC" + "1234", "ABC" + "-" + "123")
+    const flat = [];
+    for (const txt of texts) {
+      for (const w of txt.split(/\s+/)) {
+        const c = cleanPlate(w);
+        if (c) flat.push(c);
+      }
+    }
+    for (let i = 0; i < flat.length - 1; i++) {
+      const combo2 = flat[i] + flat[i + 1];
+      if (combo2.length <= 8) tryAdd(combo2);
+      if (i < flat.length - 2) {
+        const combo3 = flat[i] + flat[i + 1] + flat[i + 2];
+        if (combo3.length <= 8) tryAdd(combo3);
+      }
+    }
   };
 
   if (result?.blocks) {
     for (const block of result.blocks) {
-      tryAdd(block.text);
-      if (block.lines) {
-        for (const line of block.lines) {
-          tryAdd(line.text);
-          line.text.split(/\s+/).forEach(tryAdd);
-        }
-      }
+      const texts = [block.text];
+      if (block.lines) for (const line of block.lines) texts.push(line.text);
+      handleLineGroup(texts);
+    }
+    // Cross-block recombination: blocks can split the two halves of a plate.
+    const blockClean = result.blocks
+      .map((b) => cleanPlate(b.text))
+      .filter((c) => c && c.length <= 8 && !isJunkToken(c));
+    for (let i = 0; i < blockClean.length - 1; i++) {
+      const combo = blockClean[i] + blockClean[i + 1];
+      if (combo.length <= 8) tryAdd(combo);
     }
   }
 
   if (result?.text) {
-    result.text.split(/\s+/).forEach(tryAdd);
+    result.text.split(/\s+/).forEach((w) => { tryAdd(w); pushFragment(w); });
   }
 
-  if (!cands.length) return null;
-  cands.sort((a, b) => b.s - a.s);
-  return cands[0].s >= 3 ? cands[0].t : null;
+  return cands;
 }
 
-const CONFIRM = 3;
+const CONFIRM = 3;          // times a plate must be seen within the window
+const WINDOW = 6;           // rolling window of recent frames considered
 const COOLDOWN = 400;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -92,6 +200,40 @@ function buildKnownSet(knownPlates) {
   return null;
 }
 
+// Rolling-window vote tracker. Each frame pushes its best candidate (raw + key).
+// We keep the last WINDOW entries and find the normalized key seen most often;
+// once it hits CONFIRM, we surface the best-scoring raw spelling for that key.
+function makeVoteTracker() {
+  return {
+    history: [], // [{ key, raw, score }]
+    push(entry) {
+      this.history.push(entry);
+      if (this.history.length > WINDOW) this.history.shift();
+    },
+    // Returns { key, raw, count } for the leading REAL candidate, or null.
+    // The empty-frame sentinel (raw === null) is ignored for winner selection —
+    // it only exists to age real votes out of the window.
+    leader() {
+      if (this.history.length === 0) return null;
+      const counts = new Map();   // key -> count
+      const bestRaw = new Map();  // key -> { raw, score }
+      for (const e of this.history) {
+        if (e.raw == null) continue; // skip empty-frame markers
+        counts.set(e.key, (counts.get(e.key) || 0) + 1);
+        const cur = bestRaw.get(e.key);
+        if (!cur || e.score > cur.score) bestRaw.set(e.key, { raw: e.raw, score: e.score });
+      }
+      let bestKey = null, bestCount = 0;
+      for (const [k, n] of counts) {
+        if (n > bestCount) { bestCount = n; bestKey = k; }
+      }
+      if (bestKey == null) return null;
+      return { key: bestKey, raw: bestRaw.get(bestKey).raw, count: bestCount };
+    },
+    reset() { this.history = []; },
+  };
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry, knownPlates }) => {
@@ -100,6 +242,7 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry, kn
   const cam = useRef(null);
   const stop = useRef(false);
   const running = useRef(false);
+  const votes = useRef(makeVoteTracker());
 
   const [phase, setPhase] = useState("start"); // start | scan | review
   const [frames, setFrames] = useState(0);
@@ -121,6 +264,7 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry, kn
       setPhase("start"); setFrames(0); setRawText(null);
       setPlate(null); setConf(0); setFinal(null); setErr(null);
       stop.current = false; running.current = false;
+      votes.current.reset();
     } else {
       stop.current = true;
     }
@@ -135,13 +279,14 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry, kn
     if (running.current) return;
     running.current = true;
     stop.current = false;
+    votes.current.reset();
 
     // Camera warmup
     await new Promise((r) => setTimeout(r, 700));
     if (stop.current) { running.current = false; return; }
     setPhase("scan");
 
-    let con = { p: null, n: 0 }, f = 0;
+    let f = 0;
 
     while (!stop.current) {
       f++;
@@ -154,7 +299,7 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry, kn
         }
 
         const pic = await cam.current.takePictureAsync({
-          quality: 0.6,
+          quality: 0.8,
           skipProcessing: false,
           base64: false,
         });
@@ -171,33 +316,52 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry, kn
         setRawText(result?.text || null);
         setErr(null);
 
-        const found = extractPlate(result);
+        const candidates = extractCandidates(result);
 
-        if (found) {
-          // ── Fast path: known plate → skip confirmation + review ──
-          if (knownSet.current && knownSet.current.has(found)) {
-            stop.current = true;
-            try { Vibration.vibrate(40); } catch {}
-            onPlateScanned?.(found);
-            break;
+        if (candidates.length > 0) {
+          // Best candidate this frame (highest score; ties broken by length).
+          candidates.sort((a, b) => (b.s - a.s) || (b.t.length - a.t.length));
+          const best = candidates[0];
+
+          // ── Fast path: any candidate matches a known plate → confirm now ──
+          if (knownSet.current) {
+            const hit = candidates.find((c) => knownSet.current.has(c.t));
+            if (hit) {
+              stop.current = true;
+              try { Vibration.vibrate(40); } catch {}
+              onPlateScanned?.(hit.t);
+              break;
+            }
           }
 
-          // ── Normal path: require CONFIRM consecutive reads ──
-          con = found === con.p ? { p: found, n: con.n + 1 } : { p: found, n: 1 };
-          setPlate(found);
-          setConf(Math.min(con.n, CONFIRM));
+          // ── Vote: record this frame's best read under its normalized key ──
+          votes.current.push({ key: normalizeGlyphs(best.t), raw: best.t, score: best.s });
+          const leader = votes.current.leader();
 
-          if (con.n >= CONFIRM) {
-            setFinal(found);
-            try { Vibration.vibrate(40); } catch {}
-            await new Promise((r) => setTimeout(r, 400));
-            if (!stop.current) setPhase("review");
-            break;
+          if (leader) {
+            setPlate(leader.raw);
+            setConf(Math.min(leader.count, CONFIRM));
+
+            if (leader.count >= CONFIRM) {
+              setFinal(leader.raw);
+              try { Vibration.vibrate(40); } catch {}
+              await new Promise((r) => setTimeout(r, 400));
+              if (!stop.current) setPhase("review");
+              break;
+            }
           }
         } else {
-          con.n = Math.max(0, con.n - 1);
-          setConf(con.n);
-          if (con.n === 0) setPlate(null);
+          // No candidate this frame: push an empty marker so stale votes age
+          // out of the window, but don't wipe progress instantly.
+          votes.current.push({ key: "\u0000", raw: null, score: -1 });
+          const leader = votes.current.leader();
+          if (!leader || leader.raw == null) {
+            setPlate(null);
+            setConf(0);
+          } else {
+            setPlate(leader.raw);
+            setConf(Math.min(leader.count, CONFIRM));
+          }
         }
       } catch (e) {
         setErr(e?.message || "OCR error");
@@ -213,6 +377,7 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry, kn
     setPhase("scan"); setPlate(null); setConf(0);
     setFinal(null); setFrames(0); setErr(null);
     stop.current = false; running.current = false;
+    votes.current.reset();
     setTimeout(loop, 200);
   }, [loop]);
 
