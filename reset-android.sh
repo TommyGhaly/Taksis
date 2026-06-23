@@ -2,12 +2,12 @@
 set -e
 cd "$(dirname "$0")"
 
-# ── Environment ──────────────────────────────────────────────
+# ── Environment ──────────────────────────────────────────────────────────────
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export PATH="$PATH:$ANDROID_HOME/platform-tools"
 
-# ── Force Java 17 ────────────────────────────────────────────
+# ── Force Java 17 ────────────────────────────────────────────────────────────
 export JAVA_HOME=$(/usr/libexec/java_home -v 17 2>/dev/null)
 if [ -z "$JAVA_HOME" ]; then
   echo "❌ Java 17 not found. Install: brew install openjdk@17"
@@ -22,85 +22,77 @@ if [ "$JAVA_VER" != "17" ]; then
 fi
 echo "✅ Java $JAVA_VER"
 
-# ── Kill Gradle daemons ──────────────────────────────────────
+# ── Verify keystore fingerprint before doing anything ────────────────────────
+KEYSTORE="credentials/android/keystore.jks"
+STORE_PASS="REDACTED"
+EXPECTED_SHA1="78:C7:0C:D1:71:A1:B6:18:63:2F:B7:A8:1B:CE:15:0C:4D:B4:5C:61"
+
+if [ ! -f "$KEYSTORE" ]; then
+  echo "❌ Keystore not found at $KEYSTORE"
+  exit 1
+fi
+
+ACTUAL_SHA1=$(keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASS" -v 2>/dev/null \
+  | grep "SHA1:" | head -1 | awk '{print $2}')
+
+if [ "$ACTUAL_SHA1" != "$EXPECTED_SHA1" ]; then
+  echo "❌ Keystore fingerprint mismatch — aborting!"
+  echo "   Expected: $EXPECTED_SHA1"
+  echo "   Got:      $ACTUAL_SHA1"
+  exit 1
+fi
+echo "✅ Keystore fingerprint verified ($ACTUAL_SHA1)"
+
+# ── Kill Gradle daemons ──────────────────────────────────────────────────────
 pkill -f gradle 2>/dev/null || true
 sleep 2
 
-# ── Clean prebuild ───────────────────────────────────────────
+# ── Clean prebuild ───────────────────────────────────────────────────────────
 rm -rf android
 npx expo prebuild --platform android
 
-# ── local.properties ─────────────────────────────────────────
+# ── local.properties ─────────────────────────────────────────────────────────
 echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
-# ── Write keystore.properties ─────────────────────────────────
-# Referenced by build.gradle below — keeps credentials out of build.gradle
-cat > android/keystore.properties << 'EOF'
-storeFile=../../credentials/android/keystore.jks
-storePassword=REDACTED
-keyAlias=REDACTED
-keyPassword=REDACTED
-EOF
+# ── Release signing config (original working sed approach) ───────────────────
+BUILD_GRADLE="android/app/build.gradle"
 
-# ── Patch app/build.gradle with signing config ───────────────
-# Uses Python for reliable multi-line injection — no fragile sed anchors.
-python3 << 'PYEOF'
-import re, sys
-
-path = "android/app/build.gradle"
-with open(path, "r") as f:
-    src = f.read()
-
-# 1. Inject keystoreProperties loader + signingConfigs block
-#    after the first `android {` line, only if not already present.
-if "keystoreProperties" not in src:
-    loader = '''
-def keystoreProperties = new Properties()
-def keystorePropertiesFile = rootProject.file("keystore.properties")
-if (keystorePropertiesFile.exists()) {
-    keystorePropertiesFile.withReader('UTF-8') { reader -> keystoreProperties.load(reader) }
-}
-
-'''
-    src = re.sub(r'(android\s*\{)', loader + r'\1', src, count=1)
-
-# 2. Inject signingConfigs block inside android { ... }
-#    only if release signingConfig not already present.
-if "signingConfigs" not in src:
-    signing_block = '''
-    signingConfigs {
-        release {
-            storeFile file(keystoreProperties['storeFile'])
-            storePassword keystoreProperties['storePassword']
-            keyAlias keystoreProperties['keyAlias']
-            keyPassword keystoreProperties['keyPassword']
-        }
+sed -i '' '/signingConfigs {/,/^    }/ {
+    /debug {/,/^        }/ {
+        /^        }/a\
+\        release {\
+\            storeFile file('\''../../credentials/android/keystore.jks'\'')\
+\            storePassword '\''REDACTED'\''\
+\            keyAlias '\''REDACTED'\''\
+\            keyPassword '\''REDACTED'\''\
+\        }
     }
-'''
-    # Insert before the first `buildTypes {` block
-    src = re.sub(r'(\s*buildTypes\s*\{)', signing_block + r'\1', src, count=1)
+}' "$BUILD_GRADLE"
 
-# 3. Point the release buildType at the release signingConfig
-#    Replace `signingConfig signingConfigs.debug` inside the release block.
-#    Find the release { ... } block and swap the signingConfig line.
-def patch_release_block(text):
-    # Match `release {` block and replace signingConfig inside it
-    pattern = re.compile(
-        r'(release\s*\{[^}]*?)'           # release { ... (non-greedy)
-        r'(signingConfig\s+signingConfigs\.\w+)',
-        re.DOTALL
-    )
-    return pattern.sub(r'\1signingConfig signingConfigs.release', text)
+sed -i '' 's/signingConfig signingConfigs\.debug/signingConfig signingConfigs.release/' "$BUILD_GRADLE"
+sed -i '' '/debug {/{n;s/signingConfig signingConfigs\.release/signingConfig signingConfigs.debug/;}' "$BUILD_GRADLE"
 
-src = patch_release_block(src)
+# ── Hard verify signing config was injected correctly ────────────────────────
+if ! grep -q "storeFile file" "$BUILD_GRADLE"; then
+  echo "❌ Signing config injection failed — storeFile not found in build.gradle"
+  echo "   Dumping signingConfigs region:"
+  grep -n "signingConfig\|signingConfigs\|storeFile\|keyAlias" "$BUILD_GRADLE"
+  exit 1
+fi
 
-with open(path, "w") as f:
-    f.write(src)
+# Confirm release buildType uses release signingConfig, not debug
+RELEASE_SIGNING=$(awk '/release \{/,/\}/' "$BUILD_GRADLE" | grep "signingConfig" | head -1)
+if echo "$RELEASE_SIGNING" | grep -q "signingConfigs.debug"; then
+  echo "❌ release buildType is still using signingConfigs.debug — patch failed"
+  exit 1
+fi
 
-print("✅ build.gradle patched")
-PYEOF
+echo "✅ Signing config verified"
+echo "── signing region ──"
+grep -n "signingConfig\|storeFile\|keyAlias" "$BUILD_GRADLE"
+echo "────────────────────"
 
-# ── Nuke Gradle caches + build artifacts ─────────────────────
+# ── Nuke Gradle caches + build artifacts ─────────────────────────────────────
 rm -rf ~/.gradle/caches
 rm -rf ~/.gradle/daemon
 rm -rf ~/.gradle/native
@@ -109,20 +101,25 @@ rm -rf android/build
 rm -rf android/app/build
 rm -rf android/.gradle
 
-# ── Kill iCloud duplicates before Gradle runs ─────────────────
-# iCloud creates "File 2.java", "File 3.java" etc. when the project
-# lives on Desktop. Delete them right before the build so they don't
-# cause javac failures. The pattern matches any " N.java" suffix.
+# ── Kill iCloud duplicate .java files ────────────────────────────────────────
 echo "🧹 Removing iCloud duplicate .java files..."
 find android -name "* [0-9].java" -delete 2>/dev/null || true
 find node_modules/expo/android/build/generated -name "* [0-9].java" -delete 2>/dev/null || true
 echo "✅ Done"
 
-# ── Build AAB ────────────────────────────────────────────────
+# ── Build AAB ────────────────────────────────────────────────────────────────
 cd android
-./gradlew app:bundleRelease -x test
+./gradlew app:bundleRelease -x test --no-daemon || true
 cd ..
+
+# ── Verify AAB exists ────────────────────────────────────────────────────────
+AAB="android/app/build/outputs/bundle/release/app-release.aab"
+if [ ! -f "$AAB" ]; then
+  echo "❌ AAB not found — build likely failed. Check output above."
+  exit 1
+fi
 
 echo ""
 echo "✅ Done. AAB at:"
-echo "   android/app/build/outputs/bundle/release/app-release.aab"
+echo "   $AAB"
+echo "   Size: $(du -sh "$AAB" | cut -f1)"
