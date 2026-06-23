@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
   ActivityIndicator, Alert, StyleSheet, SafeAreaView, Modal,
-  KeyboardAvoidingView, Platform, Keyboard, Animated, AppState, Image,
+  KeyboardAvoidingView, Platform, Keyboard, Animated, AppState, Image, Dimensions,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +17,9 @@ import {
   KNOWN_COLLECTIONS, AUDIT_COLLECTION, BULK_HARD_CEILING,
   resolveCollectionNode, declaredSubcollectionsForDoc,
 } from '../../utils/databaseRegistry';
+// In-place expanding image (thumbnail that animates up to a larger preview).
+// Adjust this path to wherever ProfileImageExpander lives in your tree.
+import ProfileImageExpander from '../../components/ProfileImageExpander';
 
 // ── Palette — matches Taksis dark theme ──────────────────────────────────────
 const C = {
@@ -49,6 +52,8 @@ const TYPE_TINT = {
 // Synthetic root entry for the storage browser. Not a Firestore collection —
 // handled by its own view branch.
 const STORAGE_ROOT_PREFIX = 'profilePictures';
+
+const { width: WINDOW_WIDTH, height: WINDOW_HEIGHT } = Dimensions.get('window');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1070,6 +1075,12 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
 // paginate with list({ maxResults, pageToken }). Thumbnails load lazily per
 // row. Single + bulk delete; deletes ONLY the storage object (no Firestore).
 
+const STORAGE_COLUMNS = 3;
+const STORAGE_GRID_GAP = 10;
+const STORAGE_TILE_SIZE = Math.floor(
+  (WINDOW_WIDTH - 24 /* list padding */ - STORAGE_GRID_GAP * (STORAGE_COLUMNS - 1)) / STORAGE_COLUMNS
+);
+
 function StorageItemRow({ item, selectMode, isSelected, onPress, onLongPress, onDelete }) {
   const [url, setUrl] = useState(null);
   const [meta, setMeta] = useState(null);
@@ -1092,39 +1103,61 @@ function StorageItemRow({ item, selectMode, isSelected, onPress, onLongPress, on
 
   const sizeLabel = meta?.size != null ? formatBytes(Number(meta.size)) : '';
   const updated = meta?.updated ? formatTimestamp(new Date(meta.updated)).rel : '';
-  const sub = [sizeLabel, updated].filter(Boolean).join(' · ');
+
+  const Wrapper = selectMode ? TouchableOpacity : View;
+  const wrapperProps = selectMode
+    ? { onPress, onLongPress, activeOpacity: 0.85 }
+    : {};
 
   return (
-    <TouchableOpacity
-      style={[styles.storageCard, isSelected && styles.docCardSelected]}
-      onPress={onPress}
-      onLongPress={onLongPress}
-      activeOpacity={0.8}
-    >
-      {selectMode && (
-        <View style={[styles.checkbox, isSelected && styles.checkboxActive]}>
-          {isSelected && <Ionicons name="checkmark" size={14} color="#fff" />}
-        </View>
-      )}
-      <View style={styles.thumbWrap}>
+    <View style={styles.gridCell}>
+      <Wrapper
+        style={[styles.gridImageWrap, isSelected && styles.gridImageSelected]}
+        {...wrapperProps}
+      >
         {url && !failed ? (
-          <Image source={{ uri: url }} style={styles.thumb} resizeMode="cover" onError={() => setFailed(true)} />
+          selectMode ? (
+            // In select mode tap selects — plain image, no in-place expand.
+            <Image source={{ uri: url }} style={styles.gridImage} resizeMode="cover" onError={() => setFailed(true)} />
+          ) : (
+            <ProfileImageExpander
+              imageUrl={url}
+              size={STORAGE_TILE_SIZE}
+              finalSize={Math.min(WINDOW_WIDTH, WINDOW_HEIGHT) * 0.9}
+              borderRadius={12}
+            />
+          )
         ) : (
-          <Ionicons name={failed ? 'image-outline' : 'hourglass-outline'} size={20} color={C.t4} />
+          <View style={styles.gridPlaceholder}>
+            <Ionicons name={failed ? 'image-outline' : 'hourglass-outline'} size={24} color={C.t4} />
+          </View>
         )}
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.storageName} numberOfLines={1}>{item.name}</Text>
-        {sub ? <Text style={styles.storageMeta} numberOfLines={1}>{sub}</Text> : (
-          <Text style={styles.storageMeta} numberOfLines={1}>{item.fullPath}</Text>
+
+        {/* Selection check overlay */}
+        {selectMode && (
+          <View style={[styles.gridCheck, isSelected && styles.checkboxActive]}>
+            {isSelected && <Ionicons name="checkmark" size={14} color="#fff" />}
+          </View>
         )}
-      </View>
-      {!selectMode && (
-        <TouchableOpacity style={styles.storageDeleteBtn} onPress={onDelete} activeOpacity={0.8} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name="trash-outline" size={16} color={C.danger} />
-        </TouchableOpacity>
-      )}
-    </TouchableOpacity>
+
+        {/* Delete overlay (hidden in select mode — use bulk delete instead) */}
+        {!selectMode && (
+          <TouchableOpacity
+            style={styles.gridDeleteBtn}
+            onPress={onDelete}
+            activeOpacity={0.8}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons name="trash" size={13} color="#fff" />
+          </TouchableOpacity>
+        )}
+      </Wrapper>
+
+      {/* Size · age, small text under the image */}
+      <Text style={styles.gridMeta} numberOfLines={1}>
+        {sizeLabel}{sizeLabel && updated ? '  ·  ' : ''}{updated}
+      </Text>
+    </View>
   );
 }
 
@@ -1215,21 +1248,26 @@ function StorageView({ prefix }) {
     return failures;
   };
 
+  const doDeleteSingle = async (item) => {
+    const failures = await deleteByPaths([item.fullPath]);
+    await writeAudit('storageDelete', item.fullPath, null, null, {});
+    if (failures.length) { Alert.alert('Delete failed', failures[0].e.message); return; }
+    setItems((prev) => prev.filter((it) => it.fullPath !== item.fullPath));
+    seenRef.current.delete(item.fullPath);
+  };
+
+  // Single-picture delete is low-stakes (one file, recoverable by re-upload),
+  // so a simple confirm is enough — no type-to-confirm. Bulk delete still uses
+  // the typed modal below.
   const confirmDeleteSingle = (item) => {
-    setConfirmState({
-      phrase: item.name,
-      title: 'Delete picture',
-      message: `${item.fullPath}\n\nThis permanently deletes the file from Cloud Storage. This cannot be undone.`,
-      sampleIds: [], totalCount: 1,
-      onConfirm: async () => {
-        const failures = await deleteByPaths([item.fullPath]);
-        await writeAudit('storageDelete', item.fullPath, null, null, {});
-        setConfirmState(null);
-        if (failures.length) { Alert.alert('Delete failed', failures[0].e.message); return; }
-        setItems((prev) => prev.filter((it) => it.fullPath !== item.fullPath));
-        seenRef.current.delete(item.fullPath);
-      },
-    });
+    Alert.alert(
+      'Delete picture?',
+      `"${item.name}" will be permanently deleted from Cloud Storage.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => doDeleteSingle(item) },
+      ],
+    );
   };
 
   const runBulkDelete = () => {
@@ -1298,9 +1336,12 @@ function StorageView({ prefix }) {
       )}
 
       <FlatList
+        key={`storage-grid-${STORAGE_COLUMNS}`}
         data={filtered}
         keyExtractor={(it) => it.fullPath}
-        contentContainerStyle={styles.docList}
+        numColumns={STORAGE_COLUMNS}
+        columnWrapperStyle={styles.gridRow}
+        contentContainerStyle={styles.gridList}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         renderItem={({ item }) => {
@@ -1364,8 +1405,6 @@ function StorageView({ prefix }) {
     </View>
   );
 }
-
-// ── Document view ─────────────────────────────────────────────────────────────
 
 function DocumentView({ docPath, label, onOpenSubcollection, onAfterDelete }) {
   const docRef = useMemo(() => {
@@ -2193,13 +2232,39 @@ const styles = StyleSheet.create({
   docKvVal: { color: C.t2, fontSize: 12, flex: 1 },
   docMore: { color: C.t5, fontSize: 11, marginTop: 3 },
 
-  // Storage rows
-  storageCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.card, borderRadius: 12, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: C.hair },
-  thumbWrap: { width: 48, height: 48, borderRadius: 10, backgroundColor: C.fill, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  thumb: { width: 48, height: 48 },
-  storageName: { color: C.t1, fontSize: 13, fontWeight: '600', fontFamily: C.code },
-  storageMeta: { color: C.t4, fontSize: 11, marginTop: 3 },
-  storageDeleteBtn: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: C.fill },
+  // Storage grid
+  gridList: { padding: 12, paddingBottom: 110 },
+  gridRow: { gap: STORAGE_GRID_GAP, marginBottom: STORAGE_GRID_GAP },
+  gridCell: { width: STORAGE_TILE_SIZE },
+  gridImageWrap: {
+    width: STORAGE_TILE_SIZE,
+    height: STORAGE_TILE_SIZE,
+    borderRadius: 12,
+    backgroundColor: C.fill,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: C.hair,
+  },
+  gridImageSelected: { borderColor: C.accent, borderWidth: 2 },
+  gridImage: { width: '100%', height: '100%' },
+  gridPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  gridMeta: { color: C.t4, fontSize: 10, marginTop: 5, textAlign: 'center' },
+  gridCheck: {
+    position: 'absolute', top: 6, left: 6,
+    width: 22, height: 22, borderRadius: 11,
+    borderWidth: 1.5, borderColor: '#fff',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  gridDeleteBtn: {
+    position: 'absolute', top: 6, right: 6,
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: 'rgba(255,59,48,0.9)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+
 
   emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 40 },
   emptyText: { color: C.t4, fontSize: 14, marginTop: 12 },
