@@ -5,14 +5,18 @@ import {
   TouchableOpacity,
   Modal,
   StyleSheet,
-  Image,
   ActivityIndicator,
   FlatList,
 } from "react-native";
 import firestore, { FieldValue } from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import storage from "@react-native-firebase/storage";
-import { StorageCache } from "../utils/cacheManager";
+import Avatar from "./Avatar";
+import {
+  SkeletonProvider,
+  SkeletonCircle,
+  SkeletonText,
+} from "./Skeleton";
+import * as avatarCache from "../utils/avatarCache";
 import { callFunction } from "./functionCalls";
 import IndividualProfile from "./individualProfile";
 
@@ -134,16 +138,12 @@ const UnavailableRequestModal = ({
   onSkipAll,
   showSkipAll = false,
   availableServers: propAvailableServers,
-  imageUrls: propImageUrls,
   lastServeData: propLastServeData,
   nextServeData: propNextServeData,
   selectedWeek: propSelectedWeek,
 }) => {
   const user = auth().currentUser;
 
-  const [originalImageUrl, setOriginalImageUrl] = useState(null);
-  const [replacementImageUrl, setReplacementImageUrl] = useState(null);
-  const [loadingImages, setLoadingImages] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedProfileUid, setSelectedProfileUid] = useState(null);
@@ -152,7 +152,6 @@ const UnavailableRequestModal = ({
   const [viewMode, setViewMode] = useState('main');
 
   const [localAvailableServers, setLocalAvailableServers] = useState([]);
-  const [localImageUrls, setLocalImageUrls] = useState({});
   const [localLastServeData, setLocalLastServeData] = useState({});
   const [localNextServeData, setLocalNextServeData] = useState({});
   const [loadingServers, setLoadingServers] = useState(false);
@@ -161,10 +160,6 @@ const UnavailableRequestModal = ({
     propAvailableServers?.length > 0
       ? propAvailableServers
       : localAvailableServers;
-  const imageUrls =
-    propImageUrls && Object.keys(propImageUrls).length > 0
-      ? propImageUrls
-      : localImageUrls;
   const lastServeData =
     propLastServeData && Object.keys(propLastServeData).length > 0
       ? propLastServeData
@@ -182,31 +177,13 @@ const UnavailableRequestModal = ({
     }
   }, [visible]);
 
-  // Fetch profile images for original and replacement
+  // The original/replacement avatars are rendered by <Avatar uid=...>, which
+  // resolves them through avatarCache (memory -> AsyncStorage -> network, once).
+  // Priming here is free for whatever the caller already handed us.
   useEffect(() => {
     if (!visible) return;
-
-    const fetchImages = async () => {
-      setLoadingImages(true);
-      const urls = {};
-
-      for (const uid of [original?.uid, replacement?.uid]) {
-        if (!uid) continue;
-        try {
-          const url = await StorageCache.getDownloadURL(
-            `profilePictures/${uid}.png`
-          );
-          urls[uid] = url;
-        } catch {}
-      }
-
-      setOriginalImageUrl(urls[original?.uid] || null);
-      setReplacementImageUrl(urls[replacement?.uid] || null);
-      setLoadingImages(false);
-    };
-
-    fetchImages();
-  }, [visible, original?.uid, replacement?.uid]);
+    avatarCache.primeMany([original, replacement]);
+  }, [visible, original, replacement]);
 
   // Fetch available servers proactively when modal is visible
   useEffect(() => {
@@ -245,26 +222,15 @@ const UnavailableRequestModal = ({
         if (!isMounted) return;
         setLocalAvailableServers(extraServers);
 
-        const urls = {};
         const lastServe = {};
         const nextServe = {};
+        const userDocs = [];
 
+        // The users/{uid} read below already carries photoURL, so the extra
+        // Storage getDownloadURL per server is gone entirely — one primeMany
+        // call feeds every avatar from data we were fetching anyway.
         await Promise.all(
           extraServers.map(async (server) => {
-            try {
-              const url = await StorageCache.getDownloadURL(
-                `profilePictures/${server.uid}.png`
-              );
-              if (isMounted) urls[server.uid] = url;
-            } catch {
-              try {
-                const url = await storage()
-                  .ref(`profilePictures/${server.uid}.png`)
-                  .getDownloadURL();
-                if (isMounted) urls[server.uid] = url;
-              } catch {}
-            }
-
             try {
               const userDoc = await firestore()
                 .collection("users")
@@ -272,6 +238,7 @@ const UnavailableRequestModal = ({
                 .get();
               if (userDoc.exists && isMounted) {
                 const userData = userDoc.data();
+                userDocs.push({ uid: server.uid, ...userData });
                 if (userData.lastServe)
                   lastServe[server.uid] = userData.lastServe;
                 if (userData.nextWeekServe)
@@ -282,7 +249,7 @@ const UnavailableRequestModal = ({
         );
 
         if (isMounted) {
-          setLocalImageUrls(urls);
+          avatarCache.primeMany(userDocs);
           setLocalLastServeData(lastServe);
           setLocalNextServeData(nextServe);
           setLoadingServers(false);
@@ -439,15 +406,13 @@ const UnavailableRequestModal = ({
       >
         <View style={styles.serverItemContent}>
           <View style={styles.serverProfilePicContainer}>
-            <Image
-              source={
-                imageUrls[item.uid]
-                  ? { uri: imageUrls[item.uid] }
-                  : require("../assets/default_profile.png")
-              }
+            <Avatar
+              uid={item.uid}
+              user={item}
+              size={48}
+              borderRadius={24}
               style={styles.serverProfilePic}
-              resizeMode="cover"
-              defaultSource={require("../assets/default_profile.png")}
+              showBorder={false}
             />
             <View style={[styles.serverStatusIndicator, { backgroundColor: indicatorColor }]} />
           </View>
@@ -467,6 +432,33 @@ const UnavailableRequestModal = ({
     );
   };
 
+  // Placeholder rows in the exact shape of renderServerItem, so the real list
+  // drops straight in without the sheet resizing.
+  const renderServerSkeleton = () => (
+    <View style={styles.serverList}>
+      <SkeletonProvider>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <View key={i}>
+            <View style={styles.serverItemContainer}>
+              <View style={styles.serverItemContent}>
+                <SkeletonCircle size={48} />
+                <View style={styles.serverInfo}>
+                  <SkeletonText width="58%" height={16} />
+                  <SkeletonText
+                    width="36%"
+                    height={13}
+                    style={{ marginTop: 6 }}
+                  />
+                </View>
+              </View>
+            </View>
+            {i < 4 && <View style={styles.separator} />}
+          </View>
+        ))}
+      </SkeletonProvider>
+    </View>
+  );
+
   // Render server selection view
   const renderServerSelectView = () => (
     <View style={styles.modalContent}>
@@ -481,19 +473,26 @@ const UnavailableRequestModal = ({
         <Text style={styles.modalTitle}>Choose Replacement</Text>
         <View style={styles.backButton} />
       </View>
-      <FlatList
-        data={availableServers}
-        keyExtractor={(item) => item.uid}
-        showsVerticalScrollIndicator={false}
-        renderItem={renderServerItem}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-        style={styles.serverList}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No servers available</Text>
-          </View>
-        }
-      />
+      {loadingServers && availableServers.length === 0 ? (
+        renderServerSkeleton()
+      ) : (
+        <FlatList
+          data={availableServers}
+          keyExtractor={(item) => item.uid}
+          showsVerticalScrollIndicator={false}
+          renderItem={renderServerItem}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          style={styles.serverList}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No servers available</Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 
@@ -526,27 +525,14 @@ const UnavailableRequestModal = ({
               style={styles.profileImageWrapper}
               activeOpacity={0.7}
             >
-              {loadingImages ? (
-                <View
-                  style={[
-                    styles.profileImage,
-                    styles.profileImagePlaceholder,
-                  ]}
-                >
-                  <ActivityIndicator size="small" color="#666" />
-                </View>
-              ) : (
-                <Image
-                  source={
-                    originalImageUrl
-                      ? { uri: originalImageUrl }
-                      : require("../assets/default_profile.png")
-                  }
-                  style={[styles.profileImage, styles.unavailableImage]}
-                  resizeMode="cover"
-                  defaultSource={require("../assets/default_profile.png")}
-                />
-              )}
+              <Avatar
+                uid={original?.uid}
+                user={original}
+                size={72}
+                borderRadius={36}
+                style={[styles.profileImage, styles.unavailableImage]}
+                showBorder={false}
+              />
               <View
                 style={[styles.statusBadge, styles.unavailableBadge]}
               >
@@ -570,27 +556,14 @@ const UnavailableRequestModal = ({
               style={styles.profileImageWrapper}
               activeOpacity={0.7}
             >
-              {loadingImages ? (
-                <View
-                  style={[
-                    styles.profileImage,
-                    styles.profileImagePlaceholder,
-                  ]}
-                >
-                  <ActivityIndicator size="small" color="#666" />
-                </View>
-              ) : (
-                <Image
-                  source={
-                    replacementImageUrl
-                      ? { uri: replacementImageUrl }
-                      : require("../assets/default_profile.png")
-                  }
-                  style={[styles.profileImage, styles.suggestedImage]}
-                  resizeMode="cover"
-                  defaultSource={require("../assets/default_profile.png")}
-                />
-              )}
+              <Avatar
+                uid={replacement?.uid}
+                user={replacement}
+                size={72}
+                borderRadius={36}
+                style={[styles.profileImage, styles.suggestedImage]}
+                showBorder={false}
+              />
               <View style={[styles.statusBadge, styles.suggestedBadge]}>
                 <Text style={styles.statusIcon}>✓</Text>
               </View>
@@ -617,19 +590,17 @@ const UnavailableRequestModal = ({
           )}
         </TouchableOpacity>
 
+        {/* Openable while the roster is still in flight — the list itself
+            shows skeleton rows until the servers land. */}
         <TouchableOpacity
           style={[styles.actionButton, styles.chooseButton]}
           onPress={handleChooseSomeoneElse}
-          disabled={submitting || loadingServers}
+          disabled={submitting}
           activeOpacity={0.8}
         >
-          {loadingServers ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.chooseButtonText}>
-              Choose Someone Else
-            </Text>
-          )}
+          <Text style={styles.chooseButtonText}>
+            Choose Someone Else
+          </Text>
         </TouchableOpacity>
 
         <View style={styles.skipButtonsContainer}>
@@ -662,8 +633,11 @@ const UnavailableRequestModal = ({
 
   return (
     <>
+      {/* Hidden while the profile is up: iOS silently refuses to present a
+          second Modal over an already-presented one, which is why tapping a
+          person here used to do nothing. */}
       <Modal
-        visible={visible}
+        visible={visible && !showProfileModal}
         transparent
         animationType="fade"
         onRequestClose={onClose}

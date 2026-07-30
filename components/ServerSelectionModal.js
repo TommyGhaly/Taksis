@@ -5,10 +5,10 @@ import {
   TouchableOpacity,
   Modal,
   FlatList,
-  Image,
   StyleSheet,
   TextInput,
 } from "react-native";
+import Avatar from "./Avatar";
 
 // Date format constants
 const DATE_FORMATS = {
@@ -93,7 +93,6 @@ const ServerSelectionModal = ({
   onClose,
   onSelect,
   servers = [],
-  imageUrls = {},
   lastServeData = {},
   nextServeData = {},
   selectedWeek,
@@ -129,14 +128,13 @@ const ServerSelectionModal = ({
       >
         <View style={styles.modalItemContent}>
           <View style={styles.profilePicContainer}>
-            <Image
-              source={
-                imageUrls[item.uid]
-                  ? { uri: imageUrls[item.uid] }
-                  : require("../assets/default_profile.png")
-              }
+            <Avatar
+              uid={item.uid}
+              user={item}
+              size={42}
+              borderRadius={21}
               style={styles.profilePic}
-              defaultSource={require("../assets/default_profile.png")}
+              showBorder={false}
             />
             <View style={[styles.statusIndicator, { backgroundColor: indicatorColor }]} />
           </View>
@@ -204,6 +202,9 @@ const ServerSelectionModal = ({
               keyExtractor={(item) => item.uid}
               showsVerticalScrollIndicator={false}
               renderItem={renderItem}
+              initialNumToRender={10}
+              maxToRenderPerBatch={10}
+              windowSize={7}
               keyboardShouldPersistTaps="handled"
               ItemSeparatorComponent={() => <View style={styles.separator} />}
               ListEmptyComponent={

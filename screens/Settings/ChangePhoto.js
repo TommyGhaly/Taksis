@@ -7,7 +7,7 @@ import {
   Alert,
   Image,
 } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import BackArrow from "../../components/backArrow";
 import firestore from "@react-native-firebase/firestore";
@@ -16,19 +16,31 @@ import auth from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 import PhotoInput from "../../components/photoInput";
 
+const DEFAULT_PROFILE = require("../../assets/default_profile.png");
+
 const ChangePhoto = () => {
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [previewUri, setPreviewUri] = useState(null);
   const navigation = useNavigation();
   const user = auth().currentUser;
 
-  const updatePhotoUrlInDB = async () => {
+  const refreshPreview = async () => {
+    if (!user?.uid) return;
     try {
-      await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
-      setPreviewUri(photoUrl); // Update preview after successful upload
+      const photoUrl = await storage()
+        .ref(`profilePictures/${user.uid}.png`)
+        .getDownloadURL();
+      // Bust the image cache so a re-upload to the same path is visible.
+      setPreviewUri(`${photoUrl}${photoUrl.includes("?") ? "&" : "?"}t=${Date.now()}`);
     } catch (error) {
+      setPreviewUri(null);
     }
   };
+
+  // Show the current picture when arriving on the screen.
+  useEffect(() => {
+    refreshPreview();
+  }, [user?.uid]);
 
   const handleConfirm = async () => {
     navigation.goBack();
@@ -46,11 +58,7 @@ const ChangePhoto = () => {
       <View style={styles.card}>
         <View style={styles.previewContainer}>
           <Image
-            source={
-              previewUri
-                ? { uri: previewUri }
-                : { uri: 'https://via.placeholder.com/150?text=Profile' }
-            }
+            source={previewUri ? { uri: previewUri } : DEFAULT_PROFILE}
             style={styles.previewImage}
             resizeMode="cover"
           />
@@ -82,7 +90,7 @@ const ChangePhoto = () => {
         visible={showPhotoModal}
         onClose={() => {
           setShowPhotoModal(false);
-          updatePhotoUrlInDB(); // Update Firestore and preview after upload
+          refreshPreview();
         }}
         userId={user?.uid || "default"}
       />

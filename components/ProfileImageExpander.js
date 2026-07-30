@@ -9,6 +9,7 @@ import Animated, {
 
 const AnimatedExpoImage = Animated.createAnimatedComponent(Image);
 const { width: WINDOW_WIDTH, height: WINDOW_HEIGHT } = Dimensions.get('window');
+const DEFAULT_PROFILE = require('../assets/default_profile.png');
 
 const SPRING_CONFIG = {
   damping: 25,
@@ -36,15 +37,20 @@ const ProfileImageExpander = React.memo(({
   // Scale ratio: we render at finalSize and scale down to size/finalSize initially
   const initialScale = size / finalSize;
 
-  const imageSource = useMemo(() => {
-    if (!imageUrl || typeof imageUrl !== "string" || imageUrl.trim() === "") {
-      return require("../assets/default_profile.png");
-    }
-    return imageUrl;
-  }, [imageUrl]);
-
+  // Callers pass either a URL string, a require()'d asset, or null — accept all.
   const isDefaultImage = useMemo(
-    () => !imageUrl || typeof imageUrl !== "string" || imageUrl.trim() === "",
+    () => !imageUrl || (typeof imageUrl === "string" && imageUrl.trim() === ""),
+    [imageUrl]
+  );
+
+  const imageSource = useMemo(() => {
+    if (isDefaultImage) return DEFAULT_PROFILE;
+    return imageUrl;
+  }, [imageUrl, isDefaultImage]);
+
+  // recyclingKey must be a string; require()'d assets come through as numbers.
+  const recyclingKey = useMemo(
+    () => (typeof imageUrl === "string" && imageUrl ? imageUrl : "default"),
     [imageUrl]
   );
 
@@ -54,27 +60,50 @@ const ProfileImageExpander = React.memo(({
       return;
     }
 
-    profileImageRef.current?.measure((x, y, w, h, pageX, pageY) => {
-      const imageCenterX = pageX + w / 2;
-      const imageCenterY = pageY + h / 2;
-      const screenCenterX = WINDOW_WIDTH / 2;
-      const screenCenterY = WINDOW_HEIGHT / 2;
-      
-      const offsetX = imageCenterX - screenCenterX;
-      const offsetY = imageCenterY - screenCenterY;
-      
+    // Open from a given origin offset. Measuring is only an enhancement for the
+    // zoom animation — the modal must open even when measure() never fires
+    // (e.g. this avatar is hosted inside another Modal, where RN may not
+    // invoke the callback at all).
+    const open = (offsetX = 0, offsetY = 0) => {
       startX.value = Math.abs(offsetX) < 20 ? 0 : offsetX;
       startY.value = Math.abs(offsetY) < 20 ? 0 : offsetY;
       progress.value = 0;
-      
+
       setModalVisible(true);
       setIsAnimating(true);
-      
+
       requestAnimationFrame(() => {
         progress.value = withSpring(1, SPRING_CONFIG);
       });
+    };
+
+    const node = profileImageRef.current;
+    if (!node?.measureInWindow) {
+      open();
+      return;
+    }
+
+    let opened = false;
+    const openOnce = (x, y) => {
+      if (opened) return;
+      opened = true;
+      open(x, y);
+    };
+
+    node.measureInWindow((x, y, w, h) => {
+      if (typeof x !== "number" || typeof y !== "number" || !w || !h) {
+        openOnce();
+        return;
+      }
+      openOnce(
+        x + w / 2 - WINDOW_WIDTH / 2,
+        y + h / 2 - WINDOW_HEIGHT / 2
+      );
     });
-  }, [onPress, initialScale]);
+
+    // Fallback: if measureInWindow never calls back, open centered anyway.
+    requestAnimationFrame(() => openOnce());
+  }, [onPress]);
 
   const closeModal = useCallback(() => {
     setModalVisible(false);
@@ -140,7 +169,7 @@ const ProfileImageExpander = React.memo(({
             cachePolicy="memory-disk"
             priority="high"
             transition={0}
-            recyclingKey={imageUrl}
+            recyclingKey={recyclingKey}
           />
         </TouchableOpacity>
       </Modal>
@@ -166,11 +195,11 @@ const ProfileImageExpander = React.memo(({
             source={imageSource}
             contentFit={isDefaultImage || !imageLoaded ? "contain" : "cover"}
             cachePolicy="memory-disk"
-            placeholder={require("../assets/default_profile.png")}
+            placeholder={DEFAULT_PROFILE}
             placeholderContentFit="contain"
             transition={200}
             onLoad={() => setImageLoaded(true)}
-            recyclingKey={imageUrl}
+            recyclingKey={recyclingKey}
           />
         </View>
       </TouchableOpacity>

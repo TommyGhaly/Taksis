@@ -17,6 +17,7 @@ import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import BackArrow from "../../components/backArrow";
+import SkeletonScreen from "../../components/Skeleton";
 
 // Import actual screen components
 import HomeScreen from "../Home/HomeScreen";
@@ -220,7 +221,17 @@ const HomeScreenSelector = () => {
         <View
           style={[styles.previewCard, isSelected && styles.selectedPreviewCard]}
         >
-          <AsyncPreview component={screen.component} screenId={screen.id} />
+          {/* Only the selected card mounts a real screen. Previously all ~10
+              mounted at once — every listener, every fetch, and TrafficManager's
+              data migration, all fired from a settings screen. `isPreview` is
+              passed but no screen reads it, so these are fully live mounts. */}
+          {isSelected ? (
+            <AsyncPreview component={screen.component} screenId={screen.id} />
+          ) : (
+            <View style={styles.previewWrapper} pointerEvents="none">
+              <SkeletonScreen variant="block" />
+            </View>
+          )}
           {isSelected && (
             <View style={styles.selectedOverlay}>
               <View style={styles.checkmark}>
@@ -238,9 +249,7 @@ const HomeScreenSelector = () => {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#147EFB" />
-        </View>
+        <SkeletonScreen variant="cards" count={4} />
       </SafeAreaView>
     );
   }

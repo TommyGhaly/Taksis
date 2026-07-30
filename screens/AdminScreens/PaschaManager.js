@@ -3,15 +3,18 @@ import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback,
   StyleSheet, ScrollView, Modal, TextInput, Switch,
   FlatList, Alert, KeyboardAvoidingView, Platform,
-  ActivityIndicator, StatusBar, Pressable, Image,
+  ActivityIndicator, StatusBar, Pressable,
   useWindowDimensions,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import firestore from "@react-native-firebase/firestore";
-import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import PaschaArchiveViewer from "../../components/PaschaArchiveViewer";
+import Avatar from "../../components/Avatar";
+import * as avatarCache from "../../utils/avatarCache";
+import SkeletonScreen from "../../components/Skeleton";
+import useAfterInteractions from "../../hooks/useAfterInteractions";
 import {
   expandReadings, countSlots, dayProgress, isAssignableSlot, isPsalmSlot,
   hasLanguagePicker, languageOptionsFor, effectiveLanguage, langDisplay, langShort,
@@ -19,8 +22,6 @@ import {
   ASSIGNABLE, READING_META, MAX_PSALM_READERS, readingDisplay,
 } from "../Pascha/PaschaReadingUtils";
 import { DAY_SHORT_LABELS } from "../Pascha/DayConstants";
-
-var DEFAULT_AVATAR = require("../../assets/default_profile.png");
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 var BG      = "#0f0f0f";
@@ -79,43 +80,9 @@ function calcDate(easter, offset) {
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
-// ── Profile picture hook ──────────────────────────────────────────────────────
-function useProfilePic(uid) {
-  var _a = useState(null), uri = _a[0], setUri = _a[1];
-  useEffect(function() {
-    if (!uid) return;
-    var cancelled = false;
-    storage().ref("profilePictures/" + uid + ".png").getDownloadURL()
-      .then(function(url) { if (!cancelled) setUri(url); })
-      .catch(function(_err) {});
-    return function() { cancelled = true; };
-  }, [uid]);
-  return uri;
-}
-
-var Avatar = function(props) {
-  var uid = props.uid;
-  var size = props.size != null ? props.size : 40;
-  var style = props.style;
-  var uri = useProfilePic(uid);
-  var _a = useState(false), failed = _a[0], setFailed = _a[1];
-  useEffect(function() { setFailed(false); }, [uid, uri]);
-  return (
-    <View style={[{
-      width: size, height: size, borderRadius: size / 2,
-      overflow: "hidden", backgroundColor: CARD2,
-      justifyContent: "center", alignItems: "center",
-    }, style]}>
-      <Image
-        source={!failed && uri ? { uri: uri } : DEFAULT_AVATAR}
-        defaultSource={DEFAULT_AVATAR}
-        style={{ width: size, height: size, borderRadius: size / 2 }}
-        resizeMode="cover"
-        onError={function() { setFailed(true); }}
-      />
-    </View>
-  );
-};
+// Background the old local Avatar painted behind the image. Module-level so the
+// reference is stable and Avatar's React.memo still holds.
+var AVATAR_BG = { backgroundColor: CARD2 };
 
 // ── Psalm reader row ──────────────────────────────────────────────────────────
 var PsalmReadersRow = function(props) {
@@ -132,7 +99,7 @@ var PsalmReadersRow = function(props) {
             {readers.slice(0, 4).map(function(r, i) {
               return (
                 <Avatar key={r.uid || r.name || i} uid={r.uid} size={26}
-                  style={{ marginLeft: i > 0 ? -8 : 0, borderWidth: 1.5, borderColor: CARD }} />
+                  style={{ marginLeft: i > 0 ? -8 : 0, borderWidth: 1.5, borderColor: CARD, backgroundColor: CARD2 }} />
               );
             })}
           </View>
@@ -268,7 +235,7 @@ var GospelGrid = function(props) {
             </View>
             {assignee ? (
               <View style={gg.assigneeRow}>
-                <Avatar uid={assignee.uid} size={18} />
+                <Avatar uid={assignee.uid} size={18} showBorder={false} style={AVATAR_BG} />
                 <Text style={[gg.assigneeName, { fontSize: sf(11, fs) }]} numberOfLines={1}>{assignee.name}</Text>
               </View>
             ) : (
@@ -582,7 +549,7 @@ var HourModal = function(props) {
                             style={[hm.assignBtn, assignee && hm.assignBtnFilled]}>
                             {assignee ? (
                               <>
-                                <Avatar uid={assignee.uid} size={28} />
+                                <Avatar uid={assignee.uid} size={28} showBorder={false} style={AVATAR_BG} />
                                 <Text style={[hm.assignedName, { fontSize: sf(14, fs) }]} numberOfLines={1}>{assignee.name}</Text>
                                 <Icon name="pencil-outline" size={14} color={T2} />
                               </>
@@ -634,7 +601,7 @@ var HourModal = function(props) {
                 </View>
                 {sel != null && (
                   <View style={hm.selBanner}>
-                    <Avatar uid={sel.uid} size={44} />
+                    <Avatar uid={sel.uid} user={sel} size={44} showBorder={false} style={AVATAR_BG} />
                     <View style={{ flex: 1, marginLeft: 12 }}>
                       <Text style={hm.selName}>{sel.name}</Text>
                       <Text style={hm.selSub}>
@@ -678,6 +645,9 @@ var HourModal = function(props) {
                       style={{ maxHeight: pickerScrollMax, paddingHorizontal: 20 }}
                       keyboardShouldPersistTaps="handled"
                       showsVerticalScrollIndicator
+                      initialNumToRender={10}
+                      maxToRenderPerBatch={10}
+                      windowSize={7}
                       ListEmptyComponent={<Text style={hm.empty}>No results</Text>}
                       renderItem={function(ri) {
                         var item = ri.item;
@@ -687,7 +657,7 @@ var HourModal = function(props) {
                         return (
                           <TouchableOpacity style={[hm.pRow, on && hm.pRowOn]}
                             onPress={function() { setSel(on ? null : item); }} activeOpacity={0.65}>
-                            <Avatar uid={item.uid} size={38} />
+                            <Avatar uid={item.uid} user={item} size={38} showBorder={false} style={AVATAR_BG} />
                             <View style={{ flex: 1, marginLeft: 12 }}>
                               <Text style={hm.pRowName}>{item.name}</Text>
                               {item.isDeacon && <Text style={hm.pRowTag}>DEACON</Text>}
@@ -773,7 +743,7 @@ var HourModal = function(props) {
                       return (
                         <TouchableOpacity key={k} style={pmS.chip}
                           onPress={function() { togglePsalm(r); }} activeOpacity={0.7}>
-                          <Avatar uid={r.uid} size={20} />
+                          <Avatar uid={r.uid} user={r} size={20} showBorder={false} style={AVATAR_BG} />
                           <Text style={pmS.chipName} numberOfLines={1}>{r.name}</Text>
                           <Icon name="close-circle" size={14} color={T2} />
                         </TouchableOpacity>
@@ -812,6 +782,9 @@ var HourModal = function(props) {
                       style={{ maxHeight: psalmPickerScrollMax, paddingHorizontal: 20 }}
                       keyboardShouldPersistTaps="handled"
                       showsVerticalScrollIndicator
+                      initialNumToRender={10}
+                      maxToRenderPerBatch={10}
+                      windowSize={7}
                       ListEmptyComponent={<Text style={hm.empty}>No results</Text>}
                       renderItem={function(ri) {
                         var item = ri.item;
@@ -823,7 +796,7 @@ var HourModal = function(props) {
                             style={[hm.pRow, on && hm.pRowOn, atMax && { opacity: 0.4 }]}
                             onPress={function() { if (!atMax) togglePsalm(item); }}
                             activeOpacity={0.65}>
-                            <Avatar uid={item.uid} size={38} />
+                            <Avatar uid={item.uid} user={item} size={38} showBorder={false} style={AVATAR_BG} />
                             <View style={{ flex: 1, marginLeft: 12 }}>
                               <Text style={hm.pRowName}>{item.name}</Text>
                               {item.isDeacon && <Text style={hm.pRowTag}>DEACON</Text>}
@@ -1142,7 +1115,7 @@ var HourTile = React.memo(function(props) {
                         {readers.slice(0, 4).map(function(r, idx) {
                           return (
                             <Avatar key={r.uid || r.name || idx} uid={r.uid} size={28}
-                              style={{ marginLeft: idx > 0 ? -10 : 0, borderWidth: 2, borderColor: CARD }} />
+                              style={{ marginLeft: idx > 0 ? -10 : 0, borderWidth: 2, borderColor: CARD, backgroundColor: CARD2 }} />
                           );
                         })}
                         <Text style={[ht.assigneeName, { fontSize: sf(12, fs) }]} numberOfLines={1}>
@@ -1152,7 +1125,7 @@ var HourTile = React.memo(function(props) {
                     : <Text style={[ht.rRef, { fontSize: sf(12, fs) }]} numberOfLines={1}>{row.refText || "\u2014"}</Text>
                 ) : assignee != null ? (
                   <View style={ht.assigneeRow}>
-                    <Avatar uid={assignee.uid} size={28} style={{ borderWidth: 2, borderColor: CARD }} />
+                    <Avatar uid={assignee.uid} size={28} style={{ borderWidth: 2, borderColor: CARD, backgroundColor: CARD2 }} />
                     <Text style={[ht.assigneeName, isCoptic && { color: COPTIC_COLOR }, { fontSize: sf(12, fs) }]} numberOfLines={1}>
                       {assignee.name}
                     </Text>
@@ -1518,6 +1491,11 @@ var arc = StyleSheet.create({
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function PaschaManager() {
   var isMounted = useRef(true);
+
+  // Hold the six Firestore listeners below until the drawer/stack transition
+  // has finished animating — they otherwise stall it mid-slide.
+  var ready = useAfterInteractions();
+
   var _uid = useState(null); var uid = _uid[0]; var setUid = _uid[1];
   var _churchId = useState(null); var churchId = _churchId[0]; var setChurchId = _churchId[1];
   var _scheduleShell = useState(null); var scheduleShell = _scheduleShell[0]; var setScheduleShell = _scheduleShell[1];
@@ -1527,7 +1505,9 @@ export default function PaschaManager() {
   var _easterDate = useState(null); var easterDate = _easterDate[0]; var setEasterDate = _easterDate[1];
   var _deacons = useState([]); var deacons = _deacons[0]; var setDeacons = _deacons[1];
   var _congregation = useState([]); var congregation = _congregation[0]; var setCongregation = _congregation[1];
-  var _loadingUsers = useState(false); var loadingUsers = _loadingUsers[0]; var setLoadingUsers = _loadingUsers[1];
+  // Starts true so the people picker shows its spinner rather than "No results"
+  // in the window before the congregation snapshot has delivered.
+  var _loadingUsers = useState(true); var loadingUsers = _loadingUsers[0]; var setLoadingUsers = _loadingUsers[1];
   var _settingsOpen = useState(false); var settingsOpen = _settingsOpen[0]; var setSettingsOpen = _settingsOpen[1];
   var _archiveOpen = useState(false); var archiveOpen = _archiveOpen[0]; var setArchiveOpen = _archiveOpen[1];
   var _archiveViewOpen = useState(false); var archiveViewOpen = _archiveViewOpen[0]; var setArchiveViewOpen = _archiveViewOpen[1];
@@ -1561,6 +1541,7 @@ export default function PaschaManager() {
   var activeFontMultiplier = resolvedFontScale(fontSizeScale, fontSizeMultipliers);
 
   useEffect(function() {
+    if (!ready) return;
     isMounted.current = true;
     var user = auth().currentUser;
     if (!user) return function() { isMounted.current = false; };
@@ -1572,9 +1553,10 @@ export default function PaschaManager() {
       }
     });
     return function() { isMounted.current = false; unsub(); };
-  }, []);
+  }, [ready]);
 
   useEffect(function() {
+    if (!ready) return;
     if (!churchId) return;
     isMounted.current = true;
     var unsubShell = firestore()
@@ -1610,9 +1592,10 @@ export default function PaschaManager() {
         setAssignees(doc.exists ? doc.data() : {});
       });
     return function() { unsubShell(); unsubConfig(); unsubSchedule(); };
-  }, [churchId]);
+  }, [churchId, ready]);
 
   useEffect(function() {
+    if (!ready) return;
     if (!churchId) return;
     setLoadingUsers(true);
     var unsubC = firestore().collection("churches").doc(churchId).onSnapshot(function(doc) {
@@ -1626,15 +1609,16 @@ export default function PaschaManager() {
     });
     var unsubU = firestore().collection("users").where("church", "==", churchId).onSnapshot(function(snap) {
       if (!isMounted.current) return;
-      setCongregation(
-        snap.docs.map(function(d) { return Object.assign({ uid: d.id }, d.data()); })
-          .filter(function(u) { return u.name; })
-          .sort(function(a, b) { return a.name.localeCompare(b.name); })
-      );
+      var users = snap.docs.map(function(d) { return Object.assign({ uid: d.id }, d.data()); })
+        .filter(function(u) { return u.name; })
+        .sort(function(a, b) { return a.name.localeCompare(b.name); });
+      // Free: these docs are already loaded, so their photoURLs cost nothing.
+      avatarCache.primeMany(users);
+      setCongregation(users);
       setLoadingUsers(false);
     });
     return function() { unsubC(); unsubU(); };
-  }, [churchId]);
+  }, [churchId, ready]);
 
   var writeConfig = useCallback(function(fields) {
     if (!churchId) return Promise.resolve();
@@ -1725,10 +1709,25 @@ export default function PaschaManager() {
     <View style={mn.container}>
       <StatusBar barStyle="light-content" />
 
-      {!scheduleShell ? (
-        <View style={mn.loadingWrap}>
-          <ActivityIndicator color={BLUE} size="large" />
-        </View>
+      {(!ready || !scheduleShell) ? (
+        <SkeletonScreen
+          variant="cards"
+          count={6}
+          showHeader={false}
+          paddingTop={0}
+          paddingHorizontal={0}
+          bodyStyle={{ paddingHorizontal: 20 }}
+          // The title is known before any read, so render the real header rather
+          // than shimmering a placeholder that then shifts when data lands.
+          header={
+            <View style={mn.header}>
+              <View style={{ flex: 1 }}>
+                <Text style={mn.eyebrow}>{"HOLY WEEK · PASCHA"}</Text>
+                <Text style={[mn.title, { fontSize: sf(28, activeFontMultiplier) }]}>Schedule</Text>
+              </View>
+            </View>
+          }
+        />
       ) : (
         <>
           <View style={mn.header}>

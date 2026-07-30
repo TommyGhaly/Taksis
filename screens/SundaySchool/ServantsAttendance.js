@@ -8,15 +8,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
-  Image,
 } from "react-native";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
-import storage from "@react-native-firebase/storage";
 import BackArrow from "../../components/backArrow";
-import ProfileImageExpander from "../../components/ProfileImageExpander";
-
-const defaultProfileImage = require("../../assets/default_profile.png");
+import Avatar from "../../components/Avatar";
+import SkeletonScreen from "../../components/Skeleton";
+import * as avatarCache from "../../utils/avatarCache";
 
 const ServantAttendance = () => {
   const navigation = useNavigation();
@@ -24,7 +22,6 @@ const ServantAttendance = () => {
   const { church, servantId } = route.params;
   const [servantData, setServantData] = useState({});
   const [loading, setLoading] = useState(true);
-  const [profilePictureUrl, setProfilePictureUrl] = useState(null);
   const isMounted = useRef(true);
 
   useFocusEffect(
@@ -34,7 +31,6 @@ const ServantAttendance = () => {
       // Reset state when screen is focused
       setServantData({});
       setLoading(true);
-      setProfilePictureUrl(null);
 
       const fetchData = () => {
         if (!servantId) {
@@ -51,12 +47,6 @@ const ServantAttendance = () => {
           .collection("Servants")
           .doc(servantId);
 
-        // Fetch profile picture concurrently
-        const profilePicturePromise = storage()
-          .ref(`profilePictures/${servantId}.png`)
-          .getDownloadURL()
-          .catch(() => null); // Return null if image fetch fails
-
         // Set up real-time listener for servant data
         const unsubscribe = servantRef.onSnapshot(
           async (doc) => {
@@ -64,14 +54,14 @@ const ServantAttendance = () => {
             try {
               if (doc.exists) {
                 const data = doc.data();
+                // Free: the doc is already here, so adopt its photoURL rather
+                // than paying for a Storage round-trip on every snapshot.
+                avatarCache.primeFromUser({ uid: servantId, ...data });
                 setServantData(data);
               } else {
                 navigation.goBack();
               }
 
-              // Resolve profile picture
-              const url = await profilePicturePromise;
-              setProfilePictureUrl(url);
               setLoading(false);
             } catch (error) {
               if (isMounted.current) {
@@ -206,12 +196,7 @@ const ServantAttendance = () => {
   };
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#fff" />
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
-    );
+    return <SkeletonScreen variant="profile" />;
   }
 
   const screenWidth = Dimensions.get("window").width;
@@ -228,11 +213,12 @@ const ServantAttendance = () => {
         </View>
         <Text style={styles.title}>{`${servantData.name || "Servant"}`}</Text>
         <View style={styles.profileContainer}>
-          <ProfileImageExpander
-            imageUrl={profilePictureUrl || defaultProfileImage}
+          <Avatar
+            uid={servantId}
             size={80}
             finalSize={300}
             borderRadius={40}
+            expandable
             style={styles.profileImage}
           />
         </View>

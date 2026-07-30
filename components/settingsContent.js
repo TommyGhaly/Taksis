@@ -14,123 +14,40 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import storage from "@react-native-firebase/storage";
-import { useUser } from "../UserContext";
+import { useUser, clearCachedProfile } from "../UserContext";
 import { callFunction } from "./functionCalls";
 import { deleteUser } from "@react-native-firebase/auth";
 import messaging from "@react-native-firebase/messaging";
-import ProfileImageExpander from "./ProfileImageExpander";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-const defaultProfileImage = require("../assets/default_profile.png");
+import Avatar from "./Avatar";
+import * as avatarCache from "../utils/avatarCache";
 
 const SettingsContent = () => {
-  const { signUp, setSignUp } = useUser(true);
+  const { signUp, setSignUp } = useUser();
   const navigation = useNavigation();
   const [userRoles, setUserRoles] = useState({ name: "" });
   const [isLoading, setIsLoading] = useState(false);
-  const [imageUrl, setImageUrl] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [suggestion, setSuggestion] = useState("");
 
-  const CACHE_DURATION = 3 * 24 * 60 * 60 * 1000;
-  const CACHE_KEY_PREFIX = "profilePicture_";
-  const CACHE_TIMESTAMP_PREFIX = "profilePictureTimestamp_";
-
-  const getCacheKey = (userId) => `${CACHE_KEY_PREFIX}${userId}`;
-  const getTimestampKey = (userId) => `${CACHE_TIMESTAMP_PREFIX}${userId}`;
-
-  const saveToCache = async (userId, url) => {
-    try {
-      await AsyncStorage.setItem(getCacheKey(userId), url);
-      await AsyncStorage.setItem(getTimestampKey(userId), Date.now().toString());
-    } catch (error) {
-      console.error("Error saving to cache:", error);
-    }
-  };
-
-  const getFromCache = async (userId) => {
-    try {
-      const cachedUrl = await AsyncStorage.getItem(getCacheKey(userId));
-      const timestamp = await AsyncStorage.getItem(getTimestampKey(userId));
-      if (cachedUrl && timestamp) {
-        const age = Date.now() - parseInt(timestamp);
-        if (age < CACHE_DURATION) return cachedUrl;
-      }
-      return null;
-    } catch (error) {
-      console.error("Error reading from cache:", error);
-      return null;
-    }
-  };
-
-  const clearCache = async (userId) => {
-    try {
-      await AsyncStorage.removeItem(getCacheKey(userId));
-      await AsyncStorage.removeItem(getTimestampKey(userId));
-    } catch (error) {
-      console.error("Error clearing cache:", error);
-    }
-  };
-
   useEffect(() => {
     const user = auth().currentUser;
-    if (user) {
-      const unsubscribe = firestore()
-        .collection("users")
-        .doc(user.uid)
-        .onSnapshot(
-          (doc) => {
-            if (doc.exists) setUserRoles(doc.data());
-          },
-          (error) => console.error("Error fetching user data:", error)
-        );
+    if (!user) return;
 
-      const fetchImage = async (forceRefresh = false) => {
-        try {
-          if (!forceRefresh) {
-            const cachedUrl = await getFromCache(user.uid);
-            if (cachedUrl) {
-              setImageUrl(cachedUrl);
-              fetchFromStorage(false);
-              return;
-            }
+    return firestore()
+      .collection("users")
+      .doc(user.uid)
+      .onSnapshot(
+        (doc) => {
+          if (doc.exists) {
+            const data = doc.data();
+            setUserRoles(data);
+            // Adopt photoURL from the doc we're already reading — no Storage
+            // request, and it updates the moment the photo changes.
+            avatarCache.primeFromUser({ uid: user.uid, ...data });
           }
-          await fetchFromStorage(true);
-        } catch (error) {
-          setImageUrl(null);
-        }
-      };
-
-      const fetchFromStorage = async (updateUI = true) => {
-        try {
-          const url = await storage()
-            .ref(`profilePictures/${user.uid}.png`)
-            .getDownloadURL();
-          if (typeof url === "string" && url.trim() !== "") {
-            const cachedUrl = await getFromCache(user.uid);
-            if (url !== cachedUrl) {
-              await saveToCache(user.uid, url);
-              if (updateUI) setImageUrl(url);
-            }
-          } else {
-            await clearCache(user.uid);
-            if (updateUI) setImageUrl(null);
-          }
-        } catch (error) {
-          await clearCache(user.uid);
-          if (updateUI) setImageUrl(null);
-        }
-      };
-
-      fetchImage();
-      const intervalId = setInterval(() => fetchImage(false), 10000);
-
-      return () => {
-        clearInterval(intervalId);
-        unsubscribe();
-      };
-    }
+        },
+        (error) => console.error("Error fetching user data:", error)
+      );
   }, []);
 
   const wait = (time) => new Promise((resolve) => setTimeout(resolve, time * 1000));
@@ -148,7 +65,8 @@ const SettingsContent = () => {
             await userDocRef.update({ fcmTokens: fcmTokens.filter((t) => t !== token) });
           }
         }
-        await clearCache(user.uid);
+        await avatarCache.clearAll();
+        await clearCachedProfile();
       }
     } catch (error) {
       console.error("Error during sign out:", error);
@@ -177,12 +95,17 @@ const SettingsContent = () => {
             try {
               await callFunction(user, "https://remove-family-schedules-hy6oofbihq-uc.a.run.app", { uid: user.uid, church: userRoles.church }, "Failed to remove family from schedules.");
               await callFunction(user, "https://delete-user-hy6oofbihq-uc.a.run.app", {}, "Failed to delete user.");
+              // The user doc is deleted just below, so clearing photoURL is
+              // usually redundant — but if any step of this teardown fails the
+              // account survives, and it must not survive pointing at a photo
+              // that no longer exists.
               try {
-                await storage().ref(`profilePictures/${user.uid}.png`).delete();
+                await avatarCache.removePhoto(user.uid);
               } catch (error) {
                 console.error("Error deleting profile picture:", error);
               }
-              await clearCache(user.uid);
+              await avatarCache.clearAll();
+              await clearCachedProfile();
               setSignUp(false);
               await firestore().collection("users").doc(user.uid).delete();
               await wait(2);
@@ -259,13 +182,14 @@ const SettingsContent = () => {
         </View>
       </Modal>
       <View style={styles.profileSection}>
-        <ProfileImageExpander
-          imageUrl={imageUrl}
-          defaultImage={defaultProfileImage}
+        <Avatar
+          uid={auth().currentUser?.uid}
+          user={userRoles}
           size={60}
           finalSize={300}
           borderRadius={30}
           style={styles.profileImage}
+          expandable
         />
         <Text style={styles.userName}>{userRoles.name}</Text>
       </View>
@@ -322,6 +246,9 @@ const SettingsContent = () => {
         <Text style={styles.sectionTitle}>Church Adjustments</Text>
         <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeChurch")}>
           <Text style={styles.cardText}>Change church</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("RegisterVehicle")}>
+          <Text style={styles.cardText}>Register vehicle</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("RequestAdmin")}>
           <Text style={styles.cardText}>Apply for admin</Text>

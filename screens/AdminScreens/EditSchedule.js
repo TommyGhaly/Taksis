@@ -15,13 +15,14 @@ import {
   Alert,
 } from "react-native";
 import firestore, { FieldValue } from "@react-native-firebase/firestore";
-import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import callFunction from "../../components/functionCalls";
 import IndividualProfile from "../../components/individualProfile";
+import SkeletonScreen from "../../components/Skeleton";
+import { useAfterInteractions } from "../../hooks/useAfterInteractions";
 import ServerSelectionModal from "../../components/ServerSelectionModal";
-import { FirestoreCache, StorageCache } from "../../utils/cacheManager";
+import * as avatarCache from "../../utils/avatarCache";
 
 const NOTIFICATION_URL =
   "https://us-central1-taksis-a8ba7.cloudfunctions.net/traffic_notification";
@@ -147,10 +148,15 @@ const StatusBadge = ({ status, align = "left" }) => {
 const EditSchedule = () => {
   const user = auth().currentUser;
   const scrollViewRef = useRef(null);
+  // Hold reads until the drawer transition finishes animating.
+  const ready = useAfterInteractions();
   const [churchId, setChurchId] = useState(null);
   const [week, setWeek] = useState(null);
   const [selectedWeek, setSelectedWeek] = useState(null);
   const [availableWeeks, setAvailableWeeks] = useState([]);
+  // This screen had no loading state at all — it rendered with empty arrays,
+  // so you saw a bare shell until the reads happened to land.
+  const [weeksLoaded, setWeeksLoaded] = useState(false);
   const [archivedWeeks, setArchivedWeeks] = useState([]);
   const [showArchivedWeeks, setShowArchivedWeeks] = useState(false);
   const [isViewingArchived, setIsViewingArchived] = useState(false);
@@ -165,7 +171,6 @@ const EditSchedule = () => {
   const [readerDropdownIndex, setReaderDropdownIndex] = useState(null);
   const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState(null);
-  const [imageUrls, setImageUrls] = useState({});
   const [altarServersCount, setAltarServersCount] = useState(0);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [lastServeData, setLastServeData] = useState({});
@@ -191,6 +196,9 @@ const EditSchedule = () => {
             const data = doc.data();
             if (data?.church && data.church !== churchId)
               setChurchId(data.church);
+            else if (!data?.church) setWeeksLoaded(true);
+          } else {
+            setWeeksLoaded(true);
           }
         },
         (err) => console.error("Error fetching user:", err),
@@ -213,7 +221,7 @@ const EditSchedule = () => {
   }, [churchId]);
 
   useEffect(() => {
-    if (!churchId) return;
+    if (!churchId || !ready) return;
     const fetchSchedules = async () => {
       try {
         const snapshot = await firestore()
@@ -256,8 +264,8 @@ const EditSchedule = () => {
         setAvailableWeeks(generateWeeks(nextSunday, 5));
       }
     };
-    fetchSchedules();
-  }, [churchId]);
+    fetchSchedules().finally(() => setWeeksLoaded(true));
+  }, [churchId, ready]);
 
   useEffect(() => {
     if (!churchId) return;
@@ -295,15 +303,17 @@ const EditSchedule = () => {
 
     const collectionPath = isViewingArchived ? "archive" : "schedule";
 
+    // Listen to the one document we actually read. This used to subscribe to
+    // the entire schedule/archive collection and then .find() the selected
+    // week out of it, which meant every write to any other week re-delivered
+    // and re-parsed the whole collection.
     const unsub = firestore()
       .collection("churches")
       .doc(churchId)
       .collection(collectionPath)
-      .onSnapshot((snapshot) => {
-        const scheduleDoc = snapshot.docs.find(
-          (doc) => doc.id === selectedWeek,
-        );
-        if (scheduleDoc) {
+      .doc(selectedWeek)
+      .onSnapshot((scheduleDoc) => {
+        if (scheduleDoc?.exists) {
           setWeek(selectedWeek);
           const data = scheduleDoc.data();
           const readersObj = {},
@@ -396,26 +406,12 @@ const EditSchedule = () => {
 
   const setupUserListeners = (servers) => {
     cleanupUserListeners();
+    // Anything the schedule doc already carries is free to prime; the
+    // per-user listeners below then prime from the real user docs. No Storage
+    // round-trips and no staggered timers — avatarCache dedupes and persists.
+    avatarCache.primeMany(servers);
     const newListeners = [];
-    servers.forEach((server, idx) => {
-      const storagePath = `profilePictures/${server.uid}.png`;
-      setTimeout(
-        async () => {
-          try {
-            const url = await StorageCache.getDownloadURL(storagePath);
-            setImageUrls((prev) => ({ ...prev, [server.uid]: url }));
-          } catch {
-            storage()
-              .ref(storagePath)
-              .getDownloadURL()
-              .then((url) =>
-                setImageUrls((prev) => ({ ...prev, [server.uid]: url })),
-              )
-              .catch(() => {});
-          }
-        },
-        idx === 0 ? 0 : Math.random() * 500,
-      );
+    servers.forEach((server) => {
       const unsub = firestore()
         .collection("users")
         .doc(server.uid)
@@ -423,6 +419,7 @@ const EditSchedule = () => {
           (doc) => {
             if (doc.exists) {
               const userData = doc.data();
+              avatarCache.primeFromUser({ uid: server.uid, ...userData });
               setLastServeData((prev) =>
                 userData.lastServe
                   ? { ...prev, [server.uid]: userData.lastServe }
@@ -455,7 +452,6 @@ const EditSchedule = () => {
     setAssignedServers({});
     setServers([]);
     setAvailableServers([]);
-    setImageUrls({});
     setLastServeData({});
     setNextServeData({});
     setDeaconTokens({});
@@ -612,6 +608,10 @@ const EditSchedule = () => {
   };
 
   const displayedWeeks = showArchivedWeeks ? archivedWeeks : availableWeeks;
+
+  if (!ready || !weeksLoaded) {
+    return <SkeletonScreen variant="cards" count={8} />;
+  }
 
   return (
     <View style={styles.container}>
@@ -804,7 +804,6 @@ const EditSchedule = () => {
         onClose={() => setServerDropdownIndex(null)}
         onSelect={(server) => assignServer(serverDropdownIndex, server)}
         servers={availableServers}
-        imageUrls={imageUrls}
         lastServeData={lastServeData}
         nextServeData={nextServeData}
         selectedWeek={selectedWeek}
@@ -816,7 +815,6 @@ const EditSchedule = () => {
         onClose={() => setReaderDropdownIndex(null)}
         onSelect={(reader) => assignReader(readerDropdownIndex, reader)}
         servers={availableServers}
-        imageUrls={imageUrls}
         lastServeData={lastServeData}
         nextServeData={nextServeData}
         selectedWeek={selectedWeek}

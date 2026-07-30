@@ -1,20 +1,21 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, Switch, Modal,
-  StyleSheet, Image, ActivityIndicator, StatusBar, Platform,
+  StyleSheet, StatusBar, Platform,
   useWindowDimensions,
 } from "react-native";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
-import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
+import Avatar from "../../components/Avatar";
+import SkeletonScreen from "../../components/Skeleton";
+import useAfterInteractions from "../../hooks/useAfterInteractions";
+import * as avatarCache from "../../utils/avatarCache";
 import {
   expandReadings, isAssignableSlot, isPsalmSlot,
   hasLanguagePicker, effectiveLanguage, langShort,
   READING_META,
 } from "../Pascha/PaschaReadingUtils";
-
-const DEFAULT_AVATAR = require("../../assets/default_profile.png");
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 const BG      = "#0f0f0f";
@@ -123,28 +124,6 @@ function buildReadingLabel(row) {
   if (row.index != null)         return `${meta.label} ${row.index + 1}`;
   return meta.label;
 }
-
-// ── Avatar ────────────────────────────────────────────────────────────────────
-function useProfilePic(uid) {
-  const [uri, setUri] = useState(null);
-  useEffect(() => {
-    if (!uid) return;
-    let c = false;
-    storage().ref(`profilePictures/${uid}.png`).getDownloadURL()
-      .then(url => { if (!c) setUri(url); }).catch(() => {});
-    return () => { c = true; };
-  }, [uid]);
-  return uri;
-}
-
-const Avatar = ({ uid, size = 26 }) => {
-  const uri = useProfilePic(uid);
-  return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, overflow: "hidden", backgroundColor: GLASS2 }}>
-      <Image source={uri ? { uri } : DEFAULT_AVATAR} style={{ width: size, height: size }} resizeMode="cover" />
-    </View>
-  );
-};
 
 // ── Settings Sheet (home page variant: font size + hide names only) ───────────
 const HomeSettingsSheet = ({ visible, fontSizeScale, hideNames, onSetFontSize, onToggleHideNames, onClose }) => (
@@ -327,14 +306,14 @@ const ReadingCard = ({ row, hourAssignments, uid, isFullSchedule, isMine, hideNa
         <View style={rdc.assigneeRow}>
           {isPsalm ? readers.map((r, i) => (
             <View key={r.uid || i} style={[rdc.chip, r.uid === uid && rdc.chipMe, isCopticRow && rdc.chipCoptic]}>
-              <Avatar uid={r.uid} size={16} />
+              <Avatar uid={r.uid} size={16} showBorder={false} style={rdc.chipAvatar} />
               <Text style={[rdc.chipName, r.uid === uid && rdc.chipNameMe, isCopticRow && rdc.chipNameCoptic,
                 { fontSize: sf(11, fontScale) }]}
                 numberOfLines={1}>{r.name}</Text>
             </View>
           )) : (
             <View style={[rdc.chip, isMine && rdc.chipMe, isCopticRow && rdc.chipCoptic]}>
-              <Avatar uid={assignee.uid} size={16} />
+              <Avatar uid={assignee.uid} size={16} showBorder={false} style={rdc.chipAvatar} />
               <Text style={[rdc.chipName, isMine && rdc.chipNameMe, isCopticRow && rdc.chipNameCoptic,
                 { fontSize: sf(11, fontScale) }]}
                 numberOfLines={1}>{assignee.name}</Text>
@@ -363,6 +342,7 @@ const rdc = StyleSheet.create({
   loc:             { fontSize: 11, color: T3, fontWeight: "400" },
   assigneeRow:     { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: SEP },
   chip:            { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: GLASS2, borderWidth: 1, borderColor: SEP, borderRadius: 20, paddingVertical: 3, paddingHorizontal: 8 },
+  chipAvatar:      { backgroundColor: GLASS2 },
   chipMe:          { backgroundColor: BLUE_D, borderColor: "rgba(59,130,246,0.3)" },
   chipCoptic:      { backgroundColor: COPTIC_BG, borderColor: COPTIC_BORDER },
   chipName:        { fontSize: 11, fontWeight: "500", color: T2, maxWidth: 100 },
@@ -616,11 +596,20 @@ const tl = StyleSheet.create({
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function PaschaHomePage() {
   const isMounted = useRef(true);
+
+  // Hold the four Firestore listeners below until the drawer/stack transition
+  // has finished animating — they otherwise stall it mid-slide.
+  const ready = useAfterInteractions();
+
   const [uid, setUid]               = useState(null);
   const [churchId, setChurchId]     = useState(null);
   const [loading, setLoading]       = useState(true);
   const [scheduleShell, setScheduleShell] = useState(null);
   const [assignees, setAssignees]   = useState({});
+  // `assignees` is {} both before the schedule doc is read and when nobody is
+  // assigned, so track the read separately — otherwise "Not yet scheduled"
+  // paints while the snapshot is still in flight.
+  const [assigneesLoaded, setAssigneesLoaded] = useState(false);
   const [easterDate, setEasterDate] = useState(null);
   const [fullScheduleOn, setFullScheduleOn] = useState(false);
   const [myReadingsOn, setMyReadingsOn]     = useState(false);
@@ -647,6 +636,7 @@ export default function PaschaHomePage() {
   }, [allDays, assignees]);
 
   useEffect(() => {
+    if (!ready) return;
     isMounted.current = true;
     const user = auth().currentUser;
     if (!user) return;
@@ -654,14 +644,17 @@ export default function PaschaHomePage() {
     const unsub = firestore().collection("users").doc(user.uid).onSnapshot(doc => {
       if (!isMounted.current || !doc.exists) return;
       const data = doc.data();
+      // Free: this doc is already being read, so adopt its photoURL.
+      avatarCache.primeFromUser({ uid: user.uid, ...data });
       setChurchId(data.church || null);
       setHideNames(data.paschaHideNames ?? false);
       setFontSizeScale(data.paschaFontSize ?? "medium");
     });
     return () => { isMounted.current = false; unsub(); };
-  }, []);
+  }, [ready]);
 
   useEffect(() => {
+    if (!ready) return;
     if (!churchId) return;
     const unsubShell = firestore()
       .collection("churches").doc(churchId)
@@ -689,9 +682,10 @@ export default function PaschaHomePage() {
       .onSnapshot(doc => {
         if (!isMounted.current) return;
         setAssignees(doc.exists ? doc.data() : {});
+        setAssigneesLoaded(true);
       });
     return () => { unsubShell(); unsubConfig(); unsubSchedule(); };
-  }, [churchId]);
+  }, [churchId, ready]);
 
   const persistHideNames = useCallback(async (next) => {
     setHideNames(next);
@@ -722,12 +716,9 @@ export default function PaschaHomePage() {
 
   const showContent = isFullSchedule || myReadingsOn;
 
-  if (loading || !scheduleShell) {
-    return (
-      <View style={mn.loadingWrap}>
-        <ActivityIndicator color={BLUE} size="large" />
-      </View>
-    );
+  if (!ready || loading || !scheduleShell || !assigneesLoaded) {
+    // Header + a stack of day cards — the same shape the schedule lands in.
+    return <SkeletonScreen variant="cards" count={6} />;
   }
 
   if (nav) {
@@ -863,7 +854,6 @@ const ov = StyleSheet.create({
 });
 const mn = StyleSheet.create({
   container:           { flex: 1, backgroundColor: BG },
-  loadingWrap:         { flex: 1, backgroundColor: BG, justifyContent: "center", alignItems: "center" },
   header:              { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 18, paddingBottom: 8, gap: 12 },
   backBtn:             { width: 36, height: 36, borderRadius: 18, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, justifyContent: "center", alignItems: "center" },
   cogBtn:              { width: 40, height: 40, borderRadius: 20, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, justifyContent: "center", alignItems: "center" },

@@ -9,7 +9,6 @@ import {
 import { BlurView } from "expo-blur";
 import { Image } from "expo-image";
 import firestore from "@react-native-firebase/firestore";
-import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import {
@@ -20,6 +19,9 @@ import callFunction from "../../components/functionCalls";
 import PlateScanner from "../../components/PlateScanner";
 import { runMigrationIfNeeded } from "../../utils/carsMigration";
 import VehicleReviewModal from "../../components/VehicleReviewModal";
+import * as avatarCache from "../../utils/avatarCache";
+import { SkeletonProvider, SkeletonBlock, SkeletonCircle } from "../../components/Skeleton";
+import { useAfterInteractions } from "../../hooks/useAfterInteractions";
 
 const { width: SW, height: SH } = Dimensions.get("window");
 const DEFAULT_PROFILE = require("../../assets/default_profile.png");
@@ -251,8 +253,48 @@ const PlateMatchSheet = memo(({ visible, scannedPlate, matches, onConfirm, onReg
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
+/**
+ * Loading state for this screen.
+ *
+ * Car rows aren't person rows, so the shared `variant="list"` preset was the
+ * wrong shape — it swapped a bare avatar row for a card and the list jumped.
+ * This mirrors s.carCard exactly, and renders the real "Traffic" header, which
+ * is known before any read completes and so has no reason to shimmer.
+ */
+const TrafficSkeleton = memo(({ count = 7 }) => (
+  <SkeletonProvider>
+    <View style={s.container}>
+      <View style={s.header}>
+        <View>
+          <Text style={s.headerTitle}>Traffic</Text>
+          <View style={s.headerStats}>
+            <SkeletonBlock width={120} height={14} radius={6} />
+          </View>
+        </View>
+      </View>
+      <View style={s.listContent}>
+        {Array.from({ length: count }, (_, i) => (
+          <View key={i} style={s.carCard}>
+            <View style={s.carStatusDot} />
+            <View style={s.carCardInfo}>
+              <SkeletonBlock width={110} height={17} radius={6} />
+              <SkeletonBlock width={150} height={13} radius={6} style={{ marginTop: 7 }} />
+            </View>
+            <SkeletonCircle size={32} />
+          </View>
+        ))}
+      </View>
+    </View>
+  </SkeletonProvider>
+));
+TrafficSkeleton.displayName = "TrafficSkeleton";
+
 const TrafficManager = () => {
   const user = auth().currentUser;
+
+  // Hold every read (and the migration pass) until the drawer/stack transition
+  // has finished animating, so it doesn't stall the slide on the JS thread.
+  const ready = useAfterInteractions();
 
   const [churchId, setChurchId] = useState(null);
   const [migrationDone, setMigrationDone] = useState(false);
@@ -261,9 +303,22 @@ const TrafficManager = () => {
   const [users, setUsers] = useState([]);
   const [unregUsers, setUnregUsers] = useState([]);
   const [pendingVehicles, setPendingVehicles] = useState([]);
-  const imageUrlsRef = useRef({});
-  const [imgVer, setImgVer] = useState(0);
+  const [avatarVer, setAvatarVer] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  // One coalesced re-render per animation frame when avatars resolve, rather
+  // than one per image (which used to invalidate every memoized child).
+  useEffect(() => {
+    let queued = false;
+    return avatarCache.subscribe(() => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        setAvatarVer((v) => v + 1);
+      });
+    });
+  }, []);
 
   const [carSearch, setCarSearch] = useState("");
   const searchInputRef = useRef(null);
@@ -336,11 +391,23 @@ const TrafficManager = () => {
   // ── Listeners ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
+    if (!ready) return;
     return firestore().collection("users").doc(user.uid)
-      .onSnapshot((doc) => { if (doc.exists) setChurchId(doc.data()?.church ?? null); });
-  }, [user.uid]);
+      .onSnapshot(
+        (doc) => {
+          const church = doc.exists ? doc.data()?.church ?? null : null;
+          setChurchId(church);
+          // No church means the cars listener below never attaches, so nothing
+          // else would ever clear `loading` — the screen sat on the skeleton
+          // forever. Let it through to the empty state instead.
+          if (!church) setLoading(false);
+        },
+        () => setLoading(false)
+      );
+  }, [user.uid, ready]);
 
   useEffect(() => {
+    if (!ready) return;
     if (!churchId) return;
     return firestore().collection("churches").doc(churchId).onSnapshot((doc) => {
       if (doc.exists) {
@@ -351,10 +418,11 @@ const TrafficManager = () => {
         setTempLimit(String(enabled ? limit : DEFAULT_CAR_LIMIT));
       }
     });
-  }, [churchId]);
+  }, [churchId, ready]);
 
   // ── Migration: run once when churchId is known, before attaching car listeners
   useEffect(() => {
+    if (!ready) return;
     if (!churchId) return;
     let cancelled = false;
 
@@ -376,11 +444,15 @@ const TrafficManager = () => {
     })();
 
     return () => { cancelled = true; };
-  }, [churchId]);
+  }, [churchId, ready]);
 
-  // ── Car + pending listeners: only attach AFTER migration completes
+  // ── Car listeners: attach as soon as the church is known.
+  // These used to wait on migrationDone, so the screen sat on a spinner
+  // through the whole migration chain. The listener is live, so anything the
+  // migration writes streams in as it happens — no reason to block the list.
   useEffect(() => {
-    if (!churchId || !migrationDone) return;
+    if (!ready) return;
+    if (!churchId) return;
 
     const unsubCars = firestore().collection(CARS_COLLECTION)
       .where("church", "==", churchId)
@@ -403,49 +475,71 @@ const TrafficManager = () => {
           .sort((a, b) => (a.name || "").localeCompare(b.name || "")));
       });
 
-    const unsubPending = firestore().collection("pending_registrations")
-      .where("church", "==", churchId)
-      .onSnapshot((snapshot) => {
-        setPendingVehicles(snapshot.docs.map((doc) => {
-          const d = doc.data();
-          return { id: doc.id, license: d.license, church: d.church, drivers: d.drivers || [], make: d.make, model: d.model, color: d.color };
-        }));
-      });
+    return () => { unsubCars(); unsubUnreg(); };
+  }, [churchId, ready]);
 
-    return () => { unsubCars(); unsubUnreg(); unsubPending(); };
-  }, [churchId, migrationDone]);
+  // ── Pending vehicles: realtime, independent of migration ───────────────────
+  // Kept separate from the migration-gated listeners above so newly submitted
+  // registrations stream in live as soon as the church is known.
+  useEffect(() => {
+    if (!ready) return;
+    if (!churchId) return;
+
+    return firestore().collection("pending_registrations")
+      .where("church", "==", churchId)
+      .onSnapshot(
+        (snapshot) => {
+          setPendingVehicles(snapshot.docs.map((doc) => {
+            const d = doc.data();
+            return { id: doc.id, license: d.license, church: d.church, drivers: d.drivers || [], make: d.make, model: d.model, color: d.color };
+          }));
+        },
+        (error) => console.error("[TrafficManager] pending listener error:", error)
+      );
+  }, [churchId, ready]);
 
   useEffect(() => {
+    if (!ready) return;
     if (!churchId) return;
     return firestore().collection("users").where("church", "==", churchId)
       .onSnapshot((snapshot) => {
         const list = snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data() }))
           .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
         setUsers(list);
-        list.forEach((u) => fetchProfileImage(u.uid));
+        // Free: these docs carry photoURL, so no Storage requests at all.
+        avatarCache.primeMany(list);
       });
-  }, [churchId]);
+  }, [churchId, ready]);
 
-  const fetchProfileImage = useCallback(async (uid) => {
-    if (!uid || uid.startsWith("unreg_") || imageUrlsRef.current[uid]) return;
-    imageUrlsRef.current[uid] = "pending";
-    try {
-      const url = await storage().ref(`profilePictures/${uid}.png`).getDownloadURL();
-      imageUrlsRef.current[uid] = url;
-      setImgVer((v) => v + 1);
-    } catch { delete imageUrlsRef.current[uid]; }
+  const fetchProfileImage = useCallback((uid) => {
+    avatarCache.resolve(uid);
   }, []);
 
   const allUsers = useMemo(() =>
     [...users, ...unregUsers].sort((a, b) => (a.name || "").localeCompare(b.name || "")),
     [users, unregUsers]);
 
-  const getUserById = useCallback((uid) => allUsers.find((u) => u.uid === uid), [allUsers]);
+  // Indexed once per user-list change rather than scanned per lookup.
+  //
+  // This was `allUsers.find(...)`, and it is called from CarCard (once per owner
+  // per row), checkCarLimit, and both search filters — where it runs once per
+  // owner per car on *every keystroke*. At ~300 cars and ~500 users that was
+  // ~150k comparisons per character typed. Same signature, so no call site
+  // changes; the only behavioural difference is that a duplicate uid now
+  // resolves to the last occurrence instead of the first.
+  const usersById = useMemo(() => {
+    const index = new Map();
+    for (const u of allUsers) index.set(u.uid, u);
+    return index;
+  }, [allUsers]);
 
+  const getUserById = useCallback((uid) => usersById.get(uid), [usersById]);
+
+  // avatarVer ticks once per resolved batch instead of once per image.
   const getImageSource = useCallback((uid) => {
-    const url = imageUrlsRef.current[uid];
-    return url && url !== "pending" ? { uri: url } : DEFAULT_PROFILE;
-  }, [imgVer]);
+    const uri = avatarCache.uriFor(uid);
+    return uri ? { uri } : DEFAULT_PROFILE;
+  }, [avatarVer]);
 
   const getPresentCarsForPerson = useCallback(
     (uid) => cars.filter((c) => c.ownerIds?.includes(uid) && c.present).length,
@@ -715,6 +809,15 @@ const TrafficManager = () => {
     <CarCard item={item} index={index} getUserById={getUserById} getImageSource={getImageSource} onPress={openCarDetail} />
   ), [getUserById, getImageSource, openCarDetail]);
 
+  const carKeyExtractor = useCallback((item) => item.id, []);
+
+  // Was an inline literal, so the list got a new identity every render.
+  const carsEmpty = useMemo(() => (
+    <View style={{ alignItems: "center", marginTop: 40 }}>
+      <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 15 }}>No results</Text>
+    </View>
+  ), []);
+
   // ── Review queue callbacks ─────────────────────────────────────────────────
 
   const handleReviewComplete = useCallback(() => {
@@ -728,13 +831,22 @@ const TrafficManager = () => {
     setReviewQueue((prev) => prev.filter((q) => q.id !== item.id));
   }, []);
 
-  if (loading) {
-    return (
-      <View style={s.loadingContainer}>
-        <ActivityIndicator size="large" color="#147efb" />
-        <Text style={s.loadingText}>{!migrationDone ? "Migrating data..." : "Loading..."}</Text>
-      </View>
-    );
+  // Approve a single pending registration tapped from the Pending list.
+  // Routes through VehicleReviewModal, which is the approval path.
+  const openPendingForApproval = useCallback((vehicle) => {
+    setPendingListVisible(false);
+    setReviewQueue([{
+      ...vehicle,
+      license: cleanPlate(vehicle.license),
+      source: "pending_registration",
+    }]);
+    setTimeout(() => setReviewVisible(true), 250);
+  }, []);
+
+  // `loading` only drops inside the cars snapshot, so the "No Vehicles" empty
+  // state below can never paint before a read has actually completed.
+  if (!ready || loading) {
+    return <TrafficSkeleton count={7} />;
   }
 
   return (
@@ -773,11 +885,18 @@ const TrafficManager = () => {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList data={filteredCars} keyExtractor={(item) => item.id} renderItem={renderCarItem}
+        <FlatList data={filteredCars} keyExtractor={carKeyExtractor} renderItem={renderCarItem}
           contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          ListEmptyComponent={<View style={{ alignItems: "center", marginTop: 40 }}><Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 15 }}>No results</Text></View>} />
+          // Without these the list inherits windowSize 21 — ~21 screens of car
+          // cards (each with an avatar stack) kept mounted.
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          updateCellsBatchingPeriod={50}
+          removeClippedSubviews={Platform.OS === "android"}
+          ListEmptyComponent={carsEmpty} />
       )}
 
       {/* ── Floating bottom search + scan button ── */}
@@ -881,7 +1000,7 @@ const TrafficManager = () => {
         onClose={() => { setPendingListVisible(false); setPendingReadOnly(false); }}>
         <PendingList pendingVehicles={pendingVehicles} hideHeader
           onClose={() => { setPendingListVisible(false); setPendingReadOnly(false); }}
-          onSelect={pendingReadOnly ? null : null} />
+          onSelect={pendingReadOnly ? null : openPendingForApproval} />
       </SubSheet>
 
       {/* ── Relink ── */}

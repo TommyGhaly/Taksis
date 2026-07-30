@@ -8,7 +8,6 @@ import {
   FlatList,
   SectionList,
   ActivityIndicator,
-  Image,
   Modal,
   TextInput,
   KeyboardAvoidingView,
@@ -22,10 +21,13 @@ import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import storage from "@react-native-firebase/storage";
 import * as Haptics from "react-native-haptic-feedback";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Avatar from "../../components/Avatar";
+import * as avatarCache from "../../utils/avatarCache";
+import SkeletonScreen from "../../components/Skeleton";
+import { useAfterInteractions } from "../../hooks/useAfterInteractions";
 
 const { height } = Dimensions.get("window");
 
@@ -89,13 +91,141 @@ const prettyDate = (dateStr) => {
   return `${DAYS[d.getDay()]}, ${MONTHS[mm - 1]} ${dd}`;
 };
 
+/* ── Pure date/label helpers ───────────────────────────────────────────────────
+ * Hoisted out of the component: they close over nothing, and redefining them on
+ * every render made them unusable as dependencies for the memoized row below.
+ */
+const formatDate = (date) => {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${month}-${day}-${year}`;
+};
+
+const getNextSaturday = () => {
+  const today = new Date();
+  const currentDay = today.getDay();
+  if (currentDay === 6) return formatDate(today);
+  const nextSaturday = new Date(today);
+  nextSaturday.setDate(today.getDate() + (6 - currentDay));
+  return formatDate(nextSaturday);
+};
+
+const formatGrade = (grade) => {
+  if (isNaN(parseInt(grade))) return grade;
+  const num = parseInt(grade);
+  const suffix = num === 1 ? "st" : num === 2 ? "nd" : num === 3 ? "rd" : "th";
+  return `${num}${suffix} Grade`;
+};
+
+/**
+ * One attendance row, memoized.
+ *
+ * This was an inline closure inside a `useCallback` renderItem. VirtualizedList's
+ * CellRenderer is not memoized against parent re-renders, so every parent render
+ * re-ran it for *every* mounted cell — each rebuilding an <Avatar> (which carries
+ * a useSyncExternalStore subscription plus two effects) and three TouchableOpacity
+ * trees. With windowSize at its default 21 that is ~150 live cells rebuilt on
+ * every state change, and this screen re-renders once per grade listener on load.
+ */
+const StudentRow = React.memo(({ student, dateKey, isPastDate, isNavigating, onOpen, onAttendance }) => {
+  const status = student[dateKey];
+
+  return (
+    <View style={styles.studentContainer}>
+      {/* Whole row is tappable — avatar, name and chevron all open the student. */}
+      <TouchableOpacity
+        style={styles.studentHeader}
+        activeOpacity={0.7}
+        onPress={() => onOpen(student)}
+        disabled={isNavigating}
+      >
+        <Avatar
+          uid={student.uid}
+          user={student}
+          size={44}
+          borderRadius={22}
+          style={styles.profilePicture}
+          showBorder={false}
+        />
+        <View style={styles.studentInfo}>
+          <Text style={styles.studentName}>
+            {student.name} - {formatGrade(student.grade)}
+          </Text>
+          <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+        </View>
+      </TouchableOpacity>
+      {isPastDate ? (
+        <View style={styles.attendanceStatusContainer}>
+          <View
+            style={[
+              styles.attendanceStatus,
+              {
+                backgroundColor:
+                  status === true
+                    ? "#147EFB"
+                    : status === false
+                    ? "#ff3b30"
+                    : "rgba(255,255,255,0.1)",
+              },
+            ]}
+          >
+            <Text style={styles.attendanceStatusText}>
+              {status === true ? "Present" : status === false ? "Absent" : "Not Recorded"}
+            </Text>
+          </View>
+        </View>
+      ) : (
+        <View style={styles.attendanceButtons}>
+          <TouchableOpacity
+            style={[
+              styles.attendanceButton,
+              { backgroundColor: status === false ? "#ff3b30" : "rgba(255,255,255,0.08)" },
+            ]}
+            onPress={() => onAttendance(student, false)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.attendanceButtonText}>Absent</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.attendanceButton,
+              { backgroundColor: status === true ? "#147EFB" : "rgba(255,255,255,0.08)" },
+            ]}
+            onPress={() => onAttendance(student, true)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.attendanceButtonText}>Present</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+});
+StudentRow.displayName = "StudentRow";
+
+const GradeHeader = React.memo(({ title, onAdd }) => (
+  <View style={styles.gradeHeaderRow}>
+    <Text style={styles.gradeHeader}>{formatGrade(title)}</Text>
+    <TouchableOpacity
+      style={styles.addPill}
+      onPress={() => onAdd(title)}
+      activeOpacity={0.7}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+    >
+      <Ionicons name="add" size={14} color="#147EFB" />
+      <Text style={styles.addPillText}>Add</Text>
+    </TouchableOpacity>
+  </View>
+));
+GradeHeader.displayName = "GradeHeader";
+
 const AlhanAttendance = () => {
   const navigation = useNavigation();
   const user = auth().currentUser;
 
   const [userData, setUserData] = useState(null);
   const [studentsByGrade, setStudentsByGrade] = useState({});
-  const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [loading, setLoading] = useState(true);
 
   // Add-student modal state
@@ -118,7 +248,7 @@ const AlhanAttendance = () => {
   const isMounted = useRef(true);
   const studentUnsubscribes = useRef([]);
   const userUnsubscribe = useRef(null);
-  const cacheKeys = useRef({ user: null, students: {}, profilePics: null });
+  const cacheKeys = useRef({ user: null, students: {} });
   const searchInputRef = useRef(null);
   const keyboardOffset = useRef(new Animated.Value(0)).current;
 
@@ -149,7 +279,11 @@ const AlhanAttendance = () => {
     };
   }, [keyboardOffset]);
 
+  // Hold every read until the drawer/tab transition has finished animating.
+  const ready = useAfterInteractions();
+
   useEffect(() => {
+    if (!ready) return;
     isMounted.current = true;
     const initializeApp = async () => {
       if (!user) {
@@ -160,14 +294,16 @@ const AlhanAttendance = () => {
       cacheKeys.current = {
         user: `alhan_user_${user.uid}`,
         students: {},
-        profilePics: `alhan_profile_pics_${user.uid}`,
       };
-      loadCachedData();
+      // Await the cache read rather than sitting on a fixed 300ms timer: the
+      // gate below keys off `userData`, so we only need the cached doc to have
+      // landed (usually a couple of ms) before dropping the skeleton.
+      await loadCachedData();
       await generatePreviousSaturdays();
       setupUserListener();
-      setTimeout(() => {
-        if (isMounted.current) setLoading(false);
-      }, 300);
+      // Deliberately NOT flipping loading here — that only meant the local
+      // cache read finished. The skeleton stays until the students snapshot
+      // actually delivers (below), or until we know none is coming.
     };
     initializeApp();
     return () => {
@@ -176,14 +312,11 @@ const AlhanAttendance = () => {
       studentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
       studentUnsubscribes.current = [];
     };
-  }, [user]);
+  }, [user, ready]);
 
   const loadCachedData = async () => {
     try {
-      const [cachedUser, cachedProfilePics] = await Promise.all([
-        CacheUtils.get(cacheKeys.current.user),
-        CacheUtils.get(cacheKeys.current.profilePics),
-      ]);
+      const cachedUser = await CacheUtils.get(cacheKeys.current.user);
       if (cachedUser && isMounted.current) {
         setUserData(cachedUser);
         if (cachedUser.alhanGrades?.length > 0) {
@@ -201,7 +334,6 @@ const AlhanAttendance = () => {
           }
         }
       }
-      if (cachedProfilePics && isMounted.current) setProfilePictureUrls(cachedProfilePics);
     } catch (error) {
       console.log("Error loading cached data:", error);
     }
@@ -230,6 +362,9 @@ const AlhanAttendance = () => {
 
   useEffect(() => {
     if (!userData?.church || !userData?.alhanGrades?.length) {
+      // Nothing will be delivered for this user — drop the skeleton so the
+      // empty state can show instead of shimmering forever.
+      if (userData) setLoading(false);
       setStudentsByGrade({});
       studentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
       studentUnsubscribes.current = [];
@@ -259,77 +394,25 @@ const AlhanAttendance = () => {
             const students = snapshot.docs.map((doc) => ({ uid: doc.id, grade, ...doc.data() }));
             students.sort((a, b) => a.name.localeCompare(b.name));
             setStudentsByGrade((prev) => ({ ...prev, [grade]: students }));
+            // Real rows are on screen — only now drop the skeleton.
+            setLoading(false);
+            // Adopt any photoURL already on these docs — no Storage request.
+            avatarCache.primeMany(students);
             await CacheUtils.set(cacheKey, students);
           },
           (error) => {
-            if (isMounted.current) Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
+            if (isMounted.current) {
+              setLoading(false);
+              Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
+            }
           }
         );
     });
     studentUnsubscribes.current = newUnsubscribes;
-    fetchProfilePictureUrls();
     return () => {
       studentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
       studentUnsubscribes.current = [];
     };
-  }, [userData?.church, userData?.alhanGrades?.join(",")]);
-
-  const fetchProfilePictureUrls = async () => {
-    if (!userData?.church || !userData?.alhanGrades?.length) return;
-    try {
-      const allStudents = [];
-      await Promise.all(
-        userData.alhanGrades.map(async (grade) => {
-          const snapshot = await firestore()
-            .collection("churches")
-            .doc(userData.church)
-            .collection("Hymns Class")
-            .doc(grade)
-            .collection("students")
-            .get();
-          const students = snapshot.docs.map((doc) => ({ uid: doc.id, grade, ...doc.data() }));
-          allStudents.push(...students);
-        })
-      );
-
-      const fetchBatch = async (batch) => {
-        const batchUrls = {};
-        await Promise.all(
-          batch.map(async (student) => {
-            if (student.uid) {
-              try {
-                const url = await storage().ref(`profilePictures/${student.uid}.png`).getDownloadURL();
-                batchUrls[student.uid] = typeof url === "string" && url.trim() ? url : null;
-              } catch (error) {
-                batchUrls[student.uid] = null;
-              }
-            }
-          })
-        );
-        return batchUrls;
-      };
-
-      const batchSize = 10;
-      for (let i = 0; i < allStudents.length; i += batchSize) {
-        const batch = allStudents.slice(i, i + batchSize);
-        const batchUrls = await fetchBatch(batch);
-        if (isMounted.current) {
-          setProfilePictureUrls((prev) => ({ ...prev, ...batchUrls }));
-        }
-      }
-
-      if (isMounted.current) {
-        await CacheUtils.set(cacheKeys.current.profilePics, profilePictureUrls);
-      }
-    } catch (error) {
-      console.error("Error fetching profile pictures:", error);
-    }
-  };
-
-  useEffect(() => {
-    if (!userData?.church || !userData?.alhanGrades?.length) return;
-    const intervalId = setInterval(fetchProfilePictureUrls, 30000);
-    return () => clearInterval(intervalId);
   }, [userData?.church, userData?.alhanGrades?.join(",")]);
 
   const generatePreviousSaturdays = async () => {
@@ -349,30 +432,7 @@ const AlhanAttendance = () => {
     setPreviousSaturdays(saturdays);
   };
 
-  const getNextSaturday = () => {
-    const today = new Date();
-    const currentDay = today.getDay();
-    if (currentDay === 6) return formatDate(today);
-    const nextSaturday = new Date(today);
-    nextSaturday.setDate(today.getDate() + (6 - currentDay));
-    return formatDate(nextSaturday);
-  };
-
-  const formatDate = (date) => {
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const year = date.getFullYear();
-    return `${month}-${day}-${year}`;
-  };
-
-  const formatGrade = (grade) => {
-    if (isNaN(parseInt(grade))) return grade;
-    const num = parseInt(grade);
-    const suffix = num === 1 ? "st" : num === 2 ? "nd" : num === 3 ? "rd" : "th";
-    return `${num}${suffix} Grade`;
-  };
-
-  const handleAttendance = (student, status) => {
+  const handleAttendance = useCallback((student, status) => {
     if (selectedDate && selectedDate !== getNextSaturday()) return;
     Haptics.trigger("impactLight");
     const dateKey = getNextSaturday();
@@ -384,10 +444,11 @@ const AlhanAttendance = () => {
       .collection("students")
       .doc(student.uid)
       .update({ [dateKey]: status });
-  };
+  }, [selectedDate, userData?.church]);
 
-  // Open the add-student modal pre-locked to the tapped grade
-  const openAddStudentModal = (grade) => {
+  // Open the add-student modal pre-locked to the tapped grade.
+  // useCallback so the memoized section header isn't invalidated every render.
+  const openAddStudentModal = useCallback((grade) => {
     Haptics.trigger("impactLight");
     setNewStudentGrade(grade);
     setNewStudentName("");
@@ -396,7 +457,7 @@ const AlhanAttendance = () => {
     setNewStudentAddress("");
     setNewStudentDescription("");
     setModalVisible(true);
-  };
+  }, []);
 
   const addStudent = async () => {
     if (!newStudentName.trim()) {
@@ -526,112 +587,72 @@ const AlhanAttendance = () => {
     [searchQuery, gradeSections, scrollToGrade]
   );
 
+  // Declared above renderStudent because they appear in its dependency array —
+  // referencing a `const` from a dep array before its declaration is a TDZ error.
+  const dateKey = selectedDate || getNextSaturday();
+  const isCurrentWeek = !selectedDate || selectedDate === getNextSaturday();
+
+  // Hoisted out of the row so the memoized StudentRow gets a stable callback
+  // instead of a fresh closure on every parent render.
+  const openStudent = useCallback((student) => {
+    if (!userData) {
+      Alert.alert("Error", "User data not loaded.");
+      return;
+    }
+    if (!userData.alhanGrades) {
+      Alert.alert("Error", "Alhan grades not loaded.");
+      return;
+    }
+    setIsNavigating(true);
+    navigation.navigate("IndividualAttendance", {
+      church: userData.church,
+      category: "Hymns Class",
+      grade: student.grade,
+      studentId: student.uid,
+      userGrades: userData?.alhanGrades || [],
+    });
+    setTimeout(() => setIsNavigating(false), 1000);
+  }, [userData, navigation]);
+
   const renderStudent = useCallback(
-    ({ item: student }) => {
-      const dateKey = selectedDate || getNextSaturday();
-      const isPastDate = selectedDate && selectedDate !== getNextSaturday();
-      return (
-        <View key={student.uid} style={styles.studentContainer}>
-          <View style={styles.studentHeader}>
-            <Image
-              style={styles.profilePicture}
-              source={
-                profilePictureUrls[student.uid]
-                  ? { uri: profilePictureUrls[student.uid] }
-                  : require("../../assets/default_profile.png")
-              }
-              resizeMode="cover"
-              defaultSource={require("../../assets/default_profile.png")}
-              onError={() => setProfilePictureUrls((prev) => ({ ...prev, [student.uid]: null }))}
-            />
-            <View style={styles.studentInfo}>
-              <Text style={styles.studentName}>
-                {student.name} - {formatGrade(student.grade)}
-              </Text>
-              <TouchableOpacity
-                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                onPress={() => {
-                  if (!userData) {
-                    Alert.alert("Error", "User data not loaded.");
-                    return;
-                  }
-                  if (!userData.alhanGrades) {
-                    Alert.alert("Error", "Alhan grades not loaded.");
-                    return;
-                  }
-                  setIsNavigating(true);
-                  navigation.navigate("IndividualAttendance", {
-                    church: userData.church,
-                    category: "Hymns Class",
-                    grade: student.grade,
-                    studentId: student.uid,
-                    userGrades: userData?.alhanGrades || [],
-                  });
-                  setTimeout(() => setIsNavigating(false), 1000);
-                }}
-                disabled={isNavigating}
-              >
-                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
-              </TouchableOpacity>
-            </View>
-          </View>
-          {isPastDate ? (
-            <View style={styles.attendanceStatusContainer}>
-              <View
-                style={[
-                  styles.attendanceStatus,
-                  {
-                    backgroundColor:
-                      student[dateKey] === true
-                        ? "#147EFB"
-                        : student[dateKey] === false
-                        ? "#ff3b30"
-                        : "rgba(255,255,255,0.1)",
-                  },
-                ]}
-              >
-                <Text style={styles.attendanceStatusText}>
-                  {student[dateKey] === true ? "Present" : student[dateKey] === false ? "Absent" : "Not Recorded"}
-                </Text>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.attendanceButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.attendanceButton,
-                  { backgroundColor: student[dateKey] === false ? "#ff3b30" : "rgba(255,255,255,0.08)" },
-                ]}
-                onPress={() => handleAttendance(student, false)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.attendanceButtonText}>Absent</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.attendanceButton,
-                  { backgroundColor: student[dateKey] === true ? "#147EFB" : "rgba(255,255,255,0.08)" },
-                ]}
-                onPress={() => handleAttendance(student, true)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.attendanceButtonText}>Present</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      );
-    },
-    [profilePictureUrls, userData, selectedDate, isNavigating]
+    ({ item: student }) => (
+      <StudentRow
+        student={student}
+        dateKey={dateKey}
+        isPastDate={!isCurrentWeek}
+        isNavigating={isNavigating}
+        onOpen={openStudent}
+        onAttendance={handleAttendance}
+      />
+    ),
+    [dateKey, isCurrentWeek, isNavigating, openStudent, handleAttendance]
   );
 
-  if (loading && !userData && Object.keys(studentsByGrade).length === 0) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#147EFB" />
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
-    );
+  const keyExtractor = useCallback((item) => item.uid, []);
+
+  // Both of these were inline literals on the SectionList, so every parent render
+  // handed it new identities and it re-rendered every mounted cell.
+  const renderGradeHeader = useCallback(
+    ({ section: { title } }) => <GradeHeader title={title} onAdd={openAddStudentModal} />,
+    [openAddStudentModal]
+  );
+
+  const listEmpty = useMemo(
+    () => (
+      <Text style={styles.noStudentsText}>
+        {searchQuery.trim()
+          ? "No students found matching your search"
+          : "No students in this grade"}
+      </Text>
+    ),
+    [searchQuery]
+  );
+
+  // Skeleton covers the navigation transition AND the whole read. Falling
+  // through while `userData` is still null used to flash the "no class
+  // assigned" empty state before the data had a chance to arrive.
+  if (!ready || loading || !userData) {
+    return <SkeletonScreen variant="list" count={8} />;
   }
 
   if (!userData || !userData.alhanGrades || userData.alhanGrades.length === 0) {
@@ -642,9 +663,6 @@ const AlhanAttendance = () => {
       </View>
     );
   }
-
-  const dateKey = selectedDate || getNextSaturday();
-  const isCurrentWeek = !selectedDate || selectedDate === getNextSaturday();
 
   return (
     <View style={styles.container}>
@@ -687,30 +705,21 @@ const AlhanAttendance = () => {
       <SectionList
         ref={sectionListRef}
         sections={gradeSections}
-        keyExtractor={(item) => item.uid}
-        renderSectionHeader={({ section: { title } }) => (
-          <View style={styles.gradeHeaderRow}>
-            <Text style={styles.gradeHeader}>{formatGrade(title)}</Text>
-            <TouchableOpacity
-              style={styles.addPill}
-              onPress={() => openAddStudentModal(title)}
-              activeOpacity={0.7}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="add" size={14} color="#147EFB" />
-              <Text style={styles.addPillText}>Add</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        keyExtractor={keyExtractor}
+        renderSectionHeader={renderGradeHeader}
         renderItem={renderStudent}
-        ListEmptyComponent={
-          <Text style={styles.noStudentsText}>
-            {searchQuery.trim() ? "No students found matching your search" : "No students in this grade"}
-          </Text>
-        }
+        ListEmptyComponent={listEmpty}
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={true}
-        extraData={profilePictureUrls}
+        // Without these, SectionList inherits windowSize 21 — roughly 21 screens
+        // of rows kept mounted. Matches the config the admin rosters already use.
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        updateCellsBatchingPeriod={50}
+        // Android only: on iOS this has a history of blanking cells and breaking
+        // touch targets, and a floating search bar overlays this list.
+        removeClippedSubviews={Platform.OS === "android"}
         contentContainerStyle={styles.sectionListContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
@@ -1306,12 +1315,6 @@ const styles = StyleSheet.create({
   },
 
   // ---------- Misc / modals ----------
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#121212",
-  },
   loadingText: {
     fontSize: 16,
     color: "rgba(255,255,255,0.6)",

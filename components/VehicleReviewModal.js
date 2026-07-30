@@ -446,7 +446,7 @@ const VehicleReviewModal = ({
     : "Pending Registration";
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={() => {}}>
+    <Modal visible animationType="slide" transparent onRequestClose={onComplete}>
       <View style={ms.overlay}>
         <View style={ms.sheet}>
           {/* Header */}
@@ -468,6 +468,15 @@ const VehicleReviewModal = ({
               </View>
               <Text style={ms.counter}>{remaining} remaining</Text>
             </View>
+            {/* Escape hatch — an unresolvable driver must not trap the admin */}
+            <TouchableOpacity
+              style={ms.closeBtn}
+              onPress={onComplete}
+              disabled={busy}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Icon name="close" size={22} color="rgba(255,255,255,0.5)" />
+            </TouchableOpacity>
           </View>
 
           {/* Vehicle info */}
@@ -560,6 +569,11 @@ const ms = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12,
   },
   headerLeft: { flex: 1 },
+  closeBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.07)",
+  },
   sourceBadge: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, alignSelf: "flex-start",

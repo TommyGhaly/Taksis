@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   View, Text, TouchableOpacity, Modal, ScrollView,
-  StyleSheet, ActivityIndicator, Image, Platform,
+  StyleSheet, ActivityIndicator, Platform,
   Dimensions,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import firestore from "@react-native-firebase/firestore";
-import storage from "@react-native-firebase/storage";
+import Avatar from "./Avatar";
+import { SkeletonCardList } from "./Skeleton";
 import {
   expandReadings, countSlots, dayProgress as dayTotals,
   isAssignableSlot, isPsalmSlot, hasLanguagePicker, effectiveLanguage, langShort,
@@ -14,7 +15,6 @@ import {
 } from "../screens/Pascha/PaschaReadingUtils";
 import { DAY_SHORT_LABELS } from "../screens/Pascha/DayConstants";
 
-var DEFAULT_AVATAR = require("../assets/default_profile.png");
 var SCREEN_W = Dimensions.get("window").width;
 var IS_TABLET = SCREEN_W >= 768;
 
@@ -86,31 +86,9 @@ function allDaysFromArchive(arc) {
   });
 }
 
-// ── Avatar ────────────────────────────────────────────────────────────────────
-function useProfilePic(uid) {
-  var _a = useState(null), uri = _a[0], setUri = _a[1];
-  useEffect(function() {
-    if (!uid) return;
-    var cancelled = false;
-    storage().ref("profilePictures/" + uid + ".png").getDownloadURL()
-      .then(function(url) { if (!cancelled) setUri(url); })
-      .catch(function() {});
-    return function() { cancelled = true; };
-  }, [uid]);
-  return uri;
-}
-
-var Avatar = function(props) {
-  var uid = props.uid;
-  var size = props.size != null ? props.size : 24;
-  var style = props.style;
-  var uri = useProfilePic(uid);
-  return (
-    <View style={[{ width: size, height: size, borderRadius: size / 2, overflow: "hidden", backgroundColor: CARD3 }, style]}>
-      <Image source={uri ? { uri: uri } : DEFAULT_AVATAR} style={{ width: size, height: size }} resizeMode="cover" />
-    </View>
-  );
-};
+// Background the old local Avatar painted behind the image. Module-level so the
+// reference is stable and Avatar's React.memo still holds.
+var AVATAR_BG = { backgroundColor: CARD3 };
 
 // ── Reading row ───────────────────────────────────────────────────────────────
 var ReadingRow = function(props) {
@@ -161,7 +139,7 @@ var ReadingRow = function(props) {
               {psalmReaders.map(function(r, i) {
                 return (
                   <View key={r.uid || r.name || i} style={[rrS.chip, isCopticRow && rrS.chipCoptic]}>
-                    <Avatar uid={r.uid} size={16} />
+                    <Avatar uid={r.uid} size={16} showBorder={false} style={AVATAR_BG} />
                     <Text style={[rrS.chipName, isCopticRow && rrS.chipNameCoptic]} numberOfLines={1}>{r.name}</Text>
                   </View>
                 );
@@ -169,7 +147,7 @@ var ReadingRow = function(props) {
             </View>
           ) : (
             <View style={[rrS.chip, isCopticRow && rrS.chipCoptic]}>
-              <Avatar uid={assignee.uid} size={16} />
+              <Avatar uid={assignee.uid} size={16} showBorder={false} style={AVATAR_BG} />
               <Text style={[rrS.chipName, isCopticRow && rrS.chipNameCoptic]} numberOfLines={1}>{assignee.name}</Text>
             </View>
           )
@@ -439,10 +417,7 @@ var PaschaArchiveViewer = function(props) {
           </View>
 
           {loading ? (
-            <View style={avS.center}>
-              <ActivityIndicator color={ORANGE} size="large" />
-              <Text style={avS.loadingTxt}>{"Loading archives…"}</Text>
-            </View>
+            <SkeletonCardList count={5} height={64} />
           ) : archives.length === 0 ? (
             <View style={avS.center}>
               <View style={avS.emptyIconWrap}><Icon name="archive-off-outline" size={IS_TABLET ? 34 : 28} color={T3} /></View>

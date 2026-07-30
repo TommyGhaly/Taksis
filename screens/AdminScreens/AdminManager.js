@@ -1,15 +1,13 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   View,
   Text,
   SectionList,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   Modal,
   Switch,
   Alert,
-  Image,
   Dimensions,
   Platform,
   TextInput,
@@ -23,11 +21,12 @@ import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import PhotoInput from "../../components/photoInput";
-import ProfileImageExpander from "../../components/ProfileImageExpander";
+import Avatar from "../../components/Avatar";
 import AlphabetIndexBar from "../../components/AlphabetIndexBar";
+import SkeletonScreen from "../../components/Skeleton";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
-const defaultProfileImage = require("../../assets/default_profile.png");
+import * as avatarCache from "../../utils/avatarCache";
+import useAfterInteractions from "../../hooks/useAfterInteractions";
 
 const hapticOptions = {
   enableVibrateFallback: true,
@@ -87,29 +86,88 @@ const adminRoles = [
   { key: "paschaAdmin", label: "Pascha Manager" },
 ];
 
+/**
+ * One roster row, memoized on the user doc.
+ *
+ * The row used to be an inline closure rebuilt on every parent render, so any
+ * unrelated state change re-rendered every mounted cell — and with 48px avatars
+ * in each one that showed up as a stutter mid-scroll.
+ */
+const UserRow = React.memo(({ item, onPress }) => {
+  const activeRoles =
+    adminRoles
+      .filter((role) => item[role.key])
+      .map((role) => role.label)
+      .join(", ") || "No roles assigned";
+
+  return (
+    <TouchableOpacity
+      style={styles.userCard}
+      onPress={() => onPress(item)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.userImageContainer}>
+        <Avatar
+          uid={item.id}
+          user={item}
+          size={48 * scale}
+          borderRadius={24 * scale}
+          style={styles.userImage}
+          showBorder={false}
+        />
+      </View>
+      <View style={styles.userInfo}>
+        <Text style={styles.userName}>{item.name}</Text>
+        <Text style={styles.userChurch}>
+          {item.church || "No church assigned"}
+        </Text>
+        <Text style={styles.userRoles}>Roles: {activeRoles}</Text>
+      </View>
+      <TouchableOpacity
+        style={[styles.actionButton, styles.editButton]}
+        onPress={() => onPress(item)}
+      >
+        <Ionicons name="pencil" size={18 * scale} color="#fff" />
+        <Text style={styles.buttonText}>Edit</Text>
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+});
+UserRow.displayName = "UserRow";
+
+const SectionHeader = React.memo(({ title }) => (
+  <View style={styles.sectionHeader}>
+    <Text style={[styles.sectionHeaderText, { fontSize: 18 * scale }]}>
+      {title}
+    </Text>
+  </View>
+));
+SectionHeader.displayName = "SectionHeader";
+
 const AdminManager = () => {
   const [church, setChurch] = useState(null);
   const [users, setUsers] = useState([]);
-  const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedRoles, setSelectedRoles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sections, setSections] = useState([]);
   const [photoInputVisible, setPhotoInputVisible] = useState(false);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
-  const [headerHeight, setHeaderHeight] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const headerHeightRef = useRef(0);
+  // Hold the skeleton until the drawer/stack transition finishes, so the
+  // snapshot work below doesn't compete with the animation on the JS thread.
+  const ready = useAfterInteractions();
+
   const sectionListRef = useRef(null);
   const isMounted = useRef(true);
   const userUnsubscribe = useRef(null);
   const usersUnsubscribe = useRef(null);
+  // The church the roster listener is currently attached to.
+  const attachedChurch = useRef(null);
   const cacheKeys = useRef({
     church: null,
     users: null,
-    profilePics: null,
   });
   const searchInputRef = useRef(null);
   const keyboardOffset = useRef(new Animated.Value(0)).current;
@@ -142,6 +200,7 @@ const AdminManager = () => {
   }, [keyboardOffset]);
 
   useEffect(() => {
+    if (!ready) return;
     isMounted.current = true;
 
     const initializeApp = async () => {
@@ -155,17 +214,13 @@ const AdminManager = () => {
       cacheKeys.current = {
         church: `admin_manager_church_${user.uid}`,
         users: `admin_manager_users_${user.uid}`,
-        profilePics: `admin_manager_profile_pics_${user.uid}`,
       };
 
       loadCachedData();
       setupUserChurchListener();
-
-      setTimeout(() => {
-        if (isMounted.current) {
-          setLoading(false);
-        }
-      }, 300);
+      // No timer here: the skeleton stays up until the users snapshot actually
+      // delivers (see setupUsersListener). A 300ms timer used to hide it while
+      // the read was still in flight, so the screen flashed empty.
     };
 
     initializeApp();
@@ -175,22 +230,21 @@ const AdminManager = () => {
       if (userUnsubscribe.current) userUnsubscribe.current();
       if (usersUnsubscribe.current) usersUnsubscribe.current();
     };
-  }, []);
+  }, [ready]);
 
   const loadCachedData = async () => {
     try {
-      const [cachedChurch, cachedUsers, cachedProfilePics] = await Promise.all([
+      const [cachedChurch, cachedUsers] = await Promise.all([
         CacheUtils.get(cacheKeys.current.church),
         CacheUtils.get(cacheKeys.current.users),
-        CacheUtils.get(cacheKeys.current.profilePics),
       ]);
 
       if (cachedChurch && isMounted.current) setChurch(cachedChurch);
       if (cachedUsers && isMounted.current) {
         setUsers(cachedUsers);
+        // Cached docs carry photoURL, so avatars paint with no Storage calls.
+        avatarCache.primeMany(cachedUsers);
       }
-      if (cachedProfilePics && isMounted.current)
-        setProfilePictureUrls(cachedProfilePics);
     } catch (error) {
       console.log("Error loading cached data:", error);
     }
@@ -211,12 +265,28 @@ const AdminManager = () => {
             setChurch(userChurch);
             await CacheUtils.set(cacheKeys.current.church, userChurch);
 
-            if (userChurch) setupUsersListener(userChurch);
+            // Only re-attach when the church actually changed. Re-attaching on
+            // every write to your own user doc tore down the roster listener and
+            // replayed a full snapshot, re-rendering the whole list each time.
+            if (userChurch) {
+              if (attachedChurch.current !== userChurch) {
+                attachedChurch.current = userChurch;
+                setupUsersListener(userChurch);
+              }
+            } else {
+              // No church means no user list is coming — stop waiting.
+              attachedChurch.current = null;
+              setLoading(false);
+            }
+          } else {
+            setLoading(false);
           }
         },
         () => {
-          if (isMounted.current)
+          if (isMounted.current) {
+            setLoading(false);
             Alert.alert("Error", "Failed to fetch church data.");
+          }
         }
       );
   };
@@ -224,80 +294,70 @@ const AdminManager = () => {
   const setupUsersListener = (churchId) => {
     if (usersUnsubscribe.current) usersUnsubscribe.current();
 
-    const fetchProfilePictureUrls = async () => {
-      if (!isMounted.current) return;
-
-      try {
-        const querySnapshot = await firestore().collection("users").get();
-        const urls = {};
-
-        await Promise.all(
-          querySnapshot.docs.map(async (doc) => {
-            const uid = doc.id;
-            try {
-              const url = await storage()
-                .ref(`profilePictures/${uid}.png`)
-                .getDownloadURL();
-              urls[uid] = typeof url === "string" && url.trim() ? url : null;
-            } catch {
-              urls[uid] = null;
-            }
-          })
-        );
-
-        if (isMounted.current) {
-          setProfilePictureUrls(urls);
-          await CacheUtils.set(cacheKeys.current.profilePics, urls);
-        }
-      } catch {}
-    };
-
-    fetchProfilePictureUrls();
-    const intervalId = setInterval(fetchProfilePictureUrls, 30000);
-
     usersUnsubscribe.current = firestore()
       .collection("users")
       .onSnapshot(
         async (querySnapshot) => {
           if (!isMounted.current) return;
 
+          // One pass, one doc.data() per doc.
+          //
+          // This used to end with a third .map that re-derived `name` via
+          // `querySnapshot.docs.find(...)?.data().name` — a full linear scan plus
+          // another native->JS deserialization for every user, i.e. O(n²) work to
+          // produce a value that was already present. It was dead code: the
+          // `...doc.data()` spread below already sets `name`, so the pass was a
+          // no-op. At a few hundred users it cost seconds on the JS thread and
+          // was the bulk of the "VirtualizedList slow to update" stall.
+          // The sort key is computed once per doc rather than inside the
+          // comparator — a comparator that builds strings runs O(n log n) times
+          // (~35k for a few thousand users), and each `doc` property read goes
+          // through @react-native-firebase's deprecation Proxy, so touching each
+          // one exactly once matters.
           const userList = querySnapshot.docs
-            .map((doc) => ({
-              id: doc.id,
-              name: (doc.data().name || "").trim(),
-              ...doc.data(),
-            }))
-            .sort((a, b) => {
-              const nameComp = a.name
-                .toLowerCase()
-                .localeCompare(b.name.toLowerCase());
-              return nameComp === 0 ? a.id.localeCompare(b.id) : nameComp;
+            .map((doc) => {
+              const data = doc.data();
+              // String() keeps the comparator total — a non-string `name` (e.g.
+              // a number entered via DatabaseManager) used to reach
+              // .toLowerCase() and throw, killing the whole snapshot handler.
+              const name = String(data.name ?? "");
+              const id = doc.id;
+              return { item: { ...data, id, name }, key: name.trim().toLowerCase(), id };
             })
-            .map((user) => ({
-              ...user,
-              name:
-                querySnapshot.docs.find((d) => d.id === user.id)?.data().name ||
-                "",
-            }));
+            .sort(
+              (a, b) =>
+                a.key.localeCompare(b.key) ||
+                (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+            )
+            .map((entry) => entry.item);
 
           setUsers(userList);
+          // These docs already carry photoURL, so priming the avatar cache
+          // here costs no extra requests and replaces the old per-user
+          // getDownloadURL() fan-out plus its 30s refetch timer.
+          avatarCache.primeMany(userList);
+          // Real data is on screen — only now drop the skeleton.
+          setLoading(false);
           await CacheUtils.set(cacheKeys.current.users, userList);
         },
         () => {
-          if (isMounted.current)
+          if (isMounted.current) {
+            setLoading(false);
             Alert.alert("Error", "Could not fetch users.");
+          }
         }
       );
-
-    return () => clearInterval(intervalId);
   };
 
-  // Build sections from users + searchQuery
-  useEffect(() => {
-    if (users.length === 0) {
-      setSections([]);
-      return;
-    }
+  // Build sections from users + searchQuery.
+  //
+  // Derived with useMemo, not state-in-an-effect. An effect runs *after* the
+  // render that set `users`, so in that first frame `users` was full while
+  // `sections` was still [] — and the "No users found." branch below painted
+  // before the effect caught up. Deriving it keeps the two consistent within a
+  // single render.
+  const sections = useMemo(() => {
+    if (users.length === 0) return [];
 
     const lower = searchQuery.trim().toLowerCase();
     const filtered = lower
@@ -312,15 +372,13 @@ const AdminManager = () => {
       return acc;
     }, {});
 
-    const sectionData = Object.keys(grouped)
+    return Object.keys(grouped)
       .sort((a, b) => {
         if (a === "#") return 1;
         if (b === "#") return -1;
         return a.localeCompare(b);
       })
       .map((letter) => ({ title: letter, data: grouped[letter] }));
-
-    setSections(sectionData);
   }, [users, searchQuery]);
 
   const handleRemovePhoto = async () => {
@@ -328,24 +386,15 @@ const AdminManager = () => {
 
     setDeletingPhoto(true);
     try {
-      const storageRef = storage().ref(
-        `profilePictures/${selectedUser.id}.png`
-      );
-      await storageRef.delete();
-
-      setProfilePictureUrls((prev) => ({ ...prev, [selectedUser.id]: null }));
-      await CacheUtils.remove(cacheKeys.current.profilePics);
-
+      // Clears the Storage object, the photoURL pointer on the user doc, and
+      // the cache — so a stale URL can't be re-primed by the next snapshot.
+      await avatarCache.removePhoto(selectedUser.id);
       Alert.alert("Success", "Profile picture deleted successfully");
     } catch (error) {
-      if (error.code === "storage/object-not-found") {
-        setProfilePictureUrls((prev) => ({ ...prev, [selectedUser.id]: null }));
-      } else {
-        Alert.alert(
-          "Error",
-          "Could not delete profile picture. Please try again."
-        );
-      }
+      Alert.alert(
+        "Error",
+        "Could not delete profile picture. Please try again."
+      );
     } finally {
       setDeletingPhoto(false);
     }
@@ -364,7 +413,7 @@ const AdminManager = () => {
     );
   };
 
-  const openEditModal = (user) => {
+  const openEditModal = useCallback((user) => {
     if (!user?.id) return;
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setSelectedUser(user);
@@ -373,7 +422,7 @@ const AdminManager = () => {
       .map((role) => role.key);
     setSelectedRoles(initialRoles);
     setModalVisible(true);
-  };
+  }, []);
 
   const closeEditModal = () => {
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
@@ -385,17 +434,8 @@ const AdminManager = () => {
   const closePhotoInputModal = () => {
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setPhotoInputVisible(false);
-
-    if (selectedUser?.id) {
-      storage()
-        .ref(`profilePictures/${selectedUser.id}.png`)
-        .getDownloadURL()
-        .then(async (url) => {
-          setProfilePictureUrls((prev) => ({ ...prev, [selectedUser.id]: url }));
-          await CacheUtils.remove(cacheKeys.current.profilePics);
-        })
-        .catch(() => {});
-    }
+    // PhotoInput writes the new URL straight into avatarCache (and onto the
+    // user doc), so there is nothing to refetch on close.
   };
 
   const toggleRole = (roleKey) => {
@@ -440,74 +480,33 @@ const AdminManager = () => {
     });
   };
 
-  const renderSectionHeader = ({ section: { title } }) => (
-    <View
-      style={styles.sectionHeader}
-      onLayout={(e) => {
-        const { height } = e.nativeEvent.layout;
-        if (height > 0 && headerHeightRef.current !== height) {
-          headerHeightRef.current = height;
-          setHeaderHeight(height);
-        }
-      }}
-    >
-      <Text style={[styles.sectionHeaderText, { fontSize: 18 * scale }]}>
-        {title}
-      </Text>
-    </View>
+  const renderSectionHeader = useCallback(
+    ({ section: { title } }) => <SectionHeader title={title} />,
+    []
   );
 
-  const renderUser = ({ item }) => {
-    const activeRoles =
-      adminRoles
-        .filter((role) => item[role.key])
-        .map((role) => role.label)
-        .join(", ") || "No roles assigned";
+  const renderUser = useCallback(
+    ({ item }) => <UserRow item={item} onPress={openEditModal} />,
+    [openEditModal]
+  );
 
-    return (
-      <TouchableOpacity
-        style={styles.userCard}
-        onPress={() => openEditModal(item)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.userImageContainer}>
-          <Image
-            style={styles.userImage}
-            source={
-              item.id && profilePictureUrls[item.id]
-                ? { uri: profilePictureUrls[item.id] }
-                : defaultProfileImage
-            }
-            defaultSource={defaultProfileImage}
-            onError={() =>
-              setProfilePictureUrls((prev) => ({ ...prev, [item.id]: null }))
-            }
-          />
-        </View>
-        <View style={styles.userInfo}>
-          <Text style={styles.userName}>{item.name}</Text>
-          <Text style={styles.userChurch}>
-            {item.church || "No church assigned"}
-          </Text>
-          <Text style={styles.userRoles}>Roles: {activeRoles}</Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.editButton]}
-          onPress={() => openEditModal(item)}
-        >
-          <Ionicons name="pencil" size={18 * scale} color="#fff" />
-          <Text style={styles.buttonText}>Edit</Text>
-        </TouchableOpacity>
-      </TouchableOpacity>
-    );
-  };
+  const keyExtractor = useCallback((item) => item.id, []);
 
-  if (loading && !church && users.length === 0) {
+  // Roster of people — rows land in place of these. Gated on the user list
+  // rather than on `church`: church resolves from cache first, and dropping the
+  // skeleton at that point flashed "No users found." until the snapshot landed.
+  if (!ready || (loading && users.length === 0)) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size={isTablet ? "large" : "small"} color="#147efb" />
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
+      <SkeletonScreen
+        variant="personCards"
+        count={isTablet ? 10 : 8}
+        showHeader={false}
+        rowLines={3}
+        paddingHorizontal={paddingHorizontal}
+        paddingTop={20}
+        // Matches listContainer's inset for the alphabet index bar.
+        bodyStyle={{ paddingRight: 32 }}
+      />
     );
   }
 
@@ -524,11 +523,14 @@ const AdminManager = () => {
             sections={sections}
             renderItem={renderUser}
             renderSectionHeader={renderSectionHeader}
-            keyExtractor={(item) => item.id || Math.random().toString()}
+            keyExtractor={keyExtractor}
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
-            extraData={profilePictureUrls}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={7}
+            removeClippedSubviews={true}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
             onScrollToIndexFailed={() => {}}
@@ -589,16 +591,14 @@ const AdminManager = () => {
               <View style={styles.modalHeader}>
                 <View style={styles.headerContent}>
                   <View style={styles.profileImageContainer}>
-                    <ProfileImageExpander
-                      imageUrl={
-                        selectedUser.id && profilePictureUrls[selectedUser.id]
-                          ? profilePictureUrls[selectedUser.id]
-                          : defaultProfileImage
-                      }
+                    <Avatar
+                      uid={selectedUser.id}
+                      user={selectedUser}
                       size={80}
                       finalSize={300}
                       borderRadius={40}
                       style={styles.profileImage}
+                      expandable
                     />
                     <TouchableOpacity
                       style={styles.editProfilePictureButton}
@@ -732,17 +732,6 @@ const styles = StyleSheet.create({
     fontSize: 14 * scale,
     fontWeight: "600",
     marginLeft: 6 * scale,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#121212",
-  },
-  loadingText: {
-    marginTop: 12,
-    color: "rgba(255,255,255,0.6)",
-    fontSize: 16 * scale,
   },
   noData: {
     textAlign: "center",

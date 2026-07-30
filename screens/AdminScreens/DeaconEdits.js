@@ -9,7 +9,6 @@ import {
   Modal,
   Switch,
   Alert,
-  Image,
   FlatList,
   Dimensions,
   Platform,
@@ -22,16 +21,21 @@ import {
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
-import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import Slider from "@react-native-community/slider";
 import IndividualProfile from "../../components/individualProfile";
 import AlphabetIndexBar from "../../components/AlphabetIndexBar";
 import DeaconSyncModal from "../../components/DeaconSyncModal";
+import Avatar from "../../components/Avatar";
+import SkeletonScreen from "../../components/Skeleton";
+import * as avatarCache from "../../utils/avatarCache";
 
 import { useFirestoreDocument } from "../../hooks/useFirebaseCache";
-import { FirestoreCache, StorageCache } from "../../utils/cacheManager";
+import { useAfterInteractions } from "../../hooks/useAfterInteractions";
+
+// Firestore's `in` filter accepts at most 10 values per query.
+const USER_BATCH_SIZE = 10;
 
 const hapticOptions = {
   enableVibrateFallback: true,
@@ -88,7 +92,7 @@ const scale = isTablet ? 1.2 : 1;
 const paddingHorizontal = isTablet ? 32 : 16;
 
 // ─── Attendance card ──────────────────────────────────────────────────────────
-const AttendanceCard = ({ deacon, profilePictureUrl, onPillPress }) => {
+const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
   const [tempExp, setTempExp] = useState(deacon.experience ?? 0);
   const [tempFreq, setTempFreq] = useState(deacon.frequency ?? 0);
   const [saving, setSaving] = useState(false);
@@ -187,17 +191,25 @@ const AttendanceCard = ({ deacon, profilePictureUrl, onPillPress }) => {
     <View style={aStyles.card}>
       {/* Top row: avatar + name + pills */}
       <View style={aStyles.topRow}>
-        <Image
+        {/* Tapping the avatar or the name opens the profile, same destination
+            as the whole-row tap in non-attendance mode. */}
+        <Avatar
+          uid={deacon.uid}
+          user={deacon}
+          size={36}
+          borderRadius={18}
           style={aStyles.avatar}
-          source={
-            profilePictureUrl
-              ? { uri: profilePictureUrl }
-              : require("../../assets/default_profile.png")
-          }
-          defaultSource={require("../../assets/default_profile.png")}
+          showBorder={false}
+          onPress={onProfilePress ? () => onProfilePress(deacon) : undefined}
         />
         <View style={aStyles.nameBlock}>
-          <Text style={aStyles.name} numberOfLines={1}>{deacon.name || "Unknown"}</Text>
+          <TouchableOpacity
+            onPress={() => onProfilePress?.(deacon)}
+            activeOpacity={0.7}
+            disabled={!onProfilePress}
+          >
+            <Text style={aStyles.name} numberOfLines={1}>{deacon.name || "Unknown"}</Text>
+          </TouchableOpacity>
           <View style={aStyles.pillRow}>
             <TouchableOpacity
               style={[aStyles.pill, { backgroundColor: unavailTheme.bg, borderColor: unavailTheme.border }]}
@@ -272,7 +284,8 @@ const AttendanceCard = ({ deacon, profilePictureUrl, onPillPress }) => {
       </View>
     </View>
   );
-};
+});
+AttendanceCard.displayName = "AttendanceCard";
 
 // ─── Pill detail modal ────────────────────────────────────────────────────────
 const PillModal = ({ visible, type, deacon, onClose }) => {
@@ -357,16 +370,60 @@ const PillModal = ({ visible, type, deacon, onClose }) => {
 };
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
+/**
+ * One roster row, memoized on the deacon record.
+ *
+ * The row used to be an inline closure rebuilt on every parent render, so any
+ * unrelated state change re-rendered every mounted cell — with a 48px avatar in
+ * each one, that showed up as a stutter mid-scroll.
+ */
+const DeaconRow = React.memo(({ item, onPress }) => (
+  <TouchableOpacity style={styles.deaconItem} onPress={() => onPress(item)} activeOpacity={0.7}>
+    <View style={styles.deaconImageContainer}>
+      <Avatar
+        uid={item.uid}
+        user={item}
+        size={48 * scale}
+        borderRadius={24 * scale}
+        style={styles.deaconImage}
+        showBorder={false}
+      />
+    </View>
+    <View style={styles.deaconInfo}>
+      <Text style={styles.deaconName}>{item.name || "Unknown"}</Text>
+      <Text style={styles.deaconDetail}>Age: {formatNumber(item.age)}</Text>
+      <Text style={styles.deaconDetail}>Phone: {item.phone !== undefined && item.phone !== null ? item.phone : "Not provided"}</Text>
+      <Text style={styles.deaconDetail}>Experience: {formatNumber(item.experience)}</Text>
+      <Text style={styles.deaconDetail}>Frequency: {formatNumber(item.frequency)}</Text>
+    </View>
+    <Ionicons name="pencil" size={20 * scale} color="#147efb" />
+  </TouchableOpacity>
+));
+DeaconRow.displayName = "DeaconRow";
+
+const SectionHeader = React.memo(({ title }) => (
+  <View style={styles.sectionHeader}>
+    <Text style={styles.sectionHeaderText}>{title}</Text>
+  </View>
+));
+SectionHeader.displayName = "SectionHeader";
+
 const DeaconEdits = () => {
   const user = auth().currentUser;
 
+  // Hold every Firestore read until the drawer/stack transition has finished
+  // animating — the listeners below would otherwise stall it mid-slide.
+  const ready = useAfterInteractions();
+
   const [currentChurch, setCurrentChurch] = useState(null);
+  // The church whose deacon snapshot has actually delivered. Without this the
+  // screen flashes "No deacons found." in the gap between `currentChurch`
+  // resolving and the church listener re-attaching for it.
+  const [loadedChurch, setLoadedChurch] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [deacons, setDeacons] = useState([]);
-  const [sections, setSections] = useState([]);
   const [selectedDeacon, setSelectedDeacon] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [isLoadingDeacons, setIsLoadingDeacons] = useState(true);
   const [userDataLoading, setUserDataLoading] = useState(true);
   const [syncModalVisible, setSyncModalVisible] = useState(false);
@@ -378,10 +435,12 @@ const DeaconEdits = () => {
   const [pillModal, setPillModal] = useState({ visible: false, type: null, deacon: null });
 
   const sectionListRef = useRef(null);
-  const [headerHeight, setHeaderHeight] = useState(0);
-  const headerHeightRef = useRef(0);
   const deaconsListenerRef = useRef(null);
   const userListenerRef = useRef(null);
+  // uid -> user doc (or null for uids that have no users doc, e.g. children and
+  // manually-created deacons). Memoised across snapshots so a write to
+  // churches/{id} does not re-read every deacon's user doc again.
+  const userDocsRef = useRef(new Map());
   const attendanceListenersRef = useRef([]);
   const searchInputRef = useRef(null);
   const keyboardOffset = useRef(new Animated.Value(0)).current;
@@ -409,6 +468,7 @@ const DeaconEdits = () => {
 
   // User listener
   useEffect(() => {
+    if (!ready) return;
     if (!user?.uid) { setUserDataLoading(false); return; }
     if (userListenerRef.current) { userListenerRef.current(); userListenerRef.current = null; }
     userListenerRef.current = firestore()
@@ -424,50 +484,98 @@ const DeaconEdits = () => {
         () => setUserDataLoading(false)
       );
     return () => { if (userListenerRef.current) { userListenerRef.current(); userListenerRef.current = null; } };
-  }, [user?.uid]);
+  }, [user?.uid, ready]);
+
+  // Read the user docs for a set of uids in batches of 10 rather than one
+  // request per deacon, and only for uids we have not already read.
+  const loadUserDocs = useCallback(async (uids) => {
+    const missing = [
+      ...new Set(uids.filter((uid) => uid && !userDocsRef.current.has(uid))),
+    ];
+    if (missing.length === 0) return userDocsRef.current;
+
+    const chunks = [];
+    for (let i = 0; i < missing.length; i += USER_BATCH_SIZE) {
+      chunks.push(missing.slice(i, i + USER_BATCH_SIZE));
+    }
+
+    const snapshots = await Promise.all(
+      chunks.map((chunk) =>
+        firestore()
+          .collection("users")
+          .where(firestore.FieldPath.documentId(), "in", chunk)
+          .get()
+          .catch((err) => {
+            console.error("Error batch-reading users:", err);
+            return null;
+          })
+      )
+    );
+
+    snapshots.forEach((snap) => {
+      snap?.docs.forEach((doc) =>
+        userDocsRef.current.set(doc.id, { uid: doc.id, ...doc.data() })
+      );
+    });
+    // Record the misses too, otherwise every church write retries them.
+    missing.forEach((uid) => {
+      if (!userDocsRef.current.has(uid)) userDocsRef.current.set(uid, null);
+    });
+
+    return userDocsRef.current;
+  }, []);
 
   // Process deacon list
   const processDeaconList = useCallback(async (deaconList, churchData) => {
     try {
-      const withPhone = await Promise.all(
-        deaconList.map(async (deacon) => {
-          if (!deacon.uid) return { ...deacon, phone: "Not provided" };
-          try {
-            let userData = null;
-            try {
-              userData = await FirestoreCache.getDocument("users", deacon.uid, { forceRefresh: false });
-            } catch {
-              const doc = await firestore().collection("users").doc(deacon.uid).get();
-              userData = doc.exists ? doc.data() : null;
-              if (userData) setTimeout(() => FirestoreCache.setDocument("users", deacon.uid, userData).catch(() => {}), 50);
-            }
-            return {
-              ...deacon,
-              phone: userData ? userData.phone || userData.number || "Not provided" : "Not provided",
-            };
-          } catch {
-            return { ...deacon, phone: "Not provided" };
-          }
-        })
-      );
+      const userDocs = await loadUserDocs(deaconList.map((d) => d.uid));
 
+      // Zero-cost avatar priming: these docs carry photoURL, so no Storage
+      // round-trip is needed for anybody who has uploaded a picture.
+      avatarCache.primeMany([...userDocs.values()].filter(Boolean));
+
+      const withPhone = deaconList.map((deacon) => {
+        const userData = deacon.uid ? userDocs.get(deacon.uid) : null;
+        return {
+          ...deacon,
+          phone: userData ? userData.phone || userData.number || "Not provided" : "Not provided",
+        };
+      });
+
+      // Sort on a precomputed key rather than lowercasing `name` in place and
+      // then restoring it from `deaconList.find(...)` — that restore pass was a
+      // linear scan per deacon, so O(n²) every time the church doc changed.
+      // Unlike the admin rosters this one was NOT dead code: it genuinely put the
+      // display name back after the sort clobbered it. The key keeps that
+      // trimmed-sort / raw-display behaviour exactly.
       const sorted = withPhone
-        .map((d) => ({ ...d, name: (d.name || "").trim().toLowerCase() }))
-        .sort((a, b) => {
-          const c = a.name.localeCompare(b.name);
-          return c !== 0 ? c : a.uid.localeCompare(b.uid);
+        .map((d) => {
+          const name = String(d.name ?? "");
+          const uid = String(d.uid ?? "");
+          return { item: { ...d, name }, key: name.trim().toLowerCase(), uid };
         })
-        .map((d) => ({ ...d, name: deaconList.find((x) => x.uid === d.uid)?.name || "" }));
+        .sort(
+          (a, b) =>
+            a.key.localeCompare(b.key) ||
+            (a.uid < b.uid ? -1 : a.uid > b.uid ? 1 : 0)
+        )
+        .map((entry) => entry.item);
 
       setDeacons(sorted);
     } catch (err) {
       console.error("Error processing deacons:", err);
     }
-  }, []);
+  }, [loadUserDocs]);
 
-  // Build sections
-  useEffect(() => {
-    if (deacons.length === 0) { setSections([]); return; }
+  // Build sections.
+  //
+  // Derived with useMemo, not state-in-an-effect. An effect runs *after* the
+  // render that set `deacons`, so in that first frame `deacons` was full while
+  // `sections` was still [] — and the "No deacons found." branch below painted
+  // before the effect caught up. Deriving it keeps the two consistent within a
+  // single render. (attendanceSections below was already derived this way.)
+  const sections = useMemo(() => {
+    if (deacons.length === 0) return [];
     const lower = searchQuery.trim().toLowerCase();
     const filtered = lower ? deacons.filter((d) => (d.name || "").toLowerCase().includes(lower)) : deacons;
     const grouped = filtered.reduce((acc, d) => {
@@ -477,17 +585,19 @@ const DeaconEdits = () => {
       acc[key].push(d);
       return acc;
     }, {});
-    setSections(
-      Object.keys(grouped)
-        .sort((a, b) => a === "#" ? 1 : b === "#" ? -1 : a.localeCompare(b))
-        .map((title) => ({ title, data: grouped[title] }))
-    );
+    return Object.keys(grouped)
+      .sort((a, b) => a === "#" ? 1 : b === "#" ? -1 : a.localeCompare(b))
+      .map((title) => ({ title, data: grouped[title] }));
   }, [deacons, searchQuery]);
 
   // Church / deacons listener
   useEffect(() => {
+    if (!ready) return;
     if (deaconsListenerRef.current) { deaconsListenerRef.current(); deaconsListenerRef.current = null; }
-    if (!currentChurch) { setDeacons([]); setSections([]); setProfilePictureUrls({}); setIsLoadingDeacons(false); return; }
+    // A different church means a different set of people — drop the memoised
+    // user docs so they are re-read for the new roster.
+    userDocsRef.current = new Map();
+    if (!currentChurch) { setDeacons([]); setLoadedChurch(null); setIsLoadingDeacons(false); return; }
     setIsLoadingDeacons(true);
     deaconsListenerRef.current = firestore()
       .collection("churches").doc(currentChurch)
@@ -497,52 +607,29 @@ const DeaconEdits = () => {
             const churchData = doc.data();
             const deaconData = (churchData.deacons || []).map((d) => ({ ...d, churchId: currentChurch }));
             await processDeaconList(deaconData, churchData);
-            setTimeout(async () => {
-              try { await FirestoreCache.setDocument("churches", currentChurch, churchData); } catch {}
-            }, 100);
           } else {
-            setDeacons([]); setSections([]);
+            setDeacons([]);
           }
+          setLoadedChurch(currentChurch);
           setIsLoadingDeacons(false);
         },
         (err) => {
           console.error("Listener error:", err);
           Alert.alert("Error", "Failed to fetch deacons.");
+          setLoadedChurch(currentChurch);
           setIsLoadingDeacons(false);
         }
       );
     return () => { if (deaconsListenerRef.current) { deaconsListenerRef.current(); deaconsListenerRef.current = null; } };
-  }, [currentChurch, processDeaconList]);
+  }, [currentChurch, processDeaconList, ready]);
 
-  // Profile pictures
-  useEffect(() => {
-    if (!currentChurch || deacons.length === 0) { setProfilePictureUrls({}); return; }
-    const fetch = async () => {
-      await Promise.all(
-        deacons.map(async (d) => {
-          if (!d.uid) return;
-          const path = `profilePictures/${d.uid}.png`;
-          try {
-            const url = await StorageCache.getDownloadURL(path);
-            if (typeof url === "string" && url.trim())
-              setProfilePictureUrls((prev) => ({ ...prev, [d.uid]: url }));
-          } catch {
-            try {
-              const url = await storage().ref(path).getDownloadURL();
-              if (typeof url === "string" && url.trim())
-                setProfilePictureUrls((prev) => ({ ...prev, [d.uid]: url }));
-            } catch {
-              setProfilePictureUrls((prev) => ({ ...prev, [d.uid]: null }));
-            }
-          }
-        })
-      );
-    };
-    fetch();
-  }, [currentChurch, deacons]);
+  // Profile pictures are handled entirely by <Avatar> + avatarCache, primed
+  // for free from the batched user docs in processDeaconList.
 
   // Attendance data listeners — only when mode is active
   useEffect(() => {
+    if (!ready) return;
+
     // Clean up previous listeners
     attendanceListenersRef.current.forEach((u) => u());
     attendanceListenersRef.current = [];
@@ -557,6 +644,7 @@ const DeaconEdits = () => {
           (doc) => {
             if (doc.exists) {
               const data = doc.data();
+              avatarCache.primeFromUser({ uid: d.uid, ...data });
               setAttendanceData((prev) => ({
                 ...prev,
                 [d.uid]: {
@@ -571,14 +659,14 @@ const DeaconEdits = () => {
     });
     attendanceListenersRef.current = unsubs;
     return () => { unsubs.forEach((u) => u()); attendanceListenersRef.current = []; };
-  }, [attendanceMode, deacons]);
+  }, [attendanceMode, deacons, ready]);
 
-  const openEditModal = (deacon) => {
+  const openEditModal = useCallback((deacon) => {
     if (!deacon?.uid) return;
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setSelectedDeacon(deacon);
     setModalVisible(true);
-  };
+  }, []);
 
   const handleCancel = () => {
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
@@ -598,6 +686,8 @@ const DeaconEdits = () => {
     setIsRefreshing(true);
     try {
       if (user?.uid) {
+        // A manual refresh is the one place we do want to re-read user docs.
+        userDocsRef.current = new Map();
         const doc = await firestore().collection("users").doc(user.uid).get();
         if (doc.exists) {
           const church = doc.data()?.church || null;
@@ -606,10 +696,6 @@ const DeaconEdits = () => {
           } else if (church) {
             const cDoc = await firestore().collection("churches").doc(church).get();
             if (cDoc.exists) await processDeaconList(cDoc.data().deacons || [], cDoc.data());
-          }
-          if (church) {
-            await FirestoreCache.clearDocument("churches", church);
-            await FirestoreCache.clearDocument("users", user.uid);
           }
         }
       }
@@ -646,63 +732,57 @@ const DeaconEdits = () => {
 
   const activeSections = attendanceMode ? attendanceSections : sections;
 
-  const renderSectionHeader = ({ section: { title } }) => (
-    <View
-      style={styles.sectionHeader}
-      onLayout={(e) => {
-        const h = e.nativeEvent.layout.height;
-        if (h > 0 && headerHeightRef.current !== h) { headerHeightRef.current = h; setHeaderHeight(h); }
-      }}
-    >
-      <Text style={styles.sectionHeaderText}>{title}</Text>
-    </View>
+  const renderSectionHeader = useCallback(
+    ({ section: { title } }) => <SectionHeader title={title} />,
+    []
   );
 
-  const renderDeacon = ({ item }) => {
-    if (attendanceMode) {
-      return (
+  const openPillModal = useCallback(
+    (type, deacon) => setPillModal({ visible: true, type, deacon }),
+    []
+  );
+
+  const renderDeacon = useCallback(
+    ({ item }) =>
+      attendanceMode ? (
         <AttendanceCard
           deacon={item}
-          profilePictureUrl={profilePictureUrls[item.uid]}
-          onPillPress={(type, deacon) => setPillModal({ visible: true, type, deacon })}
+          onPillPress={openPillModal}
+          onProfilePress={openEditModal}
         />
-      );
-    }
-    return (
-      <TouchableOpacity style={styles.deaconItem} onPress={() => openEditModal(item)} activeOpacity={0.7}>
-        <View style={styles.deaconImageContainer}>
-          <Image
-            style={styles.deaconImage}
-            source={
-              item.uid && profilePictureUrls[item.uid]
-                ? { uri: profilePictureUrls[item.uid] }
-                : require("../../assets/default_profile.png")
-            }
-            defaultSource={require("../../assets/default_profile.png")}
-            onError={() => setProfilePictureUrls((prev) => ({ ...prev, [item.uid]: null }))}
-          />
-        </View>
-        <View style={styles.deaconInfo}>
-          <Text style={styles.deaconName}>{item.name || "Unknown"}</Text>
-          <Text style={styles.deaconDetail}>Age: {formatNumber(item.age)}</Text>
-          <Text style={styles.deaconDetail}>Phone: {item.phone !== undefined && item.phone !== null ? item.phone : "Not provided"}</Text>
-          <Text style={styles.deaconDetail}>Experience: {formatNumber(item.experience)}</Text>
-          <Text style={styles.deaconDetail}>Frequency: {formatNumber(item.frequency)}</Text>
-        </View>
-        <Ionicons name="pencil" size={20 * scale} color="#147efb" />
-      </TouchableOpacity>
-    );
-  };
+      ) : (
+        <DeaconRow item={item} onPress={openEditModal} />
+      ),
+    [attendanceMode, openPillModal, openEditModal]
+  );
 
-  if (userDataLoading || isLoadingDeacons) {
+  const keyExtractor = useCallback((item) => item.uid, []);
+
+  // Also hold the skeleton while `currentChurch` is known but its deacon
+  // snapshot has not landed yet, otherwise "No deacons found." flashes in the
+  // frame between the user doc resolving and the church listener re-attaching.
+  if (
+    !ready ||
+    userDataLoading ||
+    isLoadingDeacons ||
+    (currentChurch && loadedChurch !== currentChurch)
+  ) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size={isTablet ? "large" : "small"} color="#147efb" />
-        <Text style={[styles.loadingText, { fontSize: 16 * scale }]}>Loading...</Text>
-        <Text style={[styles.loadingSubtext, { fontSize: 14 * scale }]}>
-          {userDataLoading ? "Getting your data ready" : "Loading deacons..."}
-        </Text>
-      </View>
+      <SkeletonScreen
+        variant="personCards"
+        count={8}
+        showHeader={false}
+        rowLines={3}
+        paddingHorizontal={paddingHorizontal}
+        paddingTop={20}
+        // Matches listContainer's inset for the alphabet index bar.
+        bodyStyle={{ paddingRight: 32 }}
+        header={
+          <View style={styles.pageHeader}>
+            <Text style={styles.pageTitle}>Deacons</Text>
+          </View>
+        }
+      />
     );
   }
 
@@ -776,11 +856,14 @@ const DeaconEdits = () => {
             sections={activeSections}
             renderItem={renderDeacon}
             renderSectionHeader={renderSectionHeader}
-            keyExtractor={(item) => item.uid || Math.random().toString()}
+            keyExtractor={keyExtractor}
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
-            extraData={[profilePictureUrls, attendanceData, attendanceMode]}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={7}
+            extraData={[attendanceData, attendanceMode]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
             onScrollToIndexFailed={() => {}}
@@ -1082,8 +1165,6 @@ const styles = StyleSheet.create({
   listWrapper: { flex: 1, position: "relative" },
   listContainer: { paddingBottom: 110, flexGrow: 1, paddingRight: 32 },
   centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#121212" },
-  loadingText: { marginTop: 12, color: "rgba(255,255,255,0.6)" },
-  loadingSubtext: { marginTop: 6, color: "rgba(255,255,255,0.4)", textAlign: "center" },
   errorText: { color: "#ff6b6b", marginBottom: 10, textAlign: "center" },
   errorSubtext: { color: "rgba(255,255,255,0.5)", textAlign: "center", marginBottom: 20 },
   deaconItem: {

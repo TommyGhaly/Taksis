@@ -6,19 +6,18 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
-  Image,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import firestore, { FieldValue } from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import storage from "@react-native-firebase/storage";
 import BackArrow from "../../components/backArrow";
 import { callFunction } from "../../components/functionCalls";
+import Avatar from "../../components/Avatar";
+import * as avatarCache from "../../utils/avatarCache";
 
 const ChangeChildren = () => {
   const navigation = useNavigation();
   const [children, setChildren] = useState([]);
-  const [profilePictureUrls, setProfilePictureUrls] = useState({});
 
   useEffect(() => {
     const user = auth().currentUser;
@@ -33,6 +32,8 @@ const ChangeChildren = () => {
             const userData = doc.data();
             if (userData && userData.children) {
               setChildren(userData.children);
+              // Adopt any photoURL already on these records — no Storage request.
+              avatarCache.primeMany(userData.children);
             } else {
               setChildren([]);
             }
@@ -45,49 +46,9 @@ const ChangeChildren = () => {
           }
         );
 
-      // Fetch profile pictures
-      const fetchProfilePictures = async () => {
-        try {
-          const doc = await firestore().collection("users").doc(user.uid).get();
-          if (doc.exists) {
-            const userData = doc.data();
-            const children = userData.children || [];
-            const urls = {};
-            await Promise.all(
-              children.map(async (child) => {
-                if (child.uid) {
-                  try {
-                    const url = await storage()
-                      .ref(`profilePictures/${child.uid}.png`)
-                      .getDownloadURL();
-                    if (typeof url === "string" && url.trim() !== "") {
-                      urls[child.uid] = url;
-                    } else {
-                      urls[child.uid] = null;
-                    }
-                  } catch (error) {
-                    urls[child.uid] = null; // Fallback to default image
-                  }
-                }
-              })
-            );
-            setProfilePictureUrls(urls);
-          }
-        } catch (error) {
-          // Error handling for profile picture URLs fetch
-        }
-      };
-
-      // Fetch profile pictures immediately
-      fetchProfilePictures();
-
-      // Set up interval to check for updates every 30 seconds
-      const intervalId = setInterval(fetchProfilePictures, 30000);
-
-      // Cleanup subscription and interval on unmount
+      // Cleanup subscription on unmount
       return () => {
         unsubscribe();
-        clearInterval(intervalId);
       };
     }
   }, []);
@@ -132,9 +93,12 @@ const ChangeChildren = () => {
                 return;
               }
 
-              // Delete profile picture from storage
+              // Delete profile picture from storage, plus the cached url. A
+              // child has no users/{uid} doc, so removePhoto's field clear just
+              // fails and logs; it is used here to keep every removal path on
+              // one helper.
               try {
-                await storage().ref(`profilePictures/${childId}.png`).delete();
+                await avatarCache.removePhoto(childId);
               } catch (error) {
                 // Continue even if image deletion fails
               }
@@ -154,13 +118,6 @@ const ChangeChildren = () => {
                 .update({
                   children: FieldValue.arrayRemove(childToRemove),
                 });
-
-              // Update local state
-              setProfilePictureUrls((prev) => {
-                const updated = { ...prev };
-                delete updated[childId];
-                return updated;
-              });
             } catch (error) {
               console.error("Remove child error:", error);
               Alert.alert(
@@ -186,22 +143,12 @@ const ChangeChildren = () => {
         >
           {children.map((child) => (
             <View key={child.uid} style={styles.childContainer}>
-              <Image
+              <Avatar
+                uid={child.uid}
+                user={child}
+                size={40}
+                borderRadius={20}
                 style={styles.profileImage}
-                source={
-                  profilePictureUrls[child.uid] &&
-                  typeof profilePictureUrls[child.uid] === "string" &&
-                  profilePictureUrls[child.uid].trim() !== ""
-                    ? { uri: profilePictureUrls[child.uid] }
-                    : require("../../assets/default_profile.png")
-                }
-                defaultSource={require("../../assets/default_profile.png")}
-                onError={() =>
-                  setProfilePictureUrls((prev) => ({
-                    ...prev,
-                    [child.uid]: null,
-                  }))
-                }
               />
               <Text style={styles.childName}>{child.name}</Text>
               <TouchableOpacity
