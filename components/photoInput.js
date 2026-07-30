@@ -14,8 +14,10 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import storage from '@react-native-firebase/storage';
+import firestore from '@react-native-firebase/firestore';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
+import * as avatarCache from '../utils/avatarCache';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -143,9 +145,28 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess }) => {
           try {
             const downloadURL = await reference.getDownloadURL();
             ReactNativeHapticFeedback.trigger('notificationSuccess', hapticOptions);
-            
+
+            // A download URL for a fixed path is stable across re-uploads, so
+            // stamp a version token. This is what makes the new photo appear
+            // everywhere without any polling.
+            const version = String(Date.now());
+            avatarCache.set(userId, downloadURL, version);
+
+            // Publish onto the user doc so every screen that already reads
+            // users/{uid} gets the avatar for free, with no Storage request.
+            try {
+              await firestore().collection('users').doc(userId).update({
+                photoURL: downloadURL,
+                photoUpdatedAt: version,
+              });
+            } catch (e) {
+              // Children and manually-created people aren't top-level user
+              // docs; the cache write above still covers them.
+              console.log('[PhotoInput] photoURL not published to users doc:', e?.message);
+            }
+
             onUploadSuccess?.(downloadURL);
-            
+
             Alert.alert(
               'Success!', 
               'Your profile picture has been updated successfully.',

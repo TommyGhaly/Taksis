@@ -1,37 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, View, Text, Pressable, Image, Animated } from "react-native";
+import { StyleSheet, View, Text, Pressable, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import storage from "@react-native-firebase/storage";
+import Avatar from "./Avatar";
 
-const HomeScreenNames = ({ role, user }) => {
+// memo'd because HomeScreen rebuilds its readings/offerings arrays each render;
+// without this every one of these rows remounts on any state change.
+const HomeScreenNames = React.memo(({ role, user }) => {
   const [expand, setExpand] = useState(false);
-  const [imageUrl, setImageUrl] = useState(null);
   const heightAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const translateYAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (user?.uid) {
-      const fetchImage = async () => {
-        try {
-          const url = await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
-          if (typeof url === "string" && url.trim() !== "") {
-            setImageUrl(url);
-          } else {
-            setImageUrl(null);
-          }
-        } catch (error) {
-          setImageUrl(null);
-        }
-      };
-
-      fetchImage();
-      const intervalId = setInterval(fetchImage, 10000);
-      return () => clearInterval(intervalId);
-    } else {
-      setImageUrl(null);
-    }
-  }, [user]);
 
   useEffect(() => {
     Animated.parallel([
@@ -74,16 +52,12 @@ const HomeScreenNames = ({ role, user }) => {
     <Pressable style={styles.card} onPress={() => setExpand(!expand)}>
       <View style={styles.contentContainer}>
         <Animated.View style={[styles.expandedContent, { height: expandedHeight, opacity: opacityAnim }]}>
-          <Image
+          <Avatar
+            uid={user?.uid}
+            user={user}
+            size={130}
             style={styles.profileImage}
-            source={
-              typeof imageUrl === "string" && imageUrl.trim() !== ""
-                ? { uri: imageUrl }
-                : require('../assets/default_profile.png')
-            }
-            defaultSource={require('../assets/default_profile.png')}
-            resizeMode="cover"
-            onError={() => setImageUrl(null)}
+            showBorder={false}
           />
         </Animated.View>
         <Animated.View
@@ -102,7 +76,9 @@ const HomeScreenNames = ({ role, user }) => {
       </View>
     </Pressable>
   );
-};
+});
+
+HomeScreenNames.displayName = "HomeScreenNames";
 
 const styles = StyleSheet.create({
   card: {

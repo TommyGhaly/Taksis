@@ -1,11 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { FirestoreCache, StorageCache } from '../utils/cacheManager';
 
 // Hook for Firestore document caching
 export const useFirestoreDocument = (collectionPath, documentId, options = {}) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  // Mirrors `data` so fetchDocument can tell a cold load from a refresh
+  // without having to depend on `data` (which would recreate the callback).
+  const dataRef = useRef(null);
 
   const fetchDocument = useCallback(async (forceRefresh = false) => {
     if (!collectionPath || !documentId) {
@@ -13,22 +17,30 @@ export const useFirestoreDocument = (collectionPath, documentId, options = {}) =
       return;
     }
 
+    // Only block the UI when there is nothing cached to render. Setting
+    // loading on every fetch made each refresh flash a full-screen spinner
+    // and unmount the content behind it.
+    const isColdLoad = dataRef.current == null;
+    if (isColdLoad) setLoading(true);
+    else setRefreshing(true);
+
     try {
-      setLoading(true);
       setError(null);
-      
+
       const result = await FirestoreCache.getDocument(
-        collectionPath, 
-        documentId, 
+        collectionPath,
+        documentId,
         { ...options, forceRefresh }
       );
-      
+
+      dataRef.current = result;
       setData(result);
     } catch (err) {
       setError(err);
       console.error('Error fetching document:', err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [collectionPath, documentId, JSON.stringify(options)]);
 
@@ -54,12 +66,13 @@ export const useFirestoreDocument = (collectionPath, documentId, options = {}) =
     fetchDocument();
   }, [fetchDocument]);
 
-  return { 
-    data, 
-    loading, 
-    error, 
-    refresh, 
-    updateDocument 
+  return {
+    data,
+    loading,
+    refreshing,
+    error,
+    refresh,
+    updateDocument
   };
 };
 

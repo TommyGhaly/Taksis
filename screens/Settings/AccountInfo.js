@@ -12,13 +12,13 @@ import {
   Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import ProfileImageExpander from "../../components/ProfileImageExpander";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import storage from "@react-native-firebase/storage";
 import { Ionicons } from "@expo/vector-icons";
 import PhotoInput from "../../components/photoInput";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
+import Avatar from "../../components/Avatar";
+import * as avatarCache from "../../utils/avatarCache";
 
 const hapticOptions = {
   enableVibrateFallback: true,
@@ -27,7 +27,6 @@ const hapticOptions = {
 
 const CACHE_KEYS = {
   USER_DATA: 'user_data_',
-  IMAGE_URL: 'image_url_',
   CACHE_TIMESTAMP: '_timestamp'
 };
 
@@ -35,7 +34,6 @@ const CACHE_DURATION = 3 * 24 * 60 * 60 * 1000;
 
 const AccountInfo = ({ navigation }) => {
   const [userData, setUserData] = useState(null);
-  const [imageUrl, setImageUrl] = useState(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [isLoadingFromCache, setIsLoadingFromCache] = useState(true);
   const user = auth().currentUser;
@@ -84,15 +82,6 @@ const AccountInfo = ({ navigation }) => {
     }
   };
 
-  const clearCache = async (key) => {
-    try {
-      await AsyncStorage.removeItem(key);
-      await AsyncStorage.removeItem(key + CACHE_KEYS.CACHE_TIMESTAMP);
-    } catch (error) {
-      console.error('Error clearing cache:', error);
-    }
-  };
-
   useEffect(() => {
     const fetchUserData = async () => {
       try {
@@ -101,6 +90,8 @@ const AccountInfo = ({ navigation }) => {
           const cachedData = await getFromCache(cacheKey);
           if (cachedData) {
             setUserData(cachedData);
+            // Adopt photoURL from the doc we already have — no Storage request.
+            avatarCache.primeFromUser({ uid: user.uid, ...cachedData });
             setIsLoadingFromCache(false);
             firestore()
               .collection("users")
@@ -110,6 +101,7 @@ const AccountInfo = ({ navigation }) => {
                 if (userDoc.exists) {
                   const freshData = userDoc.data();
                   setUserData(freshData);
+                  avatarCache.primeFromUser({ uid: user.uid, ...freshData });
                   saveToCache(cacheKey, freshData);
                 }
               });
@@ -118,6 +110,7 @@ const AccountInfo = ({ navigation }) => {
             if (userDoc.exists) {
               const freshData = userDoc.data();
               setUserData(freshData);
+              avatarCache.primeFromUser({ uid: user.uid, ...freshData });
               saveToCache(cacheKey, freshData);
             }
             setIsLoadingFromCache(false);
@@ -131,45 +124,6 @@ const AccountInfo = ({ navigation }) => {
     fetchUserData();
   }, [user]);
 
-  useEffect(() => {
-    if (user?.uid) {
-      const fetchImage = async () => {
-        try {
-          const cacheKey = CACHE_KEYS.IMAGE_URL + user.uid;
-          const cachedUrl = await getFromCache(cacheKey);
-          if (cachedUrl && typeof cachedUrl === "string" && cachedUrl.trim() !== "") {
-            setImageUrl(cachedUrl);
-            storage()
-              .ref(`profilePictures/${user.uid}.png`)
-              .getDownloadURL()
-              .then(url => {
-                if (typeof url === "string" && url.trim() !== "") {
-                  setImageUrl(url);
-                  saveToCache(cacheKey, url);
-                }
-              })
-              .catch(() => clearCache(cacheKey));
-          } else {
-            const url = await storage().ref(`profilePictures/${user.uid}.png`).getDownloadURL();
-            if (typeof url === "string" && url.trim() !== "") {
-              setImageUrl(url);
-              saveToCache(cacheKey, url);
-            } else {
-              setImageUrl(null);
-            }
-          }
-        } catch (error) {
-          setImageUrl(null);
-        }
-      };
-      fetchImage();
-      const intervalId = setInterval(fetchImage, 30000);
-      return () => clearInterval(intervalId);
-    } else {
-      setImageUrl(null);
-    }
-  }, [user]);
-
   const handleEditPhoto = () => {
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setShowPhotoModal(true);
@@ -177,20 +131,8 @@ const AccountInfo = ({ navigation }) => {
 
   const handlePhotoUpload = async () => {
     setShowPhotoModal(false);
-    try {
-      const cacheKey = CACHE_KEYS.IMAGE_URL + user.uid;
-      await clearCache(cacheKey);
-      const storagePath = `profilePictures/${user.uid}.png`;
-      const newUrl = await storage().ref(storagePath).getDownloadURL();
-      if (typeof newUrl === "string" && newUrl.trim() !== "") {
-        setImageUrl(newUrl);
-        saveToCache(cacheKey, newUrl);
-      } else {
-        setImageUrl(null);
-      }
-    } catch (error) {
-      setImageUrl(null);
-    }
+    // PhotoInput already wrote the new url + version into avatarCache, so
+    // there is nothing to do here. Invalidating would discard that fresh value.
   };
 
   if (!userData) {
@@ -240,12 +182,14 @@ const AccountInfo = ({ navigation }) => {
         >
           <View style={styles.profileSection}>
             <View style={styles.profileImageWrapper}>
-              <ProfileImageExpander
-                imageUrl={imageUrl}
+              <Avatar
+                uid={user?.uid}
+                user={userData}
                 size={100}
                 finalSize={300}
                 borderRadius={50}
                 style={styles.profileImage}
+                expandable
               />
               <TouchableOpacity
                 style={styles.editIconContainer}

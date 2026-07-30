@@ -8,6 +8,8 @@ import firestore from "@react-native-firebase/firestore";
 import NetInfo from "@react-native-community/netinfo";
 import { UserProvider, useUser } from "./UserContext";
 import { initializeCacheManager } from "./utils/cacheManager";
+import { hydrate as hydrateAvatarCache } from "./utils/avatarCache";
+import SkeletonScreen from "./components/Skeleton";
 
 import Welcome from "./screens/Welcome";
 import SignIn from "./screens/SignIn";
@@ -90,7 +92,26 @@ function AppNavigator() {
         try {
           // User is logged in, ensure Firestore user doc exists, then check if onboarding is complete.
           const userRef = firestore().collection("users").doc(user.uid);
-          const userDoc = await userRef.get();
+
+          // Try the on-disk Firestore cache first. Persistence is enabled by
+          // default in RN Firebase but the app never used it, so every launch
+          // paid a full network round-trip here while rendering nothing. For a
+          // returning user this resolves in ~1ms; the server read below still
+          // runs and corrects anything stale.
+          let userDoc = null;
+          try {
+            const cached = await userRef.get({ source: "cache" });
+            if (cached.exists && cached.data()?.DOB) {
+              setSignUp(false);
+              setUser(user);
+              setInitializing(false);
+              userDoc = cached;
+            }
+          } catch {
+            // Nothing cached yet (first launch) — fall through to the server.
+          }
+
+          if (!userDoc) userDoc = await userRef.get();
 
           if (!userDoc.exists) {
             // If the Auth user exists but Firestore doc doesn't (race during sign-up, or legacy state),
@@ -131,6 +152,12 @@ function AppNavigator() {
     return subscriber;
   }, []);
 
+  // Load persisted avatar URLs before first paint so cached profile pictures
+  // render instantly on a cold start. Purely local — safe to run unauthenticated.
+  useEffect(() => {
+    hydrateAvatarCache();
+  }, []);
+
   // Initialize cache only when user setup is complete
   useEffect(() => {
     if (user && !signUp && !cacheInitialized) {
@@ -140,7 +167,10 @@ function AppNavigator() {
     }
   }, [user, signUp, cacheInitialized]);
 
-  if (initializing) return null;
+  // Only reached on a genuine cold start now (no Firestore cache yet).
+  // Previously this rendered `null` — a blank screen — for a full network RTT.
+  // We don't know which screen comes next, so: one full-screen block.
+  if (initializing) return <SkeletonScreen variant="block" />;
 
   return (
     <NavigationContainer style={styles.container}>

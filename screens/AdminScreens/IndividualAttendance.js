@@ -10,10 +10,9 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Dimensions,
-  Image,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
@@ -22,9 +21,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import BackArrow from "../../components/backArrow";
 import PhotoInput from "../../components/photoInput";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import ProfileImageExpander from "../../components/ProfileImageExpander";
-
-const defaultProfileImage = require("../../assets/default_profile.png");
+import Avatar from "../../components/Avatar";
+import SkeletonScreen from "../../components/Skeleton";
+import * as avatarCache from "../../utils/avatarCache";
 
 const IndividualAttendance = () => {
   const navigation = useNavigation();
@@ -32,10 +31,13 @@ const IndividualAttendance = () => {
   const { church, category, grade, studentId, userGrades } = route.params;
   const [studentData, setStudentData] = useState({});
   const [loading, setLoading] = useState(true);
+  // Separate from `loading`, which gates the whole-screen skeleton. Writes have
+  // to show progress *inside* the modal — flipping `loading` for them tore the
+  // screen down mid-edit and snapped it back a moment later.
+  const [saving, setSaving] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [photoInputVisible, setPhotoInputVisible] = useState(false);
-  const [profilePictureUrl, setProfilePictureUrl] = useState(null);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [editData, setEditData] = useState({
     name: "",
@@ -48,39 +50,37 @@ const IndividualAttendance = () => {
   const [selectedNewGrade, setSelectedNewGrade] = useState("");
   const [transferringStudent, setTransferringStudent] = useState(false);
   const isMounted = useRef(true);
+  // Which student the state on screen belongs to.
+  const loadedStudentId = useRef(null);
 
   // Get available grades for transfer (exclude current grade)
   const availableGrades = userGrades ? userGrades.filter(g => g !== grade) : [];
-  
-  // Temporary debug logging
-  console.log('Grade Change Debug:', {
-    userGrades,
-    currentGrade: grade,
-    availableGrades,
-    userGradesType: typeof userGrades,
-    gradeType: typeof grade
-  });
-  
+
 
   useFocusEffect(
     useCallback(() => {
       isMounted.current = true;
 
-      // Reset state when screen is focused
-      setStudentData({});
-      setLoading(true);
+      // Close any transient UI, but keep `studentData` when re-focusing the same
+      // student — the listener re-attaches to the same doc, so clearing it made
+      // every return to this screen flash a skeleton over correct data. A
+      // different student is a genuine cold load, so clear for that one.
       setModalVisible(false);
       setEditMode(false);
       setPhotoInputVisible(false);
-      setProfilePictureUrl(null);
       setDeletingPhoto(false);
-      setEditData({
-        name: "",
-        phone: "",
-        address: "",
-        description: "",
-        birthday: "",
-      });
+      if (loadedStudentId.current !== studentId) {
+        loadedStudentId.current = studentId;
+        setStudentData({});
+        setLoading(true);
+        setEditData({
+          name: "",
+          phone: "",
+          address: "",
+          description: "",
+          birthday: "",
+        });
+      }
 
       const fetchData = () => {
         if (!studentId) {
@@ -96,12 +96,6 @@ const IndividualAttendance = () => {
           .doc(grade)
           .collection("students")
           .doc(studentId);
-
-        // Fetch profile picture concurrently
-        const profilePicturePromise = storage()
-          .ref(`profilePictures/${studentId}.png`)
-          .getDownloadURL()
-          .catch(() => null); // Return null if image fetch fails
 
         // Set up real-time listener for student data
         const unsubscribe = studentRef.onSnapshot(
@@ -122,9 +116,8 @@ const IndividualAttendance = () => {
                 navigation.goBack();
               }
 
-              // Resolve profile picture
-              const url = await profilePicturePromise;
-              setProfilePictureUrl(url);
+              // The profile picture is resolved by <Avatar> through
+              // avatarCache — no Storage round-trip to wait on here.
               setLoading(false);
             } catch (error) {
               if (isMounted.current) {
@@ -186,21 +179,16 @@ const IndividualAttendance = () => {
 
     setDeletingPhoto(true);
     try {
-      // Delete from Firebase Storage
-      const storageRef = storage().ref(`profilePictures/${studentId}.png`);
-      await storageRef.delete();
-
-      // Update local state
-      setProfilePictureUrl(null);
+      // Clears the Storage object, the photoURL pointer on the user doc and the
+      // local cache. Skipping the doc fields would leave every screen re-priming
+      // a url whose object no longer exists.
+      await avatarCache.removePhoto(studentId);
 
       Alert.alert("Success", "Profile picture deleted successfully");
     } catch (error) {
-      // If the file doesn't exist, that's okay - just update local state
-      if (error.code === 'storage/object-not-found') {
-        setProfilePictureUrl(null);
-      } else {
-        Alert.alert("Error", "Could not delete profile picture. Please try again.");
-      }
+      // An already-missing object is treated as success by removePhoto, so
+      // anything reaching here is a real failure.
+      Alert.alert("Error", "Could not delete profile picture. Please try again.");
     } finally {
       setDeletingPhoto(false);
     }
@@ -234,35 +222,26 @@ const IndividualAttendance = () => {
       return;
     }
     try {
-      setLoading(true);
+      setSaving(true);
       const ref = storage().ref(`profilePictures/${studentId}.png`);
       await ref.putFile(imageUri);
       const url = await ref.getDownloadURL();
-      setProfilePictureUrl(url);
+      // Publish the new url straight into the cache with a fresh version token
+      // so every Avatar for this uid repaints without another Storage read.
+      avatarCache.set(studentId, url);
       setPhotoInputVisible(false);
       Alert.alert("Success", "Profile picture updated successfully.");
     } catch (error) {
       Alert.alert("Error", "Failed to upload profile picture.");
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  // Close photo input modal and refresh picture
+  // Close photo input modal. PhotoInput already wrote the new url + version
+  // into avatarCache, so there is nothing to refetch here.
   const closePhotoInputModal = () => {
     setPhotoInputVisible(false);
-    // Refresh profile picture after upload
-    if (studentId) {
-      storage()
-        .ref(`profilePictures/${studentId}.png`)
-        .getDownloadURL()
-        .then(url => {
-          setProfilePictureUrl(url);
-        })
-        .catch(() => {
-          // Keep existing or null
-        });
-    }
   };
 
   // Format grade
@@ -356,7 +335,7 @@ const IndividualAttendance = () => {
       return;
     }
     try {
-      setLoading(true);
+      setSaving(true);
       await firestore()
         .collection("churches")
         .doc(church)
@@ -377,7 +356,7 @@ const IndividualAttendance = () => {
     } catch (error) {
       Alert.alert("Error", "Failed to update student information.");
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -405,11 +384,10 @@ const IndividualAttendance = () => {
                 .delete();
 
               try {
-                await storage().ref(`profilePictures/${studentId}.png`).delete();
+                await avatarCache.removePhoto(studentId);
               } catch (error) {
-                if (error.code !== "storage/object-not-found") {
-                  // Error handling for profile picture deletion
-                }
+                // Record is already gone; a leftover photo must not block the
+                // success path.
               }
 
               Alert.alert(
@@ -455,12 +433,12 @@ const IndividualAttendance = () => {
     }
   };
 
-  if (loading) {
+  // Only a cold load blocks the screen; later reads paint over what's there.
+  if (loading && Object.keys(studentData).length === 0) {
+    // Single-student detail: avatar, name, then the attendance rows. The 80px
+    // avatar matches the real one so the header doesn't resize on swap.
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#fff" />
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
+      <SkeletonScreen variant="profile" showHeader={false} avatarSize={80} />
     );
   }
 
@@ -486,12 +464,14 @@ const IndividualAttendance = () => {
         </View>
         <Text style={styles.title}>{`${studentData.name || "Student"}`}</Text>
         <View style={styles.profileContainer}>
-            <ProfileImageExpander
-            imageUrl={profilePictureUrl || defaultProfileImage}
+            <Avatar
+            uid={studentId}
+            user={studentData}
             size={80}
             finalSize={300}
             borderRadius={40}
             style={styles.profileImage}
+            expandable
           />
         </View>
         <Text style={styles.subtitle}>{`Grade: ${formatGrade(
@@ -555,12 +535,14 @@ const IndividualAttendance = () => {
               {editMode ? (
                 <>
                   <View style={styles.profilePictureContainer}>
-                    <ProfileImageExpander
-                      imageUrl={profilePictureUrl}
+                    <Avatar
+                      uid={studentId}
+                      user={studentData}
                       size={100}
                       finalSize={300}
                       borderRadius={50}
                       style={styles.modalProfilePicture}
+                      expandable
                     />
                     <TouchableOpacity
                       style={styles.editPhotoIcon}
@@ -655,10 +637,15 @@ const IndividualAttendance = () => {
                     <TouchableOpacity
                       onPress={saveEdits}
                       style={styles.buttonInner}
+                      disabled={saving}
                       accessible={true}
                       accessibilityLabel="Save student information"
                     >
-                      <Text style={styles.modalButtonText}>Save</Text>
+                      {saving ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.modalButtonText}>Save</Text>
+                      )}
                     </TouchableOpacity>
                   </LinearGradient>
                   <TouchableOpacity
@@ -672,12 +659,14 @@ const IndividualAttendance = () => {
               ) : (
                 <>
                   <View style={styles.profilePictureContainer}>
-                    <ProfileImageExpander
-                      imageUrl={profilePictureUrl}
+                    <Avatar
+                      uid={studentId}
+                      user={studentData}
                       size={100}
                       finalSize={300}
                       borderRadius={50}
                       style={styles.modalProfilePicture}
+                      expandable
                     />
                   </View>
                   <View style={styles.infoCard}>
@@ -1095,17 +1084,6 @@ const styles = StyleSheet.create({
     color: "#F44336",
     marginTop: 10,
     textAlign: "center",
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#121212",
-  },
-  loadingText: {
-    color: "#fff",
-    fontSize: 18,
-    marginTop: 10,
   },
   noAttendanceContainer: {
     flex: 1,

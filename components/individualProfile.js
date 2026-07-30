@@ -7,10 +7,8 @@ import {
   Modal,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
   Linking,
 } from "react-native";
-import storage from "@react-native-firebase/storage";
 import auth from "@react-native-firebase/auth";
 import { callFunction } from "./functionCalls";
 import Slider from "@react-native-community/slider";
@@ -18,9 +16,15 @@ import firestore, { FieldValue } from "@react-native-firebase/firestore";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import PhotoInput from "./photoInput";
-import ProfileImageExpander from "./ProfileImageExpander";
+import Avatar from "./Avatar";
+import {
+  SkeletonProvider,
+  SkeletonBlock,
+  SkeletonCircle,
+  SkeletonText,
+} from "./Skeleton";
+import * as avatarCache from "../utils/avatarCache";
 
-const defaultProfileImage = require("../assets/default_profile.png");
 
 // Haptic feedback options
 const hapticOptions = {
@@ -130,7 +134,6 @@ const IndividualProfile = ({
   family,
   url,
 }) => {
-  const [imageUrl, setImageUrl] = useState(null);
   const [userData, setUserData] = useState(null);
   const [tempExperience, setTempExperience] = useState(0);
   const [tempFrequency, setTempFrequency] = useState(0);
@@ -141,7 +144,6 @@ const IndividualProfile = ({
 
   useEffect(() => {
     // Reset state when modal is opened or userId changes
-    setImageUrl(null);
     setUserData(null);
     setTempExperience(0);
     setTempFrequency(0);
@@ -156,22 +158,12 @@ const IndividualProfile = ({
     }
 
     let userUnsubscribe = null;
-    let usersQueryUnsubscribe = null;
 
-    const fetchImage = async (childStatus) => {
-      try {
-        const storagePath = childStatus
-          ? `profilePictures/${userId}.png`
-          : `profilePictures/${userId}.png`;
-        const url = await storage().ref(storagePath).getDownloadURL();
-        if (typeof url === "string" && url.trim() !== "") {
-          setImageUrl(url);
-        } else {
-          setImageUrl(null);
-        }
-      } catch (error) {
-        setImageUrl(null);
-      }
+    // <Avatar> resolves and caches the picture itself; this just seeds the
+    // cache from the doc we already loaded, which costs no extra request.
+    const fetchImage = async (docData) => {
+      if (docData) avatarCache.primeFromUser({ uid: userId, ...docData });
+      else await avatarCache.resolve(userId);
     };
 
     const fetchUserData = () => {
@@ -198,55 +190,60 @@ const IndividualProfile = ({
               setTempFrequency(data.frequency ?? 0);
               setIsDeacon(data.isDeacon || false);
               setIsChild(false);
-              await fetchImage(false);
+              await fetchImage(data);
               setLoading(false);
             } else {
-              usersQueryUnsubscribe = firestore()
-                .collection("users")
-                .onSnapshot(
-                  async (querySnapshot) => {
-                    let childData = null;
-                    let parentId = null;
-                    let parentPhone = "Not provided";
+              // This uid isn't a top-level user, so it's a child nested in some
+              // parent's `children` array. There's no indexable field to query
+              // on, so the collection has to be scanned — but as a ONE-TIME
+              // read, not a live listener. As an onSnapshot this re-scanned
+              // every user doc on any change to any user in the app.
+              try {
+                const querySnapshot = await firestore()
+                  .collection("users")
+                  .get();
 
-                    for (const doc of querySnapshot.docs) {
-                      const userData = doc.data();
-                      const children = userData.children || [];
-                      const child = children.find((c) => c.uid === userId);
-                      if (child) {
-                        childData = child;
-                        parentId = doc.id;
-                        parentPhone =
-                          userData.phone || userData.number || "Not provided";
-                        break;
-                      }
-                    }
+                let childData = null;
+                let parentId = null;
+                let parentPhone = "Not provided";
 
-                    if (childData) {
-                      setUserData({
-                        name: childData.name || "N/A",
-                        age: childData.age || "N/A",
-                        phone: parentPhone,
-                        nextWeekServe: childData.nextWeekServe || "N/A",
-                        nextRole: childData.nextRole || "N/A",
-                        experience: childData.experience ?? 0,
-                        frequency: childData.frequency ?? 0,
-                        parentId,
-                        lastServe: childData.lastServe || null,
-                        lastRole: childData.lastRole || null,
-                      });
-                      setTempExperience(childData.experience ?? 0);
-                      setTempFrequency(childData.frequency ?? 0);
-                      setIsChild(true);
-                      setIsDeacon(false);
-                      await fetchImage(true);
-                      setLoading(false);
-                    } else {
-                      setLoading(false);
-                    }
-                  },
-                  () => setLoading(false)
-                );
+                for (const doc of querySnapshot.docs) {
+                  const parentData = doc.data();
+                  const children = parentData.children || [];
+                  const child = children.find((c) => c.uid === userId);
+                  if (child) {
+                    childData = child;
+                    parentId = doc.id;
+                    parentPhone =
+                      parentData.phone || parentData.number || "Not provided";
+                    break;
+                  }
+                }
+
+                if (childData) {
+                  setUserData({
+                    name: childData.name || "N/A",
+                    age: childData.age || "N/A",
+                    phone: parentPhone,
+                    nextWeekServe: childData.nextWeekServe || "N/A",
+                    nextRole: childData.nextRole || "N/A",
+                    experience: childData.experience ?? 0,
+                    frequency: childData.frequency ?? 0,
+                    parentId,
+                    lastServe: childData.lastServe || null,
+                    lastRole: childData.lastRole || null,
+                  });
+                  setTempExperience(childData.experience ?? 0);
+                  setTempFrequency(childData.frequency ?? 0);
+                  setIsChild(true);
+                  setIsDeacon(false);
+                  await fetchImage(childData);
+                }
+              } catch (e) {
+                console.error("[IndividualProfile] child lookup failed:", e);
+              } finally {
+                setLoading(false);
+              }
             }
           },
           () => setLoading(false)
@@ -255,10 +252,9 @@ const IndividualProfile = ({
 
     fetchUserData();
 
-    // Cleanup listeners when modal is closed or userId changes
+    // Cleanup listener when modal is closed or userId changes
     return () => {
       if (userUnsubscribe) userUnsubscribe();
-      if (usersQueryUnsubscribe) usersQueryUnsubscribe();
     };
   }, [show, userId]);
 
@@ -599,19 +595,8 @@ const IndividualProfile = ({
 
   const handlePhotoUpload = async () => {
     setShowPhotoModal(false);
-    try {
-      const storagePath = isChild
-        ? `childProfilePictures/${userId}.png`
-        : `profilePictures/${userId}.png`;
-      const newUrl = await storage().ref(storagePath).getDownloadURL();
-      if (typeof newUrl === "string" && newUrl.trim() !== "") {
-        setImageUrl(newUrl);
-      } else {
-        setImageUrl(null);
-      }
-    } catch (error) {
-      setImageUrl(null);
-    }
+    // PhotoInput already wrote the new url + version into avatarCache, so the
+    // <Avatar> above updates on its own. Nothing to fetch here.
   };
 
   const handleEditPhoto = () => {
@@ -639,27 +624,15 @@ const IndividualProfile = ({
   const handleRemovePhoto = async () => {
     ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
     try {
-      const storagePath = isChild
-        ? `childProfilePictures/${userId}.png`
-        : `profilePictures/${userId}.png`;
-
-      // Delete from storage
-      await storage().ref(storagePath).delete();
-
-      // Update local state
-      setImageUrl(null);
-
+      // Clears the Storage object, the photoURL pointer on the user doc, and
+      // the cache in one step.
+      await avatarCache.removePhoto(userId);
       Alert.alert("Success", "Profile picture removed successfully.");
     } catch (error) {
-      // If the file doesn't exist, that's okay
-      if (error.code === "storage/object-not-found") {
-        setImageUrl(null);
-      } else {
-        Alert.alert(
-          "Error",
-          "Failed to remove profile picture. Please try again."
-        );
-      }
+      Alert.alert(
+        "Error",
+        "Failed to remove profile picture. Please try again."
+      );
     }
   };
 
@@ -686,11 +659,79 @@ const IndividualProfile = ({
   };
 
   if (loading) {
+    // Same card, same footprint — only the contents are placeholders, so the
+    // modal doesn't resize or jump when the user doc lands.
     return (
       <Modal visible={show} animationType="none" transparent={true}>
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#147efb" />
-          <Text style={styles.loadingText}>Loading...</Text>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <SkeletonProvider>
+              {/* header: spacer + Close button */}
+              <View style={styles.headerButtons}>
+                <View style={styles.spacer} />
+                <SkeletonBlock width={62} height={28} radius={8} />
+              </View>
+
+              {/* avatar */}
+              <View style={styles.profileImageContainer}>
+                <SkeletonCircle size={120} />
+              </View>
+
+              {/* name */}
+              <SkeletonText
+                width={150}
+                height={20}
+                style={{ marginTop: 4, marginBottom: 14 }}
+              />
+
+              {/* detail rows: Phone / Age / Next Week Serve / Next Role */}
+              <View style={styles.section}>
+                {[0, 1, 2, 3].map((i) => (
+                  <View key={i} style={styles.detailRow}>
+                    <View style={styles.skeletonLabel}>
+                      <SkeletonText width="80%" height={15} />
+                    </View>
+                    <View style={styles.skeletonValue}>
+                      <SkeletonText width="70%" height={15} />
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              {/* experience + frequency sliders */}
+              <View style={styles.section}>
+                {[0, 1].map((i) => (
+                  <View key={i}>
+                    <SkeletonText
+                      width="52%"
+                      height={15}
+                      style={{ marginBottom: 6 }}
+                    />
+                    <View style={styles.skeletonSlider}>
+                      <SkeletonBlock height={4} radius={2} />
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              {/* Mark as Unavailable */}
+              <SkeletonBlock
+                height={40}
+                radius={8}
+                style={{ marginBottom: 12 }}
+              />
+
+              {/* Cancel / Save */}
+              <View style={styles.buttonRow}>
+                <View style={{ flex: 1 }}>
+                  <SkeletonBlock height={40} radius={8} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <SkeletonBlock height={40} radius={8} />
+                </View>
+              </View>
+            </SkeletonProvider>
+          </View>
         </View>
       </Modal>
     );
@@ -728,12 +769,13 @@ const IndividualProfile = ({
           </View>
 
           <View style={styles.profileImageContainer}>
-            <ProfileImageExpander
-              imageUrl={imageUrl || defaultProfileImage}
+            <Avatar
+              uid={userId}
               size={120}
               finalSize={300}
               borderRadius={60}
               style={styles.image}
+              expandable
             />
             <TouchableOpacity
               style={styles.editIconContainer}
@@ -1056,18 +1098,17 @@ const styles = StyleSheet.create({
     gap: 8,
     width: "100%",
   },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+  // Loading placeholders — mirror detailLabel / detail / slider metrics above.
+  skeletonLabel: {
+    width: 160,
   },
-  loadingText: {
-    marginTop: 8,
-    fontSize: 15,
-    color: "#bbb",
-    fontWeight: "500",
-    textAlign: "center",
+  skeletonValue: {
+    flex: 1,
+  },
+  skeletonSlider: {
+    height: 36,
+    justifyContent: "center",
+    marginBottom: 12,
   },
 });
 

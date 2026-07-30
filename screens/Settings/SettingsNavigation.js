@@ -11,6 +11,7 @@ import ChangePhoto from "./ChangePhoto";
 import ChangeRank from "./ChangeRank";
 import ChangeRoles from "./ChangeRoles";
 import ChangeChurch from "./ChangeChurch";
+import RegisterVehicle from "./RegisterVehicle";
 import ChildAccountInfo from "./ChildAccountInfo";
 import RequestAdmin from "./RequestAdmin";
 import RequestServants from "./RequestServants";
@@ -58,6 +59,10 @@ export default function SettingsNavigation() {
         <SettingsNav.Screen name="ChangeNumber" component={ChangeNumber} />
         <SettingsNav.Screen name="ChangePhoto" component={ChangePhoto} />
         <SettingsNav.Screen name="ChangeChurch" component={ChangeChurch} />
+        <SettingsNav.Screen
+          name="RegisterVehicle"
+          component={RegisterVehicle}
+        />
         <SettingsNav.Screen name="ChangeRank" component={ChangeRank} />
         <SettingsNav.Screen name="ChangeRoles" component={ChangeRoles} />
         <SettingsNav.Screen

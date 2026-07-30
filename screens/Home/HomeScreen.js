@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   ScrollView,
   View,
@@ -29,6 +29,7 @@ import WeekSelectionModal from "../../components/WeekSelectionModal";
 import ProfilePictureModal from "../../components/ProfilePictureModal";
 import ChildrenProfilePictureModal from "../../components/ChildrenProfilePictureModal";
 import AvailabilityModal from "../../components/AvailabilityModal";
+import SkeletonScreen from "../../components/Skeleton";
 
 // Import caching system
 import {
@@ -146,6 +147,10 @@ async function checkNotificationPermission() {
   }
 }
 
+// Stable identity for unassigned slots — a fresh literal here would defeat the
+// memoization of readings/offerings below.
+const NO_ONE = { name: "N/A" };
+
 const HomeScreen = () => {
   const user = auth().currentUser;
 
@@ -177,6 +182,9 @@ const HomeScreen = () => {
     wine: { name: "N/A" },
     altar: [],
   });
+  // `schedule` starts as all-"N/A", which is indistinguishable from a real
+  // empty schedule — so we need an explicit flag to know the read finished.
+  const [scheduleLoaded, setScheduleLoaded] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(null);
   const [nextWeek, setNextWeek] = useState(null);
   const [nextRole, setNextRole] = useState("N/A");
@@ -220,6 +228,8 @@ const HomeScreen = () => {
 
   // Real-time listener for church parameter specifically
   const userRealtimeListenerRef = useRef(null);
+  // Holds the nested churches/{id} listener so it can be torn down properly.
+  const churchUnsubRef = useRef(null);
 
   // Derive state from cached data
   const derivedUserName = userDoc?.name || userName;
@@ -999,86 +1009,14 @@ const HomeScreen = () => {
     }
   }, [userDoc, userError, user, phoneModalShownThisSession]);
 
-  // Keep original effect structure for the subscription part, but now it just handles scheduling
+  // Publishes churchId for the schedule listener below. The duplicate
+  // schedule-collection subscription that used to live here was removed: it
+  // streamed the same collection and ran the same closest-week scan as the
+  // listener further down, then raced it writing setSchedule/setCurrentWeek.
   useEffect(() => {
-    if (!user || !userDoc?.church) {
-      return;
-    }
-
-    const churchId = userDoc.church;
-    setChurchId(churchId);
-
-    // Keep the schedule subscription as it needs real-time updates for scheduling
-    const scheduleCollectionRef = firestore()
-      .collection("churches")
-      .doc(churchId)
-      .collection("schedule");
-
-    const unsubscribeSchedule = scheduleCollectionRef.onSnapshot(
-      (snapshot) => {
-        try {
-          if (snapshot.empty) {
-            setSchedule({
-              matins: { name: "N/A" },
-              third: { name: "N/A" },
-              sixth: { name: "N/A" },
-              pauline: { name: "N/A" },
-              catholic: { name: "N/A" },
-              praxis: { name: "N/A" },
-              gospel: { name: "N/A" },
-              water: { name: "N/A" },
-              wine: { name: "N/A" },
-              altar: [],
-            });
-            return;
-          }
-
-          let closestSchedule = null;
-          let closestDate = null;
-          let chosenDocId = "";
-          const today = new Date().setHours(0, 0, 0, 0);
-
-          // Use cached church data if available, otherwise fallback to subscription
-          const fullDeacon = churchDoc?.fullDeacon || false;
-
-          snapshot.docs.forEach((doc) => {
-            const scheduleData = doc.data();
-            const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
-            const [month, day, year] = scheduleDateStr.split("-").map(Number);
-            const scheduleDate = new Date(2000 + year, month - 1, day).setHours(
-              0,
-              0,
-              0,
-              0
-            );
-
-            if (
-              !closestDate ||
-              Math.abs(scheduleDate - today) < Math.abs(closestDate - today)
-            ) {
-              closestDate = scheduleDate;
-              closestSchedule = scheduleData;
-              chosenDocId = doc.id;
-            }
-          });
-
-          if (closestSchedule) {
-            // Process schedule data... (keeping existing logic)
-            // This is complex scheduling logic that should remain as-is
-            setSchedule(closestSchedule);
-            setCurrentWeek(chosenDocId.split("-").slice(-3).join("-"));
-          }
-        } catch {
-          // Error handling for schedule processing
-        }
-      },
-      (error) => {
-        // Error handling for schedule listener
-      }
-    );
-
-    return () => unsubscribeSchedule();
-  }, [userDoc?.church, churchDoc]);
+    if (!user || !userDoc?.church) return;
+    setChurchId(userDoc.church);
+  }, [user, userDoc?.church]);
 
   useEffect(() => {
     const user = auth().currentUser;
@@ -1157,6 +1095,7 @@ const HomeScreen = () => {
       (snapshot) => {
         try {
           if (!snapshot || snapshot.empty) {
+            setScheduleLoaded(true);
             setSchedule({
               matins: { name: "N/A" },
               third: { name: "N/A" },
@@ -1178,7 +1117,12 @@ const HomeScreen = () => {
           const today = new Date().setHours(0, 0, 0, 0);
 
           const churchRef = firestore().collection("churches").doc(churchId);
-          const unsubscribeChurch = churchRef.onSnapshot(
+          // Tear down the previous church listener before opening another.
+          // Returning a cleanup from inside an onSnapshot callback does nothing
+          // (Firestore discards it), which used to leak one listener per
+          // schedule change for the lifetime of the app.
+          churchUnsubRef.current?.();
+          churchUnsubRef.current = churchRef.onSnapshot(
             (churchDoc) => {
               try {
                 if (!churchDoc.exists) {
@@ -1255,6 +1199,7 @@ const HomeScreen = () => {
                     )
                   );
                   updatedSchedule.altar = altarServers;
+                  setScheduleLoaded(true);
                   setSchedule(updatedSchedule);
                 }
               } catch (error) {
@@ -1262,23 +1207,26 @@ const HomeScreen = () => {
               }
             },
             (error) => {
+              setScheduleLoaded(true);
               // Error handling for church document listener
             }
           );
 
-          return () => {
-            unsubscribeChurch();
-          };
         } catch (error) {
           // Error handling for schedules loading
         }
       },
       (error) => {
+        setScheduleLoaded(true);
         // Error handling for schedules listener
       }
     );
 
-    return () => unsubscribeSchedules();
+    return () => {
+      unsubscribeSchedules();
+      churchUnsubRef.current?.();
+      churchUnsubRef.current = null;
+    };
   }, [churchId]);
 
   // Check if user is scheduled for current week and needs to confirm availability
@@ -1385,36 +1333,36 @@ const HomeScreen = () => {
     showAvailabilityModal,
   ]);
 
-  const readings = [
-    { role: "Matins Gospel", user: schedule.matins || { name: "N/A" } },
-    { role: "Third Hour Gospel", user: schedule.third || { name: "N/A" } },
-    { role: "Sixth Hour Gospel", user: schedule.sixth || { name: "N/A" } },
-    { role: "Pauline Epistle", user: schedule.pauline || { name: "N/A" } },
-    { role: "Catholic Epistle", user: schedule.catholic || { name: "N/A" } },
-    { role: "Praxis", user: schedule.praxis || { name: "N/A" } },
-    { role: "Gospel", user: schedule.gospel || { name: "N/A" } },
-  ];
+  // Memoized: these feed HomeScreenNames, and a fresh object identity on every
+  // render used to remount all ~12-25 rows (each of which refetched its photo).
+  const readings = useMemo(() => [
+    { role: "Matins Gospel", user: schedule.matins || NO_ONE },
+    { role: "Third Hour Gospel", user: schedule.third || NO_ONE },
+    { role: "Sixth Hour Gospel", user: schedule.sixth || NO_ONE },
+    { role: "Pauline Epistle", user: schedule.pauline || NO_ONE },
+    { role: "Catholic Epistle", user: schedule.catholic || NO_ONE },
+    { role: "Praxis", user: schedule.praxis || NO_ONE },
+    { role: "Gospel", user: schedule.gospel || NO_ONE },
+  ], [
+    schedule.matins, schedule.third, schedule.sixth, schedule.pauline,
+    schedule.catholic, schedule.praxis, schedule.gospel,
+  ]);
 
-  const offerings = [
-    { role: "Water", user: schedule.water || { name: "N/A" } },
-    { role: "Wine", user: schedule.wine || { name: "N/A" } },
-  ];
+  const offerings = useMemo(() => [
+    { role: "Water", user: schedule.water || NO_ONE },
+    { role: "Wine", user: schedule.wine || NO_ONE },
+  ], [schedule.water, schedule.wine]);
 
-  // Show loading state while user data is loading
-  if (userLoading) {
+  // Show a skeleton of the readings/offerings cards while user data loads, so
+  // the layout is already in place when the real rows land.
+  // Hold the skeleton until BOTH the user doc and the schedule have actually
+  // been read. Gating on userLoading alone used to reveal a full grid of "N/A"
+  // rows while the schedule request was still in flight.
+  const scheduleStillLoading = !!userDoc?.church && !scheduleLoaded;
+  if (userLoading || scheduleStillLoading) {
     return (
-      <SafeAreaView
-        style={[
-          styles.container,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
-      >
-        <Text style={{ fontSize: 18, color: "#fff", marginBottom: 10 }}>
-          Loading...
-        </Text>
-        <Text style={{ fontSize: 14, color: "#888" }}>
-          Getting your data ready
-        </Text>
+      <SafeAreaView style={styles.container}>
+        <SkeletonScreen variant="cards" count={7} />
       </SafeAreaView>
     );
   }

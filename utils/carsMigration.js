@@ -11,6 +11,26 @@
  */
 
 import firestore from "@react-native-firebase/firestore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+// Bump the version suffix to force every device to re-run phases 0/1.
+const MIGRATED_KEY = (churchId) => `carsMigrated_v1_${churchId}`;
+
+async function hasMigrated(churchId) {
+  try {
+    return (await AsyncStorage.getItem(MIGRATED_KEY(churchId))) === "1";
+  } catch {
+    // If we can't read the marker, re-running is safe (both phases are
+    // idempotent) — just slower.
+    return false;
+  }
+}
+
+async function markMigrated(churchId) {
+  try {
+    await AsyncStorage.setItem(MIGRATED_KEY(churchId), "1");
+  } catch {}
+}
 
 function cleanPlate(raw) {
   if (!raw) return "";
@@ -355,24 +375,37 @@ export async function runMigrationIfNeeded(churchId) {
   if (!churchId) return { migrated: false, reviewQueue: [] };
 
   try {
-    // Phase 0: migrate unreg users to cars/unregistered/people
-    const unregMigrated = await migrateUnregUsers(churchId);
-    if (unregMigrated > 0) {
-      console.log(`[Migration] Phase 0 complete: ${unregMigrated} unreg users moved`);
+    // Phases 0 and 1 are genuinely one-time data moves (qrCodes → cars). They
+    // used to re-run on every single mount of TrafficManager — four sequential
+    // reads plus batch writes — while the screen sat on a spinner. Once a
+    // church has been converted, skip straight to the detection phases.
+    let didMigrate = false;
+    let stats;
+    const alreadyMigrated = await hasMigrated(churchId);
+
+    if (!alreadyMigrated) {
+      // Phase 0: migrate unreg users to cars/unregistered/people
+      const unregMigrated = await migrateUnregUsers(churchId);
+      if (unregMigrated > 0) {
+        console.log(`[Migration] Phase 0 complete: ${unregMigrated} unreg users moved`);
+      }
+
+      // Phase 1: auto-migrate qrCodes → cars
+      stats = await migrateQrCodes(churchId);
+      didMigrate = stats.created > 0 || stats.deleted > 0 || unregMigrated > 0;
+      if (stats.created > 0 || stats.deleted > 0) {
+        console.log(`[Migration] Phase 1 complete:`, stats);
+      }
+
+      await markMigrated(churchId);
     }
 
-    // Phase 1: auto-migrate qrCodes → cars
-    const stats = await migrateQrCodes(churchId);
-    const didMigrate = stats.created > 0 || stats.deleted > 0 || unregMigrated > 0;
-    if (stats.created > 0 || stats.deleted > 0) {
-      console.log(`[Migration] Phase 1 complete:`, stats);
-    }
-
-    // Phase 2: find malformed cars
-    const malformed = await findMalformedCars(churchId);
-
-    // Phase 3: fetch pending registrations
-    const pending = await fetchPendingRegistrations(churchId);
+    // Phases 2 and 3 are independent reads — run them concurrently rather than
+    // one after the other.
+    const [malformed, pending] = await Promise.all([
+      findMalformedCars(churchId),
+      fetchPendingRegistrations(churchId),
+    ]);
 
     const reviewQueue = [...malformed, ...pending];
 

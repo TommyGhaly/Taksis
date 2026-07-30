@@ -8,7 +8,6 @@ import {
   FlatList,
   SectionList,
   ActivityIndicator,
-  Image,
   Modal,
   TextInput,
   KeyboardAvoidingView,
@@ -22,13 +21,42 @@ import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import storage from "@react-native-firebase/storage";
 import * as Haptics from "react-native-haptic-feedback";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { StorageCache } from "../../utils/cacheManager";
+import Avatar from "../../components/Avatar";
+import * as avatarCache from "../../utils/avatarCache";
+import SkeletonScreen from "../../components/Skeleton";
+import { useAfterInteractions } from "../../hooks/useAfterInteractions";
 
 const { height } = Dimensions.get("window");
+
+/* ── Pure date/label helpers ───────────────────────────────────────────────────
+ * Hoisted out of the component: they close over nothing, and redefining them on
+ * every render made them unusable as dependencies for the memoized row below.
+ */
+const formatDate = (date) => {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${month}-${day}-${year}`;
+};
+
+const getNextSunday = () => {
+  const today = new Date();
+  const currentDay = today.getDay();
+  if (currentDay === 0) return formatDate(today);
+  const nextSunday = new Date(today);
+  nextSunday.setDate(today.getDate() + (7 - currentDay));
+  return formatDate(nextSunday);
+};
+
+const formatGrade = (grade) => {
+  if (isNaN(parseInt(grade))) return grade;
+  const num = parseInt(grade);
+  const suffix = num === 1 ? "st" : num === 2 ? "nd" : num === 3 ? "rd" : "th";
+  return `${num}${suffix} Grade`;
+};
 
 const CacheUtils = {
   async get(key) {
@@ -90,6 +118,122 @@ const prettyDate = (dateStr) => {
   return `${DAYS[d.getDay()]}, ${MONTHS[mm - 1]} ${dd}`;
 };
 
+/**
+ * One attendance row, memoized.
+ *
+ * This was an inline closure inside a `useCallback` renderItem. VirtualizedList's
+ * CellRenderer is not memoized against parent re-renders, so every parent render
+ * re-ran it for *every* mounted cell — each one rebuilding an <Avatar> (which
+ * carries a useSyncExternalStore subscription plus two effects) and three
+ * TouchableOpacity trees. With `windowSize` at its default 21 that meant ~150 live
+ * cells rebuilt on every state change, and this screen re-renders once per grade
+ * listener on load and again on every attendance write. That is what made the
+ * buttons feel dead.
+ *
+ * Props are primitives plus stable callbacks so the memo actually holds.
+ */
+const StudentRow = React.memo(({ person, dateKey, isPastDate, isNavigating, onOpen, onAttendance }) => {
+  const isServant = person.isServant || false;
+  const status = person[dateKey];
+
+  return (
+    <View style={styles.studentContainer}>
+      {/* Whole row is tappable — avatar, name and chevron all open the person. */}
+      <TouchableOpacity
+        style={styles.studentHeader}
+        activeOpacity={0.7}
+        onPress={() => onOpen(person)}
+        disabled={isNavigating}
+      >
+        <Avatar
+          uid={person.uid}
+          user={person}
+          size={44}
+          borderRadius={22}
+          style={styles.profilePicture}
+          showBorder={false}
+        />
+        <View style={styles.studentInfo}>
+          <Text style={styles.studentName}>
+            {person.name}{" "}
+            {isServant ? (person.isCurrentUser ? "(You)" : "") : `- ${formatGrade(person.grade)}`}
+          </Text>
+          <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+        </View>
+      </TouchableOpacity>
+      {isPastDate ? (
+        <View style={styles.attendanceStatusContainer}>
+          <View
+            style={[
+              styles.attendanceStatus,
+              {
+                backgroundColor:
+                  status === true
+                    ? "#147EFB"
+                    : status === false
+                    ? "#ff3b30"
+                    : "rgba(255,255,255,0.1)",
+              },
+            ]}
+          >
+            <Text style={styles.attendanceStatusText}>
+              {status === true ? "Present" : status === false ? "Absent" : "Not Recorded"}
+            </Text>
+          </View>
+        </View>
+      ) : (
+        <View style={styles.attendanceButtons}>
+          <TouchableOpacity
+            style={[
+              styles.attendanceButton,
+              { backgroundColor: status === false ? "#ff3b30" : "rgba(255,255,255,0.08)" },
+            ]}
+            onPress={() => onAttendance(person, false)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.attendanceButtonText}>Absent</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.attendanceButton,
+              { backgroundColor: status === true ? "#147EFB" : "rgba(255,255,255,0.08)" },
+            ]}
+            onPress={() => onAttendance(person, true)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.attendanceButtonText}>Present</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+});
+StudentRow.displayName = "StudentRow";
+
+const GradeHeader = React.memo(({ title, onAdd }) => {
+  const isServants = title === "Servants";
+
+  return (
+    <View style={styles.gradeHeaderRow}>
+      <Text style={styles.gradeHeader}>
+        {isServants ? "Servants" : formatGrade(title)}
+      </Text>
+      {!isServants && (
+        <TouchableOpacity
+          style={styles.addPill}
+          onPress={() => onAdd(title)}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="add" size={14} color="#147EFB" />
+          <Text style={styles.addPillText}>Add</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+});
+GradeHeader.displayName = "GradeHeader";
+
 const SundaySchoolAttendance = () => {
   const navigation = useNavigation();
   const user = auth().currentUser;
@@ -97,7 +241,6 @@ const SundaySchoolAttendance = () => {
   const [userData, setUserData] = useState(null);
   const [studentsByGrade, setStudentsByGrade] = useState({});
   const [servants, setServants] = useState([]);
-  const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [loading, setLoading] = useState(true);
 
   // Add-student modal state
@@ -121,7 +264,7 @@ const SundaySchoolAttendance = () => {
   const isMounted = useRef(true);
   const studentUnsubscribes = useRef([]);
   const userUnsubscribe = useRef(null);
-  const cacheKeys = useRef({ user: null, students: {}, servants: null, profilePics: null });
+  const cacheKeys = useRef({ user: null, students: {}, servants: null });
   const searchInputRef = useRef(null);
   const keyboardOffset = useRef(new Animated.Value(0)).current;
 
@@ -152,7 +295,11 @@ const SundaySchoolAttendance = () => {
     };
   }, [keyboardOffset]);
 
+  // Hold every read until the drawer/tab transition has finished animating.
+  const ready = useAfterInteractions();
+
   useEffect(() => {
+    if (!ready) return;
     isMounted.current = true;
     const initializeApp = async () => {
       if (!user) {
@@ -164,14 +311,16 @@ const SundaySchoolAttendance = () => {
         user: `user_${user.uid}`,
         students: {},
         servants: `servants_${user.uid}`,
-        profilePics: `profile_pics_${user.uid}`,
       };
-      loadCachedData();
+      // Await the cache read rather than sitting on a fixed 300ms timer: the
+      // gate below keys off `userData`, so we only need the cached doc to have
+      // landed (usually a couple of ms) before dropping the skeleton.
+      await loadCachedData();
       await generatePreviousSundays();
       setupUserListener();
-      setTimeout(() => {
-        if (isMounted.current) setLoading(false);
-      }, 300);
+      // Deliberately NOT flipping loading here — that only meant the local
+      // cache read finished. The skeleton stays until the students snapshot
+      // actually delivers (below), or until we know none is coming.
     };
     initializeApp();
     return () => {
@@ -180,14 +329,13 @@ const SundaySchoolAttendance = () => {
       studentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
       studentUnsubscribes.current = [];
     };
-  }, [user]);
+  }, [user, ready]);
 
   const loadCachedData = async () => {
     try {
-      const [cachedUser, cachedServants, cachedProfilePics] = await Promise.all([
+      const [cachedUser, cachedServants] = await Promise.all([
         CacheUtils.get(cacheKeys.current.user),
         CacheUtils.get(cacheKeys.current.servants),
-        CacheUtils.get(cacheKeys.current.profilePics),
       ]);
       if (cachedUser && isMounted.current) {
         setUserData(cachedUser);
@@ -207,7 +355,6 @@ const SundaySchoolAttendance = () => {
         }
       }
       if (cachedServants && isMounted.current) setServants(cachedServants);
-      if (cachedProfilePics && isMounted.current) setProfilePictureUrls(cachedProfilePics);
     } catch (error) {
       console.log("Error loading cached data:", error);
     }
@@ -236,6 +383,9 @@ const SundaySchoolAttendance = () => {
 
   useEffect(() => {
     if (!userData?.church || !userData?.ssGrades?.length) {
+      // Nothing will be delivered for this user — drop the skeleton so the
+      // empty state can show instead of shimmering forever.
+      if (userData) setLoading(false);
       setStudentsByGrade({});
       studentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
       studentUnsubscribes.current = [];
@@ -265,86 +415,25 @@ const SundaySchoolAttendance = () => {
             const students = snapshot.docs.map((doc) => ({ uid: doc.id, grade, ...doc.data() }));
             students.sort((a, b) => a.name.localeCompare(b.name));
             setStudentsByGrade((prev) => ({ ...prev, [grade]: students }));
+            // Real rows are on screen — only now drop the skeleton.
+            setLoading(false);
+            // Adopt any photoURL already on these docs — no Storage request.
+            avatarCache.primeMany(students);
             await CacheUtils.set(cacheKey, students);
           },
           (error) => {
-            if (isMounted.current) Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
+            if (isMounted.current) {
+              setLoading(false);
+              Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
+            }
           }
         );
     });
     studentUnsubscribes.current = newUnsubscribes;
-    fetchProfilePictureUrls();
     return () => {
       studentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
       studentUnsubscribes.current = [];
     };
-  }, [userData?.church, userData?.ssGrades?.join(",")]);
-
-  const fetchProfilePictureUrls = async () => {
-    if (!userData?.church || !userData?.ssGrades?.length) return;
-    try {
-      const allStudents = [];
-      await Promise.all(
-        userData.ssGrades.map(async (grade) => {
-          const snapshot = await firestore()
-            .collection("churches")
-            .doc(userData.church)
-            .collection("Sunday School")
-            .doc(grade)
-            .collection("students")
-            .get();
-          const students = snapshot.docs.map((doc) => ({ uid: doc.id, grade, ...doc.data() }));
-          allStudents.push(...students);
-        })
-      );
-      const servantsSnapshot = await firestore()
-        .collection("churches")
-        .doc(userData.church)
-        .collection("Sunday School")
-        .doc("Servants")
-        .collection("Servants")
-        .get();
-      const allServants = servantsSnapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data() }));
-
-      const allPeople = [...allStudents, ...allServants];
-      const fetchBatch = async (batch) => {
-        const batchUrls = {};
-        await Promise.all(
-          batch.map(async (person) => {
-            if (person.uid) {
-              try {
-                const url = await StorageCache.getDownloadURL(`profilePictures/${person.uid}.png`);
-                batchUrls[person.uid] = typeof url === "string" && url.trim() ? url : null;
-              } catch (error) {
-                batchUrls[person.uid] = null;
-              }
-            }
-          })
-        );
-        return batchUrls;
-      };
-
-      const batchSize = 10;
-      for (let i = 0; i < allPeople.length; i += batchSize) {
-        const batch = allPeople.slice(i, i + batchSize);
-        const batchUrls = await fetchBatch(batch);
-        if (isMounted.current) {
-          setProfilePictureUrls((prev) => ({ ...prev, ...batchUrls }));
-        }
-      }
-
-      if (isMounted.current) {
-        await CacheUtils.set(cacheKeys.current.profilePics, profilePictureUrls);
-      }
-    } catch (error) {
-      console.error("Error fetching profile pictures:", error);
-    }
-  };
-
-  useEffect(() => {
-    if (!userData?.church || !userData?.ssGrades?.length) return;
-    const intervalId = setInterval(fetchProfilePictureUrls, 30000);
-    return () => clearInterval(intervalId);
   }, [userData?.church, userData?.ssGrades?.join(",")]);
 
   useEffect(() => {
@@ -391,6 +480,8 @@ const SundaySchoolAttendance = () => {
               return (a.name || "").localeCompare(b.name || "");
             });
             setServants(servantsWithSharedGrades);
+            // Adopt any photoURL already on these docs — no Storage request.
+            avatarCache.primeMany(servantsWithSharedGrades);
             await CacheUtils.set(cacheKeys.current.servants, servantsWithSharedGrades);
           } catch (error) {
             console.error("Error processing servants:", error);
@@ -424,30 +515,7 @@ const SundaySchoolAttendance = () => {
     setPreviousSundays(sundays);
   };
 
-  const getNextSunday = () => {
-    const today = new Date();
-    const currentDay = today.getDay();
-    if (currentDay === 0) return formatDate(today);
-    const nextSunday = new Date(today);
-    nextSunday.setDate(today.getDate() + (7 - currentDay));
-    return formatDate(nextSunday);
-  };
-
-  const formatDate = (date) => {
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const year = date.getFullYear();
-    return `${month}-${day}-${year}`;
-  };
-
-  const formatGrade = (grade) => {
-    if (isNaN(parseInt(grade))) return grade;
-    const num = parseInt(grade);
-    const suffix = num === 1 ? "st" : num === 2 ? "nd" : num === 3 ? "rd" : "th";
-    return `${num}${suffix} Grade`;
-  };
-
-  const handleAttendance = (person, status) => {
+  const handleAttendance = useCallback((person, status) => {
     if (selectedDate && selectedDate !== getNextSunday()) return;
     Haptics.trigger("impactLight");
     const dateKey = getNextSunday();
@@ -470,10 +538,11 @@ const SundaySchoolAttendance = () => {
         .doc(person.uid)
         .update({ [dateKey]: status });
     }
-  };
+  }, [selectedDate, userData?.church]);
 
   // Open the add-student modal pre-locked to the tapped grade
-  const openAddStudentModal = (grade) => {
+  // useCallback so the memoized GradeHeader isn't invalidated every render.
+  const openAddStudentModal = useCallback((grade) => {
     Haptics.trigger("impactLight");
     setNewStudentGrade(grade);
     setNewStudentName("");
@@ -482,7 +551,7 @@ const SundaySchoolAttendance = () => {
     setNewStudentAddress("");
     setNewStudentDescription("");
     setModalVisible(true);
-  };
+  }, []);
 
   const addStudent = async () => {
     if (!newStudentName.trim()) {
@@ -622,118 +691,78 @@ const SundaySchoolAttendance = () => {
     [searchQuery, gradeSections, filteredServants, scrollToSection]
   );
 
+  // Declared above renderStudent because they are in its dependency array — a
+  // `const` referenced from a dep array before its declaration is a TDZ error.
+  const dateKey = selectedDate || getNextSunday();
+  const isCurrentWeek = !selectedDate || selectedDate === getNextSunday();
+
+  // Navigation is hoisted out of the row so the memoized StudentRow receives a
+  // stable callback instead of a fresh closure on every parent render.
+  const openPerson = useCallback((person) => {
+    if (!userData) {
+      Alert.alert("Error", "User data not loaded.");
+      return;
+    }
+    if (!userData.ssGrades) {
+      Alert.alert("Error", "Sunday School grades not loaded.");
+      return;
+    }
+    setIsNavigating(true);
+    if (person.isServant) {
+      navigation.navigate("ServantAttendance", { church: userData.church, servantId: person.uid });
+    } else {
+      navigation.navigate("IndividualAttendance", {
+        church: userData.church,
+        category: "Sunday School",
+        grade: person.grade,
+        studentId: person.uid,
+        userGrades: userData?.ssGrades || [],
+      });
+    }
+    setTimeout(() => setIsNavigating(false), 1000);
+  }, [userData, navigation]);
+
   const renderStudent = useCallback(
-    ({ item: person, section }) => {
-      const dateKey = selectedDate || getNextSunday();
-      const isPastDate = selectedDate && selectedDate !== getNextSunday();
-      const isServant = person.isServant || false;
-      return (
-        <View key={person.uid} style={styles.studentContainer}>
-          <View style={styles.studentHeader}>
-            <Image
-              style={styles.profilePicture}
-              source={
-                profilePictureUrls[person.uid]
-                  ? { uri: profilePictureUrls[person.uid] }
-                  : require("../../assets/default_profile.png")
-              }
-              resizeMode="cover"
-              defaultSource={require("../../assets/default_profile.png")}
-              onError={() => setProfilePictureUrls((prev) => ({ ...prev, [person.uid]: null }))}
-            />
-            <View style={styles.studentInfo}>
-              <Text style={styles.studentName}>
-                {person.name}{" "}
-                {isServant ? (person.isCurrentUser ? "(You)" : "") : `- ${formatGrade(person.grade)}`}
-              </Text>
-              <TouchableOpacity
-                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                onPress={() => {
-                  if (!userData) {
-                    Alert.alert("Error", "User data not loaded.");
-                    return;
-                  }
-                  if (!userData.ssGrades) {
-                    Alert.alert("Error", "Sunday School grades not loaded.");
-                    return;
-                  }
-                  setIsNavigating(true);
-                  if (isServant) {
-                    navigation.navigate("ServantAttendance", { church: userData.church, servantId: person.uid });
-                  } else {
-                    navigation.navigate("IndividualAttendance", {
-                      church: userData.church,
-                      category: "Sunday School",
-                      grade: person.grade,
-                      studentId: person.uid,
-                      userGrades: userData?.ssGrades || [],
-                    });
-                  }
-                  setTimeout(() => setIsNavigating(false), 1000);
-                }}
-                disabled={isNavigating}
-              >
-                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
-              </TouchableOpacity>
-            </View>
-          </View>
-          {isPastDate ? (
-            <View style={styles.attendanceStatusContainer}>
-              <View
-                style={[
-                  styles.attendanceStatus,
-                  {
-                    backgroundColor:
-                      person[dateKey] === true
-                        ? "#147EFB"
-                        : person[dateKey] === false
-                        ? "#ff3b30"
-                        : "rgba(255,255,255,0.1)",
-                  },
-                ]}
-              >
-                <Text style={styles.attendanceStatusText}>
-                  {person[dateKey] === true ? "Present" : person[dateKey] === false ? "Absent" : "Not Recorded"}
-                </Text>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.attendanceButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.attendanceButton,
-                  { backgroundColor: person[dateKey] === false ? "#ff3b30" : "rgba(255,255,255,0.08)" },
-                ]}
-                onPress={() => handleAttendance(person, false)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.attendanceButtonText}>Absent</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.attendanceButton,
-                  { backgroundColor: person[dateKey] === true ? "#147EFB" : "rgba(255,255,255,0.08)" },
-                ]}
-                onPress={() => handleAttendance(person, true)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.attendanceButtonText}>Present</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      );
-    },
-    [profilePictureUrls, userData, selectedDate, isNavigating]
+    ({ item: person }) => (
+      <StudentRow
+        person={person}
+        dateKey={dateKey}
+        isPastDate={!isCurrentWeek}
+        isNavigating={isNavigating}
+        onOpen={openPerson}
+        onAttendance={handleAttendance}
+      />
+    ),
+    [dateKey, isCurrentWeek, isNavigating, openPerson, handleAttendance]
   );
 
-  if (loading && !userData && Object.keys(studentsByGrade).length === 0) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#147EFB" />
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
-    );
+  const keyExtractor = useCallback((item) => item.uid, []);
+
+  // Both of these were inline literals on the SectionList, so every parent render
+  // handed it new identities and it re-rendered every mounted cell.
+  const renderGradeHeader = useCallback(
+    ({ section: { title } }) => (
+      <GradeHeader title={title} onAdd={openAddStudentModal} />
+    ),
+    [openAddStudentModal]
+  );
+
+  const listEmpty = useMemo(
+    () => (
+      <Text style={styles.noStudentsText}>
+        {searchQuery.trim()
+          ? "No students or servants found matching your search"
+          : "No students in this grade"}
+      </Text>
+    ),
+    [searchQuery]
+  );
+
+  // Skeleton covers the navigation transition AND the whole read. Falling
+  // through while `userData` is still null used to flash the "contact your
+  // servants admin" empty state before the data had a chance to arrive.
+  if (!ready || loading || !userData) {
+    return <SkeletonScreen variant="list" count={8} />;
   }
 
   if (!userData || !userData.ssGrades || userData.ssGrades.length === 0) {
@@ -745,8 +774,6 @@ const SundaySchoolAttendance = () => {
     );
   }
 
-  const dateKey = selectedDate || getNextSunday();
-  const isCurrentWeek = !selectedDate || selectedDate === getNextSunday();
   const allSections = searchQuery.trim()
     ? gradeSections.map((section) => section.title)
     : [...(userData.ssGrades || []), ...(servants.length > 0 ? ["Servants"] : [])];
@@ -792,35 +819,22 @@ const SundaySchoolAttendance = () => {
       <SectionList
         ref={sectionListRef}
         sections={gradeSections}
-        keyExtractor={(item) => item.uid}
-        renderSectionHeader={({ section: { title } }) => {
-          const isServants = title === "Servants";
-          return (
-            <View style={styles.gradeHeaderRow}>
-              <Text style={styles.gradeHeader}>{isServants ? "Servants" : formatGrade(title)}</Text>
-              {!isServants && (
-                <TouchableOpacity
-                  style={styles.addPill}
-                  onPress={() => openAddStudentModal(title)}
-                  activeOpacity={0.7}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons name="add" size={14} color="#147EFB" />
-                  <Text style={styles.addPillText}>Add</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          );
-        }}
+        keyExtractor={keyExtractor}
+        renderSectionHeader={renderGradeHeader}
         renderItem={renderStudent}
-        ListEmptyComponent={
-          <Text style={styles.noStudentsText}>
-            {searchQuery.trim() ? "No students or servants found matching your search" : "No students in this grade"}
-          </Text>
-        }
+        ListEmptyComponent={listEmpty}
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={true}
-        extraData={profilePictureUrls}
+        // Without these, SectionList inherits windowSize 21 — roughly 21 screens
+        // of rows kept mounted. Matches the config the admin rosters already use.
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        updateCellsBatchingPeriod={50}
+        // Android only: on iOS this has a history of blanking cells and breaking
+        // touch targets, and this screen has a floating search bar overlaying the
+        // list.
+        removeClippedSubviews={Platform.OS === "android"}
         contentContainerStyle={styles.sectionListContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
@@ -1416,12 +1430,6 @@ const styles = StyleSheet.create({
   },
 
   // ---------- Misc / modals ----------
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#121212",
-  },
   loadingText: {
     fontSize: 16,
     color: "rgba(255,255,255,0.6)",

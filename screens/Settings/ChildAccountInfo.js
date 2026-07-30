@@ -14,11 +14,11 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import storage from "@react-native-firebase/storage";
-import ProfileImageExpander from "../../components/ProfileImageExpander";
 import { Ionicons } from "@expo/vector-icons";
 import PhotoInput from "../../components/photoInput";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
+import Avatar from "../../components/Avatar";
+import * as avatarCache from "../../utils/avatarCache";
 
 const hapticOptions = {
   enableVibrateFallback: true,
@@ -27,7 +27,6 @@ const hapticOptions = {
 
 const CACHE_KEYS = {
   CHILD_DATA: 'child_data_',
-  CHILD_IMAGE_URL: 'child_image_url_',
   CACHE_TIMESTAMP: '_timestamp'
 };
 
@@ -36,7 +35,6 @@ const CACHE_DURATION = 3 * 24 * 60 * 60 * 1000;
 const ChildAccountInfo = ({ route, navigation }) => {
   const { childUid } = route.params;
   const [childData, setChildData] = useState(null);
-  const [imageUrl, setImageUrl] = useState(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [isLoadingFromCache, setIsLoadingFromCache] = useState(true);
 
@@ -84,15 +82,6 @@ const ChildAccountInfo = ({ route, navigation }) => {
     }
   };
 
-  const clearCache = async (key) => {
-    try {
-      await AsyncStorage.removeItem(key);
-      await AsyncStorage.removeItem(key + CACHE_KEYS.CACHE_TIMESTAMP);
-    } catch (error) {
-      console.error('Error clearing cache:', error);
-    }
-  };
-
   useEffect(() => {
     const fetchChildData = async () => {
       try {
@@ -102,6 +91,8 @@ const ChildAccountInfo = ({ route, navigation }) => {
           const cachedData = await getFromCache(cacheKey);
           if (cachedData) {
             setChildData(cachedData);
+            // Adopt photoURL from the doc we already have — no Storage request.
+            avatarCache.primeFromUser({ uid: childUid, ...cachedData });
             setIsLoadingFromCache(false);
             firestore().collection("users").doc(user.uid).get()
               .then(userDoc => {
@@ -110,6 +101,7 @@ const ChildAccountInfo = ({ route, navigation }) => {
                   const child = userData.children?.find((child) => child.uid === childUid);
                   if (child) {
                     setChildData(child);
+                    avatarCache.primeFromUser({ uid: childUid, ...child });
                     saveToCache(cacheKey, child);
                   }
                 }
@@ -121,6 +113,7 @@ const ChildAccountInfo = ({ route, navigation }) => {
               const child = userData.children?.find((child) => child.uid === childUid);
               if (child) {
                 setChildData(child);
+                avatarCache.primeFromUser({ uid: childUid, ...child });
                 saveToCache(cacheKey, child);
               } else {
                 Alert.alert("Error", "Child data not found.");
@@ -135,40 +128,7 @@ const ChildAccountInfo = ({ route, navigation }) => {
       }
     };
 
-    const fetchImage = async () => {
-      try {
-        const cacheKey = CACHE_KEYS.CHILD_IMAGE_URL + childUid;
-        const cachedUrl = await getFromCache(cacheKey);
-        if (cachedUrl && typeof cachedUrl === "string" && cachedUrl.trim() !== "") {
-          setImageUrl(cachedUrl);
-          storage()
-            .ref(`profilePictures/${childUid}.png`)
-            .getDownloadURL()
-            .then(url => {
-              if (typeof url === "string" && url.trim() !== "") {
-                setImageUrl(url);
-                saveToCache(cacheKey, url);
-              }
-            })
-            .catch(() => clearCache(cacheKey));
-        } else {
-          const url = await storage().ref(`profilePictures/${childUid}.png`).getDownloadURL();
-          if (typeof url === "string" && url.trim() !== "") {
-            setImageUrl(url);
-            saveToCache(cacheKey, url);
-          } else {
-            setImageUrl(null);
-          }
-        }
-      } catch (error) {
-        setImageUrl(null);
-      }
-    };
-
     fetchChildData();
-    fetchImage();
-    const intervalId = setInterval(fetchImage, 30000);
-    return () => clearInterval(intervalId);
   }, [childUid]);
 
   const handleEditPhoto = () => {
@@ -178,20 +138,8 @@ const ChildAccountInfo = ({ route, navigation }) => {
 
   const handlePhotoUpload = async () => {
     setShowPhotoModal(false);
-    try {
-      const cacheKey = CACHE_KEYS.CHILD_IMAGE_URL + childUid;
-      await clearCache(cacheKey);
-      const storagePath = `profilePictures/${childUid}.png`;
-      const newUrl = await storage().ref(storagePath).getDownloadURL();
-      if (typeof newUrl === "string" && newUrl.trim() !== "") {
-        setImageUrl(newUrl);
-        saveToCache(cacheKey, newUrl);
-      } else {
-        setImageUrl(null);
-      }
-    } catch (error) {
-      setImageUrl(null);
-    }
+    // PhotoInput already wrote the new url + version into avatarCache, so
+    // there is nothing to do here. Invalidating would discard that fresh value.
   };
 
   if (!childData) {
@@ -241,12 +189,14 @@ const ChildAccountInfo = ({ route, navigation }) => {
         >
           <View style={styles.profileSection}>
             <View style={styles.profileImageWrapper}>
-              <ProfileImageExpander
-                imageUrl={imageUrl}
+              <Avatar
+                uid={childUid}
+                user={childData}
                 size={100}
                 finalSize={300}
                 borderRadius={50}
                 style={styles.profileImage}
+                expandable
               />
               <TouchableOpacity
                 style={styles.editIconContainer}

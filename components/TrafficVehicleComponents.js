@@ -265,10 +265,18 @@ export const VehicleFormSheet = memo(({
     );
   }, [drivers, toggleDriver, getImageSource]);
 
-  const selectedDrivers = drivers.map((uid) => ({
-    uid,
-    user: allUsers.find((u) => u.uid === uid),
-  }));
+  // Indexed rather than scanned: this ran unmemoized on every modal render, with
+  // a full linear scan of allUsers per selected driver.
+  const usersById = useMemo(() => {
+    const index = new Map();
+    for (const u of allUsers || []) index.set(u.uid, u);
+    return index;
+  }, [allUsers]);
+
+  const selectedDrivers = useMemo(
+    () => drivers.map((uid) => ({ uid, user: usersById.get(uid) })),
+    [drivers, usersById]
+  );
 
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
@@ -636,18 +644,24 @@ export function PendingList({ pendingVehicles, onSelect, onClose, hideHeader = f
             }
             renderItem={({ item: v }) => {
               const Wrapper = onSelect ? TouchableOpacity : View;
+              const drivers = v.drivers || [];
+              const driverNames = drivers
+                .map((d) => (d?.name || "").trim().split(" ")[0])
+                .filter(Boolean)
+                .join(", ");
               return (
                 <Wrapper style={s.pendingCard} onPress={onSelect ? () => onSelect(v) : undefined} activeOpacity={0.7}>
                   <View style={s.pendingCardLeft}>
                     <View style={s.pendingStatusDot} />
                     <View>
-                      <Text style={s.pendingLicense}>{v.license}</Text>
+                      <Text style={s.pendingLicense}>{v.license || "NO PLATE"}</Text>
                       <Text style={s.pendingMeta}>
                         {[v.make, v.model, COLOR_OPTIONS.find((c) => c.value === v.color)?.label]
                           .filter(Boolean).join(" · ") || "No vehicle info"}
                       </Text>
                       <Text style={s.pendingDriverCount}>
-                        {v.drivers.length} driver{v.drivers.length !== 1 ? "s" : ""}: {v.drivers.map((d) => d.name.split(" ")[0]).join(", ")}
+                        {drivers.length} driver{drivers.length !== 1 ? "s" : ""}
+                        {driverNames ? `: ${driverNames}` : ""}
                       </Text>
                     </View>
                   </View>

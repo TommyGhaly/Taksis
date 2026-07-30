@@ -6,7 +6,6 @@ import {
   Alert,
   StyleSheet,
   ActivityIndicator,
-  Image,
   SectionList,
   Dimensions,
   Platform,
@@ -28,6 +27,10 @@ import { Ionicons } from "@expo/vector-icons";
 import AlphabetIndexBar from "../../components/AlphabetIndexBar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import PhotoInput from "../../components/photoInput"; // reuse existing photo picker
+import Avatar from "../../components/Avatar";
+import * as avatarCache from "../../utils/avatarCache";
+import SkeletonScreen from "../../components/Skeleton";
+import useAfterInteractions from "../../hooks/useAfterInteractions";
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
@@ -160,16 +163,97 @@ async function mergeManualIntoReal(church, manualServant, realUID) {
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
+/**
+ * One servant row, memoized.
+ *
+ * This was an inline closure returned from a `useMemo`. VirtualizedList's
+ * CellRenderer is not memoized against parent re-renders, so every parent render
+ * re-ran it for *every* mounted cell — each rebuilding an <Avatar> (which carries
+ * a useSyncExternalStore subscription plus two effects) and three
+ * TouchableOpacity trees. With windowSize at its default 21 that is ~150 live
+ * cells rebuilt on every state change, including every attendance write.
+ */
+const ServantRow = React.memo(({ servant, isPastDate, isNavigating, onOpen, onAttendance }) => {
+  const manual = isManual(servant.uid);
+  const status = servant.attendance;
+
+  return (
+    <View style={styles.servantCard}>
+      <View style={styles.servantInfo}>
+        <Avatar
+          uid={servant.uid}
+          user={servant}
+          size={48}
+          borderRadius={24}
+          style={styles.servantImage}
+          showBorder={false}
+          onPress={() => onOpen(servant)}
+        />
+        <View style={styles.servantDetails}>
+          <TouchableOpacity
+            style={styles.servantHeader}
+            activeOpacity={0.7}
+            onPress={() => onOpen(servant)}
+            disabled={isNavigating}
+          >
+            <View style={styles.servantNameRow}>
+              <Text style={styles.servantName}>{servant.name}</Text>
+              {manual && (
+                <View style={styles.manualBadge}>
+                  <Text style={styles.manualBadgeText}>Manual</Text>
+                </View>
+              )}
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+          </TouchableOpacity>
+
+          {isPastDate ? (
+            <View style={styles.attendanceStatusContainer}>
+              <View style={[styles.attendanceStatus, {
+                backgroundColor: status === true ? "#147EFB" : status === false ? "#ff3b30" : "rgba(255,255,255,0.1)",
+              }]}>
+                <Text style={styles.attendanceStatusText}>
+                  {status === true ? "Present" : status === false ? "Absent" : "Not Recorded"}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.attendanceButtons}>
+              <TouchableOpacity
+                style={[styles.attendanceButton, { backgroundColor: status === false ? "#ff3b30" : "rgba(255,255,255,0.08)" }]}
+                onPress={() => onAttendance(servant.uid, false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.attendanceButtonText}>Absent</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.attendanceButton, { backgroundColor: status === true ? "#147EFB" : "rgba(255,255,255,0.08)" }]}
+                onPress={() => onAttendance(servant.uid, true)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.attendanceButtonText}>Present</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+});
+ServantRow.displayName = "ServantRow";
+
 const ServantsAttendance = () => {
   const navigation = useNavigation();
   const user = auth().currentUser;
 
+  // Hold the reads and the Sunday date math until the drawer/stack transition
+  // has finished animating — both run on the thread driving that animation.
+  const ready = useAfterInteractions();
+
   const [userData, setUserData] = useState(null);
   const [rawServantsData, setRawServantsData] = useState([]);
-  const [profilePictureUrls, setProfilePictureUrls] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [sections, setSections] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
   const [dateModalVisible, setDateModalVisible] = useState(false);
   const [previousSundays, setPreviousSundays] = useState([]);
@@ -186,12 +270,9 @@ const ServantsAttendance = () => {
 
   const isMounted = useRef(true);
   const servantsUnsubscribe = useRef(null);
-  const cacheKeys = useRef({ user: null, servants: null, profilePics: null });
+  const cacheKeys = useRef({ user: null, servants: null });
   const searchInputRef = useRef(null);
   const keyboardOffset = useRef(new Animated.Value(0)).current;
-  // Tracks which UID sets we've already fetched photos for, so a re-render
-  // with the same roster doesn't refetch.
-  const fetchedUidKey = useRef("");
 
   // Keyboard animation
   useEffect(() => {
@@ -215,37 +296,44 @@ const ServantsAttendance = () => {
   }, [keyboardOffset]);
 
   useEffect(() => {
+    if (!ready) return;
     isMounted.current = true;
     const init = async () => {
       if (!user) { Alert.alert("Error", "No user found."); setLoading(false); return; }
       cacheKeys.current = {
         user: `servants_user_${user.uid}`,
         servants: `servants_data_${user.uid}`,
-        profilePics: `servants_profile_pics_${user.uid}`,
       };
-      loadCachedData();
+      // Paint from cache as soon as it's read. setupListeners() opens with a
+      // users/{uid}.get(), so awaiting it here meant the screen stayed blocked
+      // on a network round-trip even when the cache already had everything.
+      // Fire it off instead; setupListeners' stopLoading() clears the skeleton
+      // once the servants snapshot actually delivers. We deliberately do NOT
+      // clear it on a cache hit — a warm cache isn't a completed read.
+      await loadCachedData();
       await generatePreviousSundays();
-      await setupListeners();
-      setTimeout(() => { if (isMounted.current) setLoading(false); }, 300);
+      setupListeners();
     };
     init();
     return () => {
       isMounted.current = false;
       if (servantsUnsubscribe.current) servantsUnsubscribe.current();
     };
-  }, [user]);
+  }, [user, ready]);
 
+  /** Hydrates from AsyncStorage. Returns true if anything was restored. */
   const loadCachedData = async () => {
     try {
-      const [cu, cs, cp] = await Promise.all([
+      const [cu, cs] = await Promise.all([
         CacheUtils.get(cacheKeys.current.user),
         CacheUtils.get(cacheKeys.current.servants),
-        CacheUtils.get(cacheKeys.current.profilePics),
       ]);
       if (cu && isMounted.current) setUserData(cu);
       if (cs && isMounted.current) setRawServantsData(cs);
-      if (cp && isMounted.current) setProfilePictureUrls(cp);
-    } catch {}
+      return Boolean(cu || cs);
+    } catch {
+      return false;
+    }
   };
 
   const generatePreviousSundays = async () => {
@@ -262,13 +350,17 @@ const ServantsAttendance = () => {
   };
 
   const setupListeners = async () => {
+    // Every exit path clears loading so a cold start (no cache) can't sit on
+    // the skeleton forever.
+    const stopLoading = () => { if (isMounted.current) setLoading(false); };
     try {
       const userDoc = await firestore().collection("users").doc(user.uid).get();
-      if (!isMounted.current || !userDoc.exists) return;
+      if (!isMounted.current) return;
+      if (!userDoc.exists) { stopLoading(); return; }
       const localUserData = userDoc.data();
       setUserData(localUserData);
       await CacheUtils.set(cacheKeys.current.user, localUserData);
-      if (!localUserData.church) { Alert.alert("Error", "No church assigned."); return; }
+      if (!localUserData.church) { stopLoading(); Alert.alert("Error", "No church assigned."); return; }
 
       servantsUnsubscribe.current = firestore()
         .collection("churches")
@@ -278,74 +370,38 @@ const ServantsAttendance = () => {
           if (!isMounted.current) return;
           const data = snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data() }));
           setRawServantsData(data);
+          stopLoading();
+          // Adopt any photoURL already on these docs — no Storage request, and
+          // safe to call on every snapshot: primeFromUser is a no-op when the
+          // url/version is unchanged, so attendance toggles cost nothing.
+          avatarCache.primeMany(data);
           await CacheUtils.set(cacheKeys.current.servants, data);
-          // NOTE: profile picture fetching is intentionally NOT called here.
-          // Attendance toggles mutate docs and fire this snapshot constantly;
-          // photos are fetched by a separate effect keyed on the UID set so
-          // they don't reload on every present/absent tap.
-        }, () => { if (isMounted.current) Alert.alert("Error", "Failed to load servants."); });
-    } catch (e) { if (isMounted.current) Alert.alert("Error", e.message); }
+        }, () => { stopLoading(); if (isMounted.current) Alert.alert("Error", "Failed to load servants."); });
+    } catch (e) { stopLoading(); if (isMounted.current) Alert.alert("Error", e.message); }
   };
 
-  // Stable key representing exactly which servants exist (order-independent).
-  // Changes only when someone is added/removed — NOT when attendance changes.
-  const uidKey = useMemo(
-    () => rawServantsData.map((s) => s.uid).sort().join(","),
-    [rawServantsData]
-  );
-
-  // Fetch photos for any UID we don't already have a url cached for.
-  // `force` re-checks storage for every servant (used by pull-to-refresh).
-  const fetchProfilePictures = useCallback(async (servantsData, force = false) => {
-    try {
-      const urls = { ...profilePictureUrls };
-      const toFetch = force
-        ? servantsData
-        : servantsData.filter((s) => urls[s.uid] === undefined);
-      if (toFetch.length === 0) return;
-      const batchSize = 10;
-      for (let i = 0; i < toFetch.length; i += batchSize) {
-        const batch = toFetch.slice(i, i + batchSize);
-        const batchUrls = {};
-        await Promise.all(batch.map(async (s) => {
-          try {
-            const url = await storage().ref(`profilePictures/${s.uid}.png`).getDownloadURL();
-            batchUrls[s.uid] = typeof url === "string" && url.trim() ? url : null;
-          } catch { batchUrls[s.uid] = null; }
-        }));
-        if (isMounted.current) {
-          Object.assign(urls, batchUrls);
-          setProfilePictureUrls({ ...urls });
-        }
-      }
-      if (isMounted.current) await CacheUtils.set(cacheKeys.current.profilePics, urls);
-    } catch {}
-  }, [profilePictureUrls]);
-
-  // Mount + roster-change photo fetch. Only runs when the UID set changes,
-  // so present/absent toggles never trigger a photo reload.
-  useEffect(() => {
-    if (rawServantsData.length === 0) return;
-    if (fetchedUidKey.current === uidKey) return;
-    fetchedUidKey.current = uidKey;
-    fetchProfilePictures(rawServantsData, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uidKey]);
-
-  // Pull-to-refresh: force re-check storage for every servant in case a
-  // photo changed server-side, plus re-pull the roster from cache/listener.
+  // Pull-to-refresh: force a re-check for every servant in case a photo
+  // changed server-side. This is the only path that re-hits Storage — steady
+  // state is served from avatarCache with no requests at all.
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await fetchProfilePictures(rawServantsData, true);
+      const uids = rawServantsData.map((s) => s.uid).filter(Boolean);
+      await Promise.all(uids.map((uid) => avatarCache.invalidate(uid)));
+      avatarCache.primeMany(rawServantsData);
+      await avatarCache.resolveMany(uids);
     } finally {
       if (isMounted.current) setRefreshing(false);
     }
-  }, [rawServantsData, fetchProfilePictures]);
+  }, [rawServantsData]);
 
-  // Build sections
-  useEffect(() => {
-    if (rawServantsData.length === 0) { setSections([]); return; }
+  // Build sections.
+  //
+  // Derived with useMemo, not state-in-an-effect. An effect runs *after* the
+  // render that set `rawServantsData`, so in that first frame the data was full
+  // while `sections` was still [] — long enough for the empty state to paint.
+  const sections = useMemo(() => {
+    if (rawServantsData.length === 0) return [];
     const dateKey = selectedDate || getNextSunday();
     const processed = rawServantsData
       .map((s) => ({ ...s, attendance: s[dateKey] !== undefined ? s[dateKey] : null }))
@@ -358,7 +414,7 @@ const ServantsAttendance = () => {
       acc[key].push(s);
       return acc;
     }, {});
-    setSections(Object.keys(grouped).sort().map((k) => ({ title: k, data: grouped[k] })));
+    return Object.keys(grouped).sort().map((k) => ({ title: k, data: grouped[k] }));
   }, [selectedDate, rawServantsData, searchQuery]);
 
   const scrollToSection = (letter) => {
@@ -368,7 +424,7 @@ const ServantsAttendance = () => {
   };
   const sectionListRef = useRef(null);
 
-  const handleAttendance = (servantID, status) => {
+  const handleAttendance = useCallback((servantID, status) => {
     const dateKey = selectedDate || getNextSunday();
     if (selectedDate && selectedDate !== getNextSunday()) return;
     Haptics.trigger("impactLight");
@@ -377,7 +433,7 @@ const ServantsAttendance = () => {
       .collection("Servants Meeting").doc(servantID)
       .update({ [dateKey]: status })
       .catch(() => Alert.alert("Error", "Failed to update attendance."));
-  };
+  }, [selectedDate, userData?.church]);
 
   // ── Add manual servant ────────────────────────────────────────────────────
 
@@ -396,16 +452,11 @@ const ServantsAttendance = () => {
     setNewName("");
     if (tempPhotoUploaded && newPhotoUid) {
       const uid = newPhotoUid;
+      // Drops the object and the cached url. The manual_ prefix means
+      // removePhoto skips the users/{uid} write entirely.
       try {
-        await storage().ref(`profilePictures/${uid}.png`).delete();
+        await avatarCache.removePhoto(uid);
       } catch {}
-      if (isMounted.current) {
-        setProfilePictureUrls((prev) => {
-          const next = { ...prev };
-          delete next[uid];
-          return next;
-        });
-      }
     }
     setTempPhotoUploaded(false);
   }, [tempPhotoUploaded, newPhotoUid]);
@@ -441,80 +492,44 @@ const ServantsAttendance = () => {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const renderServant = useMemo(
-    () =>
-      ({ item: servant }) => {
-        const isPastDate = selectedDate && selectedDate !== getNextSunday();
-        const manual = isManual(servant.uid);
+  // Hoisted out of the row so the memoized ServantRow gets a stable callback
+  // rather than a fresh closure per cell per render.
+  const openServant = useCallback((servant) => {
+    if (!userData || isNavigating) return;
+    setIsNavigating(true);
+    navigation.navigate("IndividualServant", { church: userData.church, servantID: servant.uid });
+    setTimeout(() => setIsNavigating(false), 1000);
+  }, [userData, isNavigating, navigation]);
 
-        return (
-          <View style={styles.servantCard}>
-            <View style={styles.servantInfo}>
-              <Image
-                style={styles.servantImage}
-                source={profilePictureUrls[servant.uid] ? { uri: profilePictureUrls[servant.uid] } : require("../../assets/default_profile.png")}
-                resizeMode="cover"
-                defaultSource={require("../../assets/default_profile.png")}
-                onError={() => setProfilePictureUrls((prev) => ({ ...prev, [servant.uid]: null }))}
-              />
-              <View style={styles.servantDetails}>
-                <View style={styles.servantHeader}>
-                  <View style={styles.servantNameRow}>
-                    <Text style={styles.servantName}>{servant.name}</Text>
-                    {manual && (
-                      <View style={styles.manualBadge}>
-                        <Text style={styles.manualBadgeText}>Manual</Text>
-                      </View>
-                    )}
-                  </View>
-                  <TouchableOpacity
-                    hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                    onPress={() => {
-                      if (!userData) return;
-                      setIsNavigating(true);
-                      navigation.navigate("IndividualServant", { church: userData.church, servantID: servant.uid });
-                      setTimeout(() => setIsNavigating(false), 1000);
-                    }}
-                    disabled={isNavigating}
-                  >
-                    <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
-                  </TouchableOpacity>
-                </View>
+  const isPastDate = Boolean(selectedDate && selectedDate !== getNextSunday());
 
-                {isPastDate ? (
-                  <View style={styles.attendanceStatusContainer}>
-                    <View style={[styles.attendanceStatus, {
-                      backgroundColor: servant.attendance === true ? "#147EFB" : servant.attendance === false ? "#ff3b30" : "rgba(255,255,255,0.1)",
-                    }]}>
-                      <Text style={styles.attendanceStatusText}>
-                        {servant.attendance === true ? "Present" : servant.attendance === false ? "Absent" : "Not Recorded"}
-                      </Text>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.attendanceButtons}>
-                    <TouchableOpacity
-                      style={[styles.attendanceButton, { backgroundColor: servant.attendance === false ? "#ff3b30" : "rgba(255,255,255,0.08)" }]}
-                      onPress={() => handleAttendance(servant.uid, false)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.attendanceButtonText}>Absent</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.attendanceButton, { backgroundColor: servant.attendance === true ? "#147EFB" : "rgba(255,255,255,0.08)" }]}
-                      onPress={() => handleAttendance(servant.uid, true)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.attendanceButtonText}>Present</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            </View>
-          </View>
-        );
-      },
-    [profilePictureUrls, userData, selectedDate, isNavigating]
+  const renderServant = useCallback(
+    ({ item: servant }) => (
+      <ServantRow
+        servant={servant}
+        isPastDate={isPastDate}
+        isNavigating={isNavigating}
+        onOpen={openServant}
+        onAttendance={handleAttendance}
+      />
+    ),
+    [isPastDate, isNavigating, openServant, handleAttendance]
+  );
+
+  const keyExtractor = useCallback((item) => item.uid, []);
+
+  // Was an inline literal on the SectionList, so every parent render handed it a
+  // new identity and it re-rendered every mounted cell.
+  const listEmpty = useMemo(
+    () => (
+      <View style={styles.emptyContainer}>
+        <Ionicons name="people-outline" size={64} color="rgba(255,255,255,0.3)" />
+        <Text style={styles.noStudentsText}>
+          {searchQuery.trim() ? "No servants match your search" : "No servants yet"}
+        </Text>
+      </View>
+    ),
+    [searchQuery]
   );
 
   const renderSectionHeader = useMemo(
@@ -525,13 +540,13 @@ const ServantsAttendance = () => {
     ), []
   );
 
-  if (loading && !userData && rawServantsData.length === 0) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#147EFB" />
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
-    );
+  // `loading` is only cleared by stopLoading(), which every terminal path of
+  // setupListeners() calls — so !loading means a read actually finished. The
+  // old `&& !userData && rawServantsData.length === 0` clauses opened the gate
+  // as soon as the *cache* landed, which flashed "No servants yet" while the
+  // snapshot was still in flight.
+  if (!ready || loading) {
+    return <SkeletonScreen variant="list" count={8} />;
   }
 
   const dateKey = selectedDate || getNextSunday();
@@ -568,8 +583,17 @@ const ServantsAttendance = () => {
           sections={sections}
           renderItem={renderServant}
           renderSectionHeader={renderSectionHeader}
-          keyExtractor={(item) => item.uid}
+          keyExtractor={keyExtractor}
           contentContainerStyle={[styles.listContainer, { paddingRight: 30 }]}
+          // Without these, SectionList inherits windowSize 21 — roughly 21
+          // screens of rows kept mounted. Matches the admin rosters' config.
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          updateCellsBatchingPeriod={50}
+          // Android only: on iOS this has a history of blanking cells and
+          // breaking touch targets.
+          removeClippedSubviews={Platform.OS === "android"}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -578,14 +602,7 @@ const ServantsAttendance = () => {
               colors={["#147EFB"]}
             />
           }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="people-outline" size={64} color="rgba(255,255,255,0.3)" />
-              <Text style={styles.noStudentsText}>
-                {searchQuery.trim() ? "No servants match your search" : "No servants yet"}
-              </Text>
-            </View>
-          }
+          ListEmptyComponent={listEmpty}
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={true}
           keyboardShouldPersistTaps="handled"
@@ -718,14 +735,20 @@ const ServantsAttendance = () => {
               {/* Photo */}
               <TouchableOpacity style={styles.photoPickerRow} onPress={() => { setAddModalVisible(false); setTimeout(() => setShowPhotoInput(true), Platform.OS === "ios" ? 350 : 0); }} activeOpacity={0.8}>
                 <View style={styles.photoPickerCircle}>
-                  {profilePictureUrls[newPhotoUid] ? (
-                    <Image source={{ uri: profilePictureUrls[newPhotoUid] }} style={styles.photoPickerImage} />
+                  {tempPhotoUploaded ? (
+                    <Avatar
+                      uid={newPhotoUid}
+                      size={64}
+                      borderRadius={32}
+                      style={styles.photoPickerImage}
+                      showBorder={false}
+                    />
                   ) : (
                     <Ionicons name="camera-outline" size={28} color="rgba(255,255,255,0.4)" />
                   )}
                 </View>
                 <Text style={styles.photoPickerLabel}>
-                  {profilePictureUrls[newPhotoUid] ? "Change photo" : "Add photo (optional)"}
+                  {tempPhotoUploaded ? "Change photo" : "Add photo (optional)"}
                 </Text>
               </TouchableOpacity>
 
@@ -775,9 +798,9 @@ const ServantsAttendance = () => {
         <PhotoInput
           visible={showPhotoInput}
           userId={newPhotoUid}
-          onUploadSuccess={(url) => {
+          onUploadSuccess={() => {
+            // PhotoInput writes the new url straight into avatarCache.
             setTempPhotoUploaded(true);
-            if (url) setProfilePictureUrls((prev) => ({ ...prev, [newPhotoUid]: url }));
           }}
           onClose={() => { setShowPhotoInput(false); setAddModalVisible(true); }}
         />
@@ -872,8 +895,6 @@ const styles = StyleSheet.create({
   sectionHeaderText: { fontSize: 22, fontWeight: "600", color: "#fff" },
 
   // Loading / empty
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#121212" },
-  loadingText: { fontSize: 16, color: "rgba(255,255,255,0.6)", marginTop: 12 },
   emptyContainer: { alignItems: "center", marginTop: 60 },
   noStudentsText: { fontSize: 16, color: "rgba(255,255,255,0.5)", textAlign: "center", marginTop: 16 },
   navigatingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "center", alignItems: "center", zIndex: 1000 },

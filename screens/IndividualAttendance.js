@@ -12,7 +12,6 @@ import {
   Platform,
   ActivityIndicator,
   Dimensions,
-  Image,
   ScrollView,
 } from "react-native";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
@@ -22,9 +21,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import BackArrow from "../components/backArrow";
 import PhotoInput from "../components/photoInput";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import ProfileImageExpander from "../components/ProfileImageExpander";
-
-const defaultProfileImage = require("../assets/default_profile.png");
+import Avatar from "../components/Avatar";
+import * as avatarCache from "../utils/avatarCache";
 
 const IndividualAttendance = () => {
   const navigation = useNavigation();
@@ -35,7 +33,6 @@ const IndividualAttendance = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [photoInputVisible, setPhotoInputVisible] = useState(false);
-  const [profilePictureUrl, setProfilePictureUrl] = useState(null);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [editData, setEditData] = useState({
     name: "",
@@ -72,7 +69,6 @@ const IndividualAttendance = () => {
       setModalVisible(false);
       setEditMode(false);
       setPhotoInputVisible(false);
-      setProfilePictureUrl(null);
       setDeletingPhoto(false);
       setEditData({
         name: "",
@@ -97,12 +93,6 @@ const IndividualAttendance = () => {
           .collection("students")
           .doc(studentId);
 
-        // Fetch profile picture concurrently
-        const profilePicturePromise = storage()
-          .ref(`profilePictures/${studentId}.png`)
-          .getDownloadURL()
-          .catch(() => null); // Return null if image fetch fails
-
         // Set up real-time listener for student data
         const unsubscribe = studentRef.onSnapshot(
           async (doc) => {
@@ -122,9 +112,8 @@ const IndividualAttendance = () => {
                 navigation.goBack();
               }
 
-              // Resolve profile picture
-              const url = await profilePicturePromise;
-              setProfilePictureUrl(url);
+              // The profile picture is resolved by <Avatar> through
+              // avatarCache — no Storage round-trip to wait on here.
               setLoading(false);
             } catch (error) {
               if (isMounted.current) {
@@ -186,21 +175,16 @@ const IndividualAttendance = () => {
 
     setDeletingPhoto(true);
     try {
-      // Delete from Firebase Storage
-      const storageRef = storage().ref(`profilePictures/${studentId}.png`);
-      await storageRef.delete();
-
-      // Update local state
-      setProfilePictureUrl(null);
+      // Clears the Storage object, the photoURL pointer on the user doc and the
+      // local cache. Skipping the doc fields would leave every screen re-priming
+      // a url whose object no longer exists.
+      await avatarCache.removePhoto(studentId);
 
       Alert.alert("Success", "Profile picture deleted successfully");
     } catch (error) {
-      // If the file doesn't exist, that's okay - just update local state
-      if (error.code === 'storage/object-not-found') {
-        setProfilePictureUrl(null);
-      } else {
-        Alert.alert("Error", "Could not delete profile picture. Please try again.");
-      }
+      // An already-missing object is treated as success by removePhoto, so
+      // anything reaching here is a real failure.
+      Alert.alert("Error", "Could not delete profile picture. Please try again.");
     } finally {
       setDeletingPhoto(false);
     }
@@ -238,7 +222,9 @@ const IndividualAttendance = () => {
       const ref = storage().ref(`profilePictures/${studentId}.png`);
       await ref.putFile(imageUri);
       const url = await ref.getDownloadURL();
-      setProfilePictureUrl(url);
+      // Publish the new url straight into the cache with a fresh version token
+      // so every Avatar for this uid repaints without another Storage read.
+      avatarCache.set(studentId, url);
       setPhotoInputVisible(false);
       Alert.alert("Success", "Profile picture updated successfully.");
     } catch (error) {
@@ -248,21 +234,10 @@ const IndividualAttendance = () => {
     }
   };
 
-  // Close photo input modal and refresh picture
+  // Close photo input modal. PhotoInput already wrote the new url + version
+  // into avatarCache, so there is nothing to refetch here.
   const closePhotoInputModal = () => {
     setPhotoInputVisible(false);
-    // Refresh profile picture after upload
-    if (studentId) {
-      storage()
-        .ref(`profilePictures/${studentId}.png`)
-        .getDownloadURL()
-        .then(url => {
-          setProfilePictureUrl(url);
-        })
-        .catch(() => {
-          // Keep existing or null
-        });
-    }
   };
 
   // Format grade
@@ -405,11 +380,10 @@ const IndividualAttendance = () => {
                 .delete();
 
               try {
-                await storage().ref(`profilePictures/${studentId}.png`).delete();
+                await avatarCache.removePhoto(studentId);
               } catch (error) {
-                if (error.code !== "storage/object-not-found") {
-                  // Error handling for profile picture deletion
-                }
+                // Record is already gone; a leftover photo must not block the
+                // success path.
               }
 
               Alert.alert(
@@ -486,12 +460,14 @@ const IndividualAttendance = () => {
         </View>
         <Text style={styles.title}>{`${studentData.name || "Student"}`}</Text>
         <View style={styles.profileContainer}>
-            <ProfileImageExpander
-            imageUrl={profilePictureUrl || defaultProfileImage}
+            <Avatar
+            uid={studentId}
+            user={studentData}
             size={80}
             finalSize={300}
             borderRadius={40}
             style={styles.profileImage}
+            expandable
           />
         </View>
         <Text style={styles.subtitle}>{`Grade: ${formatGrade(
@@ -555,12 +531,14 @@ const IndividualAttendance = () => {
               {editMode ? (
                 <>
                   <View style={styles.profilePictureContainer}>
-                    <ProfileImageExpander
-                      imageUrl={profilePictureUrl}
+                    <Avatar
+                      uid={studentId}
+                      user={studentData}
                       size={100}
                       finalSize={300}
                       borderRadius={50}
                       style={styles.modalProfilePicture}
+                      expandable
                     />
                     <TouchableOpacity
                       style={styles.editPhotoIcon}
@@ -672,12 +650,14 @@ const IndividualAttendance = () => {
               ) : (
                 <>
                   <View style={styles.profilePictureContainer}>
-                    <ProfileImageExpander
-                      imageUrl={profilePictureUrl}
+                    <Avatar
+                      uid={studentId}
+                      user={studentData}
                       size={100}
                       finalSize={300}
                       borderRadius={50}
                       style={styles.modalProfilePicture}
+                      expandable
                     />
                   </View>
                   <View style={styles.infoCard}>

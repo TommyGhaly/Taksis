@@ -1,15 +1,12 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   View,
   Text,
   SectionList,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   Modal,
   Alert,
-  Image,
-  FlatList,
   Dimensions,
   Platform,
   ScrollView,
@@ -24,9 +21,12 @@ import auth from "@react-native-firebase/auth";
 import { Ionicons } from "@expo/vector-icons";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import PhotoInput from "../../components/photoInput";
-import ProfileImageExpander from "../../components/ProfileImageExpander";
+import Avatar from "../../components/Avatar";
 import AlphabetIndexBar from "../../components/AlphabetIndexBar";
+import SkeletonScreen from "../../components/Skeleton";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as avatarCache from "../../utils/avatarCache";
+import useAfterInteractions from "../../hooks/useAfterInteractions";
 
 // Simple cache utilities
 const CacheUtils = {
@@ -99,34 +99,87 @@ const scale = isTablet ? 1.2 : 1;
 const paddingHorizontal = isTablet ? 32 : 16;
 const indexBarWidth = isTablet ? 32 : 24;
 
+/**
+ * One roster row, memoized on the teacher doc.
+ *
+ * The row used to be an inline closure rebuilt on every parent render, so any
+ * unrelated state change re-rendered every mounted cell — with a 48px avatar in
+ * each one, that showed up as a stutter mid-scroll.
+ */
+const TeacherRow = React.memo(({ item, onPress, onRemove }) => (
+  <TouchableOpacity
+    style={styles.teacherCard}
+    onPress={() => onPress(item)}
+    activeOpacity={0.7}
+  >
+    <View style={styles.teacherInfo}>
+      <View style={styles.teacherImageContainer}>
+        <Avatar
+          uid={item.id}
+          user={item}
+          size={48 * scale}
+          borderRadius={24 * scale}
+          style={styles.teacherImage}
+          showBorder={false}
+        />
+      </View>
+      <View style={styles.teacherTextInfo}>
+        <Text style={styles.teacherName}>{item.name || "Unknown"}</Text>
+        <Text style={styles.teacherGrades}>
+          {Array.isArray(item.alhanGrades) && item.alhanGrades.length > 0
+            ? item.alhanGrades.join(", ")
+            : "No classes assigned"}
+        </Text>
+      </View>
+    </View>
+    <View style={styles.buttonContainer}>
+      <TouchableOpacity
+        style={[styles.actionButton, styles.deleteButton]}
+        onPress={() => onRemove(item.id)}
+      >
+        <Ionicons name="trash" size={20 * scale} color="#fff" />
+        <Text style={styles.buttonText}>Delete</Text>
+      </TouchableOpacity>
+    </View>
+  </TouchableOpacity>
+));
+TeacherRow.displayName = "TeacherRow";
+
+const SectionHeader = React.memo(({ title }) => (
+  <View style={styles.sectionHeader}>
+    <Text style={styles.sectionHeaderText}>{title}</Text>
+  </View>
+));
+SectionHeader.displayName = "SectionHeader";
+
 const AlhanAdmin = () => {
   // Core state
   const [church, setChurch] = useState(null);
   const [teachers, setTeachers] = useState([]);
-  const [profilePictureUrls, setProfilePictureUrls] = useState({});
-  
+
   // UI state
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [selectedGrades, setSelectedGrades] = useState([]);
-  const [sections, setSections] = useState([]);
-  const [availableLetters, setAvailableLetters] = useState([]);
   const [photoInputVisible, setPhotoInputVisible] = useState(false);
-  const [headerHeight, setHeaderHeight] = useState(0);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  
+
+  // Hold the skeleton until the navigation transition finishes, so the snapshot
+  // work below doesn't compete with the animation on the JS thread.
+  const ready = useAfterInteractions();
+
   // Refs
-  const headerHeightRef = useRef(0);
   const sectionListRef = useRef(null);
   const isMounted = useRef(true);
   const userUnsubscribe = useRef(null);
   const teachersUnsubscribe = useRef(null);
+  // The church the roster listener is currently attached to.
+  const attachedChurch = useRef(null);
   const cacheKeys = useRef({
     church: null,
-    teachers: null,
-    profilePics: null
+    teachers: null
   });
   const searchInputRef = useRef(null);
   const keyboardOffset = useRef(new Animated.Value(0)).current;
@@ -160,8 +213,9 @@ const AlhanAdmin = () => {
 
   // Initialize and load cached data immediately
   useEffect(() => {
+    if (!ready) return;
     isMounted.current = true;
-    
+
     const initializeApp = async () => {
       const user = auth().currentUser;
       if (!user) {
@@ -173,8 +227,7 @@ const AlhanAdmin = () => {
       // Set cache keys
       cacheKeys.current = {
         church: `alhan_admin_church_${user.uid}`,
-        teachers: `alhan_admin_teachers_${user.uid}`,
-        profilePics: `alhan_admin_profile_pics_${user.uid}`
+        teachers: `alhan_admin_teachers_${user.uid}`
       };
 
       // Load cached data immediately (non-blocking)
@@ -183,12 +236,9 @@ const AlhanAdmin = () => {
       // Set up real-time listeners
       setupUserChurchListener();
       
-      // Mark loading as complete after a short delay
-      setTimeout(() => {
-        if (isMounted.current) {
-          setLoading(false);
-        }
-      }, 300);
+      // No timer: the skeleton stays up until the teachers snapshot actually
+      // delivers. A 300ms timer used to hide it mid-flight, flashing an
+      // empty screen before the real data landed.
     };
 
     initializeApp();
@@ -202,16 +252,15 @@ const AlhanAdmin = () => {
         teachersUnsubscribe.current();
       }
     };
-  }, []);
+  }, [ready]);
 
   // Load cached data without blocking
   const loadCachedData = async () => {
     try {
       // Load all cached data in parallel
-      const [cachedChurch, cachedTeachers, cachedProfilePics] = await Promise.all([
+      const [cachedChurch, cachedTeachers] = await Promise.all([
         CacheUtils.get(cacheKeys.current.church),
-        CacheUtils.get(cacheKeys.current.teachers),
-        CacheUtils.get(cacheKeys.current.profilePics)
+        CacheUtils.get(cacheKeys.current.teachers)
       ]);
 
       if (cachedChurch && isMounted.current) {
@@ -220,10 +269,8 @@ const AlhanAdmin = () => {
 
       if (cachedTeachers && isMounted.current) {
         setTeachers(cachedTeachers);
-      }
-
-      if (cachedProfilePics && isMounted.current) {
-        setProfilePictureUrls(cachedProfilePics);
+        // Cached docs carry photoURL, so avatars paint with no Storage calls.
+        avatarCache.primeMany(cachedTeachers);
       }
     } catch (error) {
       console.log('Error loading cached data:', error);
@@ -248,14 +295,26 @@ const AlhanAdmin = () => {
             // Cache church data
             await CacheUtils.set(cacheKeys.current.church, userChurch);
             
-            // Set up teachers listener when church is available
+            // Set up teachers listener when church is available. Only re-attach
+            // when the church actually changed — re-attaching on every write to
+            // your own user doc tore down the roster listener and replayed a full
+            // snapshot, re-rendering the whole list each time.
             if (userChurch) {
-              setupTeachersListener(userChurch);
+              if (attachedChurch.current !== userChurch) {
+                attachedChurch.current = userChurch;
+                setupTeachersListener(userChurch);
+              }
+            } else {
+              attachedChurch.current = null;
+              setLoading(false);
             }
+          } else {
+            setLoading(false);
           }
         },
         (error) => {
           if (isMounted.current) {
+            setLoading(false);
             Alert.alert("Error", "Failed to fetch church data.");
           }
         }
@@ -269,45 +328,6 @@ const AlhanAdmin = () => {
       teachersUnsubscribe.current();
     }
 
-    // Fetch profile pictures periodically
-    const fetchProfilePictureUrls = async () => {
-      if (!isMounted.current) return;
-      
-      try {
-        const querySnapshot = await firestore()
-          .collection("users")
-          .where("church", "==", churchId)
-          .where("isAlhan", "==", true)
-          .get();
-        
-        const urls = {};
-        await Promise.all(
-          querySnapshot.docs.map(async (doc) => {
-            const uid = doc.id;
-            try {
-              const url = await storage()
-                .ref(`profilePictures/${uid}.png`)
-                .getDownloadURL();
-              urls[uid] = typeof url === "string" && url.trim() ? url : null;
-            } catch (error) {
-              urls[uid] = null;
-            }
-          })
-        );
-        
-        if (isMounted.current) {
-          setProfilePictureUrls(urls);
-          // Cache profile picture URLs
-          await CacheUtils.set(cacheKeys.current.profilePics, urls);
-        }
-      } catch (error) {
-        // Error handling for profile pictures fetch
-      }
-    };
-
-    fetchProfilePictureUrls();
-    const intervalId = setInterval(fetchProfilePictureUrls, 30000);
-
     teachersUnsubscribe.current = firestore()
       .collection("users")
       .where("church", "==", churchId)
@@ -316,50 +336,59 @@ const AlhanAdmin = () => {
         async (querySnapshot) => {
           if (!isMounted.current) return;
           
+          // One pass, one doc.data() per doc. The third .map this replaces
+          // re-derived `name` through `querySnapshot.docs.find(...)` — a linear
+          // scan plus another deserialization per teacher — to produce a value
+          // the `...doc.data()` spread had already set. O(n²) dead work.
+          // Sort key computed once per doc, not inside the comparator. Each
+          // `doc` property read goes through @react-native-firebase's
+          // deprecation Proxy, so each one is touched exactly once.
           const teacherList = querySnapshot.docs
-            .map((doc) => ({
-              id: doc.id,
-              name: (doc.data().name || "").trim(),
-              ...doc.data(),
-            }))
-            .sort((a, b) => {
-              const nameComparison = a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-              if (nameComparison === 0) {
-                return a.id.localeCompare(b.id);
-              }
-              return nameComparison;
+            .map((doc) => {
+              const data = doc.data();
+              // String() keeps the comparator total against a non-string `name`.
+              const name = String(data.name ?? "");
+              const id = doc.id;
+              return { item: { ...data, id, name }, key: name.trim().toLowerCase(), id };
             })
-            .map((teacher) => ({
-              ...teacher,
-              name:
-                querySnapshot.docs.find((d) => d.id === teacher.id)?.data().name || "",
-            }));
+            .sort(
+              (a, b) =>
+                a.key.localeCompare(b.key) ||
+                (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+            )
+            .map((entry) => entry.item);
 
           setTeachers(teacherList);
-          
+
+          // These docs already carry photoURL, so priming the avatar cache
+          // here costs no extra requests and replaces the old per-user
+          // getDownloadURL() fan-out plus its 30s refetch timer.
+          avatarCache.primeMany(teacherList);
+
+          // Real data is on screen — only now drop the skeleton.
+          setLoading(false);
+
           // Cache teachers data
           await CacheUtils.set(cacheKeys.current.teachers, teacherList);
         },
         (error) => {
           if (isMounted.current) {
+            setLoading(false);
             Alert.alert("Error", "Could not fetch teachers.");
           }
         }
       );
-
-    // Store interval cleanup
-    return () => {
-      clearInterval(intervalId);
-    };
   };
 
-  // Build sections from teachers + searchQuery
-  useEffect(() => {
-    if (teachers.length === 0) {
-      setSections([]);
-      setAvailableLetters([]);
-      return;
-    }
+  // Build sections from teachers + searchQuery.
+  //
+  // Derived with useMemo, not state-in-an-effect. An effect runs *after* the
+  // render that set `teachers`, so in that first frame `teachers` was full while
+  // `sections` was still [] — and the "No teachers found." branch below painted
+  // before the effect caught up. Deriving it keeps the two consistent within a
+  // single render.
+  const sections = useMemo(() => {
+    if (teachers.length === 0) return [];
 
     const lower = searchQuery.trim().toLowerCase();
     const filtered = lower
@@ -376,7 +405,7 @@ const AlhanAdmin = () => {
     }, {});
 
     // Convert to SectionList format - put # at the end
-    const sectionData = Object.keys(grouped)
+    return Object.keys(grouped)
       .sort((a, b) => {
         if (a === '#') return 1;
         if (b === '#') return -1;
@@ -386,13 +415,12 @@ const AlhanAdmin = () => {
         title: letter,
         data: grouped[letter],
       }));
-
-    // Set available letters
-    const letters = sectionData.map((section) => section.title).sort();
-
-    setSections(sectionData);
-    setAvailableLetters(letters);
   }, [teachers, searchQuery]);
+
+  const availableLetters = useMemo(
+    () => sections.map((section) => section.title).sort(),
+    [sections]
+  );
 
   // Handle remove photo
   const handleRemovePhoto = async () => {
@@ -400,30 +428,12 @@ const AlhanAdmin = () => {
 
     setDeletingPhoto(true);
     try {
-      // Delete from Firebase Storage
-      const storageRef = storage().ref(`profilePictures/${selectedTeacher.id}.png`);
-      await storageRef.delete();
-
-      // Update local state
-      setProfilePictureUrls(prev => ({
-        ...prev,
-        [selectedTeacher.id]: null
-      }));
-
-      // Clear cache for profile pics
-      await CacheUtils.remove(cacheKeys.current.profilePics);
-
+      // Clears the Storage object, the photoURL pointer on the user doc, and
+      // the cache — so a stale URL can't be re-primed by the next snapshot.
+      await avatarCache.removePhoto(selectedTeacher.id);
       Alert.alert("Success", "Profile picture deleted successfully");
     } catch (error) {
-      // If the file doesn't exist, that's okay - just update local state
-      if (error.code === 'storage/object-not-found') {
-        setProfilePictureUrls(prev => ({
-          ...prev,
-          [selectedTeacher.id]: null
-        }));
-      } else {
-        Alert.alert("Error", "Could not delete profile picture. Please try again.");
-      }
+      Alert.alert("Error", "Could not delete profile picture. Please try again.");
     } finally {
       setDeletingPhoto(false);
     }
@@ -451,7 +461,7 @@ const AlhanAdmin = () => {
   };
 
   // Open edit modal
-  const openEditModal = (teacher) => {
+  const openEditModal = useCallback((teacher) => {
     if (!teacher?.id) return;
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setSelectedTeacher(teacher);
@@ -459,7 +469,7 @@ const AlhanAdmin = () => {
       Array.isArray(teacher.alhanGrades) ? teacher.alhanGrades : []
     );
     setModalVisible(true);
-  };
+  }, []);
 
   // Open photo input modal
   const openPhotoInputModal = () => {
@@ -479,23 +489,8 @@ const AlhanAdmin = () => {
   const closePhotoInputModal = () => {
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
     setPhotoInputVisible(false);
-    // Refresh profile picture after upload
-    if (selectedTeacher?.id) {
-      storage()
-        .ref(`profilePictures/${selectedTeacher.id}.png`)
-        .getDownloadURL()
-        .then(async url => {
-          setProfilePictureUrls(prev => ({
-            ...prev,
-            [selectedTeacher.id]: url
-          }));
-          // Clear cache to force refresh
-          await CacheUtils.remove(cacheKeys.current.profilePics);
-        })
-        .catch(() => {
-          // Keep existing or null
-        });
-    }
+    // PhotoInput writes the new URL straight into avatarCache (and onto the
+    // user doc), so there is nothing to refetch on close.
   };
 
   // Save classes
@@ -515,7 +510,7 @@ const AlhanAdmin = () => {
   };
 
   // Remove teacher
-  const removeTeacher = async (teacherId) => {
+  const removeTeacher = useCallback(async (teacherId) => {
     try {
       await firestore().collection("users").doc(teacherId).update({
         isAlhan: false,
@@ -526,7 +521,7 @@ const AlhanAdmin = () => {
     } catch (error) {
       Alert.alert("Error", "Could not remove teacher. Please try again.");
     }
-  };
+  }, []);
 
   // Scroll to section
   const scrollToSection = (letter) => {
@@ -544,77 +539,41 @@ const AlhanAdmin = () => {
   };
 
   // Render section header
-  const renderSectionHeader = ({ section: { title } }) => (
-    <View
-      style={styles.sectionHeader}
-      onLayout={(event) => {
-        const height = event.nativeEvent.layout.height;
-        headerHeightRef.current = height;
-        setHeaderHeight(height);
-      }}
-    >
-      <Text style={styles.sectionHeaderText}>{title}</Text>
-    </View>
-  );  
-  
-  // Render teacher item
-  const renderTeacher = ({ item }) => (
-    <TouchableOpacity
-      style={styles.teacherCard}
-      onPress={() => openEditModal(item)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.teacherInfo}>
-        <View style={styles.teacherImageContainer}>
-          <Image
-            style={styles.teacherImage}
-            source={
-              item.id && profilePictureUrls[item.id]
-                ? { uri: profilePictureUrls[item.id] }
-                : require("../../assets/default_profile.png")
-            }
-            defaultSource={require("../../assets/default_profile.png")}
-            onError={() => {
-              setProfilePictureUrls((prev) => ({
-                ...prev,
-                [item.id]: null,
-              }));
-            }}
-          />
-        </View>
-        <View style={styles.teacherTextInfo}>
-          <Text style={styles.teacherName}>{item.name || "Unknown"}</Text>
-          <Text style={styles.teacherGrades}>
-            {Array.isArray(item.alhanGrades) && item.alhanGrades.length > 0
-              ? item.alhanGrades.join(", ")
-              : "No classes assigned"}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.deleteButton]}
-          onPress={() => removeTeacher(item.id)}
-        >
-          <Ionicons name="trash" size={20 * scale} color="#fff" />
-          <Text style={styles.buttonText}>Delete</Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
+  const renderSectionHeader = useCallback(
+    ({ section: { title } }) => <SectionHeader title={title} />,
+    []
   );
 
-  // Show minimal loading only on first load
-  if (loading && !church && teachers.length === 0) {
+  // Render teacher item
+  const renderTeacher = useCallback(
+    ({ item }) => (
+      <TeacherRow item={item} onPress={openEditModal} onRemove={removeTeacher} />
+    ),
+    [openEditModal, removeTeacher]
+  );
+
+  const keyExtractor = useCallback((item) => item.id, []);
+
+  // A roster of person cards — rows land in place of these. Gated on the
+  // teacher list rather than on `church`: church resolves from cache first, and
+  // dropping the skeleton then flashed "No teachers found." until the snapshot
+  // landed.
+  if (!ready || (loading && teachers.length === 0)) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator
-          size={isTablet ? "large" : "small"}
-          color="#147efb"
-        />
-        <Text style={[styles.loadingText, { fontSize: 16 * scale }]}>
-          Loading...
-        </Text>
-      </View>
+      <SkeletonScreen
+        variant="personCards"
+        count={isTablet ? 10 : 8}
+        showHeader={false}
+        paddingHorizontal={paddingHorizontal}
+        paddingTop={20}
+        // Matches listContainer's inset for the alphabet index bar.
+        bodyStyle={{ paddingRight: 32 }}
+        header={
+          <Text style={[styles.header, { fontSize: 24 * scale }]}>
+            Manage Alhan
+          </Text>
+        }
+      />
     );
   }
 
@@ -634,11 +593,14 @@ const AlhanAdmin = () => {
             sections={sections}
             renderItem={renderTeacher}
             renderSectionHeader={renderSectionHeader}
-            keyExtractor={(item) => item.id || Math.random().toString()}
+            keyExtractor={keyExtractor}
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
-            extraData={profilePictureUrls}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={7}
+            removeClippedSubviews={true}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
             onScrollToIndexFailed={(info) => {
@@ -649,7 +611,7 @@ const AlhanAdmin = () => {
             <View style={{ position: 'absolute', top: 100 * scale, right: 0, width: 30 }}>
               <AlphabetIndexBar 
                 onLetterChange={scrollToSection} 
-                availableLetters={sections.map(s => s.title)}
+                availableLetters={availableLetters}
               />
             </View>
           )}
@@ -696,12 +658,14 @@ const AlhanAdmin = () => {
               <View style={styles.modalHeader}>
                 <View style={styles.headerContent}>
                   <View style={styles.profileImageContainer}>
-                    <ProfileImageExpander
-                      imageUrl={selectedTeacher.id && profilePictureUrls[selectedTeacher.id] ? profilePictureUrls[selectedTeacher.id] : null}
+                    <Avatar
+                      uid={selectedTeacher.id}
+                      user={selectedTeacher}
                       size={80}
                       finalSize={300}
                       borderRadius={40}
                       style={styles.profileImage}
+                      expandable
                     />
                     <TouchableOpacity
                       style={styles.editProfilePictureButton}
@@ -731,10 +695,13 @@ const AlhanAdmin = () => {
                 contentContainerStyle={styles.modalScrollContent}
               >
                 <View style={styles.modalContent}>
-                  <FlatList
-                    data={gradesList}
-                    renderItem={({ item: grade }) => (
+                  {/* Fixed 16-item list inside a ScrollView: virtualization was
+                      already disabled via scrollEnabled={false}, so a plain map
+                      is cheaper and avoids the nested-VirtualizedList warning. */}
+                  <View style={styles.gradesList}>
+                    {gradesList.map((grade) => (
                       <TouchableOpacity
+                        key={grade}
                         style={[
                           styles.gradeItem,
                           selectedGrades.includes(grade) &&
@@ -764,11 +731,8 @@ const AlhanAdmin = () => {
                           />
                         )}
                       </TouchableOpacity>
-                    )}
-                    keyExtractor={(item) => item}
-                    contentContainerStyle={styles.gradesList}
-                    scrollEnabled={false}
-                  />
+                    ))}
+                  </View>
                 </View>
               </ScrollView>
               <View style={styles.modalButtons}>
@@ -829,17 +793,6 @@ const styles = StyleSheet.create({
     paddingBottom: 110, // leave room for the floating bar
     flexGrow: 1,
     paddingRight: 32,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#121212",
-  },
-  loadingText: {
-    marginTop: 12,
-    color: "rgba(255,255,255,0.6)",
-    fontSize: 16 * scale,
   },
   teacherCard: {
     flexDirection: "column",

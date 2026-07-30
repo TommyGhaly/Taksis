@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Image,
   ActivityIndicator,
   Modal,
   FlatList,
@@ -23,9 +22,10 @@ import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import { Ionicons } from "@expo/vector-icons";
 import BackArrow from "../../components/backArrow";
-import ProfileImageExpander from "../../components/ProfileImageExpander";
+import Avatar from "../../components/Avatar";
+import SkeletonScreen, { SkeletonPersonList } from "../../components/Skeleton";
+import * as avatarCache from "../../utils/avatarCache";
 
-const defaultProfileImage = require("../../assets/default_profile.png");
 const { height } = Dimensions.get("window");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -92,9 +92,12 @@ async function mergeManualIntoReal(church, manualServant, realUID) {
         const response = await fetch(url);
         const blob = await response.blob();
         await realPhotoRef.put(blob);
+        // This uid was cached as "no photo"; drop it so the copy is picked up.
+        await avatarCache.invalidate(realUID);
       } catch (e) { console.warn("Photo copy failed:", e); }
     }
     try { await manualPhotoRef.delete(); } catch {}
+    await avatarCache.invalidate(manualServant.uid);
   }
 
   await manualDocRef.delete();
@@ -111,7 +114,6 @@ const IndividualServant = () => {
   const [servantName, setServantName] = useState("");
   const [servantPhone, setServantPhone] = useState("");
   const [servantRaw, setServantRaw] = useState(null); // full doc data for merge
-  const [profilePicture, setProfilePicture] = useState(null);
   const [loading, setLoading] = useState(true);
   const manual = isManual(servantID);
 
@@ -119,7 +121,6 @@ const IndividualServant = () => {
   const [syncModalVisible, setSyncModalVisible] = useState(false);
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [allChurchUsers, setAllChurchUsers] = useState([]);
-  const [servantPictures, setServantPictures] = useState({});
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
@@ -129,7 +130,6 @@ const IndividualServant = () => {
       setServantName("");
       setServantPhone("");
       setServantRaw(null);
-      setProfilePicture(null);
       setLoading(true);
 
       let unsub = null;
@@ -140,7 +140,7 @@ const IndividualServant = () => {
         .collection("Servants Meeting")
         .doc(servantID)
         .onSnapshot(
-          async (doc) => {
+          (doc) => {
             try {
               if (doc.exists) {
                 const data = doc.data();
@@ -156,14 +156,14 @@ const IndividualServant = () => {
                 }
                 setAttendanceData(attendance);
 
-                try {
-                  const url = await storage()
-                    .ref(`profilePictures/${servantID}.png`)
-                    .getDownloadURL();
-                  setProfilePicture(url);
-                } catch { setProfilePicture(null); }
+                // Priming is free and idempotent, so it is safe to run on every
+                // snapshot. The old code did a getDownloadURL() here, which meant
+                // every attendance toggle (a doc write re-triggers this snapshot)
+                // refetched the photo over the network. <Avatar> now resolves the
+                // URL once, outside this callback, and caches it.
+                avatarCache.primeFromUser({ uid: servantID, ...data });
               } else {
-                setServantName(""); setAttendanceData([]); setProfilePicture(null);
+                setServantName(""); setAttendanceData([]);
               }
               setLoading(false);
             } catch {
@@ -200,15 +200,9 @@ const IndividualServant = () => {
         .map((d) => ({ uid: d.id, ...d.data() }));
       setAllChurchUsers(servants);
 
-      // Fetch profile pictures in background
-      const pics = {};
-      await Promise.all(servants.map(async (s) => {
-        try {
-          const url = await storage().ref(`profilePictures/${s.uid}.png`).getDownloadURL();
-          if (typeof url === "string" && url.trim()) pics[s.uid] = url;
-        } catch { pics[s.uid] = null; }
-      }));
-      setServantPictures(pics);
+      // Free: adopt any photoURL already on the docs we just read. Anything
+      // still missing is resolved once by <Avatar> and cached from then on.
+      avatarCache.primeMany(servants);
     } catch {
       Alert.alert("Error", "Failed to load servants.");
     } finally {
@@ -277,7 +271,7 @@ const IndividualServant = () => {
               // they were taken off this list.
               if (manual) {
                 try {
-                  await storage().ref(`profilePictures/${servantID}.png`).delete();
+                  await avatarCache.removePhoto(servantID);
                 } catch {}
               }
 
@@ -321,11 +315,8 @@ const IndividualServant = () => {
   // ── Render ────────────────────────────────────────────────────────────────
 
   if (loading) {
-    return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#147efb" />
-      </View>
-    );
+    // Single-servant detail: avatar, name, then the attendance rows.
+    return <SkeletonScreen variant="profile" showHeader={false} />;
   }
 
   return (
@@ -344,11 +335,12 @@ const IndividualServant = () => {
           </View>
         )}
         <View style={styles.profileContainer}>
-          <ProfileImageExpander
-            imageUrl={profilePicture || defaultProfileImage}
+          <Avatar
+            uid={servantID}
             size={100}
             finalSize={300}
             borderRadius={50}
+            expandable
             style={styles.profilePicture}
           />
         </View>
@@ -424,15 +416,17 @@ const IndividualServant = () => {
             </View>
 
             {loadingUsers ? (
-              <View style={styles.syncLoading}>
-                <ActivityIndicator color="#147efb" />
-                <Text style={styles.syncLoadingText}>Loading users…</Text>
+              <View style={styles.syncSkeleton}>
+                <SkeletonPersonList count={6} avatarSize={40} />
               </View>
             ) : (
               <FlatList
                 data={filteredUsers}
                 keyExtractor={(u) => u.uid}
                 showsVerticalScrollIndicator={false}
+                initialNumToRender={10}
+                maxToRenderPerBatch={10}
+                windowSize={7}
                 contentContainerStyle={{ paddingBottom: 24 }}
                 ListEmptyComponent={
                   <Text style={styles.syncEmpty}>No users found.</Text>
@@ -444,14 +438,12 @@ const IndividualServant = () => {
                     activeOpacity={0.75}
                     disabled={syncing}
                   >
-                    <Image
+                    <Avatar
+                      uid={item.uid}
+                      user={item}
+                      size={40}
+                      showBorder={false}
                       style={styles.syncUserAvatar}
-                      source={
-                        servantPictures[item.uid]
-                          ? { uri: servantPictures[item.uid] }
-                          : defaultProfileImage
-                      }
-                      defaultSource={defaultProfileImage}
                     />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.syncUserName}>{item.name}</Text>
@@ -551,8 +543,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
   },
   syncSearchInput: { flex: 1, color: "#fff", fontSize: 15, paddingVertical: 0 },
-  syncLoading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
-  syncLoadingText: { color: "rgba(255,255,255,0.4)", fontSize: 14 },
+  syncSkeleton: { flex: 1, paddingHorizontal: 16 },
   syncEmpty: { color: "rgba(255,255,255,0.35)", textAlign: "center", fontSize: 14, paddingVertical: 32 },
   syncUserRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
   syncUserAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.06)" },

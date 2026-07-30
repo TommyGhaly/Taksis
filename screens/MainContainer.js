@@ -39,9 +39,14 @@ import UnavailableRequestModal from "../components/unavailableRequestModal";
 import CustomDrawerContent from "../components/customDrawer";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
-import storage from "@react-native-firebase/storage";
 import CustomHeader from "../components/customHeader";
-import { StorageCache } from "../utils/cacheManager";
+import SkeletonScreen from "../components/Skeleton";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as avatarCache from "../utils/avatarCache";
+
+// Last known roles, so a cold start can render the tab bar without waiting on
+// the network.
+const ROLES_CACHE_KEY = "mainContainer_roles_v1";
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
@@ -208,10 +213,14 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId, showP
 
   return (
     <Tab.Navigator
+      detachInactiveScreens
       screenOptions={({ route, navigation }) => ({
         headerShown: true,
         headerStyle: consistentHeaderStyle,
         headerTintColor: "#fff",
+        // Inactive tabs shouldn't re-render behind the active one.
+        freezeOnBlur: true,
+        lazy: true,
         tabBarStyle: {
           height: 90,
           backgroundColor: "rgba(34,36,40,1)",
@@ -305,6 +314,7 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId, sho
           shouldShowInDrawer={shouldShowInDrawer}
         />
       )}
+      detachInactiveScreens
       screenOptions={({ navigation, route }) => ({
         drawerStyle: { backgroundColor: "transparent", width: 280 },
         headerShown: true,
@@ -312,6 +322,9 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId, sho
         headerLeft: () => <CustomHeader navigation={navigation} />,
         headerStyle: consistentHeaderStyle,
         headerTintColor: "#fff",
+        // Keep background screens from re-rendering while the drawer animates.
+        freezeOnBlur: true,
+        lazy: true,
       })}
     >
       <Drawer.Screen name="Home" options={{ headerShown: false }}>
@@ -425,7 +438,6 @@ export default function MainContainer() {
   const deletedDocsRef = useRef(new Set());
 
   const [availableServers, setAvailableServers] = useState([]);
-  const [imageUrls, setImageUrls] = useState({});
   const [lastServeData, setLastServeData] = useState({});
   const [nextServeData, setNextServeData] = useState({});
   const userListenersRef = useRef([]);
@@ -516,26 +528,10 @@ export default function MainContainer() {
       cleanupUserListeners();
       const newListeners = [];
 
-      servers.forEach((server, idx) => {
-        const storagePath = `profilePictures/${server.uid}.png`;
-        setTimeout(
-          async () => {
-            try {
-              const url = await StorageCache.getDownloadURL(storagePath);
-              setImageUrls((prev) => ({ ...prev, [server.uid]: url }));
-            } catch {
-              storage()
-                .ref(storagePath)
-                .getDownloadURL()
-                .then((url) =>
-                  setImageUrls((prev) => ({ ...prev, [server.uid]: url })),
-                )
-                .catch(() => {});
-            }
-          },
-          idx === 0 ? 0 : Math.random() * 500,
-        );
-
+      // Avatars are resolved by <Avatar>/avatarCache now — the staggered
+      // per-server Storage fetch that used to live here fed an `imageUrls`
+      // prop that UnavailableRequestModal no longer reads.
+      servers.forEach((server) => {
         const unsub = firestore()
           .collection("users")
           .doc(server.uid)
@@ -543,6 +539,8 @@ export default function MainContainer() {
             (doc) => {
               if (doc.exists) {
                 const userData = doc.data();
+                // Free — this doc is already being read for serve dates.
+                avatarCache.primeFromUser({ uid: server.uid, ...userData });
                 setLastServeData((prev) =>
                   userData.lastServe
                     ? { ...prev, [server.uid]: userData.lastServe }
@@ -595,6 +593,13 @@ export default function MainContainer() {
         const data = doc.data();
         setUserRoles(data);
         setChurchId(data.church || null);
+        avatarCache.primeFromUser({ uid: user.uid, ...data });
+        // Persist roles so the next cold start can render the tab bar
+        // immediately instead of blocking on this network read.
+        AsyncStorage.setItem(
+          ROLES_CACHE_KEY,
+          JSON.stringify({ roles: data, homeScreen: data.homeScreen })
+        ).catch(() => {});
 
         let selectedHomeScreen = data.homeScreen;
         if (!selectedHomeScreen) {
@@ -718,6 +723,30 @@ export default function MainContainer() {
     return () => unsubscribe();
   }, [userRoles.admin, churchId]);
 
+  // Paint the tab bar from the last known roles while the fresh read is in
+  // flight. Previously the whole navigation tree sat behind "Loading..." until
+  // a network round-trip finished, on every single launch.
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(ROLES_CACHE_KEY)
+      .then((raw) => {
+        if (cancelled || !raw) return;
+        const cached = JSON.parse(raw);
+        if (!cached?.roles) return;
+        setUserRoles((prev) => (prev && prev.church ? prev : cached.roles));
+        if (cached.homeScreen) {
+          setHomeScreenId(cached.homeScreen);
+          const config = screenConfigs[cached.homeScreen];
+          if (config) setHomeTitle(config.name);
+        }
+        setIsLoading(false);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     const user = auth().currentUser;
     if (!user) {
@@ -736,6 +765,7 @@ export default function MainContainer() {
             const data = snapshot.data();
             setUserRoles(data);
             setChurchId(data.church || null);
+            avatarCache.primeFromUser({ uid: user.uid, ...data });
 
             if (data.homeScreen) {
               setHomeScreenId((prev) => {
@@ -807,22 +837,10 @@ export default function MainContainer() {
     userRoles.trafficAdmin ||
     userRoles.paschaAdmin;
 
+  // The shell can render any screen, so a shaped skeleton here would just be
+  // guessing at a layout that won't match. One full-screen block instead.
   if (isLoading) {
-    return (
-      <ScrollView
-        contentContainerStyle={styles.loadingContainer}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#147efb"
-            colors={["#147efb"]}
-          />
-        }
-      >
-        <Text style={styles.loadingText}>Loading...</Text>
-      </ScrollView>
-    );
+    return <SkeletonScreen variant="block" />;
   }
 
   return (
@@ -862,7 +880,6 @@ export default function MainContainer() {
           onSkipAll={handleSkipAll}
           showSkipAll={remainingCount > 1}
           availableServers={availableServers}
-          imageUrls={imageUrls}
           lastServeData={lastServeData}
           nextServeData={nextServeData}
           selectedWeek={currentRequest.weekId}
