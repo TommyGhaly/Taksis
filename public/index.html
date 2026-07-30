@@ -1,89 +1,525 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Welcome to Firebase Hosting</title>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vehicle Registration</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    <!-- update the version number as needed -->
-    <script defer src="/__/firebase/12.12.1/firebase-app-compat.js"></script>
-    <!-- include only the Firebase features as you need -->
-    <script defer src="/__/firebase/12.12.1/firebase-auth-compat.js"></script>
-    <script defer src="/__/firebase/12.12.1/firebase-database-compat.js"></script>
-    <script defer src="/__/firebase/12.12.1/firebase-firestore-compat.js"></script>
-    <script defer src="/__/firebase/12.12.1/firebase-functions-compat.js"></script>
-    <script defer src="/__/firebase/12.12.1/firebase-messaging-compat.js"></script>
-    <script defer src="/__/firebase/12.12.1/firebase-storage-compat.js"></script>
-    <script defer src="/__/firebase/12.12.1/firebase-analytics-compat.js"></script>
-    <script defer src="/__/firebase/12.12.1/firebase-remote-config-compat.js"></script>
-    <script defer src="/__/firebase/12.12.1/firebase-performance-compat.js"></script>
-    <!-- 
-      initialize the SDK after all desired features are loaded, set useEmulator to false
-      to avoid connecting the SDK to running emulators.
-    -->
-    <script defer src="/__/firebase/init.js?useEmulator=true"></script>
+  :root {
+    --accent: #3b9dff;
+    --accent-hover: #5aacff;
+    --accent-soft: rgba(59,157,255,0.16);
+    --accent-border: rgba(59,157,255,0.45);
+    --ink: #f7f9fc;
+    --ink-soft: #b9c2ce;
+    --ink-muted: #7c8593;
+    --line: rgba(255,255,255,0.12);
+    --field-bg: rgba(255,255,255,0.05);
+    --field-focus-bg: rgba(59,157,255,0.10);
+    --panel: #1d2229;
+    --danger: #ff6a5a;
+    --success: #4fb877;
+  }
 
-    <style media="screen">
-      body { background: #ECEFF1; color: rgba(0,0,0,0.87); font-family: Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
-      #message { background: white; max-width: 360px; margin: 100px auto 16px; padding: 32px 24px; border-radius: 3px; }
-      #message h2 { color: #ffa100; font-weight: bold; font-size: 16px; margin: 0 0 8px; }
-      #message h1 { font-size: 22px; font-weight: 300; color: rgba(0,0,0,0.6); margin: 0 0 16px;}
-      #message p { line-height: 140%; margin: 16px 0 24px; font-size: 14px; }
-      #message a { display: block; text-align: center; background: #039be5; text-transform: uppercase; text-decoration: none; color: white; padding: 16px; border-radius: 4px; }
-      #message, #message a { box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24); }
-      #load { color: rgba(0,0,0,0.4); text-align: center; font-size: 13px; }
-      @media (max-width: 600px) {
-        body, #message { margin-top: 0; background: white; box-shadow: none; }
-        body { border-top: 16px solid #ffa100; }
-      }
-    </style>
-  </head>
-  <body>
-    <div id="message">
-      <h2>Welcome</h2>
-      <h1>Firebase Hosting Setup Complete</h1>
-      <p>You're seeing this because you've successfully setup Firebase Hosting. Now it's time to go build something extraordinary!</p>
-      <a target="_blank" href="https://firebase.google.com/docs/hosting/">Open Hosting Documentation</a>
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: radial-gradient(1200px 600px at 50% -10%, #141922 0%, #0e1116 55%, #0a0c0f 100%);
+    min-height: 100vh;
+    padding: 40px 16px 60px;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .card {
+    max-width: 620px;
+    margin: 0 auto;
+    background: #171b21;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.55);
+    border: 1px solid var(--line);
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(150deg, #172233 0%, #14243f 55%, #0f2749 100%);
+    padding: 32px 32px 26px;
+    border-bottom: 1px solid var(--line);
+  }
+  .header-eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.8px;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 8px;
+  }
+  .header h1 { font-size: 22px; font-weight: 700; color: var(--ink); margin-bottom: 14px; }
+  .consent {
+    display: flex; gap: 11px; align-items: flex-start;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-border);
+    border-radius: 12px; padding: 13px 15px;
+    font-size: 13px; color: var(--ink-soft); line-height: 1.6;
+  }
+  .consent svg { flex-shrink: 0; margin-top: 1px; }
+  .consent strong { color: var(--ink); font-weight: 700; }
+
+  /* Body */
+  .body { padding: 28px 32px; display: flex; flex-direction: column; gap: 26px; }
+
+  .section-title {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.4px;
+    text-transform: uppercase; color: var(--ink-muted);
+    padding-bottom: 10px; border-bottom: 1px solid var(--line);
+    margin-bottom: 2px;
+  }
+
+  .field { display: flex; flex-direction: column; gap: 7px; }
+  .field label { font-size: 13px; font-weight: 600; color: var(--ink-soft); letter-spacing: 0.2px; }
+  .field label .req { color: var(--danger); margin-left: 2px; }
+
+  input[type="text"], input[type="tel"], select {
+    width: 100%; padding: 11px 14px;
+    border: 1.5px solid var(--line);
+    border-radius: 10px; font-size: 14px; font-family: inherit;
+    color: var(--ink); background: var(--field-bg);
+    outline: none; transition: all .2s;
+  }
+  input::placeholder { color: var(--ink-muted); }
+  input:focus, select:focus {
+    border-color: var(--accent);
+    background: var(--field-focus-bg);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  input.error { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(255,106,90,0.14); }
+  select option { background: #1d2229; color: var(--ink); }
+  .err-msg { font-size: 12px; color: var(--danger); display: none; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 500px) {
+    .two-col { grid-template-columns: 1fr; }
+    .body { padding: 22px 20px; }
+    .header { padding: 24px 20px; }
+  }
+
+  /* Color picker */
+  .color-label { font-size: 13px; font-weight: 600; color: var(--ink-soft); margin-bottom: 10px; }
+  .color-grid {
+    display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .color-opt {
+    display: flex; align-items: center; gap: 7px;
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1.5px solid var(--line);
+    background: var(--field-bg);
+    cursor: pointer; transition: all .15s;
+    font-size: 13px; color: var(--ink-soft);
+    user-select: none;
+  }
+  .color-opt:hover { border-color: rgba(255,255,255,0.24); background: rgba(255,255,255,0.08); }
+  .color-opt.selected {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--ink);
+  }
+  .color-swatch {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.22); flex-shrink: 0;
+  }
+
+  /* Driver block */
+  .drivers-list { display: flex; flex-direction: column; gap: 12px; }
+  .driver-block {
+    border: 1.5px solid var(--line);
+    border-radius: 12px; overflow: hidden;
+  }
+  .driver-head {
+    background: rgba(255,255,255,0.05);
+    padding: 9px 14px;
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1.5px solid var(--line);
+  }
+  .driver-num {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .driver-head-label { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+  .driver-body { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* Taksis toggle */
+  .taksis-toggle {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--field-bg);
+    border: 1.5px solid var(--line);
+    border-radius: 9px; padding: 9px 12px;
+    cursor: pointer; user-select: none; transition: all .2s;
+  }
+  .taksis-toggle:hover { border-color: var(--accent-border); background: var(--accent-soft); }
+  .taksis-toggle input[type="checkbox"] { display: none; }
+  .pill {
+    width: 34px; height: 19px; border-radius: 999px;
+    background: rgba(255,255,255,0.2); position: relative;
+    flex-shrink: 0; transition: background .2s;
+  }
+  .pill::after {
+    content: ''; position: absolute; top: 3px; left: 3px;
+    width: 13px; height: 13px; border-radius: 50%;
+    background: #fff;
+    transition: transform .2s, background .2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  }
+  .taksis-toggle.on .pill { background: var(--accent); }
+  .taksis-toggle.on .pill::after { transform: translateX(15px); background: #fff; }
+  .taksis-text { font-size: 13px; color: var(--ink-soft); flex: 1; line-height: 1.4; }
+  .taksis-text b { color: var(--ink); font-weight: 600; }
+
+  /* Add driver button */
+  .add-driver-btn {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 11px; border-radius: 10px;
+    border: 1.5px dashed var(--accent-border);
+    background: var(--accent-soft);
+    color: var(--accent); font-size: 14px; font-weight: 500;
+    cursor: pointer; transition: all .2s; font-family: inherit;
+    width: 100%;
+  }
+  .add-driver-btn:hover { background: rgba(197,106,61,0.16); border-color: var(--accent); }
+
+  /* Submit */
+  .submit-wrap { padding-top: 4px; }
+  .submit-btn {
+    width: 100%; background: var(--accent); color: #fff; border: none;
+    padding: 14px; font-size: 15px; font-weight: 600;
+    border-radius: 12px; cursor: pointer; font-family: inherit;
+    transition: background .2s, transform .1s, opacity .2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .submit-btn:hover:not(:disabled) { background: var(--accent-hover); }
+  .submit-btn:active:not(:disabled) { transform: scale(0.99); }
+  .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin .7s linear infinite; display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #1d2229; border: 1px solid rgba(255,106,90,0.45);
+    color: var(--danger); padding: 12px 20px; border-radius: 10px;
+    font-size: 13px; font-weight: 500; opacity: 0;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+    transition: all .3s; z-index: 999; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Success */
+  .success-screen {
+    display: none; flex-direction: column; align-items: center;
+    text-align: center; padding: 60px 32px; gap: 12px;
+  }
+  .success-icon {
+    width: 60px; height: 60px; background: rgba(58,157,93,0.14);
+    color: var(--success);
+    border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 26px;
+  }
+  .success-screen h2 { font-size: 20px; font-weight: 700; color: var(--ink); }
+  .success-screen p { font-size: 14px; color: var(--ink-soft); line-height: 1.7; max-width: 360px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <div class="header-eyebrow">Church Parking Program</div>
+    <h1>Vehicle Registration</h1>
+    <div class="consent">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b9dff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      <div><strong>How it works —</strong> By submitting this form, your vehicle is registered for the church parking program. <strong>No stickers are placed on your car.</strong> Your license plate is simply scanned by camera at the lot to confirm your registration.</div>
     </div>
-    <p id="load">Firebase SDK Loading&hellip;</p>
+  </div>
 
-    <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        const loadEl = document.querySelector('#load');
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
-        // // The Firebase SDK is initialized and available here!
-        //
-        // firebase.auth().onAuthStateChanged(user => { });
-        // firebase.database().ref('/path/to/ref').on('value', snapshot => { });
-        // firebase.firestore().doc('/foo/bar').get().then(() => { });
-        // firebase.functions().httpsCallable('yourFunction')().then(() => { });
-        // firebase.messaging().requestPermission().then(() => { });
-        // firebase.storage().ref('/path/to/ref').getDownloadURL().then(() => { });
-        // firebase.analytics(); // call to activate
-        // firebase.analytics().logEvent('tutorial_completed');
-        // firebase.performance(); // call to activate
-        //
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
+  <div class="body" id="formBody">
 
-        try {
-          let app = firebase.app();
-          let features = [
-            'auth', 
-            'database', 
-            'firestore',
-            'functions',
-            'messaging', 
-            'storage', 
-            'analytics', 
-            'remoteConfig',
-            'performance',
-          ].filter(feature => typeof app[feature] === 'function');
-          loadEl.textContent = `Firebase SDK loaded with ${features.join(', ')}`;
-        } catch (e) {
-          console.error(e);
-          loadEl.textContent = 'Error loading the Firebase SDK, check the console.';
-        }
-      });
-    </script>
-  </body>
+    <!-- Vehicle Info -->
+    <div>
+      <div class="section-title">Vehicle Information</div>
+      <div style="display:flex;flex-direction:column;gap:14px;margin-top:16px;">
+        <div class="field">
+          <label>License Plate <span class="req">*</span></label>
+          <input type="text" id="plate" placeholder="e.g. NH-ABC1234" style="font-weight:700;letter-spacing:1px;text-transform:uppercase;">
+          <span class="err-msg" id="plate-err">This field is required.</span>
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label>Make</label>
+            <input type="text" id="make" placeholder="e.g. Toyota">
+          </div>
+          <div class="field">
+            <label>Model</label>
+            <input type="text" id="model" placeholder="e.g. Camry">
+          </div>
+        </div>
+
+        <!-- Color picker matching Taksis COLOR_OPTIONS -->
+        <div>
+          <div class="color-label">Color</div>
+          <div class="color-grid" id="colorGrid"></div>
+          <input type="hidden" id="colorValue">
+        </div>
+      </div>
+    </div>
+
+    <!-- Drivers -->
+    <div>
+      <div class="section-title">Drivers</div>
+      <div style="margin-top:16px;display:flex;flex-direction:column;gap:12px;">
+        <div class="field" style="margin-bottom:4px;">
+          <label>Number of Drivers <span class="req">*</span></label>
+          <select id="numDrivers" onchange="updateDrivers()">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
+          <span class="err-msg" id="numDrivers-err">Please select the number of drivers.</span>
+        </div>
+        <div class="drivers-list" id="driversList"></div>
+      </div>
+    </div>
+
+    <div class="submit-wrap">
+      <button class="submit-btn" id="submitBtn" onclick="submitForm()">
+        <span id="btnText">Submit Registration</span>
+        <div class="spinner" id="spinner"></div>
+      </button>
+    </div>
+  </div>
+
+  <div class="success-screen" id="successScreen">
+    <div class="success-icon">✓</div>
+    <h2>Registration Submitted</h2>
+    <p>Your vehicle is pending approval. Once reviewed, your license plate will be recognized automatically at the lot — no sticker needed. Contact the church office with any questions.</p>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+  // ─── CONFIG ────────────────────────────────────────────────────
+    const FIREBASE_PROJECT_ID = 'taksis-a8ba7';
+    const FIREBASE_API_KEY    = 'AIzaSyBWxEgHXcJx19Rklr7P6HhhweT9_I70WkA';
+    const CHURCH_ID           = 'St. Philopater and St. Mina, Wayland, MA';
+  // ───────────────────────────────────────────────────────────────
+
+  const BASE = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents`;
+
+  // Matches Taksis COLOR_OPTIONS exactly
+  const COLOR_OPTIONS = [
+    { label: 'White',  value: 'white',  hex: '#FFFFFF' },
+    { label: 'Black',  value: 'black',  hex: '#1a1a1a' },
+    { label: 'Silver', value: 'silver', hex: '#C0C0C0' },
+    { label: 'Gray',   value: 'gray',   hex: '#808080' },
+    { label: 'Red',    value: 'red',    hex: '#D32F2F' },
+    { label: 'Blue',   value: 'blue',   hex: '#1976D2' },
+    { label: 'Green',  value: 'green',  hex: '#388E3C' },
+    { label: 'Brown',  value: 'brown',  hex: '#795548' },
+    { label: 'Beige',  value: 'beige',  hex: '#D4C5A9' },
+    { label: 'Orange', value: 'orange', hex: '#F57C00' },
+    { label: 'Yellow', value: 'yellow', hex: '#FBC02D' },
+    { label: 'Gold',   value: 'gold',   hex: '#FFD700' },
+  ];
+
+  // Build color grid
+  const grid = document.getElementById('colorGrid');
+  COLOR_OPTIONS.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'color-opt';
+    el.dataset.value = c.value;
+    el.innerHTML = `<div class="color-swatch" style="background:${c.hex}"></div>${c.label}`;
+    el.onclick = () => {
+      const cur = document.getElementById('colorValue').value;
+      document.querySelectorAll('.color-opt').forEach(o => o.classList.remove('selected'));
+      if (cur === c.value) {
+        document.getElementById('colorValue').value = '';
+      } else {
+        el.classList.add('selected');
+        document.getElementById('colorValue').value = c.value;
+      }
+    };
+    grid.appendChild(el);
+  });
+
+  function driverHTML(n) {
+    return `
+    <div class="driver-block" id="driverBlock${n}">
+      <div class="driver-head">
+        <div class="driver-num">${n}</div>
+        <span class="driver-head-label">Driver ${n}</span>
+      </div>
+      <div class="driver-body">
+        <div class="two-col">
+          <div class="field">
+            <label>Full Name${n===1?' <span class="req">*</span>':''}</label>
+            <input type="text" id="d${n}name" placeholder="First and last name">
+            <span class="err-msg" id="d${n}name-err">Required.</span>
+          </div>
+          <div class="field">
+            <label>Phone Number${n===1?' <span class="req">*</span>':''}</label>
+            <input type="tel" id="d${n}phone" placeholder="(xxx) xxx-xxxx">
+            <span class="err-msg" id="d${n}phone-err">Required.</span>
+          </div>
+        </div>
+        <label class="taksis-toggle" id="taksis-toggle-${n}">
+          <input type="checkbox" id="d${n}taksis">
+          <div class="pill"></div>
+          <div class="taksis-text"><b>Taksis App</b> — I have it installed &nbsp;<span style="color:rgba(255,255,255,0.28);font-style:italic;">(optional)</span></div>
+        </label>
+      </div>
+    </div>`;
+  }
+
+  // Event delegation for taksis toggles
+  document.getElementById('driversList').addEventListener('click', e => {
+    const toggle = e.target.closest('.taksis-toggle');
+    if (!toggle) return;
+    // prevent double-firing when clicking the checkbox itself
+    if (e.target.tagName === 'INPUT') return;
+    e.preventDefault();
+    toggle.classList.toggle('on');
+    toggle.querySelector('input[type="checkbox"]').checked = toggle.classList.contains('on');
+  });
+
+  window.updateDrivers = () => {
+    const n = parseInt(document.getElementById('numDrivers').value) || 1;
+    const list = document.getElementById('driversList');
+    list.innerHTML = '';
+    for (let i = 1; i <= n; i++) list.innerHTML += driverHTML(i);
+  };
+
+  // Auto-render 1 driver on load
+  updateDrivers();
+
+  window.toggleTaksis = el => {
+    el.classList.toggle('on');
+    el.querySelector('input[type="checkbox"]').checked = el.classList.contains('on');
+  };
+
+  function reqField(id, errId) {
+    const el = document.getElementById(id);
+    if (!el) return true;
+    const empty = !el.value.trim();
+    el.classList.toggle('error', empty);
+    document.getElementById(errId).style.display = empty ? 'block' : 'none';
+    return !empty;
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 4000);
+  }
+
+  function setLoading(on) {
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = on;
+    document.getElementById('spinner').style.display = on ? 'block' : 'none';
+    document.getElementById('btnText').textContent = on ? 'Submitting...' : 'Submit Registration';
+  }
+
+  // Firestore REST helpers
+  function fsStr(v) { return { stringValue: v }; }
+  function fsBool(v) { return { booleanValue: v }; }
+  function fsArr(vals) { return { arrayValue: { values: vals } }; }
+  function fsMap(fields) { return { mapValue: { fields } }; }
+
+  async function fsPost(collection, fields) {
+    const res = await fetch(`${BASE}/${collection}?key=${FIREBASE_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields })
+    });
+    if (!res.ok) throw new Error((await res.json()).error?.message || `Error ${res.status}`);
+    return res.json();
+  }
+
+  window.submitForm = async () => {
+    let valid = true;
+    valid = reqField('plate', 'plate-err') && valid;
+
+    const nd = document.getElementById('numDrivers');
+    const ndErr = document.getElementById('numDrivers-err');
+    if (!nd.value) { nd.classList.add('error'); ndErr.style.display='block'; valid=false; }
+    else { nd.classList.remove('error'); ndErr.style.display='none'; }
+
+    const n = parseInt(nd.value) || 0;
+    if (n > 0) {
+      valid = reqField('d1name', 'd1name-err') && valid;
+      valid = reqField('d1phone', 'd1phone-err') && valid;
+      // Validate first + last name for driver 1
+      const d1name = document.getElementById('d1name');
+      if (d1name && d1name.value.trim().split(/\s+/).length < 2) {
+        d1name.classList.add('error');
+        document.getElementById('d1name-err').textContent = 'Please enter first and last name.';
+        document.getElementById('d1name-err').style.display = 'block';
+        valid = false;
+      }
+    }
+    if (!valid) return;
+
+    setLoading(true);
+
+    try {
+      // Build drivers array to embed directly in the pending doc
+      const drivers = [];
+      for (let i = 1; i <= n; i++) {
+        const nameEl   = document.getElementById(`d${i}name`);
+        const phoneEl  = document.getElementById(`d${i}phone`);
+        const taksisEl = document.getElementById(`d${i}taksis`);
+        if (!nameEl?.value.trim()) continue;
+        drivers.push(fsMap({
+          name:       fsStr(nameEl.value.trim()),
+          phone:      fsStr(phoneEl.value.trim()),
+          has_taksis: fsBool(taksisEl?.checked ?? false),
+        }));
+      }
+
+      // Create the pending_registrations doc
+      const plate = document.getElementById('plate').value.trim().toUpperCase();
+      const make  = document.getElementById('make').value.trim();
+      const model = document.getElementById('model').value.trim();
+      const color = document.getElementById('colorValue').value;
+
+      const carFields = {
+        church:       fsStr(CHURCH_ID),
+        license:      fsStr(plate),
+        drivers:      fsArr(drivers),
+        present:      fsBool(false),
+        status:       fsStr('pending'),
+      };
+      if (make)  carFields.make  = fsStr(make);
+      if (model) carFields.model = fsStr(model);
+      if (color) carFields.color = fsStr(color);
+
+      await fsPost('pending_registrations', carFields);
+
+      document.getElementById('formBody').style.display = 'none';
+      document.getElementById('successScreen').style.display = 'flex';
+
+    } catch (err) {
+      console.error(err);
+      showToast('Submission failed. Please try again.');
+      setLoading(false);
+    }
+  };
+</script>
+</body>
 </html>
