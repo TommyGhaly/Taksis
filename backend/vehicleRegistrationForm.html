@@ -3,9 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0a0c0f">
 <title>Vehicle Registration</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { background: #0a0c0f; color-scheme: dark; }
 
   :root {
     --accent: #3b9dff;
@@ -25,7 +28,8 @@
 
   body {
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    background: radial-gradient(1200px 600px at 50% -10%, #141922 0%, #0e1116 55%, #0a0c0f 100%);
+    background: #0a0c0f radial-gradient(1200px 600px at 50% -10%, #141922 0%, #0e1116 55%, #0a0c0f 100%) no-repeat;
+    background-attachment: fixed;
     min-height: 100vh;
     padding: 40px 16px 60px;
     color: var(--ink);
