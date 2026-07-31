@@ -1,42 +1,45 @@
 /**
- * Skeleton — pulsing placeholders that replace full-screen spinners.
+ * Skeleton — shimmer placeholders that replace full-screen spinners.
  *
  * A spinner tells the user "something is happening"; a skeleton tells them
  * *what* is coming and keeps the layout stable so content doesn't jump when it
  * lands. Use the presets at the bottom for the common shapes in this app.
  *
- * Every block fades in unison off ONE shared, natively-driven clock, so N blocks
- * cost exactly one animation — and it keeps running for as long as any skeleton is
- * mounted, however busy the JS thread gets. See the long note below for why it is
- * built the way it is; several simpler-looking approaches silently stop.
+ * Every block sweeps in step off ONE shared, natively-driven clock, and it keeps
+ * running for as long as any skeleton is mounted, however busy the JS thread gets.
+ * See the long note below for why it is built the way it is; several
+ * simpler-looking approaches silently stop or only appear to.
  */
-import React, { useEffect } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, StyleSheet, Animated, Easing, AppState } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 
 const BASE = "#1e1e1e";
-const PULSE_MS = 1300;
+const HIGHLIGHT = "rgba(255,255,255,0.07)";
+const SWEEP_MS = 1300;
 
 /**
  * ONE module-level clock drives every skeleton in the app, and it must keep
  * animating for as long as any skeleton is mounted — through the whole database
  * read — stopping only when the last one unmounts because real data is on screen.
  *
- * ── Why this is a pulse and not a sliding shimmer ──────────────────────────────
+ * ── The sweep geometry, which is where the visible bug was ────────────────────
  *
- * It used to translate a fixed 220pt gradient across each block, from `-220` to
- * `width + 220`, falling back to the *screen* width whenever `width` was a
- * percentage. Blocks clip their children, so on a ~163pt text line the gradient
- * spent ~54% of every cycle entirely outside the box and only ~20% with its bright
- * centre inside; a 48pt avatar was worse, ~10%. Travel distance also varied per
- * block while duration was fixed, so blocks moved at different pixel speeds and
- * never formed one coherent wave.
+ * It used to translate a *fixed* 220pt gradient from `-220` to `width + 220`, and
+ * `width` fell back to the whole SCREEN width whenever it was a percentage. Blocks
+ * clip their children, so on a ~163pt text line the gradient spent ~54% of every
+ * cycle entirely outside the box and only ~20% with its bright centre inside; a
+ * 48pt avatar was worse, ~10%. Travel distance also varied per block while duration
+ * was fixed, so blocks moved at different pixel speeds and never formed one wave.
  *
- * The result was an animation that ran perfectly and *looked* stopped — which is
- * why the symptom got reported as "runs once", "pulses 3 times" and "freezes" at
- * different times. Opacity is immune to that whole class of bug: it has no
- * geometry, so a 48pt avatar pulses identically to a full-width bar. It is also
- * cheaper — it drops a LinearGradient and an interpolation node per block (~24 of
- * each on a roster) for one shared node.
+ * That is an animation which runs perfectly and *looks* stopped — which is why the
+ * same defect got reported as "runs once", "pulses 3 times" and "freezes".
+ *
+ * The fix is to stop guessing: each block measures its own width, sizes the
+ * gradient to itself, and travels from `-w` to `+w`. Because the gradient is
+ * exactly as wide as the box, some part of it is inside the box for the *entire*
+ * cycle — no dark gap — and every block completes one pass per cycle regardless of
+ * size, so they all sweep in step.
  *
  * ── Why it is built this way ───────────────────────────────────────────────────
  *
@@ -91,63 +94,48 @@ const nativeDriverAvailable = (() => {
   }
 })();
 
-const pulse = new Animated.Value(0);
-
-/**
- * The one animated node every block's opacity reads.
- *
- * The out-and-back is shaped HERE rather than with `Animated.sequence`, and that
- * is load-bearing: `sequence` reports `_isUsingNativeDriver: false`, so wrapping
- * one in `Animated.loop` would take the JS `restart()` path and reintroduce the
- * per-iteration JS callback of failure 4 above. A single linear timing looped
- * natively, with the ramp down and back up expressed as interpolation, keeps the
- * whole thing on the UI thread.
- *
- * The midpoints approximate a sine breathe; two points alone give a mechanical
- * linear triangle.
- */
-const pulseOpacity = pulse.interpolate({
-  inputRange: [0, 0.25, 0.5, 0.75, 1],
-  outputRange: [1, 0.78, 0.45, 0.78, 1],
-});
+// A plain 0→1 sawtooth. Each block interpolates it into its own pixel range.
+const shimmer = new Animated.Value(0);
 
 let liveSkeletons = 0;
 let running = false;
-let currentPulse = null;
+let currentSweep = null;
 let stopTimer = null;
 
-function startPulse() {
+function startSweep() {
   if (!running) return;
 
   // Starting a new animation on a value implicitly stops the previous one, but
   // being explicit keeps the AppState re-arm below from ever leaving two loops
-  // contending for `pulse`.
-  if (currentPulse) {
-    currentPulse.stop();
-    currentPulse = null;
+  // contending for `shimmer`.
+  if (currentSweep) {
+    currentSweep.stop();
+    currentSweep = null;
   }
-  pulse.setValue(0);
+  shimmer.setValue(0);
 
-  const timing = Animated.timing(pulse, {
+  const timing = Animated.timing(shimmer, {
     toValue: 1,
-    duration: PULSE_MS,
+    duration: SWEEP_MS,
     easing: Easing.linear,
     useNativeDriver: true,
   });
 
   if (nativeDriverAvailable) {
     // One infinite animation, looped natively. No JS callback per iteration, so a
-    // blocked JS thread cannot stall it.
-    currentPulse = Animated.loop(timing, { iterations: -1 });
-    currentPulse.start();
+    // blocked JS thread cannot stall it. Note this must be a bare `timing` —
+    // `Animated.sequence` reports `_isUsingNativeDriver: false`, which would send
+    // `loop` down its JS `restart()` path and reintroduce failure 4.
+    currentSweep = Animated.loop(timing, { iterations: -1 });
+    currentSweep.start();
     return;
   }
 
-  currentPulse = timing;
-  currentPulse.start(({ finished }) => {
+  currentSweep = timing;
+  currentSweep.start(({ finished }) => {
     // `finished` is false when something stopped us (unmount, backgrounding),
     // which is the only way this loop is allowed to end.
-    if (finished && running) startPulse();
+    if (finished && running) startSweep();
   });
 }
 
@@ -158,9 +146,9 @@ function ensureRunning() {
     clearTimeout(stopTimer);
     stopTimer = null;
   }
-  if (running && currentPulse) return;
+  if (running && currentSweep) return;
   running = true;
-  startPulse();
+  startSweep();
 }
 
 function scheduleStop() {
@@ -169,16 +157,16 @@ function scheduleStop() {
   // reaches zero. Stopping keeps us from burning frames with nothing on screen.
   stopTimer = setTimeout(() => {
     stopTimer = null;
-    // The guard that makes the pulse last exactly as long as the read: it only
+    // The guard that makes the sweep last exactly as long as the read: it only
     // stops once nothing is mounted, i.e. real data has replaced every skeleton.
     if (liveSkeletons > 0) return;
     running = false;
-    if (currentPulse) {
-      currentPulse.stop();
-      currentPulse = null;
+    if (currentSweep) {
+      currentSweep.stop();
+      currentSweep = null;
     }
-    // Leave the value bright so a skeleton mounting later doesn't flash from dim.
-    pulse.setValue(0);
+    // Reset so a skeleton mounting later starts its sweep from the left edge.
+    shimmer.setValue(0);
   }, 0);
 }
 
@@ -187,7 +175,7 @@ function scheduleStop() {
 AppState.addEventListener("change", (state) => {
   if (state === "active" && liveSkeletons > 0) {
     running = true;
-    startPulse();
+    startSweep();
   }
 });
 
@@ -205,7 +193,7 @@ function useShimmer() {
   useEffect(() => {
     liveSkeletons += 1;
     // Called on every mount, not just the first: any block appearing is enough to
-    // guarantee the pulse is running, so no missed start can leave a skeleton
+    // guarantee the sweep is running, so no missed start can leave a skeleton
     // sitting frozen.
     ensureRunning();
     return () => {
@@ -214,14 +202,19 @@ function useShimmer() {
     };
   }, []);
 
-  return pulseOpacity;
+  return shimmer;
 }
 
 /**
- * A single pulsing block. Everything else is composed from this.
+ * A single shimmering block. Everything else is composed from this.
  *
- * No per-block interpolation and no gradient child: every block reads the one
- * shared `pulseOpacity` node, so N blocks cost exactly one animation.
+ * The block measures itself rather than being told its width, because the old
+ * guess (`typeof width === "number" ? width : SCREEN_W`) was the whole bug: a
+ * percentage-width block was handed the screen width and its gradient spent most
+ * of each cycle outside the clipped box.
+ *
+ * A numeric width is used immediately so fixed-size blocks (avatars, cards) never
+ * wait on layout; percentage widths shimmer from the first `onLayout`.
  */
 export const SkeletonBlock = React.memo(({
   width = "100%",
@@ -229,16 +222,51 @@ export const SkeletonBlock = React.memo(({
   radius = 8,
   style,
 }) => {
-  const opacity = useShimmer();
+  const progress = useShimmer();
+  const [measured, setMeasured] = useState(
+    typeof width === "number" ? width : 0
+  );
+
+  const onLayout = useCallback((e) => {
+    const w = Math.round(e.nativeEvent.layout.width);
+    if (w > 0) setMeasured((prev) => (prev === w ? prev : w));
+  }, []);
+
+  // Gradient is exactly as wide as the box and travels from `-w` to `+w`, so part
+  // of it is always inside the box — a continuous sweep with no dark gap, and one
+  // full pass per cycle for every block whatever its size.
+  const translateX = useMemo(
+    () =>
+      measured > 0
+        ? progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [-measured, measured],
+          })
+        : null,
+    [progress, measured]
+  );
 
   return (
-    <Animated.View
+    <View
+      onLayout={onLayout}
       style={[
-        { width, height, borderRadius: radius, backgroundColor: BASE },
+        { width, height, borderRadius: radius, backgroundColor: BASE, overflow: "hidden" },
         style,
-        { opacity },
       ]}
-    />
+    >
+      {translateX && (
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { transform: [{ translateX }] }]}
+        >
+          <LinearGradient
+            colors={["transparent", HIGHLIGHT, "transparent"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{ width: measured, height: "100%" }}
+          />
+        </Animated.View>
+      )}
+    </View>
   );
 });
 SkeletonBlock.displayName = "SkeletonBlock";
