@@ -402,8 +402,32 @@ const SundaySchoolAttendance = () => {
   const pendingGrades = useRef({});
   const flushScheduled = useRef(false);
 
+  // ── What keeps the skeleton up until the content is actually there ───────────
+  //
+  // `loading` used to be cleared by the first flush, i.e. by whichever grade's
+  // snapshot happened to arrive first. A servant assigned to 16 grades therefore
+  // lost the skeleton after grade 1 and watched the other 15 pop in behind an
+  // already-rendered screen. That is the "animation only runs until the screen is
+  // rendered" problem — the animation was fine, the skeleton was leaving early.
+  //
+  // Now every source has to report once before the skeleton comes down: each
+  // assigned grade, plus the servants roster.
+  const expectedGrades = useRef(0);
+  const reportedGrades = useRef(new Set());
+  const servantsReported = useRef(false);
+
+  const maybeFinishLoading = useCallback(() => {
+    if (!isMounted.current) return;
+    if (reportedGrades.current.size < expectedGrades.current) return;
+    if (!servantsReported.current) return;
+    setLoading(false);
+  }, []);
+
   const queueGradeUpdate = useCallback((grade, students) => {
     pendingGrades.current[grade] = students;
+    // Counted here rather than in the flush so an error path can mark a grade
+    // reported without having any students to apply.
+    reportedGrades.current.add(grade);
     if (flushScheduled.current) return;
     flushScheduled.current = true;
 
@@ -413,10 +437,9 @@ const SundaySchoolAttendance = () => {
       pendingGrades.current = {};
       if (!isMounted.current) return;
       setStudentsByGrade((prev) => ({ ...prev, ...batch }));
-      // Real rows are on screen — only now drop the skeleton.
-      setLoading(false);
+      maybeFinishLoading();
     }, 0);
-  }, []);
+  }, [maybeFinishLoading]);
 
   useEffect(() => {
     if (!userData?.church || !userData?.ssGrades?.length) {
@@ -437,6 +460,9 @@ const SundaySchoolAttendance = () => {
     });
     studentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
     studentUnsubscribes.current = [];
+    // Reset the tally for this set of grades before attaching listeners.
+    expectedGrades.current = userData.ssGrades.length;
+    reportedGrades.current = new Set();
     const newUnsubscribes = userData.ssGrades.map((grade) => {
       const cacheKey = `students_${user.uid}_${grade}`;
       cacheKeys.current.students[grade] = cacheKey;
@@ -461,10 +487,12 @@ const SundaySchoolAttendance = () => {
             CacheUtils.set(cacheKey, students);
           },
           (error) => {
-            if (isMounted.current) {
-              setLoading(false);
-              Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
-            }
+            if (!isMounted.current) return;
+            // Count the failure as reported, otherwise one unreadable grade would
+            // hold the skeleton up forever waiting on a snapshot that won't come.
+            reportedGrades.current.add(grade);
+            maybeFinishLoading();
+            Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
           }
         );
     });
@@ -473,14 +501,17 @@ const SundaySchoolAttendance = () => {
       studentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
       studentUnsubscribes.current = [];
     };
-  }, [userData?.church, userData?.ssGrades?.join(","), queueGradeUpdate]);
+  }, [userData?.church, userData?.ssGrades?.join(","), queueGradeUpdate, maybeFinishLoading]);
 
   useEffect(() => {
     if (!userData?.church || !userData?.ssGrades?.length || !user) {
       setServants([]);
       setUserGrades([]);
+      // No servants listener is attaching, so nothing should wait on one.
+      servantsReported.current = true;
       return;
     }
+    servantsReported.current = false;
     const gradeFields = ["preSchoolAge3", "preSchoolAge4", "kindergarten", "college"];
     for (let i = 1; i <= 12; i++) gradeFields.push(i.toString());
     const unsubscribe = firestore()
@@ -521,21 +552,28 @@ const SundaySchoolAttendance = () => {
             setServants(servantsWithSharedGrades);
             // Adopt any photoURL already on these docs — no Storage request.
             avatarCache.primeMany(servantsWithSharedGrades);
-            await CacheUtils.set(cacheKeys.current.servants, servantsWithSharedGrades);
+            CacheUtils.set(cacheKeys.current.servants, servantsWithSharedGrades);
           } catch (error) {
             console.error("Error processing servants:", error);
             setServants([]);
+          } finally {
+            // `finally` because the try above has several early returns; the
+            // skeleton must come down on every one of them, not just the happy path.
+            servantsReported.current = true;
+            maybeFinishLoading();
           }
         },
         (error) => {
           if (isMounted.current) {
             console.error("Error fetching servants:", error);
             setServants([]);
+            servantsReported.current = true;
+            maybeFinishLoading();
           }
         }
       );
     return () => unsubscribe();
-  }, [userData?.church, userData?.ssGrades?.join(","), user]);
+  }, [userData?.church, userData?.ssGrades?.join(","), user, maybeFinishLoading]);
 
   const generatePreviousSundays = async () => {
     const today = new Date();

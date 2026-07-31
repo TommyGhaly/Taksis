@@ -380,8 +380,27 @@ const AlhanAttendance = () => {
   const pendingGrades = useRef({});
   const flushScheduled = useRef(false);
 
+  // ── What keeps the skeleton up until the content is actually there ───────────
+  //
+  // `loading` used to be cleared by the first flush, i.e. by whichever grade's
+  // snapshot happened to arrive first. A teacher assigned to 16 grades therefore
+  // lost the skeleton after grade 1 and watched the other 15 pop in behind an
+  // already-rendered screen. That is the "animation only runs until the screen is
+  // rendered" problem — the animation was fine, the skeleton was leaving early.
+  const expectedGrades = useRef(0);
+  const reportedGrades = useRef(new Set());
+
+  const maybeFinishLoading = useCallback(() => {
+    if (!isMounted.current) return;
+    if (reportedGrades.current.size < expectedGrades.current) return;
+    setLoading(false);
+  }, []);
+
   const queueGradeUpdate = useCallback((grade, students) => {
     pendingGrades.current[grade] = students;
+    // Counted here rather than in the flush so an error path can mark a grade
+    // reported without having any students to apply.
+    reportedGrades.current.add(grade);
     if (flushScheduled.current) return;
     flushScheduled.current = true;
 
@@ -391,10 +410,9 @@ const AlhanAttendance = () => {
       pendingGrades.current = {};
       if (!isMounted.current) return;
       setStudentsByGrade((prev) => ({ ...prev, ...batch }));
-      // Real rows are on screen — only now drop the skeleton.
-      setLoading(false);
+      maybeFinishLoading();
     }, 0);
-  }, []);
+  }, [maybeFinishLoading]);
 
   useEffect(() => {
     if (!userData?.church || !userData?.alhanGrades?.length) {
@@ -415,6 +433,9 @@ const AlhanAttendance = () => {
     });
     studentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
     studentUnsubscribes.current = [];
+    // Reset the tally for this set of grades before attaching listeners.
+    expectedGrades.current = userData.alhanGrades.length;
+    reportedGrades.current = new Set();
     const newUnsubscribes = userData.alhanGrades.map((grade) => {
       const cacheKey = `alhan_students_${user.uid}_${grade}`;
       cacheKeys.current.students[grade] = cacheKey;
@@ -439,10 +460,12 @@ const AlhanAttendance = () => {
             CacheUtils.set(cacheKey, students);
           },
           (error) => {
-            if (isMounted.current) {
-              setLoading(false);
-              Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
-            }
+            if (!isMounted.current) return;
+            // Count the failure as reported, otherwise one unreadable grade would
+            // hold the skeleton up forever waiting on a snapshot that won't come.
+            reportedGrades.current.add(grade);
+            maybeFinishLoading();
+            Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
           }
         );
     });
@@ -451,7 +474,7 @@ const AlhanAttendance = () => {
       studentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
       studentUnsubscribes.current = [];
     };
-  }, [userData?.church, userData?.alhanGrades?.join(","), queueGradeUpdate]);
+  }, [userData?.church, userData?.alhanGrades?.join(","), queueGradeUpdate, maybeFinishLoading]);
 
   const generatePreviousSaturdays = async () => {
     const today = new Date();
