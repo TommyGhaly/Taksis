@@ -24,8 +24,9 @@ import PhotoInput from "../../components/photoInput";
 import Avatar from "../../components/Avatar";
 import AlphabetIndexBar from "../../components/AlphabetIndexBar";
 import SkeletonScreen from "../../components/Skeleton";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as avatarCache from "../../utils/avatarCache";
+import { LIST_PERF, REMOVE_CLIPPED_ANDROID_ONLY } from "../../utils/listConfig";
+import { makeScreenCache } from "../../utils/screenCache";
 import useAfterInteractions from "../../hooks/useAfterInteractions";
 
 const hapticOptions = {
@@ -33,44 +34,7 @@ const hapticOptions = {
   ignoreAndroidSystemSettings: false,
 };
 
-const CacheUtils = {
-  async get(key) {
-    try {
-      const cached = await AsyncStorage.getItem(key);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.timestamp < 72 * 60 * 60 * 1000) {
-          return parsed.data;
-        }
-      }
-    } catch (error) {
-      console.log("Cache read error:", error);
-    }
-    return null;
-  },
-
-  async set(key, data) {
-    try {
-      await AsyncStorage.setItem(
-        key,
-        JSON.stringify({
-          data,
-          timestamp: Date.now(),
-        })
-      );
-    } catch (error) {
-      console.log("Cache write error:", error);
-    }
-  },
-
-  async remove(key) {
-    try {
-      await AsyncStorage.removeItem(key);
-    } catch (error) {
-      console.log("Cache remove error:", error);
-    }
-  },
-};
+const CacheUtils = makeScreenCache();
 
 const { width, height } = Dimensions.get("window");
 const isTablet = Platform.isPad || (width >= 768 && height >= 768);
@@ -165,6 +129,26 @@ const AdminManager = () => {
   const usersUnsubscribe = useRef(null);
   // The church the roster listener is currently attached to.
   const attachedChurch = useRef(null);
+  /**
+   * Incremental roster index: id -> { item, key }.
+   *
+   * This listener is deliberately unscoped — it reads users across every church,
+   * which is the capability this screen exists to provide. The cost of that is
+   * churn: `onSnapshot` hands the callback the *full* `querySnapshot.docs` on every
+   * delivery, so a single unrelated write anywhere (an FCM token refresh, a
+   * `lastServe` bump from schedule generation, a photo upload in another church)
+   * used to re-map and re-sort every user on the device.
+   *
+   * `docChanges()` reports only what actually changed, so steady-state cost drops
+   * from n `doc.data()` deserializations to 1 — and each of those property reads
+   * goes through @react-native-firebase's deprecation Proxy, so touching each doc
+   * exactly once is the whole game. The first snapshot reports every doc as
+   * "added", so cold-start behavior is unchanged.
+   */
+  const rosterRef = useRef(new Map());
+  // Whether the roster listener has delivered at least once, so an empty
+  // collection still drops the skeleton instead of waiting forever.
+  const rosterDelivered = useRef(false);
   const cacheKeys = useRef({
     church: null,
     users: null,
@@ -263,7 +247,7 @@ const AdminManager = () => {
           if (doc.exists) {
             const userChurch = doc.data().church || null;
             setChurch(userChurch);
-            await CacheUtils.set(cacheKeys.current.church, userChurch);
+            CacheUtils.set(cacheKeys.current.church, userChurch);
 
             // Only re-attach when the church actually changed. Re-attaching on
             // every write to your own user doc tore down the roster listener and
@@ -293,52 +277,65 @@ const AdminManager = () => {
 
   const setupUsersListener = (churchId) => {
     if (usersUnsubscribe.current) usersUnsubscribe.current();
+    // Re-attaching produces a fresh snapshot reporting every doc as "added", so the
+    // index has to start empty or removed users would linger.
+    rosterRef.current = new Map();
+    rosterDelivered.current = false;
 
+    // Note: deliberately no `.orderBy("name")`. Firestore omits documents that lack
+    // the ordered field, and this roster is expected to contain users with no name
+    // (hence the `?? ""` below) — ordering server-side would silently hide them.
     usersUnsubscribe.current = firestore()
       .collection("users")
       .onSnapshot(
-        async (querySnapshot) => {
+        (querySnapshot) => {
           if (!isMounted.current) return;
 
-          // One pass, one doc.data() per doc.
-          //
-          // This used to end with a third .map that re-derived `name` via
-          // `querySnapshot.docs.find(...)?.data().name` — a full linear scan plus
-          // another native->JS deserialization for every user, i.e. O(n²) work to
-          // produce a value that was already present. It was dead code: the
-          // `...doc.data()` spread below already sets `name`, so the pass was a
-          // no-op. At a few hundred users it cost seconds on the JS thread and
-          // was the bulk of the "VirtualizedList slow to update" stall.
-          // The sort key is computed once per doc rather than inside the
-          // comparator — a comparator that builds strings runs O(n log n) times
-          // (~35k for a few thousand users), and each `doc` property read goes
-          // through @react-native-firebase's deprecation Proxy, so touching each
-          // one exactly once matters.
-          const userList = querySnapshot.docs
-            .map((doc) => {
-              const data = doc.data();
-              // String() keeps the comparator total — a non-string `name` (e.g.
-              // a number entered via DatabaseManager) used to reach
-              // .toLowerCase() and throw, killing the whole snapshot handler.
-              const name = String(data.name ?? "");
-              const id = doc.id;
-              return { item: { ...data, id, name }, key: name.trim().toLowerCase(), id };
-            })
+          const changes = querySnapshot.docChanges();
+          const firstDelivery = !rosterDelivered.current;
+          rosterDelivered.current = true;
+          // Nothing changed and the list is already on screen: skip the sort and,
+          // more importantly, don't hand SectionList a new array identity.
+          if (!firstDelivery && changes.length === 0) return;
+
+          const roster = rosterRef.current;
+          const touched = [];
+
+          for (const change of changes) {
+            const id = change.doc.id;
+            if (change.type === "removed") {
+              roster.delete(id);
+              continue;
+            }
+            const data = change.doc.data();
+            // String() keeps the comparator total — a non-string `name` (e.g. a
+            // number entered via DatabaseManager) used to reach .toLowerCase() and
+            // throw, killing the whole snapshot handler.
+            const name = String(data.name ?? "");
+            const item = { ...data, id, name };
+            // Sort key precomputed once per doc rather than built inside the
+            // comparator, which runs O(n log n) times.
+            roster.set(id, { item, key: name.trim().toLowerCase() });
+            touched.push(item);
+          }
+
+          const userList = Array.from(roster.values())
             .sort(
               (a, b) =>
                 a.key.localeCompare(b.key) ||
-                (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+                (a.item.id < b.item.id ? -1 : a.item.id > b.item.id ? 1 : 0)
             )
             .map((entry) => entry.item);
 
           setUsers(userList);
-          // These docs already carry photoURL, so priming the avatar cache
-          // here costs no extra requests and replaces the old per-user
-          // getDownloadURL() fan-out plus its 30s refetch timer.
-          avatarCache.primeMany(userList);
+          // These docs already carry photoURL, so priming the avatar cache here
+          // costs no extra requests and replaces the old per-user
+          // getDownloadURL() fan-out plus its 30s refetch timer. Only the changed
+          // docs need priming — the rest are already in the cache.
+          if (touched.length > 0) avatarCache.primeMany(touched);
           // Real data is on screen — only now drop the skeleton.
           setLoading(false);
-          await CacheUtils.set(cacheKeys.current.users, userList);
+          CacheUtils.set(cacheKeys.current.users, userList);
         },
         () => {
           if (isMounted.current) {
@@ -380,6 +377,10 @@ const AdminManager = () => {
       })
       .map((letter) => ({ title: letter, data: grouped[letter] }));
   }, [users, searchQuery]);
+
+  // AlphabetIndexBar takes this as an array prop, so building it inline in the JSX
+  // handed it a new identity on every render and defeated its memoization.
+  const availableLetters = useMemo(() => sections.map((s) => s.title), [sections]);
 
   const handleRemovePhoto = async () => {
     if (!selectedUser?.id) return;
@@ -527,10 +528,10 @@ const AdminManager = () => {
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
-            initialNumToRender={10}
-            maxToRenderPerBatch={10}
-            windowSize={7}
-            removeClippedSubviews={true}
+            {...LIST_PERF}
+            // Android only: on iOS this blanked rows once the list was scrolled
+            // past a screen or two. See utils/listConfig.js.
+            removeClippedSubviews={REMOVE_CLIPPED_ANDROID_ONLY}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
             onScrollToIndexFailed={() => {}}
@@ -539,7 +540,7 @@ const AdminManager = () => {
             <View style={styles.alphabetBarContainer}>
               <AlphabetIndexBar
                 onLetterChange={scrollToSection}
-                availableLetters={sections.map((s) => s.title)}
+                availableLetters={availableLetters}
               />
             </View>
           )}

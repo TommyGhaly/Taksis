@@ -8,13 +8,14 @@
  *   2. ALL children from ANY user doc where church === churchId
  */
 
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   View, Text, TouchableOpacity, Modal, FlatList,
   ActivityIndicator, StyleSheet, Dimensions,
 } from "react-native";
 import firestore from "@react-native-firebase/firestore";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { LIST_PERF } from "../utils/listConfig";
 
 const { height: SH } = Dimensions.get("window");
 
@@ -214,11 +215,26 @@ const P = { SCAN: 0, LIST: 1, SCHED: 2, DONE: 3 };
 
 // ── Row ──────────────────────────────────────────────────────────────────────
 
-const Row = ({ name, action, color }) => (
+const Row = React.memo(({ name, action, color }) => (
   <View style={st.row}>
     <View style={[st.dot, { backgroundColor: color }]} />
     <Text style={st.rowName} numberOfLines={1}>{name}</Text>
     <Text style={[st.rowTag, { color }]} numberOfLines={2}>{action}</Text>
+  </View>
+));
+Row.displayName = "Row";
+
+// Hoisted: as inline `ItemSeparatorComponent={() => …}` / `renderItem={…}` props
+// these were a new component identity on every render, which remounted every
+// separator and defeated the memo on Row above.
+const Separator = () => <View style={st.sep} />;
+const renderDiffRow = ({ item }) => (
+  <Row name={item.n} action={item.a} color={item.c} />
+);
+const renderLogRow = ({ item }) => (
+  <View style={st.logRow}>
+    <Text style={st.logBullet}>•</Text>
+    <Text style={st.logText}>{item}</Text>
   </View>
 );
 
@@ -345,6 +361,36 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
   const lc = listDiff ? listDiff.toAdd.length + listDiff.toRemove.length + listDiff.stale.length : 0;
   const sc = cs ? cs.unknowns.length + cs.missing.length : 0;
 
+  // Both of these used to be built inline as the FlatList `data` prop, so the
+  // list's data identity changed on every render — every keystroke of unrelated
+  // state re-rendered every row.
+  const listRows = useMemo(() => {
+    if (!listDiff) return [];
+    return [
+      ...listDiff.toAdd.map((u) => ({ k: u.uid, n: u.name, a: "Add", c: "#30d158" })),
+      ...listDiff.toRemove.map((d) => ({ k: d.uid, n: d.name, a: "Remove", c: "#ff453a" })),
+      ...listDiff.stale.map((s) => ({
+        k: `s-${s.uid}`,
+        n: s.name,
+        a: s.fields.map((f) => `${f.field}: ${f.from} → ${f.to}`).join(", "),
+        c: "#ff9f0a",
+      })),
+    ];
+  }, [listDiff]);
+
+  const schedRows = useMemo(() => {
+    if (!cs) return [];
+    return [
+      ...cs.unknowns.map((u, i) => ({
+        k: `u${u.uid}${i}`,
+        n: u.name || "N/A",
+        a: u.uid ? "Replace UID" : "Generate UID",
+        c: "#ff9f0a",
+      })),
+      ...cs.missing.map((m) => ({ k: `m${m.uid}`, n: m.name, a: "→ Extras", c: "#30d158" })),
+    ];
+  }, [cs]);
+
   return (
     <Modal visible animationType="fade" transparent onRequestClose={close}>
       <View style={st.backdrop}>
@@ -372,17 +418,14 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
               </View>
 
               <FlatList
-                data={[
-                  ...listDiff.toAdd.map(u => ({ k: u.uid, n: u.name, a: "Add", c: "#30d158" })),
-                  ...listDiff.toRemove.map(d => ({ k: d.uid, n: d.name, a: "Remove", c: "#ff453a" })),
-                  ...listDiff.stale.map(s => ({ k: `s-${s.uid}`, n: s.name, a: s.fields.map(f => `${f.field}: ${f.from} → ${f.to}`).join(", "), c: "#ff9f0a" })),
-                ]}
+                {...LIST_PERF}
+                data={listRows}
                 keyExtractor={i => i.k}
-                renderItem={({ item }) => <Row name={item.n} action={item.a} color={item.c} />}
+                renderItem={renderDiffRow}
                 style={st.list}
                 contentContainerStyle={st.listContent}
                 showsVerticalScrollIndicator={false}
-                ItemSeparatorComponent={() => <View style={st.sep} />}
+                ItemSeparatorComponent={Separator}
               />
 
               {error && <Text style={st.err}>{error}</Text>}
@@ -409,21 +452,14 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
               </View>
 
               <FlatList
-                data={[
-                  ...cs.unknowns.map((u, i) => ({
-                    k: `u${u.uid}${i}`,
-                    n: u.name || "N/A",
-                    a: u.uid ? "Replace UID" : "Generate UID",
-                    c: "#ff9f0a",
-                  })),
-                  ...cs.missing.map(m => ({ k: `m${m.uid}`, n: m.name, a: "→ Extras", c: "#30d158" })),
-                ]}
+                {...LIST_PERF}
+                data={schedRows}
                 keyExtractor={i => i.k}
-                renderItem={({ item }) => <Row name={item.n} action={item.a} color={item.c} />}
+                renderItem={renderDiffRow}
                 style={st.list}
                 contentContainerStyle={st.listContent}
                 showsVerticalScrollIndicator={false}
-                ItemSeparatorComponent={() => <View style={st.sep} />}
+                ItemSeparatorComponent={Separator}
               />
 
               {error && <Text style={st.err}>{error}</Text>}
@@ -457,16 +493,14 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
 
                 {log.length > 0 && (
                   <FlatList
+                    {...LIST_PERF}
                     data={log}
+                    // Append-only log: the index is stable for a given entry, and
+                    // entries are never reordered or removed.
                     keyExtractor={(_, i) => String(i)}
                     style={st.logList}
                     showsVerticalScrollIndicator={false}
-                    renderItem={({ item }) => (
-                      <View style={st.logRow}>
-                        <Text style={st.logBullet}>•</Text>
-                        <Text style={st.logText}>{item}</Text>
-                      </View>
-                    )}
+                    renderItem={renderLogRow}
                   />
                 )}
 

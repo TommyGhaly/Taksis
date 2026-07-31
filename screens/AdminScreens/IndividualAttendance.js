@@ -24,6 +24,58 @@ import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import Avatar from "../../components/Avatar";
 import SkeletonScreen from "../../components/Skeleton";
 import * as avatarCache from "../../utils/avatarCache";
+import { LIST_PERF } from "../../utils/listConfig";
+import {
+  isAttendanceDateKey,
+  dateKeyToSortable,
+} from "../../utils/dateKeys";
+
+// Hoisted out of the render body: this was `Dimensions.get("window")` on every
+// render, and the values it derives never change for the life of the screen.
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const IS_TABLET = SCREEN_WIDTH >= 768;
+const CONTAINER_WIDTH = IS_TABLET
+  ? { maxWidth: 600, alignSelf: "center", width: "100%" }
+  : { width: "100%" };
+
+/**
+ * One attendance record: date on the left, status pill on the right.
+ *
+ * This was an inline `renderItem` closure with no memo, so every parent render
+ * rebuilt every mounted cell. See the note at
+ * screens/SundaySchool/SundaySchoolAttendance.js:94 for why VirtualizedList makes
+ * that so expensive — its CellRenderer is not memoized against parent re-renders.
+ */
+const AttendanceHistoryRow = React.memo(({ date, status }) => (
+  <View style={styles.attendanceItem}>
+    <Text style={styles.dateText}>{date}</Text>
+    <View
+      style={[
+        styles.statusContainer,
+        status === false ? styles.absent : styles.present,
+      ]}
+    >
+      <Text style={styles.statusText}>
+        {status === false ? "Absent" : status === true ? "Present" : "No Status"}
+      </Text>
+    </View>
+  </View>
+));
+AttendanceHistoryRow.displayName = "AttendanceHistoryRow";
+
+// Module-level so the props keep a stable identity across renders.
+const renderAttendanceRow = ({ item }) => (
+  <AttendanceHistoryRow date={item.date} status={item.status} />
+);
+const attendanceKeyExtractor = (item) => item.date;
+const EmptyAttendance = () => (
+  <View style={styles.noAttendanceContainer}>
+    <Text style={styles.noAttendanceText}>No attendance records available.</Text>
+    <Text style={styles.noAttendanceSubtext}>
+      Attendance will appear here once recorded.
+    </Text>
+  </View>
+);
 
 const IndividualAttendance = () => {
   const navigation = useNavigation();
@@ -54,7 +106,10 @@ const IndividualAttendance = () => {
   const loadedStudentId = useRef(null);
 
   // Get available grades for transfer (exclude current grade)
-  const availableGrades = userGrades ? userGrades.filter(g => g !== grade) : [];
+  const availableGrades = React.useMemo(
+    () => (userGrades ? userGrades.filter((g) => g !== grade) : []),
+    [userGrades, grade]
+  );
 
 
   useFocusEffect(
@@ -147,30 +202,28 @@ const IndividualAttendance = () => {
     }, [church, category, grade, studentId, navigation])
   );
 
-  // Compute attendance data
+  /**
+   * Attendance rows, newest first.
+   *
+   * Entries are picked by matching the MM-DD-YYYY key shape, not by excluding a
+   * list of known metadata field names. The exclusion list only knew about seven
+   * fields, so anything else on the document — `photoURL`, `createdAt`, or any
+   * field an admin adds through DatabaseManager — became a bogus attendance row,
+   * and then reached the comparator as NaN, which made the ordering of the *real*
+   * rows arbitrary too. The sibling screen already did it this way.
+   *
+   * Sorting is on an integer key; the old comparator allocated two Date objects
+   * per comparison.
+   */
   const attendanceDataMemo = React.useMemo(() => {
     if (!studentData || Object.keys(studentData).length === 0) return [];
     const attendance = [];
     for (const [key, value] of Object.entries(studentData)) {
-      if (
-        key !== "name" &&
-        key !== "uid" &&
-        key !== "phone" &&
-        key !== "address" &&
-        key !== "description" &&
-        key !== "birthday" &&
-        key !== "grade"
-      ) {
-        attendance.push({ date: key, status: value });
+      if (isAttendanceDateKey(key)) {
+        attendance.push({ date: key, status: value, sortKey: dateKeyToSortable(key) });
       }
     }
-    return attendance.sort((a, b) => {
-      const [aMonth, aDay, aYear] = a.date.split("-").map(Number);
-      const [bMonth, bDay, bYear] = b.date.split("-").map(Number);
-      return (
-        new Date(bYear, bMonth - 1, bDay) - new Date(aYear, aMonth - 1, aDay)
-      );
-    });
+    return attendance.sort((a, b) => b.sortKey - a.sortKey);
   }, [studentData]);
 
   // Handle remove photo
@@ -324,10 +377,6 @@ const IndividualAttendance = () => {
   };
 
   // Get status style
-  const getStatusStyle = (status) => {
-    return status === false ? styles.absent : styles.present;
-  };
-
   // Save edited student data
   const saveEdits = async () => {
     if (!editData.name.trim()) {
@@ -442,15 +491,9 @@ const IndividualAttendance = () => {
     );
   }
 
-  const screenWidth = Dimensions.get("window").width;
-  const isTablet = screenWidth >= 768;
-  const containerWidth = isTablet
-    ? { maxWidth: 600, alignSelf: "center", width: "100%" }
-    : { width: "100%" };
-
   return (
     <View style={styles.container}>
-      <View style={[styles.contentContainer, containerWidth]}>
+      <View style={[styles.contentContainer, CONTAINER_WIDTH]}>
         <View style={styles.buttonRow}>
           <BackArrow />
           <TouchableOpacity
@@ -478,34 +521,15 @@ const IndividualAttendance = () => {
           grade
         )} - Category: ${category}`}</Text>
         <FlatList
+          {...LIST_PERF}
           data={attendanceDataMemo}
-          keyExtractor={(item, index) => index.toString()}
-          renderItem={({ item }) => (
-            <View style={styles.attendanceItem}>
-              <Text style={styles.dateText}>{item.date}</Text>
-              <View
-                style={[styles.statusContainer, getStatusStyle(item.status)]}
-              >
-                <Text style={styles.statusText}>
-                  {item.status === false
-                    ? "Absent"
-                    : item.status === true
-                    ? "Present"
-                    : "No Status"}
-                </Text>
-              </View>
-            </View>
-          )}
-          ListEmptyComponent={
-            <View style={styles.noAttendanceContainer}>
-              <Text style={styles.noAttendanceText}>
-                No attendance records available.
-              </Text>
-              <Text style={styles.noAttendanceSubtext}>
-                Attendance will appear here once recorded.
-              </Text>
-            </View>
-          }
+          // `item.date` is the natural key and is unique per record. The old
+          // index-based extractor was actively wrong here: the list is sorted
+          // newest-first, so recording an attendance date reindexed every row and
+          // React reused the wrong cell for each one.
+          keyExtractor={attendanceKeyExtractor}
+          renderItem={renderAttendanceRow}
+          ListEmptyComponent={EmptyAttendance}
           contentContainerStyle={styles.attendanceContainer}
           showsVerticalScrollIndicator={false}
         />
@@ -526,7 +550,7 @@ const IndividualAttendance = () => {
         >
           <LinearGradient
             colors={["#1E1E1E", "#151515"]}
-            style={[styles.modalContent, containerWidth]}
+            style={[styles.modalContent, CONTAINER_WIDTH]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >

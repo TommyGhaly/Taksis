@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -23,6 +23,9 @@ import SkeletonScreen from "../../components/Skeleton";
 import { useAfterInteractions } from "../../hooks/useAfterInteractions";
 import ServerSelectionModal from "../../components/ServerSelectionModal";
 import * as avatarCache from "../../utils/avatarCache";
+import { LIST_PERF } from "../../utils/listConfig";
+import { longDateLabelWithYear, parseDateKey } from "../../utils/dateKeys";
+import { getDocsByIds } from "../../utils/firestoreBatch";
 
 const NOTIFICATION_URL =
   "https://us-central1-taksis-a8ba7.cloudfunctions.net/traffic_notification";
@@ -117,17 +120,34 @@ const generateWeeks = (startDate, count = 5) => {
   return weeks;
 };
 
+// Delegates to the cached label so `toLocaleDateString` doesn't run per row per
+// render; the two special-case strings are this screen's own and stay here.
 const formatWeekDisplay = (weekStr) => {
   if (!weekStr) return "Select Week";
-  const date = parseDate(weekStr, DATE_FORMATS.SCHEDULE);
-  if (!date) return "Invalid Date";
-  return date.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  if (!parseDateKey(weekStr)) return "Invalid Date";
+  return longDateLabelWithYear(weekStr);
 };
+
+/** One week in the picker. Label arrives precomputed and cached. */
+const WeekItemRow = React.memo(({ week, label, isSelected, isArchived, onPress }) => (
+  <TouchableOpacity
+    style={[styles.modalItemContainer, isSelected && styles.selectedWeekItem]}
+    onPress={() => onPress(week, isArchived)}
+    activeOpacity={0.7}
+  >
+    <View style={styles.weekItemContent}>
+      <Text style={[styles.modalItem, isSelected && styles.selectedWeekText]}>
+        {label}
+      </Text>
+      {isArchived && <Text style={styles.archivedLabel}>Archived</Text>}
+    </View>
+    {isSelected && <Text style={styles.checkmark}>✓</Text>}
+  </TouchableOpacity>
+));
+WeekItemRow.displayName = "WeekItemRow";
+
+const weekKeyExtractor = (item) => item;
+const WeekSeparator = () => <View style={styles.separator} />;
 
 const StatusBadge = ({ status, align = "left" }) => {
   if (!status || !STATUS_LABELS[status]) return null;
@@ -366,38 +386,45 @@ const EditSchedule = () => {
     };
   }, [churchId, selectedWeek, isViewingArchived]);
 
+  /**
+   * FCM tokens for the scheduled servants, falling back to a child's parent.
+   *
+   * Two chunked passes instead of up to 2n individual reads: one for the uids
+   * themselves, then one for whichever of them turned out to be child profiles
+   * pointing at a parent. Cost goes from 2n round-trips to
+   * ceil(n/30) + ceil(parents/30).
+   */
   const fetchDeaconTokens = async (uids) => {
     const tokens = {};
     const isChild = {};
-    await Promise.all(
-      uids.map(async (uid) => {
-        try {
-          const doc = await firestore().collection("users").doc(uid).get();
-          const data = doc.data();
 
-          // Check if user has their own tokens
-          if (data?.fcmTokens && Object.keys(data.fcmTokens).length > 0) {
-            tokens[uid] = data.fcmTokens;
-            isChild[uid] = false;
-          }
-          // If no tokens, check if they have a parent (child profile)
-          else if (data?.parent) {
-            const parentDoc = await firestore()
-              .collection("users")
-              .doc(data.parent)
-              .get();
-            const parentData = parentDoc.data();
-            if (
-              parentData?.fcmTokens &&
-              Object.keys(parentData.fcmTokens).length > 0
-            ) {
-              tokens[uid] = parentData.fcmTokens;
-              isChild[uid] = true;
-            }
-          }
-        } catch {}
-      }),
-    );
+    const docs = await getDocsByIds("users", uids);
+
+    // Collect the parents we still need before reading any of them.
+    const parentUidByChild = new Map();
+    docs.forEach((data, uid) => {
+      if (data?.fcmTokens && Object.keys(data.fcmTokens).length > 0) {
+        tokens[uid] = data.fcmTokens;
+        isChild[uid] = false;
+      } else if (data?.parent) {
+        parentUidByChild.set(uid, data.parent);
+      }
+    });
+
+    if (parentUidByChild.size > 0) {
+      const parents = await getDocsByIds(
+        "users",
+        Array.from(parentUidByChild.values())
+      );
+      parentUidByChild.forEach((parentUid, childUid) => {
+        const parentData = parents.get(parentUid);
+        if (parentData?.fcmTokens && Object.keys(parentData.fcmTokens).length > 0) {
+          tokens[childUid] = parentData.fcmTokens;
+          isChild[childUid] = true;
+        }
+      });
+    }
+
     setDeaconTokens(tokens);
     setDeaconIsChild(isChild);
   };
@@ -608,6 +635,22 @@ const EditSchedule = () => {
   };
 
   const displayedWeeks = showArchivedWeeks ? archivedWeeks : availableWeeks;
+
+  // Was an inline renderItem calling formatWeekDisplay — i.e. Intl's
+  // toLocaleDateString — for every mounted row on every render. The label is now
+  // cached per date in utils/dateKeys.js.
+  const renderWeekItem = useCallback(
+    ({ item }) => (
+      <WeekItemRow
+        week={item}
+        label={formatWeekDisplay(item)}
+        isSelected={selectedWeek === item && isViewingArchived === showArchivedWeeks}
+        isArchived={showArchivedWeeks}
+        onPress={handleWeekSelect}
+      />
+    ),
+    [selectedWeek, isViewingArchived, showArchivedWeeks, handleWeekSelect]
+  );
 
   if (!ready || !weeksLoaded) {
     return <SkeletonScreen variant="cards" count={8} />;
@@ -857,8 +900,9 @@ const EditSchedule = () => {
               </View>
 
               <FlatList
+                {...LIST_PERF}
                 data={displayedWeeks}
-                keyExtractor={(item) => item}
+                keyExtractor={weekKeyExtractor}
                 showsVerticalScrollIndicator={false}
                 ListEmptyComponent={() => (
                   <View style={styles.emptyListContainer}>
@@ -869,37 +913,8 @@ const EditSchedule = () => {
                     </Text>
                   </View>
                 )}
-                renderItem={({ item }) => {
-                  const isSelected =
-                    selectedWeek === item &&
-                    isViewingArchived === showArchivedWeeks;
-                  return (
-                    <TouchableOpacity
-                      style={[
-                        styles.modalItemContainer,
-                        isSelected && styles.selectedWeekItem,
-                      ]}
-                      onPress={() => handleWeekSelect(item, showArchivedWeeks)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.weekItemContent}>
-                        <Text
-                          style={[
-                            styles.modalItem,
-                            isSelected && styles.selectedWeekText,
-                          ]}
-                        >
-                          {formatWeekDisplay(item)}
-                        </Text>
-                        {showArchivedWeeks && (
-                          <Text style={styles.archivedLabel}>Archived</Text>
-                        )}
-                      </View>
-                      {isSelected && <Text style={styles.checkmark}>✓</Text>}
-                    </TouchableOpacity>
-                  );
-                }}
-                ItemSeparatorComponent={() => <View style={styles.separator} />}
+                renderItem={renderWeekItem}
+                ItemSeparatorComponent={WeekSeparator}
                 ListFooterComponent={() =>
                   archivedWeeks.length > 0 && !showArchivedWeeks ? (
                     <TouchableOpacity

@@ -17,6 +17,7 @@ import {
   KNOWN_COLLECTIONS, AUDIT_COLLECTION, BULK_HARD_CEILING,
   resolveCollectionNode, declaredSubcollectionsForDoc,
 } from '../../utils/databaseRegistry';
+import { LIST_PERF } from '../../utils/listConfig';
 // In-place expanding image (thumbnail that animates up to a larger preview).
 // Adjust this path to wherever ProfileImageExpander lives in your tree.
 import ProfileImageExpander from '../../components/ProfileImageExpander';
@@ -224,9 +225,24 @@ const iv = StyleSheet.create({
 
 const PREVIEW_DEPTH_LIMIT = 4;
 const PREVIEW_ITEM_LIMIT = 6;
+// Above this many entries, a collection starts collapsed behind "Show more".
+const PREVIEW_AUTOCOLLAPSE_SIZE = 8;
+
+/** Entry count for arrays and maps alike; 0 for scalars and null. */
+function collectionSize(value) {
+  if (Array.isArray(value)) return value.length;
+  if (value && typeof value === "object") return Object.keys(value).length;
+  return 0;
+}
 
 function RecursivePreview({ value, depth = 0, label = null }) {
-  const [expanded, setExpanded] = useState(!(Array.isArray(value) && value.length > 8) && depth < 2);
+  // The size test used to be `Array.isArray(value) && value.length > 8`, so only
+  // long *arrays* auto-collapsed. A map was never measured — which meant opening a
+  // document with a 300-key map rendered all 300 rows, nested, inside a plain
+  // ScrollView. Maps now collapse on the same threshold as arrays.
+  const [expanded, setExpanded] = useState(
+    () => collectionSize(value) <= PREVIEW_AUTOCOLLAPSE_SIZE && depth < 2
+  );
   const t = detectType(value);
 
   if (depth > PREVIEW_DEPTH_LIMIT) {
@@ -756,6 +772,58 @@ function RootList({ onPick, onPickStorage }) {
 
 // ── Collection view ───────────────────────────────────────────────────────────
 
+const docKeyExtractor = (d) => d.id;
+
+/**
+ * One document card in a collection listing.
+ *
+ * The key/preview derivation (Object.keys, filter, slice) runs in here rather than
+ * being hoisted, because it depends only on `item` — which is what the memo is
+ * keyed on, so it runs once per document rather than once per render.
+ */
+const DocCard = React.memo(({ item, isSelected, selectMode, onPress, onLongPress }) => {
+  const data = item.data || {};
+  const allKeys = Object.keys(data);
+  const hasName = typeof data.name === 'string' && data.name.trim().length > 0;
+  const heading = hasName ? data.name : item.id;
+  const previewKeys = allKeys.filter((k) => !(hasName && k === 'name')).slice(0, 3);
+  const hiddenCount = allKeys.length - previewKeys.length - (hasName ? 1 : 0);
+
+  return (
+    <TouchableOpacity
+      style={[styles.docCard, isSelected && styles.docCardSelected]}
+      onPress={() => onPress(item.id)}
+      onLongPress={() => onLongPress(item.id)}
+      activeOpacity={0.8}
+    >
+      {selectMode && (
+        <View style={[styles.checkbox, isSelected && styles.checkboxActive]}>
+          {isSelected && <Ionicons name="checkmark" size={14} color="#fff" />}
+        </View>
+      )}
+      <View style={styles.docCardBody}>
+        <Text style={styles.docHeading} numberOfLines={1}>{heading}</Text>
+        {hasName ? <Text style={styles.docIdCaption} numberOfLines={1}>{item.id}</Text> : null}
+        {allKeys.length === 0 ? (
+          <Text style={styles.docEmpty}>Empty document</Text>
+        ) : (
+          <View style={styles.docKvList}>
+            {previewKeys.map((k) => (
+              <View key={k} style={styles.docKvRow}>
+                <Text style={styles.docKvKey} numberOfLines={1}>{k}</Text>
+                <InlineValue value={data[k]} style={styles.docKvVal} />
+              </View>
+            ))}
+            {hiddenCount > 0 && <Text style={styles.docMore}>+{hiddenCount} more</Text>}
+          </View>
+        )}
+      </View>
+      {!selectMode && <Ionicons name="chevron-forward" size={16} color={C.t5} />}
+    </TouchableOpacity>
+  );
+});
+DocCard.displayName = "DocCard";
+
 function CollectionView({ collectionPath, label, onOpenDoc }) {
   const { node: config } = useMemo(() => resolveCollectionNode(collectionPath), [collectionPath]);
   const effectiveConfig = config || { path: collectionPath };
@@ -878,6 +946,32 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
   const toggleSelect = (id) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const selectAllVisible = () => setSelected(new Set(filtered.map((d) => d.id)));
 
+  const handleDocPress = useCallback((id) => {
+    if (selectMode) toggleSelect(id);
+    else onOpenDoc(`${collectionPath}/${id}`, id);
+  }, [selectMode, collectionPath, onOpenDoc]);
+
+  const handleDocLongPress = useCallback((id) => {
+    setSelectMode(true);
+    toggleSelect(id);
+  }, []);
+
+  // `docs` grows without bound as the user pages, so the row is memoized and the
+  // list is windowed — the previous inline renderItem rebuilt every mounted card
+  // (each doing Object.keys + filter + slice) on every render.
+  const renderDoc = useCallback(
+    ({ item }) => (
+      <DocCard
+        item={item}
+        isSelected={selected.has(item.id)}
+        selectMode={selectMode}
+        onPress={handleDocPress}
+        onLongPress={handleDocLongPress}
+      />
+    ),
+    [selected, selectMode, handleDocPress, handleDocLongPress]
+  );
+
   const runBulkDelete = () => {
     const ids = Array.from(selected);
     if (ids.length === 0) return;
@@ -973,53 +1067,13 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
       )}
 
       <FlatList
+        {...LIST_PERF}
         data={filtered}
-        keyExtractor={(d) => d.id}
+        keyExtractor={docKeyExtractor}
         contentContainerStyle={styles.docList}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
-        renderItem={({ item }) => {
-          const isSelected = selected.has(item.id);
-          const data = item.data || {};
-          const allKeys = Object.keys(data);
-          const hasName = typeof data.name === 'string' && data.name.trim().length > 0;
-          const heading = hasName ? data.name : item.id;
-          const previewKeys = allKeys.filter((k) => !(hasName && k === 'name')).slice(0, 3);
-          return (
-            <TouchableOpacity
-              style={[styles.docCard, isSelected && styles.docCardSelected]}
-              onPress={() => { if (selectMode) toggleSelect(item.id); else onOpenDoc(`${collectionPath}/${item.id}`, item.id); }}
-              onLongPress={() => { setSelectMode(true); toggleSelect(item.id); }}
-              activeOpacity={0.8}
-            >
-              {selectMode && (
-                <View style={[styles.checkbox, isSelected && styles.checkboxActive]}>
-                  {isSelected && <Ionicons name="checkmark" size={14} color="#fff" />}
-                </View>
-              )}
-              <View style={{ flex: 1 }}>
-                <Text style={styles.docHeading} numberOfLines={1}>{heading}</Text>
-                {hasName ? <Text style={styles.docIdCaption} numberOfLines={1}>{item.id}</Text> : null}
-                {allKeys.length === 0 ? (
-                  <Text style={styles.docEmpty}>Empty document</Text>
-                ) : (
-                  <View style={styles.docKvList}>
-                    {previewKeys.map((k) => (
-                      <View key={k} style={styles.docKvRow}>
-                        <Text style={styles.docKvKey} numberOfLines={1}>{k}</Text>
-                        <InlineValue value={data[k]} style={styles.docKvVal} />
-                      </View>
-                    ))}
-                    {allKeys.length > previewKeys.length + (hasName ? 1 : 0) && (
-                      <Text style={styles.docMore}>+{allKeys.length - previewKeys.length - (hasName ? 1 : 0)} more</Text>
-                    )}
-                  </View>
-                )}
-              </View>
-              {!selectMode && <Ionicons name="chevron-forward" size={16} color={C.t5} />}
-            </TouchableOpacity>
-          );
-        }}
+        renderItem={renderDoc}
         onEndReachedThreshold={0.5}
         onEndReached={() => !done && loadPage(false)}
         ListEmptyComponent={!loading ? (
@@ -1081,7 +1135,15 @@ const STORAGE_TILE_SIZE = Math.floor(
   (WINDOW_WIDTH - 24 /* list padding */ - STORAGE_GRID_GAP * (STORAGE_COLUMNS - 1)) / STORAGE_COLUMNS
 );
 
-function StorageItemRow({ item, selectMode, isSelected, onPress, onLongPress, onDelete }) {
+/**
+ * One storage thumbnail.
+ *
+ * Memoized, and its handlers take the item rather than being pre-bound closures, so
+ * the parent can keep them stable. Each of these mounts an effect that makes two
+ * Storage calls (getDownloadURL + getMetadata), which is also why windowing this
+ * grid matters — fewer mounted cells means fewer requests.
+ */
+const StorageItemRow = React.memo(function StorageItemRow({ item, selectMode, isSelected, onPress, onLongPress, onDelete }) {
   const [url, setUrl] = useState(null);
   const [meta, setMeta] = useState(null);
   const [failed, setFailed] = useState(false);
@@ -1106,7 +1168,11 @@ function StorageItemRow({ item, selectMode, isSelected, onPress, onLongPress, on
 
   const Wrapper = selectMode ? TouchableOpacity : View;
   const wrapperProps = selectMode
-    ? { onPress, onLongPress, activeOpacity: 0.85 }
+    ? {
+        onPress: () => onPress(item),
+        onLongPress: () => onLongPress(item),
+        activeOpacity: 0.85,
+      }
     : {};
 
   return (
@@ -1144,7 +1210,7 @@ function StorageItemRow({ item, selectMode, isSelected, onPress, onLongPress, on
         {!selectMode && (
           <TouchableOpacity
             style={styles.gridDeleteBtn}
-            onPress={onDelete}
+            onPress={() => onDelete(item)}
             activeOpacity={0.8}
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           >
@@ -1159,7 +1225,9 @@ function StorageItemRow({ item, selectMode, isSelected, onPress, onLongPress, on
       </Text>
     </View>
   );
-}
+});
+
+const storageKeyExtractor = (it) => it.fullPath;
 
 function StorageView({ prefix }) {
   const [items, setItems] = useState([]);
@@ -1270,6 +1338,31 @@ function StorageView({ prefix }) {
     );
   };
 
+  // Declared after confirmDeleteSingle: a dependency array is evaluated during
+  // render, so referencing a `const` defined further down would hit its TDZ.
+  const handleStoragePress = useCallback((item) => {
+    if (selectMode) toggleSelect(item.fullPath);
+  }, [selectMode]);
+
+  const handleStorageLongPress = useCallback((item) => {
+    setSelectMode(true);
+    toggleSelect(item.fullPath);
+  }, []);
+
+  const renderStorageItem = useCallback(
+    ({ item }) => (
+      <StorageItemRow
+        item={item}
+        selectMode={selectMode}
+        isSelected={selected.has(item.fullPath)}
+        onPress={handleStoragePress}
+        onLongPress={handleStorageLongPress}
+        onDelete={confirmDeleteSingle}
+      />
+    ),
+    [selectMode, selected, handleStoragePress, handleStorageLongPress, confirmDeleteSingle]
+  );
+
   const runBulkDelete = () => {
     const paths = Array.from(selected);
     if (paths.length === 0) return;
@@ -1336,27 +1429,16 @@ function StorageView({ prefix }) {
       )}
 
       <FlatList
+        {...LIST_PERF}
         key={`storage-grid-${STORAGE_COLUMNS}`}
         data={filtered}
-        keyExtractor={(it) => it.fullPath}
+        keyExtractor={storageKeyExtractor}
         numColumns={STORAGE_COLUMNS}
         columnWrapperStyle={styles.gridRow}
         contentContainerStyle={styles.gridList}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
-        renderItem={({ item }) => {
-          const isSelected = selected.has(item.fullPath);
-          return (
-            <StorageItemRow
-              item={item}
-              selectMode={selectMode}
-              isSelected={isSelected}
-              onPress={() => { if (selectMode) toggleSelect(item.fullPath); }}
-              onLongPress={() => { setSelectMode(true); toggleSelect(item.fullPath); }}
-              onDelete={() => confirmDeleteSingle(item)}
-            />
-          );
-        }}
+        renderItem={renderStorageItem}
         onEndReachedThreshold={0.5}
         onEndReached={() => !done && loadPage(false)}
         ListEmptyComponent={!loading ? (
@@ -2220,6 +2302,8 @@ const styles = StyleSheet.create({
 
   docList: { padding: 12, paddingBottom: 110 },
   docCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.card, borderRadius: 12, padding: 11, marginBottom: 6, borderWidth: 1, borderColor: C.hair },
+  // Hoisted out of the JSX, where it was a fresh object literal every render.
+  docCardBody: { flex: 1 },
   docCardSelected: { backgroundColor: C.cardRaised, borderColor: 'rgba(20,126,251,0.4)' },
   checkbox: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: C.t4, alignItems: 'center', justifyContent: 'center' },
   checkboxActive: { backgroundColor: C.accent, borderColor: C.accent },

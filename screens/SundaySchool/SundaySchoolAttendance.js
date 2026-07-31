@@ -16,7 +16,6 @@ import {
   Animated,
   ScrollView,
   Dimensions,
-  InteractionManager,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
@@ -24,9 +23,11 @@ import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import * as Haptics from "react-native-haptic-feedback";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import Avatar from "../../components/Avatar";
 import * as avatarCache from "../../utils/avatarCache";
+import { makeScreenCache } from "../../utils/screenCache";
+import { LIST_PERF, REMOVE_CLIPPED_ANDROID_ONLY } from "../../utils/listConfig";
+import { shortDateLabel } from "../../utils/dateKeys";
 import SkeletonScreen from "../../components/Skeleton";
 import { useAfterInteractions } from "../../hooks/useAfterInteractions";
 
@@ -59,45 +60,9 @@ const formatGrade = (grade) => {
   return `${num}${suffix} Grade`;
 };
 
-const CacheUtils = {
-  async get(key) {
-    try {
-      const cached = await AsyncStorage.getItem(key);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.timestamp < 72 * 60 * 60 * 1000) {
-          return parsed.data;
-        }
-      }
-    } catch (error) {
-      console.log("Cache read error:", error);
-    }
-    return null;
-  },
-  // Fire-and-forget, and deliberately deferred.
-  //
-  // This is called once per grade from inside a snapshot handler — up to 16 times
-  // on a cold load — and JSON.stringify over a few hundred students is real
-  // synchronous work on the JS thread. Nothing awaits the write, so running it
-  // after interactions keeps it off the path between "data arrived" and "screen
-  // is interactive". Worst case a write in flight when the app is killed is lost
-  // and the next cold start reads from the network instead of the cache.
-  set(key, data) {
-    InteractionManager.runAfterInteractions(() => {
-      AsyncStorage.setItem(
-        key,
-        JSON.stringify({ data, timestamp: Date.now() })
-      ).catch((error) => console.log("Cache write error:", error));
-    });
-  },
-  async remove(key) {
-    try {
-      await AsyncStorage.removeItem(key);
-    } catch (error) {
-      console.log("Cache remove error:", error);
-    }
-  },
-};
+// The deferred-write rationale that used to live here now lives in
+// utils/screenCache.js, alongside the four admin screens that were missing it.
+const CacheUtils = makeScreenCache();
 
 // ---------- Input formatting helpers ----------
 const formatPhoneInput = (raw) => {
@@ -116,17 +81,6 @@ const formatBirthdayInput = (raw) => {
   return `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
 };
 
-// Pretty label for a MM-DD-YYYY date string (e.g. "Sun, Jun 22")
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const prettyDate = (dateStr) => {
-  if (!dateStr) return "";
-  const parts = dateStr.split("-");
-  if (parts.length !== 3) return dateStr;
-  const [mm, dd, yyyy] = parts.map((n) => parseInt(n, 10));
-  const d = new Date(yyyy, mm - 1, dd);
-  return `${DAYS[d.getDay()]}, ${MONTHS[mm - 1]} ${dd}`;
-};
 
 /**
  * One attendance row, memoized.
@@ -243,6 +197,33 @@ const GradeHeader = React.memo(({ title, onAdd }) => {
   );
 });
 GradeHeader.displayName = "GradeHeader";
+
+
+/**
+ * One row in the week picker, memoized.
+ *
+ * Was an inline `renderItem` closure that called the date formatter per row per
+ * render. The label now arrives precomputed and cached (see utils/dateKeys.js).
+ */
+const WeekRow = React.memo(({ label, selected, dateKey, onPress }) => (
+  <TouchableOpacity
+    style={[styles.weekRow, selected && styles.weekRowSelected]}
+    onPress={() => onPress(dateKey)}
+    activeOpacity={0.7}
+  >
+    <Text style={[styles.weekRowText, selected && styles.weekRowTextSelected]}>
+      {label}
+    </Text>
+    {selected ? (
+      <Ionicons name="checkmark-circle" size={20} color="#147EFB" />
+    ) : (
+      <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.25)" />
+    )}
+  </TouchableOpacity>
+));
+WeekRow.displayName = "WeekRow";
+
+const weekKeyExtractor = (item) => item;
 
 const SundaySchoolAttendance = () => {
   const navigation = useNavigation();
@@ -383,7 +364,7 @@ const SundaySchoolAttendance = () => {
           }
           const newUserData = doc.data();
           setUserData(newUserData);
-          await CacheUtils.set(cacheKeys.current.user, newUserData);
+          CacheUtils.set(cacheKeys.current.user, newUserData);
         },
         (error) => {
           if (isMounted.current) Alert.alert("Error", error.message);
@@ -741,15 +722,27 @@ const SundaySchoolAttendance = () => {
     [gradeSections]
   );
 
-  const handleDateSelect = (date) => {
-    setSelectedDate(date);
-    setDateModalVisible(false);
-  };
-
   const handleJumpToCurrentWeek = () => {
     setSelectedDate(null);
     setDateModalVisible(false);
   };
+
+  const handleWeekPress = useCallback((date) => {
+    setSelectedDate(date);
+    setDateModalVisible(false);
+  }, []);
+
+  const renderWeek = useCallback(
+    ({ item }) => (
+      <WeekRow
+        label={shortDateLabel(item)}
+        selected={selectedDate === item}
+        dateKey={item}
+        onPress={handleWeekPress}
+      />
+    ),
+    [selectedDate, handleWeekPress]
+  );
 
   const renderGrade = useMemo(
     () =>
@@ -835,6 +828,25 @@ const SundaySchoolAttendance = () => {
     [searchQuery]
   );
 
+  /**
+   * Grade chips for the horizontal selector.
+   *
+   * Was computed in the render body below the early returns, so it allocated a new
+   * array every render and handed the FlatList a new `data` identity each time —
+   * which re-rendered every chip. Hoisted above the early returns so it can be a
+   * hook at all; `userData` may still be null up here, hence the optional access.
+   */
+  const allSections = useMemo(
+    () =>
+      searchQuery.trim()
+        ? gradeSections.map((section) => section.title)
+        : [
+            ...(userData?.ssGrades || []),
+            ...(servants.length > 0 ? ["Servants"] : []),
+          ],
+    [searchQuery, gradeSections, userData?.ssGrades, servants.length]
+  );
+
   // Skeleton covers the navigation transition AND the whole read. Falling
   // through while `userData` is still null used to flash the "contact your
   // servants admin" empty state before the data had a chance to arrive.
@@ -850,10 +862,6 @@ const SundaySchoolAttendance = () => {
       </View>
     );
   }
-
-  const allSections = searchQuery.trim()
-    ? gradeSections.map((section) => section.title)
-    : [...(userData.ssGrades || []), ...(servants.length > 0 ? ["Servants"] : [])];
 
   return (
     <View style={styles.container}>
@@ -873,7 +881,7 @@ const SundaySchoolAttendance = () => {
           <Ionicons name="calendar-outline" size={20} color="#147EFB" />
           <View style={styles.weekSelectorTextWrap}>
             <Text style={styles.weekSelectorLabel}>{isCurrentWeek ? "This Week" : "Viewing"}</Text>
-            <Text style={styles.weekSelectorDate}>{prettyDate(dateKey)}</Text>
+            <Text style={styles.weekSelectorDate}>{shortDateLabel(dateKey)}</Text>
           </View>
         </View>
         <View style={styles.weekSelectorRight}>
@@ -902,16 +910,11 @@ const SundaySchoolAttendance = () => {
         ListEmptyComponent={listEmpty}
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={true}
-        // Without these, SectionList inherits windowSize 21 — roughly 21 screens
-        // of rows kept mounted. Matches the config the admin rosters already use.
-        initialNumToRender={10}
-        maxToRenderPerBatch={10}
-        windowSize={7}
-        updateCellsBatchingPeriod={50}
+        {...LIST_PERF}
         // Android only: on iOS this has a history of blanking cells and breaking
         // touch targets, and this screen has a floating search bar overlaying the
         // list.
-        removeClippedSubviews={Platform.OS === "android"}
+        removeClippedSubviews={REMOVE_CLIPPED_ANDROID_ONLY}
         contentContainerStyle={styles.sectionListContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
@@ -1165,7 +1168,7 @@ const SundaySchoolAttendance = () => {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.thisWeekTitle}>This week</Text>
-                <Text style={styles.thisWeekDate}>{prettyDate(getNextSunday())}</Text>
+                <Text style={styles.thisWeekDate}>{shortDateLabel(getNextSunday())}</Text>
               </View>
               {isCurrentWeek && <Ionicons name="checkmark-circle" size={20} color="#147EFB" />}
             </TouchableOpacity>
@@ -1177,30 +1180,13 @@ const SundaySchoolAttendance = () => {
             {/* Scrollable list */}
             <View style={styles.weekListWrap}>
               <FlatList
+                {...LIST_PERF}
                 data={previousSundays}
-                keyExtractor={(item) => item}
+                keyExtractor={weekKeyExtractor}
                 style={styles.dateList}
                 showsVerticalScrollIndicator={true}
                 indicatorStyle="white"
-                renderItem={({ item }) => {
-                  const selected = selectedDate === item;
-                  return (
-                    <TouchableOpacity
-                      style={[styles.weekRow, selected && styles.weekRowSelected]}
-                      onPress={() => handleDateSelect(item)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.weekRowText, selected && styles.weekRowTextSelected]}>
-                        {prettyDate(item)}
-                      </Text>
-                      {selected ? (
-                        <Ionicons name="checkmark-circle" size={20} color="#147EFB" />
-                      ) : (
-                        <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.25)" />
-                      )}
-                    </TouchableOpacity>
-                  );
-                }}
+                renderItem={renderWeek}
               />
             </View>
           </View>

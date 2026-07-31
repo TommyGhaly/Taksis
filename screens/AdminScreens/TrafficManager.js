@@ -20,6 +20,7 @@ import PlateScanner from "../../components/PlateScanner";
 import { runMigrationIfNeeded } from "../../utils/carsMigration";
 import VehicleReviewModal from "../../components/VehicleReviewModal";
 import * as avatarCache from "../../utils/avatarCache";
+import { LIST_PERF, REMOVE_CLIPPED_ANDROID_ONLY } from "../../utils/listConfig";
 import { SkeletonProvider, SkeletonBlock, SkeletonCircle } from "../../components/Skeleton";
 import { useAfterInteractions } from "../../hooks/useAfterInteractions";
 
@@ -111,6 +112,30 @@ const DriverCard = memo(({ uid, user, imageSource, hasToken, presentCars, maxCar
 
 // ── CarDetailModal ────────────────────────────────────────────────────────────
 
+const driverUidKeyExtractor = (uid) => uid;
+const relinkKeyExtractor = (item) => item.car.id;
+
+/** One relink candidate; all display strings arrive precomputed. */
+const RelinkCard = memo(({ car, colorHex, driverNames, metaText, onPress }) => (
+  <TouchableOpacity style={s.relinkCard} onPress={() => onPress(car)} activeOpacity={0.7}>
+    <View style={s.relinkCardLeft}>
+      {colorHex ? (
+        <View style={[s.carColorBar, s.relinkColorBar, { backgroundColor: colorHex }]} />
+      ) : null}
+      <View style={s.relinkTextWrap}>
+        <Text style={s.relinkLicense}>{car.license || "NO PLATE"}</Text>
+        <Text style={s.relinkMeta}>{metaText}</Text>
+        <Text style={s.relinkDrivers}>{driverNames}</Text>
+        <Text style={s.relinkId} numberOfLines={1}>ID: {car.id}</Text>
+      </View>
+    </View>
+    <View style={s.relinkBtn}>
+      <Icon name="link-variant" size={16} color="#bf5af2" />
+    </View>
+  </TouchableOpacity>
+));
+RelinkCard.displayName = "RelinkCard";
+
 const CarDetailModal = memo(({
   visible, car, onClose, getUserById, getImageSource,
   driverTokens, getPresentCarsForPerson, maxCarsPerPerson, carLimitEnabled,
@@ -127,6 +152,32 @@ const CarDetailModal = memo(({
       return u?.name?.toLowerCase().includes(q) || u?.phone?.toLowerCase().includes(q);
     });
   }, [car, driverSearch, getUserById]);
+
+  // Was an inline renderItem, so every keystroke in the driver search above
+  // rebuilt every mounted DriverCard — each one an <Image> plus two buttons.
+  const renderDriverRow = useCallback(
+    ({ item: uid }) => {
+      const u = getUserById(uid);
+      if (!u) return null;
+      return (
+        <DriverCard
+          uid={uid}
+          user={u}
+          imageSource={getImageSource(uid)}
+          hasToken={!!driverTokens[uid]}
+          presentCars={getPresentCarsForPerson(uid)}
+          maxCars={maxCarsPerPerson}
+          limitEnabled={carLimitEnabled}
+          onNotify={onNotify}
+          onCall={onCall}
+          isUnreg={uid.startsWith("unreg_")}
+        />
+      );
+    },
+    [getUserById, getImageSource, driverTokens, getPresentCarsForPerson,
+     maxCarsPerPerson, carLimitEnabled, onNotify, onCall]
+  );
+
   if (!car) return null;
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
@@ -163,12 +214,8 @@ const CarDetailModal = memo(({
               {driverSearch.length > 0 ? <TouchableOpacity onPress={() => setDriverSearch("")}><Icon name="close-circle" size={16} color="rgba(255,255,255,0.4)" /></TouchableOpacity> : null}
             </View>
           ) : null}
-          <FlatList data={filteredOwners} keyExtractor={(uid) => uid} style={s.driverList} showsVerticalScrollIndicator={false}
-            renderItem={({ item: uid }) => {
-              const u = getUserById(uid);
-              if (!u) return null;
-              return <DriverCard uid={uid} user={u} imageSource={getImageSource(uid)} hasToken={!!driverTokens[uid]} presentCars={getPresentCarsForPerson(uid)} maxCars={maxCarsPerPerson} limitEnabled={carLimitEnabled} onNotify={onNotify} onCall={onCall} isUnreg={uid.startsWith("unreg_")} />;
-            }} />
+          <FlatList {...LIST_PERF} data={filteredOwners} keyExtractor={driverUidKeyExtractor} style={s.driverList} showsVerticalScrollIndicator={false}
+            renderItem={renderDriverRow} />
           <View style={s.detailFooter}>
             <TouchableOpacity style={s.editBtn} onPress={() => onEdit(car)} activeOpacity={0.8}><Icon name="pencil" size={18} color="#fff" /><Text style={s.editBtnText}>Edit</Text></TouchableOpacity>
             <TouchableOpacity style={s.deleteBtn} onPress={() => onDelete(car)} activeOpacity={0.8}><Icon name="trash-can-outline" size={18} color="#ff453a" /></TouchableOpacity>
@@ -203,7 +250,45 @@ const SubSheet = memo(({ visible, onBack, onClose, title, children }) => (
 
 // ── PlateMatchSheet ───────────────────────────────────────────────────────────
 
-const PlateMatchSheet = memo(({ visible, scannedPlate, matches, onConfirm, onRegisterNew, onClose }) => (
+/** One similar-plate candidate. The char-diff arrives precomputed. */
+const PlateMatchCard = memo(({ car, charDiff, onPress }) => (
+  <TouchableOpacity style={s.matchCard} onPress={() => onPress(car)} activeOpacity={0.7}>
+    <View style={s.matchCardLeft}>
+      <Text style={s.matchCardPlate}>{car.license}</Text>
+      <Text style={s.matchCardMeta}>
+        {[car.make, car.model].filter(Boolean).join(" ") || "No info"}
+      </Text>
+    </View>
+    <View style={s.matchCardDiff}>
+      <Text style={s.matchCardDiffText}>{charDiff} char diff</Text>
+    </View>
+    <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.3)" />
+  </TouchableOpacity>
+));
+PlateMatchCard.displayName = "PlateMatchCard";
+
+const plateMatchKeyExtractor = (item) => item.car.id;
+
+const PlateMatchSheet = memo(({ visible, scannedPlate, matches, onConfirm, onRegisterNew, onClose }) => {
+  // `levenshtein` ran inside the row body, so it was recomputed for every mounted
+  // match on every render of this sheet. It only depends on the plates.
+  const rows = useMemo(
+    () =>
+      (matches || []).map((car) => ({
+        car,
+        charDiff: levenshtein(cleanPlate(scannedPlate), cleanPlate(car.license)),
+      })),
+    [matches, scannedPlate]
+  );
+
+  const renderMatch = useCallback(
+    ({ item }) => (
+      <PlateMatchCard car={item.car} charDiff={item.charDiff} onPress={onConfirm} />
+    ),
+    [onConfirm]
+  );
+
+  return (
   <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
     <View style={s.subSheetOverlay}>
       <View style={s.subSheet}>
@@ -223,22 +308,12 @@ const PlateMatchSheet = memo(({ visible, scannedPlate, matches, onConfirm, onReg
           <Text style={s.matchSubtitle}>These vehicles have similar plates. Is this one of them?</Text>
         </View>
         <FlatList
-          data={matches}
-          keyExtractor={(c) => c.id}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+          {...LIST_PERF}
+          data={rows}
+          keyExtractor={plateMatchKeyExtractor}
+          contentContainerStyle={s.matchListContent}
           showsVerticalScrollIndicator={false}
-          renderItem={({ item: c }) => (
-            <TouchableOpacity style={s.matchCard} onPress={() => onConfirm(c)} activeOpacity={0.7}>
-              <View style={s.matchCardLeft}>
-                <Text style={s.matchCardPlate}>{c.license}</Text>
-                <Text style={s.matchCardMeta}>{[c.make, c.model].filter(Boolean).join(" ") || "No info"}</Text>
-              </View>
-              <View style={s.matchCardDiff}>
-                <Text style={s.matchCardDiffText}>{levenshtein(cleanPlate(scannedPlate), cleanPlate(c.license))} char diff</Text>
-              </View>
-              <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.3)" />
-            </TouchableOpacity>
-          )}
+          renderItem={renderMatch}
           ListFooterComponent={
             <TouchableOpacity style={s.noneMatchBtn} onPress={onRegisterNew} activeOpacity={0.7}>
               <Icon name="plus-circle-outline" size={18} color="#30d158" />
@@ -249,7 +324,9 @@ const PlateMatchSheet = memo(({ visible, scannedPlate, matches, onConfirm, onReg
       </View>
     </View>
   </Modal>
-));
+  );
+});
+PlateMatchSheet.displayName = "PlateMatchSheet";
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
@@ -569,16 +646,36 @@ const TrafficManager = () => {
     });
   }, [cars, carSearch, getUserById]);
 
+  /**
+   * Relink candidates with their display strings resolved.
+   *
+   * The row used to do `(c.ownerIds || []).map(getUserById).filter(Boolean)` and a
+   * `COLOR_OPTIONS.find(...)` in its body, so both ran for every mounted row on
+   * every render — over the whole church's car list.
+   */
   const filteredRelinkCars = useMemo(() => {
     const q = relinkSearch.toLowerCase().trim();
-    if (!q) return cars;
-    return cars.filter((c) => {
-      const ownerMatch = (c.ownerIds || []).some((uid) => {
-        const u = getUserById(uid);
-        return u?.name?.toLowerCase().includes(q) || u?.phone?.toLowerCase().includes(q);
-      });
-      return c.license?.toLowerCase().includes(q) || c.make?.toLowerCase().includes(q) || ownerMatch;
-    });
+    const matched = !q
+      ? cars
+      : cars.filter((c) => {
+          const ownerMatch = (c.ownerIds || []).some((uid) => {
+            const u = getUserById(uid);
+            return u?.name?.toLowerCase().includes(q) || u?.phone?.toLowerCase().includes(q);
+          });
+          return c.license?.toLowerCase().includes(q) || c.make?.toLowerCase().includes(q) || ownerMatch;
+        });
+
+    return matched.map((c) => ({
+      car: c,
+      colorHex: COLOR_OPTIONS.find((x) => x.value === c.color)?.hex || null,
+      driverNames:
+        (c.ownerIds || [])
+          .map(getUserById)
+          .filter(Boolean)
+          .map((o) => o.name?.split(" ")[0])
+          .join(", ") || "Unknown",
+      metaText: [c.make, c.model].filter(Boolean).join(" ") || "No info",
+    }));
   }, [relinkSearch, cars, getUserById]);
 
   const presentCount = useMemo(() => cars.filter((c) => c.present).length, [cars]);
@@ -661,6 +758,33 @@ const TrafficManager = () => {
       ],
     );
   }, [scannedPlate]);
+
+  // Declared after handleRelink on purpose: a dependency array is evaluated during
+  // render, so referencing a `const` defined further down would hit its temporal
+  // dead zone and throw.
+  const renderRelinkCard = useCallback(
+    ({ item }) => (
+      <RelinkCard
+        car={item.car}
+        colorHex={item.colorHex}
+        driverNames={item.driverNames}
+        metaText={item.metaText}
+        onPress={handleRelink}
+      />
+    ),
+    [handleRelink]
+  );
+
+  const relinkEmpty = useMemo(
+    () => (
+      <View style={s.relinkEmptyWrap}>
+        <Text style={s.relinkEmptyText}>
+          {relinkSearch.length > 0 ? "No vehicles match" : "No records found"}
+        </Text>
+      </View>
+    ),
+    [relinkSearch.length]
+  );
 
   // ── Registration / Edit ────────────────────────────────────────────────────
 
@@ -889,13 +1013,8 @@ const TrafficManager = () => {
           contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          // Without these the list inherits windowSize 21 — ~21 screens of car
-          // cards (each with an avatar stack) kept mounted.
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={7}
-          updateCellsBatchingPeriod={50}
-          removeClippedSubviews={Platform.OS === "android"}
+          {...LIST_PERF}
+          removeClippedSubviews={REMOVE_CLIPPED_ANDROID_ONLY}
           ListEmptyComponent={carsEmpty} />
       )}
 
@@ -1014,28 +1133,11 @@ const TrafficManager = () => {
             <TextInput style={s.searchInput} placeholder="Search by plate, owner, make..." placeholderTextColor="rgba(255,255,255,0.3)" value={relinkSearch} onChangeText={setRelinkSearch} />
             {relinkSearch.length > 0 ? <TouchableOpacity onPress={() => setRelinkSearch("")}><Icon name="close-circle" size={16} color="rgba(255,255,255,0.4)" /></TouchableOpacity> : null}
           </View>
-          <FlatList data={filteredRelinkCars} keyExtractor={(c) => c.id}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
+          <FlatList {...LIST_PERF} data={filteredRelinkCars} keyExtractor={relinkKeyExtractor}
+            contentContainerStyle={s.relinkListContent}
             showsVerticalScrollIndicator={false}
-            ListEmptyComponent={<View style={{ alignItems: "center", marginTop: 32 }}><Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}>{relinkSearch.length > 0 ? "No vehicles match" : "No records found"}</Text></View>}
-            renderItem={({ item: c }) => {
-              const owners = (c.ownerIds || []).map(getUserById).filter(Boolean);
-              const colorObj = COLOR_OPTIONS.find((x) => x.value === c.color);
-              return (
-                <TouchableOpacity style={s.relinkCard} onPress={() => handleRelink(c)} activeOpacity={0.7}>
-                  <View style={s.relinkCardLeft}>
-                    {colorObj ? <View style={[s.carColorBar, { backgroundColor: colorObj.hex, marginRight: 10 }]} /> : null}
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.relinkLicense}>{c.license || "NO PLATE"}</Text>
-                      <Text style={s.relinkMeta}>{[c.make, c.model].filter(Boolean).join(" ") || "No info"}</Text>
-                      <Text style={s.relinkDrivers}>{owners.map((o) => o.name?.split(" ")[0]).join(", ") || "Unknown"}</Text>
-                      <Text style={s.relinkId} numberOfLines={1}>ID: {c.id}</Text>
-                    </View>
-                  </View>
-                  <View style={s.relinkBtn}><Icon name="link-variant" size={16} color="#bf5af2" /></View>
-                </TouchableOpacity>
-              );
-            }} />
+            ListEmptyComponent={relinkEmpty}
+            renderItem={renderRelinkCard} />
         </View>
       </SubSheet>
 
@@ -1263,6 +1365,12 @@ const s = StyleSheet.create({
   relinkDrivers: { fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 1 },
   relinkId: { fontSize: 11, color: "rgba(191,90,242,0.6)", marginTop: 3 },
   relinkBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: "rgba(191,90,242,0.12)", justifyContent: "center", alignItems: "center" },
+  // Hoisted out of the JSX, where they were fresh object literals every render.
+  relinkColorBar: { marginRight: 10 },
+  relinkTextWrap: { flex: 1 },
+  relinkListContent: { paddingHorizontal: 16, paddingBottom: 40 },
+  relinkEmptyWrap: { alignItems: "center", marginTop: 32 },
+  relinkEmptyText: { color: "rgba(255,255,255,0.3)", fontSize: 14 },
   sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
   sheetHeaderLeft: { width: 24 },
   sheetTitle: { fontSize: 17, fontWeight: "600", color: "#fff" },
@@ -1340,6 +1448,8 @@ const s = StyleSheet.create({
   matchCardPlate: { fontSize: 18, fontWeight: "700", color: "#fff", letterSpacing: 1 },
   matchCardMeta: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 2 },
   matchCardDiff: { backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginRight: 8 },
+  // Hoisted out of the JSX, where it was a fresh object literal every render.
+  matchListContent: { paddingHorizontal: 16, paddingBottom: 24 },
   matchCardDiffText: { fontSize: 11, color: "rgba(255,255,255,0.4)" },
   noneMatchBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 16, marginTop: 4 },
   noneMatchText: { fontSize: 15, fontWeight: "600", color: "#30d158" },
