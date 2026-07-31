@@ -9,7 +9,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { UserProvider, useUser } from "./UserContext";
 import { initializeCacheManager } from "./utils/cacheManager";
 import { hydrate as hydrateAvatarCache } from "./utils/avatarCache";
-import SkeletonScreen from "./components/Skeleton";
+import LoadingWheel from "./components/LoadingWheel";
 
 import Welcome from "./screens/Welcome";
 import SignIn from "./screens/SignIn";
@@ -170,7 +170,7 @@ function AppNavigator() {
   // Only reached on a genuine cold start now (no Firestore cache yet).
   // Previously this rendered `null` — a blank screen — for a full network RTT.
   // We don't know which screen comes next, so: one full-screen block.
-  if (initializing) return <SkeletonScreen variant="block" />;
+  if (initializing) return <LoadingWheel />;
 
   return (
     <NavigationContainer style={styles.container}>

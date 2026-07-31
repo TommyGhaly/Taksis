@@ -49,12 +49,46 @@ const SWEEP_W = 220;
  *     isn't available RN warns and quietly falls back to the JS driver, whose
  *     `onUpdate` ends after a single pass and never looks at the count. Result:
  *     a handful of sweeps (or one) and then a frozen skeleton.
+ *  4. Re-arming a single `Animated.timing` from its own completion callback.
+ *     Driver-agnostic, but the re-arm is a *JS* callback — so when the JS thread
+ *     is busy (which is the entire reason a skeleton is on screen during a long
+ *     read) the sweep finishes and nothing restarts it until the thread frees up.
+ *     The animation visibly stalls at exactly the moment it matters most.
  *
- * So the loop is re-armed from the completion callback instead of trusting any
- * iteration count — that behaves identically under either driver. It costs one
- * JS callback per sweep (~0.8/sec) for the whole app, and the interpolation
- * still runs natively.
+ * So the strategy is chosen up front, because the two mechanisms fail in opposite
+ * situations and `Animated.loop` gives no way to recover at runtime — on the
+ * native path it calls `_startNativeLoop()` and *discards the `start()` callback
+ * entirely*, so a completion-based safety net can never fire.
+ *
+ *   - Native driver present (effectively always): `Animated.loop` with
+ *     `iterations: -1` hands ONE infinite animation to the native driver. It
+ *     repeats on the UI thread with zero JS work per iteration, so it keeps
+ *     sweeping smoothly no matter how busy the JS thread is. This is the case
+ *     that matters — a skeleton is on screen precisely when JS is loaded up.
+ *   - Native driver missing: fall back to re-arming a single timing from its
+ *     completion callback. It stalls while JS is blocked, but it does loop, which
+ *     beats freezing after one sweep.
+ *
+ * The probe below reads the same modules RN's own `shouldUseNativeDriver` checks,
+ * so it agrees with what RN will actually do.
  */
+const nativeDriverAvailable = (() => {
+  try {
+    // eslint-disable-next-line global-require
+    const { TurboModuleRegistry, NativeModules } = require("react-native");
+    return Boolean(
+      TurboModuleRegistry?.get?.("NativeAnimatedTurboModule") ||
+        TurboModuleRegistry?.get?.("NativeAnimatedModule") ||
+        NativeModules?.NativeAnimatedTurboModule ||
+        NativeModules?.NativeAnimatedModule
+    );
+  } catch {
+    // Inconclusive: assume present. A false positive costs the fallback's
+    // stall-resistance; a false negative would cost every skeleton its smoothness.
+    return true;
+  }
+})();
+
 const shimmer = new Animated.Value(0);
 let liveSkeletons = 0;
 let running = false;
@@ -63,13 +97,32 @@ let stopTimer = null;
 
 function sweep() {
   if (!running) return;
+
+  // Starting a new animation on a value implicitly stops the previous one, but
+  // being explicit keeps the AppState re-arm below from ever leaving two loops
+  // contending for `shimmer`.
+  if (currentSweep) {
+    currentSweep.stop();
+    currentSweep = null;
+  }
   shimmer.setValue(0);
-  currentSweep = Animated.timing(shimmer, {
+
+  const timing = Animated.timing(shimmer, {
     toValue: 1,
     duration: SWEEP_MS,
     easing: Easing.linear,
     useNativeDriver: true,
   });
+
+  if (nativeDriverAvailable) {
+    // One infinite animation, looped natively. No JS callback per iteration, so a
+    // blocked JS thread cannot stall it.
+    currentSweep = Animated.loop(timing, { iterations: -1 });
+    currentSweep.start();
+    return;
+  }
+
+  currentSweep = timing;
   currentSweep.start(({ finished }) => {
     // `finished` is false when something stopped us (unmount, backgrounding),
     // which is the only way this loop is allowed to end.
