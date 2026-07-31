@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
@@ -25,6 +24,8 @@ import BackArrow from "../../components/backArrow";
 import Avatar from "../../components/Avatar";
 import SkeletonScreen, { SkeletonPersonList } from "../../components/Skeleton";
 import * as avatarCache from "../../utils/avatarCache";
+import { LIST_PERF, LIST_KEYBOARD } from "../../utils/listConfig";
+import { dateKeyToSortable } from "../../utils/dateKeys";
 
 const { height } = Dimensions.get("window");
 
@@ -32,14 +33,79 @@ const { height } = Dimensions.get("window");
 
 const isManual = (uid) => typeof uid === "string" && uid.startsWith("manual_");
 
-const parseDate = (str) => {
-  if (!str) return new Date(0);
-  const parts = str.split("-");
-  if (parts.length !== 3) return new Date(0);
-  const [month, day, year] = parts.map(Number);
-  const fullYear = year < 100 ? 2000 + year : year;
-  return new Date(fullYear, month - 1, day);
-};
+/**
+ * One attendance record.
+ *
+ * The history used to be a ScrollView + `.map()` with `key={index}`, so every
+ * record ever written for this servant was mounted at once — an unbounded list
+ * that grows by one row per week forever. It is a FlatList now.
+ */
+const AttendanceHistoryRow = React.memo(({ date, status }) => (
+  <View style={styles.attendanceItem}>
+    <Text style={styles.dateText}>{date}</Text>
+    <View
+      style={[
+        styles.statusContainer,
+        status === false
+          ? styles.absent
+          : status === true
+          ? styles.present
+          : styles.unrecorded,
+      ]}
+    >
+      <Text style={styles.statusText}>
+        {status === true ? "Present" : status === false ? "Absent" : "No Status"}
+      </Text>
+    </View>
+  </View>
+));
+AttendanceHistoryRow.displayName = "AttendanceHistoryRow";
+
+const renderAttendanceRow = ({ item }) => (
+  <AttendanceHistoryRow date={item.date} status={item.status} />
+);
+const attendanceKeyExtractor = (item) => item.date;
+const EmptyAttendance = () => (
+  <Text style={styles.emptyText}>No attendance records yet.</Text>
+);
+
+/**
+ * One candidate in the "sync to app account" picker. Memoized because it mounts an
+ * <Avatar>, which carries a useSyncExternalStore subscription plus two effects —
+ * as an inline renderItem it was rebuilding all of that for every mounted row on
+ * every keystroke in the search field above it.
+ */
+const SyncUserRow = React.memo(({ user, syncing, onPress }) => (
+  <TouchableOpacity
+    style={styles.syncUserRow}
+    onPress={() => onPress(user)}
+    activeOpacity={0.75}
+    disabled={syncing}
+  >
+    <Avatar
+      uid={user.uid}
+      user={user}
+      size={40}
+      showBorder={false}
+      style={styles.syncUserAvatar}
+    />
+    <View style={styles.syncUserNameWrap}>
+      <Text style={styles.syncUserName}>{user.name}</Text>
+    </View>
+    {syncing ? (
+      <ActivityIndicator size="small" color="#147efb" />
+    ) : (
+      <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.25)" />
+    )}
+  </TouchableOpacity>
+));
+SyncUserRow.displayName = "SyncUserRow";
+
+const syncUserKeyExtractor = (u) => u.uid;
+const SyncSeparator = () => <View style={styles.syncSep} />;
+const EmptySyncUsers = () => (
+  <Text style={styles.syncEmpty}>No users found.</Text>
+);
 
 // ── Merge helper (same logic as ServantsAttendance) ───────────────────────────
 
@@ -178,8 +244,13 @@ const IndividualServant = () => {
     }, [church, servantID])
   );
 
+  // Sorted on an integer date key; the old comparator allocated two Date objects
+  // per comparison via `parseDate`.
   const sortedAttendance = useMemo(
-    () => [...attendanceData].sort((a, b) => parseDate(b.date) - parseDate(a.date)),
+    () =>
+      attendanceData
+        .map((a) => ({ ...a, sortKey: dateKeyToSortable(a.date) }))
+        .sort((a, b) => b.sortKey - a.sortKey),
     [attendanceData]
   );
 
@@ -216,7 +287,7 @@ const IndividualServant = () => {
     return allChurchUsers.filter((u) => (u.name || "").toLowerCase().includes(q));
   }, [allChurchUsers, userSearchQuery]);
 
-  const handleSyncConfirm = (realUser) => {
+  const handleSyncConfirm = useCallback((realUser) => {
     Alert.alert(
       "Sync to Account",
       `Merge "${servantName}" into ${realUser.name}'s account?\n\nTheir existing attendance records will take priority. This manual entry will be deleted.`,
@@ -243,7 +314,14 @@ const IndividualServant = () => {
         },
       ]
     );
-  };
+  }, [church, servantRaw, servantName, navigation]);
+
+  const renderSyncUser = useCallback(
+    ({ item }) => (
+      <SyncUserRow user={item} syncing={syncing} onPress={handleSyncConfirm} />
+    ),
+    [syncing, handleSyncConfirm]
+  );
 
   // ── Remove ────────────────────────────────────────────────────────────────
 
@@ -350,22 +428,15 @@ const IndividualServant = () => {
       </View>
 
       {/* Attendance list */}
-      <ScrollView contentContainerStyle={styles.attendanceContainer}>
-        {sortedAttendance.length === 0 ? (
-          <Text style={styles.emptyText}>No attendance records yet.</Text>
-        ) : (
-          sortedAttendance.map((item, index) => (
-            <View key={index} style={styles.attendanceItem}>
-              <Text style={styles.dateText}>{item.date}</Text>
-              <View style={[styles.statusContainer, item.status === false ? styles.absent : item.status === true ? styles.present : styles.unrecorded]}>
-                <Text style={styles.statusText}>
-                  {item.status === true ? "Present" : item.status === false ? "Absent" : "No Status"}
-                </Text>
-              </View>
-            </View>
-          ))
-        )}
-      </ScrollView>
+      <FlatList
+        {...LIST_PERF}
+        data={sortedAttendance}
+        keyExtractor={attendanceKeyExtractor}
+        renderItem={renderAttendanceRow}
+        ListEmptyComponent={EmptyAttendance}
+        style={styles.attendanceList}
+        contentContainerStyle={styles.attendanceContainer}
+      />
 
       {/* Actions */}
       <View style={styles.actionArea}>
@@ -421,41 +492,15 @@ const IndividualServant = () => {
               </View>
             ) : (
               <FlatList
+                {...LIST_PERF}
+                {...LIST_KEYBOARD}
                 data={filteredUsers}
-                keyExtractor={(u) => u.uid}
+                keyExtractor={syncUserKeyExtractor}
                 showsVerticalScrollIndicator={false}
-                initialNumToRender={10}
-                maxToRenderPerBatch={10}
-                windowSize={7}
-                contentContainerStyle={{ paddingBottom: 24 }}
-                ListEmptyComponent={
-                  <Text style={styles.syncEmpty}>No users found.</Text>
-                }
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.syncUserRow}
-                    onPress={() => handleSyncConfirm(item)}
-                    activeOpacity={0.75}
-                    disabled={syncing}
-                  >
-                    <Avatar
-                      uid={item.uid}
-                      user={item}
-                      size={40}
-                      showBorder={false}
-                      style={styles.syncUserAvatar}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.syncUserName}>{item.name}</Text>
-                    </View>
-                    {syncing ? (
-                      <ActivityIndicator size="small" color="#147efb" />
-                    ) : (
-                      <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.25)" />
-                    )}
-                  </TouchableOpacity>
-                )}
-                ItemSeparatorComponent={() => <View style={styles.syncSep} />}
+                contentContainerStyle={styles.syncListContent}
+                ListEmptyComponent={EmptySyncUsers}
+                renderItem={renderSyncUser}
+                ItemSeparatorComponent={SyncSeparator}
               />
             )}
           </View>
@@ -491,6 +536,10 @@ const styles = StyleSheet.create({
   manualBadgeText: { fontSize: 11, fontWeight: "700", color: "#ff9500", textTransform: "uppercase", letterSpacing: 0.3 },
   manualPhone: { fontSize: 13, color: "rgba(255,255,255,0.45)" },
 
+  // The list sits between a fixed header block and `actionArea`, so it needs to
+  // claim the space between them — a FlatList won't grow into it the way the
+  // ScrollView's `flexGrow` contentContainer did.
+  attendanceList: { flex: 1 },
   attendanceContainer: { flexGrow: 1, paddingBottom: 16 },
   emptyText: { color: "rgba(255,255,255,0.35)", textAlign: "center", marginTop: 32, fontSize: 14 },
   attendanceItem: {
@@ -550,6 +599,9 @@ const styles = StyleSheet.create({
   syncUserName: { color: "#fff", fontSize: 15, fontWeight: "600" },
   syncUserPhone: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 },
   syncSep: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.06)", marginHorizontal: 16 },
+  // Hoisted out of the JSX, where they were fresh object literals every render.
+  syncListContent: { paddingBottom: 24 },
+  syncUserNameWrap: { flex: 1 },
 });
 
 export default IndividualServant;

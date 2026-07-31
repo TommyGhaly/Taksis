@@ -25,7 +25,9 @@ import storage from "@react-native-firebase/storage";
 import * as Haptics from "react-native-haptic-feedback";
 import { Ionicons } from "@expo/vector-icons";
 import AlphabetIndexBar from "../../components/AlphabetIndexBar";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { makeScreenCache } from "../../utils/screenCache";
+import { LIST_PERF, REMOVE_CLIPPED_ANDROID_ONLY } from "../../utils/listConfig";
+import { shortDateLabel } from "../../utils/dateKeys";
 import PhotoInput from "../../components/photoInput"; // reuse existing photo picker
 import Avatar from "../../components/Avatar";
 import * as avatarCache from "../../utils/avatarCache";
@@ -34,23 +36,7 @@ import useAfterInteractions from "../../hooks/useAfterInteractions";
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
-const CacheUtils = {
-  async get(key) {
-    try {
-      const cached = await AsyncStorage.getItem(key);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.timestamp < 72 * 60 * 60 * 1000) return parsed.data;
-      }
-    } catch {}
-    return null;
-  },
-  async set(key, data) {
-    try {
-      await AsyncStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
-    } catch {}
-  },
-};
+const CacheUtils = makeScreenCache();
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -78,15 +64,6 @@ const getNextSunday = () => {
   return formatDate(nextSunday);
 };
 
-// Pretty label for a MM-DD-YYYY date string (e.g. "Sun, Jun 22")
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const prettyDate = (dateStr) => {
-  if (!dateStr) return "";
-  const [mm, dd, yyyy] = dateStr.split("-").map((n) => parseInt(n, 10));
-  const d = new Date(yyyy, mm - 1, dd);
-  return `${DAYS[d.getDay()]}, ${MONTHS[mm - 1]} ${dd}`;
-};
 
 // ── Merge logic ───────────────────────────────────────────────────────────────
 
@@ -242,6 +219,33 @@ const ServantRow = React.memo(({ servant, isPastDate, isNavigating, onOpen, onAt
 });
 ServantRow.displayName = "ServantRow";
 
+
+/**
+ * One row in the week picker, memoized.
+ *
+ * Was an inline `renderItem` closure that called the date formatter per row per
+ * render. The label now arrives precomputed and cached (see utils/dateKeys.js).
+ */
+const WeekRow = React.memo(({ label, selected, dateKey, onPress }) => (
+  <TouchableOpacity
+    style={[styles.weekRow, selected && styles.weekRowSelected]}
+    onPress={() => onPress(dateKey)}
+    activeOpacity={0.7}
+  >
+    <Text style={[styles.weekRowText, selected && styles.weekRowTextSelected]}>
+      {label}
+    </Text>
+    {selected ? (
+      <Ionicons name="checkmark-circle" size={20} color="#147EFB" />
+    ) : (
+      <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.25)" />
+    )}
+  </TouchableOpacity>
+));
+WeekRow.displayName = "WeekRow";
+
+const weekKeyExtractor = (item) => item;
+
 const ServantsAttendance = () => {
   const navigation = useNavigation();
   const user = auth().currentUser;
@@ -359,7 +363,7 @@ const ServantsAttendance = () => {
       if (!userDoc.exists) { stopLoading(); return; }
       const localUserData = userDoc.data();
       setUserData(localUserData);
-      await CacheUtils.set(cacheKeys.current.user, localUserData);
+      CacheUtils.set(cacheKeys.current.user, localUserData);
       if (!localUserData.church) { stopLoading(); Alert.alert("Error", "No church assigned."); return; }
 
       servantsUnsubscribe.current = firestore()
@@ -375,7 +379,7 @@ const ServantsAttendance = () => {
           // safe to call on every snapshot: primeFromUser is a no-op when the
           // url/version is unchanged, so attendance toggles cost nothing.
           avatarCache.primeMany(data);
-          await CacheUtils.set(cacheKeys.current.servants, data);
+          CacheUtils.set(cacheKeys.current.servants, data);
         }, () => { stopLoading(); if (isMounted.current) Alert.alert("Error", "Failed to load servants."); });
     } catch (e) { stopLoading(); if (isMounted.current) Alert.alert("Error", e.message); }
   };
@@ -400,14 +404,29 @@ const ServantsAttendance = () => {
   // Derived with useMemo, not state-in-an-effect. An effect runs *after* the
   // render that set `rawServantsData`, so in that first frame the data was full
   // while `sections` was still [] — long enough for the empty state to paint.
-  const sections = useMemo(() => {
+  /**
+   * The roster, mapped and sorted — deliberately separate from the search filter
+   * below.
+   *
+   * These two used to be one memo keyed on `searchQuery` as well, so every
+   * keystroke re-ran the spread-map over every servant *and* a full localeCompare
+   * sort. Only the filtering depends on the query, so only the filtering should
+   * re-run when it changes.
+   */
+  const processedServants = useMemo(() => {
     if (rawServantsData.length === 0) return [];
     const dateKey = selectedDate || getNextSunday();
-    const processed = rawServantsData
+    return rawServantsData
       .map((s) => ({ ...s, attendance: s[dateKey] !== undefined ? s[dateKey] : null }))
       .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  }, [selectedDate, rawServantsData]);
+
+  const sections = useMemo(() => {
+    if (processedServants.length === 0) return [];
     const lower = searchQuery.trim().toLowerCase();
-    const filtered = lower ? processed.filter((s) => (s.name || "").toLowerCase().includes(lower)) : processed;
+    const filtered = lower
+      ? processedServants.filter((s) => (s.name || "").toLowerCase().includes(lower))
+      : processedServants;
     const grouped = filtered.reduce((acc, s) => {
       const key = (s.name || "").charAt(0).toUpperCase() || "#";
       if (!acc[key]) acc[key] = [];
@@ -415,7 +434,28 @@ const ServantsAttendance = () => {
       return acc;
     }, {});
     return Object.keys(grouped).sort().map((k) => ({ title: k, data: grouped[k] }));
-  }, [selectedDate, rawServantsData, searchQuery]);
+  }, [processedServants, searchQuery]);
+
+  // AlphabetIndexBar takes this as an array prop; building it inline in the JSX
+  // gave it a new identity every render.
+  const availableLetters = useMemo(() => sections.map((s) => s.title), [sections]);
+
+  const handleWeekPress = useCallback((date) => {
+    setSelectedDate(date);
+    setDateModalVisible(false);
+  }, []);
+
+  const renderWeek = useCallback(
+    ({ item }) => (
+      <WeekRow
+        label={shortDateLabel(item)}
+        selected={selectedDate === item}
+        dateKey={item}
+        onPress={handleWeekPress}
+      />
+    ),
+    [selectedDate, handleWeekPress]
+  );
 
   const scrollToSection = (letter) => {
     const idx = sections.findIndex((s) => s.title === letter);
@@ -568,7 +608,7 @@ const ServantsAttendance = () => {
             <Text style={styles.weekSelectorLabel}>
               {isCurrentWeek ? "This Week" : "Viewing"}
             </Text>
-            <Text style={styles.weekSelectorDate}>{prettyDate(dateKey)}</Text>
+            <Text style={styles.weekSelectorDate}>{shortDateLabel(dateKey)}</Text>
           </View>
         </View>
         <View style={styles.weekSelectorRight}>
@@ -585,15 +625,10 @@ const ServantsAttendance = () => {
           renderSectionHeader={renderSectionHeader}
           keyExtractor={keyExtractor}
           contentContainerStyle={[styles.listContainer, { paddingRight: 30 }]}
-          // Without these, SectionList inherits windowSize 21 — roughly 21
-          // screens of rows kept mounted. Matches the admin rosters' config.
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={7}
-          updateCellsBatchingPeriod={50}
+          {...LIST_PERF}
           // Android only: on iOS this has a history of blanking cells and
           // breaking touch targets.
-          removeClippedSubviews={Platform.OS === "android"}
+          removeClippedSubviews={REMOVE_CLIPPED_ANDROID_ONLY}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -611,7 +646,7 @@ const ServantsAttendance = () => {
         />
         {sections.length > 0 && !searchQuery.trim() && (
           <View style={{ position: "absolute", top: 85 * scale, right: 0, width: 30 }}>
-            <AlphabetIndexBar onLetterChange={scrollToSection} availableLetters={sections.map((s) => s.title)} />
+            <AlphabetIndexBar onLetterChange={scrollToSection} availableLetters={availableLetters} />
           </View>
         )}
       </View>
@@ -675,7 +710,7 @@ const ServantsAttendance = () => {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.thisWeekTitle}>This week</Text>
-                <Text style={styles.thisWeekDate}>{prettyDate(getNextSunday())}</Text>
+                <Text style={styles.thisWeekDate}>{shortDateLabel(getNextSunday())}</Text>
               </View>
               {isCurrentWeek && <Ionicons name="checkmark-circle" size={20} color="#147EFB" />}
             </TouchableOpacity>
@@ -687,30 +722,13 @@ const ServantsAttendance = () => {
             {/* Scrollable list with fade hint */}
             <View style={styles.weekListWrap}>
               <FlatList
+                {...LIST_PERF}
                 data={previousSundays}
-                keyExtractor={(item) => item}
+                keyExtractor={weekKeyExtractor}
                 style={styles.dateList}
                 showsVerticalScrollIndicator={true}
                 indicatorStyle="white"
-                renderItem={({ item }) => {
-                  const selected = selectedDate === item;
-                  return (
-                    <TouchableOpacity
-                      style={[styles.weekRow, selected && styles.weekRowSelected]}
-                      onPress={() => { setSelectedDate(item); setDateModalVisible(false); }}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.weekRowText, selected && styles.weekRowTextSelected]}>
-                        {prettyDate(item)}
-                      </Text>
-                      {selected ? (
-                        <Ionicons name="checkmark-circle" size={20} color="#147EFB" />
-                      ) : (
-                        <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.25)" />
-                      )}
-                    </TouchableOpacity>
-                  );
-                }}
+                renderItem={renderWeek}
               />
               {/* bottom fade to signal more content scrolls */}
               <View pointerEvents="none" style={styles.weekListFade} />

@@ -7,6 +7,7 @@ import {
 import { Image } from "expo-image";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import firestore from "@react-native-firebase/firestore";
+import { LIST_PERF } from "../utils/listConfig";
 
 const { width: SW, height: SH } = Dimensions.get("window");
 
@@ -30,6 +31,13 @@ export const COLOR_OPTIONS = [
 ];
 
 // ── UserSelectRow ─────────────────────────────────────────────────────────────
+
+const userUidKeyExtractor = (item) => item.uid;
+const EmptyPeople = () => (
+  <View style={s.emptyPeopleWrap}>
+    <Text style={s.emptyPeopleText}>No people found</Text>
+  </View>
+);
 
 const UserSelectRow = memo(({ item, selected, onPress, getImageSource, isUnreg, onDelete }) => (
   <TouchableOpacity
@@ -316,13 +324,25 @@ export const VehicleFormSheet = memo(({
             )}
           </View>
 
+          {/*
+            The registration form stays the ListHeaderComponent. Moving it out
+            would stop it scrolling away with the results, which is a UX change to
+            a screen that was just redesigned. It is deliberately NOT wrapped in a
+            useMemo either: it reads about ten pieces of form state, so it would
+            invalidate on every keystroke regardless, and a missed dependency would
+            show a stale form — a real bug traded for a negligible saving.
+
+            LIST_PERF is the win here: it bounds how many person rows stay mounted
+            behind the form.
+          */}
           <FlatList
+            {...LIST_PERF}
             data={filteredUsers}
-            keyExtractor={(item) => item.uid}
+            keyExtractor={userUidKeyExtractor}
             renderItem={renderUserItem}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
+            contentContainerStyle={s.driverPickerContent}
             ListHeaderComponent={
               <View>
                 <View style={s.formSection}>
@@ -366,11 +386,7 @@ export const VehicleFormSheet = memo(({
                 </View>
               </View>
             }
-            ListEmptyComponent={
-              <View style={{ alignItems: "center", paddingVertical: 24 }}>
-                <Text style={{ color: "rgba(255,255,255,0.25)", fontSize: 14 }}>No people found</Text>
-              </View>
-            }
+            ListEmptyComponent={EmptyPeople}
           />
 
           <View style={s.formFooter}>
@@ -589,6 +605,36 @@ export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, ch
 
 // ── PendingList ───────────────────────────────────────────────────────────────
 
+/** One pending vehicle. Display strings arrive precomputed. */
+const PendingCard = memo(({ vehicle, metaText, driverSummary, onSelect }) => {
+  const Wrapper = onSelect ? TouchableOpacity : View;
+  return (
+    <Wrapper
+      style={s.pendingCard}
+      onPress={onSelect ? () => onSelect(vehicle) : undefined}
+      activeOpacity={0.7}
+    >
+      <View style={s.pendingCardLeft}>
+        <View style={s.pendingStatusDot} />
+        <View>
+          <Text style={s.pendingLicense}>{vehicle.license || "NO PLATE"}</Text>
+          <Text style={s.pendingMeta}>{metaText}</Text>
+          <Text style={s.pendingDriverCount}>{driverSummary}</Text>
+        </View>
+      </View>
+      {onSelect ? <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.3)" /> : null}
+    </Wrapper>
+  );
+});
+PendingCard.displayName = "PendingCard";
+
+const pendingKeyExtractor = (item) => item.vehicle.id;
+const PendingEmpty = () => (
+  <View style={s.pendingEmptyWrap}>
+    <Text style={s.pendingEmptyText}>No results</Text>
+  </View>
+);
+
 export function PendingList({ pendingVehicles, onSelect, onClose, hideHeader = false }) {
   const [search, setSearch] = useState("");
 
@@ -603,6 +649,47 @@ export function PendingList({ pendingVehicles, onSelect, onClose, hideHeader = f
         d.name?.toLowerCase().includes(q) || d.phone?.toLowerCase().includes(q)),
     );
   }, [pendingVehicles, search]);
+
+  /**
+   * Rows with their display strings resolved.
+   *
+   * The row body used to run `drivers.map().filter().join()` and a
+   * `COLOR_OPTIONS.find(...)` for every mounted card on every render — including
+   * every keystroke in the search box above the list.
+   */
+  const rows = useMemo(
+    () =>
+      filtered.map((vehicle) => {
+        const drivers = vehicle.drivers || [];
+        const driverNames = drivers
+          .map((d) => (d?.name || "").trim().split(" ")[0])
+          .filter(Boolean)
+          .join(", ");
+        return {
+          vehicle,
+          metaText:
+            [vehicle.make, vehicle.model, COLOR_OPTIONS.find((c) => c.value === vehicle.color)?.label]
+              .filter(Boolean)
+              .join(" · ") || "No vehicle info",
+          driverSummary: `${drivers.length} driver${drivers.length !== 1 ? "s" : ""}${
+            driverNames ? `: ${driverNames}` : ""
+          }`,
+        };
+      }),
+    [filtered]
+  );
+
+  const renderPending = useCallback(
+    ({ item }) => (
+      <PendingCard
+        vehicle={item.vehicle}
+        metaText={item.metaText}
+        driverSummary={item.driverSummary}
+        onSelect={onSelect}
+      />
+    ),
+    [onSelect]
+  );
 
   return (
     <View style={s.pendingSheet}>
@@ -632,43 +719,14 @@ export function PendingList({ pendingVehicles, onSelect, onClose, hideHeader = f
             ) : null}
           </View>
           <FlatList
-            data={filtered}
-            keyExtractor={(v) => v.id}
-            contentContainerStyle={{ padding: 16 }}
+            {...LIST_PERF}
+            data={rows}
+            keyExtractor={pendingKeyExtractor}
+            contentContainerStyle={s.pendingListContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <View style={{ alignItems: "center", marginTop: 32 }}>
-                <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 15 }}>No results</Text>
-              </View>
-            }
-            renderItem={({ item: v }) => {
-              const Wrapper = onSelect ? TouchableOpacity : View;
-              const drivers = v.drivers || [];
-              const driverNames = drivers
-                .map((d) => (d?.name || "").trim().split(" ")[0])
-                .filter(Boolean)
-                .join(", ");
-              return (
-                <Wrapper style={s.pendingCard} onPress={onSelect ? () => onSelect(v) : undefined} activeOpacity={0.7}>
-                  <View style={s.pendingCardLeft}>
-                    <View style={s.pendingStatusDot} />
-                    <View>
-                      <Text style={s.pendingLicense}>{v.license || "NO PLATE"}</Text>
-                      <Text style={s.pendingMeta}>
-                        {[v.make, v.model, COLOR_OPTIONS.find((c) => c.value === v.color)?.label]
-                          .filter(Boolean).join(" · ") || "No vehicle info"}
-                      </Text>
-                      <Text style={s.pendingDriverCount}>
-                        {drivers.length} driver{drivers.length !== 1 ? "s" : ""}
-                        {driverNames ? `: ${driverNames}` : ""}
-                      </Text>
-                    </View>
-                  </View>
-                  {onSelect ? <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.3)" /> : null}
-                </Wrapper>
-              );
-            }}
+            ListEmptyComponent={PendingEmpty}
+            renderItem={renderPending}
           />
         </>
       )}
@@ -730,6 +788,13 @@ const s = StyleSheet.create({
   pendingLicense: { fontSize: 17, fontWeight: "700", color: "#fff", letterSpacing: 0 },
   pendingMeta: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 2, letterSpacing: 0 },
   pendingDriverCount: { fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 2, letterSpacing: 0 },
+  // Hoisted out of the JSX, where they were fresh object literals every render.
+  pendingListContent: { padding: 16 },
+  pendingEmptyWrap: { alignItems: "center", marginTop: 32 },
+  pendingEmptyText: { color: "rgba(255,255,255,0.3)", fontSize: 15 },
+  driverPickerContent: { paddingHorizontal: 16, paddingBottom: 120 },
+  emptyPeopleWrap: { alignItems: "center", paddingVertical: 24 },
+  emptyPeopleText: { color: "rgba(255,255,255,0.25)", fontSize: 14 },
   approvalContainer: { flex: 1, padding: 20 },
   approvalCenter: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
   approvalSavingText: { color: "rgba(255,255,255,0.5)", fontSize: 14, letterSpacing: 0 },

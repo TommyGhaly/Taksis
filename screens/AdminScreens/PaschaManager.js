@@ -7,6 +7,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { LIST_PERF } from "../../utils/listConfig";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
@@ -308,8 +309,12 @@ var HourModal = function(props) {
 
   var pickerSource = useMemo(function() {
     var list = tab === "deacons" ? deacons : congregation;
-    return q ? list.filter(function(u) { return u.name.toLowerCase().includes(q.toLowerCase()); }) : list;
+    if (!q) return list;
+    // `q.toLowerCase()` was inside the predicate, so it ran once per candidate.
+    var needle = q.toLowerCase();
+    return list.filter(function(u) { return u.name.toLowerCase().includes(needle); });
   }, [tab, deacons, congregation, q]);
+
 
   useEffect(function() {
     if (!visible) {
@@ -419,6 +424,34 @@ var HourModal = function(props) {
     onSavePsalmReaders(hour.id, psalmReadersKey(psalmRow), readers);
     closePsalmPicker();
   };
+
+  // Declared here, after togglePsalm: a dependency array is evaluated during
+  // render, so referencing a `var` initialised further down would read undefined.
+  var handlePickerToggle = useCallback(function(item, on) {
+    setSel(on ? null : item);
+  }, []);
+
+  var renderPickerRow = useCallback(function(ri) {
+    var item = ri.item;
+    var on = sel != null
+      ? (sel.uid ? sel.uid === item.uid : sel.name === item.name)
+      : false;
+    return <PickerRow item={item} on={on} onToggle={handlePickerToggle} />;
+  }, [sel, handlePickerToggle]);
+
+  var renderPsalmRow = useCallback(function(ri) {
+    var item = ri.item;
+    var k = item.uid || item.name;
+    var on = psalmSelected.has(k);
+    return (
+      <PsalmPickerRow
+        item={item}
+        on={on}
+        atMax={psalmSelected.size >= MAX_PSALM_READERS && !on}
+        onToggle={togglePsalm}
+      />
+    );
+  }, [psalmSelected, togglePsalm]);
 
   var pickerMeta  = pickerRow_ != null
     ? (READING_META[pickerRow_.rKey] || { label: pickerRow_.rKey, icon: "book-outline", color: T2 })
@@ -640,34 +673,14 @@ var HourModal = function(props) {
                 {loadingUsers
                   ? <View style={hm.center}><ActivityIndicator color={BLUE} /></View>
                   : <FlatList
+                      {...LIST_PERF}
                       data={pickerSource}
-                      keyExtractor={function(i) { return i.uid || i.name; }}
-                      style={{ maxHeight: pickerScrollMax, paddingHorizontal: 20 }}
+                      keyExtractor={pickerKeyExtractor}
+                      style={[hm.pickerList, { maxHeight: pickerScrollMax }]}
                       keyboardShouldPersistTaps="handled"
                       showsVerticalScrollIndicator
-                      initialNumToRender={10}
-                      maxToRenderPerBatch={10}
-                      windowSize={7}
-                      ListEmptyComponent={<Text style={hm.empty}>No results</Text>}
-                      renderItem={function(ri) {
-                        var item = ri.item;
-                        var on = sel != null
-                          ? (sel.uid ? sel.uid === item.uid : sel.name === item.name)
-                          : false;
-                        return (
-                          <TouchableOpacity style={[hm.pRow, on && hm.pRowOn]}
-                            onPress={function() { setSel(on ? null : item); }} activeOpacity={0.65}>
-                            <Avatar uid={item.uid} user={item} size={38} showBorder={false} style={AVATAR_BG} />
-                            <View style={{ flex: 1, marginLeft: 12 }}>
-                              <Text style={hm.pRowName}>{item.name}</Text>
-                              {item.isDeacon && <Text style={hm.pRowTag}>DEACON</Text>}
-                            </View>
-                            <View style={[hm.radio, on && hm.radioOn]}>
-                              {on && <View style={hm.radioDot} />}
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      }}
+                      ListEmptyComponent={PickerEmpty}
+                      renderItem={renderPickerRow}
                     />
                 }
                 {manualOpen ? (
@@ -777,36 +790,14 @@ var HourModal = function(props) {
                 {loadingUsers
                   ? <View style={hm.center}><ActivityIndicator color={BLUE} /></View>
                   : <FlatList
+                      {...LIST_PERF}
                       data={pickerSource}
-                      keyExtractor={function(i) { return i.uid || i.name; }}
-                      style={{ maxHeight: psalmPickerScrollMax, paddingHorizontal: 20 }}
+                      keyExtractor={pickerKeyExtractor}
+                      style={[hm.pickerList, { maxHeight: psalmPickerScrollMax }]}
                       keyboardShouldPersistTaps="handled"
                       showsVerticalScrollIndicator
-                      initialNumToRender={10}
-                      maxToRenderPerBatch={10}
-                      windowSize={7}
-                      ListEmptyComponent={<Text style={hm.empty}>No results</Text>}
-                      renderItem={function(ri) {
-                        var item = ri.item;
-                        var k    = item.uid || item.name;
-                        var on   = psalmSelected.has(k);
-                        var atMax = psalmSelected.size >= MAX_PSALM_READERS && !on;
-                        return (
-                          <TouchableOpacity
-                            style={[hm.pRow, on && hm.pRowOn, atMax && { opacity: 0.4 }]}
-                            onPress={function() { if (!atMax) togglePsalm(item); }}
-                            activeOpacity={0.65}>
-                            <Avatar uid={item.uid} user={item} size={38} showBorder={false} style={AVATAR_BG} />
-                            <View style={{ flex: 1, marginLeft: 12 }}>
-                              <Text style={hm.pRowName}>{item.name}</Text>
-                              {item.isDeacon && <Text style={hm.pRowTag}>DEACON</Text>}
-                            </View>
-                            <View style={[pmS.checkbox, on && pmS.checkboxOn]}>
-                              {on && <Icon name="check" size={13} color={T1} />}
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      }}
+                      ListEmptyComponent={PickerEmpty}
+                      renderItem={renderPsalmRow}
                     />
                 }
                 {manualOpen ? (
@@ -914,6 +905,10 @@ var hm = StyleSheet.create({
                         marginBottom: 6, backgroundColor: CARD2 },
   pRowOn:             { backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.25)" },
   pRowName:           { fontSize: 14, color: T1, fontWeight: "500" },
+  // Hoisted out of the JSX, where they were fresh object literals every render.
+  pRowBody:           { flex: 1, marginLeft: 12 },
+  pRowAtMax:          { opacity: 0.4 },
+  pickerList:         { paddingHorizontal: 20 },
   pRowTag:            { fontSize: 9, color: BLUE, fontWeight: "800", marginTop: 2, letterSpacing: 0.6 },
   radio:              { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: T3,
                         justifyContent: "center", alignItems: "center" },
@@ -1018,6 +1013,54 @@ var dt = StyleSheet.create({
 });
 
 // ── Hour tile ─────────────────────────────────────────────────────────────────
+/**
+ * Picker rows, memoized.
+ *
+ * Both pickers used an inline `function(ri){...}` renderItem, so every keystroke in
+ * the search field rebuilt every mounted row — and each row mounts an <Avatar>,
+ * which carries a useSyncExternalStore subscription plus two effects.
+ */
+var PickerRow = React.memo(function(props) {
+  var item = props.item, on = props.on;
+  return (
+    <TouchableOpacity style={[hm.pRow, on && hm.pRowOn]}
+      onPress={function() { props.onToggle(item, on); }} activeOpacity={0.65}>
+      <Avatar uid={item.uid} user={item} size={38} showBorder={false} style={AVATAR_BG} />
+      <View style={hm.pRowBody}>
+        <Text style={hm.pRowName}>{item.name}</Text>
+        {item.isDeacon && <Text style={hm.pRowTag}>DEACON</Text>}
+      </View>
+      <View style={[hm.radio, on && hm.radioOn]}>
+        {on && <View style={hm.radioDot} />}
+      </View>
+    </TouchableOpacity>
+  );
+});
+PickerRow.displayName = "PickerRow";
+
+var PsalmPickerRow = React.memo(function(props) {
+  var item = props.item, on = props.on, atMax = props.atMax;
+  return (
+    <TouchableOpacity
+      style={[hm.pRow, on && hm.pRowOn, atMax && hm.pRowAtMax]}
+      onPress={function() { if (!atMax) props.onToggle(item); }}
+      activeOpacity={0.65}>
+      <Avatar uid={item.uid} user={item} size={38} showBorder={false} style={AVATAR_BG} />
+      <View style={hm.pRowBody}>
+        <Text style={hm.pRowName}>{item.name}</Text>
+        {item.isDeacon && <Text style={hm.pRowTag}>DEACON</Text>}
+      </View>
+      <View style={[pmS.checkbox, on && pmS.checkboxOn]}>
+        {on && <Icon name="check" size={13} color={T1} />}
+      </View>
+    </TouchableOpacity>
+  );
+});
+PsalmPickerRow.displayName = "PsalmPickerRow";
+
+var pickerKeyExtractor = function(i) { return i.uid || i.name; };
+var PickerEmpty = function() { return <Text style={hm.empty}>No results</Text>; };
+
 var HourTile = React.memo(function(props) {
   var hour = props.hour;
   var hourAssignments = props.hourAssignments;

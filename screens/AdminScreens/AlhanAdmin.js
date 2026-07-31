@@ -24,47 +24,13 @@ import PhotoInput from "../../components/photoInput";
 import Avatar from "../../components/Avatar";
 import AlphabetIndexBar from "../../components/AlphabetIndexBar";
 import SkeletonScreen from "../../components/Skeleton";
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as avatarCache from "../../utils/avatarCache";
+import { LIST_PERF, REMOVE_CLIPPED_ANDROID_ONLY } from "../../utils/listConfig";
+import { makeScreenCache } from "../../utils/screenCache";
 import useAfterInteractions from "../../hooks/useAfterInteractions";
 
 // Simple cache utilities
-const CacheUtils = {
-  async get(key) {
-    try {
-      const cached = await AsyncStorage.getItem(key);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        // Check if cache is still valid (24 hours)
-        if (Date.now() - parsed.timestamp < 72 * 60 * 60 * 1000) {
-          return parsed.data;
-        }
-      }
-    } catch (error) {
-      console.log('Cache read error:', error);
-    }
-    return null;
-  },
-
-  async set(key, data) {
-    try {
-      await AsyncStorage.setItem(key, JSON.stringify({
-        data,
-        timestamp: Date.now()
-      }));
-    } catch (error) {
-      console.log('Cache write error:', error);
-    }
-  },
-
-  async remove(key) {
-    try {
-      await AsyncStorage.removeItem(key);
-    } catch (error) {
-      console.log('Cache remove error:', error);
-    }
-  }
-};
+const CacheUtils = makeScreenCache();
 
 // Haptic feedback options
 const hapticOptions = {
@@ -293,7 +259,7 @@ const AlhanAdmin = () => {
             setChurch(userChurch);
             
             // Cache church data
-            await CacheUtils.set(cacheKeys.current.church, userChurch);
+            CacheUtils.set(cacheKeys.current.church, userChurch);
             
             // Set up teachers listener when church is available. Only re-attach
             // when the church actually changed — re-attaching on every write to
@@ -369,7 +335,7 @@ const AlhanAdmin = () => {
           setLoading(false);
 
           // Cache teachers data
-          await CacheUtils.set(cacheKeys.current.teachers, teacherList);
+          CacheUtils.set(cacheKeys.current.teachers, teacherList);
         },
         (error) => {
           if (isMounted.current) {
@@ -597,10 +563,10 @@ const AlhanAdmin = () => {
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
-            initialNumToRender={10}
-            maxToRenderPerBatch={10}
-            windowSize={7}
-            removeClippedSubviews={true}
+            {...LIST_PERF}
+            // Android only: on iOS this blanked rows once the list was scrolled
+            // past a screen or two. See utils/listConfig.js.
+            removeClippedSubviews={REMOVE_CLIPPED_ANDROID_ONLY}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
             onScrollToIndexFailed={(info) => {

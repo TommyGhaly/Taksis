@@ -17,6 +17,7 @@ import { Image } from "expo-image";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { COLOR_OPTIONS } from "./TrafficVehicleComponents";
 import { approveReviewItem, deleteReviewItem, resolveDriver } from "../utils/carsMigration";
+import { LIST_PERF } from "../utils/listConfig";
 
 const DEFAULT_PROFILE = require("../assets/default_profile.png");
 
@@ -98,6 +99,45 @@ function findCandidates(driver, allUsers, maxResults = 5) {
   return scored;
 }
 
+/**
+ * One manual-search result.
+ *
+ * Hoisted and memoized: it used to be an inline `renderItem` closure, rebuilt for
+ * every mounted row on each keystroke in the search box above it.
+ */
+const CandidateRow = memo(({ user, imageSource, onSelect }) => (
+  <TouchableOpacity
+    style={rs.candidateRow}
+    onPress={() => onSelect(user.uid)}
+    activeOpacity={0.7}
+  >
+    <Image source={imageSource} style={rs.candidateAvatar} contentFit="cover" />
+    <View style={rs.candidateInfo}>
+      <Text style={rs.candidateName}>{user.name}</Text>
+      {user.phone ? <Text style={rs.candidatePhone}>{user.phone}</Text> : null}
+    </View>
+    {user.uid?.startsWith("unreg_") && (
+      <View style={rs.unregBadge}>
+        <Text style={rs.unregBadgeText}>No Acct</Text>
+      </View>
+    )}
+  </TouchableOpacity>
+));
+CandidateRow.displayName = "CandidateRow";
+
+// Module-level so these props stay identity-stable across renders.
+const driverKeyExtractor = (_, index) => String(index);
+
+// A component rather than a bare element on purpose: `ms` is declared at the bottom
+// of this file, so building the element at module scope would read it before
+// initialization. A function body only runs at render time, by which point it exists.
+const EmptyDrivers = () => (
+  <View style={ms.emptyDrivers}>
+    <Icon name="account-off" size={24} color="rgba(255,255,255,0.2)" />
+    <Text style={ms.emptyDriversText}>No drivers listed</Text>
+  </View>
+);
+
 // ── DriverResolutionRow ──────────────────────────────────────────────────────
 
 const DriverResolutionRow = memo(({
@@ -134,6 +174,16 @@ const DriverResolutionRow = memo(({
         u.uid?.toLowerCase().includes(q)
     ).slice(0, 15);
   }, [manualSearch, search, allUsers]);
+
+  // Stable across keystrokes so CandidateRow's memo holds.
+  const handleSelectManual = useCallback(
+    (uid) => {
+      onLink(index, uid);
+      setManualSearch(false);
+      setSearch("");
+    },
+    [onLink, index]
+  );
 
   const linkedUser = useMemo(() => {
     if (!resolved) return null;
@@ -261,38 +311,33 @@ const DriverResolutionRow = memo(({
               </TouchableOpacity>
             )}
           </View>
-          <FlatList
-            data={manualResults}
-            keyExtractor={(u) => u.uid}
+          {/*
+            Deliberately a ScrollView, not a FlatList. This row is itself rendered
+            inside the modal's driver list, and a same-orientation VirtualizedList
+            nested in another scrolling parent is the "VirtualizedLists should never
+            be nested" warning — plus the inner list's scrolling fights the outer's.
+            Virtualizing buys nothing here anyway: `manualResults` is capped at 15
+            and the container is capped at 160pt.
+          */}
+          <ScrollView
             style={rs.searchResults}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            renderItem={({ item: u }) => (
-              <TouchableOpacity
-                style={rs.candidateRow}
-                onPress={() => {
-                  onLink(index, u.uid);
-                  setManualSearch(false);
-                  setSearch("");
-                }}
-                activeOpacity={0.7}
-              >
-                <Image source={getImageSource(u.uid)} style={rs.candidateAvatar} contentFit="cover" />
-                <View style={rs.candidateInfo}>
-                  <Text style={rs.candidateName}>{u.name}</Text>
-                  {u.phone ? <Text style={rs.candidatePhone}>{u.phone}</Text> : null}
-                </View>
-                {u.uid?.startsWith("unreg_") && (
-                  <View style={rs.unregBadge}>
-                    <Text style={rs.unregBadgeText}>No Acct</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            )}
-            ListEmptyComponent={
+            nestedScrollEnabled
+          >
+            {manualResults.length === 0 ? (
               <Text style={rs.noResults}>No users found</Text>
-            }
-          />
+            ) : (
+              manualResults.map((u) => (
+                <CandidateRow
+                  key={u.uid}
+                  user={u}
+                  imageSource={getImageSource(u.uid)}
+                  onSelect={handleSelectManual}
+                />
+              ))
+            )}
+          </ScrollView>
         </View>
       )}
     </View>
@@ -438,6 +483,27 @@ const VehicleReviewModal = ({
     ]);
   }, [item, advance, onItemResolved]);
 
+  // `item.drivers` is fixed for the life of the modal — linking mutates
+  // `resolvedDrivers`, never this array — so the index is a stable identity and
+  // memoizing the array keeps FlatList's data identity steady between renders.
+  const drivers = useMemo(() => item?.drivers || [], [item]);
+
+  const renderDriver = useCallback(
+    ({ item: driver, index }) => (
+      <DriverResolutionRow
+        driver={driver}
+        index={index}
+        resolved={resolvedDrivers[index]}
+        allUsers={allUsers}
+        getImageSource={getImageSource}
+        onLink={handleLink}
+        onCreateUnreg={handleCreateUnreg}
+        onUnlink={handleUnlink}
+      />
+    ),
+    [resolvedDrivers, allUsers, getImageSource, handleLink, handleCreateUnreg, handleUnlink]
+  );
+
   if (!visible || !item) return null;
 
   const colorObj = COLOR_OPTIONS.find((c) => c.value === item.color);
@@ -500,32 +566,23 @@ const VehicleReviewModal = ({
             Drivers ({resolvedCount}/{(item.drivers || []).length} linked)
           </Text>
 
-          <ScrollView
+          {/*
+            This is the FlatList and the candidate list inside each row is a plain
+            ScrollView, not the other way around. Reversing them is what produced
+            the "VirtualizedLists should never be nested inside plain ScrollViews
+            with the same orientation" warning.
+          */}
+          <FlatList
+            {...LIST_PERF}
+            data={drivers}
+            keyExtractor={driverKeyExtractor}
+            renderItem={renderDriver}
+            ListEmptyComponent={EmptyDrivers}
             style={ms.driverList}
             contentContainerStyle={ms.driverListContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-          >
-            {(item.drivers || []).map((driver, index) => (
-              <DriverResolutionRow
-                key={index}
-                driver={driver}
-                index={index}
-                resolved={resolvedDrivers[index]}
-                allUsers={allUsers}
-                getImageSource={getImageSource}
-                onLink={handleLink}
-                onCreateUnreg={handleCreateUnreg}
-                onUnlink={handleUnlink}
-              />
-            ))}
-            {(item.drivers || []).length === 0 && (
-              <View style={ms.emptyDrivers}>
-                <Icon name="account-off" size={24} color="rgba(255,255,255,0.2)" />
-                <Text style={ms.emptyDriversText}>No drivers listed</Text>
-              </View>
-            )}
-          </ScrollView>
+          />
 
           {/* Actions */}
           <View style={ms.footer}>

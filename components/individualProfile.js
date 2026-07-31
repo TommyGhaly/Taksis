@@ -198,27 +198,54 @@ const IndividualProfile = ({
               // on, so the collection has to be scanned — but as a ONE-TIME
               // read, not a live listener. As an onSnapshot this re-scanned
               // every user doc on any change to any user in the app.
+              //
+              // The scan is now scoped to this church first, which is where the
+              // parent virtually always is, and only falls back to the unbounded
+              // multi-church scan if that misses. Results are identical — the
+              // fallback preserves the old behaviour exactly for the rare case of a
+              // parent whose `church` differs from the viewing context — but the
+              // common path stops reading every user in every church.
+              //
+              // The real fix is a `childUids` array on parent docs plus an
+              // `array-contains` query. That needs a schema change and a backfill,
+              // so it is deliberately out of scope here.
               try {
-                const querySnapshot = await firestore()
-                  .collection("users")
-                  .get();
-
-                let childData = null;
-                let parentId = null;
-                let parentPhone = "Not provided";
-
-                for (const doc of querySnapshot.docs) {
-                  const parentData = doc.data();
-                  const children = parentData.children || [];
-                  const child = children.find((c) => c.uid === userId);
-                  if (child) {
-                    childData = child;
-                    parentId = doc.id;
-                    parentPhone =
-                      parentData.phone || parentData.number || "Not provided";
-                    break;
+                const findChildIn = (snapshot) => {
+                  for (const doc of snapshot.docs) {
+                    const parentData = doc.data();
+                    const child = (parentData.children || []).find(
+                      (c) => c.uid === userId
+                    );
+                    if (child) {
+                      return {
+                        childData: child,
+                        parentId: doc.id,
+                        parentPhone:
+                          parentData.phone || parentData.number || "Not provided",
+                      };
+                    }
                   }
+                  return null;
+                };
+
+                let found = null;
+                if (church) {
+                  found = findChildIn(
+                    await firestore()
+                      .collection("users")
+                      .where("church", "==", church)
+                      .get()
+                  );
                 }
+                if (!found) {
+                  found = findChildIn(
+                    await firestore().collection("users").get()
+                  );
+                }
+
+                const childData = found ? found.childData : null;
+                const parentId = found ? found.parentId : null;
+                const parentPhone = found ? found.parentPhone : "Not provided";
 
                 if (childData) {
                   setUserData({

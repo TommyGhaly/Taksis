@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,70 +9,33 @@ import {
   TextInput,
 } from "react-native";
 import Avatar from "./Avatar";
-
-// Date format constants
-const DATE_FORMATS = {
-  SCHEDULE: 'MM-DD-YY',
-  LAST_SERVE: 'MM-DD-YY',
-};
+import { LIST_PERF } from "../utils/listConfig";
+import { weeksBetween } from "../utils/dateKeys";
 
 // ===== Date Utility Functions =====
+//
+// The local `DATE_FORMATS` / `parseDate` pair that used to live here is gone. Both
+// of its format constants were the string "MM-DD-YY", so the day-first branch was
+// unreachable and everything was parsed month-first anyway — see the note in
+// utils/dateKeys.js. `weeksBetween(from, to)` has the same argument order and the
+// same null-on-unparseable behaviour as the old `calculateWeeksBetween`.
 
-const parseDate = (dateStr, format) => {
-  if (!dateStr || typeof dateStr !== 'string') return null;
-  const parts = dateStr.split('-');
-  if (parts.length !== 3) return null;
-  
-  let day, month, year;
-  if (format === DATE_FORMATS.SCHEDULE) {
-    month = parseInt(parts[0], 10);
-    day = parseInt(parts[1], 10);
-    year = parseInt(parts[2], 10);
-  } else if (format === DATE_FORMATS.LAST_SERVE) {
-    day = parseInt(parts[0], 10);
-    month = parseInt(parts[1], 10);
-    year = parseInt(parts[2], 10);
-  } else {
-    return null;
-  }
-  
-  if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  
-  const fullYear = year < 100 ? 2000 + year : year;
-  const date = new Date(fullYear, month - 1, day);
-  
-  if (date.getFullYear() !== fullYear || date.getMonth() !== month - 1 || date.getDate() !== day) {
-    return null;
-  }
-  return date;
-};
-
-const calculateWeeksBetween = (lastServeStr, targetWeekStr) => {
-  if (!lastServeStr || !targetWeekStr) return null;
-  const lastServeDate = parseDate(lastServeStr, DATE_FORMATS.LAST_SERVE);
-  const targetDate = parseDate(targetWeekStr, DATE_FORMATS.SCHEDULE);
-  if (!lastServeDate || !targetDate) return null;
-  
-  const diffMs = targetDate.getTime() - lastServeDate.getTime();
-  return Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
-};
+// Hoisted out of getColorForWeeks, which reallocated this array on every call —
+// and it was called once per row per render.
+const COLOR_STOPS = [
+  { weeks: 0, color: '#ff3b30' },
+  { weeks: 1, color: '#ff3b30' },
+  { weeks: 2, color: '#ff6b30' },
+  { weeks: 3, color: '#ff9500' },
+  { weeks: 4, color: '#ffcc00' },
+  { weeks: 6, color: '#c7dc00' },
+  { weeks: 8, color: '#76d600' },
+  { weeks: Infinity, color: '#34c759' },
+];
 
 const getColorForWeeks = (weeks) => {
   if (weeks === null || weeks === undefined || weeks < 0) return '#666';
-  
-  const colorStops = [
-    { weeks: 0, color: '#ff3b30' },
-    { weeks: 1, color: '#ff3b30' },
-    { weeks: 2, color: '#ff6b30' },
-    { weeks: 3, color: '#ff9500' },
-    { weeks: 4, color: '#ffcc00' },
-    { weeks: 6, color: '#c7dc00' },
-    { weeks: 8, color: '#76d600' },
-    { weeks: Infinity, color: '#34c759' },
-  ];
-  
-  for (const stop of colorStops) {
+  for (const stop of COLOR_STOPS) {
     if (weeks <= stop.weeks) return stop.color;
   }
   return '#34c759';
@@ -84,6 +47,61 @@ const getWeeksDisplayText = (weeks) => {
   if (weeks === 0) return 'Serving this week';
   if (weeks === 1) return 'Served 1 week ago';
   return `Served ${weeks} weeks ago`;
+};
+
+/**
+ * One server row.
+ *
+ * Everything it displays arrives precomputed. It used to be an inline `renderItem`
+ * that ran the week arithmetic, the colour interpolation and the label formatting
+ * for every mounted row on every render — including every keystroke in the search
+ * box directly above it.
+ */
+const ServerRow = React.memo(({ server, indicatorColor, displayText, secondaryInfo, onPress }) => (
+  <TouchableOpacity
+    style={styles.modalItemContainer}
+    onPress={() => onPress(server)}
+    activeOpacity={0.7}
+  >
+    <View style={styles.modalItemContent}>
+      <View style={styles.profilePicContainer}>
+        <Avatar
+          uid={server.uid}
+          user={server}
+          size={42}
+          borderRadius={21}
+          style={styles.profilePic}
+          showBorder={false}
+        />
+        <View style={[styles.statusIndicator, { backgroundColor: indicatorColor }]} />
+      </View>
+      <View style={styles.serverInfo}>
+        <Text style={styles.modalItem}>{server.name}</Text>
+        <View style={styles.serveInfoContainer}>
+          <Text style={[styles.primaryServeText, { color: indicatorColor }]}>
+            {displayText}
+          </Text>
+          {secondaryInfo && (
+            <Text style={styles.secondaryServeText}>{secondaryInfo}</Text>
+          )}
+        </View>
+      </View>
+    </View>
+  </TouchableOpacity>
+));
+ServerRow.displayName = "ServerRow";
+
+// Hoisted: as inline props these were a new identity every render.
+const serverKeyExtractor = (item) => item.server.uid;
+const Separator = () => <View style={styles.separator} />;
+
+/** How long until this server serves again, or null if that isn't worth showing. */
+const nextServeLabel = (selectedWeek, nextServeStr) => {
+  const weeks = weeksBetween(selectedWeek, nextServeStr);
+  if (weeks === null || weeks < 0 || weeks > 8) return null;
+  if (weeks === 0) return 'Serving next week';
+  if (weeks === 1) return 'Serving in 1 week';
+  return `Serving in ${weeks} weeks`;
 };
 
 // ===== Component =====
@@ -101,58 +119,58 @@ const ServerSelectionModal = ({
 }) => {
   const [query, setQuery] = useState("");
 
-  const filteredServers = query.trim()
-    ? servers.filter(s => s.name?.toLowerCase().includes(query.toLowerCase()))
-    : servers;
+  /**
+   * Rows with all their derived display values resolved.
+   *
+   * Filtering used to happen in the render body (and lowercased `query` once per
+   * server rather than once), and the week/colour/label derivation happened inside
+   * `renderItem`. Both are now memoized, and the derivation is keyed on the data it
+   * actually depends on — so typing only re-filters, it doesn't redo the arithmetic
+   * for rows that are already computed.
+   */
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? servers.filter((s) => s.name?.toLowerCase().includes(q))
+      : servers;
 
-  const renderItem = ({ item }) => {
-    const weeksSinceLastServe = calculateWeeksBetween(lastServeData[item.uid], selectedWeek);
-    const indicatorColor = getColorForWeeks(weeksSinceLastServe);
-    const displayText = getWeeksDisplayText(weeksSinceLastServe);
-    
-    let secondaryInfo = null;
-    if (showNextServe && nextServeData[item.uid]) {
-      const weeksUntilNext = calculateWeeksBetween(selectedWeek, nextServeData[item.uid]);
-      if (weeksUntilNext !== null && weeksUntilNext >= 0) {
-        if (weeksUntilNext === 0) secondaryInfo = 'Serving next week';
-        else if (weeksUntilNext === 1) secondaryInfo = 'Serving in 1 week';
-        else if (weeksUntilNext <= 8) secondaryInfo = `Serving in ${weeksUntilNext} weeks`;
-      }
-    }
-    
-    return (
-      <TouchableOpacity
-        style={styles.modalItemContainer}
-        onPress={() => onSelect(item)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.modalItemContent}>
-          <View style={styles.profilePicContainer}>
-            <Avatar
-              uid={item.uid}
-              user={item}
-              size={42}
-              borderRadius={21}
-              style={styles.profilePic}
-              showBorder={false}
-            />
-            <View style={[styles.statusIndicator, { backgroundColor: indicatorColor }]} />
-          </View>
-          <View style={styles.serverInfo}>
-            <Text style={styles.modalItem}>{item.name}</Text>
-            <View style={styles.serveInfoContainer}>
-              <Text style={[styles.primaryServeText, { color: indicatorColor }]}>
-                {displayText}
-              </Text>
-              {secondaryInfo && (
-                <Text style={styles.secondaryServeText}>{secondaryInfo}</Text>
-              )}
-            </View>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+    return filtered.map((server) => {
+      const weeksSinceLastServe = weeksBetween(lastServeData[server.uid], selectedWeek);
+      return {
+        server,
+        indicatorColor: getColorForWeeks(weeksSinceLastServe),
+        displayText: getWeeksDisplayText(weeksSinceLastServe),
+        secondaryInfo:
+          showNextServe && nextServeData[server.uid]
+            ? nextServeLabel(selectedWeek, nextServeData[server.uid])
+            : null,
+      };
+    });
+  }, [query, servers, lastServeData, nextServeData, selectedWeek, showNextServe]);
+
+  const renderItem = useCallback(
+    ({ item }) => (
+      <ServerRow
+        server={item.server}
+        indicatorColor={item.indicatorColor}
+        displayText={item.displayText}
+        secondaryInfo={item.secondaryInfo}
+        onPress={onSelect}
+      />
+    ),
+    [onSelect]
+  );
+
+  const listEmpty = useMemo(
+    () => (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>
+          {query.trim() ? `No results for "${query}"` : "No servers available"}
+        </Text>
+      </View>
+    ),
+    [query]
+  );
 
   return (
     <Modal
@@ -198,22 +216,14 @@ const ServerSelectionModal = ({
 
             {/* List */}
             <FlatList
-              data={filteredServers}
-              keyExtractor={(item) => item.uid}
+              {...LIST_PERF}
+              data={rows}
+              keyExtractor={serverKeyExtractor}
               showsVerticalScrollIndicator={false}
               renderItem={renderItem}
-              initialNumToRender={10}
-              maxToRenderPerBatch={10}
-              windowSize={7}
               keyboardShouldPersistTaps="handled"
-              ItemSeparatorComponent={() => <View style={styles.separator} />}
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>
-                    {query.trim() ? `No results for "${query}"` : "No servers available"}
-                  </Text>
-                </View>
-              }
+              ItemSeparatorComponent={Separator}
+              ListEmptyComponent={listEmpty}
             />
           </View>
         </TouchableOpacity>

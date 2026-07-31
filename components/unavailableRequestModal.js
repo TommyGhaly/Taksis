@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,9 @@ import {
 import * as avatarCache from "../utils/avatarCache";
 import { callFunction } from "./functionCalls";
 import IndividualProfile from "./individualProfile";
+import { LIST_PERF } from "../utils/listConfig";
+import { getDocsByIds } from "../utils/firestoreBatch";
+import { weeksBetween, longDateLabel } from "../utils/dateKeys";
 
 const displayNames = {
   matins: "Matins Gospel",
@@ -33,66 +36,29 @@ const displayNames = {
   altar: "Altar Server",
 };
 
-const DATE_FORMATS = {
-  SCHEDULE: 'MM-DD-YY',
-  LAST_SERVE: 'MM-DD-YY',
-};
+// The local `DATE_FORMATS` / `parseDate` pair that used to live here is gone. Both
+// of its format constants were the string "MM-DD-YY", so the day-first branch was
+// unreachable and everything was parsed month-first anyway — see the note in
+// utils/dateKeys.js. `weeksBetween(from, to)` has the same argument order and the
+// same null-on-unparseable behaviour as the old `calculateWeeksBetween`, and
+// `longDateLabel` replaces `formatWeekDisplay` with a cached equivalent.
 
-const parseDate = (dateStr, format) => {
-  if (!dateStr || typeof dateStr !== 'string') return null;
-  const parts = dateStr.split('-');
-  if (parts.length !== 3) return null;
-  
-  let day, month, year;
-  if (format === DATE_FORMATS.SCHEDULE) {
-    month = parseInt(parts[0], 10);
-    day = parseInt(parts[1], 10);
-    year = parseInt(parts[2], 10);
-  } else if (format === DATE_FORMATS.LAST_SERVE) {
-    day = parseInt(parts[0], 10);
-    month = parseInt(parts[1], 10);
-    year = parseInt(parts[2], 10);
-  } else {
-    return null;
-  }
-  
-  if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  
-  const fullYear = year < 100 ? 2000 + year : year;
-  const date = new Date(fullYear, month - 1, day);
-  
-  if (date.getFullYear() !== fullYear || date.getMonth() !== month - 1 || date.getDate() !== day) {
-    return null;
-  }
-  return date;
-};
-
-const calculateWeeksBetween = (lastServeStr, targetWeekStr) => {
-  if (!lastServeStr || !targetWeekStr) return null;
-  const lastServeDate = parseDate(lastServeStr, DATE_FORMATS.LAST_SERVE);
-  const targetDate = parseDate(targetWeekStr, DATE_FORMATS.SCHEDULE);
-  if (!lastServeDate || !targetDate) return null;
-  
-  const diffMs = targetDate.getTime() - lastServeDate.getTime();
-  return Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
-};
+// Hoisted out of getColorForWeeks, which reallocated this array on every call —
+// and it was called once per row per render.
+const COLOR_STOPS = [
+  { weeks: 0, color: '#ff3b30' },
+  { weeks: 1, color: '#ff3b30' },
+  { weeks: 2, color: '#ff6b30' },
+  { weeks: 3, color: '#ff9500' },
+  { weeks: 4, color: '#ffcc00' },
+  { weeks: 6, color: '#c7dc00' },
+  { weeks: 8, color: '#76d600' },
+  { weeks: Infinity, color: '#34c759' },
+];
 
 const getColorForWeeks = (weeks) => {
   if (weeks === null || weeks === undefined || weeks < 0) return '#666';
-  
-  const colorStops = [
-    { weeks: 0, color: '#ff3b30' },
-    { weeks: 1, color: '#ff3b30' },
-    { weeks: 2, color: '#ff6b30' },
-    { weeks: 3, color: '#ff9500' },
-    { weeks: 4, color: '#ffcc00' },
-    { weeks: 6, color: '#c7dc00' },
-    { weeks: 8, color: '#76d600' },
-    { weeks: Infinity, color: '#34c759' },
-  ];
-  
-  for (const stop of colorStops) {
+  for (const stop of COLOR_STOPS) {
     if (weeks <= stop.weeks) return stop.color;
   }
   return '#34c759';
@@ -106,18 +72,64 @@ const getWeeksDisplayText = (weeks) => {
   return `Served ${weeks} weeks ago`;
 };
 
-const formatWeekDisplay = (weekStr) => {
-  if (!weekStr) return "";
-  const parts = weekStr.split("-");
-  if (parts.length !== 3) return weekStr;
-  const [month, day, year] = parts.map((p) => parseInt(p, 10));
-  const date = new Date(2000 + year, month - 1, day);
-  return date.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-  });
+/** How long until this server serves again, or null if that isn't worth showing. */
+const nextServeLabel = (selectedWeek, nextServeStr) => {
+  const weeks = weeksBetween(selectedWeek, nextServeStr);
+  if (weeks === null || weeks < 0 || weeks > 8) return null;
+  if (weeks === 0) return 'Serving next week';
+  if (weeks === 1) return 'Serving in 1 week';
+  return `Serving in ${weeks} weeks`;
 };
+
+/**
+ * One replacement candidate.
+ *
+ * Everything it displays arrives precomputed — this file previously had no
+ * memoization at all, so each row redid the week arithmetic, colour interpolation
+ * and label formatting on every render of the modal.
+ */
+const ServerCandidateRow = React.memo(({ server, indicatorColor, displayText, secondaryInfo, onPress }) => (
+  <TouchableOpacity
+    style={styles.serverItemContainer}
+    onPress={() => onPress(server)}
+    activeOpacity={0.7}
+  >
+    <View style={styles.serverItemContent}>
+      <View style={styles.serverProfilePicContainer}>
+        <Avatar
+          uid={server.uid}
+          user={server}
+          size={48}
+          borderRadius={24}
+          style={styles.serverProfilePic}
+          showBorder={false}
+        />
+        <View style={[styles.serverStatusIndicator, { backgroundColor: indicatorColor }]} />
+      </View>
+      <View style={styles.serverInfo}>
+        <Text style={styles.serverName}>{server.name}</Text>
+        <View style={styles.serveInfoContainer}>
+          <Text style={[styles.primaryServeText, { color: indicatorColor }]}>
+            {displayText}
+          </Text>
+          {secondaryInfo && (
+            <Text style={styles.secondaryServeText}>{secondaryInfo}</Text>
+          )}
+        </View>
+      </View>
+    </View>
+  </TouchableOpacity>
+));
+ServerCandidateRow.displayName = "ServerCandidateRow";
+
+// Hoisted: as inline props these were a new identity every render.
+const serverRowKeyExtractor = (item) => item.server.uid;
+const ServerSeparator = () => <View style={styles.separator} />;
+const EmptyServers = () => (
+  <View style={styles.emptyContainer}>
+    <Text style={styles.emptyText}>No servers available</Text>
+  </View>
+);
 
 const getRoleDisplayName = (role) => {
   if (Array.isArray(role)) {
@@ -226,27 +238,25 @@ const UnavailableRequestModal = ({
         const nextServe = {};
         const userDocs = [];
 
-        // The users/{uid} read below already carries photoURL, so the extra
-        // Storage getDownloadURL per server is gone entirely — one primeMany
-        // call feeds every avatar from data we were fetching anyway.
-        await Promise.all(
-          extraServers.map(async (server) => {
-            try {
-              const userDoc = await firestore()
-                .collection("users")
-                .doc(server.uid)
-                .get();
-              if (userDoc.exists && isMounted) {
-                const userData = userDoc.data();
-                userDocs.push({ uid: server.uid, ...userData });
-                if (userData.lastServe)
-                  lastServe[server.uid] = userData.lastServe;
-                if (userData.nextWeekServe)
-                  nextServe[server.uid] = userData.nextWeekServe;
-              }
-            } catch {}
-          })
+        // These user docs already carry photoURL, so the extra Storage
+        // getDownloadURL per server is gone entirely — one primeMany call feeds
+        // every avatar from data we were fetching anyway.
+        //
+        // Read in chunks rather than one request per server: this was
+        // `extraServers.map(server => doc(server.uid).get())` inside a
+        // Promise.all, i.e. N round-trips to build one list.
+        const fetched = await getDocsByIds(
+          "users",
+          extraServers.map((s) => s.uid)
         );
+        if (isMounted) {
+          fetched.forEach((userData, uid) => {
+            if (!userData) return;
+            userDocs.push(userData);
+            if (userData.lastServe) lastServe[uid] = userData.lastServe;
+            if (userData.nextWeekServe) nextServe[uid] = userData.nextWeekServe;
+          });
+        }
 
         if (isMounted) {
           avatarCache.primeMany(userDocs);
@@ -383,54 +393,41 @@ const UnavailableRequestModal = ({
     setShowProfileModal(false);
   };
 
-  const renderServerItem = ({ item }) => {
-    const weeksSinceLastServe = calculateWeeksBetween(lastServeData[item.uid], selectedWeek);
-    const indicatorColor = getColorForWeeks(weeksSinceLastServe);
-    const displayText = getWeeksDisplayText(weeksSinceLastServe);
-    
-    let secondaryInfo = null;
-    if (nextServeData[item.uid]) {
-      const weeksUntilNext = calculateWeeksBetween(selectedWeek, nextServeData[item.uid]);
-      if (weeksUntilNext !== null && weeksUntilNext >= 0) {
-        if (weeksUntilNext === 0) secondaryInfo = 'Serving next week';
-        else if (weeksUntilNext === 1) secondaryInfo = 'Serving in 1 week';
-        else if (weeksUntilNext <= 8) secondaryInfo = `Serving in ${weeksUntilNext} weeks`;
-      }
-    }
-    
-    return (
-      <TouchableOpacity
-        style={styles.serverItemContainer}
-        onPress={() => handleSelectReplacement(item)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.serverItemContent}>
-          <View style={styles.serverProfilePicContainer}>
-            <Avatar
-              uid={item.uid}
-              user={item}
-              size={48}
-              borderRadius={24}
-              style={styles.serverProfilePic}
-              showBorder={false}
-            />
-            <View style={[styles.serverStatusIndicator, { backgroundColor: indicatorColor }]} />
-          </View>
-          <View style={styles.serverInfo}>
-            <Text style={styles.serverName}>{item.name}</Text>
-            <View style={styles.serveInfoContainer}>
-              <Text style={[styles.primaryServeText, { color: indicatorColor }]}>
-                {displayText}
-              </Text>
-              {secondaryInfo && (
-                <Text style={styles.secondaryServeText}>{secondaryInfo}</Text>
-              )}
-            </View>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  /**
+   * Replacement candidates with their derived display values resolved once.
+   *
+   * The week arithmetic, colour interpolation and label formatting used to run
+   * inside `renderServerItem` — a plain function recreated on every render — so
+   * every mounted row redid all of it on every render of this modal.
+   */
+  const serverRows = useMemo(
+    () =>
+      availableServers.map((server) => {
+        const weeksSinceLastServe = weeksBetween(lastServeData[server.uid], selectedWeek);
+        return {
+          server,
+          indicatorColor: getColorForWeeks(weeksSinceLastServe),
+          displayText: getWeeksDisplayText(weeksSinceLastServe),
+          secondaryInfo: nextServeData[server.uid]
+            ? nextServeLabel(selectedWeek, nextServeData[server.uid])
+            : null,
+        };
+      }),
+    [availableServers, lastServeData, nextServeData, selectedWeek]
+  );
+
+  const renderServerItem = useCallback(
+    ({ item }) => (
+      <ServerCandidateRow
+        server={item.server}
+        indicatorColor={item.indicatorColor}
+        displayText={item.displayText}
+        secondaryInfo={item.secondaryInfo}
+        onPress={handleSelectReplacement}
+      />
+    ),
+    [handleSelectReplacement]
+  );
 
   // Placeholder rows in the exact shape of renderServerItem, so the real list
   // drops straight in without the sheet resizing.
@@ -477,20 +474,14 @@ const UnavailableRequestModal = ({
         renderServerSkeleton()
       ) : (
         <FlatList
-          data={availableServers}
-          keyExtractor={(item) => item.uid}
+          {...LIST_PERF}
+          data={serverRows}
+          keyExtractor={serverRowKeyExtractor}
           showsVerticalScrollIndicator={false}
           renderItem={renderServerItem}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={7}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ItemSeparatorComponent={ServerSeparator}
           style={styles.serverList}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No servers available</Text>
-            </View>
-          }
+          ListEmptyComponent={EmptyServers}
         />
       )}
     </View>
@@ -514,7 +505,7 @@ const UnavailableRequestModal = ({
 
         <View style={styles.weekBadge}>
           <Text style={styles.weekBadgeText}>
-            {formatWeekDisplay(week)}
+            {longDateLabel(week)}
           </Text>
         </View>
 

@@ -15,6 +15,69 @@ import BackArrow from "../../components/backArrow";
 import Avatar from "../../components/Avatar";
 import SkeletonScreen from "../../components/Skeleton";
 import * as avatarCache from "../../utils/avatarCache";
+import { LIST_PERF } from "../../utils/listConfig";
+import { isAttendanceDateKey, dateKeyToSortable } from "../../utils/dateKeys";
+
+// Hoisted out of the render body — these never change for the life of the screen.
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const IS_TABLET = SCREEN_WIDTH >= 768;
+const CONTAINER_WIDTH = IS_TABLET
+  ? { maxWidth: 600, alignSelf: "center", width: "100%" }
+  : { width: "100%" };
+
+// Hoisted: this was rebuilt inside getServantGrades on every render.
+const GRADE_LABELS = {
+  preSchoolAge3: "Pre-School Age 3",
+  preSchoolAge4: "Pre-School Age 4",
+  kindergarten: "Kindergarten",
+  1: "1st Grade",
+  2: "2nd Grade",
+  3: "3rd Grade",
+  4: "4th Grade",
+  5: "5th Grade",
+  6: "6th Grade",
+  7: "7th Grade",
+  8: "8th Grade",
+  9: "9th Grade",
+  10: "10th Grade",
+  11: "11th Grade",
+  12: "12th Grade",
+  college: "College",
+};
+
+/**
+ * One attendance record. Memoized for the same reason as its sibling in
+ * screens/AdminScreens/IndividualAttendance.js — see the note there.
+ */
+const AttendanceHistoryRow = React.memo(({ date, status }) => (
+  <View style={styles.attendanceItem}>
+    <Text style={styles.dateText}>{date}</Text>
+    <View
+      style={[
+        styles.statusContainer,
+        status === false ? styles.absent : styles.present,
+      ]}
+    >
+      <Text style={styles.statusText}>
+        {status === false ? "Absent" : status === true ? "Present" : "No Status"}
+      </Text>
+    </View>
+  </View>
+));
+AttendanceHistoryRow.displayName = "AttendanceHistoryRow";
+
+const renderAttendanceRow = ({ item }) => (
+  <AttendanceHistoryRow date={item.date} status={item.status} />
+);
+const attendanceKeyExtractor = (item) => item.date;
+const EmptyAttendance = () => (
+  <View style={styles.noAttendanceContainer}>
+    <Text style={styles.noAttendanceText}>No attendance records available.</Text>
+    <Text style={styles.noAttendanceSubtext}>
+      Attendance will appear here once recorded.
+    </Text>
+  </View>
+);
 
 const ServantAttendance = () => {
   const navigation = useNavigation();
@@ -91,72 +154,38 @@ const ServantAttendance = () => {
     }, [church, servantId, navigation])
   );
 
-  // Compute attendance data
+  /**
+   * Attendance rows, newest first.
+   *
+   * The date-shape test is the whole filter now — the `excludeFields` list it used
+   * to be paired with was redundant, since none of those names can match
+   * MM-DD-YYYY. Sorting is on an integer key rather than two Dates per comparison.
+   */
   const attendanceDataMemo = React.useMemo(() => {
     if (!servantData || Object.keys(servantData).length === 0) return [];
     const attendance = [];
-    
-    // List of field names to exclude from attendance
-    const excludeFields = [
-      "name", "uid", "phone", "address", "description", "birthday",
-      // Grade fields
-      "preSchoolAge3", "preSchoolAge4", "kindergarten", "college",
-      "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"
-    ];
-    
     for (const [key, value] of Object.entries(servantData)) {
-      // Check if this field is an attendance date (MM-DD-YYYY format)
-      if (!excludeFields.includes(key) && /^\d{2}-\d{2}-\d{4}$/.test(key)) {
-        attendance.push({ date: key, status: value });
+      if (isAttendanceDateKey(key)) {
+        attendance.push({ date: key, status: value, sortKey: dateKeyToSortable(key) });
       }
     }
-    
-    return attendance.sort((a, b) => {
-      const [aMonth, aDay, aYear] = a.date.split("-").map(Number);
-      const [bMonth, bDay, bYear] = b.date.split("-").map(Number);
-      return (
-        new Date(bYear, bMonth - 1, bDay) - new Date(aYear, aMonth - 1, aDay)
-      );
-    });
+    return attendance.sort((a, b) => b.sortKey - a.sortKey);
   }, [servantData]);
 
-  // Get grades the servant teaches
-  const getServantGrades = () => {
+  /**
+   * Grades the servant teaches.
+   *
+   * Was a plain function called directly from the JSX, so every render rebuilt a
+   * 16-entry object and ran Object.entries().forEach over it.
+   */
+  const servantGrades = React.useMemo(() => {
     if (!servantData) return "";
-    
-    const gradeMap = {
-      "preSchoolAge3": "Pre-School Age 3",
-      "preSchoolAge4": "Pre-School Age 4",
-      "kindergarten": "Kindergarten",
-      "1": "1st Grade",
-      "2": "2nd Grade",
-      "3": "3rd Grade",
-      "4": "4th Grade",
-      "5": "5th Grade",
-      "6": "6th Grade",
-      "7": "7th Grade",
-      "8": "8th Grade",
-      "9": "9th Grade",
-      "10": "10th Grade",
-      "11": "11th Grade",
-      "12": "12th Grade",
-      "college": "College"
-    };
-    
     const grades = [];
-    Object.entries(gradeMap).forEach(([field, gradeName]) => {
-      if (servantData[field] === true) {
-        grades.push(gradeName);
-      }
-    });
-    
+    for (const field in GRADE_LABELS) {
+      if (servantData[field] === true) grades.push(GRADE_LABELS[field]);
+    }
     return grades.length > 0 ? grades.join(", ") : "No grades assigned";
-  };
-
-  // Get status style
-  const getStatusStyle = (status) => {
-    return status === false ? styles.absent : styles.present;
-  };
+  }, [servantData]);
 
   // Delete servant record only (preserves profile picture)
   const deleteServant = async () => {
@@ -199,15 +228,9 @@ const ServantAttendance = () => {
     return <SkeletonScreen variant="profile" />;
   }
 
-  const screenWidth = Dimensions.get("window").width;
-  const isTablet = screenWidth >= 768;
-  const containerWidth = isTablet
-    ? { maxWidth: 600, alignSelf: "center", width: "100%" }
-    : { width: "100%" };
-
   return (
     <View style={styles.container}>
-      <View style={[styles.contentContainer, containerWidth]}>
+      <View style={[styles.contentContainer, CONTAINER_WIDTH]}>
         <View style={styles.buttonRow}>
           <BackArrow />
         </View>
@@ -222,36 +245,15 @@ const ServantAttendance = () => {
             style={styles.profileImage}
           />
         </View>
-        <Text style={styles.subtitle}>{`Teaching: ${getServantGrades()}`}</Text>
+        <Text style={styles.subtitle}>{`Teaching: ${servantGrades}`}</Text>
         <FlatList
+          {...LIST_PERF}
           data={attendanceDataMemo}
-          keyExtractor={(item, index) => index.toString()}
-          renderItem={({ item }) => (
-            <View style={styles.attendanceItem}>
-              <Text style={styles.dateText}>{item.date}</Text>
-              <View
-                style={[styles.statusContainer, getStatusStyle(item.status)]}
-              >
-                <Text style={styles.statusText}>
-                  {item.status === false
-                    ? "Absent"
-                    : item.status === true
-                    ? "Present"
-                    : "No Status"}
-                </Text>
-              </View>
-            </View>
-          )}
-          ListEmptyComponent={
-            <View style={styles.noAttendanceContainer}>
-              <Text style={styles.noAttendanceText}>
-                No attendance records available.
-              </Text>
-              <Text style={styles.noAttendanceSubtext}>
-                Attendance will appear here once recorded.
-              </Text>
-            </View>
-          }
+          // `item.date` is unique per record. The old index-based extractor was
+          // wrong on a newest-first list: adding a record reindexed every row.
+          keyExtractor={attendanceKeyExtractor}
+          renderItem={renderAttendanceRow}
+          ListEmptyComponent={EmptyAttendance}
           contentContainerStyle={styles.attendanceContainer}
           showsVerticalScrollIndicator={false}
         />

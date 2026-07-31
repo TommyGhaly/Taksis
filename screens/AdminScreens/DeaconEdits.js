@@ -30,12 +30,16 @@ import DeaconSyncModal from "../../components/DeaconSyncModal";
 import Avatar from "../../components/Avatar";
 import SkeletonScreen from "../../components/Skeleton";
 import * as avatarCache from "../../utils/avatarCache";
+import { LIST_PERF } from "../../utils/listConfig";
+import { getDocsByIds, watchDocsByIds } from "../../utils/firestoreBatch";
+import {
+  dateKeyToSortable,
+  fullDateLabel,
+  sortableCutoffWeeksAgo,
+} from "../../utils/dateKeys";
 
 import { useFirestoreDocument } from "../../hooks/useFirebaseCache";
 import { useAfterInteractions } from "../../hooks/useAfterInteractions";
-
-// Firestore's `in` filter accepts at most 10 values per query.
-const USER_BATCH_SIZE = 10;
 
 const hapticOptions = {
   enableVibrateFallback: true,
@@ -48,36 +52,23 @@ const formatNumber = (num) => {
   return num.toFixed(2).replace(/\.?0+$/, "");
 };
 
-// Parse "MM-DD-YY" date strings into a readable label
-const formatDateStr = (str) => {
-  if (!str) return str;
-  const parts = str.split("-").map(Number);
-  if (parts.length !== 3) return str;
-  const [month, day, year] = parts;
-  const date = new Date(2000 + year, month - 1, day);
-  if (isNaN(date.getTime())) return str;
-  return date.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-};
-
-// How many weeks back counts as "recent" (12 weeks ≈ 3 months)
+/**
+ * How many weeks back counts as "recent" (12 weeks ≈ 3 months).
+ *
+ * The `filterRecent` helper that used to live here is gone: it allocated a cutoff
+ * Date plus one Date per entry, and it was being called from inside render bodies.
+ * Recency is now decided by comparing integer date keys against
+ * `sortableCutoffWeeksAgo(RECENT_WEEKS)`, computed once per data pass.
+ *
+ * One deliberate semantic change: the cutoff is now day-granular rather than
+ * carrying the current time of day, so an entry dated exactly 12 weeks ago counts
+ * as recent all day instead of expiring partway through it. That is the more
+ * defensible reading of a date-only key.
+ *
+ * The date label formatter also moved out, to `fullDateLabel` in utils/dateKeys.js,
+ * which caches per date instead of re-running Intl per row per render.
+ */
 const RECENT_WEEKS = 12;
-const filterRecent = (dateStrArray) => {
-  if (!Array.isArray(dateStrArray)) return [];
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - RECENT_WEEKS * 7);
-  return dateStrArray.filter((str) => {
-    const parts = str.split("-").map(Number);
-    if (parts.length !== 3) return false;
-    const [month, day, year] = parts;
-    const d = new Date(2000 + year, month - 1, day);
-    return d >= cutoff;
-  });
-};
 
 // Returns { color, bg, border } based on 0-1=neutral, 2-3=amber, 4+=red
 const pillTheme = (count) => {
@@ -98,10 +89,13 @@ const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
   const [saving, setSaving] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  const recentUnavailable = filterRecent(deacon.unavailableWeeks);
-  const recentSwitched = filterRecent(deacon.switched_weeks);
-  const unavailTheme = pillTheme(recentUnavailable.length);
-  const switchedTheme = pillTheme(recentSwitched.length);
+  // Counts arrive precomputed from `deaconsWithAttendance`. They used to be two
+  // `filterRecent` calls in this render body, each allocating a cutoff Date plus
+  // one Date per entry — for every mounted card, on every render.
+  const recentUnavailableCount = deacon.recentUnavailableCount ?? 0;
+  const recentSwitchedCount = deacon.recentSwitchedCount ?? 0;
+  const unavailTheme = pillTheme(recentUnavailableCount);
+  const switchedTheme = pillTheme(recentSwitchedCount);
 
   const triggerPulse = () => {
     Animated.sequence([
@@ -218,7 +212,7 @@ const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
             >
               <Ionicons name="close-circle-outline" size={12} color={unavailTheme.color} />
               <Text style={[aStyles.pillText, { color: unavailTheme.color }]}>
-                {recentUnavailable.length} unavailable
+                {recentUnavailableCount} unavailable
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -228,7 +222,7 @@ const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
             >
               <Ionicons name="swap-horizontal-outline" size={12} color={switchedTheme.color} />
               <Text style={[aStyles.pillText, { color: switchedTheme.color }]}>
-                {recentSwitched.length} switched
+                {recentSwitchedCount} switched
               </Text>
             </TouchableOpacity>
           </View>
@@ -288,19 +282,84 @@ const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
 AttendanceCard.displayName = "AttendanceCard";
 
 // ─── Pill detail modal ────────────────────────────────────────────────────────
-const PillModal = ({ visible, type, deacon, onClose }) => {
-  if (!deacon) return null;
-  const isUnavail = type === "unavailable";
-  const dates = isUnavail ? (deacon.unavailableWeeks || []) : (deacon.switched_weeks || []);
-  const accentColor = isUnavail ? pillTheme(filterRecent(dates).length).color : pillTheme(filterRecent(dates).length).color;
 
-  const sorted = [...dates].sort((a, b) => {
-    const parse = (s) => {
-      const [m, d, y] = s.split("-").map(Number);
-      return new Date(2000 + y, m - 1, d).getTime();
-    };
-    return parse(b) - parse(a);
-  });
+/**
+ * One date row in the pill sheet.
+ *
+ * `isRecent` and `label` are computed once per row when the list is built, not per
+ * render. The label especially: it was `formatDateStr(item)` inline, which goes
+ * through Intl's toLocaleDateString for every row on every render.
+ */
+const PillDateRow = React.memo(({ label, isRecent, accentColor }) => {
+  const dotColor = isRecent ? accentColor : "rgba(255,255,255,0.2)";
+  return (
+    <View style={pmStyles.dateRow}>
+      <View style={[pmStyles.dot, { backgroundColor: dotColor }]} />
+      <Text style={[pmStyles.dateText, !isRecent && pmStyles.dateTextOld]}>{label}</Text>
+      {isRecent && (
+        <View
+          style={[
+            pmStyles.recentBadge,
+            { backgroundColor: `${accentColor}18`, borderColor: `${accentColor}35` },
+          ]}
+        >
+          <Text style={[pmStyles.recentText, { color: accentColor }]}>recent</Text>
+        </View>
+      )}
+    </View>
+  );
+});
+PillDateRow.displayName = "PillDateRow";
+
+const PillSeparator = () => <View style={pmStyles.sep} />;
+// Index-suffixed on purpose. `unavailableWeeks` is a plain array that could in
+// principle hold the same date twice, and unlike the attendance-history lists this
+// one is a static snapshot of the deacon taken when the sheet opened — it never
+// reorders or grows while mounted, so the index is stable and can't mismatch rows.
+const pillKeyExtractor = (item, index) => `${item.date}-${index}`;
+
+const PillModal = React.memo(({ visible, type, deacon, onClose }) => {
+  const isUnavail = type === "unavailable";
+
+  /**
+   * Rows, newest first, with recency and label resolved up front.
+   *
+   * Previously this sorted in the render body with two Date allocations per
+   * comparison, and `filterRecent` was called twice on the same array in both arms
+   * of a ternary whose arms were identical.
+   */
+  const rows = useMemo(() => {
+    if (!deacon) return [];
+    const dates = (isUnavail ? deacon.unavailableWeeks : deacon.switched_weeks) || [];
+    const cutoff = sortableCutoffWeeksAgo(RECENT_WEEKS);
+    return dates
+      .map((date) => {
+        const sortKey = dateKeyToSortable(date);
+        return {
+          date,
+          sortKey,
+          isRecent: sortKey >= cutoff,
+          label: fullDateLabel(date),
+        };
+      })
+      .sort((a, b) => b.sortKey - a.sortKey);
+  }, [deacon, isUnavail]);
+
+  const recentCount = useMemo(
+    () => rows.reduce((n, r) => (r.isRecent ? n + 1 : n), 0),
+    [rows]
+  );
+  const accentColor = pillTheme(recentCount).color;
+
+  const renderPillRow = useCallback(
+    ({ item }) => (
+      <PillDateRow label={item.label} isRecent={item.isRecent} accentColor={accentColor} />
+    ),
+    [accentColor]
+  );
+
+  if (!deacon) return null;
+  const sorted = rows;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -337,37 +396,23 @@ const PillModal = ({ visible, type, deacon, onClose }) => {
             <Text style={pmStyles.empty}>No records found.</Text>
           ) : (
             <FlatList
+              {...LIST_PERF}
               data={sorted}
-              keyExtractor={(item, i) => `${item}-${i}`}
+              keyExtractor={pillKeyExtractor}
               showsVerticalScrollIndicator={true}
               bounces={true}
               style={pmStyles.list}
-              contentContainerStyle={{ paddingBottom: 16 }}
-              renderItem={({ item }) => {
-                const isRecent = filterRecent([item]).length > 0;
-                const dotColor = isRecent ? accentColor : "rgba(255,255,255,0.2)";
-                return (
-                  <View style={pmStyles.dateRow}>
-                    <View style={[pmStyles.dot, { backgroundColor: dotColor }]} />
-                    <Text style={[pmStyles.dateText, !isRecent && pmStyles.dateTextOld]}>
-                      {formatDateStr(item)}
-                    </Text>
-                    {isRecent && (
-                      <View style={[pmStyles.recentBadge, { backgroundColor: `${accentColor}18`, borderColor: `${accentColor}35` }]}>
-                        <Text style={[pmStyles.recentText, { color: accentColor }]}>recent</Text>
-                      </View>
-                    )}
-                  </View>
-                );
-              }}
-              ItemSeparatorComponent={() => <View style={pmStyles.sep} />}
+              contentContainerStyle={pmStyles.listContent}
+              renderItem={renderPillRow}
+              ItemSeparatorComponent={PillSeparator}
             />
           )}
         </View>
       </View>
     </Modal>
   );
-};
+});
+PillModal.displayName = "PillModal";
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 /**
@@ -442,6 +487,10 @@ const DeaconEdits = () => {
   // churches/{id} does not re-read every deacon's user doc again.
   const userDocsRef = useRef(new Map());
   const attendanceListenersRef = useRef([]);
+  // Coalesced attendance updates: several chunk listeners delivering in the same
+  // tick produce one setState, not one each.
+  const pendingAttendance = useRef(null);
+  const pendingAttendanceFlush = useRef(null);
   const searchInputRef = useRef(null);
   const keyboardOffset = useRef(new Animated.Value(0)).current;
 
@@ -486,41 +535,18 @@ const DeaconEdits = () => {
     return () => { if (userListenerRef.current) { userListenerRef.current(); userListenerRef.current = null; } };
   }, [user?.uid, ready]);
 
-  // Read the user docs for a set of uids in batches of 10 rather than one
-  // request per deacon, and only for uids we have not already read.
+  // Read the user docs for a set of uids in chunks rather than one request per
+  // deacon, and only for uids we have not already read. The chunking itself lives
+  // in utils/firestoreBatch.js so the chunk size is defined once for the whole app;
+  // the memoization and the "record the misses" behaviour stay here.
   const loadUserDocs = useCallback(async (uids) => {
-    const missing = [
-      ...new Set(uids.filter((uid) => uid && !userDocsRef.current.has(uid))),
-    ];
+    const missing = uids.filter((uid) => uid && !userDocsRef.current.has(uid));
     if (missing.length === 0) return userDocsRef.current;
 
-    const chunks = [];
-    for (let i = 0; i < missing.length; i += USER_BATCH_SIZE) {
-      chunks.push(missing.slice(i, i + USER_BATCH_SIZE));
-    }
-
-    const snapshots = await Promise.all(
-      chunks.map((chunk) =>
-        firestore()
-          .collection("users")
-          .where(firestore.FieldPath.documentId(), "in", chunk)
-          .get()
-          .catch((err) => {
-            console.error("Error batch-reading users:", err);
-            return null;
-          })
-      )
-    );
-
-    snapshots.forEach((snap) => {
-      snap?.docs.forEach((doc) =>
-        userDocsRef.current.set(doc.id, { uid: doc.id, ...doc.data() })
-      );
-    });
-    // Record the misses too, otherwise every church write retries them.
-    missing.forEach((uid) => {
-      if (!userDocsRef.current.has(uid)) userDocsRef.current.set(uid, null);
-    });
+    const fetched = await getDocsByIds("users", missing);
+    // getDocsByIds already reports misses as null, so this copies both hits and
+    // misses across — without the misses, every church write would retry them.
+    fetched.forEach((value, uid) => userDocsRef.current.set(uid, value));
 
     return userDocsRef.current;
   }, []);
@@ -539,6 +565,14 @@ const DeaconEdits = () => {
         return {
           ...deacon,
           phone: userData ? userData.phone || userData.number || "Not provided" : "Not provided",
+          // Carried through from the same batched user docs we just read for the
+          // phone. These fields live on those documents, and this pass used to
+          // discard them — which is why attendance mode had to open its own
+          // listener per deacon just to fetch data already sitting in memory.
+          // Seeding them here means attendance mode paints instantly on toggle
+          // instead of popping in one row at a time.
+          unavailableWeeks: userData?.unavailableWeeks || [],
+          switched_weeks: userData?.switched_weeks || [],
         };
       });
 
@@ -626,40 +660,89 @@ const DeaconEdits = () => {
   // Profile pictures are handled entirely by <Avatar> + avatarCache, primed
   // for free from the batched user docs in processDeaconList.
 
-  // Attendance data listeners — only when mode is active
+  const attendanceUids = useMemo(
+    () => deacons.map((d) => d.uid).filter(Boolean),
+    [deacons]
+  );
+  /**
+   * A stable identity for "which deacons the attendance listeners cover".
+   *
+   * The effect below used to depend on `deacons` directly, and `setDeacons` hands
+   * it a fresh array on every churches/{id} snapshot — so any unrelated write to
+   * the church document tore down and re-attached every attendance listener while
+   * the mode was open. Depending on the sorted uid list as a string means
+   * re-attaching happens only when the membership actually changes. The effect
+   * still closes over `attendanceUids`, which is safe precisely because it only
+   * re-runs when this key says the contents differ.
+   */
+  const attendanceUidsKey = useMemo(
+    () => attendanceUids.slice().sort().join(","),
+    [attendanceUids]
+  );
+
+  /**
+   * Attendance data listeners — only while the mode is active.
+   *
+   * This used to attach one `onSnapshot` per deacon, each calling
+   * `setAttendanceData` directly. Every one of the N deliveries rebuilt all N
+   * objects in `deaconsWithAttendance`, which broke `AttendanceCard`'s memo for
+   * every row — so entering attendance mode on a 60-deacon church cost on the
+   * order of N² card renders, each mounting three `useState`s and an
+   * `Animated.Value` and running the recency filter twice.
+   *
+   * Now: one listener per chunk of 30 uids (60 deacons → 2 listeners), and
+   * deliveries are coalesced into a single `setAttendanceData` per tick using the
+   * pending-ref pattern from SundaySchoolAttendance.js:402-441.
+   *
+   * The rows are already seeded from the batched user docs in `processDeaconList`,
+   * so this is purely about staying live — nothing here gates first paint.
+   */
   useEffect(() => {
     if (!ready) return;
 
-    // Clean up previous listeners
     attendanceListenersRef.current.forEach((u) => u());
     attendanceListenersRef.current = [];
 
-    if (!attendanceMode || deacons.length === 0) return;
+    if (!attendanceMode || attendanceUids.length === 0) return;
+    const uids = attendanceUids;
 
-    const unsubs = deacons.map((d) => {
-      if (!d.uid) return () => {};
-      return firestore()
-        .collection("users").doc(d.uid)
-        .onSnapshot(
-          (doc) => {
-            if (doc.exists) {
-              const data = doc.data();
-              avatarCache.primeFromUser({ uid: d.uid, ...data });
-              setAttendanceData((prev) => ({
-                ...prev,
-                [d.uid]: {
-                  unavailableWeeks: data.unavailableWeeks || [],
-                  switched_weeks: data.switched_weeks || [],
-                },
-              }));
-            }
-          },
-          () => {}
-        );
+    const flush = () => {
+      pendingAttendanceFlush.current = null;
+      const pending = pendingAttendance.current;
+      pendingAttendance.current = null;
+      if (!pending) return;
+      setAttendanceData((prev) => ({ ...prev, ...pending }));
+    };
+
+    const unsub = watchDocsByIds("users", uids, {
+      onDocs: (docs) => {
+        if (docs.length === 0) return;
+        const pending = pendingAttendance.current || (pendingAttendance.current = {});
+        for (const data of docs) {
+          avatarCache.primeFromUser(data);
+          pending[data.uid] = {
+            unavailableWeeks: data.unavailableWeeks || [],
+            switched_weeks: data.switched_weeks || [],
+          };
+        }
+        // One setState per tick no matter how many chunks land together.
+        if (!pendingAttendanceFlush.current) {
+          pendingAttendanceFlush.current = setTimeout(flush, 0);
+        }
+      },
     });
-    attendanceListenersRef.current = unsubs;
-    return () => { unsubs.forEach((u) => u()); attendanceListenersRef.current = []; };
-  }, [attendanceMode, deacons, ready]);
+
+    attendanceListenersRef.current = [unsub];
+    return () => {
+      unsub();
+      attendanceListenersRef.current = [];
+      if (pendingAttendanceFlush.current) {
+        clearTimeout(pendingAttendanceFlush.current);
+        pendingAttendanceFlush.current = null;
+      }
+      pendingAttendance.current = null;
+    };
+  }, [attendanceMode, attendanceUidsKey, ready]);
 
   const openEditModal = useCallback((deacon) => {
     if (!deacon?.uid) return;
@@ -703,13 +786,42 @@ const DeaconEdits = () => {
     finally { setIsRefreshing(false); }
   }, [user?.uid, currentChurch, processDeaconList]);
 
-  // Merge attendance data into deacon objects for the attendance view
+  /**
+   * Merge live attendance data into the deacon objects, and precompute the two
+   * "recent" counts the card displays.
+   *
+   * Two things matter here:
+   *
+   *  - Rows with no live update keep their *existing object identity*, so
+   *    `AttendanceCard`'s memo actually holds for them. The old version spread
+   *    every deacon into a new object on every change, which guaranteed a full
+   *    re-render of every mounted card.
+   *  - The recency filter runs once per deacon here rather than twice per card per
+   *    render. The cutoff is computed once per pass — deliberately not at module
+   *    scope, which would freeze the 12-week window at app launch and stop it
+   *    advancing across midnight in a long-running session.
+   */
   const deaconsWithAttendance = useMemo(() => {
-    return deacons.map((d) => ({
-      ...d,
-      unavailableWeeks: attendanceData[d.uid]?.unavailableWeeks || [],
-      switched_weeks: attendanceData[d.uid]?.switched_weeks || [],
-    }));
+    const cutoff = sortableCutoffWeeksAgo(RECENT_WEEKS);
+    const countRecent = (dates) => {
+      if (!Array.isArray(dates)) return 0;
+      let n = 0;
+      for (const d of dates) if (dateKeyToSortable(d) >= cutoff) n += 1;
+      return n;
+    };
+
+    return deacons.map((d) => {
+      const live = attendanceData[d.uid];
+      const unavailableWeeks = live ? live.unavailableWeeks : d.unavailableWeeks || [];
+      const switched_weeks = live ? live.switched_weeks : d.switched_weeks || [];
+      return {
+        ...d,
+        unavailableWeeks,
+        switched_weeks,
+        recentUnavailableCount: countRecent(unavailableWeeks),
+        recentSwitchedCount: countRecent(switched_weeks),
+      };
+    });
   }, [deacons, attendanceData]);
 
   // Build sections for attendance mode (same structure, different data)
@@ -731,6 +843,13 @@ const DeaconEdits = () => {
   }, [deaconsWithAttendance, searchQuery]);
 
   const activeSections = attendanceMode ? attendanceSections : sections;
+
+  // AlphabetIndexBar takes this as an array prop, so building it inline in the JSX
+  // gave it a new identity every render and defeated its memoization.
+  const availableLetters = useMemo(
+    () => activeSections.map((s) => s.title),
+    [activeSections]
+  );
 
   const renderSectionHeader = useCallback(
     ({ section: { title } }) => <SectionHeader title={title} />,
@@ -860,10 +979,16 @@ const DeaconEdits = () => {
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
-            initialNumToRender={10}
-            maxToRenderPerBatch={10}
-            windowSize={7}
-            extraData={[attendanceData, attendanceMode]}
+            {...LIST_PERF}
+            // Deliberately no `removeClippedSubviews`, even on Android: the
+            // attendance cards carry Animated transforms and clipping them risks
+            // the same blanking class it caused on iOS elsewhere.
+            //
+            // Also deliberately no `extraData`. It was `[attendanceData,
+            // attendanceMode]` — a fresh array literal every render, so
+            // SectionList's PureComponent bail-out could never hold — and it had no
+            // job either way, since `activeSections` is already a new array
+            // whenever the attendance data changes.
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
             onScrollToIndexFailed={() => {}}
@@ -873,7 +998,7 @@ const DeaconEdits = () => {
             <View style={{ position: "absolute", top: 100 * scale, right: 0, width: 30 }}>
               <AlphabetIndexBar
                 onLetterChange={scrollToSection}
-                availableLetters={activeSections.map((s) => s.title)}
+                availableLetters={availableLetters}
               />
             </View>
           )}
@@ -1092,6 +1217,8 @@ const pmStyles = StyleSheet.create({
   },
   countText: { fontSize: 12, fontWeight: "600" },
   list: { flex: 1 },
+  // Hoisted out of the JSX, where it was a fresh object literal every render.
+  listContent: { paddingBottom: 16 },
   empty: {
     color: "rgba(255,255,255,0.35)",
     fontSize: 14,
