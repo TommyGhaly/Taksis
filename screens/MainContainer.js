@@ -40,7 +40,7 @@ import CustomDrawerContent from "../components/customDrawer";
 import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import CustomHeader from "../components/customHeader";
-import SkeletonScreen from "../components/Skeleton";
+import LoadingWheel from "../components/LoadingWheel";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as avatarCache from "../utils/avatarCache";
 
@@ -837,10 +837,11 @@ export default function MainContainer() {
     userRoles.trafficAdmin ||
     userRoles.paschaAdmin;
 
-  // The shell can render any screen, so a shaped skeleton here would just be
-  // guessing at a layout that won't match. One full-screen block instead.
+  // The shell can render any screen, so there is no layout to mimic — a spinner
+  // is honest about that, where a full-screen shimmer block just read as a
+  // broken grey screen.
   if (isLoading) {
-    return <SkeletonScreen variant="block" />;
+    return <LoadingWheel />;
   }
 
   return (

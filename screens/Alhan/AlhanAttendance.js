@@ -16,6 +16,7 @@ import {
   Animated,
   ScrollView,
   Dimensions,
+  InteractionManager,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
@@ -46,12 +47,20 @@ const CacheUtils = {
     }
     return null;
   },
-  async set(key, data) {
-    try {
-      await AsyncStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
-    } catch (error) {
-      console.log("Cache write error:", error);
-    }
+  // Fire-and-forget, and deliberately deferred.
+  //
+  // This is called once per grade from inside a snapshot handler — up to 16 times
+  // on a cold load — and JSON.stringify over a few hundred students is real
+  // synchronous work on the JS thread. Nothing awaits the write, so running it
+  // after interactions keeps it off the path between "data arrived" and "screen
+  // is interactive".
+  set(key, data) {
+    InteractionManager.runAfterInteractions(() => {
+      AsyncStorage.setItem(
+        key,
+        JSON.stringify({ data, timestamp: Date.now() })
+      ).catch((error) => console.log("Cache write error:", error));
+    });
   },
   async remove(key) {
     try {
@@ -360,6 +369,33 @@ const AlhanAttendance = () => {
       );
   };
 
+  // One state update per tick, however many grade listeners deliver together.
+  //
+  // Each grade gets its own unbounded onSnapshot, and a teacher can be assigned to
+  // 16 of them. Applying each snapshot directly meant up to 16 back-to-back
+  // setStates on a cold load — 16 full re-renders, each rebuilding every mounted
+  // cell and re-deriving the sections. Batching them into a single flush is what
+  // leaves the JS thread free enough to accept a tap on the header or tab bar
+  // while the read is still finishing.
+  const pendingGrades = useRef({});
+  const flushScheduled = useRef(false);
+
+  const queueGradeUpdate = useCallback((grade, students) => {
+    pendingGrades.current[grade] = students;
+    if (flushScheduled.current) return;
+    flushScheduled.current = true;
+
+    setTimeout(() => {
+      flushScheduled.current = false;
+      const batch = pendingGrades.current;
+      pendingGrades.current = {};
+      if (!isMounted.current) return;
+      setStudentsByGrade((prev) => ({ ...prev, ...batch }));
+      // Real rows are on screen — only now drop the skeleton.
+      setLoading(false);
+    }, 0);
+  }, []);
+
   useEffect(() => {
     if (!userData?.church || !userData?.alhanGrades?.length) {
       // Nothing will be delivered for this user — drop the skeleton so the
@@ -392,13 +428,15 @@ const AlhanAttendance = () => {
           async (snapshot) => {
             if (!isMounted.current) return;
             const students = snapshot.docs.map((doc) => ({ uid: doc.id, grade, ...doc.data() }));
-            students.sort((a, b) => a.name.localeCompare(b.name));
-            setStudentsByGrade((prev) => ({ ...prev, [grade]: students }));
-            // Real rows are on screen — only now drop the skeleton.
-            setLoading(false);
+            // (a.name || "") — a student doc with no `name` used to throw here and
+            // take the whole snapshot handler down with it.
+            students.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+            // Queued, not applied: see queueGradeUpdate. A teacher assigned to 16
+            // grades has 16 of these listeners all delivering at once.
+            queueGradeUpdate(grade, students);
             // Adopt any photoURL already on these docs — no Storage request.
             avatarCache.primeMany(students);
-            await CacheUtils.set(cacheKey, students);
+            CacheUtils.set(cacheKey, students);
           },
           (error) => {
             if (isMounted.current) {
@@ -413,7 +451,7 @@ const AlhanAttendance = () => {
       studentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
       studentUnsubscribes.current = [];
     };
-  }, [userData?.church, userData?.alhanGrades?.join(",")]);
+  }, [userData?.church, userData?.alhanGrades?.join(","), queueGradeUpdate]);
 
   const generatePreviousSaturdays = async () => {
     const today = new Date();
