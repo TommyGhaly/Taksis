@@ -1,73 +1,75 @@
 /**
- * Skeleton — shimmer placeholders that replace full-screen spinners.
+ * Skeleton — pulsing placeholders that replace full-screen spinners.
  *
  * A spinner tells the user "something is happening"; a skeleton tells them
  * *what* is coming and keeps the layout stable so content doesn't jump when it
  * lands. Use the presets at the bottom for the common shapes in this app.
  *
- * One shared, natively-driven clock drives every shimmer on screen, so adding
- * more skeletons costs no extra animation work.
+ * Every block fades in unison off ONE shared, natively-driven clock, so N blocks
+ * cost exactly one animation — and it keeps running for as long as any skeleton is
+ * mounted, however busy the JS thread gets. See the long note below for why it is
+ * built the way it is; several simpler-looking approaches silently stop.
  */
-import React, { useEffect, useMemo } from "react";
-import {
-  View,
-  StyleSheet,
-  Dimensions,
-  Animated,
-  Easing,
-  AppState,
-} from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-
-const { width: SCREEN_W } = Dimensions.get("window");
+import React, { useEffect } from "react";
+import { View, StyleSheet, Animated, Easing, AppState } from "react-native";
 
 const BASE = "#1e1e1e";
-const HIGHLIGHT = "rgba(255,255,255,0.07)";
-const SWEEP_MS = 1300;
-const SWEEP_W = 220;
+const PULSE_MS = 1300;
 
 /**
- * ONE module-level clock drives every shimmer in the app, and it must keep
- * sweeping for as long as any skeleton is mounted — through the whole database
- * read — stopping only when the last one unmounts because real data is on
- * screen.
+ * ONE module-level clock drives every skeleton in the app, and it must keep
+ * animating for as long as any skeleton is mounted — through the whole database
+ * read — stopping only when the last one unmounts because real data is on screen.
  *
- * Getting that to actually hold took ruling out three ways the sweep can die:
+ * ── Why this is a pulse and not a sliding shimmer ──────────────────────────────
+ *
+ * It used to translate a fixed 220pt gradient across each block, from `-220` to
+ * `width + 220`, falling back to the *screen* width whenever `width` was a
+ * percentage. Blocks clip their children, so on a ~163pt text line the gradient
+ * spent ~54% of every cycle entirely outside the box and only ~20% with its bright
+ * centre inside; a 48pt avatar was worse, ~10%. Travel distance also varied per
+ * block while duration was fixed, so blocks moved at different pixel speeds and
+ * never formed one coherent wave.
+ *
+ * The result was an animation that ran perfectly and *looked* stopped — which is
+ * why the symptom got reported as "runs once", "pulses 3 times" and "freezes" at
+ * different times. Opacity is immune to that whole class of bug: it has no
+ * geometry, so a 48pt avatar pulses identically to a full-width bar. It is also
+ * cheaper — it drops a LinearGradient and an interpolation node per block (~24 of
+ * each on a roster) for one shared node.
+ *
+ * ── Why it is built this way ───────────────────────────────────────────────────
+ *
+ * Four earlier attempts each died for a different reason, all worth not redoing:
  *
  *  1. A per-provider reanimated `useSharedValue`: several presets nest their own
- *     provider inside SkeletonScreen's, so an unmounting provider cancelled a
- *     clock that other, still-mounted blocks were reading.
+ *     provider, so an unmounting one cancelled a clock still-mounted blocks read.
  *  2. A module-level reanimated mutable driven by `withRepeat`. `cancelAnimation`
  *     is dispatched to the UI runtime asynchronously while `shared.value = ...`
  *     is a direct write, so a stop queued during a screen handoff could land
  *     *after* the restart and kill the new animation. `withRepeat` also consults
  *     the OS "Reduce Motion" setting by default, which drops the repeat outright.
- *  3. `Animated.loop(..., { iterations: -1 })`. The iteration count is only read
- *     by `TimingAnimation.__getNativeAnimationConfig()` — that is, only by the
- *     *native* driver. `loop()` routes to `_startNativeLoop()` whenever
- *     `useNativeDriver: true` was requested, but if the native animated module
- *     isn't available RN warns and quietly falls back to the JS driver, whose
- *     `onUpdate` ends after a single pass and never looks at the count. Result:
- *     a handful of sweeps (or one) and then a frozen skeleton.
- *  4. Re-arming a single `Animated.timing` from its own completion callback.
+ *  3. `Animated.loop(..., { iterations: -1 })` alone. The count is read only by
+ *     `TimingAnimation.__getNativeAnimationConfig()` — i.e. only by the *native*
+ *     driver — but `loop()` routes to `_startNativeLoop()` whenever
+ *     `useNativeDriver: true` was merely *requested*. If the native module is
+ *     missing RN falls back to the JS driver, which ignores the count and ends
+ *     after one pass.
+ *  4. Re-arming a single `Animated.timing` from its completion callback.
  *     Driver-agnostic, but the re-arm is a *JS* callback — so when the JS thread
- *     is busy (which is the entire reason a skeleton is on screen during a long
- *     read) the sweep finishes and nothing restarts it until the thread frees up.
- *     The animation visibly stalls at exactly the moment it matters most.
+ *     is busy (the entire reason a skeleton is on screen) nothing restarts the
+ *     animation until the thread frees up. It stalled exactly when it mattered.
  *
- * So the strategy is chosen up front, because the two mechanisms fail in opposite
- * situations and `Animated.loop` gives no way to recover at runtime — on the
- * native path it calls `_startNativeLoop()` and *discards the `start()` callback
- * entirely*, so a completion-based safety net can never fire.
+ * So the strategy is chosen up front, because those two mechanisms fail in
+ * opposite situations and `Animated.loop` offers no runtime recovery: on the
+ * native path it *discards the `start()` callback entirely*, so a completion-based
+ * safety net can never fire there.
  *
- *   - Native driver present (effectively always): `Animated.loop` with
- *     `iterations: -1` hands ONE infinite animation to the native driver. It
- *     repeats on the UI thread with zero JS work per iteration, so it keeps
- *     sweeping smoothly no matter how busy the JS thread is. This is the case
- *     that matters — a skeleton is on screen precisely when JS is loaded up.
- *   - Native driver missing: fall back to re-arming a single timing from its
- *     completion callback. It stalls while JS is blocked, but it does loop, which
- *     beats freezing after one sweep.
+ *   - Native driver present (effectively always): one `iterations: -1` animation
+ *     handed to the native driver. Repeats on the UI thread with zero JS work per
+ *     iteration, so it cannot be stalled by a busy JS thread.
+ *   - Native driver missing: re-arm from the completion callback. Stalls under
+ *     load, but loops — better than freezing after one pass.
  *
  * The probe below reads the same modules RN's own `shouldUseNativeDriver` checks,
  * so it agrees with what RN will actually do.
@@ -89,27 +91,46 @@ const nativeDriverAvailable = (() => {
   }
 })();
 
-const shimmer = new Animated.Value(0);
+const pulse = new Animated.Value(0);
+
+/**
+ * The one animated node every block's opacity reads.
+ *
+ * The out-and-back is shaped HERE rather than with `Animated.sequence`, and that
+ * is load-bearing: `sequence` reports `_isUsingNativeDriver: false`, so wrapping
+ * one in `Animated.loop` would take the JS `restart()` path and reintroduce the
+ * per-iteration JS callback of failure 4 above. A single linear timing looped
+ * natively, with the ramp down and back up expressed as interpolation, keeps the
+ * whole thing on the UI thread.
+ *
+ * The midpoints approximate a sine breathe; two points alone give a mechanical
+ * linear triangle.
+ */
+const pulseOpacity = pulse.interpolate({
+  inputRange: [0, 0.25, 0.5, 0.75, 1],
+  outputRange: [1, 0.78, 0.45, 0.78, 1],
+});
+
 let liveSkeletons = 0;
 let running = false;
-let currentSweep = null;
+let currentPulse = null;
 let stopTimer = null;
 
-function sweep() {
+function startPulse() {
   if (!running) return;
 
   // Starting a new animation on a value implicitly stops the previous one, but
   // being explicit keeps the AppState re-arm below from ever leaving two loops
-  // contending for `shimmer`.
-  if (currentSweep) {
-    currentSweep.stop();
-    currentSweep = null;
+  // contending for `pulse`.
+  if (currentPulse) {
+    currentPulse.stop();
+    currentPulse = null;
   }
-  shimmer.setValue(0);
+  pulse.setValue(0);
 
-  const timing = Animated.timing(shimmer, {
+  const timing = Animated.timing(pulse, {
     toValue: 1,
-    duration: SWEEP_MS,
+    duration: PULSE_MS,
     easing: Easing.linear,
     useNativeDriver: true,
   });
@@ -117,16 +138,16 @@ function sweep() {
   if (nativeDriverAvailable) {
     // One infinite animation, looped natively. No JS callback per iteration, so a
     // blocked JS thread cannot stall it.
-    currentSweep = Animated.loop(timing, { iterations: -1 });
-    currentSweep.start();
+    currentPulse = Animated.loop(timing, { iterations: -1 });
+    currentPulse.start();
     return;
   }
 
-  currentSweep = timing;
-  currentSweep.start(({ finished }) => {
+  currentPulse = timing;
+  currentPulse.start(({ finished }) => {
     // `finished` is false when something stopped us (unmount, backgrounding),
     // which is the only way this loop is allowed to end.
-    if (finished && running) sweep();
+    if (finished && running) startPulse();
   });
 }
 
@@ -137,9 +158,9 @@ function ensureRunning() {
     clearTimeout(stopTimer);
     stopTimer = null;
   }
-  if (running && currentSweep) return;
+  if (running && currentPulse) return;
   running = true;
-  sweep();
+  startPulse();
 }
 
 function scheduleStop() {
@@ -148,12 +169,16 @@ function scheduleStop() {
   // reaches zero. Stopping keeps us from burning frames with nothing on screen.
   stopTimer = setTimeout(() => {
     stopTimer = null;
+    // The guard that makes the pulse last exactly as long as the read: it only
+    // stops once nothing is mounted, i.e. real data has replaced every skeleton.
     if (liveSkeletons > 0) return;
     running = false;
-    if (currentSweep) {
-      currentSweep.stop();
-      currentSweep = null;
+    if (currentPulse) {
+      currentPulse.stop();
+      currentPulse = null;
     }
+    // Leave the value bright so a skeleton mounting later doesn't flash from dim.
+    pulse.setValue(0);
   }, 0);
 }
 
@@ -162,13 +187,14 @@ function scheduleStop() {
 AppState.addEventListener("change", (state) => {
   if (state === "active" && liveSkeletons > 0) {
     running = true;
-    sweep();
+    startPulse();
   }
 });
 
 /**
- * Kept for API compatibility — the clock is global now, so this is just a
- * passthrough. Nesting it is harmless.
+ * Kept for API compatibility only — the clock is global, so this does nothing.
+ * The presets below deliberately no longer wrap themselves in it; it was reading
+ * as though it established something. Harmless to call.
  */
 export function SkeletonProvider({ children }) {
   return <>{children}</>;
@@ -178,8 +204,8 @@ export function SkeletonProvider({ children }) {
 function useShimmer() {
   useEffect(() => {
     liveSkeletons += 1;
-    // Called on every mount, not just the first: any block appearing is enough
-    // to guarantee the sweep is running, so no missed start can leave a skeleton
+    // Called on every mount, not just the first: any block appearing is enough to
+    // guarantee the pulse is running, so no missed start can leave a skeleton
     // sitting frozen.
     ensureRunning();
     return () => {
@@ -188,11 +214,14 @@ function useShimmer() {
     };
   }, []);
 
-  return shimmer;
+  return pulseOpacity;
 }
 
 /**
- * A single shimmering block. Everything else is composed from this.
+ * A single pulsing block. Everything else is composed from this.
+ *
+ * No per-block interpolation and no gradient child: every block reads the one
+ * shared `pulseOpacity` node, so N blocks cost exactly one animation.
  */
 export const SkeletonBlock = React.memo(({
   width = "100%",
@@ -200,40 +229,16 @@ export const SkeletonBlock = React.memo(({
   radius = 8,
   style,
 }) => {
-  const progress = useShimmer();
-
-  // One interpolation node per block off the shared value. Percentage widths
-  // can't be measured here, so they sweep the screen width.
-  const translateX = useMemo(
-    () =>
-      progress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [
-          -SWEEP_W,
-          (typeof width === "number" ? width : SCREEN_W) + SWEEP_W,
-        ],
-      }),
-    [progress, width]
-  );
+  const opacity = useShimmer();
 
   return (
-    <View
+    <Animated.View
       style={[
-        { width, height, borderRadius: radius, backgroundColor: BASE, overflow: "hidden" },
+        { width, height, borderRadius: radius, backgroundColor: BASE },
         style,
+        { opacity },
       ]}
-    >
-      <Animated.View
-        style={[StyleSheet.absoluteFill, { transform: [{ translateX }] }]}
-      >
-        <LinearGradient
-          colors={["transparent", HIGHLIGHT, "transparent"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={{ width: SWEEP_W, height: "100%" }}
-        />
-      </Animated.View>
-    </View>
+    />
   );
 });
 SkeletonBlock.displayName = "SkeletonBlock";
@@ -269,7 +274,7 @@ export const SkeletonPersonRow = React.memo(({ avatarSize = 48, card = false, li
             key={i}
             width={widths[i % widths.length]}
             height={i === 0 ? 15 : 12}
-            style={i === 0 ? undefined : { marginTop: 8 }}
+            style={i === 0 ? undefined : s.rowTextGap}
           />
         ))}
       </View>
@@ -280,41 +285,35 @@ SkeletonPersonRow.displayName = "SkeletonPersonRow";
 
 /** A list of person rows. */
 export const SkeletonPersonList = React.memo(({ count = 8, avatarSize = 48, card = false, lines = 2 }) => (
-  <SkeletonProvider>
-    <View>
-      {Array.from({ length: count }, (_, i) => (
-        <SkeletonPersonRow key={i} avatarSize={avatarSize} card={card} lines={lines} />
-      ))}
-    </View>
-  </SkeletonProvider>
+  <View>
+    {Array.from({ length: count }, (_, i) => (
+      <SkeletonPersonRow key={i} avatarSize={avatarSize} card={card} lines={lines} />
+    ))}
+  </View>
 ));
 SkeletonPersonList.displayName = "SkeletonPersonList";
 
 /** Stacked cards — the HomeScreen readings/offerings shape. */
 export const SkeletonCardList = React.memo(({ count = 6, height = 56 }) => (
-  <SkeletonProvider>
-    <View>
-      {Array.from({ length: count }, (_, i) => (
-        <SkeletonBlock key={i} height={height} radius={14} style={s.card} />
-      ))}
-    </View>
-  </SkeletonProvider>
+  <View>
+    {Array.from({ length: count }, (_, i) => (
+      <SkeletonBlock key={i} height={height} radius={14} style={s.card} />
+    ))}
+  </View>
 ));
 SkeletonCardList.displayName = "SkeletonCardList";
 
 /** A profile header: big avatar, name, a few detail lines. */
 export const SkeletonProfile = React.memo(({ avatarSize = 100, lines = 4 }) => (
-  <SkeletonProvider>
-    <View style={s.profile}>
-      <SkeletonCircle size={avatarSize} />
-      <SkeletonText width="45%" height={20} style={{ marginTop: 16 }} />
-      <View style={s.profileLines}>
-        {Array.from({ length: lines }, (_, i) => (
-          <SkeletonBlock key={i} height={52} radius={14} style={{ marginBottom: 10 }} />
-        ))}
-      </View>
+  <View style={s.profile}>
+    <SkeletonCircle size={avatarSize} />
+    <SkeletonText width="45%" height={20} style={s.profileName} />
+    <View style={s.profileLines}>
+      {Array.from({ length: lines }, (_, i) => (
+        <SkeletonBlock key={i} height={52} radius={14} style={s.profileLine} />
+      ))}
     </View>
-  </SkeletonProvider>
+  </View>
 ));
 SkeletonProfile.displayName = "SkeletonProfile";
 
@@ -326,11 +325,9 @@ SkeletonProfile.displayName = "SkeletonProfile";
  * guessing at a layout that won't match what actually loads.
  */
 export const SkeletonFullScreen = React.memo(() => (
-  <SkeletonProvider>
-    <View style={s.fullScreen}>
-      <SkeletonBlock width="100%" height="100%" radius={0} />
-    </View>
-  </SkeletonProvider>
+  <View style={s.fullScreen}>
+    <SkeletonBlock width="100%" height="100%" radius={0} />
+  </View>
 ));
 SkeletonFullScreen.displayName = "SkeletonFullScreen";
 
@@ -362,8 +359,7 @@ export const SkeletonScreen = React.memo(({
   if (variant === "block") return <SkeletonFullScreen />;
 
   return (
-    <SkeletonProvider>
-      <View style={[s.screen, { paddingHorizontal, paddingTop }]}>
+    <View style={[s.screen, { paddingHorizontal, paddingTop }]}>
         {header}
         {showHeader && !header && (
           <View style={s.header}>
@@ -388,15 +384,18 @@ export const SkeletonScreen = React.memo(({
               {...(rowLines != null ? { lines: rowLines } : null)}
             />
           )}
-        </View>
       </View>
-    </SkeletonProvider>
+    </View>
   );
 });
 SkeletonScreen.displayName = "SkeletonScreen";
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#121212" },
+  // Was referenced by SkeletonFullScreen but never defined, so the wrapper had no
+  // dimensions and its `height: "100%"` child collapsed to nothing — the `block`
+  // variant rendered empty.
+  fullScreen: { flex: 1, backgroundColor: "#121212" },
   header: { marginBottom: 26 },
   row: {
     flexDirection: "row",
@@ -410,13 +409,17 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
     padding: 16,
-    paddingVertical: 16,
     marginBottom: 12,
   },
   rowText: { flex: 1, marginLeft: 14 },
+  // Hoisted out of the JSX: fresh object literals every render were defeating
+  // React.memo on the children they were passed to.
+  rowTextGap: { marginTop: 8 },
   card: { marginBottom: 12 },
   profile: { alignItems: "center", paddingTop: 20 },
+  profileName: { marginTop: 16 },
   profileLines: { width: "100%", marginTop: 28 },
+  profileLine: { marginBottom: 10 },
 });
 
 export default SkeletonScreen;
