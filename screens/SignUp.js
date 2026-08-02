@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useRef } from "react";
 import {
   StyleSheet, View, Text, TextInput, Pressable, Alert, Image,
   Dimensions, Platform, KeyboardAvoidingView, ScrollView, ActivityIndicator, Animated,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import auth from "@react-native-firebase/auth";
@@ -12,6 +13,7 @@ import * as Crypto from "expo-crypto";
 import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
 import { useUser } from "../UserContext";
+import { IS_TABLET, makeAuthTabletStyles } from "../utils/authTabletStyles";
 
 const { width, height } = Dimensions.get("window");
 const REFERENCE_WIDTH = 375;
@@ -23,7 +25,7 @@ const moderateScale = (size, factor = 0.5) => size + (scale(size) - size) * fact
 const FloatingInput = React.forwardRef(({
   label, value, onChangeText, secureTextEntry, showToggle, onToggleSecure,
   isSecureVisible, autoCapitalize, keyboardType, textContentType, error,
-  onBlur, onFocus, returnKeyType, onSubmitEditing, blurOnSubmit, ...rest
+  onBlur, onFocus, returnKeyType, onSubmitEditing, blurOnSubmit, t, ...rest
 }, ref) => {
   const [focused, setFocused] = useState(false);
   const animated = useRef(new Animated.Value(value ? 1 : 0)).current;
@@ -38,17 +40,17 @@ const FloatingInput = React.forwardRef(({
 
   const labelStyle = {
     position: "absolute",
-    left: scale(14),
-    top: animated.interpolate({ inputRange: [0, 1], outputRange: [verticalScale(16), verticalScale(6)] }),
-    fontSize: animated.interpolate({ inputRange: [0, 1], outputRange: [moderateScale(15), moderateScale(11)] }),
+    left: t ? t.labelLeft : scale(14),
+    top: animated.interpolate({ inputRange: [0, 1], outputRange: t ? t.labelTop : [verticalScale(16), verticalScale(6)] }),
+    fontSize: animated.interpolate({ inputRange: [0, 1], outputRange: t ? t.labelFont : [moderateScale(15), moderateScale(11)] }),
     color: animated.interpolate({ inputRange: [0, 1], outputRange: ["rgba(255,255,255,0.35)", "rgba(255,255,255,0.5)"] }),
   };
 
   const borderColor = error ? "#ff453a" : focused ? "#147efb" : "rgba(255,255,255,0.08)";
 
   return (
-    <View style={{ marginBottom: verticalScale(12) }}>
-      <View style={[styles.inputWrap, { borderColor }]}>
+    <View style={[{ marginBottom: verticalScale(12) }, t && t.fieldWrap]}>
+      <View style={[styles.inputWrap, t && t.inputWrap, { borderColor }]}>
         <Animated.Text style={labelStyle} pointerEvents="none">{label}</Animated.Text>
         <TextInput
           ref={ref} value={value} onChangeText={onChangeText}
@@ -58,19 +60,19 @@ const FloatingInput = React.forwardRef(({
           onFocus={(e) => { setFocused(true); onFocus && onFocus(e); }}
           onBlur={(e) => { setFocused(false); onBlur && onBlur(e); }}
           returnKeyType={returnKeyType} onSubmitEditing={onSubmitEditing}
-          blurOnSubmit={blurOnSubmit} style={styles.input}
+          blurOnSubmit={blurOnSubmit} style={[styles.input, t && t.input]}
           placeholderTextColor="rgba(255,255,255,0.3)" {...rest}
         />
         {showToggle ? (
-          <Pressable onPress={onToggleSecure} style={styles.eyeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name={isSecureVisible ? "eye-off-outline" : "eye-outline"} size={20} color="rgba(255,255,255,0.35)" />
+          <Pressable onPress={onToggleSecure} style={[styles.eyeBtn, t && t.eyeBtn]} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name={isSecureVisible ? "eye-off-outline" : "eye-outline"} size={t ? t.eyeSize : 20} color="rgba(255,255,255,0.35)" />
           </Pressable>
         ) : null}
       </View>
       {error ? (
-        <View style={styles.errorRow}>
-          <Ionicons name="alert-circle" size={12} color="#ff453a" />
-          <Text style={styles.errorText}>{error}</Text>
+        <View style={[styles.errorRow, t && t.errorRow]}>
+          <Ionicons name="alert-circle" size={t ? t.errorIconSize : 12} color="#ff453a" />
+          <Text style={[styles.errorText, t && t.errorText]}>{error}</Text>
         </View>
       ) : null}
     </View>
@@ -91,6 +93,12 @@ const SignUp = ({ navigation }) => {
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
   const confirmRef = useRef(null);
+
+  const { width: winW, height: winH } = useWindowDimensions();
+  const t = useMemo(
+    () => (IS_TABLET ? makeAuthTabletStyles(winW, winH) : null),
+    [winW, winH]
+  );
 
   useEffect(() => { setSignUp(true); }, []);
 
@@ -226,55 +234,55 @@ const SignUp = ({ navigation }) => {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}>
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <View style={styles.backArrowContainer}><BackArrow /></View>
-        <View style={styles.progressBarContainer}><ProgressBar startPercentage={0} endPercentage={1} /></View>
+      <ScrollView contentContainerStyle={[styles.scrollContent, t && t.scrollContent]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <View style={[styles.backArrowContainer, t && t.backArrowContainer]}><BackArrow size={t ? t.backArrowSize : undefined} /></View>
+        <View style={[styles.progressBarContainer, t && t.progressBarContainer]}><ProgressBar startPercentage={0} endPercentage={1} /></View>
 
-        <View style={styles.heading}>
-          <Text style={styles.title}>Create account</Text>
-          <Text style={styles.subtitle}>Sign up to join your church community on Ⲧⲁⲝⲓⲥ.</Text>
+        <View style={[styles.heading, t && t.heading]}>
+          <Text style={[styles.title, t && t.title]}>Create account</Text>
+          <Text style={[styles.subtitle, t && t.subtitle]}>Sign up to join your church community on Ⲧⲁⲝⲓⲥ.</Text>
         </View>
 
-        <View style={styles.form}>
-          <FloatingInput label="Full name" value={name} onChangeText={setName} autoCapitalize="words" textContentType="name" error={validation.name} onBlur={() => setTouched((t) => ({ ...t, name: true }))} returnKeyType="next" onSubmitEditing={() => emailRef.current?.focus()} blurOnSubmit={false} />
-          <FloatingInput ref={emailRef} label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" textContentType="emailAddress" error={validation.email} onBlur={() => setTouched((t) => ({ ...t, email: true }))} returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} blurOnSubmit={false} />
-          <FloatingInput ref={passwordRef} label="Password" value={password} onChangeText={setPassword} secureTextEntry showToggle isSecureVisible={showPwd} onToggleSecure={() => setShowPwd((s) => !s)} autoCapitalize="none" textContentType="newPassword" error={validation.password} onBlur={() => setTouched((t) => ({ ...t, password: true }))} returnKeyType="next" onSubmitEditing={() => confirmRef.current?.focus()} blurOnSubmit={false} />
+        <View style={[styles.form, t && t.form]}>
+          <FloatingInput t={t} label="Full name" value={name} onChangeText={setName} autoCapitalize="words" textContentType="name" error={validation.name} onBlur={() => setTouched((prev) => ({ ...prev, name: true }))} returnKeyType="next" onSubmitEditing={() => emailRef.current?.focus()} blurOnSubmit={false} />
+          <FloatingInput t={t} ref={emailRef} label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" textContentType="emailAddress" error={validation.email} onBlur={() => setTouched((prev) => ({ ...prev, email: true }))} returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} blurOnSubmit={false} />
+          <FloatingInput t={t} ref={passwordRef} label="Password" value={password} onChangeText={setPassword} secureTextEntry showToggle isSecureVisible={showPwd} onToggleSecure={() => setShowPwd((s) => !s)} autoCapitalize="none" textContentType="newPassword" error={validation.password} onBlur={() => setTouched((prev) => ({ ...prev, password: true }))} returnKeyType="next" onSubmitEditing={() => confirmRef.current?.focus()} blurOnSubmit={false} />
 
           {password.length > 0 && (
-            <View style={styles.strengthRow}>
+            <View style={[styles.strengthRow, t && t.strengthRow]}>
               {[0, 1, 2].map((i) => (
-                <View key={i} style={[styles.strengthBar, { backgroundColor: i < pwdStrength ? pwdStrength === 1 ? "#ff453a" : pwdStrength === 2 ? "#ff9f0a" : "#34c759" : "rgba(255,255,255,0.08)" }]} />
+                <View key={i} style={[styles.strengthBar, t && t.strengthBar, { backgroundColor: i < pwdStrength ? pwdStrength === 1 ? "#ff453a" : pwdStrength === 2 ? "#ff9f0a" : "#34c759" : "rgba(255,255,255,0.08)" }]} />
               ))}
-              <Text style={styles.strengthLabel}>{pwdStrength === 0 ? "Too short" : pwdStrength === 1 ? "Weak" : pwdStrength === 2 ? "Okay" : "Strong"}</Text>
+              <Text style={[styles.strengthLabel, t && t.strengthLabel]}>{pwdStrength === 0 ? "Too short" : pwdStrength === 1 ? "Weak" : pwdStrength === 2 ? "Okay" : "Strong"}</Text>
             </View>
           )}
 
-          <FloatingInput ref={confirmRef} label="Confirm password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry showToggle isSecureVisible={showConfirmPwd} onToggleSecure={() => setShowConfirmPwd((s) => !s)} autoCapitalize="none" textContentType="newPassword" error={validation.confirm} onBlur={() => setTouched((t) => ({ ...t, confirm: true }))} returnKeyType="done" onSubmitEditing={handleSignUp} />
+          <FloatingInput t={t} ref={confirmRef} label="Confirm password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry showToggle isSecureVisible={showConfirmPwd} onToggleSecure={() => setShowConfirmPwd((s) => !s)} autoCapitalize="none" textContentType="newPassword" error={validation.confirm} onBlur={() => setTouched((prev) => ({ ...prev, confirm: true }))} returnKeyType="done" onSubmitEditing={handleSignUp} />
         </View>
 
-        <Pressable style={({ pressed }) => [styles.continueButton, (!isValid || isLoading) && styles.continueButtonDisabled, pressed && isValid && { opacity: 0.85 }]} onPress={handleSignUp} disabled={!isValid || isLoading}>
+        <Pressable style={({ pressed }) => [styles.continueButton, t && t.continueButton, t && t.continueButtonSpaced, (!isValid || isLoading) && styles.continueButtonDisabled, pressed && isValid && { opacity: 0.85 }]} onPress={handleSignUp} disabled={!isValid || isLoading}>
           {loading === "email" ? <ActivityIndicator color="#fff" /> : (
-            <><Text style={styles.continueText}>Continue</Text><Ionicons name="arrow-forward" size={18} color="#fff" /></>
+            <><Text style={[styles.continueText, t && t.continueText]}>Continue</Text><Ionicons name="arrow-forward" size={t ? t.continueIconSize : 18} color="#fff" /></>
           )}
         </Pressable>
 
-        <View style={styles.dividerContainer}>
+        <View style={[styles.dividerContainer, t && t.dividerContainer]}>
           <View style={styles.divider} />
-          <Text style={styles.orText}>or sign up with</Text>
+          <Text style={[styles.orText, t && t.orText]}>or sign up with</Text>
           <View style={styles.divider} />
         </View>
 
-        <View style={styles.socialRow}>
-          <SocialButton onPress={onGoogleButtonPress} disabled={isLoading} isLoading={loading === "google"} icon={<Image style={styles.googleIcon} resizeMode="contain" source={require("../assets/googleLogo.png")} />} label="Google" />
+        <View style={[styles.socialRow, t && t.socialRow]}>
+          <SocialButton t={t} onPress={onGoogleButtonPress} disabled={isLoading} isLoading={loading === "google"} icon={<Image style={[styles.googleIcon, t && t.googleIcon]} resizeMode="contain" source={require("../assets/googleLogo.png")} />} label="Google" />
           {Platform.OS === "ios" && AppleAuthentication ? (
-            <SocialButton onPress={onAppleButtonPress} disabled={isLoading} isLoading={loading === "apple"} icon={<Ionicons name="logo-apple" size={26} color="#fff" />} label="Apple" />
+            <SocialButton t={t} onPress={onAppleButtonPress} disabled={isLoading} isLoading={loading === "apple"} icon={<Ionicons name="logo-apple" size={t ? t.socialIconSize : 26} color="#fff" />} label="Apple" />
           ) : null}
         </View>
 
-        <View style={styles.signInRow}>
-          <Text style={styles.signInPrompt}>Already have an account?</Text>
+        <View style={[styles.signInRow, t && t.footerRow]}>
+          <Text style={[styles.signInPrompt, t && t.footerText]}>Already have an account?</Text>
           <Pressable onPress={() => navigation.navigate("SignIn")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={styles.signInLink}>Sign in</Text>
+            <Text style={[styles.signInLink, t && t.footerText]}>Sign in</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -282,10 +290,10 @@ const SignUp = ({ navigation }) => {
   );
 };
 
-const SocialButton = ({ onPress, icon, label, disabled, isLoading }) => (
-  <Pressable onPress={onPress} disabled={disabled} style={({ pressed }) => [styles.socialButton, disabled && { opacity: 0.5 }, pressed && { transform: [{ scale: 0.97 }] }]}>
+const SocialButton = ({ onPress, icon, label, disabled, isLoading, t }) => (
+  <Pressable onPress={onPress} disabled={disabled} style={({ pressed }) => [styles.socialButton, t && t.socialButton, disabled && { opacity: 0.5 }, pressed && { transform: [{ scale: 0.97 }] }]}>
     {isLoading ? <ActivityIndicator color="#fff" /> : (
-      <><View style={styles.socialIconWrap}>{icon}</View><Text style={styles.socialLabel}>{label}</Text></>
+      <><View style={[styles.socialIconWrap, t && t.socialIconWrap]}>{icon}</View><Text style={[styles.socialLabel, t && t.socialLabel]}>{label}</Text></>
     )}
   </Pressable>
 );

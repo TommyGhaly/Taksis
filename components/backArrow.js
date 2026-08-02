@@ -1,11 +1,14 @@
 import * as React from "react";
 import { Pressable, Image, StyleSheet } from "react-native";
 import { useNavigation, ParamListBase } from "@react-navigation/native";
-const BackArrow = () => {
+const BackArrow = ({ size = 24 }) => {
   const navigation = useNavigation();
 
   return (
-    <Pressable style={styles.backarrow} onPress={() => navigation.goBack()}>
+    <Pressable
+      style={[styles.backarrow, { height: size, width: size }]}
+      onPress={() => navigation.goBack()}
+    >
       <Image
         style={styles.icon}
         resizeMode="cover"
