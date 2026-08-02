@@ -30,6 +30,7 @@ import ProfilePictureModal from "../../components/ProfilePictureModal";
 import ChildrenProfilePictureModal from "../../components/ChildrenProfilePictureModal";
 import AvailabilityModal from "../../components/AvailabilityModal";
 import SkeletonScreen from "../../components/Skeleton";
+import { useIsPreview } from "../../components/PreviewMode";
 
 // Import caching system
 import {
@@ -154,6 +155,13 @@ const NO_ONE = { name: "N/A" };
 const HomeScreen = () => {
   const user = auth().currentUser;
 
+  // Thumbnail in the home-screen selector. The schedule itself renders normally;
+  // what a preview skips is everything that reaches outside its own card —
+  // profile-completion modals, the FCM subscription (already live on the real
+  // HomeScreen behind the navigator, so this would double every alert), the
+  // notification permission prompt, and the sign-up/delete-account path.
+  const isPreview = useIsPreview();
+
   // Use cached Firebase hooks for user data
   const {
     data: userDoc,
@@ -258,7 +266,7 @@ const HomeScreen = () => {
             );
 
             // Update church modal visibility based on real-time data
-            setShowChurchModal(!hasChurch);
+            if (!isPreview) setShowChurchModal(!hasChurch);
 
             // If church was just set, update the cached data
             if (hasChurch && showChurchModal) {
@@ -276,10 +284,12 @@ const HomeScreen = () => {
         userRealtimeListenerRef.current();
       }
     };
-  }, [user, showChurchModal, refreshUser]);
+  }, [user, showChurchModal, refreshUser, isPreview]);
 
   useEffect(() => {
     setIsDeacon(true);
+    if (isPreview) return;
+
     const unsubscribe = messaging().onMessage(async (remoteMessage) => {
       Alert.alert(
         remoteMessage?.notification?.title || "Notification",
@@ -308,7 +318,7 @@ const HomeScreen = () => {
       unsubscribe();
       subscription.remove();
     };
-  }, []);
+  }, [isPreview]);
 
   messaging().setBackgroundMessageHandler(async (remoteMessage) => {
     // Background message handling
@@ -905,7 +915,7 @@ const HomeScreen = () => {
 
   useEffect(() => {
     const user = auth().currentUser;
-    if (!user || isSelectingPhoto) return;
+    if (!user || isSelectingPhoto || isPreview) return;
 
     const checkProfilePictures = async () => {
       try {
@@ -964,7 +974,7 @@ const HomeScreen = () => {
     };
 
     checkProfilePictures();
-  }, [isSelectingPhoto]);
+  }, [isSelectingPhoto, isPreview]);
 
   // Handle cached user data changes
   useEffect(() => {
@@ -976,6 +986,9 @@ const HomeScreen = () => {
     if (userDoc) {
       const name = userDoc?.name || null;
       setUserName(name);
+
+      // A preview shows the schedule, not the profile-completion flow.
+      if (isPreview) return;
 
       // Check for required fields and show modals accordingly
       const isNameInvalid =
@@ -997,7 +1010,7 @@ const HomeScreen = () => {
       );
 
       // Church modal is controlled by real-time listener
-    } else if (userError) {
+    } else if (userError && !isPreview) {
       // Handle case where user document doesn't exist
       Alert.alert(
         "Sign up to continue",
@@ -1007,7 +1020,7 @@ const HomeScreen = () => {
         // Error handling for user deletion
       });
     }
-  }, [userDoc, userError, user, phoneModalShownThisSession]);
+  }, [userDoc, userError, user, phoneModalShownThisSession, isPreview]);
 
   // Publishes churchId for the schedule listener below. The duplicate
   // schedule-collection subscription that used to live here was removed: it
