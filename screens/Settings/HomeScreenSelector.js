@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  InteractionManager,
   SafeAreaView,
   Platform,
   Pressable,
@@ -18,6 +19,7 @@ import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import BackArrow from "../../components/backArrow";
 import SkeletonScreen from "../../components/Skeleton";
+import { PreviewModeProvider } from "../../components/PreviewMode";
 
 // Import actual screen components
 import HomeScreen from "../Home/HomeScreen";
@@ -34,46 +36,64 @@ import AdminManager from "../AdminScreens/AdminManager";
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const previewSize = (screenWidth - 60) / 2; // 2 columns with padding
 
-// Wrapper component to disable scrolling in previews
-const PreviewWrapper = ({ children }) => {
-  React.useEffect(() => {
-    global.isInPreviewMode = true;
-    return () => {
-      global.isInPreviewMode = false;
-    };
-  }, []);
+// Gap between two preview mounts. Every card gets a real screen, but mounting
+// ten of them in one frame locks the JS thread long enough that the grid can't
+// be scrolled while it happens — so they come up one at a time instead.
+const MOUNT_STAGGER_MS = 220;
 
-  return <>{children}</>;
-};
-
-// Component that loads the screen asynchronously
-const AsyncPreview = ({ component: Component, screenId }) => {
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Simulate async loading
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, []);
+// One card. `live` flips on when the stagger queue reaches this card; until then
+// it shows the skeleton so the grid is laid out and scrollable immediately.
+// memo'd because selecting a card re-renders the selector, and without this
+// every already-mounted screen would re-render along with it.
+const ScreenPreview = React.memo(({ component: Component, live }) => {
+  if (!live) {
+    return (
+      <View style={styles.previewWrapper} pointerEvents="none">
+        <SkeletonScreen variant="block" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.previewWrapper}>
-      {isLoading ? (
-        <View style={styles.previewLoadingContainer}>
-          <ActivityIndicator size="small" color="#666" />
-        </View>
-      ) : (
-        <View style={styles.previewScreen} pointerEvents="none">
-          <PreviewWrapper>
-            <Component isPreview={true} />
-          </PreviewWrapper>
-        </View>
-      )}
+      <View style={styles.previewScreen} pointerEvents="none">
+        <PreviewModeProvider>
+          <Component isPreview={true} />
+        </PreviewModeProvider>
+      </View>
     </View>
   );
+});
+ScreenPreview.displayName = "ScreenPreview";
+
+/**
+ * Reveals `total` previews one at a time, returning how many are live.
+ *
+ * Revealed cards are never un-revealed, and the order never depends on the
+ * current selection — tapping a card must not remount anything.
+ */
+const useStaggeredMounts = (total, start) => {
+  const [liveCount, setLiveCount] = useState(0);
+
+  useEffect(() => {
+    if (!start || liveCount >= total) return;
+
+    let timer;
+    // Let the scene's own entrance transition finish before the first mount.
+    const handle = InteractionManager.runAfterInteractions(() => {
+      timer = setTimeout(
+        () => setLiveCount((c) => c + 1),
+        liveCount === 0 ? 0 : MOUNT_STAGGER_MS,
+      );
+    });
+
+    return () => {
+      handle.cancel();
+      clearTimeout(timer);
+    };
+  }, [start, liveCount, total]);
+
+  return liveCount;
 };
 
 const HomeScreenSelector = () => {
@@ -157,6 +177,9 @@ const HomeScreenSelector = () => {
     },
   ];
 
+  const availableScreens = screenOptions.filter((screen) => screen.available);
+  const liveCount = useStaggeredMounts(availableScreens.length, !isLoading);
+
   useEffect(() => {
     const user = auth().currentUser;
     if (user) {
@@ -206,9 +229,7 @@ const HomeScreenSelector = () => {
     }
   };
 
-  const renderScreenPreview = (screen) => {
-    if (!screen.available) return null;
-
+  const renderScreenPreview = (screen, index) => {
     const isSelected = selectedScreen === screen.id;
 
     return (
@@ -221,17 +242,14 @@ const HomeScreenSelector = () => {
         <View
           style={[styles.previewCard, isSelected && styles.selectedPreviewCard]}
         >
-          {/* Only the selected card mounts a real screen. Previously all ~10
-              mounted at once — every listener, every fetch, and TrafficManager's
-              data migration, all fired from a settings screen. `isPreview` is
-              passed but no screen reads it, so these are fully live mounts. */}
-          {isSelected ? (
-            <AsyncPreview component={screen.component} screenId={screen.id} />
-          ) : (
-            <View style={styles.previewWrapper} pointerEvents="none">
-              <SkeletonScreen variant="block" />
-            </View>
-          )}
+          {/* Every card mounts its real screen, staggered by liveCount. These
+              are live mounts, so anything a screen does on mount that isn't
+              read-only display work has to opt out via `useIsPreview()` —
+              modals, alerts, writes, permission prompts. */}
+          <ScreenPreview
+            component={screen.component}
+            live={index < liveCount}
+          />
           {isSelected && (
             <View style={styles.selectedOverlay}>
               <View style={styles.checkmark}>
@@ -253,8 +271,6 @@ const HomeScreenSelector = () => {
       </SafeAreaView>
     );
   }
-
-  const availableScreens = screenOptions.filter((screen) => screen.available);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -376,13 +392,6 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     overflow: "hidden",
-  },
-  previewLoadingContainer: {
-    width: "100%",
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#1E1E1E",
   },
   previewScreen: {
     width: screenWidth,

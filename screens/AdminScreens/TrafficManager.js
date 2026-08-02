@@ -23,6 +23,7 @@ import * as avatarCache from "../../utils/avatarCache";
 import { LIST_PERF, REMOVE_CLIPPED_ANDROID_ONLY } from "../../utils/listConfig";
 import { SkeletonProvider, SkeletonBlock, SkeletonCircle } from "../../components/Skeleton";
 import { useAfterInteractions } from "../../hooks/useAfterInteractions";
+import { useIsPreview } from "../../components/PreviewMode";
 
 const { width: SW, height: SH } = Dimensions.get("window");
 const DEFAULT_PROFILE = require("../../assets/default_profile.png");
@@ -373,6 +374,9 @@ const TrafficManager = () => {
   // has finished animating, so it doesn't stall the slide on the JS thread.
   const ready = useAfterInteractions();
 
+  // Thumbnail in the home-screen selector: read and render, but never write.
+  const isPreview = useIsPreview();
+
   const [churchId, setChurchId] = useState(null);
   const [migrationDone, setMigrationDone] = useState(false);
   const [cars, setCars] = useState([]);
@@ -501,6 +505,9 @@ const TrafficManager = () => {
   useEffect(() => {
     if (!ready) return;
     if (!churchId) return;
+    // A preview must not rewrite the cars collection or throw a full-screen
+    // review modal over the settings screen it's embedded in.
+    if (isPreview) return;
     let cancelled = false;
 
     (async () => {
@@ -521,7 +528,7 @@ const TrafficManager = () => {
     })();
 
     return () => { cancelled = true; };
-  }, [churchId, ready]);
+  }, [churchId, ready, isPreview]);
 
   // ── Car listeners: attach as soon as the church is known.
   // These used to wait on migrationDone, so the screen sat on a spinner
