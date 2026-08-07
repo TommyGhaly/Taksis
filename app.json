@@ -3,7 +3,7 @@
     "name": "Ⲧⲁⲝⲓⲥ",
     "slug": "taksis",
     "scheme": "taksis",
-    "version": "4.2.0",
+    "version": "5.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -27,8 +27,8 @@
             "deploymentTarget": "16.0"
           },
           "android": {
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35,
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
             "minSdkVersion": 24,
             "android16KbPageSize": true
           }

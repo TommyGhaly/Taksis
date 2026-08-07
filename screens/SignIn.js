@@ -24,6 +24,11 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import { Ionicons } from "@expo/vector-icons";
 import { IS_TABLET, makeAuthTabletStyles } from "../utils/authTabletStyles";
+import {
+  signInWithMicrosoftTokens,
+  describeAccountCollision,
+} from "../utils/microsoftAuth";
+import MicrosoftSignInModal from "../components/MicrosoftSignInModal";
 
 const { width, height } = Dimensions.get("window");
 const REFERENCE_WIDTH = 375;
@@ -86,6 +91,7 @@ const SignIn = ({ navigation }) => {
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(null);
+  const [msVisible, setMsVisible] = useState(false);
   const { setSignUp } = useUser();
   const passwordRef = useRef(null);
   const { width: winW, height: winH } = useWindowDimensions();
@@ -146,6 +152,29 @@ const SignIn = ({ navigation }) => {
     } finally {
       setLoading(null);
     }
+  };
+
+  const handleMicrosoftTokens = async (tokens) => {
+    setMsVisible(false);
+    setLoading("microsoft");
+    try {
+      await signInWithMicrosoftTokens(tokens);
+    } catch (e) {
+      if (e?.code === "auth/account-exists-with-different-credential") {
+        Alert.alert("Account already exists", await describeAccountCollision(e));
+      } else if (e?.code === "auth/wrong-tenant") {
+        Alert.alert("SPSM account required", e.message);
+      } else {
+        Alert.alert("Microsoft sign-in failed", e?.message);
+      }
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleMicrosoftError = (e) => {
+    setMsVisible(false);
+    Alert.alert("Microsoft sign-in failed", e?.message);
   };
 
   const isLoading = loading !== null;
@@ -211,6 +240,12 @@ const SignIn = ({ navigation }) => {
               icon={<Ionicons name="logo-apple" size={t ? t.socialIconSize : 26} color="#fff" />} label="Apple"
             />
           ) : null}
+          <SocialButton
+            t={t}
+            onPress={() => setMsVisible(true)} disabled={isLoading} isLoading={loading === "microsoft"}
+            icon={<Ionicons name="logo-microsoft" size={t ? t.socialIconSize : 26} color="#fff" />}
+            label="Microsoft"
+          />
         </View>
 
         <View style={[styles.signUpRow, t && t.footerRow]}>
@@ -220,6 +255,13 @@ const SignIn = ({ navigation }) => {
           </Pressable>
         </View>
       </ScrollView>
+
+      <MicrosoftSignInModal
+        visible={msVisible}
+        onClose={() => setMsVisible(false)}
+        onSuccess={handleMicrosoftTokens}
+        onError={handleMicrosoftError}
+      />
     </KeyboardAvoidingView>
   );
 };

@@ -14,6 +14,11 @@ import BackArrow from "../components/backArrow";
 import ProgressBar from "../components/progressBar";
 import { useUser } from "../UserContext";
 import { IS_TABLET, makeAuthTabletStyles } from "../utils/authTabletStyles";
+import {
+  signInWithMicrosoftTokens,
+  describeAccountCollision,
+} from "../utils/microsoftAuth";
+import MicrosoftSignInModal from "../components/MicrosoftSignInModal";
 
 const { width, height } = Dimensions.get("window");
 const REFERENCE_WIDTH = 375;
@@ -88,6 +93,7 @@ const SignUp = ({ navigation }) => {
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
   const [loading, setLoading] = useState(null);
   const [touched, setTouched] = useState({ name: false, email: false, password: false, confirm: false });
+  const [msVisible, setMsVisible] = useState(false);
   const { setSignUp } = useUser();
 
   const emailRef = useRef(null);
@@ -230,6 +236,41 @@ const SignUp = ({ navigation }) => {
     }
   };
 
+  const onMicrosoftTokens = async (tokens) => {
+    setMsVisible(false);
+    setSignUp(true);
+    setLoading("microsoft");
+    try {
+      const userCredential = await signInWithMicrosoftTokens(tokens);
+      const user = auth().currentUser;
+      const userDoc = await firestore().collection("users").doc(user.uid).get();
+      if (userDoc.exists) {
+        await auth().signOut();
+        navigation.navigate("SignIn");
+        Alert.alert("Already signed up.", "This email is already signed up. Please sign in instead.");
+        return;
+      }
+      await writeUserToDb(userCredential.user, userCredential.user.displayName);
+      navigation.navigate("InputPhoto");
+    } catch (error) {
+      if (error?.code === "auth/account-exists-with-different-credential") {
+        navigation.navigate("SignIn");
+        Alert.alert("Already signed up.", await describeAccountCollision(error));
+      } else if (error?.code === "auth/wrong-tenant") {
+        Alert.alert("SPSM account required", error.message);
+      } else {
+        Alert.alert("Sign Up Error", error?.message || "Microsoft sign up failed.");
+      }
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const onMicrosoftError = (e) => {
+    setMsVisible(false);
+    Alert.alert("Sign Up Error", e?.message || "Microsoft sign up failed.");
+  };
+
   const isLoading = loading !== null;
 
   return (
@@ -277,6 +318,7 @@ const SignUp = ({ navigation }) => {
           {Platform.OS === "ios" && AppleAuthentication ? (
             <SocialButton t={t} onPress={onAppleButtonPress} disabled={isLoading} isLoading={loading === "apple"} icon={<Ionicons name="logo-apple" size={t ? t.socialIconSize : 26} color="#fff" />} label="Apple" />
           ) : null}
+          <SocialButton t={t} onPress={() => setMsVisible(true)} disabled={isLoading} isLoading={loading === "microsoft"} icon={<Ionicons name="logo-microsoft" size={t ? t.socialIconSize : 26} color="#fff" />} label="Microsoft" />
         </View>
 
         <View style={[styles.signInRow, t && t.footerRow]}>
@@ -286,6 +328,13 @@ const SignUp = ({ navigation }) => {
           </Pressable>
         </View>
       </ScrollView>
+
+      <MicrosoftSignInModal
+        visible={msVisible}
+        onClose={() => setMsVisible(false)}
+        onSuccess={onMicrosoftTokens}
+        onError={onMicrosoftError}
+      />
     </KeyboardAvoidingView>
   );
 };
