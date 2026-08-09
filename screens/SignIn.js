@@ -25,8 +25,8 @@ import * as Crypto from "expo-crypto";
 import { Ionicons } from "@expo/vector-icons";
 import { IS_TABLET, makeAuthTabletStyles } from "../utils/authTabletStyles";
 import {
-  signInWithMicrosoftTokens,
-  describeAccountCollision,
+  signInWithMicrosoftCode,
+  describeAuthError,
 } from "../utils/microsoftAuth";
 import MicrosoftSignInModal from "../components/MicrosoftSignInModal";
 
@@ -154,18 +154,18 @@ const SignIn = ({ navigation }) => {
     }
   };
 
-  const handleMicrosoftTokens = async (tokens) => {
+  const handleMicrosoftCode = async (result) => {
     setMsVisible(false);
     setLoading("microsoft");
     try {
-      await signInWithMicrosoftTokens(tokens);
+      await signInWithMicrosoftCode(result);
     } catch (e) {
       if (e?.code === "auth/account-exists-with-different-credential") {
-        Alert.alert("Account already exists", await describeAccountCollision(e));
+        Alert.alert("Account already exists", e.message);
       } else if (e?.code === "auth/wrong-tenant") {
         Alert.alert("SPSM account required", e.message);
       } else {
-        Alert.alert("Microsoft sign-in failed", e?.message);
+        Alert.alert("Microsoft sign-in failed", describeAuthError(e));
       }
     } finally {
       setLoading(null);
@@ -259,7 +259,7 @@ const SignIn = ({ navigation }) => {
       <MicrosoftSignInModal
         visible={msVisible}
         onClose={() => setMsVisible(false)}
-        onSuccess={handleMicrosoftTokens}
+        onSuccess={handleMicrosoftCode}
         onError={handleMicrosoftError}
       />
     </KeyboardAvoidingView>

@@ -2,45 +2,51 @@ import auth from "@react-native-firebase/auth";
 import * as Crypto from "expo-crypto";
 
 /**
- * In-app Microsoft sign-in.
+ * In-app Microsoft sign-in for SPSM accounts.
  *
- * Firebase's own signInWithRedirect() hands the flow to SFSafariViewController /
- * a Custom Tab, which leaves the app's UI. Instead we drive Azure's authorize
- * endpoint ourselves inside a WebView (see components/MicrosoftSignInModal.js),
- * take the resulting id_token, and hand that to Firebase as a credential.
+ * Firebase Auth cannot take a Microsoft credential on-device: its
+ * signInWithIdp endpoint rejects providerId=microsoft.com outright
+ * (INVALID_CREDENTIAL_OR_PROVIDER_ID) no matter how valid the id_token is,
+ * because Microsoft is a generic OAuth provider Firebase only supports through
+ * its own hosted handler. That rules out signInWithCredential entirely.
  *
- * This needs two things that plain signInWithRedirect did not:
+ * So the device does the user-facing half and a Cloud Function does the rest:
  *
- *   1. An Azure "Mobile and desktop applications" platform on the same app
- *      registration, with REDIRECT_URI below registered on it. That platform is
- *      a public client, so the code exchange needs no client secret — which is
- *      what makes it safe to do from the device.
- *   2. patches/@react-native-firebase+auth+21.14.0.patch, which teaches the
- *      native modules to build a microsoft.com credential. Without it
- *      signInWithCredential silently produces a null credential.
+ *   WebView  -> Microsoft login -> ?code=...        (components/MicrosoftSignInModal.js)
+ *   here     -> microsoft_exchange { code, verifier }
+ *   function -> redeems with the client secret, verifies the signature and
+ *               tenant, returns a Firebase custom token
+ *   here     -> auth().signInWithCustomToken(...)
+ *
+ * PKCE is still used even though the exchange is confidential: it binds the
+ * code to this specific attempt, so an intercepted code is useless on its own.
+ *
+ * No Azure changes are needed — REDIRECT_URI below is the Web platform URI
+ * Firebase already registered, and the secret lives server-side.
  */
 
-// Same app registration Firebase is configured with, so the id_token's `aud`
-// matches what Firebase validates against.
+// Same app registration Firebase's Microsoft provider is configured with.
 export const CLIENT_ID = "149615d2-4f88-4222-b69c-f3b82f2b8901";
 
-// The SPSM directory. Using the tenant-specific authority rather than "common"
-// means Microsoft never offers personal accounts in the first place — but see
-// the tid check below: the authority is UX, not enforcement.
+// The SPSM directory. The tenant-scoped authority stops Microsoft from even
+// offering personal accounts; the function re-checks `tid` on the verified
+// token, which is where the restriction is actually enforced.
 export const TENANT_ID = "9e08a9a2-5bad-4835-800f-9071d98e47cf";
 const AUTHORITY = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0`;
 
-export const WRONG_TENANT_MESSAGE =
-  "Ⲧⲁⲝⲓⲥ only accepts St. Philopater & St. Mina accounts. Please sign in with your SPSM Microsoft account.";
-export const REDIRECT_URI = "taksis://msauth";
-const SCOPES = "openid profile email User.Read";
+// Already registered as a Web platform redirect URI. Never actually loaded —
+// the WebView intercepts the navigation to it and reads the code off the query.
+export const REDIRECT_URI =
+  "https://taksis-a8ba7.firebaseapp.com/__/auth/handler";
+
+const EXCHANGE_URL =
+  "https://us-central1-taksis-a8ba7.cloudfunctions.net/microsoft_exchange";
+
+const SCOPES = "openid profile email";
 
 // RFC 7636 unreserved characters.
 const VERIFIER_CHARS =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
-
-const base64UrlEscape = (b64) =>
-  b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 // React Native's URLSearchParams polyfill doesn't reliably build from an object,
 // so encode by hand rather than depending on it.
@@ -49,18 +55,25 @@ const toQuery = (params) =>
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join("&");
 
-/** Pulls the query params out of a redirect like `taksis://msauth?code=...`. */
+/** Pulls the query params out of the redirect. */
 export const parseRedirectParams = (url) => {
-  const q = url.split("?")[1];
-  if (!q) return {};
-  return q.split("&").reduce((acc, pair) => {
-    const [k, v = ""] = pair.split("=");
-    if (k) acc[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g, " "));
-    return acc;
-  }, {});
+  const out = {};
+  const [head, fragment] = String(url || "").split("#");
+  const query = head.split("?")[1];
+  for (const chunk of [query, fragment]) {
+    if (!chunk) continue;
+    for (const pair of chunk.split("&")) {
+      const [k, v = ""] = pair.split("=");
+      if (k) out[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g, " "));
+    }
+  }
+  return out;
 };
 
-/** Builds the authorize URL plus the verifier needed later to redeem the code. */
+const base64UrlEscape = (b64) =>
+  b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+/** Builds the authorize URL plus the verifier the exchange will need. */
 export const createAuthRequest = async () => {
   const bytes = Crypto.getRandomBytes(64);
   const codeVerifier = Array.from(bytes)
@@ -88,132 +101,65 @@ export const createAuthRequest = async () => {
   return { url: `${AUTHORITY}/authorize?${query}`, codeVerifier };
 };
 
-/** Redeems the authorization code. Public client, so no client_secret. */
-export const exchangeCodeForTokens = async (code, codeVerifier) => {
-  const res = await fetch(`${AUTHORITY}/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: toQuery({
-      client_id: CLIENT_ID,
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: REDIRECT_URI,
-      code_verifier: codeVerifier,
-      scope: SCOPES,
-    }),
-  });
-
-  const json = await res.json();
-  if (!res.ok || !json.id_token) {
-    throw new Error(
-      json.error_description || json.error || "Microsoft token exchange failed.",
-    );
-  }
-  return { idToken: json.id_token, accessToken: json.access_token };
-};
-
-const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-/** RN has no dependable atob, so unpack base64url by hand. */
-const decodeBase64Url = (input) => {
-  const b64 = input.replace(/-/g, "+").replace(/_/g, "/");
-  let out = "";
-  let buffer = 0;
-  let bits = 0;
-  for (const ch of b64) {
-    if (ch === "=") break;
-    const v = B64.indexOf(ch);
-    if (v < 0) continue;
-    buffer = (buffer << 6) | v;
-    bits += 6;
-    if (bits >= 8) {
-      bits -= 8;
-      out += String.fromCharCode((buffer >> bits) & 0xff);
-    }
-  }
-  // The bytes are UTF-8; round-trip through percent-encoding so accented names survive.
-  try {
-    return decodeURIComponent(
-      out
-        .split("")
-        .map((c) => `%${c.charCodeAt(0).toString(16).padStart(2, "0")}`)
-        .join(""),
-    );
-  } catch {
-    return out;
-  }
-};
-
 /**
- * Reads the id_token payload. Unverified on purpose — Firebase checks the
- * signature. This is only for deciding whether to bother calling Firebase.
+ * Hands the code to the Cloud Function and signs in with what comes back.
+ * The function owns verification — signature, audience, issuer and tenant —
+ * because none of that can be trusted if it happens on the device.
  */
-export const readIdTokenClaims = (idToken) => {
-  const parts = String(idToken || "").split(".");
-  if (parts.length < 2) return {};
+export const signInWithMicrosoftCode = async ({ code, codeVerifier }) => {
+  let res;
   try {
-    return JSON.parse(decodeBase64Url(parts[1]));
-  } catch {
-    return {};
-  }
-};
-
-/**
- * Hands Microsoft's id_token to Firebase. The plain-object shape is what
- * RNFB's signInWithCredential reads (providerId / token / secret) — there is no
- * MicrosoftAuthProvider helper to build it for us.
- *
- * The tid check turns an outside account into a clear message instead of a
- * confusing Firebase error. It is NOT the security boundary: a modified client
- * could skip it, and Firebase itself does not inspect tid. The actual gate is
- * the Azure app registration being single-tenant, which stops Microsoft issuing
- * a token for this client_id to anyone outside SPSM at all.
- */
-export const signInWithMicrosoftTokens = ({ idToken, accessToken }) => {
-  const { tid } = readIdTokenClaims(idToken);
-  if (tid !== TENANT_ID) {
-    const err = new Error(WRONG_TENANT_MESSAGE);
-    err.code = "auth/wrong-tenant";
+    res = await fetch(EXCHANGE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, code_verifier: codeVerifier }),
+    });
+  } catch (e) {
+    const err = new Error("Could not reach the sign-in service. Check your connection.");
+    err.code = "auth/network";
     throw err;
   }
-  return auth().signInWithCredential({
-    providerId: "microsoft.com",
-    token: idToken,
-    secret: accessToken,
-  });
-};
 
-const PROVIDER_LABELS = {
-  "google.com": "Google",
-  "apple.com": "Apple",
-  "microsoft.com": "Microsoft",
-  password: "an email and password",
+  let body = {};
+  try {
+    body = await res.json();
+  } catch {
+    // Non-JSON response; fall through to the status-based message below.
+  }
+
+  if (!res.ok) {
+    const err = new Error(body.message || `Sign-in failed (${res.status}).`);
+    // Surfaced so the screens can title the alert appropriately.
+    err.code =
+      body.error === "wrong_tenant"
+        ? "auth/wrong-tenant"
+        : body.error === "account_exists"
+          ? "auth/account-exists-with-different-credential"
+          : "auth/exchange-failed";
+    throw err;
+  }
+
+  if (!body.token) {
+    const err = new Error("Sign-in service returned no token.");
+    err.code = "auth/exchange-failed";
+    throw err;
+  }
+
+  return auth().signInWithCustomToken(body.token);
 };
 
 /**
- * Firebase allows one account per email address, so signing in with Microsoft
- * using an address that already went through Google or Apple throws
- * auth/account-exists-with-different-credential instead of linking the two.
- * Names the provider they actually used, when Firebase is willing to tell us.
+ * Firebase collapses backend failures into auth/internal-error with a useless
+ * message. The real cause sits on nativeErrorMessage / userInfo, so pull
+ * everything out rather than showing "an internal error has occurred".
  */
-export const describeAccountCollision = async (error) => {
-  const email = error?.email || error?.userInfo?.email;
-  if (!email) {
-    return "That email is already registered with a different sign-in method.";
-  }
-
-  let methods = [];
-  try {
-    methods = await auth().fetchSignInMethodsForEmail(email);
-  } catch {
-    // Email enumeration protection blocks this lookup; fall through to generic copy.
-  }
-
-  const existing = methods
-    .filter((m) => m !== "microsoft.com")
-    .map((m) => PROVIDER_LABELS[m] || m);
-
-  return existing.length
-    ? `${email} is already registered with ${existing.join(" or ")}. Please sign in that way instead.`
-    : `${email} is already registered with a different sign-in method.`;
+export const describeAuthError = (e) => {
+  const parts = [
+    e?.code,
+    e?.nativeErrorCode,
+    e?.nativeErrorMessage,
+    e?.userInfo?.message,
+    e?.message,
+  ].filter(Boolean);
+  return [...new Set(parts)].join("\n\n") || "Unknown error";
 };

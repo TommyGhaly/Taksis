@@ -139,6 +139,11 @@ except ImportError as e:
 # Initialize Firebase Admin SDK
 initialize_app()
 
+# Microsoft (SPSM) sign-in code exchange. Imported unguarded, unlike the modules
+# above: if this failed to load the endpoint would silently not deploy and
+# sign-in would break with nothing in the logs to explain it.
+from microsoft_auth import microsoft_exchange
+
 
 # ============================================================================
 # SCHEDULE GENERATION ENDPOINTS

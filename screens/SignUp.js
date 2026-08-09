@@ -15,8 +15,8 @@ import ProgressBar from "../components/progressBar";
 import { useUser } from "../UserContext";
 import { IS_TABLET, makeAuthTabletStyles } from "../utils/authTabletStyles";
 import {
-  signInWithMicrosoftTokens,
-  describeAccountCollision,
+  signInWithMicrosoftCode,
+  describeAuthError,
 } from "../utils/microsoftAuth";
 import MicrosoftSignInModal from "../components/MicrosoftSignInModal";
 
@@ -236,12 +236,12 @@ const SignUp = ({ navigation }) => {
     }
   };
 
-  const onMicrosoftTokens = async (tokens) => {
+  const onMicrosoftCode = async (result) => {
     setMsVisible(false);
     setSignUp(true);
     setLoading("microsoft");
     try {
-      const userCredential = await signInWithMicrosoftTokens(tokens);
+      const userCredential = await signInWithMicrosoftCode(result);
       const user = auth().currentUser;
       const userDoc = await firestore().collection("users").doc(user.uid).get();
       if (userDoc.exists) {
@@ -255,11 +255,11 @@ const SignUp = ({ navigation }) => {
     } catch (error) {
       if (error?.code === "auth/account-exists-with-different-credential") {
         navigation.navigate("SignIn");
-        Alert.alert("Already signed up.", await describeAccountCollision(error));
+        Alert.alert("Already signed up.", error.message);
       } else if (error?.code === "auth/wrong-tenant") {
         Alert.alert("SPSM account required", error.message);
       } else {
-        Alert.alert("Sign Up Error", error?.message || "Microsoft sign up failed.");
+        Alert.alert("Sign Up Error", describeAuthError(error));
       }
     } finally {
       setLoading(null);
@@ -332,7 +332,7 @@ const SignUp = ({ navigation }) => {
       <MicrosoftSignInModal
         visible={msVisible}
         onClose={() => setMsVisible(false)}
-        onSuccess={onMicrosoftTokens}
+        onSuccess={onMicrosoftCode}
         onError={onMicrosoftError}
       />
     </KeyboardAvoidingView>

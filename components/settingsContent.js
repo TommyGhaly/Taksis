@@ -151,11 +151,13 @@ const SettingsContent = () => {
 
   return (
     <View style={styles.container}>
-      {isLoading && (
+      {/* In a Modal so the overlay is sized to the screen, not to the
+          ScrollView's full content height. */}
+      <Modal animationType="fade" transparent={true} visible={isLoading} onRequestClose={() => {}}>
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#147EFB" />
         </View>
-      )}
+      </Modal>
 
       <Modal animationType="fade" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
@@ -284,15 +286,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#121212",
   },
   loadingOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
     backgroundColor: "rgba(0,0,0,0.7)",
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 1000,
   },
   modalOverlay: {
     flex: 1,

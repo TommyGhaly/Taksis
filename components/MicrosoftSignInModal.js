@@ -26,7 +26,6 @@ import { WebView } from "react-native-webview";
 import { Ionicons } from "@expo/vector-icons";
 import {
   createAuthRequest,
-  exchangeCodeForTokens,
   parseRedirectParams,
   REDIRECT_URI,
 } from "../utils/microsoftAuth";
@@ -38,6 +37,54 @@ const moderateScale = (size, factor = 0.5) =>
 // The app has no SafeAreaProvider, so stay off react-native-safe-area-context
 // and handle the status bar directly.
 const TOP_INSET = Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0;
+
+/**
+ * WKWebView zooms the page in whenever a text field smaller than 16px takes
+ * focus, so tapping Microsoft's email box made the whole login jump. Pinning
+ * the viewport stops it — WKWebView honours user-scalable=no, unlike mobile
+ * Safari. react-native-webview's zoom props are Android-only, so this is the
+ * only lever on iOS.
+ */
+const LOCK_VIEWPORT = `
+(function () {
+  var want = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+  var CSS = 'input,select,textarea{font-size:16px !important;}';
+
+  function apply() {
+    var head = document.head || document.documentElement;
+    if (!head) return;
+
+    var m = document.querySelector('meta[name="viewport"]');
+    if (!m) {
+      m = document.createElement('meta');
+      m.setAttribute('name', 'viewport');
+      head.appendChild(m);
+    }
+    if (m.getAttribute('content') !== want) m.setAttribute('content', want);
+
+    // The viewport alone doesn't always hold: WKWebView zooms to make a focused
+    // input legible whenever its font-size is under 16px, and Microsoft's boxes
+    // are smaller than that. Forcing 16px removes the reason to zoom at all.
+    if (!document.getElementById('taksis-no-zoom')) {
+      var s = document.createElement('style');
+      s.id = 'taksis-no-zoom';
+      s.appendChild(document.createTextNode(CSS));
+      head.appendChild(s);
+    }
+  }
+
+  apply();
+  // Microsoft re-renders between the email and password steps and restores its
+  // own viewport each time, so watch rather than setting this once.
+  if (document.documentElement) {
+    new MutationObserver(apply).observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+  }
+})();
+true;
+`;
 
 const MicrosoftSignInModal = ({ visible, onClose, onSuccess, onError }) => {
   const [authUrl, setAuthUrl] = useState(null);
@@ -78,9 +125,10 @@ const MicrosoftSignInModal = ({ visible, onClose, onSuccess, onError }) => {
       const params = parseRedirectParams(url);
 
       if (params.error) {
-        onError?.(
-          new Error(params.error_description || params.error),
-        );
+        // Azure's error_description is multi-line with trace ids; the first
+        // line carries the AADSTS code and the actual explanation.
+        const detail = (params.error_description || params.error).split("\n")[0];
+        onError?.(new Error(detail));
         return;
       }
       if (!params.code) {
@@ -88,16 +136,9 @@ const MicrosoftSignInModal = ({ visible, onClose, onSuccess, onError }) => {
         return;
       }
 
+      // Spinner stays up while the caller redeems the code server-side.
       setLoading(true);
-      try {
-        const tokens = await exchangeCodeForTokens(
-          params.code,
-          verifierRef.current,
-        );
-        onSuccess?.(tokens);
-      } catch (e) {
-        onError?.(e);
-      }
+      onSuccess?.({ code: params.code, codeVerifier: verifierRef.current });
     },
     [onSuccess, onError],
   );
@@ -142,6 +183,11 @@ const MicrosoftSignInModal = ({ visible, onClose, onSuccess, onError }) => {
               source={{ uri: authUrl }}
               onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
               onLoadEnd={() => setLoading(false)}
+              injectedJavaScriptBeforeContentLoaded={LOCK_VIEWPORT}
+              injectedJavaScript={LOCK_VIEWPORT}
+              // Some react-native-webview versions only run injected JS on iOS
+              // when a message handler is present.
+              onMessage={() => {}}
               onError={({ nativeEvent }) =>
                 onError?.(
                   new Error(nativeEvent.description || "Failed to load Microsoft sign-in."),
