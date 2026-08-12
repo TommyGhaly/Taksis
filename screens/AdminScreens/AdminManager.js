@@ -33,6 +33,7 @@ import {
 } from "../../utils/sectionListLayout";
 import { makeScreenCache } from "../../utils/screenCache";
 import useAfterInteractions from "../../hooks/useAfterInteractions";
+import useDeferredSearch from "../../hooks/useDeferredSearch";
 
 const hapticOptions = {
   enableVibrateFallback: true,
@@ -183,6 +184,11 @@ const AdminManager = () => {
   const [photoInputVisible, setPhotoInputVisible] = useState(false);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // The TextInput below stays bound to `searchQuery` so the caret never lags.
+  // Everything that describes the *result* of the search reads `search`, which
+  // trails by a render under fast typing instead of re-grouping the whole roster
+  // and re-rendering every mounted cell on each keystroke.
+  const search = useDeferredSearch(searchQuery);
 
   // Hold the skeleton until the drawer/stack transition finishes, so the
   // snapshot work below doesn't compete with the animation on the JS thread.
@@ -421,9 +427,8 @@ const AdminManager = () => {
   const sections = useMemo(() => {
     if (users.length === 0) return [];
 
-    const lower = searchQuery.trim().toLowerCase();
-    const filtered = lower
-      ? users.filter((u) => (u.name || "").toLowerCase().includes(lower))
+    const filtered = search.active
+      ? users.filter((u) => (u.name || "").toLowerCase().includes(search.lower))
       : users;
 
     const grouped = filtered.reduce((acc, user) => {
@@ -441,7 +446,7 @@ const AdminManager = () => {
         return a.localeCompare(b);
       })
       .map((letter) => ({ title: letter, data: grouped[letter] }));
-  }, [users, searchQuery]);
+  }, [users, search]);
 
   // AlphabetIndexBar takes this as an array prop, so building it inline in the JSX
   // handed it a new identity on every render and defeated its memoization.
@@ -584,7 +589,7 @@ const AdminManager = () => {
     <View style={[styles.container, { paddingHorizontal }]}>
       {sections.length === 0 ? (
         <Text style={styles.noData}>
-          {searchQuery.trim() ? "No users match your search." : "No users found."}
+          {search.active ? "No users match your search." : "No users found."}
         </Text>
       ) : (
         <View style={styles.listWrapper}>
@@ -612,7 +617,12 @@ const AdminManager = () => {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
           />
-          {!searchQuery.trim() && (
+          {/*
+            Gated on the deferred value, not the raw one, so the bar disappears
+            in the same commit the list filters — otherwise it vanishes a frame
+            early, while the full roster is still on screen.
+          */}
+          {!search.active && (
             <View style={styles.alphabetBarContainer}>
               <AlphabetIndexBar
                 onLetterChange={scrollToSection}

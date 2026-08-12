@@ -38,6 +38,7 @@ import Avatar from "../../components/Avatar";
 import * as avatarCache from "../../utils/avatarCache";
 import SkeletonScreen from "../../components/Skeleton";
 import useAfterInteractions from "../../hooks/useAfterInteractions";
+import useDeferredSearch from "../../hooks/useDeferredSearch";
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
@@ -312,6 +313,11 @@ const ServantsAttendance = () => {
   const [previousSundays, setPreviousSundays] = useState([]);
   const [isNavigating, setIsNavigating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // The TextInput below stays bound to `searchQuery` so the caret never lags.
+  // Everything that describes the *result* of the search reads `search`, which
+  // trails by a render under fast typing instead of re-grouping the whole roster
+  // and re-rendering every mounted cell on each keystroke.
+  const search = useDeferredSearch(searchQuery);
 
   // Add manual servant modal
   const [addModalVisible, setAddModalVisible] = useState(false);
@@ -472,9 +478,8 @@ const ServantsAttendance = () => {
 
   const sections = useMemo(() => {
     if (processedServants.length === 0) return [];
-    const lower = searchQuery.trim().toLowerCase();
-    const filtered = lower
-      ? processedServants.filter((s) => (s.name || "").toLowerCase().includes(lower))
+    const filtered = search.active
+      ? processedServants.filter((s) => (s.name || "").toLowerCase().includes(search.lower))
       : processedServants;
     const grouped = filtered.reduce((acc, s) => {
       const key = (s.name || "").charAt(0).toUpperCase() || "#";
@@ -483,7 +488,7 @@ const ServantsAttendance = () => {
       return acc;
     }, {});
     return Object.keys(grouped).sort().map((k) => ({ title: k, data: grouped[k] }));
-  }, [processedServants, searchQuery]);
+  }, [processedServants, search]);
 
   // AlphabetIndexBar takes this as an array prop; building it inline in the JSX
   // gave it a new identity every render.
@@ -613,16 +618,31 @@ const ServantsAttendance = () => {
 
   // Was an inline literal on the SectionList, so every parent render handed it a
   // new identity and it re-rendered every mounted cell.
+  // Built once per refresh state rather than once per render. As a JSX literal
+  // inline on the list this was a fresh element every time, and SectionList is a
+  // PureComponent — one changed prop identity re-renders every mounted cell.
+  const refreshControl = useMemo(
+    () => (
+      <RefreshControl
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        tintColor="#147EFB"
+        colors={["#147EFB"]}
+      />
+    ),
+    [refreshing, onRefresh]
+  );
+
   const listEmpty = useMemo(
     () => (
       <View style={styles.emptyContainer}>
         <Ionicons name="people-outline" size={64} color="rgba(255,255,255,0.3)" />
         <Text style={styles.noStudentsText}>
-          {searchQuery.trim() ? "No servants match your search" : "No servants yet"}
+          {search.active ? "No servants match your search" : "No servants yet"}
         </Text>
       </View>
     ),
-    [searchQuery]
+    [search]
   );
 
   const renderSectionHeader = useMemo(
@@ -677,7 +697,7 @@ const ServantsAttendance = () => {
           renderItem={renderServant}
           renderSectionHeader={renderSectionHeader}
           keyExtractor={keyExtractor}
-          contentContainerStyle={[styles.listContainer, { paddingRight: 30 }]}
+          contentContainerStyle={styles.listContainer}
           {...LIST_PERF}
           // Every row is a fixed height, so the offset of any letter is known
           // without having rendered it. This is what makes the A-Z bar land
@@ -690,21 +710,15 @@ const ServantsAttendance = () => {
           // Android only: on iOS this has a history of blanking cells and
           // breaking touch targets.
           removeClippedSubviews={REMOVE_CLIPPED_ANDROID_ONLY}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#147EFB"
-              colors={["#147EFB"]}
-            />
-          }
+          refreshControl={refreshControl}
           ListEmptyComponent={listEmpty}
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={true}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
         />
-        {sections.length > 0 && !searchQuery.trim() && (
+        {/* Gated on the deferred value so the bar and the list change together. */}
+        {sections.length > 0 && !search.active && (
           <View style={{ position: "absolute", top: 85 * scale, right: 0, width: 30 }}>
             <AlphabetIndexBar onLetterChange={scrollToSection} availableLetters={availableLetters} />
           </View>
@@ -905,7 +919,11 @@ const styles = StyleSheet.create({
   weekSelectorChange: { fontSize: 13, color: "#147EFB", fontWeight: "600" },
 
   listWrapper: { flex: 1, position: "relative" },
-  listContainer: { flexGrow: 1, paddingRight: 32, paddingBottom: 120 },
+  // paddingRight clears the alphabet index bar. It was 32 here and then
+  // overridden to 30 by an inline `[styles.listContainer, { paddingRight: 30 }]`
+  // array on the list — a fresh array identity every render, which defeats
+  // SectionList's PureComponent bail-out. Folded in at its effective value.
+  listContainer: { flexGrow: 1, paddingRight: 30, paddingBottom: 120 },
 
   servantCard: {
     backgroundColor: "#1a1a1a", borderRadius: 14, padding: 16, paddingRight: 24,

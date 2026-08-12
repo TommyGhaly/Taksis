@@ -35,6 +35,7 @@ import {
 import { shortDateLabel } from "../../utils/dateKeys";
 import SkeletonScreen from "../../components/Skeleton";
 import { useAfterInteractions } from "../../hooks/useAfterInteractions";
+import useDeferredSearch from "../../hooks/useDeferredSearch";
 
 const { height } = Dimensions.get("window");
 
@@ -114,6 +115,9 @@ const getItemLayout = makeSectionListGetItemLayout({
 });
 
 const auditStudentRow = makeRowHeightAudit("StudentRow", ROW_H, 10);
+
+// Grade chips are plain strings and are their own key.
+const chipKeyExtractor = (item) => item;
 
 // ---------- Input formatting helpers ----------
 const formatPhoneInput = (raw) => {
@@ -305,6 +309,11 @@ const SundaySchoolAttendance = () => {
   const [previousSundays, setPreviousSundays] = useState([]);
   const [isNavigating, setIsNavigating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // The TextInput below stays bound to `searchQuery` so the caret never lags.
+  // Everything that describes the *result* of the search reads `search`, which
+  // trails by a render under fast typing instead of re-filtering every grade and
+  // re-rendering every mounted cell on each keystroke.
+  const search = useDeferredSearch(searchQuery);
   const [userGrades, setUserGrades] = useState([]);
 
   const sectionListRef = useRef(null);
@@ -719,24 +728,30 @@ const SundaySchoolAttendance = () => {
   };
 
   const filteredStudentsByGrade = useMemo(() => {
-    if (!searchQuery.trim()) return studentsByGrade;
-    const lower = searchQuery.toLowerCase();
+    if (!search.active) return studentsByGrade;
     const filtered = {};
     if (userData?.ssGrades) {
       userData.ssGrades.forEach((grade) => {
         filtered[grade] = (studentsByGrade[grade] || []).filter((student) =>
-          student.name.toLowerCase().includes(lower)
+          // `|| ""` guards a student doc with no name field. Every sibling
+          // filter in the app guards; this one did not, so a nameless doc threw
+          // inside the memo mid-keystroke and took the whole screen down.
+          (student.name || "").toLowerCase().includes(search.lower)
         );
       });
     }
     return filtered;
-  }, [studentsByGrade, searchQuery, userData?.ssGrades]);
+    // `search.lower` is trimmed. The old code guarded on `searchQuery.trim()`
+    // but then matched against the *untrimmed* query, so a leading space could
+    // never match anything.
+  }, [studentsByGrade, search, userData?.ssGrades]);
 
   const filteredServants = useMemo(() => {
-    if (!searchQuery.trim()) return servants;
-    const lower = searchQuery.toLowerCase();
-    return servants.filter((servant) => (servant.name || "").toLowerCase().includes(lower));
-  }, [servants, searchQuery]);
+    if (!search.active) return servants;
+    return servants.filter((servant) =>
+      (servant.name || "").toLowerCase().includes(search.lower)
+    );
+  }, [servants, search]);
 
   const gradeSections = useMemo(() => {
     if (!userData?.ssGrades) return [];
@@ -747,11 +762,11 @@ const SundaySchoolAttendance = () => {
     if (filteredServants.length > 0) {
       sections.push({ title: "Servants", data: filteredServants });
     }
-    if (searchQuery.trim()) {
+    if (search.active) {
       return sections.filter((section) => section.data.length > 0);
     }
     return sections;
-  }, [userData?.ssGrades, filteredStudentsByGrade, filteredServants, searchQuery]);
+  }, [userData?.ssGrades, filteredStudentsByGrade, filteredServants, search]);
 
   /**
    * Jump to a grade. Three things went away here, all consequences of the list
@@ -806,21 +821,35 @@ const SundaySchoolAttendance = () => {
     [selectedDate, handleWeekPress]
   );
 
-  const renderGrade = useMemo(
-    () =>
-      ({ item }) => {
-        if (searchQuery.trim() && item !== "Servants") {
-          const hasStudents = gradeSections.some((section) => section.title === item && section.data.length > 0);
-          if (!hasStudents) return null;
-        }
-        if (item === "Servants" && filteredServants.length === 0) return null;
-        return (
-          <TouchableOpacity style={styles.gradeTag} onPress={() => scrollToSection(item)} activeOpacity={0.7}>
-            <Text style={styles.gradeTagText}>{item === "Servants" ? "Servants" : formatGrade(item)}</Text>
-          </TouchableOpacity>
-        );
-      },
-    [searchQuery, gradeSections, filteredServants, scrollToSection]
+  /**
+   * Which grade chips survive the current search.
+   *
+   * `null` means "no search, everything is visible". Precomputed as a Set because
+   * renderGrade used to run a `gradeSections.some(...)` scan per chip per render —
+   * O(chips x sections) every time anything on the screen changed.
+   */
+  const visibleChipTitles = useMemo(() => {
+    if (!search.active) return null;
+    const visible = new Set();
+    for (const section of gradeSections) {
+      if (section.data.length > 0) visible.add(section.title);
+    }
+    return visible;
+  }, [search, gradeSections]);
+
+  const renderGrade = useCallback(
+    ({ item }) => {
+      if (visibleChipTitles && item !== "Servants" && !visibleChipTitles.has(item)) {
+        return null;
+      }
+      if (item === "Servants" && filteredServants.length === 0) return null;
+      return (
+        <TouchableOpacity style={styles.gradeTag} onPress={() => scrollToSection(item)} activeOpacity={0.7}>
+          <Text style={styles.gradeTagText}>{item === "Servants" ? "Servants" : formatGrade(item)}</Text>
+        </TouchableOpacity>
+      );
+    },
+    [visibleChipTitles, filteredServants.length, scrollToSection]
   );
 
   // Declared above renderStudent because they are in its dependency array — a
@@ -882,12 +911,12 @@ const SundaySchoolAttendance = () => {
   const listEmpty = useMemo(
     () => (
       <Text style={styles.noStudentsText}>
-        {searchQuery.trim()
+        {search.active
           ? "No students or servants found matching your search"
           : "No students in this grade"}
       </Text>
     ),
-    [searchQuery]
+    [search]
   );
 
   /**
@@ -900,13 +929,13 @@ const SundaySchoolAttendance = () => {
    */
   const allSections = useMemo(
     () =>
-      searchQuery.trim()
+      search.active
         ? gradeSections.map((section) => section.title)
         : [
             ...(userData?.ssGrades || []),
             ...(servants.length > 0 ? ["Servants"] : []),
           ],
-    [searchQuery, gradeSections, userData?.ssGrades, servants.length]
+    [search, gradeSections, userData?.ssGrades, servants.length]
   );
 
   // Skeleton covers the navigation transition AND the whole read. Falling
@@ -956,7 +985,11 @@ const SundaySchoolAttendance = () => {
         <FlatList
           data={allSections}
           renderItem={renderGrade}
-          keyExtractor={(item) => item}
+          // Hoisted: an inline arrow here was a new identity every render.
+          // Deliberately no {...LIST_PERF} — this row holds at most 17 chips and
+          // fits its whole dataset in a screen or two, so initialNumToRender: 10
+          // would make the later chips visibly pop in for no benefit.
+          keyExtractor={chipKeyExtractor}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.gradesList}

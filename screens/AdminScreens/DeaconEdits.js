@@ -45,6 +45,7 @@ import {
 
 import { useFirestoreDocument } from "../../hooks/useFirebaseCache";
 import { useAfterInteractions } from "../../hooks/useAfterInteractions";
+import useDeferredSearch from "../../hooks/useDeferredSearch";
 
 const hapticOptions = {
   enableVibrateFallback: true,
@@ -536,6 +537,12 @@ const DeaconEdits = () => {
   const [userDataLoading, setUserDataLoading] = useState(true);
   const [syncModalVisible, setSyncModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // The TextInput below stays bound to `searchQuery` so the caret never lags.
+  // Everything that describes the *result* of the search reads `search`, which
+  // trails by a render under fast typing instead of re-grouping the whole roster
+  // and re-rendering every mounted cell on each keystroke. Both section memos
+  // below are keyed on it.
+  const search = useDeferredSearch(searchQuery);
 
   // Attendance mode
   const [attendanceMode, setAttendanceMode] = useState(false);
@@ -673,8 +680,9 @@ const DeaconEdits = () => {
   // single render. (attendanceSections below was already derived this way.)
   const sections = useMemo(() => {
     if (deacons.length === 0) return [];
-    const lower = searchQuery.trim().toLowerCase();
-    const filtered = lower ? deacons.filter((d) => (d.name || "").toLowerCase().includes(lower)) : deacons;
+    const filtered = search.active
+      ? deacons.filter((d) => (d.name || "").toLowerCase().includes(search.lower))
+      : deacons;
     const grouped = filtered.reduce((acc, d) => {
       const c = (d.name || "").charAt(0).toUpperCase();
       const key = /^[A-Z]$/.test(c) ? c : "#";
@@ -685,7 +693,7 @@ const DeaconEdits = () => {
     return Object.keys(grouped)
       .sort((a, b) => a === "#" ? 1 : b === "#" ? -1 : a.localeCompare(b))
       .map((title) => ({ title, data: grouped[title] }));
-  }, [deacons, searchQuery]);
+  }, [deacons, search]);
 
   // Church / deacons listener
   useEffect(() => {
@@ -873,6 +881,22 @@ const DeaconEdits = () => {
     finally { setIsRefreshing(false); }
   }, [user?.uid, currentChurch, processDeaconList]);
 
+  // Built once per refresh state rather than once per render. As a JSX literal
+  // inline on the list this was a fresh element every time, and SectionList is a
+  // PureComponent — one changed prop identity re-renders every mounted cell. That
+  // is the same thing the `extraData` note below is about.
+  const refreshControl = useMemo(
+    () => (
+      <RefreshControl
+        refreshing={isRefreshing}
+        onRefresh={onRefresh}
+        tintColor="#147efb"
+        colors={["#147efb"]}
+      />
+    ),
+    [isRefreshing, onRefresh]
+  );
+
   /**
    * Merge live attendance data into the deacon objects, and precompute the two
    * "recent" counts the card displays.
@@ -913,9 +937,8 @@ const DeaconEdits = () => {
 
   // Build sections for attendance mode (same structure, different data)
   const attendanceSections = useMemo(() => {
-    const lower = searchQuery.trim().toLowerCase();
-    const filtered = lower
-      ? deaconsWithAttendance.filter((d) => (d.name || "").toLowerCase().includes(lower))
+    const filtered = search.active
+      ? deaconsWithAttendance.filter((d) => (d.name || "").toLowerCase().includes(search.lower))
       : deaconsWithAttendance;
     const grouped = filtered.reduce((acc, d) => {
       const c = (d.name || "").charAt(0).toUpperCase();
@@ -927,7 +950,7 @@ const DeaconEdits = () => {
     return Object.keys(grouped)
       .sort((a, b) => a === "#" ? 1 : b === "#" ? -1 : a.localeCompare(b))
       .map((title) => ({ title, data: grouped[title] }));
-  }, [deaconsWithAttendance, searchQuery]);
+  }, [deaconsWithAttendance, search]);
 
   const activeSections = attendanceMode ? attendanceSections : sections;
 
@@ -1049,10 +1072,10 @@ const DeaconEdits = () => {
           contentContainerStyle={styles.centered}
         >
           <Text style={[styles.noData, { fontSize: 16 * scale }]}>
-            {searchQuery.trim() ? "No deacons match your search." : "No deacons found."}
+            {search.active ? "No deacons match your search." : "No deacons found."}
           </Text>
           <Text style={[styles.noDataSubtext, { fontSize: 14 * scale }]}>
-            {searchQuery.trim() ? "Try a different name." : "Pull down to refresh"}
+            {search.active ? "Try a different name." : "Pull down to refresh"}
           </Text>
         </ScrollView>
       ) : (
@@ -1087,9 +1110,10 @@ const DeaconEdits = () => {
             getItemLayout={getItemLayout}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
-            refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#147efb" colors={["#147efb"]} />}
+            refreshControl={refreshControl}
           />
-          {!searchQuery.trim() && (
+          {/* Gated on the deferred value so the bar and the list change together. */}
+          {!search.active && (
             <View style={{ position: "absolute", top: 100 * scale, right: 0, width: 30 }}>
               <AlphabetIndexBar
                 onLetterChange={scrollToSection}

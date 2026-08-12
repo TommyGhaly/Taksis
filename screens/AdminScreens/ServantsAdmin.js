@@ -35,6 +35,7 @@ import {
 } from "../../utils/sectionListLayout";
 import { makeScreenCache } from "../../utils/screenCache";
 import useAfterInteractions from "../../hooks/useAfterInteractions";
+import useDeferredSearch from "../../hooks/useDeferredSearch";
 
 // Simple cache utilities
 const CacheUtils = makeScreenCache();
@@ -210,6 +211,11 @@ const ServantsAdmin = () => {
   const [currentLetter, setCurrentLetter] = useState(null);
   const [indexBarLayout, setIndexBarLayout] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  // The TextInput below stays bound to `searchQuery` so the caret never lags.
+  // Everything that describes the *result* of the search reads `search`, which
+  // trails by a render under fast typing instead of re-grouping the whole roster
+  // and re-rendering every mounted cell on each keystroke.
+  const search = useDeferredSearch(searchQuery);
   
   // Hold the skeleton until the navigation transition finishes, so the snapshot
   // work below doesn't compete with the animation on the JS thread.
@@ -436,9 +442,8 @@ const ServantsAdmin = () => {
   const sections = useMemo(() => {
     if (servants.length === 0) return [];
 
-    const lower = searchQuery.trim().toLowerCase();
-    const filtered = lower
-      ? servants.filter((s) => (s.name || "").toLowerCase().includes(lower))
+    const filtered = search.active
+      ? servants.filter((s) => (s.name || "").toLowerCase().includes(search.lower))
       : servants;
 
     // Group by first letter (A-Z or #)
@@ -461,7 +466,7 @@ const ServantsAdmin = () => {
         title: letter,
         data: grouped[letter],
       }));
-  }, [servants, searchQuery]);
+  }, [servants, search]);
 
   const availableLetters = useMemo(
     () => sections.map((section) => section.title).sort(),
@@ -716,7 +721,7 @@ const ServantsAdmin = () => {
       </Text>
       {sections.length === 0 ? (
         <Text style={[styles.noData, { fontSize: 16 * scale }]}>
-          {searchQuery.trim() ? "No servants match your search." : "No servants found."}
+          {search.active ? "No servants match your search." : "No servants found."}
         </Text>
       ) : (
         <View style={styles.listWrapper}>
@@ -744,7 +749,8 @@ const ServantsAdmin = () => {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
           />
-          {sections.length > 0 && !searchQuery.trim() && (
+          {/* Gated on the deferred value so the bar and the list change together. */}
+          {sections.length > 0 && !search.active && (
             <View style={{ position: 'absolute', top: 100 * scale, right: 0, width: 30 }}>
               <AlphabetIndexBar 
                 onLetterChange={scrollToSection} 
