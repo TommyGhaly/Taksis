@@ -16,6 +16,7 @@ import {
   Animated,
   ScrollView,
   Dimensions,
+  PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
@@ -27,9 +28,14 @@ import Avatar from "../../components/Avatar";
 import * as avatarCache from "../../utils/avatarCache";
 import { makeScreenCache, HOUR } from "../../utils/screenCache";
 import { LIST_PERF, REMOVE_CLIPPED_ANDROID_ONLY } from "../../utils/listConfig";
+import {
+  makeSectionListGetItemLayout,
+  makeRowHeightAudit,
+} from "../../utils/sectionListLayout";
 import { shortDateLabel } from "../../utils/dateKeys";
 import SkeletonScreen from "../../components/Skeleton";
 import { useAfterInteractions } from "../../hooks/useAfterInteractions";
+import useDeferredSearch from "../../hooks/useDeferredSearch";
 
 const { height } = Dimensions.get("window");
 
@@ -82,6 +88,62 @@ const formatGrade = (grade) => {
   return `${num}${suffix} Grade`;
 };
 
+// ---------- Fixed row metrics ----------
+//
+// Nothing on this screen scales with device class — every dimension in the
+// StyleSheet is a literal — so these are plain numbers.
+//
+// STUDENT_NAME_LINE and STATUS_LINE are explicit because a Text with no
+// lineHeight gets the font's natural line box, which JS cannot compute and which
+// differs between iOS and Android. ADD_PILL_H is pinned because the pill's
+// tallest child is an Ionicons glyph, whose box is likewise not computable.
+// ROW_H / HDR_H below are derived from all three.
+const STUDENT_NAME_LINE = 19;
+const STATUS_LINE = 17;
+const GRADE_HEADER_LINE = 22;
+const ADD_PILL_H = 26;
+
+// RN scales a declared lineHeight by the OS font scale (allowFontScaling defaults
+// to on), so the height arithmetic has to scale it too or every constant below is
+// wrong for anyone using large text.
+//
+// The ceil-to-whole-pixel is not cosmetic either. Native rounds a scaled line box
+// UP to the device pixel grid, and modelling that as plain multiplication (or as
+// roundToNearestPixel) leaves each row a fraction of a point short — which then
+// accumulates down the list. Verified on device: at a 0.94 font scale a declared
+// 20pt line renders as exactly 19.0, and 14pt as 13.333, which is what ceil gives
+// and rounding does not.
+const FONT_SCALE = PixelRatio.getFontScale();
+const PX = PixelRatio.get();
+const LH = (v) => Math.ceil(v * FONT_SCALE * PX) / PX;
+
+// studentContainer: 1px border top and bottom, 14 padding all round, the header
+// row (the avatar wins over the name line and the chevron), then the attendance
+// block, then its own margin.
+//
+// The two isPastDate branches are height-identical — a status pill and a pair of
+// buttons both being marginTop 12 + paddingVertical 12 + a 14pt line — so one
+// constant covers both and rows do not change height when the week does.
+const ATTENDANCE_BLOCK_H = 12 + 24 + LH(STATUS_LINE);
+const ROW_H =
+  2 + 28 + Math.max(44, LH(STUDENT_NAME_LINE)) + ATTENDANCE_BLOCK_H + 10;
+
+// gradeHeaderRow: 6 padding top and bottom, 10 margin below, around the taller of
+// the title line and the Add pill. Unlike Sunday School this screen has no
+// appended "Servants" section — gradeSections maps alhanGrades only — so every
+// header renders the Add pill and one constant covers them all.
+const HDR_H = 12 + Math.max(LH(GRADE_HEADER_LINE), ADD_PILL_H) + 10;
+
+const getItemLayout = makeSectionListGetItemLayout({
+  getItemHeight: () => ROW_H,
+  getSectionHeaderHeight: () => HDR_H,
+});
+
+const auditStudentRow = makeRowHeightAudit("StudentRow", ROW_H, 10);
+
+// Grade chips are plain strings and are their own key.
+const chipKeyExtractor = (item) => item;
+
 /**
  * One attendance row, memoized.
  *
@@ -96,7 +158,7 @@ const StudentRow = React.memo(({ student, dateKey, isPastDate, isNavigating, onO
   const status = student[dateKey];
 
   return (
-    <View style={styles.studentContainer}>
+    <View style={styles.studentContainer} onLayout={auditStudentRow}>
       {/* Whole row is tappable — avatar, name and chevron all open the student. */}
       <TouchableOpacity
         style={styles.studentHeader}
@@ -113,7 +175,12 @@ const StudentRow = React.memo(({ student, dateKey, isPastDate, isNavigating, onO
           showBorder={false}
         />
         <View style={styles.studentInfo}>
-          <Text style={styles.studentName}>
+          {/*
+            Capped to one line: this is `flex: 1` next to a chevron, and a long
+            name plus the trailing grade suffix wrapped to a second line, which
+            made the card taller for some students than others. See ROW_H.
+          */}
+          <Text style={styles.studentName} numberOfLines={1}>
             {student.name} - {formatGrade(student.grade)}
           </Text>
           <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
@@ -234,6 +301,11 @@ const AlhanAttendance = () => {
   const [previousSaturdays, setPreviousSaturdays] = useState([]);
   const [isNavigating, setIsNavigating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // The TextInput below stays bound to `searchQuery` so the caret never lags.
+  // Everything that describes the *result* of the search reads `search`, which
+  // trails by a render under fast typing instead of re-filtering every grade and
+  // re-rendering every mounted cell on each keystroke.
+  const search = useDeferredSearch(searchQuery);
 
   const sectionListRef = useRef(null);
   const isMounted = useRef(true);
@@ -554,18 +626,23 @@ const AlhanAttendance = () => {
   };
 
   const filteredStudentsByGrade = useMemo(() => {
-    if (!searchQuery.trim()) return studentsByGrade;
-    const lower = searchQuery.toLowerCase();
+    if (!search.active) return studentsByGrade;
     const filtered = {};
     if (userData?.alhanGrades) {
       userData.alhanGrades.forEach((grade) => {
         filtered[grade] = (studentsByGrade[grade] || []).filter((student) =>
-          student.name.toLowerCase().includes(lower)
+          // `|| ""` guards a student doc with no name field. Every sibling
+          // filter in the app guards; this one did not, so a nameless doc threw
+          // inside the memo mid-keystroke and took the whole screen down.
+          (student.name || "").toLowerCase().includes(search.lower)
         );
       });
     }
     return filtered;
-  }, [studentsByGrade, searchQuery, userData?.alhanGrades]);
+    // `search.lower` is trimmed. The old code guarded on `searchQuery.trim()`
+    // but then matched against the *untrimmed* query, so a leading space could
+    // never match anything.
+  }, [studentsByGrade, search, userData?.alhanGrades]);
 
   const gradeSections = useMemo(() => {
     if (!userData?.alhanGrades) return [];
@@ -573,33 +650,39 @@ const AlhanAttendance = () => {
       title: grade,
       data: filteredStudentsByGrade[grade] || [],
     }));
-    if (searchQuery.trim()) {
+    if (search.active) {
       return sections.filter((section) => section.data.length > 0);
     }
     return sections;
-  }, [userData?.alhanGrades, filteredStudentsByGrade, searchQuery]);
+  }, [userData?.alhanGrades, filteredStudentsByGrade, search]);
 
+  /**
+   * Jump to a grade. Three things went away here, all consequences of the list
+   * now having a getItemLayout:
+   *
+   *  - The 150ms setTimeout existed to give the target grade a chance to render
+   *    before the jump. The offset is now known without rendering anything, so
+   *    the delay was pure lag on every chip tap.
+   *  - `animated: true` scrolled the viewport through every row in between,
+   *    which forced the render window to sweep the whole range — the single
+   *    biggest reason jumping to a far grade felt slow. Now false, matching
+   *    every other list in the app.
+   *  - The try/catch was dead: scrollToLocation does not throw for an in-range
+   *    index, and out-of-range is what the guard below is for.
+   */
   const scrollToGrade = useCallback(
     (grade) => {
       if (!sectionListRef.current) return;
       const sectionIndex = gradeSections.findIndex((section) => section.title === grade);
-      if (sectionIndex >= 0) {
-        setTimeout(() => {
-          if (sectionListRef.current && isMounted.current) {
-            try {
-              sectionListRef.current.scrollToLocation({
-                sectionIndex,
-                itemIndex: 1,
-                animated: true,
-                viewPosition: 0,
-                viewOffset: 0,
-              });
-            } catch (error) {
-              console.log("Scroll to location failed");
-            }
-          }
-        }, 150);
-      }
+      if (sectionIndex < 0) return;
+      sectionListRef.current.scrollToLocation({
+        sectionIndex,
+        // 0 is the section header's own slot; 1 would be data item 0.
+        itemIndex: 0,
+        animated: false,
+        viewPosition: 0,
+        viewOffset: 0,
+      });
     },
     [gradeSections]
   );
@@ -626,20 +709,32 @@ const AlhanAttendance = () => {
     [selectedDate, handleWeekPress]
   );
 
-  const renderGrade = useMemo(
-    () =>
-      ({ item }) => {
-        if (searchQuery.trim()) {
-          const hasStudents = gradeSections.some((section) => section.title === item && section.data.length > 0);
-          if (!hasStudents) return null;
-        }
-        return (
-          <TouchableOpacity style={styles.gradeTag} onPress={() => scrollToGrade(item)} activeOpacity={0.7}>
-            <Text style={styles.gradeTagText}>{formatGrade(item)}</Text>
-          </TouchableOpacity>
-        );
-      },
-    [searchQuery, gradeSections, scrollToGrade]
+  /**
+   * Which grade chips survive the current search.
+   *
+   * `null` means "no search, everything is visible". Precomputed as a Set because
+   * renderGrade used to run a `gradeSections.some(...)` scan per chip per render —
+   * O(chips x sections) every time anything on the screen changed.
+   */
+  const visibleChipTitles = useMemo(() => {
+    if (!search.active) return null;
+    const visible = new Set();
+    for (const section of gradeSections) {
+      if (section.data.length > 0) visible.add(section.title);
+    }
+    return visible;
+  }, [search, gradeSections]);
+
+  const renderGrade = useCallback(
+    ({ item }) => {
+      if (visibleChipTitles && !visibleChipTitles.has(item)) return null;
+      return (
+        <TouchableOpacity style={styles.gradeTag} onPress={() => scrollToGrade(item)} activeOpacity={0.7}>
+          <Text style={styles.gradeTagText}>{formatGrade(item)}</Text>
+        </TouchableOpacity>
+      );
+    },
+    [visibleChipTitles, scrollToGrade]
   );
 
   // Declared above renderStudent because they appear in its dependency array —
@@ -695,12 +790,12 @@ const AlhanAttendance = () => {
   const listEmpty = useMemo(
     () => (
       <Text style={styles.noStudentsText}>
-        {searchQuery.trim()
+        {search.active
           ? "No students found matching your search"
           : "No students in this grade"}
       </Text>
     ),
-    [searchQuery]
+    [search]
   );
 
   /**
@@ -713,10 +808,10 @@ const AlhanAttendance = () => {
    */
   const gradeChips = useMemo(
     () =>
-      searchQuery.trim()
+      search.active
         ? gradeSections.map((section) => section.title)
         : userData?.alhanGrades || [],
-    [searchQuery, gradeSections, userData?.alhanGrades]
+    [search, gradeSections, userData?.alhanGrades]
   );
 
   // Skeleton covers the navigation transition AND the whole read. Falling
@@ -766,7 +861,11 @@ const AlhanAttendance = () => {
         <FlatList
           data={gradeChips}
           renderItem={renderGrade}
-          keyExtractor={(item) => item}
+          // Hoisted: an inline arrow here was a new identity every render.
+          // Deliberately no {...LIST_PERF} — this row holds a handful of chips
+          // and fits its whole dataset in a screen or two, so initialNumToRender
+          // would make the later chips visibly pop in for no benefit.
+          keyExtractor={chipKeyExtractor}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.gradesList}
@@ -789,19 +888,18 @@ const AlhanAttendance = () => {
         contentContainerStyle={styles.sectionListContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
-        onScrollToIndexFailed={(info) => {
-          const wait = new Promise((resolve) => setTimeout(resolve, 500));
-          wait.then(() => {
-            if (sectionListRef.current && info.index >= 0 && info.index < gradeSections.length) {
-              sectionListRef.current.scrollToLocation({
-                sectionIndex: info.index,
-                itemIndex: 1,
-                animated: false,
-                viewPosition: 0,
-              });
-            }
-          });
-        }}
+        // Every row is a fixed height, so the offset of any grade is known
+        // without having rendered it — which is what makes a grade chip land
+        // instantly and exactly.
+        //
+        // This replaces a 500ms retry handler that could not have worked: it
+        // received `info.index`, a *flat* index across all sections, and passed
+        // it straight back as a `sectionIndex` after bounds-checking it against
+        // gradeSections.length. Flat indices are almost always larger than the
+        // section count, so the retry usually did nothing and otherwise jumped to
+        // the wrong grade. The failure path is unreachable once getItemLayout is
+        // set (VirtualizedList guards it on exactly that), so it is gone.
+        getItemLayout={getItemLayout}
       />
 
       {/* ---------- Floating bottom search bar ---------- */}
@@ -1281,15 +1379,17 @@ const styles = StyleSheet.create({
   },
   gradeHeader: {
     fontSize: 18,
+    lineHeight: GRADE_HEADER_LINE,
     fontWeight: "600",
     color: "#4d9cff",
   },
   addPill: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    height: ADD_PILL_H,
     backgroundColor: "rgba(20, 126, 251, 0.15)",
     borderRadius: 999,
-    paddingVertical: 5,
     paddingHorizontal: 10,
     borderWidth: 1,
     borderColor: "rgba(20, 126, 251, 0.3)",
@@ -1326,6 +1426,7 @@ const styles = StyleSheet.create({
   },
   studentName: {
     fontSize: 16,
+    lineHeight: STUDENT_NAME_LINE,
     color: "#fff",
     fontWeight: "600",
     flex: 1,
@@ -1345,6 +1446,7 @@ const styles = StyleSheet.create({
   },
   attendanceButtonText: {
     fontSize: 14,
+    lineHeight: STATUS_LINE,
     fontWeight: "600",
     color: "#fff",
   },
@@ -1359,6 +1461,7 @@ const styles = StyleSheet.create({
   },
   attendanceStatusText: {
     fontSize: 14,
+    lineHeight: STATUS_LINE,
     fontWeight: "600",
     color: "#fff",
   },

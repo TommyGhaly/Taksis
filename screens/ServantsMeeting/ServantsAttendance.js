@@ -16,6 +16,7 @@ import {
   Animated,
   ScrollView,
   RefreshControl,
+  PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
@@ -27,12 +28,17 @@ import { Ionicons } from "@expo/vector-icons";
 import AlphabetIndexBar from "../../components/AlphabetIndexBar";
 import { makeScreenCache } from "../../utils/screenCache";
 import { LIST_PERF, REMOVE_CLIPPED_ANDROID_ONLY } from "../../utils/listConfig";
+import {
+  makeSectionListGetItemLayout,
+  makeRowHeightAudit,
+} from "../../utils/sectionListLayout";
 import { shortDateLabel } from "../../utils/dateKeys";
 import PhotoInput from "../../components/photoInput"; // reuse existing photo picker
 import Avatar from "../../components/Avatar";
 import * as avatarCache from "../../utils/avatarCache";
 import SkeletonScreen from "../../components/Skeleton";
 import useAfterInteractions from "../../hooks/useAfterInteractions";
+import useDeferredSearch from "../../hooks/useDeferredSearch";
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
@@ -43,6 +49,55 @@ const CacheUtils = makeScreenCache();
 const { width, height } = Dimensions.get("window");
 const isTablet = Platform.isPad || (width >= 768 && height >= 768);
 const scale = isTablet ? 1.2 : 1;
+
+// ---------- Fixed row metrics ----------
+//
+// Note this screen mixes scaled and unscaled dimensions: `sectionHeader` uses
+// `paddingVertical: 8 * scale` but `sectionHeaderText` is a bare `fontSize: 22`.
+// HDR_H below has to mirror that mix — it is not a scale bug to be tidied here.
+//
+// SERVANT_HEADER_H is pinned because that row's tallest child is a chevron
+// glyph, whose box JS cannot compute; the name line and the "Manual" badge both
+// sit under it. The line heights are explicit for the same reason a Text without
+// one gets the font's natural line box, which is also not computable.
+const SERVANT_HEADER_H = 24;
+const NAME_LINE = 20;
+const STATUS_LINE = 18;
+const HEADER_LINE = 26;
+
+// RN scales a declared lineHeight by the OS font scale (allowFontScaling defaults
+// to on), so the height arithmetic has to scale it too or every constant below is
+// wrong for anyone using large text.
+//
+// The ceil-to-whole-pixel is not cosmetic either. Native rounds a scaled line box
+// UP to the device pixel grid, and modelling that as plain multiplication (or as
+// roundToNearestPixel) leaves each row a fraction of a point short — which then
+// accumulates down the list. Verified on device: at a 0.94 font scale a declared
+// 20pt line renders as exactly 19.0, and 14pt as 13.333, which is what ceil gives
+// and rounding does not.
+const FONT_SCALE = PixelRatio.getFontScale();
+const PX = PixelRatio.get();
+const LH = (v) => Math.ceil(v * FONT_SCALE * PX) / PX;
+
+// servantCard: 1px border top and bottom, 16 padding all round, then the taller
+// of the avatar and the details column, then its own margin.
+//
+// The two isPastDate branches are height-identical — a status pill and a pair of
+// buttons both being marginTop 14 + paddingVertical 14 + a 15pt line — so one
+// constant covers both and the row does not change height when the week does.
+const ATTENDANCE_BLOCK_H = 14 + 28 + LH(STATUS_LINE);
+const SERVANT_DETAILS_H = SERVANT_HEADER_H + ATTENDANCE_BLOCK_H;
+const ROW_H = 2 + 32 + Math.max(48, SERVANT_DETAILS_H) + 12;
+// Note the mix: sectionHeader's padding scales with device class but
+// sectionHeaderText's font size does not. That is the existing styling, mirrored.
+const HDR_H = 16 * scale + LH(HEADER_LINE);
+
+const getItemLayout = makeSectionListGetItemLayout({
+  getItemHeight: () => ROW_H,
+  getSectionHeaderHeight: () => HDR_H,
+});
+
+const auditServantRow = makeRowHeightAudit("ServantRow", ROW_H, 12);
 
 const isManual = (uid) => typeof uid === "string" && uid.startsWith("manual_");
 
@@ -155,7 +210,7 @@ const ServantRow = React.memo(({ servant, isPastDate, isNavigating, onOpen, onAt
   const status = servant.attendance;
 
   return (
-    <View style={styles.servantCard}>
+    <View style={styles.servantCard} onLayout={auditServantRow}>
       <View style={styles.servantInfo}>
         <Avatar
           uid={servant.uid}
@@ -174,7 +229,10 @@ const ServantRow = React.memo(({ servant, isPastDate, isNavigating, onOpen, onAt
             disabled={isNavigating}
           >
             <View style={styles.servantNameRow}>
-              <Text style={styles.servantName}>{servant.name}</Text>
+              {/* Capped to one line so the card height is a constant. See ROW_H. */}
+              <Text style={styles.servantName} numberOfLines={1}>
+                {servant.name}
+              </Text>
               {manual && (
                 <View style={styles.manualBadge}>
                   <Text style={styles.manualBadgeText}>Manual</Text>
@@ -263,6 +321,11 @@ const ServantsAttendance = () => {
   const [previousSundays, setPreviousSundays] = useState([]);
   const [isNavigating, setIsNavigating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // The TextInput below stays bound to `searchQuery` so the caret never lags.
+  // Everything that describes the *result* of the search reads `search`, which
+  // trails by a render under fast typing instead of re-grouping the whole roster
+  // and re-rendering every mounted cell on each keystroke.
+  const search = useDeferredSearch(searchQuery);
 
   // Add manual servant modal
   const [addModalVisible, setAddModalVisible] = useState(false);
@@ -423,9 +486,8 @@ const ServantsAttendance = () => {
 
   const sections = useMemo(() => {
     if (processedServants.length === 0) return [];
-    const lower = searchQuery.trim().toLowerCase();
-    const filtered = lower
-      ? processedServants.filter((s) => (s.name || "").toLowerCase().includes(lower))
+    const filtered = search.active
+      ? processedServants.filter((s) => (s.name || "").toLowerCase().includes(search.lower))
       : processedServants;
     const grouped = filtered.reduce((acc, s) => {
       const key = (s.name || "").charAt(0).toUpperCase() || "#";
@@ -434,7 +496,7 @@ const ServantsAttendance = () => {
       return acc;
     }, {});
     return Object.keys(grouped).sort().map((k) => ({ title: k, data: grouped[k] }));
-  }, [processedServants, searchQuery]);
+  }, [processedServants, search]);
 
   // AlphabetIndexBar takes this as an array prop; building it inline in the JSX
   // gave it a new identity every render.
@@ -460,7 +522,11 @@ const ServantsAttendance = () => {
   const scrollToSection = (letter) => {
     const idx = sections.findIndex((s) => s.title === letter);
     if (idx < 0 || !sectionListRef.current) return;
-    sectionListRef.current.scrollToLocation({ sectionIndex: idx, itemIndex: 1, animated: false, viewPosition: 0, viewOffset: 0 });
+    // itemIndex 0 is the section header's own slot. It used to be 1, which
+    // targets data item 0 and only lands on the header because sticky-header
+    // handling subtracts the header's height back off — which in turn needed the
+    // header's frame to be known. 0 addresses it directly.
+    sectionListRef.current.scrollToLocation({ sectionIndex: idx, itemIndex: 0, animated: false, viewPosition: 0, viewOffset: 0 });
   };
   const sectionListRef = useRef(null);
 
@@ -560,16 +626,31 @@ const ServantsAttendance = () => {
 
   // Was an inline literal on the SectionList, so every parent render handed it a
   // new identity and it re-rendered every mounted cell.
+  // Built once per refresh state rather than once per render. As a JSX literal
+  // inline on the list this was a fresh element every time, and SectionList is a
+  // PureComponent — one changed prop identity re-renders every mounted cell.
+  const refreshControl = useMemo(
+    () => (
+      <RefreshControl
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        tintColor="#147EFB"
+        colors={["#147EFB"]}
+      />
+    ),
+    [refreshing, onRefresh]
+  );
+
   const listEmpty = useMemo(
     () => (
       <View style={styles.emptyContainer}>
         <Ionicons name="people-outline" size={64} color="rgba(255,255,255,0.3)" />
         <Text style={styles.noStudentsText}>
-          {searchQuery.trim() ? "No servants match your search" : "No servants yet"}
+          {search.active ? "No servants match your search" : "No servants yet"}
         </Text>
       </View>
     ),
-    [searchQuery]
+    [search]
   );
 
   const renderSectionHeader = useMemo(
@@ -624,27 +705,28 @@ const ServantsAttendance = () => {
           renderItem={renderServant}
           renderSectionHeader={renderSectionHeader}
           keyExtractor={keyExtractor}
-          contentContainerStyle={[styles.listContainer, { paddingRight: 30 }]}
+          contentContainerStyle={styles.listContainer}
           {...LIST_PERF}
+          // Every row is a fixed height, so the offset of any letter is known
+          // without having rendered it. This is what makes the A-Z bar land
+          // instantly instead of failing: there used to be a no-op
+          // onScrollToIndexFailed here, which meant tapping a far letter did
+          // nothing at all. That handler is unreachable once getItemLayout is set
+          // (VirtualizedList guards the whole failure path on it), so it is gone
+          // rather than kept as a silent catch-all.
+          getItemLayout={getItemLayout}
           // Android only: on iOS this has a history of blanking cells and
           // breaking touch targets.
           removeClippedSubviews={REMOVE_CLIPPED_ANDROID_ONLY}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#147EFB"
-              colors={["#147EFB"]}
-            />
-          }
+          refreshControl={refreshControl}
           ListEmptyComponent={listEmpty}
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={true}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          onScrollToIndexFailed={() => {}}
         />
-        {sections.length > 0 && !searchQuery.trim() && (
+        {/* Gated on the deferred value so the bar and the list change together. */}
+        {sections.length > 0 && !search.active && (
           <View style={{ position: "absolute", top: 85 * scale, right: 0, width: 30 }}>
             <AlphabetIndexBar onLetterChange={scrollToSection} availableLetters={availableLetters} />
           </View>
@@ -845,7 +927,11 @@ const styles = StyleSheet.create({
   weekSelectorChange: { fontSize: 13, color: "#147EFB", fontWeight: "600" },
 
   listWrapper: { flex: 1, position: "relative" },
-  listContainer: { flexGrow: 1, paddingRight: 32, paddingBottom: 120 },
+  // paddingRight clears the alphabet index bar. It was 32 here and then
+  // overridden to 30 by an inline `[styles.listContainer, { paddingRight: 30 }]`
+  // array on the list — a fresh array identity every render, which defeats
+  // SectionList's PureComponent bail-out. Folded in at its effective value.
+  listContainer: { flexGrow: 1, paddingRight: 30, paddingBottom: 120 },
 
   servantCard: {
     backgroundColor: "#1a1a1a", borderRadius: 14, padding: 16, paddingRight: 24,
@@ -854,9 +940,9 @@ const styles = StyleSheet.create({
   servantInfo: { flexDirection: "row", alignItems: "center" },
   servantImage: { width: 48, height: 48, borderRadius: 24, marginRight: 14 },
   servantDetails: { flex: 1 },
-  servantHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  servantHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", height: SERVANT_HEADER_H },
   servantNameRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
-  servantName: { fontSize: 17, fontWeight: "600", color: "#fff" },
+  servantName: { fontSize: 17, lineHeight: NAME_LINE, fontWeight: "600", color: "#fff" },
 
   manualBadge: {
     backgroundColor: "rgba(255,149,0,0.15)", borderRadius: 5,
@@ -873,10 +959,10 @@ const styles = StyleSheet.create({
 
   attendanceButtons: { flexDirection: "row", justifyContent: "space-between", marginTop: 14, gap: 12 },
   attendanceButton: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center" },
-  attendanceButtonText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  attendanceButtonText: { fontSize: 15, lineHeight: STATUS_LINE, fontWeight: "600", color: "#fff" },
   attendanceStatusContainer: { marginTop: 14 },
   attendanceStatus: { borderRadius: 14, paddingVertical: 14, alignItems: "center", justifyContent: "center" },
-  attendanceStatusText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  attendanceStatusText: { fontSize: 15, lineHeight: STATUS_LINE, fontWeight: "600", color: "#fff" },
 
   // Floating search + add
   floatingBarWrapper: {
@@ -910,7 +996,7 @@ const styles = StyleSheet.create({
 
   // Section
   sectionHeader: { backgroundColor: "transparent", paddingVertical: 8 * scale, paddingHorizontal: 4 },
-  sectionHeaderText: { fontSize: 22, fontWeight: "600", color: "#fff" },
+  sectionHeaderText: { fontSize: 22, lineHeight: HEADER_LINE, fontWeight: "600", color: "#fff" },
 
   // Loading / empty
   emptyContainer: { alignItems: "center", marginTop: 60 },

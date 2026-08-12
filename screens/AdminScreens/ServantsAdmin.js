@@ -15,6 +15,7 @@ import {
   TextInput,
   Keyboard,
   Animated,
+  PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import firestore from "@react-native-firebase/firestore";
@@ -28,8 +29,13 @@ import AlphabetIndexBar from "../../components/AlphabetIndexBar";
 import SkeletonScreen from "../../components/Skeleton";
 import * as avatarCache from "../../utils/avatarCache";
 import { LIST_PERF, REMOVE_CLIPPED_ANDROID_ONLY } from "../../utils/listConfig";
+import {
+  makeSectionListGetItemLayout,
+  makeRowHeightAudit,
+} from "../../utils/sectionListLayout";
 import { makeScreenCache } from "../../utils/screenCache";
 import useAfterInteractions from "../../hooks/useAfterInteractions";
+import useDeferredSearch from "../../hooks/useDeferredSearch";
 
 // Simple cache utilities
 const CacheUtils = makeScreenCache();
@@ -91,6 +97,51 @@ const scale = isTablet ? 1.2 : 1;
 const paddingHorizontal = isTablet ? 32 : 16;
 const indexBarWidth = isTablet ? 32 : 24;
 
+// Line boxes for the two lines in a servant card, and for the section header.
+// ROW_H / HDR_H below are derived from these — change a font size without
+// revisiting them and the __DEV__ drift warning in ServantRow will say so.
+const NAME_LINE = 20;
+const DETAIL_LINE = 17;
+const HEADER_LINE = 26;
+// The delete button's tallest child is an Ionicons glyph, whose box JS cannot
+// compute. Pinned to what it already measured so the row height is knowable.
+const ACTION_BUTTON_H = 40;
+
+// RN scales a declared lineHeight by the OS font scale (allowFontScaling defaults
+// to on), so the height arithmetic has to scale it too or every constant below is
+// wrong for anyone using large text.
+//
+// The ceil-to-whole-pixel is not cosmetic either. Native rounds a scaled line box
+// UP to the device pixel grid, and modelling that as plain multiplication (or as
+// roundToNearestPixel) leaves each row a fraction of a point short — which then
+// accumulates down the list. Verified on device: at a 0.94 font scale a declared
+// 20pt line renders as exactly 19.0, and 14pt as 13.333, which is what ceil gives
+// and rounding does not.
+const FONT_SCALE = PixelRatio.getFontScale();
+const PX = PixelRatio.get();
+const LH = (v) => Math.ceil(v * FONT_SCALE * PX) / PX;
+
+// servantCard is a column: 1px border top and bottom, 16*scale padding all round,
+// then the servantInfo row (the taller of the avatar and the two-line text
+// block) plus its margin, then the pinned delete button, then the card's margin.
+const TEXT_BLOCK_H = LH(NAME_LINE * scale) + 4 * scale + LH(DETAIL_LINE * scale);
+const ROW_H =
+  2 +
+  32 * scale +
+  Math.max(48 * scale, TEXT_BLOCK_H) +
+  12 * scale +
+  ACTION_BUTTON_H * scale +
+  12 * scale;
+// sectionHeader: 8*scale padding top and bottom around one 22*scale line.
+const HDR_H = 16 * scale + LH(HEADER_LINE * scale);
+
+const getItemLayout = makeSectionListGetItemLayout({
+  getItemHeight: () => ROW_H,
+  getSectionHeaderHeight: () => HDR_H,
+});
+
+const auditServantRow = makeRowHeightAudit("ServantRow", ROW_H, 12 * scale);
+
 /**
  * One roster row, memoized on the servant doc.
  *
@@ -103,6 +154,7 @@ const ServantRow = React.memo(({ item, onPress, onRemove }) => (
     style={styles.servantCard}
     onPress={() => onPress(item)}
     activeOpacity={0.7}
+    onLayout={auditServantRow}
   >
     <View style={styles.servantInfo}>
       <View style={styles.servantImageContainer}>
@@ -115,9 +167,16 @@ const ServantRow = React.memo(({ item, onPress, onRemove }) => (
           showBorder={false}
         />
       </View>
+      {/*
+        Both capped to one line: a joined list of assigned classes wrapped to a
+        second line for anyone teaching more than two or three, which made the
+        card height vary per row. See ROW_H.
+      */}
       <View style={styles.servantTextInfo}>
-        <Text style={styles.servantName}>{item.name}</Text>
-        <Text style={styles.servantGrades}>
+        <Text style={styles.servantName} numberOfLines={1}>
+          {item.name}
+        </Text>
+        <Text style={styles.servantGrades} numberOfLines={1}>
           {Array.isArray(item.ssGrades) && item.ssGrades.length > 0
             ? item.ssGrades.join(", ")
             : "No classes assigned"}
@@ -160,6 +219,11 @@ const ServantsAdmin = () => {
   const [currentLetter, setCurrentLetter] = useState(null);
   const [indexBarLayout, setIndexBarLayout] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  // The TextInput below stays bound to `searchQuery` so the caret never lags.
+  // Everything that describes the *result* of the search reads `search`, which
+  // trails by a render under fast typing instead of re-grouping the whole roster
+  // and re-rendering every mounted cell on each keystroke.
+  const search = useDeferredSearch(searchQuery);
   
   // Hold the skeleton until the navigation transition finishes, so the snapshot
   // work below doesn't compete with the animation on the JS thread.
@@ -386,9 +450,8 @@ const ServantsAdmin = () => {
   const sections = useMemo(() => {
     if (servants.length === 0) return [];
 
-    const lower = searchQuery.trim().toLowerCase();
-    const filtered = lower
-      ? servants.filter((s) => (s.name || "").toLowerCase().includes(lower))
+    const filtered = search.active
+      ? servants.filter((s) => (s.name || "").toLowerCase().includes(search.lower))
       : servants;
 
     // Group by first letter (A-Z or #)
@@ -411,7 +474,7 @@ const ServantsAdmin = () => {
         title: letter,
         data: grouped[letter],
       }));
-  }, [servants, searchQuery]);
+  }, [servants, search]);
 
   const availableLetters = useMemo(
     () => sections.map((section) => section.title).sort(),
@@ -571,7 +634,11 @@ const ServantsAdmin = () => {
     }
     sectionListRef.current.scrollToLocation({
       sectionIndex,
-      itemIndex: 1,
+      // 0 is the section header's own slot. This used to be 1, which targets
+      // data item 0 and only lands on the header because sticky-header handling
+      // subtracts the header's height back off — which in turn needed the
+      // header's frame to be known. 0 addresses it directly.
+      itemIndex: 0,
       animated: false,
       viewPosition: 0,
       viewOffset: 0,
@@ -662,7 +729,7 @@ const ServantsAdmin = () => {
       </Text>
       {sections.length === 0 ? (
         <Text style={[styles.noData, { fontSize: 16 * scale }]}>
-          {searchQuery.trim() ? "No servants match your search." : "No servants found."}
+          {search.active ? "No servants match your search." : "No servants found."}
         </Text>
       ) : (
         <View style={styles.listWrapper}>
@@ -676,16 +743,22 @@ const ServantsAdmin = () => {
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
             {...LIST_PERF}
+            // Every row is a fixed height, so the offset of any letter is known
+            // without having rendered it. This is what makes the A-Z bar land
+            // instantly instead of failing: the handler that used to sit here
+            // swallowed the failure and left the list where it was, so tapping a
+            // far letter did nothing. It is unreachable once getItemLayout is
+            // set (VirtualizedList guards the whole failure path on it), so it is
+            // gone rather than kept as a silent catch-all.
+            getItemLayout={getItemLayout}
             // Android only: on iOS this blanked rows once the list was scrolled
             // past a screen or two. See utils/listConfig.js.
             removeClippedSubviews={REMOVE_CLIPPED_ANDROID_ONLY}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
-            onScrollToIndexFailed={(info) => {
-              // Do nothing when scroll fails - stay in current position
-            }}
           />
-          {sections.length > 0 && !searchQuery.trim() && (
+          {/* Gated on the deferred value so the bar and the list change together. */}
+          {sections.length > 0 && !search.active && (
             <View style={{ position: 'absolute', top: 100 * scale, right: 0, width: 30 }}>
               <AlphabetIndexBar 
                 onLetterChange={scrollToSection} 
@@ -910,13 +983,17 @@ const styles = StyleSheet.create({
   servantTextInfo: {
     flex: 1,
   },
+  // Explicit lineHeights are load-bearing: a Text without one gets the font's
+  // natural line box, which JS cannot compute and which differs across platforms.
   servantName: {
     fontSize: 17 * scale,
+    lineHeight: NAME_LINE * scale,
     fontWeight: "600",
     color: "#fff",
   },
   servantGrades: {
     fontSize: 14 * scale,
+    lineHeight: DETAIL_LINE * scale,
     color: "rgba(255,255,255,0.5)",
     marginTop: 4 * scale,
   },
@@ -928,7 +1005,8 @@ const styles = StyleSheet.create({
   actionButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10 * scale,
+    justifyContent: "center",
+    height: ACTION_BUTTON_H * scale,
     paddingHorizontal: 16 * scale,
     borderRadius: 14,
   },
@@ -954,6 +1032,7 @@ const styles = StyleSheet.create({
   },
   sectionHeaderText: {
     fontSize: 22 * scale,
+    lineHeight: HEADER_LINE * scale,
     fontWeight: "600",
     color: "#fff",
   },

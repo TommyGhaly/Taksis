@@ -13,6 +13,7 @@ import {
   TextInput,
   Keyboard,
   Animated,
+  PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,8 +27,13 @@ import AlphabetIndexBar from "../../components/AlphabetIndexBar";
 import SkeletonScreen from "../../components/Skeleton";
 import * as avatarCache from "../../utils/avatarCache";
 import { LIST_PERF, REMOVE_CLIPPED_ANDROID_ONLY } from "../../utils/listConfig";
+import {
+  makeSectionListGetItemLayout,
+  makeRowHeightAudit,
+} from "../../utils/sectionListLayout";
 import { makeScreenCache } from "../../utils/screenCache";
 import useAfterInteractions from "../../hooks/useAfterInteractions";
+import useDeferredSearch from "../../hooks/useDeferredSearch";
 
 const hapticOptions = {
   enableVibrateFallback: true,
@@ -40,6 +46,53 @@ const { width, height } = Dimensions.get("window");
 const isTablet = Platform.isPad || (width >= 768 && height >= 768);
 const scale = isTablet ? 1.2 : 1;
 const paddingHorizontal = isTablet ? 32 : 16;
+
+// Line boxes for the three lines in a user card, and for the section header.
+// Named because ROW_H / HDR_H below are derived from them — changing a number
+// here without changing nothing else is fine, but changing a *font size* without
+// revisiting these will trip the __DEV__ drift warning in UserRow.
+const NAME_LINE = 20;
+const DETAIL_LINE = 17;
+const HEADER_LINE = 22;
+
+// RN scales a declared lineHeight by the OS font scale (allowFontScaling defaults
+// to on), so the height arithmetic has to scale it too or every constant below is
+// wrong for anyone using large text.
+//
+// The ceil-to-whole-pixel is not cosmetic either. Native rounds a scaled line box
+// UP to the device pixel grid, and modelling that as plain multiplication (or as
+// roundToNearestPixel) leaves each row a fraction of a point short — which then
+// accumulates down the list. Verified on device: at a 0.94 font scale a declared
+// 20pt line renders as exactly 19.0, and 14pt as 13.333, which is what ceil gives
+// and rounding does not.
+const FONT_SCALE = PixelRatio.getFontScale();
+const PX = PixelRatio.get();
+const LH = (v) => Math.ceil(v * FONT_SCALE * PX) / PX;
+
+// userCard: 1px border top and bottom, 16*scale padding all round, then the
+// tallest of the avatar and the three-line text block, then its own margin.
+// The text block normally wins (62*scale vs 48*scale) but the max is kept
+// because at large font scales the ordering does not change and at small ones
+// the avatar would.
+const TEXT_BLOCK_H =
+  LH(NAME_LINE * scale) +
+  4 * scale +
+  LH(DETAIL_LINE * scale) +
+  4 * scale +
+  LH(DETAIL_LINE * scale);
+const ROW_H =
+  2 + 32 * scale + Math.max(48 * scale, TEXT_BLOCK_H) + 12 * scale;
+// sectionHeader: 8*scale padding top and bottom around one 18*scale line.
+const HDR_H = 16 * scale + LH(HEADER_LINE * scale);
+
+const getItemLayout = makeSectionListGetItemLayout({
+  getItemHeight: () => ROW_H,
+  getSectionHeaderHeight: () => HDR_H,
+  // Footer and list-header default to 0: this list renders no section footer, no
+  // ListHeaderComponent, and listContainer sets only paddingBottom/paddingRight.
+});
+
+const auditUserRow = makeRowHeightAudit("UserRow", ROW_H, 12 * scale);
 
 const adminRoles = [
   { key: "admin", label: "Schedule Admin" },
@@ -69,6 +122,7 @@ const UserRow = React.memo(({ item, onPress }) => {
       style={styles.userCard}
       onPress={() => onPress(item)}
       activeOpacity={0.7}
+      onLayout={auditUserRow}
     >
       <View style={styles.userImageContainer}>
         <Avatar
@@ -80,12 +134,22 @@ const UserRow = React.memo(({ item, onPress }) => {
           showBorder={false}
         />
       </View>
+      {/*
+        These three are capped to one line and carry an explicit lineHeight so
+        the card's height is a constant this screen can predict. `userRoles` in
+        particular used to wrap — six role labels joined with ", " is easily two
+        lines. See ROW_H below and utils/sectionListLayout.js for why that matters.
+      */}
       <View style={styles.userInfo}>
-        <Text style={styles.userName}>{item.name}</Text>
-        <Text style={styles.userChurch}>
+        <Text style={styles.userName} numberOfLines={1}>
+          {item.name}
+        </Text>
+        <Text style={styles.userChurch} numberOfLines={1}>
           {item.church || "No church assigned"}
         </Text>
-        <Text style={styles.userRoles}>Roles: {activeRoles}</Text>
+        <Text style={styles.userRoles} numberOfLines={1}>
+          Roles: {activeRoles}
+        </Text>
       </View>
       <TouchableOpacity
         style={[styles.actionButton, styles.editButton]}
@@ -101,7 +165,17 @@ UserRow.displayName = "UserRow";
 
 const SectionHeader = React.memo(({ title }) => (
   <View style={styles.sectionHeader}>
-    <Text style={[styles.sectionHeaderText, { fontSize: 18 * scale }]}>
+    {/*
+      This overrides styles.sectionHeaderText's 22*scale, so the lineHeight has to
+      live here too — putting it on the StyleSheet entry would describe a font size
+      this header never actually renders at.
+    */}
+    <Text
+      style={[
+        styles.sectionHeaderText,
+        { fontSize: 18 * scale, lineHeight: HEADER_LINE * scale },
+      ]}
+    >
       {title}
     </Text>
   </View>
@@ -118,6 +192,11 @@ const AdminManager = () => {
   const [photoInputVisible, setPhotoInputVisible] = useState(false);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // The TextInput below stays bound to `searchQuery` so the caret never lags.
+  // Everything that describes the *result* of the search reads `search`, which
+  // trails by a render under fast typing instead of re-grouping the whole roster
+  // and re-rendering every mounted cell on each keystroke.
+  const search = useDeferredSearch(searchQuery);
 
   // Hold the skeleton until the drawer/stack transition finishes, so the
   // snapshot work below doesn't compete with the animation on the JS thread.
@@ -356,9 +435,8 @@ const AdminManager = () => {
   const sections = useMemo(() => {
     if (users.length === 0) return [];
 
-    const lower = searchQuery.trim().toLowerCase();
-    const filtered = lower
-      ? users.filter((u) => (u.name || "").toLowerCase().includes(lower))
+    const filtered = search.active
+      ? users.filter((u) => (u.name || "").toLowerCase().includes(search.lower))
       : users;
 
     const grouped = filtered.reduce((acc, user) => {
@@ -376,7 +454,7 @@ const AdminManager = () => {
         return a.localeCompare(b);
       })
       .map((letter) => ({ title: letter, data: grouped[letter] }));
-  }, [users, searchQuery]);
+  }, [users, search]);
 
   // AlphabetIndexBar takes this as an array prop, so building it inline in the JSX
   // handed it a new identity on every render and defeated its memoization.
@@ -474,7 +552,11 @@ const AdminManager = () => {
 
     sectionListRef.current.scrollToLocation({
       sectionIndex,
-      itemIndex: 1,
+      // 0 is the section header's own slot. This used to be 1, which targets
+      // data item 0 and only lands on the header because sticky-header handling
+      // subtracts the header's height back off — which in turn needed the
+      // header's frame to be known. 0 addresses it directly.
+      itemIndex: 0,
       animated: false,
       viewPosition: 0,
       viewOffset: 0,
@@ -515,7 +597,7 @@ const AdminManager = () => {
     <View style={[styles.container, { paddingHorizontal }]}>
       {sections.length === 0 ? (
         <Text style={styles.noData}>
-          {searchQuery.trim() ? "No users match your search." : "No users found."}
+          {search.active ? "No users match your search." : "No users found."}
         </Text>
       ) : (
         <View style={styles.listWrapper}>
@@ -529,14 +611,26 @@ const AdminManager = () => {
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
             {...LIST_PERF}
+            // Every row is a fixed height, so the offset of any letter is known
+            // without having rendered it. This is what makes the A-Z bar land
+            // instantly instead of failing: there used to be a no-op
+            // onScrollToIndexFailed here, which meant tapping a far letter did
+            // nothing at all. That handler is unreachable once getItemLayout is
+            // set (VirtualizedList guards the whole failure path on it), so it
+            // is gone rather than kept as a silent catch-all.
+            getItemLayout={getItemLayout}
             // Android only: on iOS this blanked rows once the list was scrolled
             // past a screen or two. See utils/listConfig.js.
             removeClippedSubviews={REMOVE_CLIPPED_ANDROID_ONLY}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
-            onScrollToIndexFailed={() => {}}
           />
-          {!searchQuery.trim() && (
+          {/*
+            Gated on the deferred value, not the raw one, so the bar disappears
+            in the same commit the list filters — otherwise it vanishes a frame
+            early, while the full roster is still on screen.
+          */}
+          {!search.active && (
             <View style={styles.alphabetBarContainer}>
               <AlphabetIndexBar
                 onLetterChange={scrollToSection}
@@ -703,18 +797,24 @@ const styles = StyleSheet.create({
   userInfo: {
     flex: 1,
   },
+  // The explicit lineHeights below are load-bearing, not cosmetic: a Text with
+  // no lineHeight gets the *font's* natural line box, which JS cannot compute and
+  // which differs between iOS (SF) and Android (Roboto). ROW_H has to know these.
   userName: {
     fontSize: 17 * scale,
+    lineHeight: NAME_LINE * scale,
     fontWeight: "600",
     color: "#fff",
   },
   userChurch: {
     fontSize: 14 * scale,
+    lineHeight: DETAIL_LINE * scale,
     color: "rgba(255,255,255,0.5)",
     marginTop: 4 * scale,
   },
   userRoles: {
     fontSize: 14 * scale,
+    lineHeight: DETAIL_LINE * scale,
     color: "rgba(255,255,255,0.5)",
     marginTop: 4 * scale,
   },

@@ -17,6 +17,7 @@ import {
   TextInput,
   Keyboard,
   Animated,
+  PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,6 +32,10 @@ import Avatar from "../../components/Avatar";
 import SkeletonScreen from "../../components/Skeleton";
 import * as avatarCache from "../../utils/avatarCache";
 import { LIST_PERF } from "../../utils/listConfig";
+import {
+  makeSectionListGetItemLayout,
+  makeRowHeightAudit,
+} from "../../utils/sectionListLayout";
 import { getDocsByIds, watchDocsByIds } from "../../utils/firestoreBatch";
 import {
   dateKeyToSortable,
@@ -40,6 +45,7 @@ import {
 
 import { useFirestoreDocument } from "../../hooks/useFirebaseCache";
 import { useAfterInteractions } from "../../hooks/useAfterInteractions";
+import useDeferredSearch from "../../hooks/useDeferredSearch";
 
 const hapticOptions = {
   enableVibrateFallback: true,
@@ -81,6 +87,78 @@ const { width, height } = Dimensions.get("window");
 const isTablet = Platform.isPad || (width >= 768 && height >= 768);
 const scale = isTablet ? 1.2 : 1;
 const paddingHorizontal = isTablet ? 32 : 16;
+
+// ---------- Fixed row metrics ----------
+//
+// This screen has two row types and swaps between them on `attendanceMode`, so
+// there are two row constants (ROW_H / ATT_CARD_H below) and the getItemLayout
+// is built per mode.
+//
+// Explicit line heights, because a Text with no lineHeight gets the font's
+// natural line box, which JS cannot compute and which differs across platforms.
+// PILL_H and SAVE_BTN_H are pinned because their tallest children are an Ionicons
+// glyph and an ActivityIndicator respectively — neither is computable, and the
+// save button in particular swapped between a 13pt Text and a "small" spinner,
+// which made the card change height mid-save.
+//
+// Note `styles` scales with device class but `aStyles` does not, so the deacon
+// row is scale-dependent and the attendance card is one flat number.
+const NAME_LINE = 20;
+const DETAIL_LINE = 17;
+const HEADER_LINE = 26;
+const CARD_NAME_LINE = 17;
+const PILL_H = 22;
+const SLIDER_LABEL_LINE = 14;
+const SAVE_BTN_TEXT_LINE = 16;
+const SAVE_BTN_H = 30;
+// What a <Slider> actually occupies, which is NOT what aStyles.slider asks for.
+// That style says `height: 28`; the rendered view measures 40 — the component
+// has its own intrinsic height and the declared one does not win. Measured on
+// device rather than derived, because there is no way to compute it from here.
+// The declared 28 is left alone deliberately: it is already being ignored, and
+// changing it would be a visual change to chase a number that has no effect.
+const SLIDER_H = 40;
+
+// RN scales a declared lineHeight by the OS font scale (allowFontScaling defaults
+// to on), so the height arithmetic has to scale it too or every constant below is
+// wrong for anyone using large text.
+//
+// The ceil-to-whole-pixel is not cosmetic either. Native rounds a scaled line box
+// UP to the device pixel grid, and modelling that as plain multiplication (or as
+// roundToNearestPixel) leaves each row a fraction of a point short — which then
+// accumulates down the list. Verified on device: at a 0.94 font scale a declared
+// 20pt line renders as exactly 19.0, and 14pt as 13.333, which is what ceil gives
+// and rounding does not.
+const FONT_SCALE = PixelRatio.getFontScale();
+const PX = PixelRatio.get();
+const LH = (v) => Math.ceil(v * FONT_SCALE * PX) / PX;
+
+// deaconItem: 1px border top and bottom, 16*scale padding all round, then the
+// tallest of the avatar, the five-line info block and the pencil icon, then its
+// own margin. The info block normally wins by a wide margin.
+const DEACON_INFO_H =
+  LH(NAME_LINE * scale) + 4 * (4 * scale + LH(DETAIL_LINE * scale));
+const DEACON_ROW_H =
+  2 + 32 * scale + Math.max(48 * scale, DEACON_INFO_H) + 12 * scale;
+
+// The attendance card uses aStyles, which does not scale with device class, so
+// this is one flat number on phone and tablet alike.
+//   topRow      = paddingTop 10 + max(avatar 36, nameBlock) + paddingBottom 8
+//   nameBlock   = name line + its 4px margin + the pill row
+//   sliderBlock = 1px top border + paddingTop 6 + (label + slider) x2
+//                 + save button + its margin + paddingBottom 8
+const ATT_TOP_ROW_H =
+  10 + Math.max(36, LH(CARD_NAME_LINE) + 4 + PILL_H) + 8;
+const ATT_SLIDER_BLOCK_H =
+  1 + 6 + 2 * (LH(SLIDER_LABEL_LINE) + SLIDER_H) + 4 + SAVE_BTN_H + 8;
+const ATT_CARD_H = 2 + ATT_TOP_ROW_H + ATT_SLIDER_BLOCK_H + 8;
+
+// sectionHeader: 8*scale padding top and bottom around one 22*scale line. Shared
+// by both modes — only the row swaps.
+const HDR_H = 16 * scale + LH(HEADER_LINE * scale);
+
+const auditDeaconRow = makeRowHeightAudit("DeaconRow", DEACON_ROW_H, 12 * scale);
+const auditAttendanceCard = makeRowHeightAudit("AttendanceCard", ATT_CARD_H, 8);
 
 // ─── Attendance card ──────────────────────────────────────────────────────────
 const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
@@ -182,7 +260,7 @@ const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
   };
 
   return (
-    <View style={aStyles.card}>
+    <View style={aStyles.card} onLayout={auditAttendanceCard}>
       {/* Top row: avatar + name + pills */}
       <View style={aStyles.topRow}>
         {/* Tapping the avatar or the name opens the profile, same destination
@@ -423,7 +501,7 @@ PillModal.displayName = "PillModal";
  * each one, that showed up as a stutter mid-scroll.
  */
 const DeaconRow = React.memo(({ item, onPress }) => (
-  <TouchableOpacity style={styles.deaconItem} onPress={() => onPress(item)} activeOpacity={0.7}>
+  <TouchableOpacity style={styles.deaconItem} onPress={() => onPress(item)} activeOpacity={0.7} onLayout={auditDeaconRow}>
     <View style={styles.deaconImageContainer}>
       <Avatar
         uid={item.uid}
@@ -434,12 +512,13 @@ const DeaconRow = React.memo(({ item, onPress }) => (
         showBorder={false}
       />
     </View>
+    {/* All five capped to one line so the card height is a constant. See ROW_H. */}
     <View style={styles.deaconInfo}>
-      <Text style={styles.deaconName}>{item.name || "Unknown"}</Text>
-      <Text style={styles.deaconDetail}>Age: {formatNumber(item.age)}</Text>
-      <Text style={styles.deaconDetail}>Phone: {item.phone !== undefined && item.phone !== null ? item.phone : "Not provided"}</Text>
-      <Text style={styles.deaconDetail}>Experience: {formatNumber(item.experience)}</Text>
-      <Text style={styles.deaconDetail}>Frequency: {formatNumber(item.frequency)}</Text>
+      <Text style={styles.deaconName} numberOfLines={1}>{item.name || "Unknown"}</Text>
+      <Text style={styles.deaconDetail} numberOfLines={1}>Age: {formatNumber(item.age)}</Text>
+      <Text style={styles.deaconDetail} numberOfLines={1}>Phone: {item.phone !== undefined && item.phone !== null ? item.phone : "Not provided"}</Text>
+      <Text style={styles.deaconDetail} numberOfLines={1}>Experience: {formatNumber(item.experience)}</Text>
+      <Text style={styles.deaconDetail} numberOfLines={1}>Frequency: {formatNumber(item.frequency)}</Text>
     </View>
     <Ionicons name="pencil" size={20 * scale} color="#147efb" />
   </TouchableOpacity>
@@ -473,6 +552,12 @@ const DeaconEdits = () => {
   const [userDataLoading, setUserDataLoading] = useState(true);
   const [syncModalVisible, setSyncModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // The TextInput below stays bound to `searchQuery` so the caret never lags.
+  // Everything that describes the *result* of the search reads `search`, which
+  // trails by a render under fast typing instead of re-grouping the whole roster
+  // and re-rendering every mounted cell on each keystroke. Both section memos
+  // below are keyed on it.
+  const search = useDeferredSearch(searchQuery);
 
   // Attendance mode
   const [attendanceMode, setAttendanceMode] = useState(false);
@@ -610,8 +695,9 @@ const DeaconEdits = () => {
   // single render. (attendanceSections below was already derived this way.)
   const sections = useMemo(() => {
     if (deacons.length === 0) return [];
-    const lower = searchQuery.trim().toLowerCase();
-    const filtered = lower ? deacons.filter((d) => (d.name || "").toLowerCase().includes(lower)) : deacons;
+    const filtered = search.active
+      ? deacons.filter((d) => (d.name || "").toLowerCase().includes(search.lower))
+      : deacons;
     const grouped = filtered.reduce((acc, d) => {
       const c = (d.name || "").charAt(0).toUpperCase();
       const key = /^[A-Z]$/.test(c) ? c : "#";
@@ -622,7 +708,7 @@ const DeaconEdits = () => {
     return Object.keys(grouped)
       .sort((a, b) => a === "#" ? 1 : b === "#" ? -1 : a.localeCompare(b))
       .map((title) => ({ title, data: grouped[title] }));
-  }, [deacons, searchQuery]);
+  }, [deacons, search]);
 
   // Church / deacons listener
   useEffect(() => {
@@ -758,12 +844,36 @@ const DeaconEdits = () => {
   };
 
   const scrollToSection = (letter) => {
-    const idx = sections.findIndex((s) => s.title === letter);
+    // `activeSections`, not `sections`: in attendance mode the list renders
+    // attendanceSections, and AlphabetIndexBar's availableLetters comes from
+    // activeSections too. Indexing `sections` happened to agree because both
+    // group the same deacons under the same letters, but it was resolving an
+    // index against a different array than the one being scrolled.
+    const idx = activeSections.findIndex((s) => s.title === letter);
     if (idx < 0 || !sectionListRef.current) return;
     sectionListRef.current.scrollToLocation({
-      sectionIndex: idx, itemIndex: 1, animated: false, viewPosition: 0, viewOffset: 0,
+      // itemIndex 0 is the section header's own slot. It used to be 1, which
+      // targets data item 0 and only lands on the header because sticky-header
+      // handling subtracts the header's height back off — which in turn needed
+      // the header's frame to be known. 0 addresses it directly.
+      sectionIndex: idx, itemIndex: 0, animated: false, viewPosition: 0, viewOffset: 0,
     });
   };
+
+  /**
+   * Row heights differ between the two modes, so the layout is rebuilt when the
+   * mode flips. `useMemo` rather than `useCallback` deliberately: the factory
+   * instance owns a prefix-table cache, and a fresh instance is what forces that
+   * table to be rebuilt with the other mode's row height instead of reused.
+   */
+  const getItemLayout = useMemo(
+    () =>
+      makeSectionListGetItemLayout({
+        getItemHeight: () => (attendanceMode ? ATT_CARD_H : DEACON_ROW_H),
+        getSectionHeaderHeight: () => HDR_H,
+      }),
+    [attendanceMode]
+  );
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -785,6 +895,22 @@ const DeaconEdits = () => {
     } catch { Alert.alert("Error", "Failed to refresh."); }
     finally { setIsRefreshing(false); }
   }, [user?.uid, currentChurch, processDeaconList]);
+
+  // Built once per refresh state rather than once per render. As a JSX literal
+  // inline on the list this was a fresh element every time, and SectionList is a
+  // PureComponent — one changed prop identity re-renders every mounted cell. That
+  // is the same thing the `extraData` note below is about.
+  const refreshControl = useMemo(
+    () => (
+      <RefreshControl
+        refreshing={isRefreshing}
+        onRefresh={onRefresh}
+        tintColor="#147efb"
+        colors={["#147efb"]}
+      />
+    ),
+    [isRefreshing, onRefresh]
+  );
 
   /**
    * Merge live attendance data into the deacon objects, and precompute the two
@@ -826,9 +952,8 @@ const DeaconEdits = () => {
 
   // Build sections for attendance mode (same structure, different data)
   const attendanceSections = useMemo(() => {
-    const lower = searchQuery.trim().toLowerCase();
-    const filtered = lower
-      ? deaconsWithAttendance.filter((d) => (d.name || "").toLowerCase().includes(lower))
+    const filtered = search.active
+      ? deaconsWithAttendance.filter((d) => (d.name || "").toLowerCase().includes(search.lower))
       : deaconsWithAttendance;
     const grouped = filtered.reduce((acc, d) => {
       const c = (d.name || "").charAt(0).toUpperCase();
@@ -840,7 +965,7 @@ const DeaconEdits = () => {
     return Object.keys(grouped)
       .sort((a, b) => a === "#" ? 1 : b === "#" ? -1 : a.localeCompare(b))
       .map((title) => ({ title, data: grouped[title] }));
-  }, [deaconsWithAttendance, searchQuery]);
+  }, [deaconsWithAttendance, search]);
 
   const activeSections = attendanceMode ? attendanceSections : sections;
 
@@ -962,10 +1087,10 @@ const DeaconEdits = () => {
           contentContainerStyle={styles.centered}
         >
           <Text style={[styles.noData, { fontSize: 16 * scale }]}>
-            {searchQuery.trim() ? "No deacons match your search." : "No deacons found."}
+            {search.active ? "No deacons match your search." : "No deacons found."}
           </Text>
           <Text style={[styles.noDataSubtext, { fontSize: 14 * scale }]}>
-            {searchQuery.trim() ? "Try a different name." : "Pull down to refresh"}
+            {search.active ? "Try a different name." : "Pull down to refresh"}
           </Text>
         </ScrollView>
       ) : (
@@ -989,12 +1114,21 @@ const DeaconEdits = () => {
             // SectionList's PureComponent bail-out could never hold — and it had no
             // job either way, since `activeSections` is already a new array
             // whenever the attendance data changes.
+            //
+            // Both row types are a fixed height, so the offset of any letter is
+            // known without having rendered it. This is what makes the A-Z bar
+            // land instantly instead of failing: there used to be a no-op
+            // onScrollToIndexFailed here, which meant tapping a far letter did
+            // nothing at all. That handler is unreachable once getItemLayout is
+            // set (VirtualizedList guards the whole failure path on it), so it is
+            // gone rather than kept as a silent catch-all.
+            getItemLayout={getItemLayout}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
-            onScrollToIndexFailed={() => {}}
-            refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#147efb" colors={["#147efb"]} />}
+            refreshControl={refreshControl}
           />
-          {!searchQuery.trim() && (
+          {/* Gated on the deferred value so the bar and the list change together. */}
+          {!search.active && (
             <View style={{ position: "absolute", top: 100 * scale, right: 0, width: 30 }}>
               <AlphabetIndexBar
                 onLetterChange={scrollToSection}
@@ -1089,6 +1223,7 @@ const aStyles = StyleSheet.create({
   },
   name: {
     fontSize: 14,
+    lineHeight: CARD_NAME_LINE,
     fontWeight: "600",
     color: "#fff",
     marginBottom: 4,
@@ -1100,9 +1235,10 @@ const aStyles = StyleSheet.create({
   pill: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 3,
+    height: PILL_H,
     paddingHorizontal: 8,
-    paddingVertical: 3,
     borderRadius: 20,
     borderWidth: 1,
   },
@@ -1125,11 +1261,13 @@ const aStyles = StyleSheet.create({
   },
   sliderLabel: {
     fontSize: 11,
+    lineHeight: SLIDER_LABEL_LINE,
     fontWeight: "500",
     color: "rgba(255,255,255,0.45)",
   },
   sliderValue: {
     fontSize: 11,
+    lineHeight: SLIDER_LABEL_LINE,
     fontWeight: "600",
     color: "#fff",
   },
@@ -1138,16 +1276,21 @@ const aStyles = StyleSheet.create({
     height: 28,
     marginBottom: 0,
   },
+  // Height pinned rather than derived from padding: this button swaps its Text
+  // for an ActivityIndicator while saving, and a "small" spinner is taller than
+  // a 13pt line — so the card used to grow a few px mid-save.
   saveBtn: {
     backgroundColor: "#147efb",
     borderRadius: 8,
-    paddingVertical: 7,
+    height: SAVE_BTN_H,
     alignItems: "center",
+    justifyContent: "center",
     marginTop: 4,
   },
   saveBtnText: {
     color: "#fff",
     fontSize: 13,
+    lineHeight: SAVE_BTN_TEXT_LINE,
     fontWeight: "600",
   },
 });
@@ -1308,12 +1451,12 @@ const styles = StyleSheet.create({
   deaconImageContainer: { marginRight: 14 * scale },
   deaconImage: { width: 48 * scale, height: 48 * scale, borderRadius: 24 * scale },
   deaconInfo: { flex: 1 },
-  deaconName: { fontSize: 17 * scale, fontWeight: "600", color: "#fff" },
-  deaconDetail: { fontSize: 14 * scale, color: "rgba(255,255,255,0.5)", marginTop: 4 * scale },
+  deaconName: { fontSize: 17 * scale, lineHeight: NAME_LINE * scale, fontWeight: "600", color: "#fff" },
+  deaconDetail: { fontSize: 14 * scale, lineHeight: DETAIL_LINE * scale, color: "rgba(255,255,255,0.5)", marginTop: 4 * scale },
   noData: { textAlign: "center", color: "rgba(255,255,255,0.5)", marginTop: 20 },
   noDataSubtext: { textAlign: "center", color: "rgba(255,255,255,0.4)", marginTop: 10 },
   sectionHeader: { backgroundColor: "transparent", paddingVertical: 8 * scale, paddingHorizontal: 4 },
-  sectionHeaderText: { fontSize: 22 * scale, fontWeight: "600", color: "#fff" },
+  sectionHeaderText: { fontSize: 22 * scale, lineHeight: HEADER_LINE * scale, fontWeight: "600", color: "#fff" },
   floatingBarWrapper: {
     position: "absolute",
     left: 12, right: 12,
