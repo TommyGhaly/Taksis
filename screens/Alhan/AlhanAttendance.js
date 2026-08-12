@@ -82,6 +82,21 @@ const formatGrade = (grade) => {
   return `${num}${suffix} Grade`;
 };
 
+// ---------- Fixed row metrics ----------
+//
+// Nothing on this screen scales with device class — every dimension in the
+// StyleSheet is a literal — so these are plain numbers.
+//
+// STUDENT_NAME_LINE and STATUS_LINE are explicit because a Text with no
+// lineHeight gets the font's natural line box, which JS cannot compute and which
+// differs between iOS and Android. ADD_PILL_H is pinned because the pill's
+// tallest child is an Ionicons glyph, whose box is likewise not computable.
+// ROW_H / HDR_H below are derived from all three.
+const STUDENT_NAME_LINE = 19;
+const STATUS_LINE = 17;
+const GRADE_HEADER_LINE = 22;
+const ADD_PILL_H = 26;
+
 /**
  * One attendance row, memoized.
  *
@@ -113,7 +128,12 @@ const StudentRow = React.memo(({ student, dateKey, isPastDate, isNavigating, onO
           showBorder={false}
         />
         <View style={styles.studentInfo}>
-          <Text style={styles.studentName}>
+          {/*
+            Capped to one line: this is `flex: 1` next to a chevron, and a long
+            name plus the trailing grade suffix wrapped to a second line, which
+            made the card taller for some students than others. See ROW_H.
+          */}
+          <Text style={styles.studentName} numberOfLines={1}>
             {student.name} - {formatGrade(student.grade)}
           </Text>
           <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
@@ -1281,15 +1301,17 @@ const styles = StyleSheet.create({
   },
   gradeHeader: {
     fontSize: 18,
+    lineHeight: GRADE_HEADER_LINE,
     fontWeight: "600",
     color: "#4d9cff",
   },
   addPill: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    height: ADD_PILL_H,
     backgroundColor: "rgba(20, 126, 251, 0.15)",
     borderRadius: 999,
-    paddingVertical: 5,
     paddingHorizontal: 10,
     borderWidth: 1,
     borderColor: "rgba(20, 126, 251, 0.3)",
@@ -1326,6 +1348,7 @@ const styles = StyleSheet.create({
   },
   studentName: {
     fontSize: 16,
+    lineHeight: STUDENT_NAME_LINE,
     color: "#fff",
     fontWeight: "600",
     flex: 1,
@@ -1345,6 +1368,7 @@ const styles = StyleSheet.create({
   },
   attendanceButtonText: {
     fontSize: 14,
+    lineHeight: STATUS_LINE,
     fontWeight: "600",
     color: "#fff",
   },
@@ -1359,6 +1383,7 @@ const styles = StyleSheet.create({
   },
   attendanceStatusText: {
     fontSize: 14,
+    lineHeight: STATUS_LINE,
     fontWeight: "600",
     color: "#fff",
   },

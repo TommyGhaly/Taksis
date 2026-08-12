@@ -41,6 +41,14 @@ const isTablet = Platform.isPad || (width >= 768 && height >= 768);
 const scale = isTablet ? 1.2 : 1;
 const paddingHorizontal = isTablet ? 32 : 16;
 
+// Line boxes for the three lines in a user card, and for the section header.
+// Named because ROW_H / HDR_H below are derived from them — changing a number
+// here without changing nothing else is fine, but changing a *font size* without
+// revisiting these will trip the __DEV__ drift warning in UserRow.
+const NAME_LINE = 20;
+const DETAIL_LINE = 17;
+const HEADER_LINE = 22;
+
 const adminRoles = [
   { key: "admin", label: "Schedule Admin" },
   { key: "ssAdmin", label: "Servants Manager" },
@@ -80,12 +88,22 @@ const UserRow = React.memo(({ item, onPress }) => {
           showBorder={false}
         />
       </View>
+      {/*
+        These three are capped to one line and carry an explicit lineHeight so
+        the card's height is a constant this screen can predict. `userRoles` in
+        particular used to wrap — six role labels joined with ", " is easily two
+        lines. See ROW_H below and utils/sectionListLayout.js for why that matters.
+      */}
       <View style={styles.userInfo}>
-        <Text style={styles.userName}>{item.name}</Text>
-        <Text style={styles.userChurch}>
+        <Text style={styles.userName} numberOfLines={1}>
+          {item.name}
+        </Text>
+        <Text style={styles.userChurch} numberOfLines={1}>
           {item.church || "No church assigned"}
         </Text>
-        <Text style={styles.userRoles}>Roles: {activeRoles}</Text>
+        <Text style={styles.userRoles} numberOfLines={1}>
+          Roles: {activeRoles}
+        </Text>
       </View>
       <TouchableOpacity
         style={[styles.actionButton, styles.editButton]}
@@ -101,7 +119,17 @@ UserRow.displayName = "UserRow";
 
 const SectionHeader = React.memo(({ title }) => (
   <View style={styles.sectionHeader}>
-    <Text style={[styles.sectionHeaderText, { fontSize: 18 * scale }]}>
+    {/*
+      This overrides styles.sectionHeaderText's 22*scale, so the lineHeight has to
+      live here too — putting it on the StyleSheet entry would describe a font size
+      this header never actually renders at.
+    */}
+    <Text
+      style={[
+        styles.sectionHeaderText,
+        { fontSize: 18 * scale, lineHeight: HEADER_LINE * scale },
+      ]}
+    >
       {title}
     </Text>
   </View>
@@ -703,18 +731,24 @@ const styles = StyleSheet.create({
   userInfo: {
     flex: 1,
   },
+  // The explicit lineHeights below are load-bearing, not cosmetic: a Text with
+  // no lineHeight gets the *font's* natural line box, which JS cannot compute and
+  // which differs between iOS (SF) and Android (Roboto). ROW_H has to know these.
   userName: {
     fontSize: 17 * scale,
+    lineHeight: NAME_LINE * scale,
     fontWeight: "600",
     color: "#fff",
   },
   userChurch: {
     fontSize: 14 * scale,
+    lineHeight: DETAIL_LINE * scale,
     color: "rgba(255,255,255,0.5)",
     marginTop: 4 * scale,
   },
   userRoles: {
     fontSize: 14 * scale,
+    lineHeight: DETAIL_LINE * scale,
     color: "rgba(255,255,255,0.5)",
     marginTop: 4 * scale,
   },

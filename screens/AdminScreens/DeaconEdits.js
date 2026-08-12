@@ -82,6 +82,30 @@ const isTablet = Platform.isPad || (width >= 768 && height >= 768);
 const scale = isTablet ? 1.2 : 1;
 const paddingHorizontal = isTablet ? 32 : 16;
 
+// ---------- Fixed row metrics ----------
+//
+// This screen has two row types and swaps between them on `attendanceMode`, so
+// there are two row constants (ROW_H / ATT_CARD_H below) and the getItemLayout
+// is built per mode.
+//
+// Explicit line heights, because a Text with no lineHeight gets the font's
+// natural line box, which JS cannot compute and which differs across platforms.
+// PILL_H and SAVE_BTN_H are pinned because their tallest children are an Ionicons
+// glyph and an ActivityIndicator respectively — neither is computable, and the
+// save button in particular swapped between a 13pt Text and a "small" spinner,
+// which made the card change height mid-save.
+//
+// Note `styles` scales with device class but `aStyles` does not, so the deacon
+// row is scale-dependent and the attendance card is one flat number.
+const NAME_LINE = 20;
+const DETAIL_LINE = 17;
+const HEADER_LINE = 26;
+const CARD_NAME_LINE = 17;
+const PILL_H = 22;
+const SLIDER_LABEL_LINE = 14;
+const SAVE_BTN_TEXT_LINE = 16;
+const SAVE_BTN_H = 30;
+
 // ─── Attendance card ──────────────────────────────────────────────────────────
 const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
   const [tempExp, setTempExp] = useState(deacon.experience ?? 0);
@@ -434,12 +458,13 @@ const DeaconRow = React.memo(({ item, onPress }) => (
         showBorder={false}
       />
     </View>
+    {/* All five capped to one line so the card height is a constant. See ROW_H. */}
     <View style={styles.deaconInfo}>
-      <Text style={styles.deaconName}>{item.name || "Unknown"}</Text>
-      <Text style={styles.deaconDetail}>Age: {formatNumber(item.age)}</Text>
-      <Text style={styles.deaconDetail}>Phone: {item.phone !== undefined && item.phone !== null ? item.phone : "Not provided"}</Text>
-      <Text style={styles.deaconDetail}>Experience: {formatNumber(item.experience)}</Text>
-      <Text style={styles.deaconDetail}>Frequency: {formatNumber(item.frequency)}</Text>
+      <Text style={styles.deaconName} numberOfLines={1}>{item.name || "Unknown"}</Text>
+      <Text style={styles.deaconDetail} numberOfLines={1}>Age: {formatNumber(item.age)}</Text>
+      <Text style={styles.deaconDetail} numberOfLines={1}>Phone: {item.phone !== undefined && item.phone !== null ? item.phone : "Not provided"}</Text>
+      <Text style={styles.deaconDetail} numberOfLines={1}>Experience: {formatNumber(item.experience)}</Text>
+      <Text style={styles.deaconDetail} numberOfLines={1}>Frequency: {formatNumber(item.frequency)}</Text>
     </View>
     <Ionicons name="pencil" size={20 * scale} color="#147efb" />
   </TouchableOpacity>
@@ -1089,6 +1114,7 @@ const aStyles = StyleSheet.create({
   },
   name: {
     fontSize: 14,
+    lineHeight: CARD_NAME_LINE,
     fontWeight: "600",
     color: "#fff",
     marginBottom: 4,
@@ -1100,9 +1126,10 @@ const aStyles = StyleSheet.create({
   pill: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 3,
+    height: PILL_H,
     paddingHorizontal: 8,
-    paddingVertical: 3,
     borderRadius: 20,
     borderWidth: 1,
   },
@@ -1125,11 +1152,13 @@ const aStyles = StyleSheet.create({
   },
   sliderLabel: {
     fontSize: 11,
+    lineHeight: SLIDER_LABEL_LINE,
     fontWeight: "500",
     color: "rgba(255,255,255,0.45)",
   },
   sliderValue: {
     fontSize: 11,
+    lineHeight: SLIDER_LABEL_LINE,
     fontWeight: "600",
     color: "#fff",
   },
@@ -1138,16 +1167,21 @@ const aStyles = StyleSheet.create({
     height: 28,
     marginBottom: 0,
   },
+  // Height pinned rather than derived from padding: this button swaps its Text
+  // for an ActivityIndicator while saving, and a "small" spinner is taller than
+  // a 13pt line — so the card used to grow a few px mid-save.
   saveBtn: {
     backgroundColor: "#147efb",
     borderRadius: 8,
-    paddingVertical: 7,
+    height: SAVE_BTN_H,
     alignItems: "center",
+    justifyContent: "center",
     marginTop: 4,
   },
   saveBtnText: {
     color: "#fff",
     fontSize: 13,
+    lineHeight: SAVE_BTN_TEXT_LINE,
     fontWeight: "600",
   },
 });
@@ -1308,12 +1342,12 @@ const styles = StyleSheet.create({
   deaconImageContainer: { marginRight: 14 * scale },
   deaconImage: { width: 48 * scale, height: 48 * scale, borderRadius: 24 * scale },
   deaconInfo: { flex: 1 },
-  deaconName: { fontSize: 17 * scale, fontWeight: "600", color: "#fff" },
-  deaconDetail: { fontSize: 14 * scale, color: "rgba(255,255,255,0.5)", marginTop: 4 * scale },
+  deaconName: { fontSize: 17 * scale, lineHeight: NAME_LINE * scale, fontWeight: "600", color: "#fff" },
+  deaconDetail: { fontSize: 14 * scale, lineHeight: DETAIL_LINE * scale, color: "rgba(255,255,255,0.5)", marginTop: 4 * scale },
   noData: { textAlign: "center", color: "rgba(255,255,255,0.5)", marginTop: 20 },
   noDataSubtext: { textAlign: "center", color: "rgba(255,255,255,0.4)", marginTop: 10 },
   sectionHeader: { backgroundColor: "transparent", paddingVertical: 8 * scale, paddingHorizontal: 4 },
-  sectionHeaderText: { fontSize: 22 * scale, fontWeight: "600", color: "#fff" },
+  sectionHeaderText: { fontSize: 22 * scale, lineHeight: HEADER_LINE * scale, fontWeight: "600", color: "#fff" },
   floatingBarWrapper: {
     position: "absolute",
     left: 12, right: 12,

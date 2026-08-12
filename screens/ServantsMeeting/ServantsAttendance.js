@@ -44,6 +44,21 @@ const { width, height } = Dimensions.get("window");
 const isTablet = Platform.isPad || (width >= 768 && height >= 768);
 const scale = isTablet ? 1.2 : 1;
 
+// ---------- Fixed row metrics ----------
+//
+// Note this screen mixes scaled and unscaled dimensions: `sectionHeader` uses
+// `paddingVertical: 8 * scale` but `sectionHeaderText` is a bare `fontSize: 22`.
+// HDR_H below has to mirror that mix — it is not a scale bug to be tidied here.
+//
+// SERVANT_HEADER_H is pinned because that row's tallest child is a chevron
+// glyph, whose box JS cannot compute; the name line and the "Manual" badge both
+// sit under it. The line heights are explicit for the same reason a Text without
+// one gets the font's natural line box, which is also not computable.
+const SERVANT_HEADER_H = 24;
+const NAME_LINE = 20;
+const STATUS_LINE = 18;
+const HEADER_LINE = 26;
+
 const isManual = (uid) => typeof uid === "string" && uid.startsWith("manual_");
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -174,7 +189,10 @@ const ServantRow = React.memo(({ servant, isPastDate, isNavigating, onOpen, onAt
             disabled={isNavigating}
           >
             <View style={styles.servantNameRow}>
-              <Text style={styles.servantName}>{servant.name}</Text>
+              {/* Capped to one line so the card height is a constant. See ROW_H. */}
+              <Text style={styles.servantName} numberOfLines={1}>
+                {servant.name}
+              </Text>
               {manual && (
                 <View style={styles.manualBadge}>
                   <Text style={styles.manualBadgeText}>Manual</Text>
@@ -854,9 +872,9 @@ const styles = StyleSheet.create({
   servantInfo: { flexDirection: "row", alignItems: "center" },
   servantImage: { width: 48, height: 48, borderRadius: 24, marginRight: 14 },
   servantDetails: { flex: 1 },
-  servantHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  servantHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", height: SERVANT_HEADER_H },
   servantNameRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
-  servantName: { fontSize: 17, fontWeight: "600", color: "#fff" },
+  servantName: { fontSize: 17, lineHeight: NAME_LINE, fontWeight: "600", color: "#fff" },
 
   manualBadge: {
     backgroundColor: "rgba(255,149,0,0.15)", borderRadius: 5,
@@ -873,10 +891,10 @@ const styles = StyleSheet.create({
 
   attendanceButtons: { flexDirection: "row", justifyContent: "space-between", marginTop: 14, gap: 12 },
   attendanceButton: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center" },
-  attendanceButtonText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  attendanceButtonText: { fontSize: 15, lineHeight: STATUS_LINE, fontWeight: "600", color: "#fff" },
   attendanceStatusContainer: { marginTop: 14 },
   attendanceStatus: { borderRadius: 14, paddingVertical: 14, alignItems: "center", justifyContent: "center" },
-  attendanceStatusText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  attendanceStatusText: { fontSize: 15, lineHeight: STATUS_LINE, fontWeight: "600", color: "#fff" },
 
   // Floating search + add
   floatingBarWrapper: {
@@ -910,7 +928,7 @@ const styles = StyleSheet.create({
 
   // Section
   sectionHeader: { backgroundColor: "transparent", paddingVertical: 8 * scale, paddingHorizontal: 4 },
-  sectionHeaderText: { fontSize: 22, fontWeight: "600", color: "#fff" },
+  sectionHeaderText: { fontSize: 22, lineHeight: HEADER_LINE, fontWeight: "600", color: "#fff" },
 
   // Loading / empty
   emptyContainer: { alignItems: "center", marginTop: 60 },

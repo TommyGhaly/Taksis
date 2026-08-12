@@ -65,6 +65,16 @@ const scale = isTablet ? 1.2 : 1;
 const paddingHorizontal = isTablet ? 32 : 16;
 const indexBarWidth = isTablet ? 32 : 24;
 
+// Line boxes for the two lines in a teacher card, and for the section header.
+// ROW_H / HDR_H below are derived from these — change a font size without
+// revisiting them and the __DEV__ drift warning in TeacherRow will say so.
+const NAME_LINE = 20;
+const DETAIL_LINE = 17;
+const HEADER_LINE = 26;
+// The delete button's tallest child is an Ionicons glyph, whose box JS cannot
+// compute. Pinned to what it already measured so the row height is knowable.
+const ACTION_BUTTON_H = 40;
+
 /**
  * One roster row, memoized on the teacher doc.
  *
@@ -89,9 +99,16 @@ const TeacherRow = React.memo(({ item, onPress, onRemove }) => (
           showBorder={false}
         />
       </View>
+      {/*
+        Both capped to one line: a joined list of assigned classes wrapped to a
+        second line for anyone teaching more than two or three, which made the
+        card height vary per row. See ROW_H.
+      */}
       <View style={styles.teacherTextInfo}>
-        <Text style={styles.teacherName}>{item.name || "Unknown"}</Text>
-        <Text style={styles.teacherGrades}>
+        <Text style={styles.teacherName} numberOfLines={1}>
+          {item.name || "Unknown"}
+        </Text>
+        <Text style={styles.teacherGrades} numberOfLines={1}>
           {Array.isArray(item.alhanGrades) && item.alhanGrades.length > 0
             ? item.alhanGrades.join(", ")
             : "No classes assigned"}
@@ -785,13 +802,17 @@ const styles = StyleSheet.create({
   teacherTextInfo: {
     flex: 1,
   },
+  // Explicit lineHeights are load-bearing: a Text without one gets the font's
+  // natural line box, which JS cannot compute and which differs across platforms.
   teacherName: {
     fontSize: 17 * scale,
+    lineHeight: NAME_LINE * scale,
     fontWeight: "600",
     color: "#fff",
   },
   teacherGrades: {
     fontSize: 14 * scale,
+    lineHeight: DETAIL_LINE * scale,
     color: "rgba(255,255,255,0.5)",
     marginTop: 4 * scale,
   },
@@ -803,7 +824,8 @@ const styles = StyleSheet.create({
   actionButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10 * scale,
+    justifyContent: "center",
+    height: ACTION_BUTTON_H * scale,
     paddingHorizontal: 16 * scale,
     borderRadius: 14,
   },
@@ -829,6 +851,7 @@ const styles = StyleSheet.create({
   },
   sectionHeaderText: {
     fontSize: 22 * scale,
+    lineHeight: HEADER_LINE * scale,
     fontWeight: "600",
     color: "#fff",
   },
