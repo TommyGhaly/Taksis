@@ -111,12 +111,27 @@ const PILL_H = 22;
 const SLIDER_LABEL_LINE = 14;
 const SAVE_BTN_TEXT_LINE = 16;
 const SAVE_BTN_H = 30;
+// What a <Slider> actually occupies, which is NOT what aStyles.slider asks for.
+// That style says `height: 28`; the rendered view measures 40 — the component
+// has its own intrinsic height and the declared one does not win. Measured on
+// device rather than derived, because there is no way to compute it from here.
+// The declared 28 is left alone deliberately: it is already being ignored, and
+// changing it would be a visual change to chase a number that has no effect.
+const SLIDER_H = 40;
 
 // RN scales a declared lineHeight by the OS font scale (allowFontScaling defaults
 // to on), so the height arithmetic has to scale it too or every constant below is
 // wrong for anyone using large text.
+//
+// The ceil-to-whole-pixel is not cosmetic either. Native rounds a scaled line box
+// UP to the device pixel grid, and modelling that as plain multiplication (or as
+// roundToNearestPixel) leaves each row a fraction of a point short — which then
+// accumulates down the list. Verified on device: at a 0.94 font scale a declared
+// 20pt line renders as exactly 19.0, and 14pt as 13.333, which is what ceil gives
+// and rounding does not.
 const FONT_SCALE = PixelRatio.getFontScale();
-const LH = (v) => v * FONT_SCALE;
+const PX = PixelRatio.get();
+const LH = (v) => Math.ceil(v * FONT_SCALE * PX) / PX;
 
 // deaconItem: 1px border top and bottom, 16*scale padding all round, then the
 // tallest of the avatar, the five-line info block and the pencil icon, then its
@@ -135,7 +150,7 @@ const DEACON_ROW_H =
 const ATT_TOP_ROW_H =
   10 + Math.max(36, LH(CARD_NAME_LINE) + 4 + PILL_H) + 8;
 const ATT_SLIDER_BLOCK_H =
-  1 + 6 + 2 * (LH(SLIDER_LABEL_LINE) + 28) + 4 + SAVE_BTN_H + 8;
+  1 + 6 + 2 * (LH(SLIDER_LABEL_LINE) + SLIDER_H) + 4 + SAVE_BTN_H + 8;
 const ATT_CARD_H = 2 + ATT_TOP_ROW_H + ATT_SLIDER_BLOCK_H + 8;
 
 // sectionHeader: 8*scale padding top and bottom around one 22*scale line. Shared

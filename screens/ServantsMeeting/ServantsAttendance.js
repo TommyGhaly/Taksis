@@ -68,8 +68,16 @@ const HEADER_LINE = 26;
 // RN scales a declared lineHeight by the OS font scale (allowFontScaling defaults
 // to on), so the height arithmetic has to scale it too or every constant below is
 // wrong for anyone using large text.
+//
+// The ceil-to-whole-pixel is not cosmetic either. Native rounds a scaled line box
+// UP to the device pixel grid, and modelling that as plain multiplication (or as
+// roundToNearestPixel) leaves each row a fraction of a point short — which then
+// accumulates down the list. Verified on device: at a 0.94 font scale a declared
+// 20pt line renders as exactly 19.0, and 14pt as 13.333, which is what ceil gives
+// and rounding does not.
 const FONT_SCALE = PixelRatio.getFontScale();
-const LH = (v) => v * FONT_SCALE;
+const PX = PixelRatio.get();
+const LH = (v) => Math.ceil(v * FONT_SCALE * PX) / PX;
 
 // servantCard: 1px border top and bottom, 16 padding all round, then the taller
 // of the avatar and the details column, then its own margin.
