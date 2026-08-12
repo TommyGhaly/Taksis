@@ -29,8 +29,9 @@ import * as Crypto from "expo-crypto";
 export const CLIENT_ID = "149615d2-4f88-4222-b69c-f3b82f2b8901";
 
 // The SPSM directory. The tenant-scoped authority stops Microsoft from even
-// offering personal accounts; the function re-checks `tid` on the verified
-// token, which is where the restriction is actually enforced.
+// offering personal accounts; the function re-checks `tid` and the
+// @waylandcopticchurch.org address on the verified token, which is where the
+// restriction is actually enforced.
 export const TENANT_ID = "9e08a9a2-5bad-4835-800f-9071d98e47cf";
 const AUTHORITY = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0`;
 
@@ -131,7 +132,7 @@ export const signInWithMicrosoftCode = async ({ code, codeVerifier }) => {
     const err = new Error(body.message || `Sign-in failed (${res.status}).`);
     // Surfaced so the screens can title the alert appropriately.
     err.code =
-      body.error === "wrong_tenant"
+      body.error === "wrong_tenant" || body.error === "wrong_domain"
         ? "auth/wrong-tenant"
         : body.error === "account_exists"
           ? "auth/account-exists-with-different-credential"

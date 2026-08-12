@@ -15,7 +15,7 @@ So the app can't mint a Microsoft credential on-device. Instead:
   app          -> this function   { code, code_verifier }
   this function-> Azure token endpoint (client_secret lives here, not on device)
                -> verifies the id_token signature against Microsoft's JWKS
-               -> enforces the SPSM tenant
+               -> enforces the SPSM tenant and the church email domain
                -> returns a Firebase custom token
   app          -> auth().signInWithCustomToken(token)
 
@@ -42,6 +42,11 @@ from firebase_functions.params import SecretParam
 
 # The SPSM directory. Tokens from any other tenant are refused outright.
 TENANT_ID = "9e08a9a2-5bad-4835-800f-9071d98e47cf"
+# The tenant check alone is not the same as a domain check: B2B guests invited
+# into the directory get tokens carrying our `tid` but keep their own address,
+# and the tenant's default *.onmicrosoft.com domain would pass too. Members are
+# the ones with a church mailbox, so the address is checked as well.
+ALLOWED_EMAIL_DOMAIN = "waylandcopticchurch.org"
 # Same app registration Firebase's Microsoft provider is configured with.
 CLIENT_ID = "149615d2-4f88-4222-b69c-f3b82f2b8901"
 # Already registered on that app registration as a Web platform URI. The app
@@ -151,6 +156,16 @@ def microsoft_exchange(req: https_fn.Request) -> https_fn.Response:
     uid = f"microsoft:{oid}"
     email = claims.get("email") or claims.get("preferred_username") or ""
     name = claims.get("name") or ""
+
+    # A guest's address is their own, and #EXT# accounts have the tenant's
+    # onmicrosoft.com domain on the UPN, so neither passes this.
+    if email.strip().rsplit("@", 1)[-1].lower() != ALLOWED_EMAIL_DOMAIN:
+        return _json_error(
+            f"Taksis only accepts @{ALLOWED_EMAIL_DOMAIN} accounts."
+            + (f" {email} is not one." if email else ""),
+            403,
+            "wrong_domain",
+        )
 
     # --- map onto a Firebase user -------------------------------------------
     try:
