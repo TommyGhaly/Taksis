@@ -59,7 +59,7 @@
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "buildNumber": "1",
-      "appleTeamId": "ST. PHILOPATER MERCURIUS & ST. MINA COPTIC ORTHODOX CHURCH, INC."
+      "appleTeamId": "5ZRM8X66TN"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
