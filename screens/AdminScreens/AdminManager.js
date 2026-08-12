@@ -13,6 +13,7 @@ import {
   TextInput,
   Keyboard,
   Animated,
+  PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,6 +27,10 @@ import AlphabetIndexBar from "../../components/AlphabetIndexBar";
 import SkeletonScreen from "../../components/Skeleton";
 import * as avatarCache from "../../utils/avatarCache";
 import { LIST_PERF, REMOVE_CLIPPED_ANDROID_ONLY } from "../../utils/listConfig";
+import {
+  makeSectionListGetItemLayout,
+  makeRowHeightAudit,
+} from "../../utils/sectionListLayout";
 import { makeScreenCache } from "../../utils/screenCache";
 import useAfterInteractions from "../../hooks/useAfterInteractions";
 
@@ -48,6 +53,37 @@ const paddingHorizontal = isTablet ? 32 : 16;
 const NAME_LINE = 20;
 const DETAIL_LINE = 17;
 const HEADER_LINE = 22;
+
+// RN scales a declared lineHeight by the OS font scale (allowFontScaling defaults
+// to on), so the height arithmetic has to scale it too or every constant below is
+// wrong for anyone using large text.
+const FONT_SCALE = PixelRatio.getFontScale();
+const LH = (v) => v * FONT_SCALE;
+
+// userCard: 1px border top and bottom, 16*scale padding all round, then the
+// tallest of the avatar and the three-line text block, then its own margin.
+// The text block normally wins (62*scale vs 48*scale) but the max is kept
+// because at large font scales the ordering does not change and at small ones
+// the avatar would.
+const TEXT_BLOCK_H =
+  LH(NAME_LINE * scale) +
+  4 * scale +
+  LH(DETAIL_LINE * scale) +
+  4 * scale +
+  LH(DETAIL_LINE * scale);
+const ROW_H =
+  2 + 32 * scale + Math.max(48 * scale, TEXT_BLOCK_H) + 12 * scale;
+// sectionHeader: 8*scale padding top and bottom around one 18*scale line.
+const HDR_H = 16 * scale + LH(HEADER_LINE * scale);
+
+const getItemLayout = makeSectionListGetItemLayout({
+  getItemHeight: () => ROW_H,
+  getSectionHeaderHeight: () => HDR_H,
+  // Footer and list-header default to 0: this list renders no section footer, no
+  // ListHeaderComponent, and listContainer sets only paddingBottom/paddingRight.
+});
+
+const auditUserRow = makeRowHeightAudit("UserRow", ROW_H, 12 * scale);
 
 const adminRoles = [
   { key: "admin", label: "Schedule Admin" },
@@ -77,6 +113,7 @@ const UserRow = React.memo(({ item, onPress }) => {
       style={styles.userCard}
       onPress={() => onPress(item)}
       activeOpacity={0.7}
+      onLayout={auditUserRow}
     >
       <View style={styles.userImageContainer}>
         <Avatar
@@ -502,7 +539,11 @@ const AdminManager = () => {
 
     sectionListRef.current.scrollToLocation({
       sectionIndex,
-      itemIndex: 1,
+      // 0 is the section header's own slot. This used to be 1, which targets
+      // data item 0 and only lands on the header because sticky-header handling
+      // subtracts the header's height back off — which in turn needed the
+      // header's frame to be known. 0 addresses it directly.
+      itemIndex: 0,
       animated: false,
       viewPosition: 0,
       viewOffset: 0,
@@ -557,12 +598,19 @@ const AdminManager = () => {
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
             {...LIST_PERF}
+            // Every row is a fixed height, so the offset of any letter is known
+            // without having rendered it. This is what makes the A-Z bar land
+            // instantly instead of failing: there used to be a no-op
+            // onScrollToIndexFailed here, which meant tapping a far letter did
+            // nothing at all. That handler is unreachable once getItemLayout is
+            // set (VirtualizedList guards the whole failure path on it), so it
+            // is gone rather than kept as a silent catch-all.
+            getItemLayout={getItemLayout}
             // Android only: on iOS this blanked rows once the list was scrolled
             // past a screen or two. See utils/listConfig.js.
             removeClippedSubviews={REMOVE_CLIPPED_ANDROID_ONLY}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
-            onScrollToIndexFailed={() => {}}
           />
           {!searchQuery.trim() && (
             <View style={styles.alphabetBarContainer}>

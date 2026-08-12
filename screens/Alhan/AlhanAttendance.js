@@ -16,6 +16,7 @@ import {
   Animated,
   ScrollView,
   Dimensions,
+  PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
@@ -27,6 +28,10 @@ import Avatar from "../../components/Avatar";
 import * as avatarCache from "../../utils/avatarCache";
 import { makeScreenCache, HOUR } from "../../utils/screenCache";
 import { LIST_PERF, REMOVE_CLIPPED_ANDROID_ONLY } from "../../utils/listConfig";
+import {
+  makeSectionListGetItemLayout,
+  makeRowHeightAudit,
+} from "../../utils/sectionListLayout";
 import { shortDateLabel } from "../../utils/dateKeys";
 import SkeletonScreen from "../../components/Skeleton";
 import { useAfterInteractions } from "../../hooks/useAfterInteractions";
@@ -97,6 +102,36 @@ const STATUS_LINE = 17;
 const GRADE_HEADER_LINE = 22;
 const ADD_PILL_H = 26;
 
+// RN scales a declared lineHeight by the OS font scale (allowFontScaling defaults
+// to on), so the height arithmetic has to scale it too or every constant below is
+// wrong for anyone using large text.
+const FONT_SCALE = PixelRatio.getFontScale();
+const LH = (v) => v * FONT_SCALE;
+
+// studentContainer: 1px border top and bottom, 14 padding all round, the header
+// row (the avatar wins over the name line and the chevron), then the attendance
+// block, then its own margin.
+//
+// The two isPastDate branches are height-identical — a status pill and a pair of
+// buttons both being marginTop 12 + paddingVertical 12 + a 14pt line — so one
+// constant covers both and rows do not change height when the week does.
+const ATTENDANCE_BLOCK_H = 12 + 24 + LH(STATUS_LINE);
+const ROW_H =
+  2 + 28 + Math.max(44, LH(STUDENT_NAME_LINE)) + ATTENDANCE_BLOCK_H + 10;
+
+// gradeHeaderRow: 6 padding top and bottom, 10 margin below, around the taller of
+// the title line and the Add pill. Unlike Sunday School this screen has no
+// appended "Servants" section — gradeSections maps alhanGrades only — so every
+// header renders the Add pill and one constant covers them all.
+const HDR_H = 12 + Math.max(LH(GRADE_HEADER_LINE), ADD_PILL_H) + 10;
+
+const getItemLayout = makeSectionListGetItemLayout({
+  getItemHeight: () => ROW_H,
+  getSectionHeaderHeight: () => HDR_H,
+});
+
+const auditStudentRow = makeRowHeightAudit("StudentRow", ROW_H, 10);
+
 /**
  * One attendance row, memoized.
  *
@@ -111,7 +146,7 @@ const StudentRow = React.memo(({ student, dateKey, isPastDate, isNavigating, onO
   const status = student[dateKey];
 
   return (
-    <View style={styles.studentContainer}>
+    <View style={styles.studentContainer} onLayout={auditStudentRow}>
       {/* Whole row is tappable — avatar, name and chevron all open the student. */}
       <TouchableOpacity
         style={styles.studentHeader}
@@ -599,27 +634,33 @@ const AlhanAttendance = () => {
     return sections;
   }, [userData?.alhanGrades, filteredStudentsByGrade, searchQuery]);
 
+  /**
+   * Jump to a grade. Three things went away here, all consequences of the list
+   * now having a getItemLayout:
+   *
+   *  - The 150ms setTimeout existed to give the target grade a chance to render
+   *    before the jump. The offset is now known without rendering anything, so
+   *    the delay was pure lag on every chip tap.
+   *  - `animated: true` scrolled the viewport through every row in between,
+   *    which forced the render window to sweep the whole range — the single
+   *    biggest reason jumping to a far grade felt slow. Now false, matching
+   *    every other list in the app.
+   *  - The try/catch was dead: scrollToLocation does not throw for an in-range
+   *    index, and out-of-range is what the guard below is for.
+   */
   const scrollToGrade = useCallback(
     (grade) => {
       if (!sectionListRef.current) return;
       const sectionIndex = gradeSections.findIndex((section) => section.title === grade);
-      if (sectionIndex >= 0) {
-        setTimeout(() => {
-          if (sectionListRef.current && isMounted.current) {
-            try {
-              sectionListRef.current.scrollToLocation({
-                sectionIndex,
-                itemIndex: 1,
-                animated: true,
-                viewPosition: 0,
-                viewOffset: 0,
-              });
-            } catch (error) {
-              console.log("Scroll to location failed");
-            }
-          }
-        }, 150);
-      }
+      if (sectionIndex < 0) return;
+      sectionListRef.current.scrollToLocation({
+        sectionIndex,
+        // 0 is the section header's own slot; 1 would be data item 0.
+        itemIndex: 0,
+        animated: false,
+        viewPosition: 0,
+        viewOffset: 0,
+      });
     },
     [gradeSections]
   );
@@ -809,19 +850,18 @@ const AlhanAttendance = () => {
         contentContainerStyle={styles.sectionListContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
-        onScrollToIndexFailed={(info) => {
-          const wait = new Promise((resolve) => setTimeout(resolve, 500));
-          wait.then(() => {
-            if (sectionListRef.current && info.index >= 0 && info.index < gradeSections.length) {
-              sectionListRef.current.scrollToLocation({
-                sectionIndex: info.index,
-                itemIndex: 1,
-                animated: false,
-                viewPosition: 0,
-              });
-            }
-          });
-        }}
+        // Every row is a fixed height, so the offset of any grade is known
+        // without having rendered it — which is what makes a grade chip land
+        // instantly and exactly.
+        //
+        // This replaces a 500ms retry handler that could not have worked: it
+        // received `info.index`, a *flat* index across all sections, and passed
+        // it straight back as a `sectionIndex` after bounds-checking it against
+        // gradeSections.length. Flat indices are almost always larger than the
+        // section count, so the retry usually did nothing and otherwise jumped to
+        // the wrong grade. The failure path is unreachable once getItemLayout is
+        // set (VirtualizedList guards it on exactly that), so it is gone.
+        getItemLayout={getItemLayout}
       />
 
       {/* ---------- Floating bottom search bar ---------- */}

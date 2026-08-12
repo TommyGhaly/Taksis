@@ -17,6 +17,7 @@ import {
   TextInput,
   Keyboard,
   Animated,
+  PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,6 +32,10 @@ import Avatar from "../../components/Avatar";
 import SkeletonScreen from "../../components/Skeleton";
 import * as avatarCache from "../../utils/avatarCache";
 import { LIST_PERF } from "../../utils/listConfig";
+import {
+  makeSectionListGetItemLayout,
+  makeRowHeightAudit,
+} from "../../utils/sectionListLayout";
 import { getDocsByIds, watchDocsByIds } from "../../utils/firestoreBatch";
 import {
   dateKeyToSortable,
@@ -105,6 +110,39 @@ const PILL_H = 22;
 const SLIDER_LABEL_LINE = 14;
 const SAVE_BTN_TEXT_LINE = 16;
 const SAVE_BTN_H = 30;
+
+// RN scales a declared lineHeight by the OS font scale (allowFontScaling defaults
+// to on), so the height arithmetic has to scale it too or every constant below is
+// wrong for anyone using large text.
+const FONT_SCALE = PixelRatio.getFontScale();
+const LH = (v) => v * FONT_SCALE;
+
+// deaconItem: 1px border top and bottom, 16*scale padding all round, then the
+// tallest of the avatar, the five-line info block and the pencil icon, then its
+// own margin. The info block normally wins by a wide margin.
+const DEACON_INFO_H =
+  LH(NAME_LINE * scale) + 4 * (4 * scale + LH(DETAIL_LINE * scale));
+const DEACON_ROW_H =
+  2 + 32 * scale + Math.max(48 * scale, DEACON_INFO_H) + 12 * scale;
+
+// The attendance card uses aStyles, which does not scale with device class, so
+// this is one flat number on phone and tablet alike.
+//   topRow      = paddingTop 10 + max(avatar 36, nameBlock) + paddingBottom 8
+//   nameBlock   = name line + its 4px margin + the pill row
+//   sliderBlock = 1px top border + paddingTop 6 + (label + slider) x2
+//                 + save button + its margin + paddingBottom 8
+const ATT_TOP_ROW_H =
+  10 + Math.max(36, LH(CARD_NAME_LINE) + 4 + PILL_H) + 8;
+const ATT_SLIDER_BLOCK_H =
+  1 + 6 + 2 * (LH(SLIDER_LABEL_LINE) + 28) + 4 + SAVE_BTN_H + 8;
+const ATT_CARD_H = 2 + ATT_TOP_ROW_H + ATT_SLIDER_BLOCK_H + 8;
+
+// sectionHeader: 8*scale padding top and bottom around one 22*scale line. Shared
+// by both modes — only the row swaps.
+const HDR_H = 16 * scale + LH(HEADER_LINE * scale);
+
+const auditDeaconRow = makeRowHeightAudit("DeaconRow", DEACON_ROW_H, 12 * scale);
+const auditAttendanceCard = makeRowHeightAudit("AttendanceCard", ATT_CARD_H, 8);
 
 // ─── Attendance card ──────────────────────────────────────────────────────────
 const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
@@ -206,7 +244,7 @@ const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
   };
 
   return (
-    <View style={aStyles.card}>
+    <View style={aStyles.card} onLayout={auditAttendanceCard}>
       {/* Top row: avatar + name + pills */}
       <View style={aStyles.topRow}>
         {/* Tapping the avatar or the name opens the profile, same destination
@@ -447,7 +485,7 @@ PillModal.displayName = "PillModal";
  * each one, that showed up as a stutter mid-scroll.
  */
 const DeaconRow = React.memo(({ item, onPress }) => (
-  <TouchableOpacity style={styles.deaconItem} onPress={() => onPress(item)} activeOpacity={0.7}>
+  <TouchableOpacity style={styles.deaconItem} onPress={() => onPress(item)} activeOpacity={0.7} onLayout={auditDeaconRow}>
     <View style={styles.deaconImageContainer}>
       <Avatar
         uid={item.uid}
@@ -783,12 +821,36 @@ const DeaconEdits = () => {
   };
 
   const scrollToSection = (letter) => {
-    const idx = sections.findIndex((s) => s.title === letter);
+    // `activeSections`, not `sections`: in attendance mode the list renders
+    // attendanceSections, and AlphabetIndexBar's availableLetters comes from
+    // activeSections too. Indexing `sections` happened to agree because both
+    // group the same deacons under the same letters, but it was resolving an
+    // index against a different array than the one being scrolled.
+    const idx = activeSections.findIndex((s) => s.title === letter);
     if (idx < 0 || !sectionListRef.current) return;
     sectionListRef.current.scrollToLocation({
-      sectionIndex: idx, itemIndex: 1, animated: false, viewPosition: 0, viewOffset: 0,
+      // itemIndex 0 is the section header's own slot. It used to be 1, which
+      // targets data item 0 and only lands on the header because sticky-header
+      // handling subtracts the header's height back off — which in turn needed
+      // the header's frame to be known. 0 addresses it directly.
+      sectionIndex: idx, itemIndex: 0, animated: false, viewPosition: 0, viewOffset: 0,
     });
   };
+
+  /**
+   * Row heights differ between the two modes, so the layout is rebuilt when the
+   * mode flips. `useMemo` rather than `useCallback` deliberately: the factory
+   * instance owns a prefix-table cache, and a fresh instance is what forces that
+   * table to be rebuilt with the other mode's row height instead of reused.
+   */
+  const getItemLayout = useMemo(
+    () =>
+      makeSectionListGetItemLayout({
+        getItemHeight: () => (attendanceMode ? ATT_CARD_H : DEACON_ROW_H),
+        getSectionHeaderHeight: () => HDR_H,
+      }),
+    [attendanceMode]
+  );
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -1014,9 +1076,17 @@ const DeaconEdits = () => {
             // SectionList's PureComponent bail-out could never hold — and it had no
             // job either way, since `activeSections` is already a new array
             // whenever the attendance data changes.
+            //
+            // Both row types are a fixed height, so the offset of any letter is
+            // known without having rendered it. This is what makes the A-Z bar
+            // land instantly instead of failing: there used to be a no-op
+            // onScrollToIndexFailed here, which meant tapping a far letter did
+            // nothing at all. That handler is unreachable once getItemLayout is
+            // set (VirtualizedList guards the whole failure path on it), so it is
+            // gone rather than kept as a silent catch-all.
+            getItemLayout={getItemLayout}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
-            onScrollToIndexFailed={() => {}}
             refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#147efb" colors={["#147efb"]} />}
           />
           {!searchQuery.trim() && (

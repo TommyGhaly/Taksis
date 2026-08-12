@@ -16,6 +16,7 @@ import {
   Animated,
   ScrollView,
   RefreshControl,
+  PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
@@ -27,6 +28,10 @@ import { Ionicons } from "@expo/vector-icons";
 import AlphabetIndexBar from "../../components/AlphabetIndexBar";
 import { makeScreenCache } from "../../utils/screenCache";
 import { LIST_PERF, REMOVE_CLIPPED_ANDROID_ONLY } from "../../utils/listConfig";
+import {
+  makeSectionListGetItemLayout,
+  makeRowHeightAudit,
+} from "../../utils/sectionListLayout";
 import { shortDateLabel } from "../../utils/dateKeys";
 import PhotoInput from "../../components/photoInput"; // reuse existing photo picker
 import Avatar from "../../components/Avatar";
@@ -58,6 +63,32 @@ const SERVANT_HEADER_H = 24;
 const NAME_LINE = 20;
 const STATUS_LINE = 18;
 const HEADER_LINE = 26;
+
+// RN scales a declared lineHeight by the OS font scale (allowFontScaling defaults
+// to on), so the height arithmetic has to scale it too or every constant below is
+// wrong for anyone using large text.
+const FONT_SCALE = PixelRatio.getFontScale();
+const LH = (v) => v * FONT_SCALE;
+
+// servantCard: 1px border top and bottom, 16 padding all round, then the taller
+// of the avatar and the details column, then its own margin.
+//
+// The two isPastDate branches are height-identical — a status pill and a pair of
+// buttons both being marginTop 14 + paddingVertical 14 + a 15pt line — so one
+// constant covers both and the row does not change height when the week does.
+const ATTENDANCE_BLOCK_H = 14 + 28 + LH(STATUS_LINE);
+const SERVANT_DETAILS_H = SERVANT_HEADER_H + ATTENDANCE_BLOCK_H;
+const ROW_H = 2 + 32 + Math.max(48, SERVANT_DETAILS_H) + 12;
+// Note the mix: sectionHeader's padding scales with device class but
+// sectionHeaderText's font size does not. That is the existing styling, mirrored.
+const HDR_H = 16 * scale + LH(HEADER_LINE);
+
+const getItemLayout = makeSectionListGetItemLayout({
+  getItemHeight: () => ROW_H,
+  getSectionHeaderHeight: () => HDR_H,
+});
+
+const auditServantRow = makeRowHeightAudit("ServantRow", ROW_H, 12);
 
 const isManual = (uid) => typeof uid === "string" && uid.startsWith("manual_");
 
@@ -170,7 +201,7 @@ const ServantRow = React.memo(({ servant, isPastDate, isNavigating, onOpen, onAt
   const status = servant.attendance;
 
   return (
-    <View style={styles.servantCard}>
+    <View style={styles.servantCard} onLayout={auditServantRow}>
       <View style={styles.servantInfo}>
         <Avatar
           uid={servant.uid}
@@ -478,7 +509,11 @@ const ServantsAttendance = () => {
   const scrollToSection = (letter) => {
     const idx = sections.findIndex((s) => s.title === letter);
     if (idx < 0 || !sectionListRef.current) return;
-    sectionListRef.current.scrollToLocation({ sectionIndex: idx, itemIndex: 1, animated: false, viewPosition: 0, viewOffset: 0 });
+    // itemIndex 0 is the section header's own slot. It used to be 1, which
+    // targets data item 0 and only lands on the header because sticky-header
+    // handling subtracts the header's height back off — which in turn needed the
+    // header's frame to be known. 0 addresses it directly.
+    sectionListRef.current.scrollToLocation({ sectionIndex: idx, itemIndex: 0, animated: false, viewPosition: 0, viewOffset: 0 });
   };
   const sectionListRef = useRef(null);
 
@@ -644,6 +679,14 @@ const ServantsAttendance = () => {
           keyExtractor={keyExtractor}
           contentContainerStyle={[styles.listContainer, { paddingRight: 30 }]}
           {...LIST_PERF}
+          // Every row is a fixed height, so the offset of any letter is known
+          // without having rendered it. This is what makes the A-Z bar land
+          // instantly instead of failing: there used to be a no-op
+          // onScrollToIndexFailed here, which meant tapping a far letter did
+          // nothing at all. That handler is unreachable once getItemLayout is set
+          // (VirtualizedList guards the whole failure path on it), so it is gone
+          // rather than kept as a silent catch-all.
+          getItemLayout={getItemLayout}
           // Android only: on iOS this has a history of blanking cells and
           // breaking touch targets.
           removeClippedSubviews={REMOVE_CLIPPED_ANDROID_ONLY}
@@ -660,7 +703,6 @@ const ServantsAttendance = () => {
           stickySectionHeadersEnabled={true}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          onScrollToIndexFailed={() => {}}
         />
         {sections.length > 0 && !searchQuery.trim() && (
           <View style={{ position: "absolute", top: 85 * scale, right: 0, width: 30 }}>

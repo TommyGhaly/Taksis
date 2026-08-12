@@ -13,6 +13,7 @@ import {
   TextInput,
   Keyboard,
   Animated,
+  PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import firestore from "@react-native-firebase/firestore";
@@ -26,6 +27,10 @@ import AlphabetIndexBar from "../../components/AlphabetIndexBar";
 import SkeletonScreen from "../../components/Skeleton";
 import * as avatarCache from "../../utils/avatarCache";
 import { LIST_PERF, REMOVE_CLIPPED_ANDROID_ONLY } from "../../utils/listConfig";
+import {
+  makeSectionListGetItemLayout,
+  makeRowHeightAudit,
+} from "../../utils/sectionListLayout";
 import { makeScreenCache } from "../../utils/screenCache";
 import useAfterInteractions from "../../hooks/useAfterInteractions";
 
@@ -75,6 +80,33 @@ const HEADER_LINE = 26;
 // compute. Pinned to what it already measured so the row height is knowable.
 const ACTION_BUTTON_H = 40;
 
+// RN scales a declared lineHeight by the OS font scale (allowFontScaling defaults
+// to on), so the height arithmetic has to scale it too or every constant below is
+// wrong for anyone using large text.
+const FONT_SCALE = PixelRatio.getFontScale();
+const LH = (v) => v * FONT_SCALE;
+
+// teacherCard is a column: 1px border top and bottom, 16*scale padding all round,
+// then the teacherInfo row (the taller of the avatar and the two-line text
+// block) plus its margin, then the pinned delete button, then the card's margin.
+const TEXT_BLOCK_H = LH(NAME_LINE * scale) + 4 * scale + LH(DETAIL_LINE * scale);
+const ROW_H =
+  2 +
+  32 * scale +
+  Math.max(48 * scale, TEXT_BLOCK_H) +
+  12 * scale +
+  ACTION_BUTTON_H * scale +
+  12 * scale;
+// sectionHeader: 8*scale padding top and bottom around one 22*scale line.
+const HDR_H = 16 * scale + LH(HEADER_LINE * scale);
+
+const getItemLayout = makeSectionListGetItemLayout({
+  getItemHeight: () => ROW_H,
+  getSectionHeaderHeight: () => HDR_H,
+});
+
+const auditTeacherRow = makeRowHeightAudit("TeacherRow", ROW_H, 12 * scale);
+
 /**
  * One roster row, memoized on the teacher doc.
  *
@@ -87,6 +119,7 @@ const TeacherRow = React.memo(({ item, onPress, onRemove }) => (
     style={styles.teacherCard}
     onPress={() => onPress(item)}
     activeOpacity={0.7}
+    onLayout={auditTeacherRow}
   >
     <View style={styles.teacherInfo}>
       <View style={styles.teacherImageContainer}>
@@ -514,7 +547,11 @@ const AlhanAdmin = () => {
     }
     sectionListRef.current.scrollToLocation({
       sectionIndex,
-      itemIndex: 1,
+      // 0 is the section header's own slot. This used to be 1, which targets
+      // data item 0 and only lands on the header because sticky-header handling
+      // subtracts the header's height back off — which in turn needed the
+      // header's frame to be known. 0 addresses it directly.
+      itemIndex: 0,
       animated: false,
       viewPosition: 0,
       viewOffset: 0,
@@ -581,14 +618,19 @@ const AlhanAdmin = () => {
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
             {...LIST_PERF}
+            // Every row is a fixed height, so the offset of any letter is known
+            // without having rendered it. This is what makes the A-Z bar land
+            // instantly instead of failing: the handler that used to sit here
+            // swallowed the failure and left the list where it was, so tapping a
+            // far letter did nothing. It is unreachable once getItemLayout is
+            // set (VirtualizedList guards the whole failure path on it), so it is
+            // gone rather than kept as a silent catch-all.
+            getItemLayout={getItemLayout}
             // Android only: on iOS this blanked rows once the list was scrolled
             // past a screen or two. See utils/listConfig.js.
             removeClippedSubviews={REMOVE_CLIPPED_ANDROID_ONLY}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
-            onScrollToIndexFailed={(info) => {
-              // Do nothing when scroll fails - stay in current position
-            }}
           />
           {sections.length > 0 && !searchQuery.trim() && (
             <View style={{ position: 'absolute', top: 100 * scale, right: 0, width: 30 }}>
