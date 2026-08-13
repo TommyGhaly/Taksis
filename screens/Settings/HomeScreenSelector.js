@@ -34,7 +34,16 @@ import PaschaManager from "../AdminScreens/PaschaManager";
 import AdminManager from "../AdminScreens/AdminManager";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
-const previewSize = (screenWidth - 60) / 2; // 2 columns with padding
+// Floored, not fractional: the card clips a scaled-down subtree, and a half-point
+// frame puts every rounded corner and text baseline inside it on a sub-pixel
+// boundary.
+const previewSize = Math.floor((screenWidth - 60) / 2); // 2 columns with padding
+const previewCardHeight = Math.round(previewSize * 1.6);
+// The card's border eats into the box the preview is clipped to, so the
+// downscale targets the inner width — otherwise the right edge of the screen
+// is cropped off inside the card.
+const PREVIEW_BORDER_WIDTH = 3;
+const previewInnerWidth = previewSize - PREVIEW_BORDER_WIDTH * 2;
 
 // Gap between two preview mounts. Every card gets a real screen, but mounting
 // ten of them in one frame locks the JS thread long enough that the grid can't
@@ -235,7 +244,7 @@ const HomeScreenSelector = () => {
     return (
       <TouchableOpacity
         key={screen.id}
-        style={[styles.previewContainer, isSelected && styles.selectedPreview]}
+        style={styles.previewContainer}
         onPress={() => setSelectedScreen(screen.id)}
         activeOpacity={0.8}
       >
@@ -366,17 +375,17 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     alignItems: "center",
   },
-  selectedPreview: {
-    transform: [{ scale: 1.02 }],
-  },
   previewCard: {
     width: previewSize,
-    height: previewSize * 1.6,
+    height: previewCardHeight,
     backgroundColor: "#1E1E1E",
     borderRadius: 16,
     marginBottom: 8,
     overflow: "hidden",
-    borderWidth: 2,
+    // Constant in both states. Changing the width on selection moves the
+    // content box by a point, which re-clips and re-rasterizes the scaled
+    // screen inside at a different sub-pixel offset.
+    borderWidth: PREVIEW_BORDER_WIDTH,
     borderColor: "#2A2A2A",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
@@ -386,7 +395,6 @@ const styles = StyleSheet.create({
   },
   selectedPreviewCard: {
     borderColor: "#147EFB",
-    borderWidth: 3,
   },
   previewWrapper: {
     width: "100%",
@@ -396,7 +404,7 @@ const styles = StyleSheet.create({
   previewScreen: {
     width: screenWidth,
     height: screenHeight,
-    transform: [{ scale: previewSize / screenWidth }],
+    transform: [{ scale: previewInnerWidth / screenWidth }],
     transformOrigin: "top left",
   },
   selectedOverlay: {
