@@ -34,6 +34,18 @@ const nd = (s) => { if(!s)return""; const[m,d,y]=s.split("-").map(Number); retur
 // Generate a Firestore-style random UID client-side
 const genUid = () => firestore().collection("_").doc().id;
 
+// An unfilled slot is stored as { name: "N/A", uid: <random> } — "nobody is here"
+// is carried by the NAME, not the uid. The uid is a throwaway that will never
+// match a deacon, so it must not be treated as a broken reference.
+const isEmptySlot = (name) => !name || name === "N/A";
+
+// A cleared slot, in the exact shape the backend writes (schedule_generation.py)
+const emptySlot = () => ({ uid: genUid(), name: "N/A" });
+
+// Stable address for a slot: a reading key, or an index into altar/extra
+const slotKey = (loc, i) => (i === undefined ? loc : `${loc}:${i}`);
+const slotLabel = (loc, i) => (i === undefined ? loc : `${loc} ${i + 1}`);
+
 async function fetchAllDeacons(churchId) {
   const allUsersSnap = await firestore()
     .collection("users")
@@ -132,24 +144,39 @@ function diffList(current, expected) {
   };
 }
 
+/**
+ * Two, and only two, kinds of defect:
+ *   needUid  — an empty ("N/A") slot that has no uid at all. Nothing can be
+ *              assigned into a uid-less slot, so it needs one generated.
+ *   exDeacon — a real, named person whose uid is not in the deacon source set.
+ *              They are no longer a deacon: take them out of the schedule.
+ *
+ * An empty slot that already has a uid is NOT a defect, even though that uid
+ * matches no deacon — that is what an unfilled slot is supposed to look like.
+ */
 function diffSched(data, uids, names) {
-  const scheduled = new Set(), unknowns = [];
-  const check = (uid, name, loc) => {
-    if (!uid) {
-      // Empty UID in a reading slot — flag as unknown so it gets a generated UID
-      unknowns.push({ uid: "", name: name || "N/A", loc });
+  const scheduled = new Set(), needUid = [], exDeacons = [];
+
+  const check = (uid, name, loc, i) => {
+    if (isEmptySlot(name)) {
+      // Extras are a pool of real people waiting to be assigned; a placeholder
+      // in there is dead weight (every consumer filters it out) — drop it.
+      if (loc === "extra") exDeacons.push({ uid: uid || "", name: "N/A", loc, i });
+      else if (!uid) needUid.push({ uid: "", name: "N/A", loc, i });
       return;
     }
-    scheduled.add(uid);
-    if (!uids.has(uid)) unknowns.push({ uid, name, loc });
+    if (uid) scheduled.add(uid);
+    // No uid to match on, or a uid that no current deacon owns → not a deacon.
+    if (!uid || !uids.has(uid)) exDeacons.push({ uid: uid || "", name, loc, i });
   };
+
   for (const k of READING_KEYS) { const e = data[k]; if (e !== undefined) check(e?.uid, e?.name, k); }
-  for (const e of (data.altar || [])) check(e?.uid, e?.name, "altar");
-  for (const e of (data.extra || [])) check(e?.uid, e?.name, "extra");
+  (data.altar || []).forEach((e, i) => check(e?.uid, e?.name, "altar", i));
+  (data.extra || []).forEach((e, i) => check(e?.uid, e?.name, "extra", i));
 
   const missing = [];
   for (const uid of uids) { if (!scheduled.has(uid)) missing.push({ uid, name: names.get(uid) || "Unknown" }); }
-  return { unknowns, missing };
+  return { needUid, exDeacons, missing };
 }
 
 async function applyListFix(churchId, current, toAdd, toRemove, stale) {
@@ -171,34 +198,39 @@ async function applyListFix(churchId, current, toAdd, toRemove, stale) {
   return up;
 }
 
-async function applySchedFix(churchId, wid, data, unknowns, missing, names) {
+async function applySchedFix(churchId, wid, data, needUid, exDeacons, missing, names) {
   const up = {};
 
-  // Build a set of UIDs to replace (unknown non-empty UIDs)
-  const unkSet = new Set(unknowns.filter(u => u.uid !== "").map(u => u.uid));
+  // Address slots by position, not by uid: the defective entries are exactly the
+  // ones the scan flagged, and a uid-less entry has nothing else to match on.
+  const fill = new Set(needUid.map(u => slotKey(u.loc, u.i)));
+  const drop = new Set(exDeacons.map(g => slotKey(g.loc, g.i)));
 
-  // Readings: replace any slot with an unknown UID or an empty UID with a fresh generated UID
+  // Readings: give a uid-less empty slot a uid; clear a slot held by an ex-deacon
+  // back to the standard unfilled placeholder (the 9 keys are fixed, so "remove"
+  // here means "empty the slot", same as the backend's unavailable() path).
   for (const k of READING_KEYS) {
-    const entry = data[k];
-    if (!entry) continue;
-    const needsFix = !entry.uid || unkSet.has(entry.uid);
-    if (needsFix) up[k] = { uid: genUid(), name: "N/A" };
+    if (data[k] === undefined) continue;
+    if (fill.has(k) || drop.has(k)) up[k] = emptySlot();
   }
 
-  // Altar: replace unknown/empty UIDs with generated UIDs in-place (keep position)
+  // Altar: same treatment, in place — the array length is the church's altar
+  // server count, so removals leave a placeholder rather than shrinking it.
   const altar = data.altar || [];
   let altarChanged = false;
-  const fixedAltar = altar.map(e => {
-    if (!e?.uid || unkSet.has(e.uid)) {
-      altarChanged = true;
-      return { ...(e || {}), uid: genUid(), name: "N/A" };
-    }
+  const fixedAltar = altar.map((e, i) => {
+    const key = slotKey("altar", i);
+    if (fill.has(key) || drop.has(key)) { altarChanged = true; return emptySlot(); }
     return e;
   });
   if (altarChanged) up.altar = fixedAltar;
 
-  // Extra: remove unknowns, add missing deacons
-  let ex = (data.extra || []).filter(e => e?.uid && !unkSet.has(e.uid));
+  // Extra: a plain list, so ex-deacons come straight out. Then top it up with
+  // every current deacon who isn't scheduled anywhere.
+  let ex = (data.extra || []).filter((e, i) => {
+    const key = slotKey("extra", i);
+    return e && !drop.has(key) && !fill.has(key);
+  });
   for (const m of missing) {
     if (!ex.find(e => e.uid === m.uid))
       ex.push({ uid: m.uid, name: names.get(m.uid) || m.name || "Unknown" });
@@ -207,6 +239,14 @@ async function applySchedFix(churchId, wid, data, unknowns, missing, names) {
   up.extra = ex;
 
   await firestore().collection("churches").doc(churchId).collection("schedule").doc(wid).update(up);
+}
+
+function schedSummary(sd) {
+  const p = [];
+  if (sd.needUid.length) p.push(`${sd.needUid.length} uid${sd.needUid.length !== 1 ? "s" : ""} generated`);
+  if (sd.exDeacons.length) p.push(`${sd.exDeacons.length} removed`);
+  if (sd.missing.length) p.push(`${sd.missing.length} → extras`);
+  return p.join(", ");
 }
 
 // ── Phases ───────────────────────────────────────────────────────────────────
@@ -284,7 +324,8 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
         const data = doc.data();
         sData[w] = data;
         const r = diffSched(data, uids, names);
-        if (r.unknowns.length > 0 || r.missing.length > 0) diffs.push({ weekId: w, ...r });
+        if (r.needUid.length > 0 || r.exDeacons.length > 0 || r.missing.length > 0)
+          diffs.push({ weekId: w, ...r });
       }
 
       ref.current = { allDeacons, names, uids, currentList, sData };
@@ -322,11 +363,8 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
     const sd = schedDiffs[idx]; if (!sd) return;
     setBusy(true); setError(null);
     try {
-      await applySchedFix(churchId, sd.weekId, ref.current.sData[sd.weekId], sd.unknowns, sd.missing, ref.current.names);
-      const p = [];
-      if (sd.unknowns.length) p.push(`${sd.unknowns.length} fixed`);
-      if (sd.missing.length) p.push(`${sd.missing.length} → extras`);
-      setLog(prev => [...prev, `${nd(sd.weekId)}: ${p.join(", ")}`]);
+      await applySchedFix(churchId, sd.weekId, ref.current.sData[sd.weekId], sd.needUid, sd.exDeacons, sd.missing, ref.current.names);
+      setLog(prev => [...prev, `${nd(sd.weekId)}: ${schedSummary(sd)}`]);
       next();
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   }, [churchId, schedDiffs, idx]);
@@ -339,11 +377,8 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
     try {
       for (let i = idx; i < schedDiffs.length; i++) {
         const sd = schedDiffs[i];
-        await applySchedFix(churchId, sd.weekId, ref.current.sData[sd.weekId], sd.unknowns, sd.missing, ref.current.names);
-        const p = [];
-        if (sd.unknowns.length) p.push(`${sd.unknowns.length} fixed`);
-        if (sd.missing.length) p.push(`${sd.missing.length} → extras`);
-        setLog(prev => [...prev, `${nd(sd.weekId)}: ${p.join(", ")}`]);
+        await applySchedFix(churchId, sd.weekId, ref.current.sData[sd.weekId], sd.needUid, sd.exDeacons, sd.missing, ref.current.names);
+        setLog(prev => [...prev, `${nd(sd.weekId)}: ${schedSummary(sd)}`]);
       }
       setPhase(P.DONE);
     } catch (e) { setError(e.message); } finally { setBusy(false); }
@@ -362,7 +397,7 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
   // than during the previous render" the moment the Sync button was tapped.
   const cs = schedDiffs[idx];
   const lc = listDiff ? listDiff.toAdd.length + listDiff.toRemove.length + listDiff.stale.length : 0;
-  const sc = cs ? cs.unknowns.length + cs.missing.length : 0;
+  const sc = cs ? cs.needUid.length + cs.exDeacons.length + cs.missing.length : 0;
 
   // Both of these used to be built inline as the FlatList `data` prop, so the
   // list's data identity changed on every render — every keystroke of unrelated
@@ -384,11 +419,17 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
   const schedRows = useMemo(() => {
     if (!cs) return [];
     return [
-      ...cs.unknowns.map((u, i) => ({
-        k: `u${u.uid}${i}`,
-        n: u.name || "N/A",
-        a: u.uid ? "Replace UID" : "Generate UID",
+      ...cs.needUid.map((u) => ({
+        k: `u-${slotKey(u.loc, u.i)}`,
+        n: "N/A",
+        a: `Generate UID — ${slotLabel(u.loc, u.i)}`,
         c: "#ff9f0a",
+      })),
+      ...cs.exDeacons.map((g) => ({
+        k: `x-${slotKey(g.loc, g.i)}`,
+        n: g.name,
+        a: `Remove — ${slotLabel(g.loc, g.i)}`,
+        c: "#ff453a",
       })),
       ...cs.missing.map((m) => ({ k: `m${m.uid}`, n: m.name, a: "→ Extras", c: "#30d158" })),
     ];
