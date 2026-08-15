@@ -8,20 +8,29 @@ const barHeight = ALL_LETTERS.length * letterHeight;
 
 export default function AlphabetIndexBar({ onLetterChange, availableLetters = [] }) {
   const lastLetterRef = useRef(null);
+  // The PanResponder is built once, so its handlers would otherwise close over
+  // the first render's props. Read the live values through refs instead.
+  const availableLettersRef = useRef(availableLetters);
+  const onLetterChangeRef = useRef(onLetterChange);
+  availableLettersRef.current = availableLetters;
+  onLetterChangeRef.current = onLetterChange;
 
   const getLetterFromY = (locationY) => {
     const index = Math.floor(locationY / letterHeight);
     if (index < 0 || index >= ALL_LETTERS.length) return null;
-    const letter = ALL_LETTERS[index];
-    // Only return the letter if it's in the available letters array
-    return availableLetters.includes(letter) ? letter : null;
+    return ALL_LETTERS[index];
   };
 
   const handleLetter = (letter) => {
     if (letter && letter !== lastLetterRef.current) {
       lastLetterRef.current = letter;
-      onLetterChange?.(letter);
-      ReactNativeHapticFeedback.trigger('impactLight', { enableVibrateFallback: true, ignoreAndroidSystemSettings: false });
+      // Haptic on every letter the finger lands on, even ones with no section,
+      // so the press always feels registered. Only letters that actually have
+      // people get to move the list.
+      ReactNativeHapticFeedback.trigger('impactMedium', { enableVibrateFallback: true, ignoreAndroidSystemSettings: false });
+      if (availableLettersRef.current.includes(letter)) {
+        onLetterChangeRef.current?.(letter);
+      }
     }
   };
 
