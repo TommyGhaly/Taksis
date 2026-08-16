@@ -196,6 +196,11 @@ const EditSchedule = () => {
   const [lastServeData, setLastServeData] = useState({});
   const [nextServeData, setNextServeData] = useState({});
   const [userListeners, setUserListeners] = useState([]);
+  // The schedule's `extra` list exactly as stored, unfiltered and unsorted.
+  // `availableServers` below is the display copy — filtered and alphabetised — so
+  // it cannot answer "who does add_server move into the altar next?", which is
+  // always the raw extra[0]. A ref rather than state: nothing renders from it.
+  const rawExtraRef = useRef([]);
 
   // Notification state
   const [notifyVisible, setNotifyVisible] = useState(false);
@@ -355,6 +360,7 @@ const EditSchedule = () => {
           setServers(
             fetchedAltarServers.map((_, i) => `Altar Server ${i + 1}`),
           );
+          rawExtraRef.current = data.extra || [];
           const extraServers = (data.extra || [])
             .filter((s) => s.name !== "N/A" && s.uid)
             .sort((a, b) =>
@@ -472,6 +478,7 @@ const EditSchedule = () => {
   };
 
   const resetScheduleData = () => {
+    rawExtraRef.current = [];
     setWeek(selectedWeek);
     setCurrentReaders({});
     setAssignedReaders({});
@@ -504,6 +511,54 @@ const EditSchedule = () => {
     setProfileModalVisible(false);
   };
 
+  /**
+   * `switched_weeks` bookkeeping for whichever week is being edited.
+   *
+   * The rule is symmetric, and deliberately so: taking somebody out of a slot for
+   * `selectedWeek` records that week against them, and putting anybody into a slot
+   * for that same week clears it again. Removing a deacon and then adding them
+   * straight back therefore leaves no mark, instead of the old behaviour where the
+   * entry stuck around once written.
+   *
+   * `arrayUnion`/`arrayRemove` on the stored week key means this stays idempotent
+   * — two admins doing the same thing cannot produce a duplicate entry, and the
+   * counts in DeaconEdits are a plain length.
+   *
+   * Best-effort by design. Children live on their parent's document and have no
+   * `users` doc of their own, so `update` rejects for them; that must not undo a
+   * schedule change the admin already made and saw take effect.
+   */
+  const updateSwitchedWeek = async (server, op) => {
+    if (!server?.uid || !selectedWeek) return;
+    // add_server backfills empty slots with `{name: "N/A", uid: <uuid>}`. Those
+    // uuids are not people and have no user document.
+    if (server.name === "N/A") return;
+    try {
+      await firestore()
+        .collection("users")
+        .doc(server.uid)
+        .update({
+          switched_weeks:
+            op === "add"
+              ? FieldValue.arrayUnion(selectedWeek)
+              : FieldValue.arrayRemove(selectedWeek),
+        });
+    } catch (err) {
+      console.error("Error updating switched_weeks:", server.uid, err);
+    }
+  };
+
+  // A swap always pulls the incoming servant out of `extra` (that is the only list
+  // the selection modal offers), so the outgoing one lands in `extra` — i.e. off
+  // the schedule for this week. Both sides of that are recorded.
+  const applySwitch = async (outgoing, incoming) => {
+    if (!outgoing?.uid || outgoing.uid === incoming?.uid) return;
+    await Promise.all([
+      updateSwitchedWeek(outgoing, "add"),
+      updateSwitchedWeek(incoming, "remove"),
+    ]);
+  };
+
   const assignReader = async (index, newReader) => {
     if (!week || isViewingArchived) return;
     const readingKey = readings[index];
@@ -516,12 +571,7 @@ const EditSchedule = () => {
         { church: churchId, week: week, firstServer: oldReader.uid, secondServer: newReader.uid },
         "Failed to assign reader.",
       );
-      const todayStr = formatDate(new Date(), DATE_FORMATS.SCHEDULE);
-      if (todayStr === selectedWeek) {
-        await firestore().collection("users").doc(oldReader.uid).update({
-          switched_weeks: FieldValue.arrayUnion(selectedWeek),
-        });
-      }
+      await applySwitch(oldReader, newReader);
     } catch (err) {
       console.error("Error assigning reader:", err);
     }
@@ -539,12 +589,7 @@ const EditSchedule = () => {
         { church: churchId, week: week, firstServer: oldServer.uid, secondServer: newServer.uid },
         "Failed to assign server.",
       );
-      const todayStr = formatDate(new Date(), DATE_FORMATS.SCHEDULE);
-      if (todayStr === selectedWeek) {
-        await firestore().collection("users").doc(oldServer.uid).update({
-          switched_weeks: FieldValue.arrayUnion(selectedWeek),
-        });
-      }
+      await applySwitch(oldServer, newServer);
     } catch (err) {
       console.error("Error assigning server:", err);
     }
@@ -553,6 +598,10 @@ const EditSchedule = () => {
 
   const handleAddServer = async () => {
     if (!churchId || !week || servers.length >= 6 || isViewingArchived) return;
+    // add_server always promotes the *first* raw extra, and remove_server puts the
+    // person it removed at the front of that list — so this is exactly the deacon
+    // who is about to go back into the altar, including the one just removed.
+    const promoted = rawExtraRef.current[0];
     try {
       await callFunction(
         user,
@@ -564,6 +613,7 @@ const EditSchedule = () => {
         .collection("churches")
         .doc(churchId)
         .update({ altarServers: FieldValue.increment(1) });
+      await updateSwitchedWeek(promoted, "remove");
       scrollViewRef.current?.scrollToEnd({ animated: false });
     } catch (err) {
       console.error("Error adding server:", err);
@@ -585,6 +635,7 @@ const EditSchedule = () => {
         .collection("churches")
         .doc(churchId)
         .update({ altarServers: FieldValue.increment(-1) });
+      await updateSwitchedWeek(serverToRemove, "add");
     } catch (err) {
       console.error("Error removing server:", err);
     }

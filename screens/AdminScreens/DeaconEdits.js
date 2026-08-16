@@ -61,6 +61,12 @@ const formatNumber = (num) => {
 /**
  * How many weeks back counts as "recent" (12 weeks ≈ 3 months).
  *
+ * This window applies to `unavailableWeeks` only. The switched tally is
+ * deliberately all-time: being switched off a week is a one-off event an admin
+ * caused, not a rolling pattern the deacon can age out of, so it is counted from
+ * the whole history. `EditSchedule` keeps that history honest by removing the week
+ * again when the same deacon is put back on the schedule.
+ *
  * The `filterRecent` helper that used to live here is gone: it allocated a cutoff
  * Date plus one Date per entry, and it was being called from inside render bodies.
  * Recency is now decided by comparing integer date keys against
@@ -170,10 +176,13 @@ const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
   // Counts arrive precomputed from `deaconsWithAttendance`. They used to be two
   // `filterRecent` calls in this render body, each allocating a cutoff Date plus
   // one Date per entry — for every mounted card, on every render.
+  //
+  // Only the unavailable count is windowed to RECENT_WEEKS; `switchedCount` is the
+  // full history. See the note on RECENT_WEEKS.
   const recentUnavailableCount = deacon.recentUnavailableCount ?? 0;
-  const recentSwitchedCount = deacon.recentSwitchedCount ?? 0;
+  const switchedCount = deacon.switchedCount ?? 0;
   const unavailTheme = pillTheme(recentUnavailableCount);
-  const switchedTheme = pillTheme(recentSwitchedCount);
+  const switchedTheme = pillTheme(switchedCount);
 
   const triggerPulse = () => {
     Animated.sequence([
@@ -300,7 +309,7 @@ const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
             >
               <Ionicons name="swap-horizontal-outline" size={12} color={switchedTheme.color} />
               <Text style={[aStyles.pillText, { color: switchedTheme.color }]}>
-                {recentSwitchedCount} switched
+                {switchedCount} switched
               </Text>
             </TouchableOpacity>
           </View>
@@ -367,14 +376,17 @@ AttendanceCard.displayName = "AttendanceCard";
  * `isRecent` and `label` are computed once per row when the list is built, not per
  * render. The label especially: it was `formatDateStr(item)` inline, which goes
  * through Intl's toLocaleDateString for every row on every render.
+ *
+ * `showRecency` is off for the switched sheet, which has no time window at all —
+ * every row there is equally current, so none of them are dimmed or badged.
  */
-const PillDateRow = React.memo(({ label, isRecent, accentColor }) => {
-  const dotColor = isRecent ? accentColor : "rgba(255,255,255,0.2)";
+const PillDateRow = React.memo(({ label, isRecent, showRecency, accentColor }) => {
+  const dotColor = !showRecency || isRecent ? accentColor : "rgba(255,255,255,0.2)";
   return (
     <View style={pmStyles.dateRow}>
       <View style={[pmStyles.dot, { backgroundColor: dotColor }]} />
-      <Text style={[pmStyles.dateText, !isRecent && pmStyles.dateTextOld]}>{label}</Text>
-      {isRecent && (
+      <Text style={[pmStyles.dateText, showRecency && !isRecent && pmStyles.dateTextOld]}>{label}</Text>
+      {showRecency && isRecent && (
         <View
           style={[
             pmStyles.recentBadge,
@@ -409,31 +421,40 @@ const PillModal = React.memo(({ visible, type, deacon, onClose }) => {
   const rows = useMemo(() => {
     if (!deacon) return [];
     const dates = (isUnavail ? deacon.unavailableWeeks : deacon.switched_weeks) || [];
-    const cutoff = sortableCutoffWeeksAgo(RECENT_WEEKS);
+    // Only the unavailable sheet is windowed; the switched sheet is all-time, so no
+    // cutoff is computed for it and no row is marked stale.
+    const cutoff = isUnavail ? sortableCutoffWeeksAgo(RECENT_WEEKS) : null;
     return dates
       .map((date) => {
         const sortKey = dateKeyToSortable(date);
         return {
           date,
           sortKey,
-          isRecent: sortKey >= cutoff,
+          isRecent: cutoff !== null && sortKey >= cutoff,
           label: fullDateLabel(date),
         };
       })
       .sort((a, b) => b.sortKey - a.sortKey);
   }, [deacon, isUnavail]);
 
-  const recentCount = useMemo(
-    () => rows.reduce((n, r) => (r.isRecent ? n + 1 : n), 0),
-    [rows]
+  // Drives the accent colour, so it has to match the pill the sheet was opened
+  // from: the recent slice for unavailable, the whole list for switched.
+  const accentCount = useMemo(
+    () => (isUnavail ? rows.reduce((n, r) => (r.isRecent ? n + 1 : n), 0) : rows.length),
+    [rows, isUnavail]
   );
-  const accentColor = pillTheme(recentCount).color;
+  const accentColor = pillTheme(accentCount).color;
 
   const renderPillRow = useCallback(
     ({ item }) => (
-      <PillDateRow label={item.label} isRecent={item.isRecent} accentColor={accentColor} />
+      <PillDateRow
+        label={item.label}
+        isRecent={item.isRecent}
+        showRecency={isUnavail}
+        accentColor={accentColor}
+      />
     ),
-    [accentColor]
+    [accentColor, isUnavail]
   );
 
   if (!deacon) return null;
@@ -945,7 +966,8 @@ const DeaconEdits = () => {
         unavailableWeeks,
         switched_weeks,
         recentUnavailableCount: countRecent(unavailableWeeks),
-        recentSwitchedCount: countRecent(switched_weeks),
+        // All-time, not windowed — the cutoff above is for unavailability only.
+        switchedCount: Array.isArray(switched_weeks) ? switched_weeks.length : 0,
       };
     });
   }, [deacons, attendanceData]);
