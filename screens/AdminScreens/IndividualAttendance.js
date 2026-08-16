@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -111,10 +111,53 @@ const IndividualAttendance = () => {
     [userGrades, grade]
   );
 
+  // Set once the student's document has been moved out from under the listener
+  // below, so its "document is gone" branch does not race the navigation the
+  // transfer does itself.
+  const transferred = useRef(false);
+
+  /**
+   * Anything that has to happen *after* the modal closes.
+   *
+   * iOS will not present an alert while a modal is still dismissing: the
+   * presentation is dropped, and because the dismissing window is still on top
+   * the screen stops taking touches — which is what "it freezes after I finish
+   * editing" was. The work is queued here and run once the host reports itself
+   * gone (`onDismiss`, iOS only; Android dialogs do not conflict, so it runs on
+   * the next frame there).
+   */
+  const afterClose = useRef(null);
+  const afterCloseFallback = useRef(null);
+  const runAfterClose = useCallback(() => {
+    clearTimeout(afterCloseFallback.current);
+    const fn = afterClose.current;
+    afterClose.current = null;
+    if (fn) fn();
+  }, []);
+  const closeModalThen = useCallback(
+    (fn) => {
+      afterClose.current = fn || null;
+      setGradeChangeModalVisible(false);
+      setModalVisible(false);
+      if (Platform.OS !== "ios") {
+        requestAnimationFrame(runAfterClose);
+        return;
+      }
+      // Belt and braces: onDismiss not arriving would swallow the alert (and,
+      // after a transfer, the navigation that goes with it). runAfterClose is
+      // idempotent, so whichever fires first wins.
+      clearTimeout(afterCloseFallback.current);
+      afterCloseFallback.current = setTimeout(runAfterClose, 600);
+    },
+    [runAfterClose]
+  );
+  useEffect(() => () => clearTimeout(afterCloseFallback.current), []);
+
 
   useFocusEffect(
     useCallback(() => {
       isMounted.current = true;
+      transferred.current = false;
 
       // Close any transient UI, but keep `studentData` when re-focusing the same
       // student — the listener re-attaches to the same doc, so clearing it made
@@ -167,7 +210,10 @@ const IndividualAttendance = () => {
                   description: data.description || "",
                   birthday: data.birthday || "",
                 });
-              } else {
+              } else if (!transferred.current) {
+                // A grade change deletes this document on purpose; that path
+                // navigates from its own success alert, so leaving it to this
+                // branch would pop the screen out from under the alert.
                 navigation.goBack();
               }
 
@@ -308,67 +354,63 @@ const IndividualAttendance = () => {
 
   // Transfer student to new grade
   const transferStudent = async () => {
+    if (transferringStudent) return;
     if (!selectedNewGrade || selectedNewGrade === grade) {
       Alert.alert("Error", "Please select a different grade.");
       return;
     }
 
-    setTransferringStudent(true);
-    try {
-      // Get the complete student document from current grade
-      const currentDoc = await firestore()
+    const students = (gradeDoc) =>
+      firestore()
         .collection("churches")
         .doc(church)
         .collection(category)
-        .doc(grade)
+        .doc(gradeDoc)
         .collection("students")
-        .doc(studentId)
-        .get();
+        .doc(studentId);
+
+    const source = students(grade);
+    const destination = students(selectedNewGrade);
+
+    setTransferringStudent(true);
+    try {
+      // Get the complete student document from current grade
+      const currentDoc = await source.get();
 
       if (!currentDoc.exists) {
         throw new Error("Student document not found");
       }
 
-      const studentData = currentDoc.data();
+      // Written as one batch. As two separate awaits, a delete that failed after
+      // the copy had landed left the student sitting in both grades, and the
+      // attendance list — which reads every assigned grade — then showed and
+      // marked them twice.
+      const batch = firestore().batch();
+      batch.set(destination, {
+        ...currentDoc.data(),
+        grade: selectedNewGrade, // Update the grade field
+      });
+      batch.delete(source);
 
-      // Add the student to the new grade with all data
-      await firestore()
-        .collection("churches")
-        .doc(church)
-        .collection(category)
-        .doc(selectedNewGrade)
-        .collection("students")
-        .doc(studentId)
-        .set({
-          ...studentData,
-          grade: selectedNewGrade // Update the grade field
-        });
+      // The screen's own listener is on `source`; the delete makes it report a
+      // missing document, and it must not navigate before the alert below.
+      transferred.current = true;
+      await batch.commit();
 
-      // Delete the student from the old grade
-      await firestore()
-        .collection("churches")
-        .doc(church)
-        .collection(category)
-        .doc(grade)
-        .collection("students")
-        .doc(studentId)
-        .delete();
-
-      Alert.alert(
-        "Success", 
-        `Student moved from ${formatGrade(grade)} to ${formatGrade(selectedNewGrade)}`,
-        [
+      const movedFrom = formatGrade(grade);
+      const movedTo = formatGrade(selectedNewGrade);
+      // Close first, alert once the modal is actually gone — see closeModalThen.
+      closeModalThen(() =>
+        Alert.alert("Success", `Student moved from ${movedFrom} to ${movedTo}`, [
           {
             text: "OK",
-            onPress: () => {
-              setGradeChangeModalVisible(false);
-              setModalVisible(false);
-              // Navigate back since the student is no longer in this grade view
-            }
-          }
-        ]
+            // The student no longer exists in this grade's view.
+            onPress: () => navigation.goBack(),
+          },
+        ])
       );
     } catch (error) {
+      transferred.current = false;
       console.error("Error transferring student:", error);
       Alert.alert("Error", "Failed to transfer student. Please try again.");
     } finally {
@@ -400,8 +442,9 @@ const IndividualAttendance = () => {
           birthday: editData.birthday.trim(),
         });
       setEditMode(false);
-      setModalVisible(false);
-      Alert.alert("Success", "Student information updated successfully.");
+      closeModalThen(() =>
+        Alert.alert("Success", "Student information updated successfully.")
+      );
     } catch (error) {
       Alert.alert("Error", "Failed to update student information.");
     } finally {
@@ -543,7 +586,16 @@ const IndividualAttendance = () => {
         </TouchableOpacity>
       </View>
 
-      <Modal visible={modalVisible} transparent animationType="fade">
+      {/* The grade picker below is content of *this* modal, not a second one.
+          Stacked <Modal>s are where "Change Grade does nothing" came from: iOS
+          will not present from a view controller that is already presenting, so
+          the second modal was dropped and the tap looked dead. */}
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="fade"
+        onDismiss={runAfterClose}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalContainer}
@@ -756,6 +808,113 @@ const IndividualAttendance = () => {
             </View>
           </LinearGradient>
         </KeyboardAvoidingView>
+
+        {/* Grade change: same card, same styles, laid over the edit form. */}
+        {gradeChangeModalVisible && (
+          <TouchableOpacity
+            style={[styles.modalContainer, StyleSheet.absoluteFill]}
+            activeOpacity={1}
+            onPress={() => {
+              if (transferringStudent) return;
+              setGradeChangeModalVisible(false);
+              setSelectedNewGrade("");
+            }}
+          >
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.gradeChangeModalWrapper}
+            >
+              {/* Sized, so the card's own width/maxHeight percentages have a
+                  definite parent to resolve against instead of collapsing to
+                  content size. */}
+              <TouchableOpacity activeOpacity={1} style={styles.gradeChangeCardHost}>
+                <LinearGradient
+                  colors={["#1e1e1e", "#2a2a2a"]}
+                  style={[styles.gradeChangeModalContent]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={styles.modalTitle}>Change Grade</Text>
+                  <Text style={styles.gradeChangeSubtitle}>
+                    Move {studentData.name} from {formatGrade(grade)} to:
+                  </Text>
+
+                  <ScrollView
+                    style={styles.gradeOptionsScrollView}
+                    contentContainerStyle={styles.gradeOptionsContainer}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {availableGrades.map((availableGrade) => (
+                      <TouchableOpacity
+                        key={availableGrade}
+                        style={[
+                          styles.gradeOption,
+                          selectedNewGrade === availableGrade &&
+                            styles.selectedGradeOption,
+                        ]}
+                        onPress={() => setSelectedNewGrade(availableGrade)}
+                        accessible={true}
+                        accessibilityLabel={`Select ${formatGrade(availableGrade)}`}
+                      >
+                        <Text
+                          style={[
+                            styles.gradeOptionText,
+                            selectedNewGrade === availableGrade &&
+                              styles.selectedGradeOptionText,
+                          ]}
+                        >
+                          {formatGrade(availableGrade)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
+                  <Text style={styles.warningText}>
+                    ⚠️ This will move all attendance data to the new grade
+                  </Text>
+
+                  <View style={styles.gradeChangeButtonsContainer}>
+                    <LinearGradient
+                      colors={["#147efb", "#0f64d2"]}
+                      style={[
+                        styles.modalButton,
+                        { opacity: transferringStudent ? 0.6 : 1 },
+                      ]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                    >
+                      <TouchableOpacity
+                        onPress={transferStudent}
+                        style={styles.buttonInner}
+                        disabled={transferringStudent || !selectedNewGrade}
+                        accessible={true}
+                        accessibilityLabel="Confirm grade change"
+                      >
+                        {transferringStudent ? (
+                          <Text style={styles.modalButtonText}>Moving...</Text>
+                        ) : (
+                          <Text style={styles.modalButtonText}>Move Student</Text>
+                        )}
+                      </TouchableOpacity>
+                    </LinearGradient>
+
+                    <TouchableOpacity
+                      onPress={() => {
+                        setGradeChangeModalVisible(false);
+                        setSelectedNewGrade("");
+                      }}
+                      disabled={transferringStudent}
+                      accessible={true}
+                      accessibilityLabel="Cancel grade change"
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            </KeyboardAvoidingView>
+          </TouchableOpacity>
+        )}
       </Modal>
 
       <Modal visible={photoInputVisible} transparent animationType="fade">
@@ -765,102 +924,6 @@ const IndividualAttendance = () => {
           onSave={handlePhotoUpload}
           userId={studentId}
         />
-      </Modal>
-
-      {/* Grade Change Modal */}
-      <Modal visible={gradeChangeModalVisible} transparent animationType="fade">
-        <TouchableOpacity 
-          style={styles.modalContainer} 
-          activeOpacity={1}
-          onPress={() => {
-            setGradeChangeModalVisible(false);
-            setSelectedNewGrade("");
-          }}
-        >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.gradeChangeModalWrapper}
-          >
-            <TouchableOpacity activeOpacity={1}>
-              <LinearGradient
-                colors={["#1e1e1e", "#2a2a2a"]}
-                style={[styles.gradeChangeModalContent]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-            <Text style={styles.modalTitle}>Change Grade</Text>
-            <Text style={styles.gradeChangeSubtitle}>
-              Move {studentData.name} from {formatGrade(grade)} to:
-            </Text>
-            
-            <ScrollView 
-              style={styles.gradeOptionsScrollView}
-              contentContainerStyle={styles.gradeOptionsContainer}
-              showsVerticalScrollIndicator={false}
-            >
-              {availableGrades.map((availableGrade) => (
-                <TouchableOpacity
-                  key={availableGrade}
-                  style={[
-                    styles.gradeOption,
-                    selectedNewGrade === availableGrade && styles.selectedGradeOption
-                  ]}
-                  onPress={() => setSelectedNewGrade(availableGrade)}
-                  accessible={true}
-                  accessibilityLabel={`Select ${formatGrade(availableGrade)}`}
-                >
-                  <Text style={[
-                    styles.gradeOptionText,
-                    selectedNewGrade === availableGrade && styles.selectedGradeOptionText
-                  ]}>
-                    {formatGrade(availableGrade)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <Text style={styles.warningText}>
-              ⚠️ This will move all attendance data to the new grade
-            </Text>
-
-            <View style={styles.gradeChangeButtonsContainer}>
-              <LinearGradient
-                colors={["#147efb", "#0f64d2"]}
-                style={[styles.modalButton, { opacity: transferringStudent ? 0.6 : 1 }]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <TouchableOpacity
-                  onPress={transferStudent}
-                  style={styles.buttonInner}
-                  disabled={transferringStudent || !selectedNewGrade}
-                  accessible={true}
-                  accessibilityLabel="Confirm grade change"
-                >
-                  {transferringStudent ? (
-                    <Text style={styles.modalButtonText}>Moving...</Text>
-                  ) : (
-                    <Text style={styles.modalButtonText}>Move Student</Text>
-                  )}
-                </TouchableOpacity>
-              </LinearGradient>
-              
-              <TouchableOpacity
-                onPress={() => {
-                  setGradeChangeModalVisible(false);
-                  setSelectedNewGrade("");
-                }}
-                disabled={transferringStudent}
-                accessible={true}
-                accessibilityLabel="Cancel grade change"
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          </KeyboardAvoidingView>
-        </TouchableOpacity>
       </Modal>
     </View>
   );
@@ -1145,6 +1208,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+  },
+  gradeChangeCardHost: {
+    width: "100%",
+    maxHeight: "100%",
+    alignItems: "center",
   },
   gradeChangeModalContent: {
     width: "85%",
