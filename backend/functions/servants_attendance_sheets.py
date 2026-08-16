@@ -11,9 +11,16 @@ import os
 import io
 from msal import ConfidentialClientApplication
 import json
+import attendance_statistics
+import statistics_export
 
 # === CONFIGURATION ===
 TARGET_CHURCH_NAME = "St. Philopater and St. Mina, Wayland, MA"
+
+# This spreadsheet holds the attendance grid only. Statistics live in their
+# own spreadsheet - see statistics_export.py.
+ATTENDANCE_SHEET_TITLE = "Servants Attendance"
+SHEET_TITLES = [ATTENDANCE_SHEET_TITLE]
 
 GOOGLE_SCOPES = [
     'https://www.googleapis.com/auth/spreadsheets',
@@ -171,25 +178,37 @@ def export_google_sheet_to_excel(spreadsheet, church_name, sheet_creds):
             return None
 
 def sheet_set_up_properly(sh):
-    """Check if the sheet has a worksheet for servants attendance."""
-    worksheet_list = sh.worksheets()
-    worksheet_titles = [ws.title for ws in worksheet_list]
-    return "Servants Attendance" in worksheet_titles
+    """Check that both the attendance grid and the statistics tab exist."""
+    worksheet_titles = [ws.title for ws in sh.worksheets()]
+    return all(title in worksheet_titles for title in SHEET_TITLES)
 
 def set_up_sheet_pages(sh):
-    """Set up the servants attendance worksheet."""
+    """
+    Ensure the attendance worksheet exists.
+
+    Non-destructive towards the attendance grid itself: it is only renamed
+    into place when missing, never deleted and recreated.
+    """
     worksheet_list = sh.worksheets()
-    
-    # If no worksheets exist, create one
+    existing_titles = [ws.title for ws in worksheet_list]
+
+    # Nothing there at all - create the attendance grid first.
     if len(worksheet_list) == 0:
-        sh.add_worksheet(title="Servants Attendance", rows="1000", cols="26")
-    else:
-        # Rename the first worksheet to "Servants Attendance"
-        worksheet_list[0].update_title("Servants Attendance")
-        
-        # Remove any additional worksheets
-        for i in range(1, len(worksheet_list)):
-            sh.del_worksheet(worksheet_list[i])
+        sh.add_worksheet(title=ATTENDANCE_SHEET_TITLE, rows="1000", cols="26")
+        return
+
+    if ATTENDANCE_SHEET_TITLE not in existing_titles:
+        # The first worksheet is the attendance grid by convention.
+        worksheet_list[0].update_title(ATTENDANCE_SHEET_TITLE)
+
+    # Drop anything else, including a Statistics tab left behind by an
+    # earlier version - statistics have their own spreadsheet now.
+    for ws in sh.worksheets():
+        if ws.title != ATTENDANCE_SHEET_TITLE:
+            try:
+                sh.del_worksheet(ws)
+            except Exception:
+                pass
 
 def interpret_dates(servant_data):
     """Extract date entries from servant data."""
@@ -362,6 +381,49 @@ def write_to_sheet(sh, servant_dict, date_array, servant_names):
     except Exception as e:
         raise
 
+def build_servants_sections(servant_dict, date_array):
+    """
+    Turn the servants roster into a statistics section.
+
+    servant_dict maps name -> list of (date_string, value) pairs, which is the
+    shape get_servants_data returns; the statistics module wants a dict per
+    person, so convert on the way in.
+    """
+    people = {
+        name: dict(records or [])
+        for name, records in servant_dict.items()
+    }
+    return [{
+        "title": "Servants Meeting",
+        "blocks": [
+            ("Servants", attendance_statistics.build_person_rows(people, date_array)),
+        ],
+        "summary_label": "All Servants — Overall",
+    }]
+
+def write_statistics(stats_spreadsheet, servant_dict, date_array, school_year=None):
+    """
+    Write servants statistics into the dedicated statistics spreadsheet.
+
+    Args:
+        stats_spreadsheet: the statistics spreadsheet (NOT the attendance one).
+    """
+    try:
+        if not date_array or not servant_dict:
+            return False
+
+        worksheet = statistics_export.get_stats_worksheet(stats_spreadsheet)
+
+        return attendance_statistics.write_statistics_worksheet(
+            worksheet,
+            build_servants_sections(servant_dict, date_array),
+            title="SERVANTS MEETING ATTENDANCE STATISTICS",
+            subtitle=attendance_statistics.build_subtitle(school_year),
+        )
+    except Exception as e:
+        print(f"Error writing servants statistics: {e}")
+        return False
+
 def apply_sheet_formatting(sh, servant_names, date_array, servant_dict):
     """Apply formatting to the servants attendance sheet."""
     requests = []
@@ -500,13 +562,17 @@ def process_church(church, church_data, church_name, client, sheet_creds, db):
         # Get servants data - pass db to lookup names
         servant_dict = get_servants_data(servants_meeting_reference, db)
         if len(servant_dict) > 0:
+            date_array = get_dates(find_start_date(servant_dict))
             write_to_sheet(
-                church_sheet.worksheet("Servants Attendance"), 
-                servant_dict, 
-                get_dates(find_start_date(servant_dict)), 
+                church_sheet.worksheet(ATTENDANCE_SHEET_TITLE),
+                servant_dict,
+                date_array,
                 organize_names(servant_dict)
             )
-        
+            # NOTE: statistics are NOT written here. They live in a separate
+            # spreadsheet built by generate_statistics.py on demand.
+
+
         # Handle SharePoint upload for target church
         if church_name == TARGET_CHURCH_NAME:
             handle_sharepoint_upload(church_sheet, church_name, sheet_creds, church)

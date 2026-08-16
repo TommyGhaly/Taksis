@@ -16,6 +16,8 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
 import hashlib
+import attendance_statistics
+import statistics_export
 
 # === CONFIGURATION ===
 GRADES = [
@@ -36,6 +38,11 @@ GRADES = [
     "12th Grade",
     "College",
 ]
+
+# This spreadsheet holds attendance only - one worksheet per grade, nothing
+# else. Statistics live in their own spreadsheet, built by
+# generate_statistics.py; see statistics_export.py.
+SHEET_TITLES = list(GRADES)
 
 TARGET_CHURCH_NAME = "St. Philopater and St. Mina, Wayland, MA"
 
@@ -527,29 +534,24 @@ def process_church_ultra_optimized(church_doc, client, sheet_creds, data_cache):
     try:
         church_sheet = client.open_by_key(church_data["sundaySchoolSheets"])
         
-        # Ensure worksheets exist and are in correct order
-        ensure_worksheets_correct_order(church_sheet, GRADES)
-        
+        # Ensure worksheets exist and are in correct order.
+        # Statistics is appended LAST so the grade -> worksheet index mapping
+        # below is unaffected.
+        ensure_worksheets_correct_order(church_sheet, SHEET_TITLES)
+
         # Process all grades - SEQUENTIALLY to avoid mix-ups
         success_count = 0
         total_grades_with_data = 0
-        
+
         for grade_index, grade in enumerate(GRADES):
             try:
-                student_dict = data_cache.student_cache.get(grade, {})
-                servant_dict = data_cache.get_servants_for_grade_optimized(grade)
-                
-                if not student_dict and not servant_dict:
+                resolved = resolve_grade_data(data_cache, grade)
+                if resolved is None:
                     continue
-                
+
+                student_dict, servant_dict, date_array = resolved
                 total_grades_with_data += 1
-                
-                # Get date array
-                date_array = data_cache.date_arrays.get(grade, [])
-                if not date_array:
-                    all_attendance = {**student_dict, **servant_dict}
-                    date_array = create_date_array(get_start_date_optimized(all_attendance))
-                
+
                 # Create all values
                 all_values, num_students, num_servants = create_all_values_optimized(
                     student_dict, servant_dict, date_array
@@ -583,11 +585,14 @@ def process_church_ultra_optimized(church_doc, client, sheet_creds, data_cache):
                     
             except Exception as e:
                 pass
-        
+
         # Update school year
         school_year = get_school_year()
         church_doc.reference.update({'currentSchoolYear': school_year})
-        
+
+        # NOTE: statistics are NOT written here. They live in a separate
+        # spreadsheet built by generate_statistics.py on demand.
+
         # Handle SharePoint for target church
         if church_name == TARGET_CHURCH_NAME:
             with ThreadPoolExecutor(max_workers=1) as executor:
@@ -601,38 +606,155 @@ def process_church_ultra_optimized(church_doc, client, sheet_creds, data_cache):
     except Exception as e:
         return church_name, False
 
+def resolve_grade_data(data_cache, grade):
+    """
+    Pull one grade's students, servants and week columns out of the cache.
+
+    Shared by the weekly sheet export and the on-demand statistics script so
+    both see exactly the same rows and the same date range.
+
+    Returns:
+        (student_dict, servant_dict, date_array), or None when the grade has
+        nobody in it.
+    """
+    student_dict = data_cache.student_cache.get(grade, {})
+    servant_dict = data_cache.get_servants_for_grade_optimized(grade)
+
+    if not student_dict and not servant_dict:
+        return None
+
+    date_array = data_cache.date_arrays.get(grade, [])
+    if not date_array:
+        all_attendance = {**student_dict, **servant_dict}
+        date_array = create_date_array(get_start_date_optimized(all_attendance))
+
+    return student_dict, servant_dict, date_array
+
+
+def collect_stats_input(data_cache):
+    """Resolve every grade that has data, in GRADES order."""
+    stats_input = []
+    for grade in GRADES:
+        resolved = resolve_grade_data(data_cache, grade)
+        if resolved is None:
+            continue
+        student_dict, servant_dict, date_array = resolved
+        stats_input.append((grade, student_dict, servant_dict, date_array))
+    return stats_input
+
+
+def build_sunday_school_sections(stats_input):
+    """
+    Turn the per-grade attendance data into statistics sections.
+
+    Args:
+        stats_input: list of (grade, student_dict, servant_dict, date_array).
+            The dicts map name -> {"MM-DD-YYYY": bool}, exactly as they are
+            written to the grade worksheets.
+
+    Returns:
+        Sections ready for attendance_statistics.write_statistics_worksheet,
+        one per grade that actually has people in it, in GRADES order.
+    """
+    sections = []
+    for grade, student_dict, servant_dict, date_array in stats_input:
+        if not date_array:
+            continue
+        sections.append({
+            "title": grade,
+            "blocks": [
+                ("Students", attendance_statistics.build_person_rows(student_dict, date_array)),
+                ("Servants", attendance_statistics.build_person_rows(servant_dict, date_array)),
+            ],
+            "summary_label": "%s — Grade Average" % grade,
+        })
+    return sections
+
+
+def write_sunday_school_statistics(stats_spreadsheet, stats_input, school_year=None):
+    """
+    Write Sunday School statistics into the dedicated statistics spreadsheet.
+
+    Args:
+        stats_spreadsheet: the statistics spreadsheet (NOT the attendance one).
+        stats_input: output of collect_stats_input.
+    """
+    try:
+        sections = build_sunday_school_sections(stats_input)
+        if not sections:
+            return False
+
+        worksheet = statistics_export.get_stats_worksheet(stats_spreadsheet)
+
+        return attendance_statistics.write_statistics_worksheet(
+            worksheet,
+            sections,
+            title="SUNDAY SCHOOL ATTENDANCE STATISTICS",
+            subtitle=attendance_statistics.build_subtitle(school_year),
+            ensure_size=ensure_worksheet_size,
+            retry=retry_with_backoff,
+        )
+    except Exception as e:
+        print(f"Error writing Sunday School statistics: {e}")
+        return False
+
+
 def ensure_worksheets_correct_order(sh, grades):
     """
     Ensure worksheets exist and are in the correct order.
-    
+
     This function checks if the spreadsheet has the correct worksheets
     in the correct order. If not, it recreates them to ensure proper
     grade-to-worksheet mapping.
     """
     worksheet_list = sh.worksheets()
     current_titles = [ws.title for ws in worksheet_list]
-    
-    # If we have the wrong number of worksheets or wrong order, fix it
-    if len(worksheet_list) != len(grades) or current_titles != list(grades):
-        
-        # Delete all worksheets except the first one (can't delete all)
-        if len(worksheet_list) > 1:
-            for ws in worksheet_list[1:]:
-                try:
-                    sh.del_worksheet(ws)
-                    time.sleep(RATE_LIMIT_DELAY)
-                except:
-                    pass
-        
-        # Rename the first worksheet
-        worksheet_list[0].update_title(grades[0])
-        time.sleep(RATE_LIMIT_DELAY)
-        
-        # Add the rest in order with proper dimensions
-        # FIX: Use MAX_EXPECTED_COLS (60) instead of hardcoded 26
-        for i in range(1, len(grades)):
-            sh.add_worksheet(title=grades[i], rows=MAX_EXPECTED_ROWS, cols=MAX_EXPECTED_COLS)
+    expected = list(grades)
+
+    if current_titles == expected:
+        return
+
+    # Everything that exists is already correct and we are only missing the
+    # tail - append it instead of tearing the whole spreadsheet down, which
+    # would discard sheets that are perfectly fine.
+    if len(current_titles) < len(expected) and current_titles == expected[:len(current_titles)]:
+        for i in range(len(current_titles), len(expected)):
+            sh.add_worksheet(title=expected[i], rows=MAX_EXPECTED_ROWS, cols=MAX_EXPECTED_COLS)
             time.sleep(RATE_LIMIT_DELAY)
+        return
+
+    # Every grade is present and correct, but there are extra worksheets after
+    # them - drop just those. This is how a Statistics tab left behind by an
+    # earlier version gets cleaned up, without rebuilding the grade sheets.
+    if len(current_titles) > len(expected) and current_titles[:len(expected)] == expected:
+        for ws in worksheet_list[len(expected):]:
+            try:
+                sh.del_worksheet(ws)
+                time.sleep(RATE_LIMIT_DELAY)
+            except:
+                pass
+        return
+
+    # Otherwise the order is genuinely wrong - rebuild from scratch.
+
+    # Delete all worksheets except the first one (can't delete all)
+    if len(worksheet_list) > 1:
+        for ws in worksheet_list[1:]:
+            try:
+                sh.del_worksheet(ws)
+                time.sleep(RATE_LIMIT_DELAY)
+            except:
+                pass
+
+    # Rename the first worksheet
+    worksheet_list[0].update_title(expected[0])
+    time.sleep(RATE_LIMIT_DELAY)
+
+    # Add the rest in order with proper dimensions
+    # FIX: Use MAX_EXPECTED_COLS (60) instead of hardcoded 26
+    for i in range(1, len(expected)):
+        sh.add_worksheet(title=expected[i], rows=MAX_EXPECTED_ROWS, cols=MAX_EXPECTED_COLS)
+        time.sleep(RATE_LIMIT_DELAY)
 
 def set_up_sheet_pages_fast(sh, grades):
     """
