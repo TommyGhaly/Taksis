@@ -57,21 +57,23 @@ def format_pct(value):
     return "  n/a" if value is None else "%4.0f%%" % value
 
 
-ROW_FORMAT = "%s%-24s %6s %6s %6s %6s  %-22s %s"
+ROW_FORMAT = "%s%-22s %5s %5s %-9s %5s %5s  %-20s %s"
 
 
 def print_rows(section_title, rows, indent="    "):
     """Print a section's rows as a plain table for --dry-run."""
-    log("%s%s" % (indent, section_title))
-    log(ROW_FORMAT % (indent, "Name", "Att%", "Mark%", "Unac%", "Cons%",
-                      "Pattern", "Status"))
+    if section_title:
+        log("%s%s" % (indent, section_title))
+    log(ROW_FORMAT % (indent, "Name", "Att%", "Adj%", "Confidence", "Mark%",
+                      "Cons%", "Pattern", "Status"))
     for row in rows:
         log(ROW_FORMAT % (
             indent,
-            row["name"][:24],
+            row["name"][:22],
             format_pct(row["attendance_pct"]),
+            format_pct(row["adjusted_pct"]),
+            row["confidence"],
             format_pct(row["marked_pct"]),
-            format_pct(row["unaccounted_pct"]),
             format_pct(row["consistency_pct"]),
             row["pattern"],
             row["status"],
@@ -82,7 +84,7 @@ def print_sections(sections):
     for section in sections:
         log()
         log("  %s" % section["title"])
-        log("  " + "-" * 70)
+        log("  " + "-" * 76)
         blocks = [(label, rows) for label, rows in section.get("blocks", []) if rows]
         for label, rows in blocks:
             print_rows(label if len(blocks) > 1 else "", rows)
@@ -94,8 +96,9 @@ def print_sections(sections):
             log(ROW_FORMAT % (
                 "    ", "→ OVERALL",
                 format_pct(summary["attendance_pct"]),
+                format_pct(summary["adjusted_pct"]),
+                summary["confidence"],
                 format_pct(summary["marked_pct"]),
-                format_pct(summary["unaccounted_pct"]),
                 format_pct(summary["consistency_pct"]),
                 summary["pattern"],
                 summary["status"],
@@ -167,18 +170,18 @@ def churches_for(db, church_filter):
         yield church, name, (church.to_dict() or {})
 
 
-def build_and_deliver(sections, title, school_year, church_name, file_name,
-                      uploader, args):
+def build_and_deliver(year_sheets, church_name, file_name, uploader, args):
     """
     Build the printable .xlsx, then save and/or upload it.
 
-    ``uploader`` is the module that owns this domain's SharePoint folder -
-    Sunday School and Servants Meeting publish to different folders, so the
-    statistics file must be sent by the same module that sends its matching
-    attendance file.
+    Args:
+        year_sheets: ordered (worksheet_title, sections, title, subtitle)
+            tuples - the current school year first, then the prior year.
+        uploader: the module that owns this domain's SharePoint folder.
+            Sunday School and Servants Meeting publish to *different* folders,
+            so the statistics file must be sent by the same module that sends
+            its matching attendance file.
     """
-    subtitle = attendance_statistics.build_subtitle(school_year)
-
     if args.save_xlsx:
         os.makedirs(args.save_xlsx, exist_ok=True)
         path = os.path.join(args.save_xlsx, file_name)
@@ -187,9 +190,7 @@ def build_and_deliver(sections, title, school_year, church_name, file_name,
         os.close(handle)
 
     try:
-        written = attendance_statistics.write_statistics_xlsx(
-            path, sections, title, subtitle
-        )
+        written = attendance_statistics.write_statistics_workbook(path, year_sheets)
         if not written:
             log("    ⚠️  Could not build the Excel file")
             return
@@ -218,16 +219,53 @@ def build_and_deliver(sections, title, school_year, church_name, file_name,
                 pass
 
 
+def year_windows():
+    """
+    The school years to report, newest first.
+
+    Returns (start_year, label, weeks, worksheet_title) tuples. The prior year
+    is included so a rise or fall can be seen; it is dropped later if no
+    records fall inside it.
+    """
+    current = attendance_statistics.current_school_year()
+    return [
+        (current, attendance_statistics.school_year_label(current),
+         attendance_statistics.school_year_weeks(current),
+         statistics_export.STATS_WORKSHEET_TITLE),
+        (current - 1, attendance_statistics.school_year_label(current - 1),
+         attendance_statistics.school_year_weeks(current - 1),
+         statistics_export.PRIOR_YEAR_WORKSHEET_TITLE),
+    ]
+
+
+def has_records(people_dates, weeks):
+    """True when at least one person was marked inside this window."""
+    window = set(weeks)
+    return any(window & set(dates) for dates in people_dates)
+
+
+def write_year_sheets(spreadsheet, year_sheets, ensure_size=None, retry=None):
+    """Write each school year onto its own worksheet. Returns sheets written."""
+    written = 0
+    for worksheet_title, sections, title, subtitle in year_sheets:
+        worksheet = statistics_export.get_stats_worksheet(spreadsheet, worksheet_title)
+        if attendance_statistics.write_statistics_worksheet(
+            worksheet, sections, title=title, subtitle=subtitle,
+            ensure_size=ensure_size, retry=retry,
+        ):
+            written += 1
+    return written
+
+
 # === SUNDAY SCHOOL ===
 def generate_sunday_school(db, client, sheet_creds, args):
     """Build (and optionally write) Sunday School statistics for each church."""
-    log("=" * 74)
+    log("=" * 78)
     log("SUNDAY SCHOOL")
-    log("=" * 74)
+    log("=" * 78)
 
     written = 0
     skipped = 0
-    school_year = attendance_sheets.get_school_year()
 
     for church, church_name, church_data in churches_for(db, args.church):
         if statistics_export.SUNDAY_SCHOOL_SOURCE_FIELD not in church_data:
@@ -241,18 +279,38 @@ def generate_sunday_school(db, client, sheet_creds, args):
             cache = attendance_sheets.OptimizedAttendanceCache()
             cache.fetch_all_data_batch(church.reference.collection("Sunday School"))
 
-            stats_input = attendance_sheets.collect_stats_input(cache)
-            if not stats_input:
+            year_sheets = []
+            for _start, label, weeks, worksheet_title in year_windows():
+                # Same fixed window for every grade, so percentages are
+                # comparable across grades rather than each grade having its
+                # own earliest-record denominator.
+                stats_input = attendance_sheets.collect_stats_input(cache, weeks)
+                if not stats_input:
+                    continue
+
+                people = [d for _g, students, servants, _w in stats_input
+                          for d in list(students.values()) + list(servants.values())]
+                if not has_records(people, weeks):
+                    log("  %s: no records in this window, skipping" % label)
+                    continue
+
+                sections = attendance_sheets.build_sunday_school_sections(stats_input)
+                count = sum(len(rows) for s in sections for _l, rows in s["blocks"])
+                log("  %s: %d grades, %d people, %d weeks"
+                    % (label, len(sections), count, len(weeks)))
+                year_sheets.append((
+                    worksheet_title, sections,
+                    "SUNDAY SCHOOL ATTENDANCE STATISTICS — %s" % label,
+                    attendance_statistics.build_subtitle(label),
+                ))
+
+            if not year_sheets:
                 log("  No attendance data found, skipping")
                 skipped += 1
                 continue
 
-            sections = attendance_sheets.build_sunday_school_sections(stats_input)
-            people = sum(len(rows) for s in sections for _l, rows in s["blocks"])
-            log("  %d grades, %d people" % (len(sections), people))
-
             if args.dry_run:
-                print_sections(sections)
+                print_sections(year_sheets[0][1])
                 written += 1
                 continue
 
@@ -263,20 +321,18 @@ def generate_sunday_school(db, client, sheet_creds, args):
                 log(statistics_export.missing_sheet_help(
                     church_name, "Sunday School",
                     statistics_export.SUNDAY_SCHOOL_STATS_TITLE,
-                    service_account_email(),
-                    "--register-sunday-school",
+                    service_account_email(), "--register-sunday-school",
                 ) if error == "unregistered" else "  ❌ %s" % error)
                 skipped += 1
                 continue
 
-            if attendance_sheets.write_sunday_school_statistics(
-                spreadsheet, stats_input, school_year
-            ):
-                log("  ✅ Statistics written")
+            if write_year_sheets(spreadsheet, year_sheets,
+                                 attendance_sheets.ensure_worksheet_size,
+                                 attendance_sheets.retry_with_backoff):
+                log("  ✅ Statistics written (%d year sheet(s))" % len(year_sheets))
                 log("    %s" % spreadsheet.url)
                 build_and_deliver(
-                    sections, "SUNDAY SCHOOL ATTENDANCE STATISTICS",
-                    school_year, church_name,
+                    year_sheets, church_name,
                     statistics_export.SUNDAY_SCHOOL_STATS_FILENAME,
                     attendance_sheets, args,
                 )
@@ -296,13 +352,12 @@ def generate_sunday_school(db, client, sheet_creds, args):
 def generate_servants(db, client, sheet_creds, args):
     """Build (and optionally write) Servants Meeting statistics for each church."""
     log()
-    log("=" * 74)
+    log("=" * 78)
     log("SERVANTS MEETING")
-    log("=" * 74)
+    log("=" * 78)
 
     written = 0
     skipped = 0
-    school_year = servants_attendance_sheets.get_school_year()
 
     for church, church_name, church_data in churches_for(db, args.church):
         if statistics_export.SERVANTS_SOURCE_FIELD not in church_data:
@@ -321,17 +376,31 @@ def generate_servants(db, client, sheet_creds, args):
                 skipped += 1
                 continue
 
-            date_array = servants_attendance_sheets.get_dates(
-                servants_attendance_sheets.find_start_date(servant_dict)
-            )
-            log("  %d servants, %d weeks" % (len(servant_dict), len(date_array)))
+            year_sheets = []
+            for _start, label, weeks, worksheet_title in year_windows():
+                people = [dict(records or []) for records in servant_dict.values()]
+                if not has_records(people, weeks):
+                    log("  %s: no records in this window, skipping" % label)
+                    continue
+
+                sections = servants_attendance_sheets.build_servants_sections(
+                    servant_dict, weeks
+                )
+                log("  %s: %d servants, %d weeks"
+                    % (label, len(servant_dict), len(weeks)))
+                year_sheets.append((
+                    worksheet_title, sections,
+                    "SERVANTS MEETING ATTENDANCE STATISTICS — %s" % label,
+                    attendance_statistics.build_subtitle(label),
+                ))
+
+            if not year_sheets:
+                log("  No attendance data found, skipping")
+                skipped += 1
+                continue
 
             if args.dry_run:
-                print_sections(
-                    servants_attendance_sheets.build_servants_sections(
-                        servant_dict, date_array
-                    )
-                )
+                print_sections(year_sheets[0][1])
                 written += 1
                 continue
 
@@ -342,23 +411,16 @@ def generate_servants(db, client, sheet_creds, args):
                 log(statistics_export.missing_sheet_help(
                     church_name, "Servants Meeting",
                     statistics_export.SERVANTS_STATS_TITLE,
-                    service_account_email(),
-                    "--register-servants",
+                    service_account_email(), "--register-servants",
                 ) if error == "unregistered" else "  ❌ %s" % error)
                 skipped += 1
                 continue
 
-            if servants_attendance_sheets.write_statistics(
-                spreadsheet, servant_dict, date_array, school_year
-            ):
-                log("  ✅ Statistics written")
+            if write_year_sheets(spreadsheet, year_sheets):
+                log("  ✅ Statistics written (%d year sheet(s))" % len(year_sheets))
                 log("    %s" % spreadsheet.url)
                 build_and_deliver(
-                    servants_attendance_sheets.build_servants_sections(
-                        servant_dict, date_array
-                    ),
-                    "SERVANTS MEETING ATTENDANCE STATISTICS",
-                    school_year, church_name,
+                    year_sheets, church_name,
                     statistics_export.SERVANTS_STATS_FILENAME,
                     servants_attendance_sheets, args,
                 )

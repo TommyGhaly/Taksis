@@ -58,26 +58,28 @@ STATS_ROWS = 1000
 STATS_COLS = 20
 
 
-def get_stats_worksheet(spreadsheet):
-    """
-    Return the worksheet the statistics are written to.
+PRIOR_YEAR_WORKSHEET_TITLE = "Previous Year"
 
-    A freshly created spreadsheet has a single default worksheet; rename it
+
+def get_stats_worksheet(spreadsheet, title=None):
+    """
+    Return the worksheet the statistics are written to, creating it if needed.
+
+    A freshly created spreadsheet has a single default worksheet; rename that
     rather than adding a second one and leaving an empty "Sheet1" behind.
     """
+    title = title or STATS_WORKSHEET_TITLE
     try:
-        return spreadsheet.worksheet(STATS_WORKSHEET_TITLE)
+        return spreadsheet.worksheet(title)
     except Exception:
         pass
 
     worksheets = spreadsheet.worksheets()
-    if len(worksheets) == 1:
-        worksheets[0].update_title(STATS_WORKSHEET_TITLE)
+    if len(worksheets) == 1 and worksheets[0].title.startswith("Sheet"):
+        worksheets[0].update_title(title)
         return worksheets[0]
 
-    return spreadsheet.add_worksheet(
-        title=STATS_WORKSHEET_TITLE, rows=STATS_ROWS, cols=STATS_COLS
-    )
+    return spreadsheet.add_worksheet(title=title, rows=STATS_ROWS, cols=STATS_COLS)
 
 
 def extract_spreadsheet_id(value):

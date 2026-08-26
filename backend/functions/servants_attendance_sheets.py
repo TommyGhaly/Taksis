@@ -401,23 +401,27 @@ def build_servants_sections(servant_dict, date_array):
         "summary_label": "All Servants — Overall",
     }]
 
-def write_statistics(stats_spreadsheet, servant_dict, date_array, school_year=None):
+def write_statistics(stats_spreadsheet, servant_dict, date_array, school_year=None,
+                     worksheet_title=None, title=None):
     """
     Write servants statistics into the dedicated statistics spreadsheet.
 
     Args:
         stats_spreadsheet: the statistics spreadsheet (NOT the attendance one).
+        worksheet_title: which tab to write to; defaults to "Statistics".
     """
     try:
         if not date_array or not servant_dict:
             return False
 
-        worksheet = statistics_export.get_stats_worksheet(stats_spreadsheet)
+        worksheet = statistics_export.get_stats_worksheet(
+            stats_spreadsheet, worksheet_title
+        )
 
         return attendance_statistics.write_statistics_worksheet(
             worksheet,
             build_servants_sections(servant_dict, date_array),
-            title="SERVANTS MEETING ATTENDANCE STATISTICS",
+            title=title or "SERVANTS MEETING ATTENDANCE STATISTICS",
             subtitle=attendance_statistics.build_subtitle(school_year),
         )
     except Exception as e:

@@ -68,6 +68,8 @@ COLUMNS = [
     ("Absent",           "absent",           "none",        75),
     ("Unaccounted",      "unaccounted",      "none",       100),
     ("Attendance %",     "attendance_pct",   "pct",        105),
+    ("Adjusted %",       "adjusted_pct",     "pct",        105),
+    ("Data Confidence",  "confidence",       "label",      120),
     ("Marked %",         "marked_pct",       "pct",         90),
     ("Unaccounted %",    "unaccounted_pct",  "pct_invert", 110),
     ("Consistency %",    "consistency_pct",  "pct",        105),
@@ -91,20 +93,22 @@ PERCENT_COLUMN_INDEXES = [
 # fit-to-width scale lands around 90% rather than 65%. Headers wrap onto two
 # lines, which is what lets the columns be this narrow.
 PRINT_WIDTHS = {
-    "name": 20,
+    "name": 18,
     "weeks": 7,
     "present": 8,
     "absent": 8,
     "unaccounted": 9,
     "attendance_pct": 9,
+    "adjusted_pct": 9,
+    "confidence": 10,
     "marked_pct": 9,
     "unaccounted_pct": 9,
     "consistency_pct": 9,
-    "pattern": 16,
-    "current_streak": 10,
+    "pattern": 13,
+    "current_streak": 9,
     "longest_present": 9,
     "recent_pct": 9,
-    "last_present": 11,
+    "last_present": 10,
     "status": 10,
 }
 
@@ -124,14 +128,85 @@ LABEL_COLORS = {
     "Mixed": YELLOW,
     "Erratic": ORANGE,
     "Consistently Absent": RED,
+    # Data confidence - how many weeks were actually marked
+    "High": GREEN_STRONG,
+    "Medium": GREEN_LIGHT,
+    "Low": ORANGE,
+    "Very Low": RED,
+    # Too few marks to judge attendance at all
+    "Insufficient": GREY,
 }
 
 LEGEND = (
-    "Attendance % = Present ÷ weeks actually marked   |   "
-    "Marked % = weeks marked ÷ weeks tracked (the rest are unaccounted for)   |   "
-    "Consistency % = how rarely the person flips between Present and Absent   |   "
-    "Green = good, red = needs attention. A blank cell means there is no data to judge."
+    "Attendance % = Present ÷ weeks actually marked.   "
+    "Adjusted % = the same figure corrected for how few weeks were marked, so "
+    "2-of-2 (≈34%) no longer outranks 40-of-40 (≈91%) - use this to compare people.   "
+    "Data Confidence = how many weeks were marked at all (High ≥20, Medium ≥10, Low ≥4).   "
+    "Marked % = weeks marked ÷ weeks tracked; the rest are unaccounted for.   "
+    "Consistency % = how rarely the person flips between Present and Absent.   "
+    "Green = good, red = needs attention; a blank cell means there is no data to judge."
 )
+
+
+# === SCHOOL YEAR WINDOWS ===
+# Every statistic is scoped to a school year rather than "everything on
+# record". Without this each grade got its own window - whenever that grade's
+# earliest record happened to be - so "Attendance %" was computed over 45
+# weeks for one grade and 70 for another and the two were not comparable.
+SCHOOL_YEAR_START_MONTH = 9
+SCHOOL_YEAR_START_DAY = 11
+
+
+def school_year_start(year):
+    """First Sunday on or after Sept 11 of ``year``."""
+    start = datetime.datetime(year, SCHOOL_YEAR_START_MONTH, SCHOOL_YEAR_START_DAY)
+    # weekday(): Monday=0 .. Sunday=6
+    days_until_sunday = (6 - start.weekday()) % 7
+    return start + datetime.timedelta(days=days_until_sunday)
+
+
+def current_school_year(today=None):
+    """
+    The calendar year the current school year began in.
+
+    Before Sept 11 we are still inside the school year that started last
+    autumn, which is what "since the previous year's September 11" means.
+    """
+    today = today or datetime.datetime.now()
+    if today < datetime.datetime(today.year, SCHOOL_YEAR_START_MONTH,
+                                 SCHOOL_YEAR_START_DAY):
+        return today.year - 1
+    return today.year
+
+
+def school_year_label(start_year):
+    return "%d-%d" % (start_year, start_year + 1)
+
+
+def school_year_weeks(start_year, today=None):
+    """
+    Every Sunday in one school year, as "MM-DD-YYYY" keys.
+
+    The window runs from the first Sunday on/after Sept 11 up to the most
+    recent Sunday, or to the day before the next school year starts for a
+    year that has already finished.
+    """
+    today = today or datetime.datetime.now()
+    start = school_year_start(start_year)
+    next_start = school_year_start(start_year + 1)
+
+    # Most recent Sunday on or before today.
+    last_sunday = today - datetime.timedelta(days=(today.weekday() + 1) % 7)
+    last_sunday = last_sunday.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    end = min(last_sunday, next_start - datetime.timedelta(days=7))
+
+    weeks = []
+    current = start
+    while current <= end:
+        weeks.append(current.strftime("%m-%d-%Y"))
+        current += datetime.timedelta(days=7)
+    return weeks
 
 
 # === STAT COMPUTATION ===
@@ -140,6 +215,50 @@ def _percent(numerator, denominator):
     if not denominator:
         return None
     return (numerator / float(denominator)) * 100.0
+
+
+# 95% confidence. Chosen so the deflation is visible but not absurd:
+# 2-of-2 lands near 34%, 40-of-40 near 91%.
+WILSON_Z = 1.96
+
+# How many *marked* weeks it takes to trust a percentage at all.
+CONFIDENCE_HIGH = 20
+CONFIDENCE_MEDIUM = 10
+CONFIDENCE_LOW = 4
+
+
+def wilson_lower_bound(successes, trials, z=WILSON_Z):
+    """
+    Sample-size-aware attendance score (Wilson score interval, lower bound).
+
+    A raw percentage treats 2-of-2 and 40-of-40 as identical. This does not:
+    it answers "how good can we be confident this person's attendance really
+    is", so a perfect record over two marked weeks no longer outranks a
+    strong record over forty.
+
+    Returns 0-100, or None when there is nothing to score.
+    """
+    if not trials:
+        return None
+    p = successes / float(trials)
+    z2 = z * z
+    denominator = 1 + z2 / trials
+    centre = p + z2 / (2 * trials)
+    margin = z * ((p * (1 - p) + z2 / (4 * trials)) / trials) ** 0.5
+    return max(0.0, (centre - margin) / denominator) * 100.0
+
+
+def _classify_confidence(recorded):
+    """How much the percentages on this row can be trusted."""
+    if recorded == 0:
+        return "No Data"
+    if recorded >= CONFIDENCE_HIGH:
+        return "High"
+    if recorded >= CONFIDENCE_MEDIUM:
+        return "Medium"
+    if recorded >= CONFIDENCE_LOW:
+        return "Low"
+    return "Very Low"
 
 
 def _classify_pattern(attendance_pct, consistency_pct, recorded):
@@ -166,11 +285,21 @@ def _classify_pattern(attendance_pct, consistency_pct, recorded):
 
 
 def _classify_status(attendance_pct, marked_pct, recorded):
-    """Overall flag for the row, driven by attendance with a data-quality guard."""
+    """
+    Overall flag for the row.
+
+    Driven by the raw attendance percentage, but only once there is enough
+    data to mean anything. Below CONFIDENCE_LOW marked weeks the row is
+    called "Insufficient" rather than given a grade it has not earned - that
+    is the case people were misreading, where two marked weeks at 100% looked
+    like a model attendee.
+    """
     if recorded == 0:
         return "No Data"
-    # Attendance computed from a couple of marked weeks out of thirty is not
-    # trustworthy enough to call "Excellent", so cap it.
+    if recorded < CONFIDENCE_LOW:
+        return "Insufficient"
+    # Attendance computed from a handful of marked weeks out of a full year is
+    # still not trustworthy enough to call "Excellent", so cap it.
     thin_data = marked_pct is not None and marked_pct < 40
     if attendance_pct >= 90:
         return "Good" if thin_data else "Excellent"
@@ -263,6 +392,8 @@ def compute_person_stats(name, attendance, date_array):
         "absent": absent,
         "unaccounted": unaccounted,
         "attendance_pct": attendance_pct,
+        "adjusted_pct": wilson_lower_bound(present, recorded),
+        "confidence": _classify_confidence(recorded),
         "marked_pct": marked_pct,
         "unaccounted_pct": unaccounted_pct,
         "consistency_pct": consistency_pct,
@@ -310,6 +441,8 @@ def summarize_rows(label, rows):
         "absent": absent,
         "unaccounted": unaccounted,
         "attendance_pct": attendance_pct,
+        "adjusted_pct": wilson_lower_bound(present, recorded),
+        "confidence": _classify_confidence(recorded),
         "marked_pct": marked_pct,
         "unaccounted_pct": _percent(unaccounted, total_slots),
         "consistency_pct": consistency_pct,
@@ -746,38 +879,12 @@ def _hex(color):
     )
 
 
-def write_statistics_xlsx(path, sections, title, subtitle,
-                          page_break_per_section=False):
-    """
-    Write the statistics to a print-ready .xlsx file.
-
-    Set up so that File > Print needs no adjustment: landscape, scaled to one
-    page wide, the banner repeated on every page and page numbers in the
-    footer.
-
-    Args:
-        page_break_per_section: start each section (grade) on a fresh page.
-            Off by default - with sixteen grades, most of which are far
-            shorter than a page, that wastes most of the paper. Sections flow
-            continuously instead, each still introduced by its own dark band
-            and column headers.
-
-    Returns:
-        The path written, or None when there is nothing to write.
-    """
-    from openpyxl import Workbook
+def _render_xlsx_sheet(sheet, layout, subtitle, page_break_per_section):
+    """Render one prepared layout onto an openpyxl worksheet."""
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
     from openpyxl.worksheet.pagebreak import Break
     from openpyxl.worksheet.properties import PageSetupProperties
-
-    layout = build_statistics_layout(sections, title, subtitle)
-    if not layout.header_rows:
-        return None
-
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = STATS_SHEET_TITLE
 
     fills = {(r, c): color for r, c, color in layout.fills}
     header_rows = set(layout.header_rows)
@@ -902,8 +1009,64 @@ def write_statistics_xlsx(path, sections, title, subtitle,
 
     sheet.freeze_panes = "B4"
 
+
+
+
+def write_statistics_workbook(path, sheets, page_break_per_section=False):
+    """
+    Write one .xlsx containing a worksheet per school year.
+
+    Set up so that File > Print needs no adjustment: landscape, scaled to one
+    page wide, the banner repeated on every page and page numbers in the
+    footer.
+
+    Args:
+        path: file to write.
+        sheets: ordered list of (worksheet_title, sections, title, subtitle).
+            Entries with no data are skipped, so a church with no prior-year
+            records simply gets a one-sheet workbook.
+        page_break_per_section: start each section (grade) on a fresh page.
+            Off by default - with sixteen grades, most far shorter than a
+            page, that wastes most of the paper.
+
+    Returns:
+        The path written, or None when no sheet had any data.
+    """
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    default_sheet = workbook.active
+    written = 0
+
+    for worksheet_title, sections, title, subtitle in sheets:
+        layout = build_statistics_layout(sections, title, subtitle)
+        if not layout.header_rows:
+            continue
+
+        if written == 0:
+            sheet = default_sheet
+            sheet.title = worksheet_title
+        else:
+            sheet = workbook.create_sheet(worksheet_title)
+
+        _render_xlsx_sheet(sheet, layout, subtitle, page_break_per_section)
+        written += 1
+
+    if not written:
+        return None
+
     workbook.save(path)
     return path
+
+
+def write_statistics_xlsx(path, sections, title, subtitle,
+                          page_break_per_section=False):
+    """Single-worksheet convenience wrapper around write_statistics_workbook."""
+    return write_statistics_workbook(
+        path,
+        [(STATS_SHEET_TITLE, sections, title, subtitle)],
+        page_break_per_section=page_break_per_section,
+    )
 
 
 def build_subtitle(school_year=None):

@@ -631,15 +631,29 @@ def resolve_grade_data(data_cache, grade):
     return student_dict, servant_dict, date_array
 
 
-def collect_stats_input(data_cache):
-    """Resolve every grade that has data, in GRADES order."""
+def collect_stats_input(data_cache, date_array=None):
+    """
+    Resolve every grade that has data, in GRADES order.
+
+    Args:
+        date_array: when given, every grade is measured over this exact set of
+            weeks instead of its own earliest-record-to-now range. Statistics
+            always pass one, because otherwise each grade gets a different
+            denominator - 45 weeks for one, 70 for another - and the
+            percentages cannot be compared across grades.
+
+    Returns:
+        list of (grade, student_dict, servant_dict, date_array).
+    """
     stats_input = []
     for grade in GRADES:
         resolved = resolve_grade_data(data_cache, grade)
         if resolved is None:
             continue
-        student_dict, servant_dict, date_array = resolved
-        stats_input.append((grade, student_dict, servant_dict, date_array))
+        student_dict, servant_dict, grade_dates = resolved
+        stats_input.append(
+            (grade, student_dict, servant_dict, date_array or grade_dates)
+        )
     return stats_input
 
 
@@ -671,25 +685,29 @@ def build_sunday_school_sections(stats_input):
     return sections
 
 
-def write_sunday_school_statistics(stats_spreadsheet, stats_input, school_year=None):
+def write_sunday_school_statistics(stats_spreadsheet, stats_input, school_year=None,
+                                   worksheet_title=None, title=None):
     """
     Write Sunday School statistics into the dedicated statistics spreadsheet.
 
     Args:
         stats_spreadsheet: the statistics spreadsheet (NOT the attendance one).
         stats_input: output of collect_stats_input.
+        worksheet_title: which tab to write to; defaults to "Statistics".
     """
     try:
         sections = build_sunday_school_sections(stats_input)
         if not sections:
             return False
 
-        worksheet = statistics_export.get_stats_worksheet(stats_spreadsheet)
+        worksheet = statistics_export.get_stats_worksheet(
+            stats_spreadsheet, worksheet_title
+        )
 
         return attendance_statistics.write_statistics_worksheet(
             worksheet,
             sections,
-            title="SUNDAY SCHOOL ATTENDANCE STATISTICS",
+            title=title or "SUNDAY SCHOOL ATTENDANCE STATISTICS",
             subtitle=attendance_statistics.build_subtitle(school_year),
             ensure_size=ensure_worksheet_size,
             retry=retry_with_backoff,
