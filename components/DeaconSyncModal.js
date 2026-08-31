@@ -81,6 +81,11 @@ async function fetchAllDeacons(churchId) {
   return deacons;
 }
 
+// Keep in step with ROTATION_MEMORY_DEFAULTS in backend/functions/files/utility.py.
+// This is one of only three places that builds a roster entry from scratch —
+// every other writer patches with a spread and so preserves unknown fields.
+// Omitting the scheduling-memory fields here would hand the scheduler a
+// servant with no history, which reads as "brand new" rather than "reliable".
 function buildEntry(d) {
   return {
     uid: d.uid, name: d.name || "",
@@ -90,6 +95,9 @@ function buildEntry(d) {
     rank: d.rank ?? DEFAULTS.rank,
     weeksSince: d.weeksSince ?? 4,
     lastWeeksSince: d.lastWeeksSince ?? 4,
+    assignedCount: d.assignedCount ?? 0,
+    declinedCount: d.declinedCount ?? 0,
+    roleHistory: d.roleHistory ?? [],
     value: d.value ?? 0,
   };
 }

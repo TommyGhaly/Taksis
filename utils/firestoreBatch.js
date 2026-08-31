@@ -76,9 +76,17 @@ export async function getDocsByIds(collectionName, ids, { chunkSize = ID_CHUNK_S
 /**
  * Live version: one `onSnapshot` per chunk instead of one per id.
  *
- * `onDocs(docsForThisChunk)` receives only the chunk that changed — merge on the
- * caller's side, and put that merge behind a coalesced flush, or several chunks
- * delivering in the same tick will cause one render each.
+ * `onDocs(docsForThisChunk, idsInThisChunk)` receives only the chunk that
+ * changed — merge on the caller's side, and put that merge behind a coalesced
+ * flush, or several chunks delivering in the same tick will cause one render
+ * each.
+ *
+ * The second argument is the ids that were *requested* for that chunk. A
+ * snapshot only contains documents that exist, so without it a caller cannot
+ * tell "this id is in another chunk" from "this id has no document" — and a
+ * user doc that is deleted while being watched would never be cleared. Diff
+ * the delivered docs against it to find the misses. (`getDocsByIds` solves the
+ * same problem by reporting misses as explicit nulls.)
  *
  * `onChunkSettled(index)` fires on **both** success and error. That matters: a
  * "hold the skeleton until every source has reported" tally hangs forever if an
@@ -103,7 +111,10 @@ export function watchDocsByIds(
       .onSnapshot(
         (snapshot) => {
           try {
-            onDocs?.(snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data() })));
+            onDocs?.(
+              snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data() })),
+              chunk
+            );
           } finally {
             onChunkSettled?.(index);
           }

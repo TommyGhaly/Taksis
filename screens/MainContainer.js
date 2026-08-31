@@ -48,6 +48,7 @@ import LoadingWheel from "../components/LoadingWheel";
 import { usePendingRoute } from "../utils/deepLinks";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as avatarCache from "../utils/avatarCache";
+import useServeDates from "../hooks/useServeDates";
 
 // Last known roles, so a cold start can render the tab bar without waiting on
 // the network.
@@ -445,9 +446,13 @@ export default function MainContainer() {
   const deletedDocsRef = useRef(new Set());
 
   const [availableServers, setAvailableServers] = useState([]);
-  const [lastServeData, setLastServeData] = useState({});
-  const [nextServeData, setNextServeData] = useState({});
-  const userListenersRef = useRef([]);
+  // One chunked listener for the whole roster instead of one per servant.
+  const {
+    lastServeData,
+    nextServeData,
+    watchServers: setupUserListeners,
+    stopWatching: cleanupUserListeners,
+  } = useServeDates();
 
   // ── Update checks ─────────────────────────────────────────────────────────
 
@@ -523,53 +528,6 @@ export default function MainContainer() {
   const remainingCount =
     currentIndex >= 0 ? unavailableQueue.length - currentIndex : 0;
 
-  const cleanupUserListeners = useCallback(() => {
-    userListenersRef.current.forEach((unsub) => {
-      if (typeof unsub === "function") unsub();
-    });
-    userListenersRef.current = [];
-  }, []);
-
-  const setupUserListeners = useCallback(
-    (servers) => {
-      cleanupUserListeners();
-      const newListeners = [];
-
-      // Avatars are resolved by <Avatar>/avatarCache now — the staggered
-      // per-server Storage fetch that used to live here fed an `imageUrls`
-      // prop that UnavailableRequestModal no longer reads.
-      servers.forEach((server) => {
-        const unsub = firestore()
-          .collection("users")
-          .doc(server.uid)
-          .onSnapshot(
-            (doc) => {
-              if (doc.exists) {
-                const userData = doc.data();
-                // Free — this doc is already being read for serve dates.
-                avatarCache.primeFromUser({ uid: server.uid, ...userData });
-                setLastServeData((prev) =>
-                  userData.lastServe
-                    ? { ...prev, [server.uid]: userData.lastServe }
-                    : (({ [server.uid]: _, ...rest }) => rest)(prev),
-                );
-                setNextServeData((prev) =>
-                  userData.nextWeekServe
-                    ? { ...prev, [server.uid]: userData.nextWeekServe }
-                    : (({ [server.uid]: _, ...rest }) => rest)(prev),
-                );
-              }
-            },
-            () => {},
-          );
-
-        newListeners.push(unsub);
-      });
-
-      userListenersRef.current = newListeners;
-    },
-    [cleanupUserListeners],
-  );
 
   // ── Listen for pascha visibility flags ────────────────────────────────────
   useEffect(() => {

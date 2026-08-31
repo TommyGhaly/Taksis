@@ -26,6 +26,7 @@ import * as avatarCache from "../../utils/avatarCache";
 import { LIST_PERF } from "../../utils/listConfig";
 import { longDateLabelWithYear, parseDateKey } from "../../utils/dateKeys";
 import { getDocsByIds } from "../../utils/firestoreBatch";
+import useServeDates from "../../hooks/useServeDates";
 
 const NOTIFICATION_URL =
   "https://us-central1-taksis-a8ba7.cloudfunctions.net/traffic_notification";
@@ -193,9 +194,13 @@ const EditSchedule = () => {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [altarServersCount, setAltarServersCount] = useState(0);
   const [showInfoModal, setShowInfoModal] = useState(false);
-  const [lastServeData, setLastServeData] = useState({});
-  const [nextServeData, setNextServeData] = useState({});
-  const [userListeners, setUserListeners] = useState([]);
+  // One chunked listener for the whole roster instead of one per servant.
+  const {
+    lastServeData,
+    nextServeData,
+    watchServers: setupUserListeners,
+    stopWatching: cleanupUserListeners,
+  } = useServeDates();
   // The schedule's `extra` list exactly as stored, unfiltered and unsorted.
   // `availableServers` below is the display copy — filtered and alphabetised — so
   // it cannot answer "who does add_server move into the altar next?", which is
@@ -435,48 +440,6 @@ const EditSchedule = () => {
     setDeaconIsChild(isChild);
   };
 
-  useEffect(() => () => cleanupUserListeners(), []);
-
-  const setupUserListeners = (servers) => {
-    cleanupUserListeners();
-    // Anything the schedule doc already carries is free to prime; the
-    // per-user listeners below then prime from the real user docs. No Storage
-    // round-trips and no staggered timers — avatarCache dedupes and persists.
-    avatarCache.primeMany(servers);
-    const newListeners = [];
-    servers.forEach((server) => {
-      const unsub = firestore()
-        .collection("users")
-        .doc(server.uid)
-        .onSnapshot(
-          (doc) => {
-            if (doc.exists) {
-              const userData = doc.data();
-              avatarCache.primeFromUser({ uid: server.uid, ...userData });
-              setLastServeData((prev) =>
-                userData.lastServe
-                  ? { ...prev, [server.uid]: userData.lastServe }
-                  : (({ [server.uid]: _, ...rest }) => rest)(prev),
-              );
-              setNextServeData((prev) =>
-                userData.nextWeekServe
-                  ? { ...prev, [server.uid]: userData.nextWeekServe }
-                  : (({ [server.uid]: _, ...rest }) => rest)(prev),
-              );
-            }
-          },
-          (err) => console.error("Error listening to user:", server.uid, err),
-        );
-      newListeners.push(unsub);
-    });
-    setUserListeners(newListeners);
-  };
-
-  const cleanupUserListeners = () => {
-    userListeners.forEach((unsub) => typeof unsub === "function" && unsub());
-    setUserListeners([]);
-  };
-
   const resetScheduleData = () => {
     rawExtraRef.current = [];
     setWeek(selectedWeek);
@@ -486,8 +449,7 @@ const EditSchedule = () => {
     setAssignedServers({});
     setServers([]);
     setAvailableServers([]);
-    setLastServeData({});
-    setNextServeData({});
+    // Serve dates are cleared by cleanupUserListeners() below.
     setDeaconTokens({});
     setDeaconIsChild({});
     cleanupUserListeners();
