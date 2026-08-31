@@ -175,6 +175,21 @@ def generate_schedule(event: scheduler_fn.ScheduledEvent):
 # USER MANAGEMENT ENDPOINTS
 # ============================================================================
 
+def _same_age(left, right):
+    """Compare two ages that may each be an int or a numeric string.
+
+    `add_user_to_churches` stores `int(age)` in churches/{id}.deacons[], but a
+    user document created without a DOB can hold age as a string - which is why
+    every scoring function defensively calls `int(deacon["age"])`. A plain `==`
+    between 15 and "15" is False, so this check could never pass for those
+    users and every profile save took the expensive remove-and-re-add path.
+    """
+    try:
+        return int(left) == int(right)
+    except (TypeError, ValueError):
+        return left == right
+
+
 @https_fn.on_request()
 def update_user(req: https_fn.Request) -> https_fn.Response:
     """
@@ -265,20 +280,43 @@ def update_user(req: https_fn.Request) -> https_fn.Response:
     deacon_ok = (
         (is_deacon and existing_deacon is not None
          and existing_deacon.get("name") == user_data.get("name")
-         and existing_deacon.get("age") == user_data.get("age"))
+         and _same_age(existing_deacon.get("age"), user_data.get("age")))
         or (not is_deacon and existing_deacon is None)
     )
     servant_ok = (is_ss_teacher == servant_doc.exists)
 
-    needs_membership_sync = not (deacon_ok and servant_ok)
     needs_name_sync = (
         existing_deacon is not None
         and existing_deacon.get("name") != user_data.get("name")
     )
 
-    if needs_membership_sync:
-        remove_user_from_churches(user_id)
-        add_user_to_churches(user_data)
+    if not (deacon_ok and servant_ok):
+        # The common case by far is a stale name or age on someone who is
+        # already correctly listed as a deacon here - a birthday is enough to
+        # trigger it. That is a field patch, not a membership change.
+        #
+        # It used to fall through to remove_user_from_churches() +
+        # add_user_to_churches(), which streams every church in the system and
+        # then re-adds the person with a hardcoded weeksSince, discarding their
+        # place in the rotation. Saving your profile should not reshuffle the
+        # schedule.
+        roster_only_drift = servant_ok and is_deacon and existing_deacon is not None
+
+        if roster_only_drift:
+            existing_deacon["name"] = user_data.get("name")
+            try:
+                existing_deacon["age"] = int(user_data["age"])
+            except (KeyError, TypeError, ValueError):
+                pass
+            firestore_client.collection("churches").document(church_id).update(
+                {"deacons": church_data.get("deacons", [])}
+            )
+        else:
+            # A genuine membership change - switching church, being flagged or
+            # unflagged as a deacon, or a Servants Meeting change. These do need
+            # the cross-church sweep.
+            previous = remove_user_from_churches(user_id)
+            add_user_to_churches(user_data, previous)
 
     if needs_name_sync:
         update_names(user_id, user_data["name"], church_id)
@@ -766,11 +804,29 @@ def handle_unavailable_requests(req: https_fn.Request) -> https_fn.Response:
     if isinstance(role, list):
         schedule_data[role[0]][role[1]] = {'name': name, 'uid': uid}
         handle_unavailable_notification(uid, week_id, role[0], name)
+        role_name = role[0]
     else:
         schedule_data[role] = {'name': name, 'uid': uid}
-    
+        role_name = role
+
     schedule_ref.update(schedule_data)
-    
+
+    # Covering as a replacement is an assignment and has to count as one.
+    # Only update_weeks used to touch the rotation counters, and it runs over
+    # the newly *generated* week - so someone who stepped in week after week
+    # accrued rotation debt as though they had never served, stayed at the top
+    # of the queue, and kept being pulled in. Falls to the same helper
+    # generation uses, so the two paths cannot drift.
+    church_ref = firestore_client.collection("churches").document(church_id)
+    church_doc = church_ref.get()
+    if church_doc.exists:
+        deacons = (church_doc.to_dict() or {}).get("deacons", [])
+        for deacon in deacons:
+            if deacon.get("uid") == uid:
+                credit_assignment(deacon, role_name)
+                church_ref.update({"deacons": deacons})
+                break
+
     return https_fn.Response("Unavailable request handled", status=200)
         
         

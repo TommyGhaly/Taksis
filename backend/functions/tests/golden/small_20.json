@@ -1,0 +1,782 @@
+{
+ "roster": [
+  {
+   "lastWeeksSince": 0,
+   "uid": "uid-000",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 0,
+   "uid": "uid-001",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 0,
+   "uid": "uid-002",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 0,
+   "uid": "uid-003",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 0,
+   "uid": "uid-004",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 0,
+   "uid": "uid-005",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 0,
+   "uid": "uid-006",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 0,
+   "uid": "uid-007",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 0,
+   "uid": "uid-008",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 0,
+   "uid": "uid-009",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 0,
+   "uid": "uid-010",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 0,
+   "uid": "uid-011",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 0,
+   "uid": "uid-012",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 0,
+   "uid": "uid-013",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 0,
+   "uid": "uid-014",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 0,
+   "uid": "uid-015",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 1,
+   "uid": "uid-016",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 1,
+   "uid": "uid-017",
+   "weeksSince": 0
+  },
+  {
+   "lastWeeksSince": 1,
+   "uid": "uid-018",
+   "weeksSince": 1
+  },
+  {
+   "lastWeeksSince": 1,
+   "uid": "uid-019",
+   "weeksSince": 1
+  }
+ ],
+ "transcript": [
+  {
+   "altar": [
+    "uid-002",
+    "uid-003",
+    "uid-018",
+    "uid-001",
+    "uid-004",
+    "uid-007",
+    "uid-012",
+    "uid-015",
+    "uid-006"
+   ],
+   "catholic": "uid-011",
+   "extra": [
+    "uid-014",
+    "uid-017"
+   ],
+   "gospel": "uid-009",
+   "matins": "uid-008",
+   "pauline": "uid-019",
+   "praxis": "uid-005",
+   "sixth": "uid-000",
+   "third": "uid-016",
+   "water": "uid-013",
+   "wine": "uid-010"
+  },
+  {
+   "altar": [
+    "uid-004",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-015",
+    "uid-016"
+   ],
+   "catholic": "uid-006",
+   "extra": [
+    "uid-018",
+    "uid-019"
+   ],
+   "gospel": "uid-002",
+   "matins": "uid-003",
+   "pauline": "uid-007",
+   "praxis": "uid-005",
+   "sixth": "uid-000",
+   "third": "uid-001",
+   "water": "uid-014",
+   "wine": "uid-017"
+  },
+  {
+   "altar": [
+    "uid-007",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-005",
+   "extra": [
+    "uid-016",
+    "uid-017"
+   ],
+   "gospel": "uid-019",
+   "matins": "uid-004",
+   "pauline": "uid-006",
+   "praxis": "uid-002",
+   "sixth": "uid-001",
+   "third": "uid-003",
+   "water": "uid-000",
+   "wine": "uid-018"
+  },
+  {
+   "altar": [
+    "uid-004",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-006",
+   "extra": [
+    "uid-018",
+    "uid-019"
+   ],
+   "gospel": "uid-002",
+   "matins": "uid-003",
+   "pauline": "uid-007",
+   "praxis": "uid-005",
+   "sixth": "uid-000",
+   "third": "uid-001",
+   "water": "uid-016",
+   "wine": "uid-017"
+  },
+  {
+   "altar": [
+    "uid-007",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-005",
+   "extra": [
+    "uid-016",
+    "uid-017"
+   ],
+   "gospel": "uid-019",
+   "matins": "uid-004",
+   "pauline": "uid-006",
+   "praxis": "uid-002",
+   "sixth": "uid-001",
+   "third": "uid-003",
+   "water": "uid-000",
+   "wine": "uid-018"
+  },
+  {
+   "altar": [
+    "uid-004",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-006",
+   "extra": [
+    "uid-018",
+    "uid-019"
+   ],
+   "gospel": "uid-002",
+   "matins": "uid-003",
+   "pauline": "uid-007",
+   "praxis": "uid-005",
+   "sixth": "uid-000",
+   "third": "uid-001",
+   "water": "uid-016",
+   "wine": "uid-017"
+  },
+  {
+   "altar": [
+    "uid-007",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-005",
+   "extra": [
+    "uid-016",
+    "uid-017"
+   ],
+   "gospel": "uid-019",
+   "matins": "uid-004",
+   "pauline": "uid-006",
+   "praxis": "uid-002",
+   "sixth": "uid-001",
+   "third": "uid-003",
+   "water": "uid-000",
+   "wine": "uid-018"
+  },
+  {
+   "altar": [
+    "uid-004",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-006",
+   "extra": [
+    "uid-018",
+    "uid-019"
+   ],
+   "gospel": "uid-002",
+   "matins": "uid-003",
+   "pauline": "uid-007",
+   "praxis": "uid-005",
+   "sixth": "uid-000",
+   "third": "uid-001",
+   "water": "uid-016",
+   "wine": "uid-017"
+  },
+  {
+   "altar": [
+    "uid-007",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-005",
+   "extra": [
+    "uid-016",
+    "uid-017"
+   ],
+   "gospel": "uid-019",
+   "matins": "uid-004",
+   "pauline": "uid-006",
+   "praxis": "uid-002",
+   "sixth": "uid-001",
+   "third": "uid-003",
+   "water": "uid-000",
+   "wine": "uid-018"
+  },
+  {
+   "altar": [
+    "uid-004",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-006",
+   "extra": [
+    "uid-018",
+    "uid-019"
+   ],
+   "gospel": "uid-002",
+   "matins": "uid-003",
+   "pauline": "uid-007",
+   "praxis": "uid-005",
+   "sixth": "uid-000",
+   "third": "uid-001",
+   "water": "uid-016",
+   "wine": "uid-017"
+  },
+  {
+   "altar": [
+    "uid-007",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-005",
+   "extra": [
+    "uid-016",
+    "uid-017"
+   ],
+   "gospel": "uid-019",
+   "matins": "uid-004",
+   "pauline": "uid-006",
+   "praxis": "uid-002",
+   "sixth": "uid-001",
+   "third": "uid-003",
+   "water": "uid-000",
+   "wine": "uid-018"
+  },
+  {
+   "altar": [
+    "uid-004",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-006",
+   "extra": [
+    "uid-018",
+    "uid-019"
+   ],
+   "gospel": "uid-002",
+   "matins": "uid-003",
+   "pauline": "uid-007",
+   "praxis": "uid-005",
+   "sixth": "uid-000",
+   "third": "uid-001",
+   "water": "uid-016",
+   "wine": "uid-017"
+  },
+  {
+   "altar": [
+    "uid-007",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-005",
+   "extra": [
+    "uid-016",
+    "uid-017"
+   ],
+   "gospel": "uid-019",
+   "matins": "uid-004",
+   "pauline": "uid-006",
+   "praxis": "uid-002",
+   "sixth": "uid-001",
+   "third": "uid-003",
+   "water": "uid-000",
+   "wine": "uid-018"
+  },
+  {
+   "altar": [
+    "uid-004",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-006",
+   "extra": [
+    "uid-018",
+    "uid-019"
+   ],
+   "gospel": "uid-002",
+   "matins": "uid-003",
+   "pauline": "uid-007",
+   "praxis": "uid-005",
+   "sixth": "uid-000",
+   "third": "uid-001",
+   "water": "uid-016",
+   "wine": "uid-017"
+  },
+  {
+   "altar": [
+    "uid-007",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-005",
+   "extra": [
+    "uid-016",
+    "uid-017"
+   ],
+   "gospel": "uid-019",
+   "matins": "uid-004",
+   "pauline": "uid-006",
+   "praxis": "uid-002",
+   "sixth": "uid-001",
+   "third": "uid-003",
+   "water": "uid-000",
+   "wine": "uid-018"
+  },
+  {
+   "altar": [
+    "uid-004",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-006",
+   "extra": [
+    "uid-018",
+    "uid-019"
+   ],
+   "gospel": "uid-002",
+   "matins": "uid-003",
+   "pauline": "uid-007",
+   "praxis": "uid-005",
+   "sixth": "uid-000",
+   "third": "uid-001",
+   "water": "uid-016",
+   "wine": "uid-017"
+  },
+  {
+   "altar": [
+    "uid-007",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-005",
+   "extra": [
+    "uid-016",
+    "uid-017"
+   ],
+   "gospel": "uid-019",
+   "matins": "uid-004",
+   "pauline": "uid-006",
+   "praxis": "uid-002",
+   "sixth": "uid-001",
+   "third": "uid-003",
+   "water": "uid-000",
+   "wine": "uid-018"
+  },
+  {
+   "altar": [
+    "uid-004",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-006",
+   "extra": [
+    "uid-018",
+    "uid-019"
+   ],
+   "gospel": "uid-002",
+   "matins": "uid-003",
+   "pauline": "uid-007",
+   "praxis": "uid-005",
+   "sixth": "uid-000",
+   "third": "uid-001",
+   "water": "uid-016",
+   "wine": "uid-017"
+  },
+  {
+   "altar": [
+    "uid-007",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-005",
+   "extra": [
+    "uid-016",
+    "uid-017"
+   ],
+   "gospel": "uid-019",
+   "matins": "uid-004",
+   "pauline": "uid-006",
+   "praxis": "uid-002",
+   "sixth": "uid-001",
+   "third": "uid-003",
+   "water": "uid-000",
+   "wine": "uid-018"
+  },
+  {
+   "altar": [
+    "uid-004",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-006",
+   "extra": [
+    "uid-018",
+    "uid-019"
+   ],
+   "gospel": "uid-002",
+   "matins": "uid-003",
+   "pauline": "uid-007",
+   "praxis": "uid-005",
+   "sixth": "uid-000",
+   "third": "uid-001",
+   "water": "uid-016",
+   "wine": "uid-017"
+  },
+  {
+   "altar": [
+    "uid-007",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-005",
+   "extra": [
+    "uid-016",
+    "uid-017"
+   ],
+   "gospel": "uid-019",
+   "matins": "uid-004",
+   "pauline": "uid-006",
+   "praxis": "uid-002",
+   "sixth": "uid-001",
+   "third": "uid-003",
+   "water": "uid-000",
+   "wine": "uid-018"
+  },
+  {
+   "altar": [
+    "uid-004",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-006",
+   "extra": [
+    "uid-018",
+    "uid-019"
+   ],
+   "gospel": "uid-002",
+   "matins": "uid-003",
+   "pauline": "uid-007",
+   "praxis": "uid-005",
+   "sixth": "uid-000",
+   "third": "uid-001",
+   "water": "uid-016",
+   "wine": "uid-017"
+  },
+  {
+   "altar": [
+    "uid-007",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-005",
+   "extra": [
+    "uid-016",
+    "uid-017"
+   ],
+   "gospel": "uid-019",
+   "matins": "uid-004",
+   "pauline": "uid-006",
+   "praxis": "uid-002",
+   "sixth": "uid-001",
+   "third": "uid-003",
+   "water": "uid-000",
+   "wine": "uid-018"
+  },
+  {
+   "altar": [
+    "uid-004",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-006",
+   "extra": [
+    "uid-018",
+    "uid-019"
+   ],
+   "gospel": "uid-002",
+   "matins": "uid-003",
+   "pauline": "uid-007",
+   "praxis": "uid-005",
+   "sixth": "uid-000",
+   "third": "uid-001",
+   "water": "uid-016",
+   "wine": "uid-017"
+  },
+  {
+   "altar": [
+    "uid-007",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-005",
+   "extra": [
+    "uid-016",
+    "uid-017"
+   ],
+   "gospel": "uid-019",
+   "matins": "uid-004",
+   "pauline": "uid-006",
+   "praxis": "uid-002",
+   "sixth": "uid-001",
+   "third": "uid-003",
+   "water": "uid-000",
+   "wine": "uid-018"
+  },
+  {
+   "altar": [
+    "uid-004",
+    "uid-008",
+    "uid-009",
+    "uid-010",
+    "uid-011",
+    "uid-012",
+    "uid-013",
+    "uid-014",
+    "uid-015"
+   ],
+   "catholic": "uid-006",
+   "extra": [
+    "uid-018",
+    "uid-019"
+   ],
+   "gospel": "uid-002",
+   "matins": "uid-003",
+   "pauline": "uid-007",
+   "praxis": "uid-005",
+   "sixth": "uid-000",
+   "third": "uid-001",
+   "water": "uid-016",
+   "wine": "uid-017"
+  }
+ ]
+}

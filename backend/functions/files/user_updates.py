@@ -16,10 +16,13 @@ Key relationships:
 
 import datetime
 from google.cloud import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 from firebase_functions import https_fn
 import logging
 logging.info(f'Attempting to import utility in user_updates')
-from files.utility import calc_age, interpret_role
+from files.utility import (
+    calc_age, interpret_role, commit_in_batches, carry_rotation_memory,
+)
 logging.info(f'Successfully imported utility in user_updates')
 from firebase_admin import auth
 
@@ -47,8 +50,8 @@ def handle_children(children):
     Called when parent updates their profile to sync children's church membership.
     """
     for child in children:
-        remove_user_from_churches(child.get("uid"))
-        add_user_to_churches(child)
+        previous = remove_user_from_churches(child.get("uid"))
+        add_user_to_churches(child, previous)
     return
 
 
@@ -56,35 +59,46 @@ def remove_user_from_churches(user_id):
     """
     Removes a user from ALL churches (deacon lists and servants meetings).
     Used before re-adding to ensure clean state when switching churches.
+
+    Returns the roster entry that was removed (or None), so a paired
+    `add_user_to_churches` can preserve the person's rotation history.
+
+    The cross-church sweep is deliberate - it is what makes switching churches
+    work - but the write is now scoped to the field that changed. It previously
+    passed the whole church document to `update()`, which rewrote every field
+    (including the entire deacons array) even when only a Servants Meeting
+    document had been deleted, and clobbered any concurrent edit to the rest of
+    the document.
     """
     firestore_client = firestore.Client()
     church_ref = firestore_client.collection("churches")
     church_docs = church_ref.stream()
 
-    for doc in church_docs:
-        church_id = doc.id
-        church_data = doc.to_dict()
-        updated_data = False
-        filtered_deacons = []
+    removed = None
 
-        # Remove from deacons list
-        for deacon in church_data.get("deacons", []):
-            if deacon["uid"] == user_id:
-                updated_data = True
-            else:
-                filtered_deacons.append(deacon)
+    for doc in church_docs:
+        church_data = doc.to_dict()
+
+        existing_deacons = church_data.get("deacons", [])
+        filtered_deacons = [d for d in existing_deacons if d.get("uid") != user_id]
+
+        if len(filtered_deacons) != len(existing_deacons):
+            # Hand the old entry back so the caller can carry the person's
+            # rotation history across a re-add.
+            removed = next(
+                (d for d in existing_deacons if d.get("uid") == user_id), None
+            )
+            doc.reference.update({"deacons": filtered_deacons})
 
         # Remove from Servants Meeting subcollection
         servants_ref = doc.reference.collection("Servants Meeting")
-        servants_docs = servants_ref.where("uid", "==", user_id).stream()
+        servants_docs = servants_ref.where(
+            filter=FieldFilter("uid", "==", user_id)
+        ).stream()
         for servant in servants_docs:
             servant.reference.delete()
-            updated_data = True
 
-        church_data["deacons"] = filtered_deacons
-
-        if updated_data:
-            church_ref.document(church_id).update(church_data)
+    return removed
 
 
 def filter_data(user_data):
@@ -107,7 +121,7 @@ def filter_data(user_data):
     return filtered_data
 
 
-def add_user_to_churches(user_data):
+def add_user_to_churches(user_data, previous=None):
     """
     Adds a user to their church's deacon roster and/or servants meeting list.
     
@@ -118,6 +132,10 @@ def add_user_to_churches(user_data):
     - Adding to all schedule extras lists (new deacons available for substitution)
     - Processing children recursively
     - Setting default experience/frequency for new deacons
+
+    `previous` is the roster entry from a preceding `remove_user_from_churches`.
+    Passing it preserves the person's place in the rotation; omitting it treats
+    them as brand new.
     """
     firestore_client = firestore.Client()
     user_id = user_data["uid"]
@@ -179,9 +197,11 @@ def add_user_to_churches(user_data):
                 "experience": float(user_data["experience"]),
                 "frequency": float(user_data["frequency"]),
                 "rank": user_data["rank"],
-                "weeksSince": 4,  # Start with 4 weeks so they get scheduled soon
-                "lastWeeksSince": 4,
             }
+            # Carries weeksSince et al from the entry we just removed, falling
+            # back to the newcomer defaults. This was hardcoded, so any
+            # membership change wiped the person's rotation history.
+            new_deacon.update(carry_rotation_memory(previous))
             church_data["deacons"].append(new_deacon)
         
         # Add to extras in all future schedules
@@ -368,32 +388,45 @@ def update_last_serve(schedule_data, schedule_id=None):
     Updates lastServe and lastRole fields for all users in a completed schedule.
     Called after a Sunday service to record who served and in what role.
     Skips users in 'extra' list (they didn't actually serve).
+
+    Was 4 reads + 1 write per server: an existence check, the update, then two
+    more reads that existed only to feed debug `print()` calls. Now one
+    `get_all` for the whole schedule plus batched writes.
     """
     firestore_client = firestore.Client()
-    
+    users_ref = firestore_client.collection("users")
+
+    pending = {}
     for key, value in schedule_data.items():
         if key == "extra":
             continue
 
-        # Handle list fields (altar servers)
-        if isinstance(value, list):
-            for individual in value:
-                for indvidual_key, individual_value in individual.items():
-                    if indvidual_key == "name" and individual_value != "N/A":
-                        print(f"Processing individual: {individual}")
-                        user_ref = firestore_client.collection("users").document(individual["uid"])
-                        if user_ref.get().exists:
-                            user_ref.update({"lastServe": schedule_id, "lastRole": interpret_role(key)})
-                            print(f"Updated lastServe and lastRole for user {individual['uid']}")
-                            print(f"last week serve: {user_ref.get().to_dict().get('lastServe')}, last role: {user_ref.get().to_dict().get('lastRole')}")
-        # Handle dict fields (single-person roles)
-        else:
-            for individual_key, individual_value in value.items():
-                if individual_key == "name" and individual_value != "N/A":
-                    print(f"Processing individual: {value}")
-                    user_ref = firestore_client.collection("users").document(value["uid"])
-                    if user_ref.get().exists:
-                        user_ref.update({"lastServe": schedule_id, "lastRole": interpret_role(key)})
-                        print(f"Updated lastServe and lastRole for user {value['uid']}")
-                        print(f"last week serve: {user_ref.get().to_dict().get('lastServe')}, last role: {user_ref.get().to_dict().get('lastRole')}")
-    return
+        entries = value if isinstance(value, list) else [value]
+        for individual in entries:
+            if not isinstance(individual, dict):
+                continue
+            if individual.get("name") in (None, "N/A"):
+                continue
+            uid = individual.get("uid")
+            if uid:
+                pending[uid] = {
+                    "lastServe": schedule_id,
+                    "lastRole": interpret_role(key),
+                }
+
+    if not pending:
+        return
+
+    uids = list(pending)
+    refs = [users_ref.document(uid) for uid in uids]
+    # Unfilled slots and child profiles have no user document; `update` inside a
+    # batch fails the whole batch if the target is missing, so filter first.
+    live = {doc.id for doc in firestore_client.get_all(refs) if doc.exists}
+
+    written = commit_in_batches(
+        firestore_client,
+        ((users_ref.document(uid), pending[uid]) for uid in uids if uid in live),
+    )
+    logging.info(
+        f"update_last_serve({schedule_id}): {written} of {len(pending)} servers updated"
+    )

@@ -10,6 +10,57 @@ Contains common utilities used across multiple modules:
 
 import datetime
 from google.cloud import firestore
+# Positional `where(field, op, value)` emits a UserWarning on every call in
+# google-cloud-firestore 2.x. These run per request, so use the supported form.
+from google.cloud.firestore_v1.base_query import FieldFilter
+
+# Firestore caps a write batch at 500 operations.
+BATCH_LIMIT = 500
+
+# Fields on churches/{id}.deacons[] that represent a servant's accumulated
+# scheduling history, as opposed to profile data copied from their user doc.
+#
+# These must survive a roster rebuild. Re-adding someone - which happens on a
+# church switch, or on any membership change - used to reset them, so a servant
+# who was overdue to serve silently went back to the middle of the queue.
+# Anything added here is automatically carried across by add_user_to_churches.
+ROTATION_MEMORY_DEFAULTS = {
+    "weeksSince": 4,       # start partway up the queue so newcomers serve soon
+    "lastWeeksSince": 4,
+    "assignedCount": 0,    # times put on a schedule
+    "declinedCount": 0,    # times they then dropped out
+    "roleHistory": [],     # most recent roles first, newest at index 0
+}
+
+
+def carry_rotation_memory(previous):
+    """Rotation fields to use for a roster entry, given the prior entry (or None)."""
+    if not previous:
+        return dict(ROTATION_MEMORY_DEFAULTS)
+    return {
+        key: previous.get(key, default)
+        for key, default in ROTATION_MEMORY_DEFAULTS.items()
+    }
+
+
+def commit_in_batches(client, writes):
+    """Apply `writes` in chunks of BATCH_LIMIT, returning the number applied.
+
+    `writes` is an iterable of (doc_ref, payload) pairs applied with `update`.
+    `update` is deliberate rather than `set(merge=True)`: these call sites all
+    patch documents that must already exist, and a merge-set would silently
+    create one instead. Callers are responsible for filtering to live docs -
+    a batch containing an update to a missing document fails as a unit.
+    """
+    writes = list(writes)
+    applied = 0
+    for start in range(0, len(writes), BATCH_LIMIT):
+        batch = client.batch()
+        for doc_ref, payload in writes[start:start + BATCH_LIMIT]:
+            batch.update(doc_ref, payload)
+        batch.commit()
+        applied += len(writes[start:start + BATCH_LIMIT])
+    return applied
 
 
 
@@ -184,21 +235,21 @@ def determine_role(location):
 def reset_next_dates(church_id):
     """
     Resets nextWeekServe and nextRole for all users in a church.
-    
+
     Called before recalculating next serve dates to ensure clean state.
     Sets both fields to "Not Yet Scheduled".
+
+    This used to stream the *entire* users collection - every user of every
+    church - and filter in Python. It runs on the critical path of every
+    schedule generation, every swap and every unavailability request, so the
+    query is now scoped to the church and the writes go out in batches.
     """
     firestore_client = firestore.Client()
     users_ref = firestore_client.collection("users")
-    users_docs = users_ref.stream()
-    
-    for user in users_docs:
-        user_data = user.to_dict()
-        if user_data.get("church") == church_id:
-            user.reference.update({
-                "nextWeekServe": "Not Yet Scheduled",
-                "nextRole": "Not Yet Scheduled"
-            })
+    users_docs = users_ref.where(filter=FieldFilter("church", "==", church_id)).stream()
+
+    reset = {"nextWeekServe": "Not Yet Scheduled", "nextRole": "Not Yet Scheduled"}
+    commit_in_batches(firestore_client, ((user.reference, reset) for user in users_docs))
     return
 
 
