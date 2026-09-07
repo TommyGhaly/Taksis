@@ -28,15 +28,21 @@ const DEPLOYMENT_TARGET = "16.0";
 
 /**
  * Suffix appended to the app's bundle identifier to form the clip's, giving
- * `com.tghaly.taksis.clip`. Apple requires the clip's ID to be the parent app's
+ * `com.tghaly.taksis.Clip`. Apple requires the clip's ID to be the parent app's
  * ID plus exactly one additional component.
  *
  * Deliberately not named after a snippet. iOS allows exactly one App Clip target
  * per app, so this single binary serves every App Clip Experience — naming it
  * `register-vehicle` would be wrong the moment a second snippet ships, and bundle
  * identifiers cannot be changed once registered in App Store Connect.
+ *
+ * Capitalised because this App ID is **already registered** in the developer
+ * account, with a provisioning profile carrying `on-demand-install-capable` and
+ * the parent-app entitlement. Bundle identifiers are case-sensitive: lowercasing
+ * this fails to match the profile and the device build dies with "No profiles for
+ * 'com.tghaly.taksis.clip' were found". Do not tidy the capitalisation.
  */
-const BUNDLE_ID_SUFFIX = "clip";
+const BUNDLE_ID_SUFFIX = "Clip";
 
 /**
  * Domain that serves the App Clip experiences and the
@@ -218,6 +224,14 @@ function stripQuotes(value) {
 }
 
 function applyBuildSettings(proj, target, cfg, clipBundleId) {
+  const teamId = cfg.ios?.appleTeamId;
+  if (!teamId) {
+    throw new Error(
+      "[withVehicleAppClip] ios.appleTeamId is missing from the Expo config. " +
+        "The App Clip target needs it to sign for a device."
+    );
+  }
+
   const configurations = proj.pbxXCBuildConfigurationSection();
   const listId = proj.pbxNativeTargetSection()[target.uuid].buildConfigurationList;
   const configList = proj.pbxXCConfigurationList()[listId];
@@ -227,6 +241,11 @@ function applyBuildSettings(proj, target, cfg, clipBundleId) {
 
     Object.assign(settings, {
       PRODUCT_NAME: `"${TARGET_NAME}"`,
+      // Build settings are per-target and this one is not inherited from the app
+      // target, so omitting it fails a device build with "Signing for
+      // TaksisClip requires a development team" -- which reads like a project
+      // misconfiguration rather than a missing setting.
+      DEVELOPMENT_TEAM: teamId,
       PRODUCT_BUNDLE_IDENTIFIER: `"${clipBundleId}"`,
       INFOPLIST_FILE: `"${TARGET_NAME}/Info.plist"`,
       GENERATE_INFOPLIST_FILE: "NO",

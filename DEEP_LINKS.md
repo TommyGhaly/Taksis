@@ -138,7 +138,7 @@ check that matters if something went wrong.
 The clip itself, without needing App Store Connect: install it via Xcode, then on
 the device go to **Settings → Developer → Local Experiences** and register URL
 prefix `https://spsmwayland.org/c/register-vehicle` with bundle ID
-`com.tghaly.taksis.clip`. Local Experiences bypass the associated-domain check, so
+`com.tghaly.taksis.Clip`. Local Experiences bypass the associated-domain check, so
 this works before DNS has moved. See `ios-appclip/README.md` for simulator runs.
 
 Android:

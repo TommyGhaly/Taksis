@@ -57,7 +57,7 @@ next `expo prebuild --clean`. So the target is created by a config plugin:
   phase to the main app, and adds the associated domain to the app's
   entitlements. Registered in `app.json` under `plugins`.
 
-Bundle identifier: `com.tghaly.taksis.clip` (must be the app's ID plus exactly one
+Bundle identifier: `com.tghaly.taksis.Clip` (must be the app's ID plus exactly one
 suffix). Named for the target, not a snippet: one binary serves all of them.
 
 ## What it writes
@@ -100,7 +100,7 @@ xcodebuild -project ios/app.xcodeproj -target TaksisClip -sdk iphonesimulator -c
 ```
 
 ```bash
-xcrun simctl install booted ios/build/Debug-iphonesimulator/TaksisClip.app && xcrun simctl launch booted com.tghaly.taksis.clip
+xcrun simctl install booted ios/build/Debug-iphonesimulator/TaksisClip.app && xcrun simctl launch booted com.tghaly.taksis.Clip
 ```
 
 Or just open `ios/app.xcworkspace`, pick the **TaksisClip** scheme, and hit Run.
@@ -111,7 +111,7 @@ A plain simulator run has no URL, so DEBUG builds fall back to
 snippet, or pass the URL explicitly:
 
 ```bash
-SIMCTL_CHILD__XCAppClipURL="https://spsmwayland.org/c/register-vehicle" xcrun simctl launch booted com.tghaly.taksis.clip
+SIMCTL_CHILD__XCAppClipURL="https://spsmwayland.org/c/register-vehicle" xcrun simctl launch booted com.tghaly.taksis.Clip
 ```
 
 `ClipRouter.resolveDebugEnvironment()` reads that variable directly, because
@@ -131,7 +131,7 @@ codes, and associated-domain validation. That needs a device — see below.
 You do **not** need App Store Connect for this. On a device with the clip
 installed via Xcode, go to **Settings → Developer → Local Experiences** and
 register one with URL prefix `https://spsmwayland.org/c/register-vehicle` and
-bundle ID `com.tghaly.taksis.clip`. A QR code or NFC tag holding that URL will
+bundle ID `com.tghaly.taksis.Clip`. A QR code or NFC tag holding that URL will
 then bring up the real App Clip card. Local Experiences bypass the
 associated-domain check, so this works before DNS moves or the AASA is deployed.
 
@@ -152,7 +152,7 @@ associated-domain check, so this works before DNS moves or the AASA is deployed.
    Without one, that snippet cannot be launched from a real code. The card the
    user sees comes from here, not from the URL.
 
-4. **Register the clip's App ID** — `com.tghaly.taksis.clip`, with the App Clips
+4. **Register the clip's App ID** — `com.tghaly.taksis.Clip`, with the App Clips
    capability and the associated domain — and make sure it has a provisioning
    profile. `eas.json`'s production profile uses `credentialsSource: "local"` but
    the repo has no `credentials.json`, so this needs resolving before the first
