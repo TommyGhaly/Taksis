@@ -152,8 +152,12 @@ associated-domain check, so this works before DNS moves or the AASA is deployed.
    Without one, that snippet cannot be launched from a real code. The card the
    user sees comes from here, not from the URL.
 
-4. **Register the clip's App ID** — `com.tghaly.taksis.Clip`, with the App Clips
-   capability and the associated domain — and make sure it has a provisioning
-   profile. `eas.json`'s production profile uses `credentialsSource: "local"` but
-   the repo has no `credentials.json`, so this needs resolving before the first
-   store build rather than after it fails.
+4. **Distribution signing.** The App ID `com.tghaly.taksis.Clip` already exists,
+   with App Clips and Associated Domains enabled, and development signing works —
+   the clip builds and installs on a device. What is *not* resolved is store
+   signing: `eas.json`'s production profile uses `credentialsSource: "local"` but
+   the repo has no `credentials.json`, so the clip has no distribution profile.
+   Sort this before the first store build rather than after it fails.
+
+   Note the capitalised `Clip`. Bundle identifiers are case-sensitive and this one
+   is already registered; a lowercase variant matches no profile.
