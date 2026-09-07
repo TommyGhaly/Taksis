@@ -1,13 +1,5 @@
 {
   "projects": {
     "default": "taksis-a8ba7"
-  },
-  "targets": {
-    "taksis-a8ba7": {
-      "hosting": {
-        "apex": ["spsmwayland"],
-        "app": ["taksis-a8ba7"]
-      }
-    }
   }
 }

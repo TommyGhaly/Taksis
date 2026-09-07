@@ -27,82 +27,81 @@ single AASA component, and one clean exclusion in the apex redirect. It also
 means the app never claims an unrelated URL on the church's domain.
 
 Adding a snippet touches four places: `ClipDestination` and `RootView` in
-`ios-appclip/`, `SNIPPET_ROUTES` in `utils/deepLinks.js`, a page under `apex/c/`
-with a rewrite in `firebase.json`, and a new Experience in App Store Connect.
+`ios-appclip/`, `SNIPPET_ROUTES` in `utils/deepLinks.js`, a page under `church-site/c/`
+with a rewrite in the church site's `firebase.json`, and a new Experience in
+App Store Connect.
 The AASA is not one of them.
 
-## Why the apex left Wix
+## Where the files live
 
-Measured before changing anything:
-
-```
-https://spsmwayland.org/                    → 301 → https://www.spsmwayland.org/
-https://spsmwayland.org/.well-known/…       → 301 → www → HTTP 400
-```
-
-Apple and Android both require these files to return **200 with no redirect**,
-and both fail silently when they don't — no error surfaces, the link just quietly
-opens a browser. Wix cannot serve them.
-
-The apex was doing nothing but redirecting to `www`, so Firebase took it over and
-reproduces that redirect. **The church site is untouched** — it lives at
-`www.spsmwayland.org`, a separate DNS record, still on Wix.
-
-## Two hosting sites
-
-Hosting config applies per *site*, and a site serves all of its domains. A single
-site would have meant the apex's catch-all redirect also hitting
-`taksis-a8ba7.web.app`, which serves the live registration form on a link people
-already have. So:
-
-| Target | Domain | Behavior |
-|---|---|---|
-| `apex` | `spsmwayland.org` | serves `/.well-known/*` and `/c/*`; 301s the rest to `www` |
-| `app` | `taksis-a8ba7.web.app` | 301s to the form's canonical URL, so the old link still works |
-
-The apex redirect is an RE2 regex, not a glob, because Firebase evaluates
-redirects **before** static content and rewrites — a naive catch-all would
-swallow the AASA and the clip URL. RE2 has no lookahead, hence the alternation:
+The church website moved to Firebase Hosting, in the **`spsm-database` project** —
+a different project from Taksis (`taksis-a8ba7`). A domain attaches to exactly one
+hosting site, so the site serving `spsmwayland.org` is also the site that must
+serve the App Clip's files:
 
 ```
-^/(?P<rest>(?:[^c./]|[^./][^/]+)(?:/.*)?)$
+/.well-known/apple-app-site-association
+/.well-known/assetlinks.json
+/c/register-vehicle
 ```
 
-"First path segment is neither exactly `c` nor starts with `.`". So `/contact`
-and `/events/christmas` still reach `www`, while `/c/…` and `/.well-known/…` are
-served here.
+Those live in `church-site/` in this repo as the source of truth, but **Taksis
+does not deploy them** — they are copied into the church website project. See
+`church-site/README.md`, which is written to be handed over on its own.
+
+Both `spsmwayland.org` and `www.spsmwayland.org` attach to that one site with no
+redirect between them. Firebase Hosting cannot match redirects on hostname, so a
+single site cannot send the apex to `www`; doing that would need a second site,
+and it would put a 301 in front of the AASA — which Apple refuses to follow and
+fails silently on. Serving both costs only a `rel="canonical"` tag.
+
+This is much simpler than the arrangement that came before it. While the apex was
+on Wix it answered `/.well-known/*` with a 301 to `www` and then a 400, so the
+domain could not be verified at all. That required a second hosting site and an
+RE2 redirect with carve-outs for `/c/` and `/.well-known/`. Moving the site to
+Firebase removed the entire problem; none of that machinery survives.
+
+## What Taksis still hosts
+
+One site, `taksis-a8ba7.web.app`, which used to serve the registration form
+directly. People have that link, so rather than break it, it 301s to the form's
+new canonical home at `https://spsmwayland.org/c/register-vehicle`.
+
+`/__/*` is a reserved namespace that Firebase resolves ahead of redirects, so the
+Firebase Auth handler on `taksis-a8ba7.firebaseapp.com` is unaffected — worth
+knowing, because Microsoft sign-in depends on it.
 
 ## Deploying
 
-Create the apex site once (the ID is global, so it may need a variation — update
-`.firebaserc` to match):
+Two deploys, in two different projects.
 
-```bash
-npx firebase-tools@latest hosting:sites:create spsmwayland
-```
+Taksis — only updates the old-link redirect:
 
 ```bash
 npx firebase-tools@latest deploy --only hosting
 ```
 
-## DNS cutover
+The App Clip's files ship with the church website's own deploy. See
+`church-site/README.md`, which is written to stand alone.
 
-1. Firebase Console → Hosting → the `spsmwayland` site → Add custom domain →
-   `spsmwayland.org`.
-2. **Write down the current apex A records first** — `185.230.63.107`, `.171`,
-   `.186` at the time of writing. Pasting them back is the rollback.
-3. In Wix's DNS manager: add the TXT record Firebase gives you, then replace the
-   apex A records with Firebase's. Read them off the console rather than copying
-   them from documentation; they change.
-4. **Leave the `www` CNAME (`cdn3.wixdns.net`) alone.** That is the church site.
-5. Wait for cert provisioning before testing anything end to end.
+## DNS
 
-Expect a cosmetic "domain not connected" warning in Wix afterward. `www` is still
-connected, which is what matters.
+The registrar became Porkbun on 2026-09-06, but nameserver delegation survived
+the transfer and was still Wix (`ns10/ns11.wixdns.net`) at the time of writing.
+
+Point both `spsmwayland.org` and `www.spsmwayland.org` at the church website's
+Firebase site, using the records the Firebase console shows for it. Read them off
+the console rather than copying from documentation; they change.
+
+**Before touching nameservers, read `DNS_MIGRATION.md`.** The domain carries the
+church's Microsoft 365 email — MX, SPF, the tenant verification, autodiscover and
+two SRV records — and a migration that misses any of them stops mail. Bounced
+mail does not come back. That file is the full inventory, captured while the
+records were still live.
 
 ## Before the first deploy: fill in the Android fingerprints
 
-`apex/.well-known/assetlinks.json` ships with deliberately invalid placeholders.
+`church-site/.well-known/assetlinks.json` ships with deliberately invalid placeholders.
 App Links will not verify until both are replaced with real SHA-256 fingerprints.
 `google-services.json` carries only SHA-1 values, which are not usable here.
 
@@ -125,15 +124,16 @@ The two well-known files — both want `200`, `application/json`, no `location`:
 curl -sS -D- -o/dev/null https://spsmwayland.org/.well-known/apple-app-site-association
 ```
 
-That the church site still works, and the redirect regex does what it claims:
+That the church site still works and the clip URL serves a real page:
 
 ```bash
-curl -sS -o/dev/null -w '%{http_code} %{redirect_url}\n' https://spsmwayland.org/ https://spsmwayland.org/contact https://spsmwayland.org/c/register-vehicle
+curl -sS -o/dev/null -w '%{http_code}\n' https://spsmwayland.org/ https://www.spsmwayland.org/ https://spsmwayland.org/c/register-vehicle
 ```
 
-Expect `301 → www…/`, `301 → www…/contact`, `200`. Then open
-`https://www.spsmwayland.org/` and confirm the site is unchanged — that is the
-check that matters if something went wrong.
+All three want `200` — the first two are the church site on both hostnames, the
+third is the registration form. Then open `https://www.spsmwayland.org/` in a
+browser and confirm the site itself looks right. That is the check that matters
+if something went wrong.
 
 The clip itself, without needing App Store Connect: install it via Xcode, then on
 the device go to **Settings → Developer → Local Experiences** and register URL
@@ -154,7 +154,7 @@ Wants `verified` for `spsmwayland.org`.
 An NDEF URI record holding the URL — ~42 bytes, comfortable on an NTAG213 (144
 bytes). Capacity is not a constraint, so prefer readable paths over short ones.
 
-`apex/c/register-vehicle.html` ignores query parameters, so a `?tag=main-gate`
+`church-site/c/register-vehicle.html` ignores query parameters, so a `?tag=main-gate`
 suffix can be added per tag for install attribution without breaking anything.
 
 ## A caution about the church
