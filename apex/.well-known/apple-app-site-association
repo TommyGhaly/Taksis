@@ -1,0 +1,13 @@
+{
+  "appclips": {
+    "apps": ["5ZRM8X66TN.com.tghaly.taksis.clip"]
+  },
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["5ZRM8X66TN.com.tghaly.taksis"],
+        "components": [{ "/": "/c/*" }]
+      }
+    ]
+  }
+}

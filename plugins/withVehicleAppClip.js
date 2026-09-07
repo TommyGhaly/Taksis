@@ -28,12 +28,15 @@ const DEPLOYMENT_TARGET = "16.0";
 
 /**
  * Suffix appended to the app's bundle identifier to form the clip's, giving
- * `com.tghaly.taksis.register-vehicle`. Apple requires the clip's ID to be the
- * parent app's ID plus one additional component, and bundle IDs may contain only
- * letters, digits, hyphens and periods — hence the hyphen rather than an
- * underscore.
+ * `com.tghaly.taksis.clip`. Apple requires the clip's ID to be the parent app's
+ * ID plus exactly one additional component.
+ *
+ * Deliberately not named after a snippet. iOS allows exactly one App Clip target
+ * per app, so this single binary serves every App Clip Experience — naming it
+ * `register-vehicle` would be wrong the moment a second snippet ships, and bundle
+ * identifiers cannot be changed once registered in App Store Connect.
  */
-const BUNDLE_ID_SUFFIX = "register-vehicle";
+const BUNDLE_ID_SUFFIX = "clip";
 
 /**
  * Domain that serves the App Clip experiences and the
@@ -47,8 +50,13 @@ const BUNDLE_ID_SUFFIX = "register-vehicle";
  * over HTTPS with no redirects, listing this app's Team ID and the clip's bundle
  * identifier. Change it here, deploy the AASA to the new host, and use the same
  * domain when registering the App Clip Experience.
+ *
+ * The apex is served by Firebase Hosting rather than Wix precisely because of the
+ * no-redirect rule: Wix answered `/.well-known/*` with a 301 to www and then a
+ * 400, which Apple treats as no AASA at all. The church site itself still lives on
+ * Wix at `www.spsmwayland.org`; see the `redirects` block in `firebase.json`.
  */
-const ASSOCIATED_DOMAIN = "taksis-a8ba7.web.app";
+const ASSOCIATED_DOMAIN = "spsmwayland.org";
 
 const SWIFT_FILES = [
   "TaksisClipApp.swift",

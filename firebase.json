@@ -1,16 +1,46 @@
 {
-  "hosting": {
-    "public": "public",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
-  }
+  "hosting": [
+    {
+      "target": "apex",
+      "public": "apex",
+      "ignore": ["firebase.json", "**/node_modules/**"],
+      "headers": [
+        {
+          "source": "/.well-known/apple-app-site-association",
+          "headers": [{ "key": "Content-Type", "value": "application/json" }]
+        },
+        {
+          "source": "/.well-known/assetlinks.json",
+          "headers": [{ "key": "Content-Type", "value": "application/json" }]
+        }
+      ],
+      "redirects": [
+        {
+          "source": "/",
+          "destination": "https://www.spsmwayland.org/",
+          "type": 301
+        },
+        {
+          "regex": "^/(?P<rest>(?:[^c./]|[^./][^/]+)(?:/.*)?)$",
+          "destination": "https://www.spsmwayland.org/:rest",
+          "type": 301
+        }
+      ],
+      "rewrites": [
+        { "source": "/c/register-vehicle", "destination": "/c/register-vehicle.html" }
+      ]
+    },
+    {
+      "target": "app",
+      "public": "public",
+      "ignore": ["firebase.json", "**/node_modules/**"],
+      "redirects": [
+        {
+          "source": "**",
+          "destination": "https://spsmwayland.org/c/register-vehicle",
+          "type": 301
+        }
+      ]
+    }
+  ]
 }

@@ -33,7 +33,8 @@
             "android16KbPageSize": true
           }
         }
-      ]
+      ],
+      "./plugins/withVehicleAppClip"
     ],
     "extra": {
       "eas": {
@@ -76,6 +77,23 @@
         "VIBRATE",
         "POST_NOTIFICATIONS",
         "android.permission.RECORD_AUDIO"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "spsmwayland.org",
+              "pathPrefix": "/c"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
       ]
     },
     "web": {},
