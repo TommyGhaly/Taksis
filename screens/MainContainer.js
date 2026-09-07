@@ -12,7 +12,11 @@ import {
   Platform,
   AppState,
 } from "react-native";
-import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
+import {
+  NavigationContainer,
+  DefaultTheme,
+  createNavigationContainerRef,
+} from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import Icon from "react-native-vector-icons/FontAwesome";
@@ -41,12 +45,15 @@ import firestore from "@react-native-firebase/firestore";
 import auth from "@react-native-firebase/auth";
 import CustomHeader from "../components/customHeader";
 import LoadingWheel from "../components/LoadingWheel";
+import { usePendingRoute } from "../utils/deepLinks";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as avatarCache from "../utils/avatarCache";
 
 // Last known roles, so a cold start can render the tab bar without waiting on
 // the network.
 const ROLES_CACHE_KEY = "mainContainer_roles_v1";
+
+const shellNavigationRef = createNavigationContainerRef();
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
@@ -67,8 +74,8 @@ const consistentHeaderStyle = {
 // ── Version helpers ──────────────────────────────────────────────────────────
 
 const STORE_URLS = {
-  ios: "https://apps.apple.com/app/taksis/id6504739738", // Replace with your actual App Store ID
-  android: "https://play.google.com/store/apps/details?id=com.taksis", // Replace with your actual package name
+  ios: "https://apps.apple.com/us/app/taksis/id6743824691",
+  android: "https://play.google.com/store/apps/details?id=com.tghaly.taksis",
 };
 
 function compareVersions(current, minimum) {
@@ -826,6 +833,11 @@ export default function MainContainer() {
     setCurrentRequestId(null);
   }, [unavailableQueue, currentRequestId]);
 
+  // A pending deep link targets a screen inside SettingsNavigation, so the shell
+  // only has to surface that tab; SettingsNavigation consumes the route itself.
+  // Left pending (not consumed) here so it survives this tab switch.
+  const pendingRoute = usePendingRoute();
+
   const shouldShowDrawer =
     userRoles.isAlhan      ||
     userRoles.isSSTeacher  ||
@@ -836,6 +848,25 @@ export default function MainContainer() {
     userRoles.superAdmin   ||
     userRoles.trafficAdmin ||
     userRoles.paschaAdmin;
+
+  // Called from both the effect and `onReady`, since on a cold start the link
+  // usually arrives before this container is ready and the effect alone would
+  // not re-run. Does not consume the route -- SettingsNavigation does that.
+  const showSettingsTab = useCallback(() => {
+    if (!shellNavigationRef.isReady()) return;
+    // With the drawer, the tabs are nested under its "Home" screen; without it
+    // the tab navigator is the root. Navigation actions bubble up, not down, so
+    // the nested case has to be addressed explicitly.
+    if (shouldShowDrawer) {
+      shellNavigationRef.navigate("Home", { screen: "Settings" });
+    } else {
+      shellNavigationRef.navigate("Settings");
+    }
+  }, [shouldShowDrawer]);
+
+  useEffect(() => {
+    if (pendingRoute && !isLoading) showSettingsTab();
+  }, [pendingRoute, isLoading, showSettingsTab]);
 
   // The shell can render any screen, so there is no layout to mimic — a spinner
   // is honest about that, where a full-screen shimmer block just read as a
@@ -848,7 +879,14 @@ export default function MainContainer() {
     <>
       <ForceUpdateModal visible={forceUpdate} />
 
-      <NavigationContainer independent={true} theme={myTheme}>
+      <NavigationContainer
+        independent={true}
+        theme={myTheme}
+        ref={shellNavigationRef}
+        onReady={() => {
+          if (pendingRoute) showSettingsTab();
+        }}
+      >
         {shouldShowDrawer ? (
           <DrawerNavigator
             userRoles={userRoles}

@@ -1,5 +1,8 @@
-import React from "react";
-import { NavigationContainer } from "@react-navigation/native";
+import React, { useCallback, useEffect } from "react";
+import {
+  NavigationContainer,
+  createNavigationContainerRef,
+} from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import AccountInfo from "./AccountInfo";
 import ChangeAge from "./ChangeAge";
@@ -26,7 +29,9 @@ import PasswordReset from "../PasswordReset";
 import HomeScreenSelector from "./HomeScreenSelector";
 import DefaultTheme from "@react-navigation/native";
 import "react-native-gesture-handler";
+import { usePendingRoute, consumePendingRoute } from "../../utils/deepLinks";
 const SettingsNav = createNativeStackNavigator();
+const settingsNavigationRef = createNavigationContainerRef();
 const myTheme = {
   ...DefaultTheme,
   colors: {
@@ -36,8 +41,35 @@ const myTheme = {
   },
 };
 export default function SettingsNavigation() {
+  // Deep links (the App Clip URLs, opened by the installed app) target screens
+  // in this navigator. MainContainer surfaces the Settings tab; the route inside
+  // it is ours to resolve, because this container is `independent` and so is not
+  // addressable from the shell's navigator.
+  //
+  // Consumed rather than peeked, so a back-navigation out of the target screen
+  // does not immediately bounce the user into it again.
+  const pendingRoute = usePendingRoute();
+
+  // Called from both the effect and `onReady`: on a cold start this navigator is
+  // usually not ready when the link arrives, and the effect would not re-run on
+  // its own, so relying on the effect alone drops the link.
+  const goToPendingRoute = useCallback(() => {
+    if (!settingsNavigationRef.isReady()) return;
+    const route = consumePendingRoute();
+    if (route) settingsNavigationRef.navigate(route);
+  }, []);
+
+  useEffect(() => {
+    if (pendingRoute) goToPendingRoute();
+  }, [pendingRoute, goToPendingRoute]);
+
   return (
-    <NavigationContainer independent={true} theme={myTheme}>
+    <NavigationContainer
+      independent={true}
+      theme={myTheme}
+      ref={settingsNavigationRef}
+      onReady={goToPendingRoute}
+    >
       <SettingsNav.Navigator
         initialRouteName="Settings"
         screenOptions={{

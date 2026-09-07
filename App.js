@@ -8,6 +8,7 @@ import firestore from "@react-native-firebase/firestore";
 import NetInfo from "@react-native-community/netinfo";
 import { UserProvider, useUser } from "./UserContext";
 import { initializeCacheManager } from "./utils/cacheManager";
+import { startDeepLinkListener } from "./utils/deepLinks";
 import { hydrate as hydrateAvatarCache } from "./utils/avatarCache";
 import LoadingWheel from "./components/LoadingWheel";
 
@@ -80,6 +81,12 @@ function AppNavigator() {
   const { user, setUser, signUp, setSignUp } = useUser();
   const [initializing, setInitializing] = useState(true);
   const [cacheInitialized, setCacheInitialized] = useState(false);
+
+  // Universal links (the App Clip URLs) open the installed app instead of the
+  // clip, so they have to be handled here. Started above the auth gate on
+  // purpose: a link can arrive while signed out, and the pending route is held
+  // until a screen is able to act on it.
+  useEffect(() => startDeepLinkListener(), []);
 
   useEffect(() => {
     const subscriber = auth().onAuthStateChanged(async (user) => {
