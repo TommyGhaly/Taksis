@@ -22,9 +22,9 @@ Nine App Clip Experiences are planned. iOS allows exactly one App Clip *target*
 per app, so all nine ship in one binary and are selected by the invocation URL —
 `ClipDestination` is that router.
 
-Namespacing them under one prefix means a single Android `pathPrefix` filter, a
-single AASA component, and one clean exclusion in the apex redirect. It also
-means the app never claims an unrelated URL on the church's domain.
+Namespacing them under one prefix means a single Android `pathPrefix` filter and
+a single AASA component covering all nine. It also keeps the app from claiming
+any URL on the church's domain other than its own.
 
 Adding a snippet touches four places: `ClipDestination` and `RootView` in
 `ios-appclip/`, `SNIPPET_ROUTES` in `utils/deepLinks.js`, a page under `church-site/c/`
