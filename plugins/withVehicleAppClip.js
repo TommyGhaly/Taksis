@@ -57,12 +57,12 @@ const BUNDLE_ID_SUFFIX = "Clip";
  * identifier. Change it here, deploy the AASA to the new host, and use the same
  * domain when registering the App Clip Experience.
  *
- * The apex is served by Firebase Hosting rather than Wix precisely because of the
- * no-redirect rule: Wix answered `/.well-known/*` with a 301 to www and then a
- * 400, which Apple treats as no AASA at all. The church site itself still lives on
- * Wix at `www.spsmwayland.org`; see the `redirects` block in `firebase.json`.
+ * This is `www`, not the apex, because the apex 301s to `www` -- first via Wix,
+ * now via Firebase's own domain redirect. Apple and Android both refuse to follow
+ * a redirect for these files and fail silently when they hit one, so the
+ * associated domain has to be the host that actually serves them.
  */
-const ASSOCIATED_DOMAIN = "spsmwayland.org";
+const ASSOCIATED_DOMAIN = "www.spsmwayland.org";
 
 /**
  * Snippet the generated scheme launches into.

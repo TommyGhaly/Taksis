@@ -85,7 +85,7 @@
           "data": [
             {
               "scheme": "https",
-              "host": "spsmwayland.org",
+              "host": "www.spsmwayland.org",
               "pathPrefix": "/c"
             }
           ],

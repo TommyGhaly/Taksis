@@ -34,8 +34,9 @@ const SNIPPET_ROUTES = {
   "register-vehicle": "RegisterVehicle",
 };
 
-// Built from the constants above so the two cannot drift. `www.` is tolerated
-// because the apex redirect means a stray www link still refers to us.
+// Built from the constants above so the two cannot drift. Both hosts are matched:
+// `www` is where the files are actually served and what the app's associated
+// domain names, and the apex 301s there, so a link to either refers to us.
 const LINK_RE = new RegExp(
   `^https://(?:www\\.)?${HOST.replace(/\./g, "\\.")}/${PATH_PREFIX}/([a-z0-9-]+)`,
   "i"

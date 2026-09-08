@@ -1,7 +1,7 @@
 # Drop-in for the church website (`spsm-database`)
 
 These four files belong in the **church website's** Firebase Hosting deploy —
-the `spsm-database` project serving `spsmwayland.org` — not in the Taksis
+the `spsm-database` project serving `www.spsmwayland.org` — not in the Taksis
 project. They live here because Taksis is where their contents are decided
 (bundle identifiers, team ID, snippet paths), but Taksis does not deploy them.
 
@@ -55,18 +55,24 @@ there, and the App Clip fails with no diagnostic.
 If the site is a SPA with a `"source": "**"` rewrite, this one must come first —
 Firebase uses the first match.
 
-## Attach both hostnames to this site
+## These must be served from `www`, not the apex
 
-`spsmwayland.org` **and** `www.spsmwayland.org` should both point at this site,
-with no redirect between them.
+The App Clip's invocation URL is:
 
-Firebase Hosting cannot match redirects on hostname, so a single site cannot
-send the apex to `www`. Doing that would need a second site — and it would put a
-301 in front of the AASA, which is exactly what has to be avoided. Serving both
-is simpler and costs only a `rel="canonical"` tag for SEO.
+```
+https://www.spsmwayland.org/c/register-vehicle
+```
 
-The App Clip's invocation URL is on the bare domain:
-`https://spsmwayland.org/c/register-vehicle`.
+`www` is the host named in the app binary's entitlements, so `www` is where these
+files have to be reachable with a **200 and no redirect**.
+
+The apex (`spsmwayland.org`) is configured in the Firebase console to 301 to
+`www`, which is fine and deliberate — but it means the apex cannot serve these
+files. Apple and Android both refuse to follow a redirect for them and fail
+silently when they hit one.
+
+If the apex is ever changed to serve content directly instead of redirecting,
+that does not break anything here; `www` remains correct either way.
 
 ## Before deploying: fill in the Android fingerprints
 
@@ -83,7 +89,7 @@ built APK.
 ## Verifying after deploy
 
 ```bash
-curl -sS -D- -o/dev/null https://spsmwayland.org/.well-known/apple-app-site-association
+curl -sS -D- -o/dev/null https://www.spsmwayland.org/.well-known/apple-app-site-association
 ```
 
 Wants `200`, `content-type: application/json`, and **no `location` header**.
@@ -91,7 +97,7 @@ Apple and Android both refuse to follow a redirect here, and both fail silently
 when they hit one. Same check for `assetlinks.json`.
 
 ```bash
-curl -sS -o/dev/null -w '%{http_code}\n' https://spsmwayland.org/c/register-vehicle
+curl -sS -o/dev/null -w '%{http_code}\n' https://www.spsmwayland.org/c/register-vehicle
 ```
 
 Wants `200` and should render the vehicle registration form.

@@ -3,7 +3,7 @@
 One URL, tapped from an NFC tag in the parking lot:
 
 ```
-https://spsmwayland.org/c/register-vehicle
+https://www.spsmwayland.org/c/register-vehicle
 ```
 
 | Who taps it | What happens |
@@ -65,7 +65,7 @@ Firebase removed the entire problem; none of that machinery survives.
 
 One site, `taksis-a8ba7.web.app`, which used to serve the registration form
 directly. People have that link, so rather than break it, it 301s to the form's
-new canonical home at `https://spsmwayland.org/c/register-vehicle`.
+new canonical home at `https://www.spsmwayland.org/c/register-vehicle`.
 
 `/__/*` is a reserved namespace that Firebase resolves ahead of redirects, so the
 Firebase Auth handler on `taksis-a8ba7.firebaseapp.com` is unaffected — worth
@@ -121,13 +121,13 @@ production but not on a local build.
 The two well-known files — both want `200`, `application/json`, no `location`:
 
 ```bash
-curl -sS -D- -o/dev/null https://spsmwayland.org/.well-known/apple-app-site-association
+curl -sS -D- -o/dev/null https://www.spsmwayland.org/.well-known/apple-app-site-association
 ```
 
 That the church site still works and the clip URL serves a real page:
 
 ```bash
-curl -sS -o/dev/null -w '%{http_code}\n' https://spsmwayland.org/ https://www.spsmwayland.org/ https://spsmwayland.org/c/register-vehicle
+curl -sS -o/dev/null -w '%{http_code}\n' https://spsmwayland.org/ https://www.spsmwayland.org/ https://www.spsmwayland.org/c/register-vehicle
 ```
 
 All three want `200` — the first two are the church site on both hostnames, the
@@ -137,7 +137,7 @@ if something went wrong.
 
 The clip itself, without needing App Store Connect: install it via Xcode, then on
 the device go to **Settings → Developer → Local Experiences** and register URL
-prefix `https://spsmwayland.org/c/register-vehicle` with bundle ID
+prefix `https://www.spsmwayland.org/c/register-vehicle` with bundle ID
 `com.tghaly.taksis.Clip`. Local Experiences bypass the associated-domain check, so
 this works before DNS has moved. See `ios-appclip/README.md` for simulator runs.
 
@@ -147,7 +147,7 @@ Android:
 adb shell pm verify-app-links --re-verify com.tghaly.taksis && adb shell pm get-app-links com.tghaly.taksis
 ```
 
-Wants `verified` for `spsmwayland.org`.
+Wants `verified` for `www.spsmwayland.org`.
 
 ## NFC tags
 

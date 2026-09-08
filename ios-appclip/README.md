@@ -111,7 +111,7 @@ A plain simulator run has no URL, so DEBUG builds fall back to
 snippet, or pass the URL explicitly:
 
 ```bash
-SIMCTL_CHILD__XCAppClipURL="https://spsmwayland.org/c/register-vehicle" xcrun simctl launch booted com.tghaly.taksis.Clip
+SIMCTL_CHILD__XCAppClipURL="https://www.spsmwayland.org/c/register-vehicle" xcrun simctl launch booted com.tghaly.taksis.Clip
 ```
 
 `ClipRouter.resolveDebugEnvironment()` reads that variable directly, because
@@ -130,7 +130,7 @@ codes, and associated-domain validation. That needs a device — see below.
 
 You do **not** need App Store Connect for this. On a device with the clip
 installed via Xcode, go to **Settings → Developer → Local Experiences** and
-register one with URL prefix `https://spsmwayland.org/c/register-vehicle` and
+register one with URL prefix `https://www.spsmwayland.org/c/register-vehicle` and
 bundle ID `com.tghaly.taksis.Clip`. A QR code or NFC tag holding that URL will
 then bring up the real App Clip card. Local Experiences bypass the
 associated-domain check, so this works before DNS moves or the AASA is deployed.
