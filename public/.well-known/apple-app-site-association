@@ -1,0 +1,19 @@
+{
+  "appclips": {
+    "apps": ["5ZRM8X66TN.com.tghaly.taksis.register-vehicle"]
+  },
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "5ZRM8X66TN.com.tghaly.taksis",
+        "paths": [
+          "NOT /__/auth/action/",
+          "NOT /__/auth/handler/",
+          "NOT /_/*",
+          "/*"
+        ]
+      }
+    ]
+  }
+}
