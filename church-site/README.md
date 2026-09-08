@@ -74,21 +74,24 @@ silently when they hit one.
 If the apex is ever changed to serve content directly instead of redirecting,
 that does not break anything here; `www` remains correct either way.
 
-## Before deploying: both Android fingerprints, not one
+## The Android fingerprint
 
-`assetlinks.json` needs **two** SHA-256 values, and getting only one is the
-classic way to ship Android App Links that silently do not work.
+`assetlinks.json` lists one SHA-256, and that is correct here.
 
-- **Upload key** — already filled in. Signs locally built APKs.
-  `keytool -list -v -keystore credentials/android/keystore.jks -alias <alias> | grep SHA256`
-- **Play App Signing** — still a placeholder. Play Console → Setup → App
-  integrity → App signing → SHA-256 certificate fingerprint.
+It is the **app signing key** from Play Console → Setup → App integrity → App
+signing. It also happens to match `credentials/android/keystore.jks`, because
+this app predates Play App Signing and was enrolled using its original key so
+existing installs could keep updating.
 
-Play re-signs the uploaded bundle with its own key, so **an app installed from
-the Play Store presents a different certificate than the one you uploaded**.
-With only the upload key listed, verification fails for every real user while
-working perfectly on your own build — which is the worst possible way for it to
-fail, because local testing looks fine.
+That coincidence is worth understanding before anyone "fixes" it. Normally Play
+generates its own app signing key, the uploaded bundle is re-signed, and a
+fingerprint taken from the local keystore would be the *upload* key -- which
+verifies on locally built APKs and fails for every Play Store install. Here the
+two are the same key, so one entry covers both.
+
+Verification only ever checks the certificate on the installed app, so the app
+signing key is the one that must be listed. If Play ever rotates it, this file
+must be updated or Android App Links stop working with no error anywhere.
 
 `google-services.json` carries only SHA-1 values, which are not usable here.
 
