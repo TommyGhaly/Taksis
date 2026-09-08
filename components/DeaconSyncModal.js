@@ -355,8 +355,11 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
     onClose();
   };
 
-  if (!visible) return null;
-
+  // NOTE: everything below runs on every render, including the renders where
+  // `visible` is false. The `if (!visible) return null` bail-out has to stay
+  // BELOW the useMemos — putting it above them meant this component called 13
+  // hooks while closed and 15 once opened, and React threw "Rendered more hooks
+  // than during the previous render" the moment the Sync button was tapped.
   const cs = schedDiffs[idx];
   const lc = listDiff ? listDiff.toAdd.length + listDiff.toRemove.length + listDiff.stale.length : 0;
   const sc = cs ? cs.unknowns.length + cs.missing.length : 0;
@@ -390,6 +393,8 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
       ...cs.missing.map((m) => ({ k: `m${m.uid}`, n: m.name, a: "→ Extras", c: "#30d158" })),
     ];
   }, [cs]);
+
+  if (!visible) return null;
 
   return (
     <Modal visible animationType="fade" transparent onRequestClose={close}>
