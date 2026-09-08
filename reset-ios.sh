@@ -18,17 +18,15 @@ cp GoogleService-Info.plist ios/app/GoogleService-Info.plist
 echo "→ Copying Podfile"
 cp Podfile.template ios/Podfile
 
-echo "→ Firebase AppDelegate patch"
+echo "→ Verifying Firebase AppDelegate patch"
+# This used to be a sed patch here. It now lives in plugins/withFirebaseAppDelegate.js
+# so that a bare `expo prebuild` — CI, EAS Build, a fresh clone — gets it too,
+# not just runs of this script. Kept as a check so a silent plugin regression
+# still fails loudly here instead of at app launch.
 APPDELEGATE="ios/app/AppDelegate.swift"
-if grep -q "FirebaseApp.configure()" "$APPDELEGATE"; then
-  echo "   (already patched, skipping)"
-else
-  sed -i '' '/bindReactNativeFactory(factory)/a\
-    FirebaseApp.configure()' "$APPDELEGATE"
-  if ! grep -q "FirebaseApp.configure()" "$APPDELEGATE"; then
-    echo "   ✗ Firebase patch did not apply — 'bindReactNativeFactory(factory)' anchor not found in $APPDELEGATE" >&2
-    exit 1
-  fi
+if ! grep -q "FirebaseApp.configure()" "$APPDELEGATE"; then
+  echo "   ✗ FirebaseApp.configure() missing from $APPDELEGATE — plugins/withFirebaseAppDelegate.js did not run or its anchor broke" >&2
+  exit 1
 fi
 
 echo "→ Asset catalog"
