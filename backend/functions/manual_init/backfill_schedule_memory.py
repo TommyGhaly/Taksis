@@ -1,10 +1,21 @@
 """
-backfill_schedule_memory.py - Give the scheduling memory a history.
+backfill_schedule_memory.py - Seed `declinedCount` from the user documents.
 
-The scoring memory added to schedule_generation.py reads three fields on
-churches/{id}.deacons[]: assignedCount, declinedCount and roleHistory. Without
-a backfill every servant looks brand new, so the reliability term has nothing
-to say for months and the famine term treats a ten-year veteran as a newcomer.
+Mostly superseded. The weekly job now rebuilds `assignedCount`, `roleHistory`
+and `weeksSince` from churches/{id}/archive before every run - see
+`apply_service_history` in schedule_generation.py - so those three no longer
+need seeding and cannot drift far enough to need repairing.
+
+`declinedCount` is the exception, and the reason this script is still here. A
+servant who drops out is replaced *before* the week is archived, so the archive
+holds who served and has no way to see who was assigned and then did not come.
+Going forward `update_attendance` counts those as they happen; for history
+already on record, only the user documents remember, and that is what the
+`unavailableWeeks` / `switched_weeks` half of this script reconstructs.
+
+Run it once per church that predates the memory layer. The assignedCount and
+roleHistory it writes are harmless - generation recomputes both from the archive
+on its next pass.
 
 All three can be reconstructed from data already stored:
 

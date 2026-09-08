@@ -16,7 +16,6 @@ import {
 } from "react-native";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
-import storage from "@react-native-firebase/storage";
 import { LinearGradient } from "expo-linear-gradient";
 import BackArrow from "../../components/backArrow";
 import PhotoInput from "../../components/photoInput";
@@ -68,6 +67,50 @@ const renderAttendanceRow = ({ item }) => (
   <AttendanceHistoryRow date={item.date} status={item.status} />
 );
 const attendanceKeyExtractor = (item) => item.date;
+/**
+ * Typed-as-you-go formatters for the two fields with a shape the rest of the app
+ * relies on.
+ *
+ * Birthdays are stored as MM-DD-YYYY (that is what the add-student form
+ * validates, see screens/SundaySchool/SundaySchoolAttendance.js:700) and phone
+ * numbers were being stored however they were typed. Servants filling these in
+ * are not going to remember a format, so the field inserts the separators for
+ * them: they type digits, they cannot produce a value that reads back wrong.
+ */
+const formatBirthdayInput = (text) => {
+  const d = String(text).replace(/\D/g, "").slice(0, 8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}-${d.slice(2)}`;
+  return `${d.slice(0, 2)}-${d.slice(2, 4)}-${d.slice(4)}`;
+};
+
+const formatPhoneInput = (text) => {
+  const d = String(text).replace(/\D/g, "").slice(0, 10);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+};
+
+const BIRTHDAY_PATTERN = /^\d{2}-\d{2}-\d{4}$/;
+
+/**
+ * Label + hint above the input, rather than a placeholder doing both jobs.
+ *
+ * A placeholder disappears the moment there is a value, so a half-filled form
+ * became five unlabelled boxes — you could not tell which one was the phone
+ * number without clearing it.
+ */
+const Field = ({ label, hint, required, children }) => (
+  <View style={styles.field}>
+    <Text style={styles.fieldLabel}>
+      {label}
+      {required ? <Text style={styles.fieldRequired}> (required)</Text> : null}
+    </Text>
+    {hint ? <Text style={styles.fieldHint}>{hint}</Text> : null}
+    {children}
+  </View>
+);
+
 const EmptyAttendance = () => (
   <View style={styles.noAttendanceContainer}>
     <Text style={styles.noAttendanceText}>No attendance records available.</Text>
@@ -104,6 +147,15 @@ const IndividualAttendance = () => {
   const isMounted = useRef(true);
   // Which student the state on screen belongs to.
   const loadedStudentId = useRef(null);
+
+  // Whether the form differs from what is stored. Drives the close confirmation:
+  // no edits, no interrogation.
+  const isDirty = React.useMemo(() => {
+    const fields = ["name", "phone", "address", "description", "birthday"];
+    return fields.some(
+      (f) => (editData[f] || "").trim() !== (studentData[f] || "").trim()
+    );
+  }, [editData, studentData]);
 
   // Get available grades for transfer (exclude current grade)
   const availableGrades = React.useMemo(
@@ -278,12 +330,35 @@ const IndividualAttendance = () => {
 
     setDeletingPhoto(true);
     try {
+      // The pointer on the *student* document has to go first. removePhoto only
+      // knows about users/{uid}, so leaving `photoURL` here would let this
+      // screen's own listener re-prime the cache with a url whose Storage object
+      // no longer exists, and the deleted photo would appear to come back.
+      try {
+        await firestore()
+          .collection("churches")
+          .doc(church)
+          .collection(category)
+          .doc(grade)
+          .collection("students")
+          .doc(studentId)
+          .update({
+            photoURL: firestore.FieldValue.delete(),
+            photoUpdatedAt: firestore.FieldValue.delete(),
+          });
+      } catch (e) {
+        // Students added before photos were stamped have neither field.
+        console.log(
+          "[IndividualAttendance] could not clear photoURL:",
+          e?.message
+        );
+      }
+
       // Clears the Storage object, the photoURL pointer on the user doc and the
-      // local cache. Skipping the doc fields would leave every screen re-priming
-      // a url whose object no longer exists.
+      // local cache.
       await avatarCache.removePhoto(studentId);
 
-      Alert.alert("Success", "Profile picture deleted successfully");
+      Alert.alert("Photo Removed", "The profile picture has been removed.");
     } catch (error) {
       // An already-missing object is treated as success by removePhoto, so
       // anything reaching here is a real failure.
@@ -293,52 +368,71 @@ const IndividualAttendance = () => {
     }
   };
 
-  // Handle edit profile picture
-  const handleEditProfilePicture = () => {
+  /**
+   * The photo card is rendered *inside* the student-info modal (see the note on
+   * that modal), so this only has to flip one flag — nothing to sequence around
+   * a modal dismissal.
+   */
+  const openPhotoInput = () => {
+    if (deletingPhoto) return;
+    setPhotoInputVisible(true);
+  };
+
+  // Ask first — the remove is immediate and there is no undo.
+  const confirmRemovePhoto = () => {
+    if (deletingPhoto) return;
     Alert.alert(
-      "Edit Profile Picture",
-      "Choose an option",
+      "Remove this photo?",
+      `${studentData.name || "This student"} will go back to the default picture. You can add a new photo any time.`,
       [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Change Photo",
-          onPress: () => setPhotoInputVisible(true),
-        },
+        { text: "Keep Photo", style: "cancel" },
         {
           text: "Remove Photo",
           style: "destructive",
           onPress: handleRemovePhoto,
         },
-      ],
-      { cancelable: true }
+      ]
     );
   };
 
-  // Handle photo upload
-  const handlePhotoUpload = async (imageUri) => {
-    if (!studentId || studentId === "undefined") {
-      Alert.alert("Error", "Invalid or missing Student ID.");
-      return;
-    }
+  /**
+   * PhotoInput has already uploaded the file and published the url into this
+   * device's avatarCache. Students are documents under
+   * churches/{church}/{category}/{grade}/students, not users/{uid}, so
+   * PhotoInput's own `users` write is a no-op for them — the fields get stamped
+   * onto the student document here instead.
+   *
+   * `photoUpdatedAt` is the part that matters: a download URL for a fixed
+   * Storage path does not change between uploads, so without a fresh version
+   * token every *other* servant's device keeps showing the previous photo out of
+   * its image cache.
+   */
+  const handlePhotoUploaded = async (downloadURL, version) => {
+    if (!studentId) return;
     try {
-      setSaving(true);
-      const ref = storage().ref(`profilePictures/${studentId}.png`);
-      await ref.putFile(imageUri);
-      const url = await ref.getDownloadURL();
-      // Publish the new url straight into the cache with a fresh version token
-      // so every Avatar for this uid repaints without another Storage read.
-      avatarCache.set(studentId, url);
-      setPhotoInputVisible(false);
-      Alert.alert("Success", "Profile picture updated successfully.");
+      await firestore()
+        .collection("churches")
+        .doc(church)
+        .collection(category)
+        .doc(grade)
+        .collection("students")
+        .doc(studentId)
+        .update({
+          photoURL: downloadURL,
+          photoUpdatedAt: version || String(Date.now()),
+        });
     } catch (error) {
-      Alert.alert("Error", "Failed to upload profile picture.");
-    } finally {
-      setSaving(false);
+      // The local cache already has the new photo, so this screen is correct
+      // either way; a failed stamp only delays the other devices.
+      console.log(
+        "[IndividualAttendance] could not stamp photoURL:",
+        error?.message
+      );
     }
   };
 
-  // Close photo input modal. PhotoInput already wrote the new url + version
-  // into avatarCache, so there is nothing to refetch here.
+  // Close the photo card. PhotoInput already wrote the new url + version into
+  // avatarCache, so there is nothing to refetch here.
   const closePhotoInputModal = () => {
     setPhotoInputVisible(false);
   };
@@ -422,7 +516,17 @@ const IndividualAttendance = () => {
   // Save edited student data
   const saveEdits = async () => {
     if (!editData.name.trim()) {
-      Alert.alert("Error", "Student name is required.");
+      Alert.alert("Name Needed", "Please enter the student's name before saving.");
+      return;
+    }
+    // Same rule the add-student form enforces. Without it, a half-typed birthday
+    // saved silently and then read back as nothing anywhere else in the app.
+    const birthday = editData.birthday.trim();
+    if (birthday && !BIRTHDAY_PATTERN.test(birthday)) {
+      Alert.alert(
+        "Check the Birthday",
+        "Please enter the birthday as month, day, year — for example 04-15-2016 — or leave it blank."
+      );
       return;
     }
     try {
@@ -439,7 +543,7 @@ const IndividualAttendance = () => {
           phone: editData.phone.trim(),
           address: editData.address.trim(),
           description: editData.description.trim(),
-          birthday: editData.birthday.trim(),
+          birthday,
         });
       setEditMode(false);
       closeModalThen(() =>
@@ -498,31 +602,35 @@ const IndividualAttendance = () => {
 
   // Handle modal close
   const handleModalClose = () => {
-    if (editMode) {
+    if (saving || transferringStudent) return;
+
+    const discard = () => {
+      setEditMode(false);
+      setModalVisible(false);
+      setEditData({
+        name: studentData.name || "",
+        phone: studentData.phone || "",
+        address: studentData.address || "",
+        description: studentData.description || "",
+        birthday: studentData.birthday || "",
+      });
+    };
+
+    // Only ask when there is actually something to lose. Asking every time
+    // taught people to tap through the alert without reading it, which is how a
+    // real edit ends up discarded.
+    if (editMode && isDirty) {
       Alert.alert(
-        "Discard Changes?",
-        "You have unsaved changes. Are you sure you want to cancel?",
+        "Close without saving?",
+        "Your changes to this student have not been saved yet.",
         [
-          { text: "Continue Editing", style: "cancel" },
-          {
-            text: "Discard",
-            onPress: () => {
-              setEditMode(false);
-              setModalVisible(false);
-              setEditData({
-                name: studentData.name || "",
-                phone: studentData.phone || "",
-                address: studentData.address || "",
-                description: studentData.description || "",
-                birthday: studentData.birthday || "",
-              });
-            },
-          },
+          { text: "Keep Editing", style: "cancel" },
+          { text: "Close Without Saving", style: "destructive", onPress: discard },
         ]
       );
-    } else {
-      setModalVisible(false);
+      return;
     }
+    discard();
   };
 
   // Only a cold load blocks the screen; later reads paint over what's there.
@@ -543,9 +651,10 @@ const IndividualAttendance = () => {
             onPress={() => setModalVisible(true)}
             style={styles.infoButton}
             accessible={true}
-            accessibilityLabel="View student information"
+            accessibilityLabel="View and edit student information"
           >
-            <Text style={styles.infoButtonText}>i</Text>
+            <Icon name="account-edit-outline" size={18} color="#fff" />
+            <Text style={styles.infoButtonText}>Info & Edit</Text>
           </TouchableOpacity>
         </View>
         <Text style={styles.title}>{`${studentData.name || "Student"}`}</Text>
@@ -595,6 +704,17 @@ const IndividualAttendance = () => {
         transparent
         animationType="fade"
         onDismiss={runAfterClose}
+        onRequestClose={() => {
+          // Android hardware back. Peel one layer at a time, top-most first.
+          if (photoInputVisible) return closePhotoInputModal();
+          if (gradeChangeModalVisible) {
+            if (transferringStudent) return;
+            setGradeChangeModalVisible(false);
+            setSelectedNewGrade("");
+            return;
+          }
+          handleModalClose();
+        }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -606,11 +726,40 @@ const IndividualAttendance = () => {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Text style={styles.modalTitle}>Student Information</Text>
-            <View style={styles.infoContainer}>
+            {/* Outside the ScrollView on purpose: the way out has to stay put
+                while the form scrolls. Before this the only way to close was a
+                line of text at the very bottom of the form. */}
+            <TouchableOpacity
+              style={[styles.modalCloseButton, saving && styles.disabled]}
+              onPress={handleModalClose}
+              disabled={saving || transferringStudent}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessible={true}
+              accessibilityLabel={editMode ? "Close without saving" : "Close"}
+              accessibilityRole="button"
+            >
+              <Icon name="close" size={24} color="#dcdcdc" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>
+              {editMode ? "Edit Student" : "Student Information"}
+            </Text>
+            {editMode && (
+              <Text style={styles.modalSubtitle}>
+                Change anything you need, then tap Save Changes at the bottom.
+              </Text>
+            )}
+            {/* Scrollable: with a label on every field the form is taller than a
+                phone screen, and a card taller than the screen leaves no way to
+                reach Save. */}
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.infoContainer}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
+            >
               {editMode ? (
                 <>
-                  <View style={styles.profilePictureContainer}>
+                  <View style={styles.photoSection}>
                     <Avatar
                       uid={studentId}
                       user={studentData}
@@ -620,90 +769,159 @@ const IndividualAttendance = () => {
                       style={styles.modalProfilePicture}
                       expandable
                     />
-                    <TouchableOpacity
-                      style={styles.editPhotoIcon}
-                      onPress={handleEditProfilePicture}
-                      disabled={deletingPhoto}
-                      accessible={true}
-                      accessibilityLabel="Edit profile picture"
-                    >
-                      <Icon name="pencil" size={16} color="#fff" />
-                    </TouchableOpacity>
+                    {/* Spelled-out buttons rather than a 24px pencil badge that
+                        opened an unlabelled action sheet. */}
+                    <View style={styles.photoButtonRow}>
+                      <TouchableOpacity
+                        style={styles.photoButton}
+                        onPress={openPhotoInput}
+                        disabled={deletingPhoto}
+                        accessible={true}
+                        accessibilityLabel="Change profile picture"
+                      >
+                        <Icon name="camera" size={18} color="#fff" />
+                        <Text style={styles.photoButtonText}>Change Photo</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.photoButton, styles.photoButtonDanger]}
+                        onPress={confirmRemovePhoto}
+                        disabled={deletingPhoto}
+                        accessible={true}
+                        accessibilityLabel="Remove profile picture"
+                      >
+                        {deletingPhoto ? (
+                          <ActivityIndicator size="small" color="#ff8a80" />
+                        ) : (
+                          <>
+                            <Icon
+                              name="trash-can-outline"
+                              size={18}
+                              color="#ff8a80"
+                            />
+                            <Text
+                              style={[
+                                styles.photoButtonText,
+                                styles.photoButtonDangerText,
+                              ]}
+                            >
+                              Remove Photo
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <TextInput
-                    style={styles.input}
-                    value={editData.name}
-                    onChangeText={(text) =>
-                      setEditData({ ...editData, name: text })
-                    }
-                    placeholder="Name"
-                    placeholderTextColor="#888"
-                    autoCapitalize="words"
-                    accessible={true}
-                    accessibilityLabel="Edit student name"
-                  />
-                  <TextInput
-                    style={styles.input}
-                    value={editData.birthday}
-                    onChangeText={(text) =>
-                      setEditData({ ...editData, birthday: text })
-                    }
-                    placeholder="Birthday (e.g., MM-DD-YYYY)"
-                    placeholderTextColor="#888"
-                    accessible={true}
-                    accessibilityLabel="Edit student birthday"
-                  />
-                  <TextInput
-                    style={styles.input}
-                    value={editData.phone}
-                    onChangeText={(text) =>
-                      setEditData({ ...editData, phone: text })
-                    }
-                    placeholder="Phone (optional)"
-                    placeholderTextColor="#888"
-                    keyboardType="phone-pad"
-                    accessible={true}
-                    accessibilityLabel="Edit student phone number"
-                  />
-                  <TextInput
-                    style={styles.input}
-                    value={editData.address}
-                    onChangeText={(text) =>
-                      setEditData({ ...editData, address: text })
-                    }
-                    placeholder="Address (optional)"
-                    placeholderTextColor="#888"
-                    accessible={true}
-                    accessibilityLabel="Edit student address"
-                  />
-                  <TextInput
-                    style={[styles.input, styles.descriptionInput]}
-                    value={editData.description}
-                    onChangeText={(text) =>
-                      setEditData({ ...editData, description: text })
-                    }
-                    placeholder="Description (optional)"
-                    placeholderTextColor="#888"
-                    multiline
-                    numberOfLines={4}
-                    accessible={true}
-                    accessibilityLabel="Edit student description"
-                  />
-                  
+
+                  <Field label="Full Name" required>
+                    <TextInput
+                      style={styles.input}
+                      value={editData.name}
+                      onChangeText={(text) =>
+                        setEditData((prev) => ({ ...prev, name: text }))
+                      }
+                      placeholder="First and last name"
+                      placeholderTextColor="#888"
+                      autoCapitalize="words"
+                      accessible={true}
+                      accessibilityLabel="Edit student name"
+                    />
+                  </Field>
+
+                  <Field
+                    label="Birthday"
+                    hint="Month, day, year — for example 04-15-2016. Leave blank if you don't know it."
+                  >
+                    <TextInput
+                      style={styles.input}
+                      value={editData.birthday}
+                      onChangeText={(text) =>
+                        setEditData((prev) => ({
+                          ...prev,
+                          birthday: formatBirthdayInput(text),
+                        }))
+                      }
+                      placeholder="MM-DD-YYYY"
+                      placeholderTextColor="#888"
+                      keyboardType="number-pad"
+                      maxLength={10}
+                      accessible={true}
+                      accessibilityLabel="Edit student birthday"
+                    />
+                  </Field>
+
+                  <Field label="Phone Number" hint="Optional — a parent's number is fine.">
+                    <TextInput
+                      style={styles.input}
+                      value={editData.phone}
+                      onChangeText={(text) =>
+                        setEditData((prev) => ({
+                          ...prev,
+                          phone: formatPhoneInput(text),
+                        }))
+                      }
+                      placeholder="(555) 123-4567"
+                      placeholderTextColor="#888"
+                      keyboardType="phone-pad"
+                      maxLength={14}
+                      accessible={true}
+                      accessibilityLabel="Edit student phone number"
+                    />
+                  </Field>
+
+                  <Field label="Home Address" hint="Optional.">
+                    <TextInput
+                      style={styles.input}
+                      value={editData.address}
+                      onChangeText={(text) =>
+                        setEditData((prev) => ({ ...prev, address: text }))
+                      }
+                      placeholder="Street, city"
+                      placeholderTextColor="#888"
+                      accessible={true}
+                      accessibilityLabel="Edit student address"
+                    />
+                  </Field>
+
+                  <Field
+                    label="Notes"
+                    hint="Optional — anything the servants should know."
+                  >
+                    <TextInput
+                      style={[styles.input, styles.descriptionInput]}
+                      value={editData.description}
+                      onChangeText={(text) =>
+                        setEditData((prev) => ({ ...prev, description: text }))
+                      }
+                      placeholder="Allergies, who picks them up, siblings..."
+                      placeholderTextColor="#888"
+                      multiline
+                      numberOfLines={4}
+                      accessible={true}
+                      accessibilityLabel="Edit student notes"
+                    />
+                  </Field>
+
                   {/* Grade Change Button - only show if there are available grades to move to */}
                   {availableGrades && availableGrades.length > 0 && (
                     <TouchableOpacity
                       style={styles.gradeChangeButton}
                       onPress={() => setGradeChangeModalVisible(true)}
                       accessible={true}
-                      accessibilityLabel="Change student grade"
+                      accessibilityLabel="Move student to a different grade"
                     >
-                      <Text style={styles.gradeChangeButtonText}>
-                        Change Grade (Currently: {formatGrade(grade)})
-                      </Text>
+                      <Icon name="swap-horizontal" size={20} color="#4d9cff" />
+                      <View style={styles.gradeChangeButtonTextGroup}>
+                        <Text style={styles.gradeChangeButtonText}>
+                          Move to a Different Grade
+                        </Text>
+                        <Text style={styles.gradeChangeButtonHint}>
+                          Currently in {formatGrade(grade)}
+                        </Text>
+                      </View>
+                      <Icon name="chevron-right" size={22} color="#888" />
                     </TouchableOpacity>
                   )}
-                  
+
                   <LinearGradient
                     colors={["#147efb", "#0f64d2"]}
                     style={styles.modalButton}
@@ -718,18 +936,36 @@ const IndividualAttendance = () => {
                       accessibilityLabel="Save student information"
                     >
                       {saving ? (
-                        <ActivityIndicator size="small" color="#fff" />
+                        <>
+                          <ActivityIndicator size="small" color="#fff" />
+                          <Text
+                            style={[styles.modalButtonText, styles.buttonTextWithIcon]}
+                          >
+                            Saving...
+                          </Text>
+                        </>
                       ) : (
-                        <Text style={styles.modalButtonText}>Save</Text>
+                        <>
+                          <Icon name="check" size={22} color="#fff" />
+                          <Text
+                            style={[styles.modalButtonText, styles.buttonTextWithIcon]}
+                          >
+                            Save Changes
+                          </Text>
+                        </>
                       )}
                     </TouchableOpacity>
                   </LinearGradient>
                   <TouchableOpacity
                     onPress={handleModalClose}
+                    style={styles.secondaryButton}
+                    disabled={saving}
                     accessible={true}
                     accessibilityLabel="Cancel editing"
                   >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                    <Text style={styles.cancelButtonText}>
+                      Cancel — don't save
+                    </Text>
                   </TouchableOpacity>
                 </>
               ) : (
@@ -775,7 +1011,7 @@ const IndividualAttendance = () => {
                       </Text>
                     </View>
                     <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Description</Text>
+                      <Text style={styles.infoLabel}>Notes</Text>
                       <Text style={styles.infoValue}>
                         {studentData.description || "N/A"}
                       </Text>
@@ -793,19 +1029,25 @@ const IndividualAttendance = () => {
                       accessible={true}
                       accessibilityLabel="Edit student information"
                     >
-                      <Text style={styles.modalButtonText}>Edit</Text>
+                      <Icon name="pencil" size={20} color="#fff" />
+                      <Text
+                        style={[styles.modalButtonText, styles.buttonTextWithIcon]}
+                      >
+                        Edit Information
+                      </Text>
                     </TouchableOpacity>
                   </LinearGradient>
                   <TouchableOpacity
                     onPress={handleModalClose}
+                    style={styles.secondaryButton}
                     accessible={true}
                     accessibilityLabel="Close student information"
                   >
-                    <Text style={styles.cancelButtonText}>Close</Text>
+                    <Text style={styles.closeButtonText}>Close</Text>
                   </TouchableOpacity>
                 </>
               )}
-            </View>
+            </ScrollView>
           </LinearGradient>
         </KeyboardAvoidingView>
 
@@ -915,13 +1157,15 @@ const IndividualAttendance = () => {
             </KeyboardAvoidingView>
           </TouchableOpacity>
         )}
-      </Modal>
 
-      <Modal visible={photoInputVisible} transparent animationType="fade">
+        {/* Same reason as the grade picker above: the photo card is content of
+            *this* modal (`inline`), not a second <Modal>. Stacked, it was never
+            presented at all — "Change Profile Picture" opened nothing. */}
         <PhotoInput
+          inline
           visible={photoInputVisible}
           onClose={closePhotoInputModal}
-          onSave={handlePhotoUpload}
+          onUploadSuccess={handlePhotoUploaded}
           userId={studentId}
         />
       </Modal>
@@ -969,10 +1213,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   infoButton: {
+    flexDirection: "row",
     backgroundColor: "#333",
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -983,8 +1228,9 @@ const styles = StyleSheet.create({
   },
   infoButtonText: {
     color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 14,
+    fontWeight: "700",
+    marginLeft: 6,
   },
   attendanceContainer: {
     flexGrow: 1,
@@ -1048,7 +1294,10 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     padding: 25,
-    paddingHorizontal: 35,
+    paddingHorizontal: 25,
+    // The edit form is taller than a phone screen; the ScrollView inside needs a
+    // bounded parent or the card just grows off the top and bottom of the modal.
+    maxHeight: "90%",
     borderRadius: 20,
     alignItems: "center",
     shadowColor: "#000",
@@ -1061,12 +1310,101 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     color: "#ffffff",
-    marginBottom: 20,
+    marginBottom: 8,
     letterSpacing: 0.5,
+    textAlign: "center",
+    // Room for the close button in the corner.
+    alignSelf: "stretch",
+    paddingHorizontal: 44,
+  },
+  modalCloseButton: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  disabled: {
+    opacity: 0.4,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: "#aaaaaa",
+    textAlign: "center",
+    marginBottom: 8,
+    lineHeight: 19,
+  },
+  modalScroll: {
+    width: "100%",
   },
   infoContainer: {
     width: "100%",
-    marginBottom: 20,
+    paddingTop: 10,
+    paddingBottom: 10,
+  },
+  // Label + hint sit above the input, so a filled-in form is still readable.
+  field: {
+    width: "100%",
+    marginBottom: 18,
+  },
+  fieldLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#ffffff",
+    marginBottom: 4,
+  },
+  fieldRequired: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#ff8a80",
+  },
+  fieldHint: {
+    fontSize: 13,
+    color: "#9a9a9a",
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+  photoSection: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  photoButtonRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    marginTop: 14,
+  },
+  photoButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#2a2a2a",
+    borderWidth: 1,
+    borderColor: "#444",
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginHorizontal: 5,
+    marginTop: 6,
+    minHeight: 46,
+  },
+  photoButtonText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  photoButtonDanger: {
+    borderColor: "#5a2a2a",
+    backgroundColor: "#2a1e1e",
+  },
+  photoButtonDangerText: {
+    color: "#ff8a80",
   },
   profilePictureContainer: {
     position: "relative",
@@ -1079,19 +1417,6 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     borderWidth: 2,
     borderColor: "#ffffff",
-  },
-  editPhotoIcon: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    backgroundColor: "#147efb",
-    borderRadius: 12,
-    width: 24,
-    height: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#fff",
   },
   infoCard: {
     backgroundColor: "#2a2a2a",
@@ -1124,14 +1449,13 @@ const styles = StyleSheet.create({
   },
   input: {
     width: "100%",
-    padding: 12,
+    padding: 14,
     backgroundColor: "#2a2a2a",
     color: "#fff",
     borderRadius: 10,
-    marginBottom: 15,
     borderWidth: 1,
     borderColor: "#444",
-    fontSize: 16,
+    fontSize: 17,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
@@ -1154,10 +1478,26 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   buttonInner: {
-    paddingVertical: 14,
+    flexDirection: "row",
+    paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 25
+    paddingHorizontal: 25,
+  },
+  buttonTextWithIcon: {
+    marginLeft: 8,
+  },
+  // A bare word was being tapped; give it a real hit area.
+  secondaryButton: {
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#cfcfcf",
+    textAlign: "center",
   },
   modalButtonText: {
     fontSize: 18,
@@ -1169,7 +1509,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#F44336",
-    marginTop: 10,
     textAlign: "center",
   },
   noAttendanceContainer: {
@@ -1190,18 +1529,29 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   gradeChangeButton: {
+    flexDirection: "row",
     backgroundColor: "#2a2a2a",
     borderWidth: 1,
     borderColor: "#444",
     borderRadius: 10,
-    padding: 12,
-    marginVertical: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginBottom: 22,
     alignItems: "center",
+  },
+  gradeChangeButtonTextGroup: {
+    flex: 1,
+    marginLeft: 12,
   },
   gradeChangeButtonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  gradeChangeButtonHint: {
+    color: "#9a9a9a",
+    fontSize: 13,
+    marginTop: 2,
   },
   gradeChangeModalWrapper: {
     flex: 1,

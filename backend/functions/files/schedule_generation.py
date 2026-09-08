@@ -281,6 +281,132 @@ def build_context(deacons, weights=None, unavailable_uids=None):
         "unavailable_uids": unavailable_uids or set(),
     }
 
+
+# ---------------------------------------------------------------------------
+# Service history, read from the archive
+# ---------------------------------------------------------------------------
+#
+# `churches/{id}/archive/{MM-DD-YY}` holds every week that has already been
+# served, as it stood on the day - written by the weekly rotation below as each
+# week falls out of the visible five. It is the only record of who *actually*
+# appeared on a sheet, in what role, and when.
+#
+# Everything the memory layer needs used to come from counters on the roster
+# entry, advanced a week at a time. Counters drift:
+#
+#   * `weeksSince` is reset by `credit_assignment`, so it measures time since
+#     someone was *assigned*, not since they served. Somebody put on a sheet and
+#     then replaced reads as freshly served, and waits out a rotation they never
+#     actually took part in.
+#   * removing and re-adding a servant restarts them at the `utility.py`
+#     default, discarding their place in the queue.
+#   * a church that never ran `manual_init/backfill_schedule_memory` has no
+#     history at all, so `roleHistory` and `assignedCount` say nothing for the
+#     first months of use.
+#
+# The archive has none of those failure modes, so generation derives from it
+# instead of trusting the counters. The counters are still written - the
+# replacement flow, the admin screens and `sort_full_deacons` all read them -
+# but each weekly run recomputes them from the archive first, so a drifted
+# value survives at most one week.
+
+
+def parse_week_id(week_id):
+    """"MM-DD-YY" -> date. None for anything that is not a week id.
+
+    Archive and schedule document ids share this format, and so do the week
+    strings the app writes into `unavailableWeeks`.
+    """
+    try:
+        return datetime.datetime.strptime(week_id, "%m-%d-%y").date()
+    except (ValueError, TypeError):
+        return None
+
+
+def service_history(weeks, before=None):
+    """uid -> [(date, role)], most recent first.
+
+    `weeks` is any iterable of (week_id, schedule_dict). Archived and pending
+    weeks read alike because they are the same shape - the archive copy is just
+    the schedule minus `extra`.
+
+    `before` drops weeks on or after that date. Two things need that: a pending
+    week the caller is about to regenerate is not history, and neither is a week
+    further out than the one being filled.
+    """
+    history = {}
+    for week_id, data in weeks:
+        when = parse_week_id(week_id)
+        if when is None or (before is not None and when >= before):
+            continue
+        # `assigned_roles` already skips `extra` and the "N/A" placeholders, and
+        # returns one role per uid, so a week counts as a single appearance.
+        for uid, role in assigned_roles(data or {}).items():
+            history.setdefault(uid, []).append((when, role))
+
+    for appearances in history.values():
+        appearances.sort(key=lambda pair: pair[0], reverse=True)
+    return history
+
+
+def load_service_history(church_ref, pending_docs, before):
+    """Every week this church has on record, archived and pending.
+
+    The pending weeks count as much as the archived ones. The weekly job fills
+    the week five out, so between the newest archived week and the one being
+    generated sit four weeks that are already assigned but have not happened
+    yet. Ignoring them would make everyone holding one of those slots look
+    maximally overdue and hand them a second slot straight away.
+
+    Keyed by week id because the two sources overlap: the rotation archives a
+    week that was already in the `schedule` snapshot the caller read, and
+    counting it twice would inflate `assignedCount`.
+
+    The archive is streamed whole - one document per week per church, so a
+    church five years in costs a few hundred reads once a week. The ids are
+    "MM-DD-YY", which does not sort chronologically as a string, so there is no
+    server-side ordering to limit against.
+    """
+    weeks = {doc.id: doc.to_dict() for doc in church_ref.collection("archive").stream()}
+    weeks.update({doc.id: doc.to_dict() for doc in pending_docs})
+    return service_history(weeks.items(), before=before)
+
+
+def apply_service_history(deacons, history, as_of):
+    """Rewrite the memory fields on `deacons` from what the archive says.
+
+    `as_of` is the week being generated, so `weeksSince` is the rotation debt at
+    the week being filled rather than at today's date.
+
+    The unit is *intervening* weeks, not elapsed ones: someone who served the
+    Sunday before `as_of` gets 0, not 1. That reproduces the counter exactly -
+    `credit_assignment` zeroes the week someone is assigned and `update_weeks`
+    only ages the people who were not - and the reproduction is load-bearing,
+    because every `cooldown` in ROLE_RULES is calibrated against it. Measuring
+    elapsed weeks instead would quietly shorten every cooldown by one week.
+
+    Somebody with no appearance on record is left alone. That covers a genuine
+    newcomer, whose `utility.py` default is the only signal there is, and a
+    church whose archive does not reach back far enough to have caught everyone.
+    Zeroing them would read as "just served" and freeze them out.
+    """
+    for deacon in deacons:
+        appearances = history.get(deacon.get("uid"))
+        if not appearances:
+            continue
+
+        last_served = appearances[0][0]
+        deacon["weeksSince"] = max(0, ((as_of - last_served).days // 7) - 1)
+        deacon["roleHistory"] = [role for _, role in appearances[:ROLE_HISTORY_WINDOW]]
+
+        # The reliability denominator is every week they were put on a sheet:
+        # the ones they turned up for, plus the ones they dropped out of.
+        # `declinedCount` is the one part of this the archive cannot see -
+        # somebody who declines is replaced before the week is archived - so it
+        # stays as `update_attendance` maintains it.
+        deacon["assignedCount"] = len(appearances) + (deacon.get("declinedCount") or 0)
+
+
 # Per-role rules. Keys:
 #   age_window  (min_inclusive, max_exclusive) for the +30 bonus
 #   frequency   (offset, multiplier)
@@ -658,6 +784,11 @@ async def my_async_scheduled_function():
     generated. It used to be re-read inside the backfill loop - 5 reads of a
     document already in memory, each followed by a full rewrite of the deacons
     array. Now: one read, one write.
+
+    Before generating, the roster's memory fields are rebuilt from the church's
+    archive plus its pending weeks - see `apply_service_history`. The counters
+    are still persisted for everything else that reads them, but nothing depends
+    on them having been maintained correctly since the church was created.
     """
     firestore_client = firestore.Client()
     churches_ref = firestore_client.collection("churches")
@@ -725,6 +856,25 @@ async def my_async_scheduled_function():
             targets = [
                 (upcoming_sunday + datetime.timedelta(weeks=5)).strftime("%m-%d-%y")
             ]
+
+        # Rebuild the memory fields from what actually happened before the
+        # first week being generated. This has to sit below the branch above,
+        # for both of its effects: `targets[0]` is the cut-off, and in the
+        # rotation path the week just moved into the archive has to be part of
+        # the history. `schedules` is the pre-deletion snapshot, so that week is
+        # in both sources - `load_service_history` keys by week id to keep it a
+        # single appearance.
+        #
+        # Only the first target is derived. After that `update_weeks` advances
+        # the roster in memory a week at a time, which is the same arithmetic
+        # applied to a now-correct starting point.
+        as_of = parse_week_id(targets[0])
+        if as_of is not None:
+            apply_service_history(
+                deacons,
+                load_service_history(church_doc.reference, schedules, before=as_of),
+                as_of,
+            )
 
         roster_uids = [d.get("uid") for d in deacons]
         for schedule_id in targets:

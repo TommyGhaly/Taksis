@@ -21,7 +21,15 @@ import * as avatarCache from '../utils/avatarCache';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const PhotoInput = ({ visible, onClose, userId, onUploadSuccess }) => {
+/**
+ * `inline` hosts the card as plain content instead of its own <Modal>.
+ *
+ * Needed by any caller that is *already* inside a presented modal: iOS will not
+ * present a view controller that is already presenting, so a second, stacked
+ * <Modal> is silently dropped and the button that opened it looks dead. Inline
+ * mode lays the same card over the parent modal, so there is one presentation.
+ */
+const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, inline = false }) => {
   const [loading, setLoading] = useState(false);
   const [previewUri, setPreviewUri] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -165,7 +173,11 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess }) => {
               console.log('[PhotoInput] photoURL not published to users doc:', e?.message);
             }
 
-            onUploadSuccess?.(downloadURL);
+            // The version token goes with the url: callers whose people are not
+            // users/{uid} docs (students, manually added servants) have to stamp
+            // `photoUpdatedAt` onto their own document for other devices to see
+            // the change, and it has to be the same token written above.
+            onUploadSuccess?.(downloadURL, version);
 
             Alert.alert(
               'Success!', 
@@ -220,13 +232,7 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess }) => {
     });
   };
 
-  return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="none"
-      onRequestClose={handleClose}
-    >
+  const card = (
       <Animated.View style={[styles.modalOverlay, { opacity: fadeAnim }]}>
         <Animated.View 
           style={[
@@ -383,6 +389,20 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess }) => {
           )}
         </Animated.View>
       </Animated.View>
+  );
+
+  if (inline) {
+    return visible ? <View style={StyleSheet.absoluteFill}>{card}</View> : null;
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="none"
+      onRequestClose={handleClose}
+    >
+      {card}
     </Modal>
   );
 };

@@ -20,6 +20,7 @@ Run directly for a human-readable report:
     venv/bin/python -m tests.harness
 """
 import asyncio
+import datetime
 import json
 import random
 import statistics
@@ -34,6 +35,44 @@ READING_ROLES = [
 ALL_ROLES = READING_ROLES + ["altar"]
 
 RANKS = ["Chanter (Epsaltos)", "Reader", "Subdeacon", "Deacon (Full Deacon)"]
+
+# The harness counts in week indexes; the allocator's history functions read the
+# "MM-DD-YY" ids Firestore keys archive and schedule documents by. One fixed
+# Sunday anchors the two, so a transcript can be replayed as an archive.
+FIRST_WEEK = datetime.date(2026, 1, 4)
+
+
+def week_ids(count):
+    """`count` consecutive Sunday ids, in archive document format."""
+    return [
+        (FIRST_WEEK + datetime.timedelta(weeks=i)).strftime("%m-%d-%y")
+        for i in range(count)
+    ]
+
+
+def denormalise(week):
+    """A normalised transcript week back into the shape an archive doc holds.
+
+    `normalise` keeps only uids, which is all the golden needs. The history
+    functions read the {name, uid} slots Firestore actually stores and skip a
+    slot whose name is "N/A", so the names have to come back for the round trip
+    to exercise the placeholder handling. Archived weeks have no `extra` -
+    `clean_past_schedules` strips it - so neither does this.
+    """
+    out = {}
+    for role in READING_ROLES:
+        uid = week.get(role)
+        out[role] = (
+            {"name": "N/A", "uid": f"placeholder-{role}"}
+            if uid in (None, "N/A")
+            else {"name": uid, "uid": uid}
+        )
+    out["altar"] = [
+        {"name": "N/A", "uid": f"placeholder-altar-{i}"} if uid == "N/A"
+        else {"name": uid, "uid": uid}
+        for i, uid in enumerate(week.get("altar", []))
+    ]
+    return out
 
 
 class FakeDocRef:

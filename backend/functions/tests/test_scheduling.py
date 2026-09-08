@@ -9,6 +9,7 @@ should hold whatever the schedule looks like:
   3. Replacement approval credits rotation identically to generation.
   4. The people making an unavailability request cannot be the answer to it.
   5. Schedules do not violate the roles' own age and rank constraints.
+  6. History derived from the archive reproduces the counters it replaces.
 
     venv/bin/python -m tests.test_scheduling
 """
@@ -19,12 +20,23 @@ from files.schedule_generation import (
     RANK_CHANTER,
     ROLE_HISTORY_WINDOW,
     ROLE_RULES,
+    apply_service_history,
     assigned_roles,
     credit_assignment,
     get_scheduled_uids,
+    load_service_history,
+    parse_week_id,
+    service_history,
     update_weeks,
 )
-from tests.harness import FakeDocRef, READING_ROLES, build_roster, simulate
+from tests.harness import (
+    FakeDocRef,
+    READING_ROLES,
+    build_roster,
+    denormalise,
+    simulate,
+    week_ids,
+)
 
 FAILURES = []
 
@@ -240,6 +252,158 @@ def test_no_constraint_violations():
           f"{len(role_excluded)}, first: {role_excluded[0] if role_excluded else None}")
 
 
+def test_service_history_reads_a_week():
+    """Ordering, placeholders, extras, and the `before` cut-off."""
+    weeks = [
+        ("01-04-26", {
+            "gospel": {"name": "A", "uid": "uid-a"},
+            "matins": {"name": "N/A", "uid": "placeholder-1"},
+            "altar": [{"name": "B", "uid": "uid-b"}],
+            "extra": [{"name": "C", "uid": "uid-c"}],
+        }),
+        ("01-11-26", {"gospel": {"name": "A", "uid": "uid-a"}, "altar": []}),
+        ("not-a-date", {"gospel": {"name": "A", "uid": "uid-a"}, "altar": []}),
+    ]
+
+    history = service_history(weeks)
+    check("most recent appearance first",
+          [role for _, role in history["uid-a"]] == ["gospel", "gospel"]
+          and history["uid-a"][0][0] > history["uid-a"][1][0])
+    check("altar counts as an appearance", len(history.get("uid-b", [])) == 1)
+    check("extras are not appearances", "uid-c" not in history)
+    check("placeholders are not appearances", "placeholder-1" not in history)
+    check("unparseable week ids are skipped",
+          len(history["uid-a"]) == 2)
+
+    cut = service_history(weeks, before=parse_week_id("01-11-26"))
+    check("`before` excludes the week being generated",
+          len(cut["uid-a"]) == 1 and cut["uid-a"][0][0] == parse_week_id("01-04-26"))
+
+
+def test_apply_service_history_fields():
+    """weeksSince counts intervening weeks; no history means no change."""
+    roster = build_roster(3, seed=11)
+    for deacon in roster:
+        deacon["weeksSince"] = 99
+        deacon["declinedCount"] = 2
+
+    history = {
+        # Served the Sunday immediately before the week being generated.
+        roster[0]["uid"]: [(parse_week_id("01-04-26"), "gospel")],
+        # Served three Sundays before it, and often enough to overflow the window.
+        roster[1]["uid"]: [
+            (parse_week_id(week), "altar")
+            for week in ("12-21-25", "12-14-25", "12-07-25", "11-30-25",
+                         "11-23-25", "11-16-25", "11-09-25", "11-02-25",
+                         "10-26-25", "10-19-25")
+        ],
+    }
+    apply_service_history(roster, history, parse_week_id("01-11-26"))
+
+    check("last week's server has weeksSince 0", roster[0]["weeksSince"] == 0)
+    check("three weeks back has weeksSince 2", roster[1]["weeksSince"] == 2)
+    check("nobody on record is left untouched", roster[2]["weeksSince"] == 99)
+    check("roleHistory comes from the archive",
+          roster[0]["roleHistory"] == ["gospel"])
+    check("roleHistory capped to the window",
+          len(roster[1]["roleHistory"]) == ROLE_HISTORY_WINDOW)
+    check("assignedCount is served plus declined",
+          roster[0]["assignedCount"] == 3 and roster[1]["assignedCount"] == 12)
+    check("assignedCount untouched without history",
+          roster[2].get("assignedCount") is None)
+
+
+class FakeWeekDoc:
+    """A Firestore document snapshot, as `load_service_history` reads one."""
+
+    def __init__(self, doc_id, data):
+        self.id = doc_id
+        self._data = data
+
+    def to_dict(self):
+        return self._data
+
+
+class FakeChurchRef:
+    def __init__(self, archive):
+        self._archive = archive
+
+    def collection(self, name):
+        assert name == "archive"
+        return self
+
+    def stream(self):
+        return iter(self._archive)
+
+
+def test_archive_and_pending_weeks_are_merged():
+    """The rotation archives a week that is still in the caller's snapshot.
+
+    `my_async_scheduled_function` reads the `schedule` collection, then moves
+    the oldest week into the archive, then loads history. That week is in both
+    lists, and counting it twice would inflate `assignedCount` for everyone who
+    served it - the thing the derivation exists to get right.
+    """
+    served = {"gospel": {"name": "A", "uid": "uid-a"}, "altar": []}
+    church = FakeChurchRef([
+        FakeWeekDoc("01-04-26", served),
+        FakeWeekDoc("01-11-26", served),
+    ])
+    pending = [
+        FakeWeekDoc("01-11-26", served),   # the week just archived
+        FakeWeekDoc("01-18-26", served),   # still to come, before the target
+        FakeWeekDoc("02-01-26", served),   # the week being generated
+    ]
+
+    history = load_service_history(church, pending, before=parse_week_id("02-01-26"))
+    check("a week in both sources counts once", len(history["uid-a"]) == 3,
+          f"got {len(history['uid-a'])}")
+    check("pending weeks count as history",
+          parse_week_id("01-18-26") in [when for when, _ in history["uid-a"]])
+    check("the week being generated is not history",
+          parse_week_id("02-01-26") not in [when for when, _ in history["uid-a"]])
+
+    roster = [{"uid": "uid-a", "weeksSince": 99}]
+    apply_service_history(roster, history, parse_week_id("02-01-26"))
+    check("a pending assignment blocks an immediate second slot",
+          roster[0]["weeksSince"] == 1, f"got {roster[0]['weeksSince']}")
+
+
+def test_derived_history_matches_the_counters():
+    """The equivalence that makes this a safe swap.
+
+    With no replacements and nobody dropping out, the archive says exactly what
+    the counters say - `credit_assignment` zeroes an assignee and `update_weeks`
+    ages everyone else, which is the same arithmetic as counting intervening
+    weeks back to a person's last appearance. Anywhere the two disagree is a
+    place the counters had drifted from what actually happened.
+    """
+    weeks = 26
+    result = asyncio.run(simulate(roster_size=40, weeks=weeks, num_altar_servers=9))
+
+    ids = week_ids(weeks + 1)
+    archive = list(zip(ids, (denormalise(w) for w in result["transcript"])))
+    history = service_history(archive, before=parse_week_id(ids[weeks]))
+
+    derived = [dict(d) for d in result["roster"]]
+    apply_service_history(derived, history, parse_week_id(ids[weeks]))
+
+    counters = {d["uid"]: d["weeksSince"] for d in result["roster"]}
+    mismatches = [
+        (d["uid"], counters[d["uid"]], d["weeksSince"])
+        for d in derived
+        if d["uid"] in history and counters[d["uid"]] != d["weeksSince"]
+    ]
+    check(
+        "derived weeksSince reproduces the counter",
+        not mismatches,
+        f"{len(mismatches)} of {len(history)}, first: "
+        f"{mismatches[0] if mismatches else None}",
+    )
+    check("the run actually exercised the comparison", len(history) > 20,
+          f"only {len(history)} people ever served")
+
+
 def main():
     test_declared_are_never_scheduled()
     test_thin_roster_degrades_to_na()
@@ -248,6 +412,10 @@ def main():
     test_persist_flag_controls_writes()
     test_assigned_roles_skips_placeholders()
     test_no_constraint_violations()
+    test_service_history_reads_a_week()
+    test_apply_service_history_fields()
+    test_archive_and_pending_weeks_are_merged()
+    test_derived_history_matches_the_counters()
 
     print()
     if FAILURES:
