@@ -10,10 +10,16 @@ import Foundation
 /// To add a snippet:
 ///  1. Add a case here, with its URL path segment as the raw value.
 ///  2. Add its view to the `switch` in `RootView`.
-///  3. Add a page at `public/c/<raw-value>.html` and a rewrite for it in
-///     `firebase.json`, so non-iOS visitors get something.
-///  4. Register the Advanced App Clip Experience for that URL in App Store
-///     Connect.
+///  3. Add a page at `church-site/c/<raw-value>.html` and a rewrite for it in
+///     the *church site's* `firebase.json`, so visitors without the app get
+///     something. Android has no App Clip equivalent — Instant Apps are gone —
+///     so this page is the whole Android no-install path, not a nicety.
+///     A snippet that genuinely needs the app can share a "get the app" page,
+///     but the URL must still answer 200: a 404 reads as a dead NFC tag.
+///  4. Nothing in App Store Connect. The registered experience is the prefix
+///     `https://www.spsmwayland.org/c`, which Apple matches against every URL
+///     beneath it, so a new snippet is invocable the moment it ships. Register
+///     a specific URL only to give one snippet its own card.
 ///
 /// The AASA needs no edit per snippet: it claims `/c/*` once, and its `appclips`
 /// key takes App IDs only, never paths.
@@ -28,9 +34,12 @@ enum ClipDestination: String, CaseIterable, Identifiable {
     /// First path component of every snippet URL.
     ///
     /// Namespacing under one prefix is what keeps nine snippets cheap: the AASA
-    /// claims `/c/*` once, Android needs a single `pathPrefix` intent filter, and
-    /// the apex-to-www redirect in `firebase.json` has one clean prefix to skip.
-    /// It also means the app never claims an unrelated URL on the church domain.
+    /// claims `/c/*` once, and Android needs a single `pathPrefix` intent filter.
+    /// Neither is touched again per snippet. It also means the app never claims
+    /// an unrelated URL on the church domain.
+    ///
+    /// Every such URL must be on `www.spsmwayland.org`. The apex 301s there, and
+    /// both platforms refuse to follow a redirect for the association files.
     static let pathPrefix = "c"
 
     /// Where a DEBUG build lands when launched with no invocation URL, which is
@@ -42,7 +51,7 @@ enum ClipDestination: String, CaseIterable, Identifiable {
     #endif
 
     /// Matches the component after `pathPrefix`, so
-    /// `https://spsmwayland.org/c/register-vehicle` → `.registerVehicle`.
+    /// `https://www.spsmwayland.org/c/register-vehicle` → `.registerVehicle`.
     /// Query parameters are ignored here; a destination reads its own.
     ///
     /// Returns nil for anything outside the prefix, which surfaces as the

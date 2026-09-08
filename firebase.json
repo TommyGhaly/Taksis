@@ -8,7 +8,7 @@
     "redirects": [
       {
         "source": "**",
-        "destination": "https://spsmwayland.org/c/register-vehicle",
+        "destination": "https://www.spsmwayland.org/c/register-vehicle",
         "type": 301
       }
     ]

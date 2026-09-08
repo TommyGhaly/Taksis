@@ -62,7 +62,7 @@ Connect API can create them in bulk.
 
 The church website moved to Firebase Hosting, in the **`spsm-database` project** —
 a different project from Taksis (`taksis-a8ba7`). A domain attaches to exactly one
-hosting site, so the site serving `spsmwayland.org` is also the site that must
+hosting site, so the site serving the church's domain is also the site that must
 serve the App Clip's files:
 
 ```
@@ -75,11 +75,20 @@ Those live in `church-site/` in this repo as the source of truth, but **Taksis
 does not deploy them** — they are copied into the church website project. See
 `church-site/README.md`, which is written to be handed over on its own.
 
-Both `spsmwayland.org` and `www.spsmwayland.org` attach to that one site with no
-redirect between them. Firebase Hosting cannot match redirects on hostname, so a
-single site cannot send the apex to `www`; doing that would need a second site,
-and it would put a 301 in front of the AASA — which Apple refuses to follow and
-fails silently on. Serving both costs only a `rel="canonical"` tag.
+Only `www.spsmwayland.org` serves them. The apex is attached to the same site as
+a **redirect domain**, so `https://spsmwayland.org/...` answers 301 to `www` —
+verified 2026-09-08 for `/c/register-vehicle` and both `/.well-known/` files.
+
+That 301 is a domain-level Firebase setting, not something `firebase.json` can
+express; a `redirects` block cannot match on hostname. Which is why the apex is
+**not** a usable App Clip or App Link URL: Apple and Android both refuse to
+follow a redirect for the AASA and `assetlinks.json`, and fail silently when
+they hit one. An apex link opens the browser and nothing else.
+
+So every URL that has to reach the app — NFC tags, the App Clip Experience in
+App Store Connect, the Android intent filter, the entitlements — must use `www`.
+Making the apex work means serving it directly (console change), claiming it in
+both platforms' config, and shipping a new binary.
 
 This is much simpler than the arrangement that came before it. While the apex was
 on Wix it answered `/.well-known/*` with a 301 to `www` and then a 400, so the

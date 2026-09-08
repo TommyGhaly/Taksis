@@ -137,22 +137,43 @@ associated-domain check, so this works before DNS moves or the AASA is deployed.
 
 ## Remaining setup for production (cannot be done from this repo)
 
-1. **Move the apex DNS and deploy.** `spsmwayland.org` must be served by Firebase
-   Hosting, not Wix: Wix answered `/.well-known/*` with a 301 to `www` and then a
-   400, and both Apple and Android require 200 with no redirect and fail silently
-   otherwise. Only the apex A records move — the church site lives at `www` and
-   stays on Wix. Full steps and the rollback are in `DEEP_LINKS.md`.
+Items 1-3 of this list were the Wix-era DNS move, placeholder Android
+fingerprints, and a per-snippet App Store Connect registration. All three are
+resolved and none of them come back per snippet:
 
-2. **Fill in the Android fingerprints.** `apex/.well-known/assetlinks.json` ships
-   with deliberately invalid placeholders; App Links will not verify until they
-   are real. See `DEEP_LINKS.md`.
+- The whole church site is on Firebase Hosting now, in `spsm-database`.
+  `www.spsmwayland.org` serves `/c/*` and both association files with a 200.
+  The apex 301s to `www`, which is why every URL that must reach the app —
+  NFC tags, entitlements, intent filter, the registered experience — uses
+  `www`. Wix is out of the picture entirely.
+- `assetlinks.json` carries the real SHA-256. Why it equals the local keystore
+  is explained in `church-site/README.md`; read that before "fixing" it.
+- One Advanced App Clip Experience is registered, for the prefix
+  `https://www.spsmwayland.org/c`. Apple matches the most specific prefix, so it
+  covers every planned snippet. Register a specific URL only to give a snippet
+  its own card.
 
-3. **Register an Advanced App Clip Experience** per snippet in App Store Connect
-   under the app's version → App Clip, each with its own URL, title, and image.
-   Without one, that snippet cannot be launched from a real code. The card the
-   user sees comes from here, not from the URL.
+What is actually still open:
 
-4. **Distribution signing.** The App ID `com.tghaly.taksis.Clip` already exists,
+1. **Confirm Android App Link verification on a Play-signed build.** A sideloaded
+   APK proves nothing — it carries a different signature. Install from an
+   internal testing track and run:
+
+   ```
+   adb shell pm get-app-links com.tghaly.taksis
+   ```
+
+   You want `www.spsmwayland.org: verified`. `1024` or `legacy_failure` means the
+   fingerprint or the JSON content-type is wrong, and the only symptom in the
+   field is that the tag quietly opens Chrome instead of the app.
+
+2. **Firestore rules for the unauthenticated writes.** The web fallback posts to
+   the Firestore REST API with no auth, so `pending_registrations` depends on a
+   rule that exists only in the console — there is no `firestore.rules` in this
+   repo. Every future snippet writing a new collection needs the same treatment.
+   This is the step that fails closed and silently.
+
+3. **Distribution signing.** The App ID `com.tghaly.taksis.Clip` already exists,
    with App Clips and Associated Domains enabled, and development signing works —
    the clip builds and installs on a device. What is *not* resolved is store
    signing: `eas.json`'s production profile uses `credentialsSource: "local"` but

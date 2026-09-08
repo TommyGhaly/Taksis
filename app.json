@@ -17,7 +17,14 @@
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-google-signin/google-signin",
-      "expo-camera",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Ⲧⲁⲝⲓⲥ uses the camera so you can take a profile photo for your member record, and scan a vehicle license plate to check a car in at church events.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
       [
         "expo-build-properties",
         {
@@ -49,19 +56,18 @@
       "bundleIdentifier": "com.tghaly.taksis",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSFaceIDUsageDescription": "Authenticate to access database administration.",
+        "NSFaceIDUsageDescription": "Ⲧⲁⲝⲓⲥ uses Face ID to confirm it is you before opening the admin database tools, where member and family records can be edited.",
         "UIBackgroundModes": [
           "remote-notification"
         ],
-        "NSCameraUsageDescription": "Allow Ⲧⲁⲝⲓⲥ to access your camera for taking photos for profile identification.",
-        "NSPhotoLibraryUsageDescription": "Allow Ⲧⲁⲝⲓⲥ to access your photo library for uploading profile pictures."
+        "NSPhotoLibraryUsageDescription": "Ⲧⲁⲝⲓⲥ accesses your photo library so you can pick an existing photo to use as the profile picture on your member record."
       },
       "entitlements": {
         "aps-environment": "production"
       },
       "supportsTablet": true,
       "usesAppleSignIn": true,
-      "buildNumber": "8",
+      "buildNumber": "9",
       "appleTeamId": "5ZRM8X66TN"
     },
     "android": {
@@ -77,7 +83,9 @@
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
         "VIBRATE",
-        "POST_NOTIFICATIONS",
+        "POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ],
       "intentFilters": [
