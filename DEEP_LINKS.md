@@ -26,11 +26,37 @@ Namespacing them under one prefix means a single Android `pathPrefix` filter and
 a single AASA component covering all nine. It also keeps the app from claiming
 any URL on the church's domain other than its own.
 
-Adding a snippet touches four places: `ClipDestination` and `RootView` in
-`ios-appclip/`, `SNIPPET_ROUTES` in `utils/deepLinks.js`, a page under `church-site/c/`
-with a rewrite in the church site's `firebase.json`, and a new Experience in
-App Store Connect.
-The AASA is not one of them.
+Adding a snippet touches three places: `ClipDestination` and `RootView` in
+`ios-appclip/`, `SNIPPET_ROUTES` in `utils/deepLinks.js`, and a page under
+`church-site/c/` with a rewrite in the church site's `firebase.json`.
+
+Neither the AASA nor App Store Connect is one of them. The AASA claims `/c/*`
+once. And the registered Advanced App Clip Experience is the **prefix**
+`https://www.spsmwayland.org/c`, which Apple matches against every URL beneath
+it — so a new snippet is invocable the moment it ships.
+
+## Registering App Clip Experiences
+
+One experience is registered, for the prefix:
+
+```
+https://www.spsmwayland.org/c
+```
+
+Apple chooses the experience whose URL is the *most specific matching prefix*, so
+this covers all nine planned snippets. The clip receives the full invocation URL
+and routes on the segment after `/c`.
+
+Register a more specific URL — `/c/check-in`, say — only when a snippet needs its
+own **card** (image, title, subtitle, action). That is the only thing a per-snippet
+registration buys; routing already works. The specific entry wins over `/c`, and
+anything unregistered falls back to the generic card rather than failing.
+
+Note that App Store Connect rejected the full `/c/register-vehicle` URL with
+"URLs must be included in your app domain list" while accepting the `/c` prefix,
+even with the domain showing as Validated. If that recurs on a specific URL, the
+prefix is the reliable form. For managing many experiences, Apple's App Store
+Connect API can create them in bulk.
 
 ## Where the files live
 
