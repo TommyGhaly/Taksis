@@ -259,7 +259,13 @@ function applyBuildSettings(proj, target, cfg, clipBundleId) {
       MARKETING_VERSION: `"${cfg.version ?? "1.0.0"}"`,
       CURRENT_PROJECT_VERSION: `"${cfg.ios?.buildNumber ?? "1"}"`,
       ENABLE_BITCODE: "NO",
-      SKIP_INSTALL: "NO",
+      // Must be YES for embedded content. NO tells Xcode the clip is an
+      // independently installable product, so an archive gets TaksisClip.app at
+      // Products/Applications alongside app.app instead of nested inside it.
+      // Two top-level apps is not a valid App Store submission: the Organizer
+      // cannot tell which one to distribute, so it hides "TestFlight & App
+      // Store" and offers only "Custom" -- with no explanation of why.
+      SKIP_INSTALL: "YES",
       SWIFT_EMIT_LOC_STRINGS: "YES",
       LD_RUNPATH_SEARCH_PATHS:
         '"$(inherited) @executable_path/Frameworks"',
