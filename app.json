@@ -34,7 +34,8 @@
           }
         }
       ],
-      "./plugins/withFmtConstevalFix",
+      "./plugins/withPodfilePatches",
+      "./plugins/withFirebaseAppDelegate",
       "./plugins/withVehicleAppClip"
     ],
     "extra": {
