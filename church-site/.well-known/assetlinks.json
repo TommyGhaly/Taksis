@@ -1,12 +1,14 @@
 [
   {
-    "relation": ["delegate_permission/common.handle_all_urls"],
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
     "target": {
       "namespace": "android_app",
       "package_name": "com.tghaly.taksis",
       "sha256_cert_fingerprints": [
-        "REPLACE_WITH_PLAY_APP_SIGNING_SHA256",
-        "REPLACE_WITH_UPLOAD_KEY_SHA256"
+        "56:3B:E9:36:33:BD:DF:15:43:0C:E6:0B:F8:24:09:B1:DB:E4:6F:1F:87:7B:B2:5F:69:AD:01:E2:BB:42:75:8B",
+        "REPLACE_WITH_PLAY_APP_SIGNING_SHA256"
       ]
     }
   }

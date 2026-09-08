@@ -74,17 +74,23 @@ silently when they hit one.
 If the apex is ever changed to serve content directly instead of redirecting,
 that does not break anything here; `www` remains correct either way.
 
-## Before deploying: fill in the Android fingerprints
+## Before deploying: both Android fingerprints, not one
 
-`assetlinks.json` ships with deliberately invalid placeholders. Android App
-Links will not verify until both are real SHA-256 values. `google-services.json`
-carries only SHA-1, which is not usable here.
+`assetlinks.json` needs **two** SHA-256 values, and getting only one is the
+classic way to ship Android App Links that silently do not work.
 
-- **Play App Signing** — Play Console → Setup → App integrity → App signing.
-- **Upload key** — `keytool -list -v -keystore <keystore> -alias <alias> | grep SHA256`
+- **Upload key** — already filled in. Signs locally built APKs.
+  `keytool -list -v -keystore credentials/android/keystore.jks -alias <alias> | grep SHA256`
+- **Play App Signing** — still a placeholder. Play Console → Setup → App
+  integrity → App signing → SHA-256 certificate fingerprint.
 
-Include both, or App Links verify from the Play Store but not from a locally
-built APK.
+Play re-signs the uploaded bundle with its own key, so **an app installed from
+the Play Store presents a different certificate than the one you uploaded**.
+With only the upload key listed, verification fails for every real user while
+working perfectly on your own build — which is the worst possible way for it to
+fail, because local testing looks fine.
+
+`google-services.json` carries only SHA-1 values, which are not usable here.
 
 ## Verifying after deploy
 
