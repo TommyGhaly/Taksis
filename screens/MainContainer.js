@@ -67,8 +67,8 @@ const consistentHeaderStyle = {
 // ── Version helpers ──────────────────────────────────────────────────────────
 
 const STORE_URLS = {
-  ios: "https://apps.apple.com/app/taksis/id6504739738", // Replace with your actual App Store ID
-  android: "https://play.google.com/store/apps/details?id=com.taksis", // Replace with your actual package name
+  ios: "https://apps.apple.com/us/app/taksis/id6743824691",
+  android: "https://play.google.com/store/apps/details?id=com.tghaly.taksis",
 };
 
 function compareVersions(current, minimum) {
