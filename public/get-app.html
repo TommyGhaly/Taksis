@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="robots" content="noindex">
+<title>Get Ⲧⲁⲝⲓⲥ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { background: #0a0c0f; color-scheme: dark; }
+
+  :root {
+    --accent: #3b9dff;
+    --accent-hover: #5aacff;
+    --accent-soft: rgba(59,157,255,0.16);
+    --accent-border: rgba(59,157,255,0.45);
+    --ink: #f7f9fc;
+    --ink-soft: #b9c2ce;
+    --ink-muted: #7c8593;
+    --line: rgba(255,255,255,0.12);
+  }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #0a0c0f radial-gradient(1200px 600px at 50% -10%, #141922 0%, #0e1116 55%, #0a0c0f 100%) no-repeat;
+    background-attachment: fixed;
+    min-height: 100vh;
+    padding: 40px 16px 60px;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 420px;
+    background: #171b21;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.55);
+    padding: 36px 30px 30px;
+    text-align: center;
+  }
+
+  /* The wordmark ships with a baked-in black background; screen blending
+     drops it out against the dark card instead of showing a black box. */
+  .logo {
+    width: 148px; height: auto; margin: 0 auto 22px; display: block;
+    opacity: 0.95; mix-blend-mode: screen;
+  }
+
+  h1 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  .sub { font-size: 14px; color: var(--ink-soft); line-height: 1.6; }
+
+  /* Redirecting state */
+  .redirecting { display: none; flex-direction: column; align-items: center; gap: 16px; }
+  .redirecting.show { display: flex; }
+  .spinner {
+    width: 26px; height: 26px;
+    border: 2.5px solid rgba(255,255,255,0.18);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Chooser state */
+  .chooser { display: none; flex-direction: column; gap: 10px; margin-top: 26px; }
+  .chooser.show { display: flex; }
+
+  .store-btn {
+    display: flex; align-items: center; gap: 13px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    border: 1.5px solid var(--line);
+    background: rgba(255,255,255,0.05);
+    color: var(--ink);
+    text-decoration: none;
+    transition: background .2s, border-color .2s, transform .1s;
+    text-align: left;
+  }
+  .store-btn:hover { background: var(--accent-soft); border-color: var(--accent-border); }
+  .store-btn:active { transform: scale(0.99); }
+  .store-btn svg { flex-shrink: 0; }
+  .store-btn .labels { display: flex; flex-direction: column; line-height: 1.3; }
+  .store-btn .small { font-size: 11px; color: var(--ink-muted); letter-spacing: 0.3px; }
+  .store-btn .big { font-size: 15px; font-weight: 600; }
+
+  .manual {
+    margin-top: 22px;
+    font-size: 12.5px;
+    color: var(--ink-muted);
+    line-height: 1.6;
+  }
+  .manual a { color: var(--accent); text-decoration: none; }
+  .manual a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="card">
+  <img class="logo" src="/taksis.png" alt="Taksis">
+
+  <div class="redirecting show" id="redirecting">
+    <div class="spinner"></div>
+    <div class="sub">Taking you to the <span id="storeName">app store</span>&hellip;</div>
+  </div>
+
+  <div id="chooserWrap" style="display:none;">
+    <h1>Download Ⲧⲁⲝⲓⲥ</h1>
+    <div class="sub">Choose your device to install the app.</div>
+  </div>
+
+  <div class="chooser" id="chooser">
+    <a class="store-btn" id="iosBtn" href="#">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="#f7f9fc" aria-hidden="true"><path d="M16.365 1.43c0 1.14-.42 2.2-1.13 3.02-.85.99-2.24 1.76-3.4 1.66a3.6 3.6 0 0 1-.03-.42c0-1.1.5-2.24 1.2-3.01.83-.95 2.28-1.66 3.32-1.7.02.15.04.3.04.45zM20.9 17.1c-.55 1.27-.82 1.84-1.53 2.96-.99 1.57-2.39 3.53-4.12 3.54-1.54.02-1.93-1-4.02-.99-2.09.01-2.52 1.01-4.06.99-1.73-.01-3.05-1.77-4.04-3.34C.36 15.9-.05 10.75 1.66 8.02c1.21-1.95 3.13-3.09 4.93-3.09 1.84 0 2.99 1 4.51 1 1.47 0 2.37-1 4.49-1 1.6 0 3.3.87 4.51 2.38-3.96 2.17-3.32 7.83.8 9.79z"/></svg>
+      <span class="labels">
+        <span class="small">Download on the</span>
+        <span class="big">App Store</span>
+      </span>
+    </a>
+    <a class="store-btn" id="androidBtn" href="#">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="#f7f9fc" aria-hidden="true"><path d="M3.61 1.81a1 1 0 0 0-.5.88v18.62a1 1 0 0 0 .5.88l10.2-10.19L3.61 1.81zM16.66 8.9l-2.2-1.27-2.53 2.53 2.53 2.52 2.23-1.28a1 1 0 0 0 0-1.74l-.03-.76zM4.6 22.3a1 1 0 0 0 .53-.12l10.6-6.1-2.4-2.4L4.6 22.3zM15.73 7.92 5.13 1.82a1 1 0 0 0-.53-.12l8.73 8.73 2.4-2.51z"/></svg>
+      <span class="labels">
+        <span class="small">Get it on</span>
+        <span class="big">Google Play</span>
+      </span>
+    </a>
+  </div>
+
+  <div class="manual" id="manual" style="display:none;">
+    Not redirected? <a id="manualLink" href="#">Tap here to open the store.</a>
+  </div>
+</div>
+
+<noscript>
+  <div style="max-width:420px;margin:16px auto 0;text-align:center;font-size:13px;color:#b9c2ce;line-height:1.7;">
+    Open one of the links above for your device.
+  </div>
+</noscript>
+
+<script>
+(function () {
+  // ─── CONFIG ────────────────────────────────────────────────────
+  var APP_STORE_URL  = 'https://apps.apple.com/us/app/taksis/id6743824691';
+  var PLAY_STORE_ID  = 'com.tghaly.taksis';
+  // ───────────────────────────────────────────────────────────────
+
+  var params = new URLSearchParams(location.search);
+
+  // Play Store supports an install referrer for attribution — pass the NFC
+  // tag id through as ?tag=main-gate so installs can be traced to a tag.
+  function playStoreUrl() {
+    var url = 'https://play.google.com/store/apps/details?id=' + PLAY_STORE_ID;
+    var tag = params.get('tag');
+    if (tag) {
+      url += '&referrer=' + encodeURIComponent('utm_source=nfc&utm_medium=tag&utm_content=' + tag);
+    }
+    return url;
+  }
+
+  function detectPlatform() {
+    // ?platform=ios|android forces a target, for testing tags from a desktop.
+    var forced = (params.get('platform') || '').toLowerCase();
+    if (forced === 'ios' || forced === 'android') return forced;
+
+    var ua = navigator.userAgent || '';
+    if (/android/i.test(ua)) return 'android';
+    if (/iphone|ipad|ipod/i.test(ua)) return 'ios';
+    // iPadOS 13+ reports a desktop Safari UA; touch points disambiguate it.
+    if (/Mac/i.test(navigator.platform || '') && navigator.maxTouchPoints > 1) return 'ios';
+    return 'other';
+  }
+
+  var iosBtn = document.getElementById('iosBtn');
+  var androidBtn = document.getElementById('androidBtn');
+  iosBtn.href = APP_STORE_URL;
+  androidBtn.href = playStoreUrl();
+
+  function showChooser() {
+    document.getElementById('redirecting').classList.remove('show');
+    document.getElementById('chooserWrap').style.display = 'block';
+    document.getElementById('chooser').classList.add('show');
+  }
+
+  var platform = detectPlatform();
+
+  if (platform === 'other') {
+    showChooser();
+    return;
+  }
+
+  var target = platform === 'ios' ? APP_STORE_URL : playStoreUrl();
+
+  document.getElementById('storeName').textContent =
+    platform === 'ios' ? 'App Store' : 'Google Play';
+
+  var manual = document.getElementById('manual');
+  document.getElementById('manualLink').href = target;
+  manual.style.display = 'block';
+
+  // replace() so the store isn't stacked behind this page in history —
+  // backing out of the store returns to wherever the user came from.
+  location.replace(target);
+
+  // If the store handoff is blocked (in-app browser, popup blocker), the page
+  // stays put. Fall back to the manual chooser rather than a dead spinner.
+  setTimeout(function () {
+    if (!document.hidden) showChooser();
+  }, 2500);
+})();
+</script>
+</body>
+</html>
