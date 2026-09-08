@@ -24,6 +24,18 @@ cd "$(dirname "$0")"
 
 fail() { echo "   ✗ $1" >&2; exit 1; }
 
+# CocoaPods requires a UTF-8 locale. An interactive Terminal usually has one, but
+# a non-interactive shell -- CI, an editor's task runner, anything invoking this
+# script rather than a person typing it -- often has LANG unset, and pod install
+# then dies with:
+#
+#   Unicode Normalization not appropriate for ASCII-8BIT (Encoding::CompatibilityError)
+#
+# which names neither CocoaPods nor the locale. Set it here rather than relying on
+# whatever the caller happens to have.
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+
 echo "→ Closing Xcode"
 osascript -e 'quit app "Xcode"' 2>/dev/null || true
 sleep 2
