@@ -17,6 +17,17 @@ enum Theme {
     static let fieldBackground = Color.white.opacity(0.06)
 
     static let corner: CGFloat = 12
+
+    /// Widest the content column is allowed to get.
+    ///
+    /// The form is one narrow column of fields by design. Left unbounded it
+    /// stretches edge to edge on an iPad: text runs well past a comfortable
+    /// measure and the twelve color chips flatten into a single row, which reads
+    /// nothing like the phone layout the design came from.
+    ///
+    /// 480 is wider than any iPhone (the Pro Max is 440pt), so the constraint
+    /// only ever binds on iPad — the phone layout is untouched by it.
+    static let contentMaxWidth: CGFloat = 480
 }
 
 extension Color {

@@ -57,7 +57,11 @@ struct RegisterVehicleView: View {
                         .padding(.top, 16)
                         .padding(.bottom, 40)
                 }
+                // Capped and then re-expanded so the column centers itself on a
+                // wide screen while the ScrollView still owns the full width.
+                .frame(maxWidth: Theme.contentMaxWidth, alignment: .leading)
                 .padding(.horizontal, 20)
+                .frame(maxWidth: .infinity)
                 .padding(.top, 22)
             }
             .scrollDismissesKeyboard(.interactively)
@@ -80,8 +84,11 @@ struct RegisterVehicleView: View {
                 .foregroundStyle(Theme.inkMuted)
                 .lineLimit(2)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // Same measure as the form below, so the title lines up with the fields.
+        // The background and hairline stay full-width.
+        .frame(maxWidth: Theme.contentMaxWidth, alignment: .leading)
         .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity)
         .padding(.top, 8)
         .padding(.bottom, 20)
         .background(Theme.background)
@@ -305,7 +312,9 @@ private struct SubmittedView: View {
 
             Spacer()
         }
+        .frame(maxWidth: Theme.contentMaxWidth)
         .padding(.horizontal, 28)
+        .frame(maxWidth: .infinity)
         // Leaves room for the App Store overlay card pinned to the bottom.
         .padding(.bottom, 90)
         .appStoreOverlay(isPresented: $showAppStoreOverlay) {
