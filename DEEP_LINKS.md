@@ -47,6 +47,22 @@ Apple chooses the experience whose URL is the *most specific matching prefix*, s
 this covers all nine planned snippets. The clip receives the full invocation URL
 and routes on the segment after `/c`.
 
+**Do not assume the clip is handed a full snippet URL.** It often is not:
+
+- When the launch comes from the *experience itself* rather than a URL someone
+  tapped — App Review and TestFlight both do this, as does an App Clip Code
+  generated for the experience — the invocation URL is the registered prefix
+  `https://www.spsmwayland.org/c` verbatim, with no snippet segment.
+- The **default App Clip Experience** in App Store Connect carries its own URL,
+  which need not be under `/c` at all.
+- Sometimes no URL arrives.
+
+So the clip treats "named no snippet" as a generic entry point and opens
+`ClipDestination.genericDefault`, not a dead end. The only invocation that dead
+ends is one naming a snippet the installed binary does not have — an old clip
+meeting a tag from a later release. The first submission got this wrong and
+showed the reviewer "Nothing to show" while working perfectly from an NFC tag.
+
 Register a more specific URL — `/c/check-in`, say — only when a snippet needs its
 own **card** (image, title, subtitle, action). That is the only thing a per-snippet
 registration buys; routing already works. The specific entry wins over `/c`, and

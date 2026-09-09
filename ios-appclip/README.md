@@ -106,9 +106,9 @@ xcrun simctl install booted ios/build/Debug-iphonesimulator/TaksisClip.app && xc
 Or just open `ios/app.xcworkspace`, pick the **TaksisClip** scheme, and hit Run.
 
 The invocation URL always decides which snippet runs; the user is never asked.
-A plain simulator run has no URL, so DEBUG builds fall back to
-`ClipDestination.debugDefault` — change that constant to work on a different
-snippet, or pass the URL explicitly:
+A plain simulator run has no URL, which is one of the several ordinary
+no-snippet-named cases, so it lands on `ClipDestination.genericDefault` — change
+that constant to work on a different snippet, or pass the URL explicitly:
 
 ```bash
 SIMCTL_CHILD__XCAppClipURL="https://www.spsmwayland.org/c/register-vehicle" xcrun simctl launch booted com.tghaly.taksis.Clip

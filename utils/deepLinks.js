@@ -34,11 +34,26 @@ const SNIPPET_ROUTES = {
   "register-vehicle": "RegisterVehicle",
 };
 
+/**
+ * Snippet that a URL of only the prefix — `/c`, with or without a trailing
+ * slash — resolves to.
+ *
+ * Mirrors `ClipDestination.genericDefault`. The registered App Clip Experience is
+ * the prefix itself, so that bare URL is a real link people can arrive on, not a
+ * malformed one; without this an installed user tapping it lands on the home
+ * screen, which reads as the tag being broken.
+ */
+const PREFIX_DEFAULT_SNIPPET = "register-vehicle";
+
 // Built from the constants above so the two cannot drift. Both hosts are matched:
 // `www` is where the files are actually served and what the app's associated
 // domain names, and the apex 301s there, so a link to either refers to us.
+//
+// The slug is optional and may carry the `.html` extension the no-install page
+// is served under, but the prefix is still delimited — by `/`, `?`, `#` or end of
+// string — so this does not swallow an unrelated path like `/calendar`.
 const LINK_RE = new RegExp(
-  `^https://(?:www\\.)?${HOST.replace(/\./g, "\\.")}/${PATH_PREFIX}/([a-z0-9-]+)`,
+  `^https://(?:www\\.)?${HOST.replace(/\./g, "\\.")}/${PATH_PREFIX}(?:/([a-z0-9-]*)(?:\\.html?)?)?/?(?:[?#]|$)`,
   "i"
 );
 
@@ -52,7 +67,8 @@ export function parseDeepLink(url) {
   if (typeof url !== "string") return null;
   const match = url.match(LINK_RE);
   if (!match) return null;
-  return SNIPPET_ROUTES[match[1].toLowerCase()] ?? null;
+  const slug = (match[1] || PREFIX_DEFAULT_SNIPPET).toLowerCase();
+  return SNIPPET_ROUTES[slug] ?? null;
 }
 
 let pendingRoute = null;

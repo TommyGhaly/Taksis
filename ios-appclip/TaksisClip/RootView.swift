@@ -2,7 +2,10 @@ import SwiftUI
 
 /// Dispatches to the snippet named by the invocation URL.
 ///
-/// The URL always decides — there is never a screen asking the user to pick.
+/// The URL always decides *which* snippet — there is never a screen asking the
+/// user to pick. What it does not get to decide is whether anything shows at
+/// all: an invocation that names no snippet opens the generic one rather than a
+/// dead end. See `ClipDestination.Invocation`.
 struct RootView: View {
     @StateObject private var router = ClipRouter()
 
@@ -10,36 +13,42 @@ struct RootView: View {
         ZStack {
             Theme.background.ignoresSafeArea()
 
-            switch resolved {
-            case .registerVehicle:
-                RegisterVehicleView()
-            case nil:
+            switch router.invocation {
+            case .snippet(let destination):
+                snippet(destination)
+            case .generic:
+                snippet(ClipDestination.genericDefault)
+            case .unknownSnippet:
                 UnrecognizedLinkView()
             }
         }
         .preferredColorScheme(.dark)
-        // Fires when an already-running clip receives a new invocation.
+        // A real invocation arrives as a browsing-web activity, on both a cold
+        // launch and a relaunch of an already-running clip.
         .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
             router.resolve(url: activity.webpageURL)
         }
+        // Belt and braces: `onOpenURL` also receives universal links, and which
+        // of the two SwiftUI uses has moved between iOS releases. Losing the URL
+        // is no longer fatal — it degrades to the generic snippet — but a clip
+        // launched from `/c/check-in` should still land on check-in.
+        .onOpenURL { url in
+            router.resolve(url: url)
+        }
     }
 
-    private var resolved: ClipDestination? {
-        #if DEBUG
-        // Substitute a default only when no URL arrived at all, which is what a
-        // plain simulator run looks like. If a URL *was* supplied and matched
-        // nothing, show the real unrecognized state — falling back here instead
-        // would make every routing bug look like a success.
-        return router.didResolve ? router.destination : ClipDestination.debugDefault
-        #else
-        return router.destination
-        #endif
+    @ViewBuilder
+    private func snippet(_ destination: ClipDestination) -> some View {
+        switch destination {
+        case .registerVehicle:
+            RegisterVehicleView()
+        }
     }
 }
 
-/// Shown when the clip is opened from a URL that maps to no snippet — normally
-/// only reachable if an App Clip Experience is registered for a path this binary
-/// does not know about.
+/// Shown when the invocation URL names a snippet this binary does not have —
+/// an installed clip meeting a tag from a later release. Every other
+/// invocation, including one carrying no URL, opens the generic snippet.
 private struct UnrecognizedLinkView: View {
     var body: some View {
         VStack(spacing: 14) {
@@ -54,6 +63,7 @@ private struct UnrecognizedLinkView: View {
                 .foregroundStyle(Theme.inkSoft)
                 .multilineTextAlignment(.center)
         }
+        .frame(maxWidth: Theme.contentMaxWidth)
         .padding(32)
     }
 }
