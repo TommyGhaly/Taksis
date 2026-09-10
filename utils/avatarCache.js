@@ -2,7 +2,7 @@
  * avatarCache — the single source of truth for profile picture URLs.
  *
  * Why this exists: resolving `profilePictures/{uid}.png` through
- * storage().getDownloadURL() is a network round-trip, and the app used to do it
+ * getDownloadURL() is a network round-trip, and the app used to do it
  * from ~30 files behind six different hand-rolled caches plus a dozen polling
  * timers. This module replaces all of that.
  *
@@ -19,8 +19,18 @@
  * forces exactly one refetch. That is what lets us poll never.
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import storage from "@react-native-firebase/storage";
-import firestore from "@react-native-firebase/firestore";
+import {
+  deleteObject,
+  getDownloadURL,
+  getStorage,
+  ref,
+} from "@react-native-firebase/storage";
+import {
+  deleteField,
+  doc,
+  getFirestore,
+  updateDoc,
+} from "@react-native-firebase/firestore";
 
 const STORAGE_PREFIX = "avatar_v1_";
 // URLs are long-lived; `photoUpdatedAt` (not time) is what invalidates them.
@@ -217,9 +227,7 @@ export function resolve(uid) {
   const existing = inflight.get(uid);
   if (existing) return existing;
 
-  const p = storage()
-    .ref(`profilePictures/${uid}.png`)
-    .getDownloadURL()
+  const p = getDownloadURL(ref(getStorage(), `profilePictures/${uid}.png`))
     .then((url) => {
       const clean = typeof url === "string" && url.trim() ? url : null;
       const entry = { url: clean, version: null, ts: Date.now() };
@@ -286,7 +294,7 @@ export async function removePhoto(uid) {
   if (!uid) return;
 
   try {
-    await storage().ref(`profilePictures/${uid}.png`).delete();
+    await deleteObject(ref(getStorage(), `profilePictures/${uid}.png`));
   } catch (e) {
     // Already gone is success as far as callers are concerned.
     if (e?.code !== "storage/object-not-found") throw e;
@@ -297,9 +305,9 @@ export async function removePhoto(uid) {
   // uids — so the try/catch below stays the general guard.
   if (!isSyntheticId(uid)) {
     try {
-      await firestore().collection("users").doc(uid).update({
-        photoURL: firestore.FieldValue.delete(),
-        photoUpdatedAt: firestore.FieldValue.delete(),
+      await updateDoc(doc(getFirestore(), "users", uid), {
+        photoURL: deleteField(),
+        photoUpdatedAt: deleteField(),
       });
     } catch (e) {
       // Children / manually-created people have no top-level user doc.

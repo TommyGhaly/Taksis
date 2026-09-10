@@ -8,8 +8,15 @@ import {
   ActivityIndicator,
   FlatList,
 } from "react-native";
-import firestore, { FieldValue } from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import {
+  deleteDoc,
+  deleteField,
+  doc,
+  getDoc,
+  getFirestore,
+  updateDoc,
+} from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import Avatar from "./Avatar";
 import {
   SkeletonProvider,
@@ -154,7 +161,7 @@ const UnavailableRequestModal = ({
   nextServeData: propNextServeData,
   selectedWeek: propSelectedWeek,
 }) => {
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   const [submitting, setSubmitting] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -209,12 +216,13 @@ const UnavailableRequestModal = ({
 
     const fetchServers = async () => {
       try {
-        const scheduleDoc = await firestore()
-          .collection("churches")
-          .doc(churchId)
-          .collection("schedule")
-          .doc(week)
-          .get();
+        const scheduleDoc = await getDoc(doc(
+          getFirestore(),
+          "churches",
+          churchId,
+          "schedule",
+          week
+        ));
 
         if (!scheduleDoc.exists || !isMounted) {
           setLoadingServers(false);
@@ -278,45 +286,41 @@ const UnavailableRequestModal = ({
   }, [visible, churchId, week, propAvailableServers?.length, localAvailableServers.length]);
 
   const deleteUnavailableEntry = async () => {
-    const unavailableRef = firestore()
-      .collection("churches")
-      .doc(churchId)
-      .collection("unavailable")
-      .doc(week);
+    const unavailableRef = doc(getFirestore(), "churches", churchId, "unavailable", week);
 
     if (Array.isArray(role)) {
       const [roleType, index] = role;
-      await unavailableRef.update({
-        [`${roleType}.${index}`]: FieldValue.delete(),
+      await updateDoc(unavailableRef, {
+        [`${roleType}.${index}`]: deleteField(),
       });
 
-      let doc = await unavailableRef.get();
+      let doc = await getDoc(unavailableRef);
       if (doc.exists) {
         const data = doc.data();
         if (data[roleType] && Object.keys(data[roleType]).length === 0) {
-          await unavailableRef.update({
-            [roleType]: FieldValue.delete(),
+          await updateDoc(unavailableRef, {
+            [roleType]: deleteField(),
           });
 
-          doc = await unavailableRef.get();
+          doc = await getDoc(unavailableRef);
           if (doc.exists) {
             const updatedData = doc.data();
             if (!updatedData || Object.keys(updatedData).length === 0) {
-              await unavailableRef.delete();
+              await deleteDoc(unavailableRef);
             }
           }
         }
       }
     } else {
-      await unavailableRef.update({
-        [role]: FieldValue.delete(),
+      await updateDoc(unavailableRef, {
+        [role]: deleteField(),
       });
 
-      const doc = await unavailableRef.get();
+      const doc = await getDoc(unavailableRef);
       if (doc.exists) {
         const data = doc.data();
         if (!data || Object.keys(data).length === 0) {
-          await unavailableRef.delete();
+          await deleteDoc(unavailableRef);
         }
       }
     }

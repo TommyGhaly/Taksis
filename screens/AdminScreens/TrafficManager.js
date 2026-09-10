@@ -8,8 +8,21 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Image } from "expo-image";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import {
+  collection,
+  deleteDoc,
+  deleteField,
+  doc as firestoreDoc,
+  getDoc,
+  getFirestore,
+  onSnapshot,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+  writeBatch,
+} from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import {
   VehicleFormSheet, PendingList,
@@ -368,7 +381,7 @@ const TrafficSkeleton = memo(({ count = 7 }) => (
 TrafficSkeleton.displayName = "TrafficSkeleton";
 
 const TrafficManager = () => {
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   // Hold every read (and the migration pass) until the drawer/stack transition
   // has finished animating, so it doesn't stall the slide on the JS thread.
@@ -473,24 +486,24 @@ const TrafficManager = () => {
 
   useEffect(() => {
     if (!ready) return;
-    return firestore().collection("users").doc(user.uid)
-      .onSnapshot(
-        (doc) => {
-          const church = doc.exists ? doc.data()?.church ?? null : null;
-          setChurchId(church);
-          // No church means the cars listener below never attaches, so nothing
-          // else would ever clear `loading` — the screen sat on the skeleton
-          // forever. Let it through to the empty state instead.
-          if (!church) setLoading(false);
-        },
-        () => setLoading(false)
-      );
+    return onSnapshot(
+      firestoreDoc(getFirestore(), "users", user.uid),
+      (doc) => {
+        const church = doc.exists ? doc.data()?.church ?? null : null;
+        setChurchId(church);
+        // No church means the cars listener below never attaches, so nothing
+        // else would ever clear `loading` — the screen sat on the skeleton
+        // forever. Let it through to the empty state instead.
+        if (!church) setLoading(false);
+      },
+      () => setLoading(false)
+    );
   }, [user.uid, ready]);
 
   useEffect(() => {
     if (!ready) return;
     if (!churchId) return;
-    return firestore().collection("churches").doc(churchId).onSnapshot((doc) => {
+    return onSnapshot(firestoreDoc(getFirestore(), "churches", churchId), (doc) => {
       if (doc.exists) {
         const limit = doc.data()?.maxCarsPerPerson;
         const enabled = limit !== null && limit !== undefined && limit !== 0;
@@ -538,9 +551,12 @@ const TrafficManager = () => {
     if (!ready) return;
     if (!churchId) return;
 
-    const unsubCars = firestore().collection(CARS_COLLECTION)
-      .where("church", "==", churchId)
-      .onSnapshot((snapshot) => {
+    const unsubCars = onSnapshot(
+      query(
+        collection(getFirestore(), CARS_COLLECTION),
+        where("church", "==", churchId)
+      ),
+      (snapshot) => {
         const list = snapshot.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
           .sort((a, b) => (a.license || "").localeCompare(b.license || ""));
@@ -550,14 +566,16 @@ const TrafficManager = () => {
         list.forEach((c) => (c.ownerIds || []).forEach((uid) => {
           if (typeof uid === "string") fetchProfileImage(uid);
         }));
-      });
+      }
+    );
 
-    const unsubUnreg = firestore()
-      .collection("cars").doc("unregistered").collection("people")
-      .onSnapshot((snapshot) => {
+    const unsubUnreg = onSnapshot(
+      collection(getFirestore(), "cars", "unregistered", "people"),
+      (snapshot) => {
         setUnregUsers(snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data(), isUnreg: true }))
           .sort((a, b) => (a.name || "").localeCompare(b.name || "")));
-      });
+      }
+    );
 
     return () => { unsubCars(); unsubUnreg(); };
   }, [churchId, ready]);
@@ -569,30 +587,34 @@ const TrafficManager = () => {
     if (!ready) return;
     if (!churchId) return;
 
-    return firestore().collection("pending_registrations")
-      .where("church", "==", churchId)
-      .onSnapshot(
-        (snapshot) => {
-          setPendingVehicles(snapshot.docs.map((doc) => {
-            const d = doc.data();
-            return { id: doc.id, license: d.license, church: d.church, drivers: d.drivers || [], make: d.make, model: d.model, color: d.color };
-          }));
-        },
-        (error) => console.error("[TrafficManager] pending listener error:", error)
-      );
+    return onSnapshot(
+      query(
+        collection(getFirestore(), "pending_registrations"),
+        where("church", "==", churchId)
+      ),
+      (snapshot) => {
+        setPendingVehicles(snapshot.docs.map((doc) => {
+          const d = doc.data();
+          return { id: doc.id, license: d.license, church: d.church, drivers: d.drivers || [], make: d.make, model: d.model, color: d.color };
+        }));
+      },
+      (error) => console.error("[TrafficManager] pending listener error:", error)
+    );
   }, [churchId, ready]);
 
   useEffect(() => {
     if (!ready) return;
     if (!churchId) return;
-    return firestore().collection("users").where("church", "==", churchId)
-      .onSnapshot((snapshot) => {
+    return onSnapshot(
+      query(collection(getFirestore(), "users"), where("church", "==", churchId)),
+      (snapshot) => {
         const list = snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data() }))
           .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
         setUsers(list);
         // Free: these docs carry photoURL, so no Storage requests at all.
         avatarCache.primeMany(list);
-      });
+      }
+    );
   }, [churchId, ready]);
 
   const fetchProfileImage = useCallback((uid) => {
@@ -753,9 +775,9 @@ const TrafficManager = () => {
         { text: "Fix & Relink", style: "destructive", onPress: async () => {
           try {
             const { id: oldId, ...carData } = targetCar;
-            const batch = firestore().batch();
-            batch.set(firestore().collection(CARS_COLLECTION).doc(newId), carData);
-            if (oldId !== newId) batch.delete(firestore().collection(CARS_COLLECTION).doc(oldId));
+            const batch = writeBatch(getFirestore());
+            batch.set(firestoreDoc(getFirestore(), CARS_COLLECTION, newId), carData);
+            if (oldId !== newId) batch.delete(firestoreDoc(getFirestore(), CARS_COLLECTION, oldId));
             await batch.commit();
             setRelinkVisible(false);
             setRegVisible(false);
@@ -801,17 +823,17 @@ const TrafficManager = () => {
     if (make) carData.make = make;
     if (model) carData.model = model;
     if (color) carData.color = color;
-    await firestore().collection(CARS_COLLECTION).doc(docId).set(carData);
+    await setDoc(firestoreDoc(getFirestore(), CARS_COLLECTION, docId), carData);
   }, [churchId]);
 
   const handleEditSave = useCallback(async ({ license, make, model, color, drivers }) => {
     const updateData = {
       license, ownerIds: drivers,
-      make: make || firestore.FieldValue.delete(),
-      model: model || firestore.FieldValue.delete(),
-      color: color || firestore.FieldValue.delete(),
+      make: make || deleteField(),
+      model: model || deleteField(),
+      color: color || deleteField(),
     };
-    await firestore().collection(CARS_COLLECTION).doc(editingCar.id).update(updateData);
+    await updateDoc(firestoreDoc(getFirestore(), CARS_COLLECTION, editingCar.id), updateData);
   }, [editingCar]);
 
   const openEditModal = useCallback((car) => {
@@ -824,7 +846,7 @@ const TrafficManager = () => {
     Alert.alert("Delete Vehicle?", `Remove ${car.license || "this vehicle"} permanently?`, [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => {
-        firestore().collection(CARS_COLLECTION).doc(car.id).delete();
+        deleteDoc(firestoreDoc(getFirestore(), CARS_COLLECTION, car.id));
         setDetailModalVisible(false);
         setEditVisible(false);
       }},
@@ -845,14 +867,14 @@ const TrafficManager = () => {
       }
     }
     try {
-      await firestore().collection(CARS_COLLECTION).doc(car.id).update({ present: true });
+      await updateDoc(firestoreDoc(getFirestore(), CARS_COLLECTION, car.id), { present: true });
     } catch { Alert.alert("Error", "Failed to mark car as present."); }
     setDetailModalVisible(false);
   }, [checkCarLimit, maxCarsPerPerson]);
 
   const markCarAbsent = useCallback(async (car) => {
     try {
-      await firestore().collection(CARS_COLLECTION).doc(car.id).update({ present: false });
+      await updateDoc(firestoreDoc(getFirestore(), CARS_COLLECTION, car.id), { present: false });
     } catch { Alert.alert("Error", "Failed to mark car as absent."); }
     setDetailModalVisible(false);
   }, []);
@@ -862,9 +884,9 @@ const TrafficManager = () => {
       { text: "Cancel", style: "cancel" },
       { text: "Clear All", style: "destructive", onPress: async () => {
         try {
-          const batch = firestore().batch();
+          const batch = writeBatch(getFirestore());
           cars.filter((c) => c.present).forEach((car) =>
-            batch.update(firestore().collection(CARS_COLLECTION).doc(car.id), { present: false }));
+            batch.update(firestoreDoc(getFirestore(), CARS_COLLECTION, car.id), { present: false }));
           await batch.commit();
         } catch { Alert.alert("Error", "Failed to clear attendance."); }
         setMenuVisible(false);
@@ -876,7 +898,7 @@ const TrafficManager = () => {
 
   const saveCarLimitSettings = useCallback(async (enabled, limit) => {
     try {
-      await firestore().collection("churches").doc(churchId).update({ maxCarsPerPerson: enabled ? limit : 0 });
+      await updateDoc(firestoreDoc(getFirestore(), "churches", churchId), { maxCarsPerPerson: enabled ? limit : 0 });
     } catch { Alert.alert("Error", "Failed to save settings."); }
   }, [churchId]);
 
@@ -903,7 +925,7 @@ const TrafficManager = () => {
     const tokens = {};
     await Promise.all(ownerIds.filter((uid) => typeof uid === "string" && !uid.startsWith("unreg_")).map(async (uid) => {
       try {
-        const doc = await firestore().collection("users").doc(uid).get();
+        const doc = await getDoc(firestoreDoc(getFirestore(), "users", uid));
         const fcm = doc.data()?.fcmTokens;
         if (fcm && Object.keys(fcm).length > 0) tokens[uid] = fcm;
       } catch {}

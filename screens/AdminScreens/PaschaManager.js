@@ -9,8 +9,20 @@ import {
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { LIST_PERF } from "../../utils/listConfig";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import {
+  collection,
+  deleteField,
+  doc,
+  getDoc,
+  getFirestore,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import PaschaArchiveViewer from "../../components/PaschaArchiveViewer";
 import Avatar from "../../components/Avatar";
 import * as avatarCache from "../../utils/avatarCache";
@@ -178,7 +190,7 @@ var ProphecyCopticToggle = function(props) {
   var toggleKey = prophecyCopticToggleKey(vernacularSlotKey);
   var enabled = hourAssignments[toggleKey] === true;
   var handleChange = function(val) {
-    onSave(toggleKey, val ? true : firestore.FieldValue.delete());
+    onSave(toggleKey, val ? true : deleteField());
   };
   return (
     <View style={pct.row}>
@@ -1586,10 +1598,10 @@ export default function PaschaManager() {
   useEffect(function() {
     if (!ready) return;
     isMounted.current = true;
-    var user = auth().currentUser;
+    var user = getAuth().currentUser;
     if (!user) return function() { isMounted.current = false; };
     setUid(user.uid);
-    var unsub = firestore().collection("users").doc(user.uid).onSnapshot(function(doc) {
+    var unsub = onSnapshot(doc(getFirestore(), "users", user.uid), function(doc) {
       if (isMounted.current && doc.exists) {
         setChurchId(doc.data().church || null);
         setFontSizeScale(doc.data().paschaFontSize != null ? doc.data().paschaFontSize : "medium");
@@ -1602,10 +1614,9 @@ export default function PaschaManager() {
     if (!ready) return;
     if (!churchId) return;
     isMounted.current = true;
-    var unsubShell = firestore()
-      .collection("churches").doc(churchId)
-      .collection("pascha").doc("schedule_config")
-      .onSnapshot(function(doc) {
+    var unsubShell = onSnapshot(
+      doc(getFirestore(), "churches", churchId, "pascha", "schedule_config"),
+      function(doc) {
         if (!isMounted.current) return;
         if (doc.exists) {
           setScheduleShell(doc.data());
@@ -1615,25 +1626,26 @@ export default function PaschaManager() {
             return days != null && days[0] != null ? days[0].id : null;
           });
         }
-      });
-    var unsubConfig = firestore()
-      .collection("churches").doc(churchId)
-      .collection("pascha").doc("config")
-      .onSnapshot(function(doc) {
+      }
+    );
+    var unsubConfig = onSnapshot(
+      doc(getFirestore(), "churches", churchId, "pascha", "config"),
+      function(doc) {
         if (!isMounted.current || !doc.exists) return;
         var d = doc.data();
         setMyReadingsVisible(d.myReadingsVisible != null ? d.myReadingsVisible : false);
         setFullScheduleVisible(d.fullScheduleVisible != null ? d.fullScheduleVisible : false);
         setEasterDate(d.easterDate != null ? d.easterDate : null);
         if (d.fontSizeMultipliers) setFontSizeMultipliers(d.fontSizeMultipliers);
-      });
-    var unsubSchedule = firestore()
-      .collection("churches").doc(churchId)
-      .collection("pascha").doc("schedule")
-      .onSnapshot(function(doc) {
+      }
+    );
+    var unsubSchedule = onSnapshot(
+      doc(getFirestore(), "churches", churchId, "pascha", "schedule"),
+      function(doc) {
         if (!isMounted.current) return;
         setAssignees(doc.exists ? doc.data() : {});
-      });
+      }
+    );
     return function() { unsubShell(); unsubConfig(); unsubSchedule(); };
   }, [churchId, ready]);
 
@@ -1641,7 +1653,7 @@ export default function PaschaManager() {
     if (!ready) return;
     if (!churchId) return;
     setLoadingUsers(true);
-    var unsubC = firestore().collection("churches").doc(churchId).onSnapshot(function(doc) {
+    var unsubC = onSnapshot(doc(getFirestore(), "churches", churchId), function(doc) {
       if (!isMounted.current || !doc.exists) return;
       setDeacons(
         (doc.data().deacons || [])
@@ -1650,24 +1662,27 @@ export default function PaschaManager() {
           .sort(function(a, b) { return a.name.localeCompare(b.name); })
       );
     });
-    var unsubU = firestore().collection("users").where("church", "==", churchId).onSnapshot(function(snap) {
-      if (!isMounted.current) return;
-      var users = snap.docs.map(function(d) { return Object.assign({ uid: d.id }, d.data()); })
-        .filter(function(u) { return u.name; })
-        .sort(function(a, b) { return a.name.localeCompare(b.name); });
-      // Free: these docs are already loaded, so their photoURLs cost nothing.
-      avatarCache.primeMany(users);
-      setCongregation(users);
-      setLoadingUsers(false);
-    });
+    var unsubU = onSnapshot(
+      query(collection(getFirestore(), "users"), where("church", "==", churchId)),
+      function(snap) {
+        if (!isMounted.current) return;
+        var users = snap.docs.map(function(d) { return Object.assign({ uid: d.id }, d.data()); })
+          .filter(function(u) { return u.name; })
+          .sort(function(a, b) { return a.name.localeCompare(b.name); });
+        // Free: these docs are already loaded, so their photoURLs cost nothing.
+        avatarCache.primeMany(users);
+        setCongregation(users);
+        setLoadingUsers(false);
+      }
+    );
     return function() { unsubC(); unsubU(); };
   }, [churchId, ready]);
 
   var writeConfig = useCallback(function(fields) {
     if (!churchId) return Promise.resolve();
-    var ref = firestore().collection("churches").doc(churchId).collection("pascha").doc("config");
-    return ref.update(fields).catch(function(err) {
-      if (err.code === "firestore/not-found") return ref.set(fields);
+    var ref = doc(getFirestore(), "churches", churchId, "pascha", "config");
+    return updateDoc(ref, fields).catch(function(err) {
+      if (err.code === "firestore/not-found") return setDoc(ref, fields);
       Alert.alert("Error", "Failed to save.");
       return Promise.resolve();
     });
@@ -1675,9 +1690,9 @@ export default function PaschaManager() {
 
   var writeSchedule = useCallback(function(fields) {
     if (!churchId) return Promise.resolve();
-    var ref = firestore().collection("churches").doc(churchId).collection("pascha").doc("schedule");
-    return ref.update(fields).catch(function(err) {
-      if (err.code === "firestore/not-found") return ref.set(fields);
+    var ref = doc(getFirestore(), "churches", churchId, "pascha", "schedule");
+    return updateDoc(ref, fields).catch(function(err) {
+      if (err.code === "firestore/not-found") return setDoc(ref, fields);
       Alert.alert("Error", "Failed to save.");
       return Promise.resolve();
     });
@@ -1686,14 +1701,14 @@ export default function PaschaManager() {
   var saveReading = useCallback(function(dayId, hourId, slotKey, person) {
     var value = person
       ? { uid: person.uid != null ? person.uid : null, name: person.name }
-      : firestore.FieldValue.delete();
+      : deleteField();
     return writeSchedule({ [dayId + "." + hourId + "." + slotKey]: value });
   }, [writeSchedule]);
 
   var savePsalmReaders = useCallback(function(dayId, hourId, readersKey, readers) {
     var value = readers.length > 0
       ? readers.map(function(r) { return { uid: r.uid != null ? r.uid : null, name: r.name }; })
-      : firestore.FieldValue.delete();
+      : deleteField();
     return writeSchedule({ [dayId + "." + hourId + "." + readersKey]: value });
   }, [writeSchedule]);
 
@@ -1706,33 +1721,27 @@ export default function PaschaManager() {
     fields[dayId + "." + hourId + "." + toggleKey] = value;
     if (value !== true) {
       var vernacularSlot = toggleKey.replace(/_coptic_enabled$/, "");
-      fields[dayId + "." + hourId + "." + vernacularSlot + "_coptic"] = firestore.FieldValue.delete();
+      fields[dayId + "." + hourId + "." + vernacularSlot + "_coptic"] = deleteField();
     }
     return writeSchedule(fields);
   }, [writeSchedule]);
 
   var doArchive = useCallback(function() {
-    return firestore()
-      .collection("churches").doc(churchId)
-      .collection("pascha").doc("schedule_config")
-      .get()
+    return getDoc(doc(getFirestore(), "churches", churchId, "pascha", "schedule_config"))
       .then(function(shellSnap) {
         var shellData = shellSnap.exists ? shellSnap.data() : null;
-        return firestore()
-          .collection("churches").doc(churchId)
-          .collection("pascha").doc("archive_" + year)
-          .set({
+        return setDoc(
+          doc(getFirestore(), "churches", churchId, "pascha", "archive_" + year),
+          {
             schedule:      schedule,
             scheduleShell: shellData,
             easterDate:    easterDate,
-            archivedAt:    firestore.FieldValue.serverTimestamp(),
-          });
+            archivedAt:    serverTimestamp(),
+          }
+        );
       })
       .then(function() {
-        return firestore()
-          .collection("churches").doc(churchId)
-          .collection("pascha").doc("schedule")
-          .set({});
+        return setDoc(doc(getFirestore(), "churches", churchId, "pascha", "schedule"), {});
       })
       .then(function() {
         return new Promise(function(resolve) { setTimeout(resolve, 600); });
@@ -1883,8 +1892,7 @@ export default function PaschaManager() {
         onSetFontSize={function(size) {
           setFontSizeScale(size);
           if (uid) {
-            firestore().collection("users").doc(uid)
-              .update({ paschaFontSize: size }).catch(function(_err) {});
+            updateDoc(doc(getFirestore(), "users", uid), { paschaFontSize: size }).catch(function(_err) {});
           }
         }}
         onToggleMyReadings={function(v) { setMyReadingsVisible(v); writeConfig({ myReadingsVisible: v }); }}

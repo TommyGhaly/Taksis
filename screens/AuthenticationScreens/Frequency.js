@@ -9,8 +9,8 @@ import {
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import { useUser } from "../../UserContext";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
@@ -19,7 +19,7 @@ import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 
 const Frequency = ({ route, navigation }) => {
   const { from } = route.params;
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [frequency, setFrequency] = useState(5);
@@ -85,7 +85,7 @@ const Frequency = ({ route, navigation }) => {
     try {
       const userAge = calculateAge(date);
       
-      await firestore().collection("users").doc(user.uid).update({
+      await updateDoc(doc(getFirestore(), "users", user.uid), {
         frequency: frequency,
         DOB: formatDate(date),
         age: userAge,

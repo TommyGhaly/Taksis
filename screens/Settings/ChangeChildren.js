@@ -8,8 +8,15 @@ import {
   ScrollView,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import firestore, { FieldValue } from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import {
+  arrayRemove,
+  doc,
+  getDoc,
+  getFirestore,
+  onSnapshot,
+  updateDoc,
+} from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import BackArrow from "../../components/backArrow";
 import { callFunction } from "../../components/functionCalls";
 import Avatar from "../../components/Avatar";
@@ -20,31 +27,29 @@ const ChangeChildren = () => {
   const [children, setChildren] = useState([]);
 
   useEffect(() => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
 
     if (user) {
       // Fetch user data and children
-      const unsubscribe = firestore()
-        .collection("users")
-        .doc(user.uid)
-        .onSnapshot(
-          (doc) => {
-            const userData = doc.data();
-            if (userData && userData.children) {
-              setChildren(userData.children);
-              // Adopt any photoURL already on these records — no Storage request.
-              avatarCache.primeMany(userData.children);
-            } else {
-              setChildren([]);
-            }
-          },
-          (error) => {
-            Alert.alert(
-              "Error",
-              "Failed to fetch children data. Please try again."
-            );
+      const unsubscribe = onSnapshot(
+        doc(getFirestore(), "users", user.uid),
+        (doc) => {
+          const userData = doc.data();
+          if (userData && userData.children) {
+            setChildren(userData.children);
+            // Adopt any photoURL already on these records — no Storage request.
+            avatarCache.primeMany(userData.children);
+          } else {
+            setChildren([]);
           }
-        );
+        },
+        (error) => {
+          Alert.alert(
+            "Error",
+            "Failed to fetch children data. Please try again."
+          );
+        }
+      );
 
       // Cleanup subscription on unmount
       return () => {
@@ -63,7 +68,7 @@ const ChangeChildren = () => {
           text: "Remove",
           style: "destructive",
           onPress: async () => {
-            const user = auth().currentUser;
+            const user = getAuth().currentUser;
             if (!user) {
               Alert.alert(
                 "Error",
@@ -73,10 +78,7 @@ const ChangeChildren = () => {
             }
 
             try {
-              const userDoc = await firestore()
-                .collection("users")
-                .doc(user.uid)
-                .get();
+              const userDoc = await getDoc(doc(getFirestore(), "users", user.uid));
               const userData = userDoc.data();
 
               if (!userData?.children) {
@@ -112,12 +114,9 @@ const ChangeChildren = () => {
               );
 
               // Remove child from Firestore
-              await firestore()
-                .collection("users")
-                .doc(user.uid)
-                .update({
-                  children: FieldValue.arrayRemove(childToRemove),
-                });
+              await updateDoc(doc(getFirestore(), "users", user.uid), {
+                children: arrayRemove(childToRemove),
+              });
             } catch (error) {
               console.error("Remove child error:", error);
               Alert.alert(

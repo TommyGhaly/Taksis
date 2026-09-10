@@ -3,13 +3,13 @@ import { StyleSheet, View, Text, Pressable, Alert } from "react-native";
 import Slider from "@react-native-community/slider";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 
 const Experience = ({ navigation }) => {
   const [slider, setSlider] = useState(5);
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   const hapticOptions = {
     enableVibrateFallback: true,
@@ -29,7 +29,7 @@ const Experience = ({ navigation }) => {
 
   const handleContinue = async () => {
     try {
-      await firestore().collection("users").doc(user.uid).update({
+      await updateDoc(doc(getFirestore(), "users", user.uid), {
         experience: slider,
       });
       navigation.navigate("Frequency", { from: "Experience" });

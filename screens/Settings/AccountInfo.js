@@ -12,8 +12,8 @@ import {
   Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import { doc, getDoc, getFirestore } from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import { Ionicons } from "@expo/vector-icons";
 import PhotoInput from "../../components/photoInput";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
@@ -36,7 +36,7 @@ const AccountInfo = ({ navigation }) => {
   const [userData, setUserData] = useState(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [isLoadingFromCache, setIsLoadingFromCache] = useState(true);
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const contentAnim = useRef(new Animated.Value(0)).current;
@@ -93,10 +93,7 @@ const AccountInfo = ({ navigation }) => {
             // Adopt photoURL from the doc we already have — no Storage request.
             avatarCache.primeFromUser({ uid: user.uid, ...cachedData });
             setIsLoadingFromCache(false);
-            firestore()
-              .collection("users")
-              .doc(user.uid)
-              .get()
+            getDoc(doc(getFirestore(), "users", user.uid))
               .then(userDoc => {
                 if (userDoc.exists) {
                   const freshData = userDoc.data();
@@ -106,7 +103,7 @@ const AccountInfo = ({ navigation }) => {
                 }
               });
           } else {
-            const userDoc = await firestore().collection("users").doc(user.uid).get();
+            const userDoc = await getDoc(doc(getFirestore(), "users", user.uid));
             if (userDoc.exists) {
               const freshData = userDoc.data();
               setUserData(freshData);

@@ -6,14 +6,20 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import firestore from "@react-native-firebase/firestore";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getFirestore,
+  setDoc,
+} from "@react-native-firebase/firestore";
 import { LIST_PERF } from "../utils/listConfig";
 
 const { width: SW, height: SH } = Dimensions.get("window");
 
 // ── Changed: now points to cars/unregistered/people ──────────────────────────
 export const getUnregCollection = () =>
-  firestore().collection("cars").doc("unregistered").collection("people");
+  collection(getFirestore(), "cars", "unregistered", "people");
 
 export const COLOR_OPTIONS = [
   { label: "White",  value: "white",  hex: "#FFFFFF" },
@@ -215,7 +221,7 @@ export const VehicleFormSheet = memo(({
     setGuestSaving(true);
     try {
       const docId = `unreg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      await getUnregCollection().doc(docId).set({ name, phone, uid: docId });
+      await setDoc(doc(getUnregCollection(), docId), { name, phone, uid: docId });
       setDrivers((prev) => [...prev, docId]);
       setGuestOpen(false);
     } catch {
@@ -473,7 +479,7 @@ export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, ch
     setSaving(true);
     try {
       const docId = `unreg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      await getUnregCollection().doc(docId).set({ name, phone, uid: docId });
+      await setDoc(doc(getUnregCollection(), docId), { name, phone, uid: docId });
       resolveWith(docId, true);
     } catch {
       Alert.alert("Error", "Failed to create person.");
@@ -491,8 +497,8 @@ export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, ch
       if (vehicle.make) carData.make = vehicle.make;
       if (vehicle.model) carData.model = vehicle.model;
       if (vehicle.color) carData.color = vehicle.color;
-      await firestore().collection("cars").doc(currentQrId).set(carData);
-      await firestore().collection("pending_registrations").doc(vehicle.id).delete();
+      await setDoc(doc(getFirestore(), "cars", currentQrId), carData);
+      await deleteDoc(doc(getFirestore(), "pending_registrations", vehicle.id));
       onDone();
     } catch {
       Alert.alert("Error", "Failed to register vehicle.");

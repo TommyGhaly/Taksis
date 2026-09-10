@@ -3,14 +3,14 @@ import { useState } from "react";
 import { StyleSheet, View, Pressable, Text, Alert } from "react-native";
 import Rank from "../../components/rank";
 import BackArrow from "../../components/backArrow";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import { callFunction } from "../../components/functionCalls";
 
 
 const ChangeRank = ({ navigation }) => {
   const [rank, setRank] = useState(null);
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   const handleRank = (selectedRank) => {
     setRank(selectedRank);
@@ -19,7 +19,7 @@ const ChangeRank = ({ navigation }) => {
   const handleContinue = async () => {
     try {
       if (rank) {
-        await firestore().collection("users").doc(user.uid).update({
+        await updateDoc(doc(getFirestore(), "users", user.uid), {
           rank: rank,
         });
         navigation.goBack(); // Replace "NextScreen" with your target screen

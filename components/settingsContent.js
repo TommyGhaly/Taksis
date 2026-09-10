@@ -12,12 +12,19 @@ import {
   Platform,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import {
+  deleteDoc,
+  doc as firestoreDoc,
+  getDoc,
+  getFirestore,
+  onSnapshot,
+  setDoc,
+  updateDoc,
+} from "@react-native-firebase/firestore";
+import { deleteUser, getAuth, signOut } from "@react-native-firebase/auth";
 import { useUser, clearCachedProfile } from "../UserContext";
 import { callFunction } from "./functionCalls";
-import { deleteUser } from "@react-native-firebase/auth";
-import messaging from "@react-native-firebase/messaging";
+import { getMessaging, getToken } from "@react-native-firebase/messaging";
 import Avatar from "./Avatar";
 import * as avatarCache from "../utils/avatarCache";
 
@@ -30,39 +37,37 @@ const SettingsContent = () => {
   const [suggestion, setSuggestion] = useState("");
 
   useEffect(() => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user) return;
 
-    return firestore()
-      .collection("users")
-      .doc(user.uid)
-      .onSnapshot(
-        (doc) => {
-          if (doc.exists) {
-            const data = doc.data();
-            setUserRoles(data);
-            // Adopt photoURL from the doc we're already reading — no Storage
-            // request, and it updates the moment the photo changes.
-            avatarCache.primeFromUser({ uid: user.uid, ...data });
-          }
-        },
-        (error) => console.error("Error fetching user data:", error)
-      );
+    return onSnapshot(
+      firestoreDoc(getFirestore(), "users", user.uid),
+      (doc) => {
+        if (doc.exists) {
+          const data = doc.data();
+          setUserRoles(data);
+          // Adopt photoURL from the doc we're already reading — no Storage
+          // request, and it updates the moment the photo changes.
+          avatarCache.primeFromUser({ uid: user.uid, ...data });
+        }
+      },
+      (error) => console.error("Error fetching user data:", error)
+    );
   }, []);
 
   const wait = (time) => new Promise((resolve) => setTimeout(resolve, time * 1000));
 
   const handleSignOut = async () => {
     try {
-      const user = auth().currentUser;
+      const user = getAuth().currentUser;
       if (user) {
-        const token = await messaging().getToken();
-        const userDocRef = firestore().collection("users").doc(user.uid);
-        const userDoc = await userDocRef.get();
+        const token = await getToken(getMessaging());
+        const userDocRef = firestoreDoc(getFirestore(), "users", user.uid);
+        const userDoc = await getDoc(userDocRef);
         if (userDoc.exists) {
           const fcmTokens = userDoc.data().fcmTokens || [];
           if (fcmTokens.includes(token)) {
-            await userDocRef.update({ fcmTokens: fcmTokens.filter((t) => t !== token) });
+            await updateDoc(userDocRef, { fcmTokens: fcmTokens.filter((t) => t !== token) });
           }
         }
         await avatarCache.clearAll();
@@ -72,7 +77,7 @@ const SettingsContent = () => {
       console.error("Error during sign out:", error);
     } finally {
       setSignUp(true);
-      auth().signOut();
+      signOut(getAuth());
     }
   };
 
@@ -86,7 +91,7 @@ const SettingsContent = () => {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            const user = auth().currentUser;
+            const user = getAuth().currentUser;
             if (!user) {
               Alert.alert("Error", "User not authenticated. Please sign in again.");
               return;
@@ -107,7 +112,7 @@ const SettingsContent = () => {
               await avatarCache.clearAll();
               await clearCachedProfile();
               setSignUp(false);
-              await firestore().collection("users").doc(user.uid).delete();
+              await deleteDoc(firestoreDoc(getFirestore(), "users", user.uid));
               await wait(2);
               await deleteUser(user);
               Alert.alert("Success", "Your account has been deleted.");
@@ -130,13 +135,13 @@ const SettingsContent = () => {
     }
     setIsLoading(true);
     try {
-      const user = auth().currentUser;
+      const user = getAuth().currentUser;
       if (user && userRoles.name) {
-        const suggestionDocRef = firestore().collection("suggestions").doc(userRoles.name);
-        const doc = await suggestionDocRef.get();
+        const suggestionDocRef = firestoreDoc(getFirestore(), "suggestions", userRoles.name);
+        const doc = await getDoc(suggestionDocRef);
         let suggestions = doc.exists ? doc.data().suggestions || [] : [];
         suggestions.push(suggestion);
-        await suggestionDocRef.set({ suggestions }, { merge: true });
+        await setDoc(suggestionDocRef, { suggestions }, { merge: true });
         Alert.alert("Success", "Your suggestion has been submitted!");
         setSuggestion("");
         setModalVisible(false);
@@ -185,7 +190,7 @@ const SettingsContent = () => {
       </Modal>
       <View style={styles.profileSection}>
         <Avatar
-          uid={auth().currentUser?.uid}
+          uid={getAuth().currentUser?.uid}
           user={userRoles}
           size={60}
           finalSize={300}

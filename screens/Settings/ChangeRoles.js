@@ -2,15 +2,15 @@ import React, { useState } from "react";
 import { StyleSheet, View, Text, Pressable, Alert } from "react-native";
 import Choices from "../../components/choices";
 import BackArrow from "../../components/backArrow";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import { callFunction } from "../../components/functionCalls";
 
 const ChangeRoles = ({ navigation }) => {
   const [isDeacon, setIsDeacon] = useState(false);
   const [isAlhan, setIsAlhan] = useState(false);
   const [isSSTeach, setIsSSTeach] = useState(false);
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   const handleDeacon = (checked) => setIsDeacon(checked);
   const handleAlhan = (checked) => setIsAlhan(checked);
@@ -18,7 +18,7 @@ const ChangeRoles = ({ navigation }) => {
 
   const handleContinue = async () => {
     try {
-      await firestore().collection("users").doc(user.uid).update({
+      await updateDoc(doc(getFirestore(), "users", user.uid), {
         isDeacon: isDeacon,
         isAlhan: isAlhan,
         isSSTeacher: isSSTeach,

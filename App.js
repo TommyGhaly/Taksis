@@ -3,8 +3,14 @@ import { LogBox } from "react-native";
 import { StyleSheet, Text, View, ScrollView, RefreshControl } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import auth from "@react-native-firebase/auth";
-import firestore from "@react-native-firebase/firestore";
+import { getAuth, onAuthStateChanged } from "@react-native-firebase/auth";
+import {
+  doc,
+  getDoc,
+  getDocFromCache,
+  getFirestore,
+  setDoc,
+} from "@react-native-firebase/firestore";
 import NetInfo from "@react-native-community/netinfo";
 import { UserProvider, useUser } from "./UserContext";
 import { initializeCacheManager } from "./utils/cacheManager";
@@ -89,7 +95,7 @@ function AppNavigator() {
   useEffect(() => startDeepLinkListener(), []);
 
   useEffect(() => {
-    const subscriber = auth().onAuthStateChanged(async (user) => {
+    const subscriber = onAuthStateChanged(getAuth(), async (user) => {
       // Check if user needs to complete sign up BEFORE setting user state
       if (!user) {
         // No user logged in, needs sign up
@@ -98,7 +104,7 @@ function AppNavigator() {
       } else {
         try {
           // User is logged in, ensure Firestore user doc exists, then check if onboarding is complete.
-          const userRef = firestore().collection("users").doc(user.uid);
+          const userRef = doc(getFirestore(), "users", user.uid);
 
           // Try the on-disk Firestore cache first. Persistence is enabled by
           // default in RN Firebase but the app never used it, so every launch
@@ -107,7 +113,7 @@ function AppNavigator() {
           // runs and corrects anything stale.
           let userDoc = null;
           try {
-            const cached = await userRef.get({ source: "cache" });
+            const cached = await getDocFromCache(userRef);
             if (cached.exists && cached.data()?.DOB) {
               setSignUp(false);
               setUser(user);
@@ -118,12 +124,13 @@ function AppNavigator() {
             // Nothing cached yet (first launch) — fall through to the server.
           }
 
-          if (!userDoc) userDoc = await userRef.get();
+          if (!userDoc) userDoc = await getDoc(userRef);
 
           if (!userDoc.exists) {
             // If the Auth user exists but Firestore doc doesn't (race during sign-up, or legacy state),
             // create a minimal doc so onboarding screens can safely update it.
-            await userRef.set(
+            await setDoc(
+              userRef,
               {
                 uid: user.uid,
                 name: user.displayName || "",
@@ -136,7 +143,7 @@ function AppNavigator() {
                 ssGrades: [],
                 nextWeekServe: "N/A",
               },
-              { merge: true },
+              { merge: true }
             );
             setSignUp(true);
           } else if (!userDoc.data()?.DOB) {

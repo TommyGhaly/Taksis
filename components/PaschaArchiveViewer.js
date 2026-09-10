@@ -5,7 +5,7 @@ import {
   Dimensions,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import firestore from "@react-native-firebase/firestore";
+import { collection, getDocs, getFirestore } from "@react-native-firebase/firestore";
 import Avatar from "./Avatar";
 import { SkeletonCardList } from "./Skeleton";
 import {
@@ -364,7 +364,7 @@ var PaschaArchiveViewer = function(props) {
   useEffect(function() {
     if (!visible || !churchId) return;
     setLoading(true); setSelectedYear(null); setDayIndex(0); setArchives([]);
-    firestore().collection("churches").doc(churchId).collection("pascha").get()
+    getDocs(collection(getFirestore(), "churches", churchId, "pascha"))
       .then(function(snap) {
         var found = [];
         snap.forEach(function(doc) {

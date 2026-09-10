@@ -15,7 +15,16 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
-import firestore from "@react-native-firebase/firestore";
+import {
+  deleteDoc,
+  deleteField,
+  doc,
+  getDoc,
+  getFirestore,
+  onSnapshot,
+  updateDoc,
+  writeBatch,
+} from "@react-native-firebase/firestore";
 import { LinearGradient } from "expo-linear-gradient";
 import BackArrow from "../../components/backArrow";
 import PhotoInput from "../../components/photoInput";
@@ -239,16 +248,19 @@ const IndividualAttendance = () => {
           return () => {};
         }
 
-        const studentRef = firestore()
-          .collection("churches")
-          .doc(church)
-          .collection(category)
-          .doc(grade)
-          .collection("students")
-          .doc(studentId);
+        const studentRef = doc(
+          getFirestore(),
+          "churches",
+          church,
+          category,
+          grade,
+          "students",
+          studentId
+        );
 
         // Set up real-time listener for student data
-        const unsubscribe = studentRef.onSnapshot(
+        const unsubscribe = onSnapshot(
+          studentRef,
           async (doc) => {
             if (!isMounted.current) return;
             try {
@@ -335,17 +347,21 @@ const IndividualAttendance = () => {
       // screen's own listener re-prime the cache with a url whose Storage object
       // no longer exists, and the deleted photo would appear to come back.
       try {
-        await firestore()
-          .collection("churches")
-          .doc(church)
-          .collection(category)
-          .doc(grade)
-          .collection("students")
-          .doc(studentId)
-          .update({
-            photoURL: firestore.FieldValue.delete(),
-            photoUpdatedAt: firestore.FieldValue.delete(),
-          });
+        await updateDoc(
+          doc(
+            getFirestore(),
+            "churches",
+            church,
+            category,
+            grade,
+            "students",
+            studentId
+          ),
+          {
+            photoURL: deleteField(),
+            photoUpdatedAt: deleteField(),
+          }
+        );
       } catch (e) {
         // Students added before photos were stamped have neither field.
         console.log(
@@ -410,17 +426,13 @@ const IndividualAttendance = () => {
   const handlePhotoUploaded = async (downloadURL, version) => {
     if (!studentId) return;
     try {
-      await firestore()
-        .collection("churches")
-        .doc(church)
-        .collection(category)
-        .doc(grade)
-        .collection("students")
-        .doc(studentId)
-        .update({
+      await updateDoc(
+        doc(getFirestore(), "churches", church, category, grade, "students", studentId),
+        {
           photoURL: downloadURL,
           photoUpdatedAt: version || String(Date.now()),
-        });
+        }
+      );
     } catch (error) {
       // The local cache already has the new photo, so this screen is correct
       // either way; a failed stamp only delays the other devices.
@@ -455,13 +467,7 @@ const IndividualAttendance = () => {
     }
 
     const students = (gradeDoc) =>
-      firestore()
-        .collection("churches")
-        .doc(church)
-        .collection(category)
-        .doc(gradeDoc)
-        .collection("students")
-        .doc(studentId);
+      doc(getFirestore(), "churches", church, category, gradeDoc, "students", studentId);
 
     const source = students(grade);
     const destination = students(selectedNewGrade);
@@ -469,7 +475,7 @@ const IndividualAttendance = () => {
     setTransferringStudent(true);
     try {
       // Get the complete student document from current grade
-      const currentDoc = await source.get();
+      const currentDoc = await getDoc(source);
 
       if (!currentDoc.exists) {
         throw new Error("Student document not found");
@@ -479,7 +485,7 @@ const IndividualAttendance = () => {
       // the copy had landed left the student sitting in both grades, and the
       // attendance list — which reads every assigned grade — then showed and
       // marked them twice.
-      const batch = firestore().batch();
+      const batch = writeBatch(getFirestore());
       batch.set(destination, {
         ...currentDoc.data(),
         grade: selectedNewGrade, // Update the grade field
@@ -531,20 +537,16 @@ const IndividualAttendance = () => {
     }
     try {
       setSaving(true);
-      await firestore()
-        .collection("churches")
-        .doc(church)
-        .collection(category)
-        .doc(grade)
-        .collection("students")
-        .doc(studentId)
-        .update({
+      await updateDoc(
+        doc(getFirestore(), "churches", church, category, grade, "students", studentId),
+        {
           name: editData.name.trim(),
           phone: editData.phone.trim(),
           address: editData.address.trim(),
           description: editData.description.trim(),
           birthday,
-        });
+        }
+      );
       setEditMode(false);
       closeModalThen(() =>
         Alert.alert("Success", "Student information updated successfully.")
@@ -570,14 +572,15 @@ const IndividualAttendance = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              await firestore()
-                .collection("churches")
-                .doc(church)
-                .collection(category)
-                .doc(grade)
-                .collection("students")
-                .doc(studentId)
-                .delete();
+              await deleteDoc(doc(
+                getFirestore(),
+                "churches",
+                church,
+                category,
+                grade,
+                "students",
+                studentId
+              ));
 
               try {
                 await avatarCache.removePhoto(studentId);

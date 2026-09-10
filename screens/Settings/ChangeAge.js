@@ -9,8 +9,8 @@ import {
   Platform,
 } from "react-native";
 import BackArrow from "../../components/backArrow";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { callFunction } from "../../components/functionCalls";
@@ -20,7 +20,7 @@ const ChangeAge = () => {
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const navigation = useNavigation();
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   const hapticOptions = {
     enableVibrateFallback: true,
@@ -48,7 +48,7 @@ const ChangeAge = () => {
       throw new Error("User not authenticated");
     }
     try {
-      await firestore().collection("users").doc(user.uid).update({
+      await updateDoc(doc(getFirestore(), "users", user.uid), {
         DOB: dob,
       });
       await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");

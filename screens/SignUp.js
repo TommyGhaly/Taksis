@@ -5,8 +5,15 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import auth from "@react-native-firebase/auth";
-import firestore from "@react-native-firebase/firestore";
+import {
+  AppleAuthProvider,
+  GoogleAuthProvider,
+  createUserWithEmailAndPassword,
+  getAuth,
+  signInWithCredential,
+  signOut,
+} from "@react-native-firebase/auth";
+import { doc, getDoc, getFirestore, setDoc } from "@react-native-firebase/firestore";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
@@ -150,7 +157,8 @@ const SignUp = ({ navigation }) => {
   }, [password]);
 
   const writeUserToDb = async (user, fullName) => {
-    await firestore().collection("users").doc(user.uid).set(
+    await setDoc(
+      doc(getFirestore(), "users", user.uid),
       { uid: user.uid, name: fullName || user.displayName || "", email: user.email || "", admin: false, rank: "Chanter (Epsaltos)", experience: 1, frequency: 1, alhanGrades: [], ssGrades: [], nextWeekServe: "N/A" },
       { merge: true }
     );
@@ -161,7 +169,7 @@ const SignUp = ({ navigation }) => {
     if (!isValid) return;
     setLoading("email");
     try {
-      const userCredential = await auth().createUserWithEmailAndPassword(email, password);
+      const userCredential = await createUserWithEmailAndPassword(getAuth(), email, password);
       const user = userCredential.user;
       if (user) {
         await writeUserToDb(user, name);
@@ -181,12 +189,12 @@ const SignUp = ({ navigation }) => {
     try {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       const { idToken } = await GoogleSignin.signIn();
-      const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-      const userCredential = await auth().signInWithCredential(googleCredential);
-      const user = auth().currentUser;
-      const userDoc = await firestore().collection("users").doc(user.uid).get();
+      const googleCredential = GoogleAuthProvider.credential(idToken);
+      const userCredential = await signInWithCredential(getAuth(), googleCredential);
+      const user = getAuth().currentUser;
+      const userDoc = await getDoc(doc(getFirestore(), "users", user.uid));
       if (userDoc.exists) {
-        await auth().signOut();
+        await signOut(getAuth());
         navigation.navigate("SignIn");
         Alert.alert("Already signed up.", "This email is already signed up. Please sign in instead.");
         return;
@@ -216,12 +224,12 @@ const SignUp = ({ navigation }) => {
       });
       if (!appleAuthRequestResponse.identityToken) throw new Error("Apple Sign-In failed - No identity token received.");
       const { identityToken, fullName } = appleAuthRequestResponse;
-      const appleCredential = auth.AppleAuthProvider.credential(identityToken, rawNonce);
-      const userCredential = await auth().signInWithCredential(appleCredential);
-      const user = auth().currentUser;
-      const userDoc = await firestore().collection("users").doc(user.uid).get();
+      const appleCredential = AppleAuthProvider.credential(identityToken, rawNonce);
+      const userCredential = await signInWithCredential(getAuth(), appleCredential);
+      const user = getAuth().currentUser;
+      const userDoc = await getDoc(doc(getFirestore(), "users", user.uid));
       if (userDoc.exists) {
-        await auth().signOut();
+        await signOut(getAuth());
         navigation.navigate("SignIn");
         Alert.alert("Already signed up.", "This email is already signed up. Please sign in instead.");
         return;
@@ -242,10 +250,10 @@ const SignUp = ({ navigation }) => {
     setLoading("microsoft");
     try {
       const userCredential = await signInWithMicrosoftCode(result);
-      const user = auth().currentUser;
-      const userDoc = await firestore().collection("users").doc(user.uid).get();
+      const user = getAuth().currentUser;
+      const userDoc = await getDoc(doc(getFirestore(), "users", user.uid));
       if (userDoc.exists) {
-        await auth().signOut();
+        await signOut(getAuth());
         navigation.navigate("SignIn");
         Alert.alert("Already signed up.", "This email is already signed up. Please sign in instead.");
         return;

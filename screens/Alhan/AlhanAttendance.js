@@ -20,8 +20,15 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import {
+  collection,
+  doc,
+  getFirestore,
+  onSnapshot,
+  setDoc,
+  updateDoc,
+} from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import * as Haptics from "react-native-haptic-feedback";
 import { Ionicons } from "@expo/vector-icons";
 import Avatar from "../../components/Avatar";
@@ -280,7 +287,7 @@ const weekKeyExtractor = (item) => item;
 
 const AlhanAttendance = () => {
   const navigation = useNavigation();
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   const [userData, setUserData] = useState(null);
   const [studentsByGrade, setStudentsByGrade] = useState({});
@@ -403,24 +410,22 @@ const AlhanAttendance = () => {
   };
 
   const setupUserListener = () => {
-    userUnsubscribe.current = firestore()
-      .collection("users")
-      .doc(user.uid)
-      .onSnapshot(
-        async (doc) => {
-          if (!isMounted.current) return;
-          if (!doc.exists) {
-            Alert.alert("Error", "User not found.");
-            return;
-          }
-          const newUserData = doc.data();
-          setUserData(newUserData);
-          CacheUtils.set(cacheKeys.current.user, newUserData);
-        },
-        (error) => {
-          if (isMounted.current) Alert.alert("Error", error.message);
+    userUnsubscribe.current = onSnapshot(
+      doc(getFirestore(), "users", user.uid),
+      async (doc) => {
+        if (!isMounted.current) return;
+        if (!doc.exists) {
+          Alert.alert("Error", "User not found.");
+          return;
         }
-      );
+        const newUserData = doc.data();
+        setUserData(newUserData);
+        CacheUtils.set(cacheKeys.current.user, newUserData);
+      },
+      (error) => {
+        if (isMounted.current) Alert.alert("Error", error.message);
+      }
+    );
   };
 
   // One state update per tick, however many grade listeners deliver together.
@@ -493,35 +498,37 @@ const AlhanAttendance = () => {
     const newUnsubscribes = userData.alhanGrades.map((grade) => {
       const cacheKey = `alhan_students_${user.uid}_${grade}`;
       cacheKeys.current.students[grade] = cacheKey;
-      return firestore()
-        .collection("churches")
-        .doc(userData.church)
-        .collection("Hymns Class")
-        .doc(grade)
-        .collection("students")
-        .onSnapshot(
-          async (snapshot) => {
-            if (!isMounted.current) return;
-            const students = snapshot.docs.map((doc) => ({ uid: doc.id, grade, ...doc.data() }));
-            // (a.name || "") — a student doc with no `name` used to throw here and
-            // take the whole snapshot handler down with it.
-            students.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-            // Queued, not applied: see queueGradeUpdate. A teacher assigned to 16
-            // grades has 16 of these listeners all delivering at once.
-            queueGradeUpdate(grade, students);
-            // Adopt any photoURL already on these docs — no Storage request.
-            avatarCache.primeMany(students);
-            CacheUtils.set(cacheKey, students);
-          },
-          (error) => {
-            if (!isMounted.current) return;
-            // Count the failure as reported, otherwise one unreadable grade would
-            // hold the skeleton up forever waiting on a snapshot that won't come.
-            reportedGrades.current.add(grade);
-            maybeFinishLoading();
-            Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
-          }
-        );
+      return onSnapshot(
+        collection(
+          getFirestore(),
+          "churches",
+          userData.church,
+          "Hymns Class",
+          grade,
+          "students"
+        ),
+        async (snapshot) => {
+          if (!isMounted.current) return;
+          const students = snapshot.docs.map((doc) => ({ uid: doc.id, grade, ...doc.data() }));
+          // (a.name || "") — a student doc with no `name` used to throw here and
+          // take the whole snapshot handler down with it.
+          students.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+          // Queued, not applied: see queueGradeUpdate. A teacher assigned to 16
+          // grades has 16 of these listeners all delivering at once.
+          queueGradeUpdate(grade, students);
+          // Adopt any photoURL already on these docs — no Storage request.
+          avatarCache.primeMany(students);
+          CacheUtils.set(cacheKey, students);
+        },
+        (error) => {
+          if (!isMounted.current) return;
+          // Count the failure as reported, otherwise one unreadable grade would
+          // hold the skeleton up forever waiting on a snapshot that won't come.
+          reportedGrades.current.add(grade);
+          maybeFinishLoading();
+          Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
+        }
+      );
     });
     studentUnsubscribes.current = newUnsubscribes;
     return () => {
@@ -551,14 +558,18 @@ const AlhanAttendance = () => {
     if (selectedDate && selectedDate !== getNextSaturday()) return;
     Haptics.trigger("impactLight");
     const dateKey = getNextSaturday();
-    firestore()
-      .collection("churches")
-      .doc(userData?.church)
-      .collection("Hymns Class")
-      .doc(student.grade)
-      .collection("students")
-      .doc(student.uid)
-      .update({ [dateKey]: status });
+    updateDoc(
+      doc(
+        getFirestore(),
+        "churches",
+        userData?.church,
+        "Hymns Class",
+        student.grade,
+        "students",
+        student.uid
+      ),
+      { [dateKey]: status }
+    );
   }, [selectedDate, userData?.church]);
 
   // Open the add-student modal pre-locked to the tapped grade.
@@ -595,15 +606,16 @@ const AlhanAttendance = () => {
     }
 
     setSubmitting(true);
-    const newStudentRef = firestore()
-      .collection("churches")
-      .doc(userData?.church)
-      .collection("Hymns Class")
-      .doc(newStudentGrade)
-      .collection("students")
-      .doc();
+    const newStudentRef = doc(collection(
+      getFirestore(),
+      "churches",
+      userData?.church,
+      "Hymns Class",
+      newStudentGrade,
+      "students"
+    ));
     try {
-      await newStudentRef.set({
+      await setDoc(newStudentRef, {
         name: newStudentName.trim(),
         uid: newStudentRef.id,
         phone: newStudentPhone.trim(),

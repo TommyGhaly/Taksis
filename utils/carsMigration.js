@@ -10,7 +10,18 @@
  *    or create unregistered user entries
  */
 
-import firestore from "@react-native-firebase/firestore";
+import {
+  collection,
+  deleteDoc,
+  doc as firestoreDoc,
+  getDocs,
+  getFirestore,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+  writeBatch,
+} from "@react-native-firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Bump the version suffix to force every device to re-run phases 0/1.
@@ -45,7 +56,7 @@ function normalizePhone(phone) {
 // ── Unreg collection reference (single source of truth) ──────────────────────
 
 const UNREG_COLLECTION = () =>
-  firestore().collection("cars").doc("unregistered").collection("people");
+  collection(getFirestore(), "cars", "unregistered", "people");
 
 // ── Phase 0: Migrate unregistered users from old locations ───────────────────
 
@@ -54,20 +65,18 @@ async function migrateUnregUsers(churchId) {
 
   // Source 1: qrCodes/unregistered/people
   try {
-    const oldQrUnreg = await firestore()
-      .collection("qrCodes")
-      .doc("unregistered")
-      .collection("people")
-      .get();
+    const oldQrUnreg = await getDocs(
+      collection(getFirestore(), "qrCodes", "unregistered", "people")
+    );
 
     if (!oldQrUnreg.empty) {
       const BATCH_SIZE = 400;
       const docs = oldQrUnreg.docs;
       for (let i = 0; i < docs.length; i += BATCH_SIZE) {
         const chunk = docs.slice(i, i + BATCH_SIZE);
-        const batch = firestore().batch();
+        const batch = writeBatch(getFirestore());
         for (const doc of chunk) {
-          const targetRef = UNREG_COLLECTION().doc(doc.id);
+          const targetRef = firestoreDoc(UNREG_COLLECTION(), doc.id);
           batch.set(targetRef, doc.data(), { merge: true });
           batch.delete(doc.ref);
           migrated++;
@@ -83,22 +92,23 @@ async function migrateUnregUsers(churchId) {
   // Source 2: churches/{churchId}/unregistered_users
   if (churchId) {
     try {
-      const oldChurchUnreg = await firestore()
-        .collection("churches")
-        .doc(churchId)
-        .collection("unregistered_users")
-        .get();
+      const oldChurchUnreg = await getDocs(collection(
+        getFirestore(),
+        "churches",
+        churchId,
+        "unregistered_users"
+      ));
 
       if (!oldChurchUnreg.empty) {
         const BATCH_SIZE = 400;
         const docs = oldChurchUnreg.docs;
         for (let i = 0; i < docs.length; i += BATCH_SIZE) {
           const chunk = docs.slice(i, i + BATCH_SIZE);
-          const batch = firestore().batch();
+          const batch = writeBatch(getFirestore());
           for (const doc of chunk) {
             const data = doc.data();
             delete data.church;
-            const targetRef = UNREG_COLLECTION().doc(doc.id);
+            const targetRef = firestoreDoc(UNREG_COLLECTION(), doc.id);
             batch.set(targetRef, data, { merge: true });
             batch.delete(doc.ref);
             migrated++;
@@ -114,22 +124,22 @@ async function migrateUnregUsers(churchId) {
 
   // Source 3: top-level qrCodes docs with isUnregisteredUser flag
   try {
-    const oldTopLevel = await firestore()
-      .collection("qrCodes")
-      .where("isUnregisteredUser", "==", true)
-      .get();
+    const oldTopLevel = await getDocs(query(
+      collection(getFirestore(), "qrCodes"),
+      where("isUnregisteredUser", "==", true)
+    ));
 
     if (!oldTopLevel.empty) {
       const BATCH_SIZE = 400;
       const docs = oldTopLevel.docs;
       for (let i = 0; i < docs.length; i += BATCH_SIZE) {
         const chunk = docs.slice(i, i + BATCH_SIZE);
-        const batch = firestore().batch();
+        const batch = writeBatch(getFirestore());
         for (const doc of chunk) {
           const data = doc.data();
           delete data.isUnregisteredUser;
           delete data.church;
-          const targetRef = UNREG_COLLECTION().doc(doc.id);
+          const targetRef = firestoreDoc(UNREG_COLLECTION(), doc.id);
           batch.set(targetRef, { ...data, uid: doc.id }, { merge: true });
           batch.delete(doc.ref);
           migrated++;
@@ -193,7 +203,7 @@ async function createUnregisteredUser(churchId, name, phone) {
   };
   if (phone) data.phone = phone;
 
-  await UNREG_COLLECTION().doc(unregId).set(data);
+  await setDoc(firestoreDoc(UNREG_COLLECTION(), unregId), data);
 
   console.log(`[Migration] Created unreg user: ${unregId} (${name || "Unknown"})`);
   return unregId;
@@ -211,10 +221,10 @@ async function resolveAllDrivers(drivers, churchUsers, unregUsers, churchId) {
 // ── Phase 1: Auto-migrate qrCodes → cars ────────────────────────────────────
 
 async function migrateQrCodes(churchId) {
-  const qrSnap = await firestore()
-    .collection("qrCodes")
-    .where("church", "==", churchId)
-    .get();
+  const qrSnap = await getDocs(query(
+    collection(getFirestore(), "qrCodes"),
+    where("church", "==", churchId)
+  ));
 
   if (qrSnap.empty) return { created: 0, deleted: 0, errors: 0 };
 
@@ -252,10 +262,10 @@ async function migrateQrCodes(churchId) {
 
   for (let i = 0; i < allDocs.length; i += BATCH_SIZE) {
     const chunk = allDocs.slice(i, i + BATCH_SIZE);
-    const batch = firestore().batch();
+    const batch = writeBatch(getFirestore());
     for (const item of chunk) {
       if (item.skip) { batch.delete(item.ref); deleted++; continue; }
-      batch.set(firestore().collection("cars").doc(item.targetId), item.data, { merge: true });
+      batch.set(firestoreDoc(getFirestore(), "cars", item.targetId), item.data, { merge: true });
       created++;
       batch.delete(item.ref);
       deleted++;
@@ -270,10 +280,10 @@ async function migrateQrCodes(churchId) {
 // ── Phase 2: Detect malformed cars ───────────────────────────────────────────
 
 async function findMalformedCars(churchId) {
-  const snap = await firestore()
-    .collection("cars")
-    .where("church", "==", churchId)
-    .get();
+  const snap = await getDocs(query(
+    collection(getFirestore(), "cars"),
+    where("church", "==", churchId)
+  ));
 
   const malformed = [];
   for (const doc of snap.docs) {
@@ -305,10 +315,10 @@ async function findMalformedCars(churchId) {
 // ── Phase 3: Fetch actual pending_registrations ──────────────────────────────
 
 async function fetchPendingRegistrations(churchId) {
-  const snap = await firestore()
-    .collection("pending_registrations")
-    .where("church", "==", churchId)
-    .get();
+  const snap = await getDocs(query(
+    collection(getFirestore(), "pending_registrations"),
+    where("church", "==", churchId)
+  ));
 
   if (snap.empty) return [];
 
@@ -334,7 +344,7 @@ export async function approveReviewItem(churchId, item, resolvedOwnerIds) {
   if (!plateId) throw new Error("Cannot approve vehicle with no plate");
 
   if (item.source === "malformed_car") {
-    await firestore().collection("cars").doc(item.id).update({
+    await updateDoc(firestoreDoc(getFirestore(), "cars", item.id), {
       ownerIds: resolvedOwnerIds,
     });
     console.log(`[Migration] Fixed malformed car: ${plateId} → ${resolvedOwnerIds.length} owners`);
@@ -349,9 +359,9 @@ export async function approveReviewItem(churchId, item, resolvedOwnerIds) {
       ...(item.color && { color: item.color }),
     };
 
-    const batch = firestore().batch();
-    batch.set(firestore().collection("cars").doc(plateId), carData, { merge: true });
-    batch.delete(firestore().collection("pending_registrations").doc(item.id));
+    const batch = writeBatch(getFirestore());
+    batch.set(firestoreDoc(getFirestore(), "cars", plateId), carData, { merge: true });
+    batch.delete(firestoreDoc(getFirestore(), "pending_registrations", item.id));
     await batch.commit();
     console.log(`[Migration] Approved pending: ${plateId} → ${resolvedOwnerIds.length} owners`);
   }
@@ -361,10 +371,10 @@ export async function approveReviewItem(churchId, item, resolvedOwnerIds) {
 
 export async function deleteReviewItem(item) {
   if (item.source === "malformed_car") {
-    await firestore().collection("cars").doc(item.id).delete();
+    await deleteDoc(firestoreDoc(getFirestore(), "cars", item.id));
     console.log(`[Migration] Deleted malformed car: ${item.license}`);
   } else {
-    await firestore().collection("pending_registrations").doc(item.id).delete();
+    await deleteDoc(firestoreDoc(getFirestore(), "pending_registrations", item.id));
     console.log(`[Migration] Deleted pending: ${item.license}`);
   }
 }

@@ -5,8 +5,8 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import { doc, getFirestore, onSnapshot, updateDoc } from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import Avatar from "../../components/Avatar";
 import SkeletonScreen from "../../components/Skeleton";
 import useAfterInteractions from "../../hooks/useAfterInteractions";
@@ -638,10 +638,10 @@ export default function PaschaHomePage() {
   useEffect(() => {
     if (!ready) return;
     isMounted.current = true;
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user) return;
     setUid(user.uid);
-    const unsub = firestore().collection("users").doc(user.uid).onSnapshot(doc => {
+    const unsub = onSnapshot(doc(getFirestore(), "users", user.uid), doc => {
       if (!isMounted.current || !doc.exists) return;
       const data = doc.data();
       // Free: this doc is already being read, so adopt its photoURL.
@@ -656,17 +656,22 @@ export default function PaschaHomePage() {
   useEffect(() => {
     if (!ready) return;
     if (!churchId) return;
-    const unsubShell = firestore()
-      .collection("churches").doc(churchId)
-      .collection("pascha").doc("schedule_config")
-      .onSnapshot(doc => {
+    const unsubShell = onSnapshot(
+      doc(
+        getFirestore(),
+        "churches",
+        churchId,
+        "pascha",
+        "schedule_config"
+      ),
+      doc => {
         if (!isMounted.current) return;
         if (doc.exists) setScheduleShell(doc.data());
-      });
-    const unsubConfig = firestore()
-      .collection("churches").doc(churchId)
-      .collection("pascha").doc("config")
-      .onSnapshot(doc => {
+      }
+    );
+    const unsubConfig = onSnapshot(
+      doc(getFirestore(), "churches", churchId, "pascha", "config"),
+      doc => {
         if (!isMounted.current) return;
         setLoading(false);
         if (!doc.exists) return;
@@ -675,31 +680,30 @@ export default function PaschaHomePage() {
         setMyReadingsOn(d.myReadingsVisible ?? false);
         setEasterDate(d.easterDate ?? null);
         if (d.fontSizeMultipliers) setFontSizeMultipliers(d.fontSizeMultipliers);
-      });
-    const unsubSchedule = firestore()
-      .collection("churches").doc(churchId)
-      .collection("pascha").doc("schedule")
-      .onSnapshot(doc => {
+      }
+    );
+    const unsubSchedule = onSnapshot(
+      doc(getFirestore(), "churches", churchId, "pascha", "schedule"),
+      doc => {
         if (!isMounted.current) return;
         setAssignees(doc.exists ? doc.data() : {});
         setAssigneesLoaded(true);
-      });
+      }
+    );
     return () => { unsubShell(); unsubConfig(); unsubSchedule(); };
   }, [churchId, ready]);
 
   const persistHideNames = useCallback(async (next) => {
     setHideNames(next);
     if (uid) {
-      await firestore().collection("users").doc(uid)
-        .update({ paschaHideNames: next }).catch(() => {});
+      await updateDoc(doc(getFirestore(), "users", uid), { paschaHideNames: next }).catch(() => {});
     }
   }, [uid]);
 
   const persistFontSize = useCallback(async (size) => {
     setFontSizeScale(size);
     if (uid) {
-      await firestore().collection("users").doc(uid)
-        .update({ paschaFontSize: size }).catch(() => {});
+      await updateDoc(doc(getFirestore(), "users", uid), { paschaFontSize: size }).catch(() => {});
     }
   }, [uid]);
 

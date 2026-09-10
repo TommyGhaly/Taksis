@@ -12,8 +12,8 @@ import {
   Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import { doc, getDoc, getFirestore } from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import { Ionicons } from "@expo/vector-icons";
 import PhotoInput from "../../components/photoInput";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
@@ -85,7 +85,7 @@ const ChildAccountInfo = ({ route, navigation }) => {
   useEffect(() => {
     const fetchChildData = async () => {
       try {
-        const user = auth().currentUser;
+        const user = getAuth().currentUser;
         if (user) {
           const cacheKey = CACHE_KEYS.CHILD_DATA + childUid;
           const cachedData = await getFromCache(cacheKey);
@@ -94,7 +94,7 @@ const ChildAccountInfo = ({ route, navigation }) => {
             // Adopt photoURL from the doc we already have — no Storage request.
             avatarCache.primeFromUser({ uid: childUid, ...cachedData });
             setIsLoadingFromCache(false);
-            firestore().collection("users").doc(user.uid).get()
+            getDoc(doc(getFirestore(), "users", user.uid))
               .then(userDoc => {
                 if (userDoc.exists) {
                   const userData = userDoc.data();
@@ -107,7 +107,7 @@ const ChildAccountInfo = ({ route, navigation }) => {
                 }
               });
           } else {
-            const userDoc = await firestore().collection("users").doc(user.uid).get();
+            const userDoc = await getDoc(doc(getFirestore(), "users", user.uid));
             if (userDoc.exists) {
               const userData = userDoc.data();
               const child = userData.children?.find((child) => child.uid === childUid);

@@ -17,8 +17,24 @@ import {
   useRoute,
   useFocusEffect,
 } from "@react-navigation/native";
-import firestore from "@react-native-firebase/firestore";
-import storage from "@react-native-firebase/storage";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  onSnapshot,
+  setDoc,
+  updateDoc,
+} from "@react-native-firebase/firestore";
+import {
+  deleteObject,
+  getDownloadURL,
+  getStorage,
+  ref,
+  uploadBytes,
+} from "@react-native-firebase/storage";
 import { Ionicons } from "@expo/vector-icons";
 import BackArrow from "../../components/backArrow";
 import Avatar from "../../components/Avatar";
@@ -110,13 +126,10 @@ const EmptySyncUsers = () => (
 // ── Merge helper (same logic as ServantsAttendance) ───────────────────────────
 
 async function mergeManualIntoReal(church, manualServant, realUID) {
-  const collRef = firestore()
-    .collection("churches")
-    .doc(church)
-    .collection("Servants Meeting");
+  const collRef = collection(getFirestore(), "churches", church, "Servants Meeting");
 
-  const manualDocRef = collRef.doc(manualServant.uid);
-  const realDocRef = collRef.doc(realUID);
+  const manualDocRef = doc(collRef, manualServant.uid);
+  const realDocRef = doc(collRef, realUID);
 
   // Build attendance map — skip metadata fields
   const SKIP = new Set(["name", "uid", "manual", "phone"]);
@@ -126,7 +139,7 @@ async function mergeManualIntoReal(church, manualServant, realUID) {
   }
 
   // Real doc wins on conflict
-  const realSnap = await realDocRef.get();
+  const realSnap = await getDoc(realDocRef);
   const realData = realSnap.exists ? realSnap.data() : {};
   const merged = { ...manualAttendance, ...realData };
 
@@ -134,39 +147,39 @@ async function mergeManualIntoReal(church, manualServant, realUID) {
   let realName = realData.name || "";
   if (!realName) {
     try {
-      const userSnap = await firestore().collection("users").doc(realUID).get();
+      const userSnap = await getDoc(doc(getFirestore(), "users", realUID));
       if (userSnap.exists) realName = userSnap.data()?.name || "";
     } catch {}
   }
 
-  await realDocRef.set({ ...merged, uid: realUID, name: realName }, { merge: true });
+  await setDoc(realDocRef, { ...merged, uid: realUID, name: realName }, { merge: true });
 
   // ── Profile photo ──
-  const manualPhotoRef = storage().ref(`profilePictures/${manualServant.uid}.png`);
-  const realPhotoRef = storage().ref(`profilePictures/${realUID}.png`);
+  const manualPhotoRef = ref(getStorage(), `profilePictures/${manualServant.uid}.png`);
+  const realPhotoRef = ref(getStorage(), `profilePictures/${realUID}.png`);
 
   let realHasPhoto = false;
-  try { await realPhotoRef.getDownloadURL(); realHasPhoto = true; } catch {}
+  try { await getDownloadURL(realPhotoRef); realHasPhoto = true; } catch {}
 
   let manualHasPhoto = false;
-  try { await manualPhotoRef.getDownloadURL(); manualHasPhoto = true; } catch {}
+  try { await getDownloadURL(manualPhotoRef); manualHasPhoto = true; } catch {}
 
   if (manualHasPhoto) {
     if (!realHasPhoto) {
       try {
-        const url = await manualPhotoRef.getDownloadURL();
+        const url = await getDownloadURL(manualPhotoRef);
         const response = await fetch(url);
         const blob = await response.blob();
-        await realPhotoRef.put(blob);
+        await uploadBytes(realPhotoRef, blob);
         // This uid was cached as "no photo"; drop it so the copy is picked up.
         await avatarCache.invalidate(realUID);
       } catch (e) { console.warn("Photo copy failed:", e); }
     }
-    try { await manualPhotoRef.delete(); } catch {}
+    try { await deleteObject(manualPhotoRef); } catch {}
     await avatarCache.invalidate(manualServant.uid);
   }
 
-  await manualDocRef.delete();
+  await deleteDoc(manualDocRef);
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -200,45 +213,41 @@ const IndividualServant = () => {
 
       let unsub = null;
 
-      unsub = firestore()
-        .collection("churches")
-        .doc(church)
-        .collection("Servants Meeting")
-        .doc(servantID)
-        .onSnapshot(
-          (doc) => {
-            try {
-              if (doc.exists) {
-                const data = doc.data();
-                setServantName(data.name || "");
-                setServantPhone(data.phone || "");
-                setServantRaw({ uid: servantID, ...data });
+      unsub = onSnapshot(
+        doc(getFirestore(), "churches", church, "Servants Meeting", servantID),
+        (doc) => {
+          try {
+            if (doc.exists) {
+              const data = doc.data();
+              setServantName(data.name || "");
+              setServantPhone(data.phone || "");
+              setServantRaw({ uid: servantID, ...data });
 
-                const attendance = [];
-                for (const [key, value] of Object.entries(data)) {
-                  if (!["name", "uid", "manual", "phone"].includes(key)) {
-                    attendance.push({ date: key, status: value });
-                  }
+              const attendance = [];
+              for (const [key, value] of Object.entries(data)) {
+                if (!["name", "uid", "manual", "phone"].includes(key)) {
+                  attendance.push({ date: key, status: value });
                 }
-                setAttendanceData(attendance);
-
-                // Priming is free and idempotent, so it is safe to run on every
-                // snapshot. The old code did a getDownloadURL() here, which meant
-                // every attendance toggle (a doc write re-triggers this snapshot)
-                // refetched the photo over the network. <Avatar> now resolves the
-                // URL once, outside this callback, and caches it.
-                avatarCache.primeFromUser({ uid: servantID, ...data });
-              } else {
-                setServantName(""); setAttendanceData([]);
               }
-              setLoading(false);
-            } catch {
-              Alert.alert("Error", "Failed to fetch data. Please try again.");
-              setLoading(false);
+              setAttendanceData(attendance);
+
+              // Priming is free and idempotent, so it is safe to run on every
+              // snapshot. The old code did a getDownloadURL() here, which meant
+              // every attendance toggle (a doc write re-triggers this snapshot)
+              // refetched the photo over the network. <Avatar> now resolves the
+              // URL once, outside this callback, and caches it.
+              avatarCache.primeFromUser({ uid: servantID, ...data });
+            } else {
+              setServantName(""); setAttendanceData([]);
             }
-          },
-          () => { Alert.alert("Error", "Failed to fetch data."); setLoading(false); }
-        );
+            setLoading(false);
+          } catch {
+            Alert.alert("Error", "Failed to fetch data. Please try again.");
+            setLoading(false);
+          }
+        },
+        () => { Alert.alert("Error", "Failed to fetch data."); setLoading(false); }
+      );
 
       return () => { if (unsub) unsub(); };
     }, [church, servantID])
@@ -261,11 +270,9 @@ const IndividualServant = () => {
     setLoadingUsers(true);
     setSyncModalVisible(true);
     try {
-      const snap = await firestore()
-        .collection("churches")
-        .doc(church)
-        .collection("Servants Meeting")
-        .get();
+      const snap = await getDocs(
+        collection(getFirestore(), "churches", church, "Servants Meeting")
+      );
       const servants = snap.docs
         .filter((d) => !d.id.startsWith("manual_"))
         .map((d) => ({ uid: d.id, ...d.data() }));
@@ -336,10 +343,9 @@ const IndividualServant = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              await firestore()
-                .collection("churches").doc(church)
-                .collection("Servants Meeting").doc(servantID)
-                .delete();
+              await deleteDoc(
+                doc(getFirestore(), "churches", church, "Servants Meeting", servantID)
+              );
 
               // Only delete the stored photo for MANUAL servants. The manual
               // photo lives solely at profilePictures/{manual_id}.png and is
@@ -369,7 +375,7 @@ const IndividualServant = () => {
                       style: "destructive",
                       onPress: async () => {
                         try {
-                          await firestore().collection("users").doc(servantID).update({ isSSTeacher: false });
+                          await updateDoc(doc(getFirestore(), "users", servantID), { isSSTeacher: false });
                         } catch {}
                         navigation.goBack();
                       },

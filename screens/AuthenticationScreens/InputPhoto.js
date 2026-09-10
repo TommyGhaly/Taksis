@@ -12,9 +12,9 @@ import {
   TouchableWithoutFeedback,
   ScrollView,
 } from "react-native";
-import firestore from "@react-native-firebase/firestore";
-import storage from "@react-native-firebase/storage";
-import auth from "@react-native-firebase/auth";
+import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
+import { getDownloadURL, getStorage, ref } from "@react-native-firebase/storage";
+import { getAuth } from "@react-native-firebase/auth";
 import { useUser } from "../../UserContext";
 import ProgressBar from "../../components/progressBar";
 import PhotoInput from "../../components/photoInput";
@@ -23,7 +23,7 @@ import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 const InputPhoto = ({ route, navigation }) => {
   const { from } = route.params || {};
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
   const { setSignUp } = useUser();
   const [phoneNumber, setPhoneNumber] = useState("");
   const [showPhotoModal, setShowPhotoModal] = useState(false);
@@ -48,8 +48,8 @@ const InputPhoto = ({ route, navigation }) => {
       let photoURL = uploadedPhotoURL;
       if (!photoURL) {
         try {
-          const reference = storage().ref(`profilePictures/${user.uid}.png`);
-          photoURL = await reference.getDownloadURL();
+          const reference = ref(getStorage(), `profilePictures/${user.uid}.png`);
+          photoURL = await getDownloadURL(reference);
         } catch (storageError) {
           // No photo uploaded - that's fine, it's optional
         }
@@ -61,7 +61,7 @@ const InputPhoto = ({ route, navigation }) => {
         updateData.photoURL = photoURL;
       }
 
-      await firestore().collection("users").doc(user.uid).update(updateData);
+      await updateDoc(doc(getFirestore(), "users", user.uid), updateData);
       setSignUp(true);
       navigation.navigate("SelectChurch");
     } catch (error) {

@@ -9,10 +9,22 @@ import {
   Alert,
   Linking,
 } from "react-native";
-import auth from "@react-native-firebase/auth";
+import { getAuth } from "@react-native-firebase/auth";
 import { callFunction } from "./functionCalls";
 import Slider from "@react-native-community/slider";
-import firestore, { FieldValue } from "@react-native-firebase/firestore";
+import {
+  arrayUnion,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  onSnapshot,
+  query,
+  updateDoc,
+  where,
+  writeBatch,
+} from "@react-native-firebase/firestore";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import PhotoInput from "./photoInput";
@@ -80,8 +92,8 @@ const syncChildren = async (
 ) => {
   if (!parentId) return;
 
-  const parentRef = firestore().collection("users").doc(parentId);
-  const parentDoc = await parentRef.get();
+  const parentRef = doc(getFirestore(), "users", parentId);
+  const parentDoc = await getDoc(parentRef);
   if (!parentDoc.exists) return;
 
   const parentData = parentDoc.data();
@@ -167,114 +179,112 @@ const IndividualProfile = ({
     };
 
     const fetchUserData = () => {
-      userUnsubscribe = firestore()
-        .collection("users")
-        .doc(userId)
-        .onSnapshot(
-          async (userDoc) => {
-            if (userDoc.exists) {
-              const data = userDoc.data();
-              setUserData({
-                name: data.name || "N/A",
-                age: data.age || "N/A",
-                phone: data.phone || data.number || "Not provided",
-                nextWeekServe: data.nextWeekServe || "N/A",
-                nextRole: data.nextRole || "N/A",
-                experience: data.experience ?? 0,
-                frequency: data.frequency ?? 0,
-                children: data.children || [],
-                lastServe: data.lastServe || null,
-                lastRole: data.lastRole || null,
-              });
-              setTempExperience(data.experience ?? 0);
-              setTempFrequency(data.frequency ?? 0);
-              setIsDeacon(data.isDeacon || false);
-              setIsChild(false);
-              await fetchImage(data);
-              setLoading(false);
-            } else {
-              // This uid isn't a top-level user, so it's a child nested in some
-              // parent's `children` array. There's no indexable field to query
-              // on, so the collection has to be scanned — but as a ONE-TIME
-              // read, not a live listener. As an onSnapshot this re-scanned
-              // every user doc on any change to any user in the app.
-              //
-              // The scan is now scoped to this church first, which is where the
-              // parent virtually always is, and only falls back to the unbounded
-              // multi-church scan if that misses. Results are identical — the
-              // fallback preserves the old behaviour exactly for the rare case of a
-              // parent whose `church` differs from the viewing context — but the
-              // common path stops reading every user in every church.
-              //
-              // The real fix is a `childUids` array on parent docs plus an
-              // `array-contains` query. That needs a schema change and a backfill,
-              // so it is deliberately out of scope here.
-              try {
-                const findChildIn = (snapshot) => {
-                  for (const doc of snapshot.docs) {
-                    const parentData = doc.data();
-                    const child = (parentData.children || []).find(
-                      (c) => c.uid === userId
-                    );
-                    if (child) {
-                      return {
-                        childData: child,
-                        parentId: doc.id,
-                        parentPhone:
-                          parentData.phone || parentData.number || "Not provided",
-                      };
-                    }
+      userUnsubscribe = onSnapshot(
+        doc(getFirestore(), "users", userId),
+        async (userDoc) => {
+          if (userDoc.exists) {
+            const data = userDoc.data();
+            setUserData({
+              name: data.name || "N/A",
+              age: data.age || "N/A",
+              phone: data.phone || data.number || "Not provided",
+              nextWeekServe: data.nextWeekServe || "N/A",
+              nextRole: data.nextRole || "N/A",
+              experience: data.experience ?? 0,
+              frequency: data.frequency ?? 0,
+              children: data.children || [],
+              lastServe: data.lastServe || null,
+              lastRole: data.lastRole || null,
+            });
+            setTempExperience(data.experience ?? 0);
+            setTempFrequency(data.frequency ?? 0);
+            setIsDeacon(data.isDeacon || false);
+            setIsChild(false);
+            await fetchImage(data);
+            setLoading(false);
+          } else {
+            // This uid isn't a top-level user, so it's a child nested in some
+            // parent's `children` array. There's no indexable field to query
+            // on, so the collection has to be scanned — but as a ONE-TIME
+            // read, not a live listener. As an onSnapshot this re-scanned
+            // every user doc on any change to any user in the app.
+            //
+            // The scan is now scoped to this church first, which is where the
+            // parent virtually always is, and only falls back to the unbounded
+            // multi-church scan if that misses. Results are identical — the
+            // fallback preserves the old behaviour exactly for the rare case of a
+            // parent whose `church` differs from the viewing context — but the
+            // common path stops reading every user in every church.
+            //
+            // The real fix is a `childUids` array on parent docs plus an
+            // `array-contains` query. That needs a schema change and a backfill,
+            // so it is deliberately out of scope here.
+            try {
+              const findChildIn = (snapshot) => {
+                for (const doc of snapshot.docs) {
+                  const parentData = doc.data();
+                  const child = (parentData.children || []).find(
+                    (c) => c.uid === userId
+                  );
+                  if (child) {
+                    return {
+                      childData: child,
+                      parentId: doc.id,
+                      parentPhone:
+                        parentData.phone || parentData.number || "Not provided",
+                    };
                   }
-                  return null;
-                };
-
-                let found = null;
-                if (church) {
-                  found = findChildIn(
-                    await firestore()
-                      .collection("users")
-                      .where("church", "==", church)
-                      .get()
-                  );
                 }
-                if (!found) {
-                  found = findChildIn(
-                    await firestore().collection("users").get()
-                  );
-                }
+                return null;
+              };
 
-                const childData = found ? found.childData : null;
-                const parentId = found ? found.parentId : null;
-                const parentPhone = found ? found.parentPhone : "Not provided";
-
-                if (childData) {
-                  setUserData({
-                    name: childData.name || "N/A",
-                    age: childData.age || "N/A",
-                    phone: parentPhone,
-                    nextWeekServe: childData.nextWeekServe || "N/A",
-                    nextRole: childData.nextRole || "N/A",
-                    experience: childData.experience ?? 0,
-                    frequency: childData.frequency ?? 0,
-                    parentId,
-                    lastServe: childData.lastServe || null,
-                    lastRole: childData.lastRole || null,
-                  });
-                  setTempExperience(childData.experience ?? 0);
-                  setTempFrequency(childData.frequency ?? 0);
-                  setIsChild(true);
-                  setIsDeacon(false);
-                  await fetchImage(childData);
-                }
-              } catch (e) {
-                console.error("[IndividualProfile] child lookup failed:", e);
-              } finally {
-                setLoading(false);
+              let found = null;
+              if (church) {
+                found = findChildIn(
+                  await getDocs(query(
+                    collection(getFirestore(), "users"),
+                    where("church", "==", church)
+                  ))
+                );
               }
+              if (!found) {
+                found = findChildIn(
+                  await getDocs(collection(getFirestore(), "users"))
+                );
+              }
+
+              const childData = found ? found.childData : null;
+              const parentId = found ? found.parentId : null;
+              const parentPhone = found ? found.parentPhone : "Not provided";
+
+              if (childData) {
+                setUserData({
+                  name: childData.name || "N/A",
+                  age: childData.age || "N/A",
+                  phone: parentPhone,
+                  nextWeekServe: childData.nextWeekServe || "N/A",
+                  nextRole: childData.nextRole || "N/A",
+                  experience: childData.experience ?? 0,
+                  frequency: childData.frequency ?? 0,
+                  parentId,
+                  lastServe: childData.lastServe || null,
+                  lastRole: childData.lastRole || null,
+                });
+                setTempExperience(childData.experience ?? 0);
+                setTempFrequency(childData.frequency ?? 0);
+                setIsChild(true);
+                setIsDeacon(false);
+                await fetchImage(childData);
+              }
+            } catch (e) {
+              console.error("[IndividualProfile] child lookup failed:", e);
+            } finally {
+              setLoading(false);
             }
-          },
-          () => setLoading(false)
-        );
+          }
+        },
+        () => setLoading(false)
+      );
     };
 
     fetchUserData();
@@ -292,9 +302,9 @@ const IndividualProfile = ({
   const handleSaveEdits = async () => {
     ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
     try {
-      const batch = firestore().batch();
-      const churchRef = firestore().collection("churches").doc(church);
-      const churchDoc = await churchRef.get();
+      const batch = writeBatch(getFirestore());
+      const churchRef = doc(getFirestore(), "churches", church);
+      const churchDoc = await getDoc(churchRef);
       if (!churchDoc.exists) {
         throw new Error("Church document not found");
       }
@@ -311,10 +321,8 @@ const IndividualProfile = ({
 
       if (isChild) {
         // Handle child user
-        const parentRef = firestore()
-          .collection("users")
-          .doc(userData.parentId);
-        const parentDoc = await parentRef.get();
+        const parentRef = doc(getFirestore(), "users", userData.parentId);
+        const parentDoc = await getDoc(parentRef);
         if (!parentDoc.exists) {
           throw new Error("Parent document not found");
         }
@@ -361,7 +369,7 @@ const IndividualProfile = ({
         }
       } else {
         // Handle parent user
-        const userRef = firestore().collection("users").doc(userId);
+        const userRef = doc(getFirestore(), "users", userId);
         batch.update(userRef, {
           experience: tempExperience ?? 0,
           frequency: tempFrequency ?? 0,
@@ -417,12 +425,9 @@ const IndividualProfile = ({
       }
 
       // Check if user is serving in multiple weeks
-      const schedulesRef = firestore()
-        .collection("churches")
-        .doc(church)
-        .collection("schedule");
+      const schedulesRef = collection(getFirestore(), "churches", church, "schedule");
 
-      const snapshot = await schedulesRef.get();
+      const snapshot = await getDocs(schedulesRef);
       const servingWeeks = [];
 
       snapshot.docs.forEach((doc) => {
@@ -516,7 +521,7 @@ const IndividualProfile = ({
           onPress: async () => {
             ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
             try {
-              const currentUser = auth().currentUser;
+              const currentUser = getAuth().currentUser;
               if (!currentUser) {
                 Alert.alert(
                   "Error",
@@ -526,12 +531,9 @@ const IndividualProfile = ({
               }
 
               if (!isChild) {
-                await firestore()
-                  .collection("users")
-                  .doc(userId)
-                  .update({
-                    unavailableWeeks: FieldValue.arrayUnion(targetWeek),
-                  });
+                await updateDoc(doc(getFirestore(), "users", userId), {
+                  unavailableWeeks: arrayUnion(targetWeek),
+                });
               }
 
               await callFunction(
@@ -580,15 +582,13 @@ const IndividualProfile = ({
           onPress: async () => {
             ReactNativeHapticFeedback.trigger("impactHeavy", hapticOptions);
             try {
-              const currentUser = auth().currentUser;
+              const currentUser = getAuth().currentUser;
               if (!currentUser) {
                 throw new Error("No authenticated user found");
               }
 
-              const churchDocRef = firestore()
-                .collection("churches")
-                .doc(church);
-              const churchDoc = await churchDocRef.get();
+              const churchDocRef = doc(getFirestore(), "churches", church);
+              const churchDoc = await getDoc(churchDocRef);
               if (!churchDoc.exists) {
                 throw new Error("Church document not found");
               }
@@ -598,11 +598,8 @@ const IndividualProfile = ({
                 (deacon) => deacon.uid !== userId
               );
 
-              await churchDocRef.update({ deacons: updatedDeacons });
-              await firestore()
-                .collection("users")
-                .doc(userId)
-                .update({ isDeacon: false });
+              await updateDoc(churchDocRef, { deacons: updatedDeacons });
+              await updateDoc(doc(getFirestore(), "users", userId), { isDeacon: false });
 
               setIsDeacon(false);
               Alert.alert("Success", "The user has been removed as a deacon.");

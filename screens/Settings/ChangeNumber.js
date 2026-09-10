@@ -9,18 +9,18 @@ import {
 } from "react-native";
 import { useState } from "react";
 import BackArrow from "../../components/backArrow";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 
 const ChangeNumber = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const navigation = useNavigation();
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   const updateNumberInDB = async (phoneNumber) => {
     try {
-      await firestore().collection("users").doc(user.uid).update({
+      await updateDoc(doc(getFirestore(), "users", user.uid), {
         phone: phoneNumber,
       });
     } catch (error) {

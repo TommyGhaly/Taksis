@@ -20,8 +20,15 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import {
+  collection,
+  doc,
+  getFirestore,
+  onSnapshot,
+  setDoc,
+  updateDoc,
+} from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import * as Haptics from "react-native-haptic-feedback";
 import { Ionicons } from "@expo/vector-icons";
 import Avatar from "../../components/Avatar";
@@ -295,7 +302,7 @@ const weekKeyExtractor = (item) => item;
 
 const SundaySchoolAttendance = () => {
   const navigation = useNavigation();
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   const [userData, setUserData] = useState(null);
   const [studentsByGrade, setStudentsByGrade] = useState({});
@@ -425,24 +432,22 @@ const SundaySchoolAttendance = () => {
   };
 
   const setupUserListener = () => {
-    userUnsubscribe.current = firestore()
-      .collection("users")
-      .doc(user.uid)
-      .onSnapshot(
-        async (doc) => {
-          if (!isMounted.current) return;
-          if (!doc.exists) {
-            Alert.alert("Error", "User not found.");
-            return;
-          }
-          const newUserData = doc.data();
-          setUserData(newUserData);
-          CacheUtils.set(cacheKeys.current.user, newUserData);
-        },
-        (error) => {
-          if (isMounted.current) Alert.alert("Error", error.message);
+    userUnsubscribe.current = onSnapshot(
+      doc(getFirestore(), "users", user.uid),
+      async (doc) => {
+        if (!isMounted.current) return;
+        if (!doc.exists) {
+          Alert.alert("Error", "User not found.");
+          return;
         }
-      );
+        const newUserData = doc.data();
+        setUserData(newUserData);
+        CacheUtils.set(cacheKeys.current.user, newUserData);
+      },
+      (error) => {
+        if (isMounted.current) Alert.alert("Error", error.message);
+      }
+    );
   };
 
   // One state update per tick, however many grade listeners deliver together.
@@ -520,35 +525,37 @@ const SundaySchoolAttendance = () => {
     const newUnsubscribes = userData.ssGrades.map((grade) => {
       const cacheKey = `students_${user.uid}_${grade}`;
       cacheKeys.current.students[grade] = cacheKey;
-      return firestore()
-        .collection("churches")
-        .doc(userData.church)
-        .collection("Sunday School")
-        .doc(grade)
-        .collection("students")
-        .onSnapshot(
-          (snapshot) => {
-            if (!isMounted.current) return;
-            const students = snapshot.docs.map((doc) => ({ uid: doc.id, grade, ...doc.data() }));
-            // (a.name || "") — a student doc with no `name` used to throw here and
-            // take the whole snapshot handler down with it.
-            students.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-            // Adopt any photoURL already on these docs — no Storage request.
-            avatarCache.primeMany(students);
-            // Queued, not applied: see queueGradeUpdate. A servant assigned to 16
-            // grades has 16 of these listeners all delivering at once.
-            queueGradeUpdate(grade, students);
-            CacheUtils.set(cacheKey, students);
-          },
-          (error) => {
-            if (!isMounted.current) return;
-            // Count the failure as reported, otherwise one unreadable grade would
-            // hold the skeleton up forever waiting on a snapshot that won't come.
-            reportedGrades.current.add(grade);
-            maybeFinishLoading();
-            Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
-          }
-        );
+      return onSnapshot(
+        collection(
+          getFirestore(),
+          "churches",
+          userData.church,
+          "Sunday School",
+          grade,
+          "students"
+        ),
+        (snapshot) => {
+          if (!isMounted.current) return;
+          const students = snapshot.docs.map((doc) => ({ uid: doc.id, grade, ...doc.data() }));
+          // (a.name || "") — a student doc with no `name` used to throw here and
+          // take the whole snapshot handler down with it.
+          students.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+          // Adopt any photoURL already on these docs — no Storage request.
+          avatarCache.primeMany(students);
+          // Queued, not applied: see queueGradeUpdate. A servant assigned to 16
+          // grades has 16 of these listeners all delivering at once.
+          queueGradeUpdate(grade, students);
+          CacheUtils.set(cacheKey, students);
+        },
+        (error) => {
+          if (!isMounted.current) return;
+          // Count the failure as reported, otherwise one unreadable grade would
+          // hold the skeleton up forever waiting on a snapshot that won't come.
+          reportedGrades.current.add(grade);
+          maybeFinishLoading();
+          Alert.alert("Error", `Failed to load students for ${grade}: ${error.message}`);
+        }
+      );
     });
     studentUnsubscribes.current = newUnsubscribes;
     return () => {
@@ -568,64 +575,66 @@ const SundaySchoolAttendance = () => {
     servantsReported.current = false;
     const gradeFields = ["preSchoolAge3", "preSchoolAge4", "kindergarten", "college"];
     for (let i = 1; i <= 12; i++) gradeFields.push(i.toString());
-    const unsubscribe = firestore()
-      .collection("churches")
-      .doc(userData.church)
-      .collection("Sunday School")
-      .doc("Servants")
-      .collection("Servants")
-      .onSnapshot(
-        async (snapshot) => {
-          if (!isMounted.current) return;
-          try {
-            const currentUserServant = snapshot.docs.find((doc) => doc.id === user.uid);
-            if (!currentUserServant) {
-              setServants([]);
-              setUserGrades([]);
-              return;
-            }
-            const currentUserData = currentUserServant.data();
-            const userGradesList = gradeFields.filter((field) => currentUserData[field] === true);
-            setUserGrades(userGradesList);
-            if (!userData.ssGrades?.length || userGradesList.length === 0) {
-              setServants([]);
-              return;
-            }
-            const userGradesSet = new Set(userGradesList);
-            const servantsWithSharedGrades = snapshot.docs
-              .filter((doc) => {
-                const servantData = doc.data();
-                return gradeFields.some((field) => userGradesSet.has(field) && servantData[field] === true);
-              })
-              .map((doc) => ({ uid: doc.id, isServant: true, isCurrentUser: doc.id === user.uid, ...doc.data() }));
-            servantsWithSharedGrades.sort((a, b) => {
-              if (a.isCurrentUser) return -1;
-              if (b.isCurrentUser) return 1;
-              return (a.name || "").localeCompare(b.name || "");
-            });
-            setServants(servantsWithSharedGrades);
-            // Adopt any photoURL already on these docs — no Storage request.
-            avatarCache.primeMany(servantsWithSharedGrades);
-            CacheUtils.set(cacheKeys.current.servants, servantsWithSharedGrades);
-          } catch (error) {
-            console.error("Error processing servants:", error);
+    const unsubscribe = onSnapshot(
+      collection(
+        getFirestore(),
+        "churches",
+        userData.church,
+        "Sunday School",
+        "Servants",
+        "Servants"
+      ),
+      async (snapshot) => {
+        if (!isMounted.current) return;
+        try {
+          const currentUserServant = snapshot.docs.find((doc) => doc.id === user.uid);
+          if (!currentUserServant) {
             setServants([]);
-          } finally {
-            // `finally` because the try above has several early returns; the
-            // skeleton must come down on every one of them, not just the happy path.
-            servantsReported.current = true;
-            maybeFinishLoading();
+            setUserGrades([]);
+            return;
           }
-        },
-        (error) => {
-          if (isMounted.current) {
-            console.error("Error fetching servants:", error);
+          const currentUserData = currentUserServant.data();
+          const userGradesList = gradeFields.filter((field) => currentUserData[field] === true);
+          setUserGrades(userGradesList);
+          if (!userData.ssGrades?.length || userGradesList.length === 0) {
             setServants([]);
-            servantsReported.current = true;
-            maybeFinishLoading();
+            return;
           }
+          const userGradesSet = new Set(userGradesList);
+          const servantsWithSharedGrades = snapshot.docs
+            .filter((doc) => {
+              const servantData = doc.data();
+              return gradeFields.some((field) => userGradesSet.has(field) && servantData[field] === true);
+            })
+            .map((doc) => ({ uid: doc.id, isServant: true, isCurrentUser: doc.id === user.uid, ...doc.data() }));
+          servantsWithSharedGrades.sort((a, b) => {
+            if (a.isCurrentUser) return -1;
+            if (b.isCurrentUser) return 1;
+            return (a.name || "").localeCompare(b.name || "");
+          });
+          setServants(servantsWithSharedGrades);
+          // Adopt any photoURL already on these docs — no Storage request.
+          avatarCache.primeMany(servantsWithSharedGrades);
+          CacheUtils.set(cacheKeys.current.servants, servantsWithSharedGrades);
+        } catch (error) {
+          console.error("Error processing servants:", error);
+          setServants([]);
+        } finally {
+          // `finally` because the try above has several early returns; the
+          // skeleton must come down on every one of them, not just the happy path.
+          servantsReported.current = true;
+          maybeFinishLoading();
         }
-      );
+      },
+      (error) => {
+        if (isMounted.current) {
+          console.error("Error fetching servants:", error);
+          setServants([]);
+          servantsReported.current = true;
+          maybeFinishLoading();
+        }
+      }
+    );
     return () => unsubscribe();
   }, [userData?.church, userData?.ssGrades?.join(","), user, maybeFinishLoading]);
 
@@ -651,23 +660,31 @@ const SundaySchoolAttendance = () => {
     Haptics.trigger("impactLight");
     const dateKey = getNextSunday();
     if (person.isServant) {
-      firestore()
-        .collection("churches")
-        .doc(userData?.church)
-        .collection("Sunday School")
-        .doc("Servants")
-        .collection("Servants")
-        .doc(person.uid)
-        .update({ [dateKey]: status });
+      updateDoc(
+        doc(
+          getFirestore(),
+          "churches",
+          userData?.church,
+          "Sunday School",
+          "Servants",
+          "Servants",
+          person.uid
+        ),
+        { [dateKey]: status }
+      );
     } else {
-      firestore()
-        .collection("churches")
-        .doc(userData?.church)
-        .collection("Sunday School")
-        .doc(person.grade)
-        .collection("students")
-        .doc(person.uid)
-        .update({ [dateKey]: status });
+      updateDoc(
+        doc(
+          getFirestore(),
+          "churches",
+          userData?.church,
+          "Sunday School",
+          person.grade,
+          "students",
+          person.uid
+        ),
+        { [dateKey]: status }
+      );
     }
   }, [selectedDate, userData?.church]);
 
@@ -705,15 +722,16 @@ const SundaySchoolAttendance = () => {
     }
 
     setSubmitting(true);
-    const newStudentRef = firestore()
-      .collection("churches")
-      .doc(userData?.church)
-      .collection("Sunday School")
-      .doc(newStudentGrade)
-      .collection("students")
-      .doc();
+    const newStudentRef = doc(collection(
+      getFirestore(),
+      "churches",
+      userData?.church,
+      "Sunday School",
+      newStudentGrade,
+      "students"
+    ));
     try {
-      await newStudentRef.set({
+      await setDoc(newStudentRef, {
         name: newStudentName.trim(),
         uid: newStudentRef.id,
         phone: newStudentPhone.trim(),

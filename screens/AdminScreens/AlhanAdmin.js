@@ -16,9 +16,16 @@ import {
   PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
-import firestore from "@react-native-firebase/firestore";
-import storage from "@react-native-firebase/storage";
-import auth from "@react-native-firebase/auth";
+import {
+  collection,
+  doc,
+  getFirestore,
+  onSnapshot,
+  query,
+  updateDoc,
+  where,
+} from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import { Ionicons } from "@expo/vector-icons";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import PhotoInput from "../../components/photoInput";
@@ -247,7 +254,7 @@ const AlhanAdmin = () => {
     isMounted.current = true;
 
     const initializeApp = async () => {
-      const user = auth().currentUser;
+      const user = getAuth().currentUser;
       if (!user) {
         setLoading(false);
         Alert.alert("Error", "No user authenticated.");
@@ -309,46 +316,44 @@ const AlhanAdmin = () => {
 
   // Set up user church listener
   const setupUserChurchListener = () => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     
-    userUnsubscribe.current = firestore()
-      .collection("users")
-      .doc(user.uid)
-      .onSnapshot(
-        async (doc) => {
-          if (!isMounted.current) return;
+    userUnsubscribe.current = onSnapshot(
+      doc(getFirestore(), "users", user.uid),
+      async (doc) => {
+        if (!isMounted.current) return;
           
-          if (doc.exists) {
-            const userChurch = doc.data().church || null;
-            setChurch(userChurch);
+        if (doc.exists) {
+          const userChurch = doc.data().church || null;
+          setChurch(userChurch);
             
-            // Cache church data
-            CacheUtils.set(cacheKeys.current.church, userChurch);
+          // Cache church data
+          CacheUtils.set(cacheKeys.current.church, userChurch);
             
-            // Set up teachers listener when church is available. Only re-attach
-            // when the church actually changed — re-attaching on every write to
-            // your own user doc tore down the roster listener and replayed a full
-            // snapshot, re-rendering the whole list each time.
-            if (userChurch) {
-              if (attachedChurch.current !== userChurch) {
-                attachedChurch.current = userChurch;
-                setupTeachersListener(userChurch);
-              }
-            } else {
-              attachedChurch.current = null;
-              setLoading(false);
+          // Set up teachers listener when church is available. Only re-attach
+          // when the church actually changed — re-attaching on every write to
+          // your own user doc tore down the roster listener and replayed a full
+          // snapshot, re-rendering the whole list each time.
+          if (userChurch) {
+            if (attachedChurch.current !== userChurch) {
+              attachedChurch.current = userChurch;
+              setupTeachersListener(userChurch);
             }
           } else {
+            attachedChurch.current = null;
             setLoading(false);
           }
-        },
-        (error) => {
-          if (isMounted.current) {
-            setLoading(false);
-            Alert.alert("Error", "Failed to fetch church data.");
-          }
+        } else {
+          setLoading(false);
         }
-      );
+      },
+      (error) => {
+        if (isMounted.current) {
+          setLoading(false);
+          Alert.alert("Error", "Failed to fetch church data.");
+        }
+      }
+    );
   };
 
   // Set up teachers listener
@@ -358,56 +363,57 @@ const AlhanAdmin = () => {
       teachersUnsubscribe.current();
     }
 
-    teachersUnsubscribe.current = firestore()
-      .collection("users")
-      .where("church", "==", churchId)
-      .where("isAlhan", "==", true)
-      .onSnapshot(
-        async (querySnapshot) => {
-          if (!isMounted.current) return;
+    teachersUnsubscribe.current = onSnapshot(
+      query(
+        collection(getFirestore(), "users"),
+        where("church", "==", churchId),
+        where("isAlhan", "==", true)
+      ),
+      async (querySnapshot) => {
+        if (!isMounted.current) return;
           
-          // One pass, one doc.data() per doc. The third .map this replaces
-          // re-derived `name` through `querySnapshot.docs.find(...)` — a linear
-          // scan plus another deserialization per teacher — to produce a value
-          // the `...doc.data()` spread had already set. O(n²) dead work.
-          // Sort key computed once per doc, not inside the comparator. Each
-          // `doc` property read goes through @react-native-firebase's
-          // deprecation Proxy, so each one is touched exactly once.
-          const teacherList = querySnapshot.docs
-            .map((doc) => {
-              const data = doc.data();
-              // String() keeps the comparator total against a non-string `name`.
-              const name = String(data.name ?? "");
-              const id = doc.id;
-              return { item: { ...data, id, name }, key: name.trim().toLowerCase(), id };
-            })
-            .sort(
-              (a, b) =>
-                a.key.localeCompare(b.key) ||
-                (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-            )
-            .map((entry) => entry.item);
+        // One pass, one doc.data() per doc. The third .map this replaces
+        // re-derived `name` through `querySnapshot.docs.find(...)` — a linear
+        // scan plus another deserialization per teacher — to produce a value
+        // the `...doc.data()` spread had already set. O(n²) dead work.
+        // Sort key computed once per doc, not inside the comparator. Each
+        // `doc` property read goes through @react-native-firebase's
+        // deprecation Proxy, so each one is touched exactly once.
+        const teacherList = querySnapshot.docs
+          .map((doc) => {
+            const data = doc.data();
+            // String() keeps the comparator total against a non-string `name`.
+            const name = String(data.name ?? "");
+            const id = doc.id;
+            return { item: { ...data, id, name }, key: name.trim().toLowerCase(), id };
+          })
+          .sort(
+            (a, b) =>
+              a.key.localeCompare(b.key) ||
+              (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+          )
+          .map((entry) => entry.item);
 
-          setTeachers(teacherList);
+        setTeachers(teacherList);
 
-          // These docs already carry photoURL, so priming the avatar cache
-          // here costs no extra requests and replaces the old per-user
-          // getDownloadURL() fan-out plus its 30s refetch timer.
-          avatarCache.primeMany(teacherList);
+        // These docs already carry photoURL, so priming the avatar cache
+        // here costs no extra requests and replaces the old per-user
+        // getDownloadURL() fan-out plus its 30s refetch timer.
+        avatarCache.primeMany(teacherList);
 
-          // Real data is on screen — only now drop the skeleton.
+        // Real data is on screen — only now drop the skeleton.
+        setLoading(false);
+
+        // Cache teachers data
+        CacheUtils.set(cacheKeys.current.teachers, teacherList);
+      },
+      (error) => {
+        if (isMounted.current) {
           setLoading(false);
-
-          // Cache teachers data
-          CacheUtils.set(cacheKeys.current.teachers, teacherList);
-        },
-        (error) => {
-          if (isMounted.current) {
-            setLoading(false);
-            Alert.alert("Error", "Could not fetch teachers.");
-          }
+          Alert.alert("Error", "Could not fetch teachers.");
         }
-      );
+      }
+    );
   };
 
   // Build sections from teachers + searchQuery.
@@ -527,7 +533,7 @@ const AlhanAdmin = () => {
     if (!selectedTeacher) return;
 
     try {
-      await firestore().collection("users").doc(selectedTeacher.id).update({
+      await updateDoc(doc(getFirestore(), "users", selectedTeacher.id), {
         alhanGrades: selectedGrades,
       });
       // Clear teachers cache to force refresh
@@ -541,7 +547,7 @@ const AlhanAdmin = () => {
   // Remove teacher
   const removeTeacher = useCallback(async (teacherId) => {
     try {
-      await firestore().collection("users").doc(teacherId).update({
+      await updateDoc(doc(getFirestore(), "users", teacherId), {
         isAlhan: false,
         alhanGrades: [],
       });

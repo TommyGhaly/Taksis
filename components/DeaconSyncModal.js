@@ -13,7 +13,16 @@ import {
   View, Text, TouchableOpacity, Modal, FlatList,
   ActivityIndicator, StyleSheet, Dimensions,
 } from "react-native";
-import firestore from "@react-native-firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  query,
+  updateDoc,
+  where,
+} from "@react-native-firebase/firestore";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { LIST_PERF } from "../utils/listConfig";
 
@@ -32,7 +41,7 @@ const gw = (s,n=5) => { const r=[],w=ws(s); for(let i=0;i<n;i++){const d=new Dat
 const nd = (s) => { if(!s)return""; const[m,d,y]=s.split("-").map(Number); return new Date(2000+y,m-1,d).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}); };
 
 // Generate a Firestore-style random UID client-side
-const genUid = () => firestore().collection("_").doc().id;
+const genUid = () => doc(collection(getFirestore(), "_")).id;
 
 // An unfilled slot is stored as { name: "N/A", uid: <random> } — "nobody is here"
 // is carried by the NAME, not the uid. The uid is a throwaway that will never
@@ -47,10 +56,10 @@ const slotKey = (loc, i) => (i === undefined ? loc : `${loc}:${i}`);
 const slotLabel = (loc, i) => (i === undefined ? loc : `${loc} ${i + 1}`);
 
 async function fetchAllDeacons(churchId) {
-  const allUsersSnap = await firestore()
-    .collection("users")
-    .where("church", "==", churchId)
-    .get();
+  const allUsersSnap = await getDocs(query(
+    collection(getFirestore(), "users"),
+    where("church", "==", churchId)
+  ));
 
   const deacons = [];
   const seen = new Set();
@@ -202,7 +211,7 @@ async function applyListFix(churchId, current, toAdd, toRemove, stale) {
     });
 
   for (const u of toAdd) up.push(buildEntry(u));
-  await firestore().collection("churches").doc(churchId).update({ deacons: up });
+  await updateDoc(doc(getFirestore(), "churches", churchId), { deacons: up });
   return up;
 }
 
@@ -246,7 +255,7 @@ async function applySchedFix(churchId, wid, data, needUid, exDeacons, missing, n
   ex.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   up.extra = ex;
 
-  await firestore().collection("churches").doc(churchId).collection("schedule").doc(wid).update(up);
+  await updateDoc(doc(getFirestore(), "churches", churchId, "schedule", wid), up);
 }
 
 function schedSummary(sd) {
@@ -313,11 +322,11 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
       const names = new Map(), uids = new Set();
       allDeacons.forEach(d => { names.set(d.uid, d.name); uids.add(d.uid); });
 
-      const cDoc = await firestore().collection("churches").doc(churchId).get();
+      const cDoc = await getDoc(doc(getFirestore(), "churches", churchId));
       const currentList = cDoc.data()?.deacons || [];
       const ld = diffList(currentList, allDeacons);
 
-      const sSnap = await firestore().collection("churches").doc(churchId).collection("schedule").get();
+      const sSnap = await getDocs(collection(getFirestore(), "churches", churchId, "schedule"));
       const exist = new Set(sSnap.docs.map(d => d.id));
       const today = new Date(), sun = ws(today);
       if (sun <= today) sun.setDate(sun.getDate() + 7);

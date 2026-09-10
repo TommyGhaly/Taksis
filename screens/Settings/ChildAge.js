@@ -8,8 +8,8 @@ import {
   SafeAreaView,
   Platform,
 } from "react-native";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import { doc, getDoc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import BackArrow from "../../components/backArrow";
@@ -19,7 +19,7 @@ import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 
 const ChildAge = ({ route }) => {
   const { childData } = route.params;
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
   const userId = user ? user.uid : null;
   const [date, setDate] = useState(childData.DOB ? new Date(childData.DOB) : new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -68,8 +68,8 @@ const ChildAge = ({ route }) => {
     const updatedChildData = { ...childData, age, DOB: dob };
 
     try {
-      const userDocRef = firestore().collection("users").doc(userId);
-      const userDoc = await userDocRef.get();
+      const userDocRef = doc(getFirestore(), "users", userId);
+      const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists) {
         const userData = userDoc.data();
@@ -87,7 +87,7 @@ const ChildAge = ({ route }) => {
           userData.children.push(updatedChildData);
         }
         navigation.navigate("Settings");
-        await userDocRef.update({ children: userData.children });
+        await updateDoc(userDocRef, { children: userData.children });
         await callFunction(user, "https://update-user-hy6oofbihq-uc.a.run.app");
         Alert.alert("Success", "Child data updated successfully.");
       } else {

@@ -12,8 +12,15 @@ import {
   Alert,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getFirestore,
+  serverTimestamp,
+} from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import BackArrow from "../../components/backArrow";
 import { COLOR_OPTIONS } from "../../components/TrafficVehicleComponents";
 
@@ -37,12 +44,9 @@ const RegisterVehicle = ({ navigation }) => {
 
   // Pull the signed-in user's church + prefill driver 1 from their profile
   useEffect(() => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user) return;
-    firestore()
-      .collection("users")
-      .doc(user.uid)
-      .get()
+    getDoc(doc(getFirestore(), "users", user.uid))
       .then((doc) => {
         const data = doc.data() || {};
         setChurch(data.church || null);
@@ -107,7 +111,7 @@ const RegisterVehicle = ({ navigation }) => {
   const handleSubmit = async () => {
     if (!validate()) return;
 
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user) {
       Alert.alert("Error", "You must be signed in to register a vehicle.");
       return;
@@ -136,13 +140,13 @@ const RegisterVehicle = ({ navigation }) => {
         drivers: cleanedDrivers,
         present: false,
         status: "pending",
-        created_at: firestore.FieldValue.serverTimestamp(),
+        created_at: serverTimestamp(),
       };
       if (make.trim()) payload.make = make.trim();
       if (model.trim()) payload.model = model.trim();
       if (color) payload.color = color;
 
-      await firestore().collection("pending_registrations").add(payload);
+      await addDoc(collection(getFirestore(), "pending_registrations"), payload);
       setSubmitted(true);
     } catch (error) {
       console.error("Error submitting registration:", error);

@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Text, StyleSheet, View, TouchableOpacity } from "react-native";
 import { CheckBox } from "@rneui/themed";
 import * as Haptics from "react-native-haptic-feedback";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import { doc, getDoc, getFirestore } from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 
 const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
   const [deacon, setDeacon] = useState(false);
@@ -15,16 +15,13 @@ const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
   useEffect(() => {
     const fetchUserRoles = async () => {
       try {
-        const user = auth().currentUser;
+        const user = getAuth().currentUser;
         if (!user) {
           setLoading(false);
           return;
         }
 
-        const userDoc = await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .get();
+        const userDoc = await getDoc(doc(getFirestore(), "users", user.uid));
           
         if (userDoc.exists) {
           const data = userDoc.data();

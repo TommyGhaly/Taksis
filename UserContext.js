@@ -6,7 +6,7 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
-import firestore from '@react-native-firebase/firestore';
+import { doc, getFirestore, onSnapshot } from '@react-native-firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as avatarCache from './utils/avatarCache';
 
@@ -59,28 +59,26 @@ export function UserProvider({ children }) {
     }
 
     setProfileLoading(true);
-    const unsubscribe = firestore()
-      .collection('users')
-      .doc(uid)
-      .onSnapshot(
-        (doc) => {
-          if (uidRef.current !== uid) return;
-          if (doc.exists) {
-            const next = { uid, ...doc.data() };
-            setProfile(next);
-            avatarCache.primeFromUser(next);
-            AsyncStorage.setItem(
-              PROFILE_CACHE_KEY,
-              JSON.stringify(next)
-            ).catch(() => {});
-          }
-          setProfileLoading(false);
-        },
-        (error) => {
-          console.error('[UserContext] profile listener error:', error);
-          setProfileLoading(false);
+    const unsubscribe = onSnapshot(
+      doc(getFirestore(), 'users', uid),
+      (doc) => {
+        if (uidRef.current !== uid) return;
+        if (doc.exists) {
+          const next = { uid, ...doc.data() };
+          setProfile(next);
+          avatarCache.primeFromUser(next);
+          AsyncStorage.setItem(
+            PROFILE_CACHE_KEY,
+            JSON.stringify(next)
+          ).catch(() => {});
         }
-      );
+        setProfileLoading(false);
+      },
+      (error) => {
+        console.error('[UserContext] profile listener error:', error);
+        setProfileLoading(false);
+      }
+    );
 
     return unsubscribe;
   }, [user?.uid]);

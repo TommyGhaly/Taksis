@@ -16,7 +16,13 @@ import {
   Animated,
   useWindowDimensions,
 } from "react-native";
-import auth from "@react-native-firebase/auth";
+import {
+  AppleAuthProvider,
+  GoogleAuthProvider,
+  getAuth,
+  signInWithCredential,
+  signInWithEmailAndPassword,
+} from "@react-native-firebase/auth";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import BackArrow from "../components/backArrow";
 import { useUser } from "../UserContext";
@@ -110,7 +116,7 @@ const SignIn = ({ navigation }) => {
     if (!email || !password) return;
     setLoading("email");
     try {
-      await auth().signInWithEmailAndPassword(email, password);
+      await signInWithEmailAndPassword(getAuth(), email, password);
     } catch (e) {
       Alert.alert("Sign-in failed", e.message);
     } finally {
@@ -123,8 +129,8 @@ const SignIn = ({ navigation }) => {
     try {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       const { idToken } = await GoogleSignin.signIn();
-      const cred = auth.GoogleAuthProvider.credential(idToken);
-      await auth().signInWithCredential(cred);
+      const cred = GoogleAuthProvider.credential(idToken);
+      await signInWithCredential(getAuth(), cred);
     } catch (e) {
       if (e?.code !== "12501") Alert.alert("Google sign-in failed", e?.message);
     } finally {
@@ -145,8 +151,8 @@ const SignIn = ({ navigation }) => {
         nonce: hashed,
       });
       if (!identityToken) throw new Error("No identity token.");
-      const cred = auth.AppleAuthProvider.credential(identityToken, raw);
-      await auth().signInWithCredential(cred);
+      const cred = AppleAuthProvider.credential(identityToken, raw);
+      await signInWithCredential(getAuth(), cred);
     } catch (e) {
       if (e?.code !== "ERR_REQUEST_CANCELED") Alert.alert("Apple sign-in failed", e?.message);
     } finally {

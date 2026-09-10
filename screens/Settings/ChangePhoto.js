@@ -10,9 +10,8 @@ import {
 import { useState, useEffect } from "react";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import BackArrow from "../../components/backArrow";
-import firestore from "@react-native-firebase/firestore";
-import storage from "@react-native-firebase/storage";
-import auth from "@react-native-firebase/auth";
+import { getDownloadURL, getStorage, ref } from "@react-native-firebase/storage";
+import { getAuth } from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 import PhotoInput from "../../components/photoInput";
 
@@ -22,14 +21,14 @@ const ChangePhoto = () => {
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [previewUri, setPreviewUri] = useState(null);
   const navigation = useNavigation();
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   const refreshPreview = async () => {
     if (!user?.uid) return;
     try {
-      const photoUrl = await storage()
-        .ref(`profilePictures/${user.uid}.png`)
-        .getDownloadURL();
+      const photoUrl = await getDownloadURL(
+        ref(getStorage(), `profilePictures/${user.uid}.png`)
+      );
       // Bust the image cache so a re-upload to the same path is visible.
       setPreviewUri(`${photoUrl}${photoUrl.includes("?") ? "&" : "?"}t=${Date.now()}`);
     } catch (error) {

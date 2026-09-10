@@ -14,8 +14,18 @@ import {
   TouchableWithoutFeedback,
   Alert,
 } from "react-native";
-import firestore, { FieldValue } from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import {
+  arrayRemove,
+  arrayUnion,
+  collection,
+  doc,
+  getDocs,
+  getFirestore,
+  increment,
+  onSnapshot,
+  updateDoc,
+} from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import callFunction from "../../components/functionCalls";
 import IndividualProfile from "../../components/individualProfile";
@@ -167,7 +177,7 @@ const StatusBadge = ({ status, align = "left" }) => {
 };
 
 const EditSchedule = () => {
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
   const scrollViewRef = useRef(null);
   // Hold reads until the drawer transition finishes animating.
   const ready = useAfterInteractions();
@@ -217,36 +227,32 @@ const EditSchedule = () => {
   const [deaconIsChild, setDeaconIsChild] = useState({});
 
   useEffect(() => {
-    const unsub = firestore()
-      .collection("users")
-      .doc(user.uid)
-      .onSnapshot(
-        (doc) => {
-          if (doc.exists) {
-            const data = doc.data();
-            if (data?.church && data.church !== churchId)
-              setChurchId(data.church);
-            else if (!data?.church) setWeeksLoaded(true);
-          } else {
-            setWeeksLoaded(true);
-          }
-        },
-        (err) => console.error("Error fetching user:", err),
-      );
+    const unsub = onSnapshot(
+      doc(getFirestore(), "users", user.uid),
+      (doc) => {
+        if (doc.exists) {
+          const data = doc.data();
+          if (data?.church && data.church !== churchId)
+            setChurchId(data.church);
+          else if (!data?.church) setWeeksLoaded(true);
+        } else {
+          setWeeksLoaded(true);
+        }
+      },
+      (err) => console.error("Error fetching user:", err)
+    );
     return () => unsub();
   }, [user.uid, churchId]);
 
   useEffect(() => {
     if (!churchId) return;
-    const unsub = firestore()
-      .collection("churches")
-      .doc(churchId)
-      .onSnapshot(
-        (doc) => {
-          if (doc.exists) setAltarServersCount(doc.data()?.altarServers || 0);
-        },
-        (err) => console.error("Error fetching church:", err),
-      );
+    const unsub = onSnapshot(
+      doc(getFirestore(), "churches", churchId),
+      (doc) => {
+        if (doc.exists) setAltarServersCount(doc.data()?.altarServers || 0);
+      },
+      (err) => console.error("Error fetching church:", err)
+    );
     return () => unsub();
   }, [churchId]);
 
@@ -254,11 +260,9 @@ const EditSchedule = () => {
     if (!churchId || !ready) return;
     const fetchSchedules = async () => {
       try {
-        const snapshot = await firestore()
-          .collection("churches")
-          .doc(churchId)
-          .collection("schedule")
-          .get();
+        const snapshot = await getDocs(
+          collection(getFirestore(), "churches", churchId, "schedule")
+        );
         if (snapshot.empty) {
           const today = new Date();
           const nextSunday = getWeekStart(today);
@@ -301,11 +305,9 @@ const EditSchedule = () => {
     if (!churchId) return;
     const fetchArchivedWeeks = async () => {
       try {
-        const snapshot = await firestore()
-          .collection("churches")
-          .doc(churchId)
-          .collection("archive")
-          .get();
+        const snapshot = await getDocs(
+          collection(getFirestore(), "churches", churchId, "archive")
+        );
         const archived = snapshot.docs
           .map((doc) => ({
             id: doc.id,
@@ -337,12 +339,9 @@ const EditSchedule = () => {
     // the entire schedule/archive collection and then .find() the selected
     // week out of it, which meant every write to any other week re-delivered
     // and re-parsed the whole collection.
-    const unsub = firestore()
-      .collection("churches")
-      .doc(churchId)
-      .collection(collectionPath)
-      .doc(selectedWeek)
-      .onSnapshot((scheduleDoc) => {
+    const unsub = onSnapshot(
+      doc(getFirestore(), "churches", churchId, collectionPath, selectedWeek),
+      (scheduleDoc) => {
         if (scheduleDoc?.exists) {
           setWeek(selectedWeek);
           const data = scheduleDoc.data();
@@ -390,7 +389,8 @@ const EditSchedule = () => {
         } else {
           resetScheduleData();
         }
-      });
+      }
+    );
     return () => {
       unsub();
       cleanupUserListeners();
@@ -496,15 +496,12 @@ const EditSchedule = () => {
     // uuids are not people and have no user document.
     if (server.name === "N/A") return;
     try {
-      await firestore()
-        .collection("users")
-        .doc(server.uid)
-        .update({
-          switched_weeks:
-            op === "add"
-              ? FieldValue.arrayUnion(selectedWeek)
-              : FieldValue.arrayRemove(selectedWeek),
-        });
+      await updateDoc(doc(getFirestore(), "users", server.uid), {
+        switched_weeks:
+          op === "add"
+            ? arrayUnion(selectedWeek)
+            : arrayRemove(selectedWeek),
+      });
     } catch (err) {
       console.error("Error updating switched_weeks:", server.uid, err);
     }
@@ -571,10 +568,10 @@ const EditSchedule = () => {
         { church: churchId, week: week },
         "Failed to add server.",
       );
-      await firestore()
-        .collection("churches")
-        .doc(churchId)
-        .update({ altarServers: FieldValue.increment(1) });
+      await updateDoc(
+        doc(getFirestore(), "churches", churchId),
+        { altarServers: increment(1) }
+      );
       await updateSwitchedWeek(promoted, "remove");
       scrollViewRef.current?.scrollToEnd({ animated: false });
     } catch (err) {
@@ -593,10 +590,10 @@ const EditSchedule = () => {
         { church: churchId, week: week, server: serverToRemove.uid },
         "Failed to remove server.",
       );
-      await firestore()
-        .collection("churches")
-        .doc(churchId)
-        .update({ altarServers: FieldValue.increment(-1) });
+      await updateDoc(
+        doc(getFirestore(), "churches", churchId),
+        { altarServers: increment(-1) }
+      );
       await updateSwitchedWeek(serverToRemove, "add");
     } catch (err) {
       console.error("Error removing server:", err);

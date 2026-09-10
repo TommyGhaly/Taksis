@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { StyleSheet, View, Text, Pressable, Alert } from "react-native";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import { doc, getDoc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import BackArrow from "../../components/backArrow";
 import Churches from "../../components/churches"; // Assuming you have a Churches component for displaying church options
 import { callFunction } from "../../components/functionCalls";
@@ -9,21 +9,21 @@ import { callFunction } from "../../components/functionCalls";
 const ChangeChurch = ({ navigation }) => {
   const [selectedChurch, setSelectedChurch] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   const handleChurchSelection = (church) => {
     setSelectedChurch(church);
   };
 
   const updateChurchAndFunctions = async () => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user) {
       throw new Error("User not authenticated");
     }
 
     try {
       // Update the user's church information in Firestore
-      await firestore().collection("users").doc(user.uid).update({
+      await updateDoc(doc(getFirestore(), "users", user.uid), {
         church: selectedChurch,
       });
 
@@ -62,7 +62,7 @@ const ChangeChurch = ({ navigation }) => {
   };
 
   const handleContinue = async () => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user) {
       Alert.alert("Error", "User not authenticated. Please sign in again.");
       return;
@@ -78,7 +78,7 @@ const ChangeChurch = ({ navigation }) => {
     setIsLoading(true);
 
     try {
-      const userDoc = await firestore().collection("users").doc(user.uid).get();
+      const userDoc = await getDoc(doc(getFirestore(), "users", user.uid));
       const userData = userDoc.data();
       const currentChurch = userData?.church;
 

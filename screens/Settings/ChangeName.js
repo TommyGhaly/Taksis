@@ -9,19 +9,19 @@ import {
 } from "react-native";
 import { useState } from "react";
 import BackArrow from "../../components/backArrow";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 import { callFunction } from "../../components/functionCalls";
 
 const ChangeName = () => {
   const [name, setName] = useState("");
   const navigation = useNavigation();
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   const updateNameInDB = async (name) => {
     try {
-      await firestore().collection("users").doc(user.uid).update({
+      await updateDoc(doc(getFirestore(), "users", user.uid), {
         name: name,
       });
     } catch (error) {

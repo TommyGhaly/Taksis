@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 import { StyleSheet, View, Pressable, Text, Alert } from "react-native";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import Churches from "../../components/churches";
 import ProgressBar from "../../components/progressBar";
 import BackArrow from "../../components/backArrow";
 
 const SelectChurch = ({ navigation }) => {
   const [selectedChurch, setSelectedChurch] = useState(null);
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   const handleChurchSelection = (church) => {
     setSelectedChurch(church);
@@ -21,7 +21,7 @@ const SelectChurch = ({ navigation }) => {
     }
 
     try {
-      await firestore().collection("users").doc(user.uid).update({
+      await updateDoc(doc(getFirestore(), "users", user.uid), {
         church: selectedChurch,
       });
       navigation.navigate("SelectApplicable");

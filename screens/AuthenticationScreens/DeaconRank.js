@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 import { StyleSheet, View, Pressable, Text, Alert } from "react-native";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import Rank from "../../components/rank";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
 
 const DeaconRank = ({ navigation }) => {
   const [rank, setRank] = useState(null);
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   const handleRank = (selectedRank) => {
     setRank(selectedRank);
@@ -21,7 +21,7 @@ const DeaconRank = ({ navigation }) => {
     }
 
     try {
-      await firestore().collection("users").doc(user.uid).update({
+      await updateDoc(doc(getFirestore(), "users", user.uid), {
         rank: rank,
       });
       navigation.navigate("Experience");

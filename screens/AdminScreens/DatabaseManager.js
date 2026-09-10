@@ -10,9 +10,35 @@ import {
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
-import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
-import storage from '@react-native-firebase/storage';
+import { getAuth } from '@react-native-firebase/auth';
+import {
+  FieldPath,
+  GeoPoint,
+  Timestamp,
+  addDoc,
+  collection,
+  deleteDoc as firestoreDeleteDoc,
+  deleteField as firestoreDeleteField,
+  doc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  limit,
+  orderBy,
+  query,
+  serverTimestamp,
+  startAfter,
+  updateDoc,
+  writeBatch,
+} from '@react-native-firebase/firestore';
+import {
+  deleteObject,
+  getDownloadURL,
+  getMetadata,
+  getStorage,
+  list,
+  ref as storageRef,
+} from '@react-native-firebase/storage';
 import {
   KNOWN_COLLECTIONS, AUDIT_COLLECTION, BULK_HARD_CEILING,
   resolveCollectionNode, declaredSubcollectionsForDoc,
@@ -108,9 +134,9 @@ const formatBytes = (n) => {
 
 const writeAudit = async (action, path, before, after, meta = {}) => {
   try {
-    await firestore().collection(AUDIT_COLLECTION).add({
-      ts: firestore.FieldValue.serverTimestamp(),
-      uid: auth().currentUser?.uid || null,
+    await addDoc(collection(getFirestore(), AUDIT_COLLECTION), {
+      ts: serverTimestamp(),
+      uid: getAuth().currentUser?.uid || null,
       action, path,
       before: before ?? null, after: after ?? null, meta,
     });
@@ -176,16 +202,16 @@ const fromEditable = (v) => {
     if (v[SPECIAL_HINT] === 'timestamp') {
       const d = new Date(v.value);
       if (Number.isNaN(d.getTime())) throw new Error(`Bad timestamp: ${v.value}`);
-      return firestore.Timestamp.fromDate(d);
+      return Timestamp.fromDate(d);
     }
     if (v[SPECIAL_HINT] === 'reference') {
       if (!v.value) throw new Error('Reference path required');
-      return firestore().doc(v.value);
+      return doc(getFirestore(), v.value);
     }
     if (v[SPECIAL_HINT] === 'geopoint') {
       const lat = Number(v.lat), lng = Number(v.lng);
       if (Number.isNaN(lat) || Number.isNaN(lng)) throw new Error('Bad geopoint');
-      return new firestore.GeoPoint(lat, lng);
+      return new GeoPoint(lat, lng);
     }
     const o = {}; for (const k of Object.keys(v)) o[k] = fromEditable(v[k]); return o;
   }
@@ -561,9 +587,9 @@ export default function DatabaseManagerScreen() {
     let alive = true;
     (async () => {
       try {
-        const uid = auth().currentUser?.uid;
+        const uid = getAuth().currentUser?.uid;
         if (!uid) { if (alive) setGateState('denied'); return; }
-        const snap = await firestore().collection('users').doc(uid).get();
+        const snap = await getDoc(doc(getFirestore(), 'users', uid));
         const isSuper = snap.exists ? snap.data()?.superAdmin === true : false;
         if (!alive) return;
         setGateState(isSuper ? 'bio_prompt' : 'denied');
@@ -831,8 +857,8 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
 
   const collRef = useMemo(() => {
     const segs = collectionPath.split('/').filter(Boolean);
-    let ref = firestore().collection(segs[0]);
-    for (let i = 1; i < segs.length; i += 2) ref = ref.doc(segs[i]).collection(segs[i+1]);
+    let ref = collection(getFirestore(), segs[0]);
+    for (let i = 1; i < segs.length; i += 2) ref = collection(ref, segs[i], segs[i+1]);
     return ref;
   }, [collectionPath]);
 
@@ -872,7 +898,7 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
         if (dateSorted) { activeSort = '__id__'; }
         else if (effectiveConfig.sortBy) { activeSort = effectiveConfig.sortBy; }
         else {
-          const probe = await collRef.orderBy(firestore.FieldPath.documentId()).limit(PAGE_SIZE).get();
+          const probe = await getDocs(query(collRef, orderBy(FieldPath.documentId()), limit(PAGE_SIZE)));
           probeDocs = probe.docs;
           // Only sort by `name` when EVERY probed doc has a string `name`.
           // orderBy('name') silently drops docs missing the field, so a single
@@ -887,14 +913,14 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
       if (activeSort === '__id__') {
         if (probeDocs && reset) { snap = { docs: probeDocs }; }
         else {
-          let q = collRef.orderBy(firestore.FieldPath.documentId()).limit(PAGE_SIZE);
-          if (cursor) q = q.startAfter(cursor);
-          snap = await q.get();
+          let q = query(collRef, orderBy(FieldPath.documentId()), limit(PAGE_SIZE));
+          if (cursor) q = query(q, startAfter(cursor));
+          snap = await getDocs(q);
         }
       } else {
-        let q = collRef.orderBy(activeSort).limit(PAGE_SIZE);
-        if (cursor) q = q.startAfter(cursor);
-        snap = await q.get();
+        let q = query(collRef, orderBy(activeSort), limit(PAGE_SIZE));
+        if (cursor) q = query(q, startAfter(cursor));
+        snap = await getDocs(q);
       }
       if (reset) seenIdsRef.current = new Set();
       const newDocs = [];
@@ -984,8 +1010,8 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
       onConfirm: async () => {
         try {
           for (const g of chunk(ids, 500)) {
-            const batch = firestore().batch();
-            for (const id of g) batch.delete(collRef.doc(id));
+            const batch = writeBatch(getFirestore());
+            for (const id of g) batch.delete(doc(collRef, id));
             await batch.commit();
           }
           await writeAudit('bulkDelete', collectionPath, null, null, { count: ids.length });
@@ -999,7 +1025,7 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
 
   const createNewDoc = async () => {
     try {
-      const ref = await collRef.add({ _createdBy: 'admin', _createdAt: firestore.FieldValue.serverTimestamp() });
+      const ref = await addDoc(collRef, { _createdBy: 'admin', _createdAt: serverTimestamp() });
       await writeAudit('create', `${collectionPath}/${ref.id}`, null, { _createdBy: 'admin' });
       onOpenDoc(`${collectionPath}/${ref.id}`, ref.id);
     } catch (e) { Alert.alert('Create failed', e.message); }
@@ -1152,11 +1178,11 @@ const StorageItemRow = React.memo(function StorageItemRow({ item, selectMode, is
     let alive = true;
     (async () => {
       try {
-        const u = await item.ref.getDownloadURL();
+        const u = await getDownloadURL(item.ref);
         if (alive) setUrl(u);
       } catch { if (alive) setFailed(true); }
       try {
-        const m = await item.ref.getMetadata();
+        const m = await getMetadata(item.ref);
         if (alive) setMeta(m);
       } catch { /* metadata is best-effort */ }
     })();
@@ -1259,10 +1285,10 @@ function StorageView({ prefix }) {
     if (loadingRef.current) return;
     loadingRef.current = true; setLoading(true);
     try {
-      const ref = storage().ref(prefix);
+      const ref = storageRef(getStorage(), prefix);
       const opts = { maxResults: STORAGE_PAGE_SIZE };
       if (!reset && pageTokenRef.current) opts.pageToken = pageTokenRef.current;
-      const res = await ref.list(opts);
+      const res = await list(ref, opts);
       if (reset) seenRef.current = new Set();
       const newItems = [];
       for (const r of res.items) {
@@ -1309,7 +1335,7 @@ function StorageView({ prefix }) {
     const failures = [];
     for (const group of chunk(paths, 10)) {
       await Promise.all(group.map(async (p) => {
-        try { await storage().ref(p).delete(); }
+        try { await deleteObject(storageRef(getStorage(), p)); }
         catch (e) { failures.push({ p, e }); }
       }));
     }
@@ -1491,8 +1517,8 @@ function StorageView({ prefix }) {
 function DocumentView({ docPath, label, onOpenSubcollection, onAfterDelete }) {
   const docRef = useMemo(() => {
     const segs = docPath.split('/').filter(Boolean);
-    let ref = firestore().collection(segs[0]).doc(segs[1]);
-    for (let i = 2; i < segs.length; i += 2) ref = ref.collection(segs[i]).doc(segs[i+1]);
+    let ref = doc(getFirestore(), segs[0], segs[1]);
+    for (let i = 2; i < segs.length; i += 2) ref = doc(ref, segs[i], segs[i+1]);
     return ref;
   }, [docPath]);
 
@@ -1507,7 +1533,7 @@ function DocumentView({ docPath, label, onOpenSubcollection, onAfterDelete }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { const snap = await docRef.get(); setData(snap.exists ? snap.data() : null); }
+    try { const snap = await getDoc(docRef); setData(snap.exists ? snap.data() : null); }
     catch (e) { Alert.alert('Load failed', e.message); }
     finally { setLoading(false); }
   }, [docRef]);
@@ -1517,7 +1543,7 @@ function DocumentView({ docPath, label, onOpenSubcollection, onAfterDelete }) {
   const saveField = async (key, newValue) => {
     const before = data ? { ...data } : null;
     try {
-      await docRef.update({ [key]: newValue });
+      await updateDoc(docRef, { [key]: newValue });
       const after = { ...(data || {}), [key]: newValue };
       setData(after);
       await writeAudit('update', docPath, before, after, { field: key });
@@ -1530,7 +1556,7 @@ function DocumentView({ docPath, label, onOpenSubcollection, onAfterDelete }) {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
         try {
-          await docRef.update({ [key]: firestore.FieldValue.delete() });
+          await updateDoc(docRef, { [key]: firestoreDeleteField() });
           const after = { ...(data || {}) }; delete after[key];
           setData(after);
           await writeAudit('update', docPath, data, after, { fieldDeleted: key });
@@ -1547,7 +1573,7 @@ function DocumentView({ docPath, label, onOpenSubcollection, onAfterDelete }) {
       sampleIds: [], totalCount: 1,
       onConfirm: async () => {
         try {
-          await docRef.delete();
+          await firestoreDeleteDoc(docRef);
           await writeAudit('delete', docPath, data, null);
           setConfirmState(null);
           if (onAfterDelete) onAfterDelete();
@@ -2112,9 +2138,9 @@ function FieldEditorModal({ field, existingKeys = [], onCancel, onSave }) {
           case 'string': parsed = text; break;
           case 'number': { const n = Number(text); if (Number.isNaN(n)) throw new Error('Not a number'); parsed = n; break; }
           case 'boolean': { if (text.toLowerCase() === 'true') parsed = true; else if (text.toLowerCase() === 'false') parsed = false; else throw new Error('Must be "true" or "false"'); break; }
-          case 'timestamp': { const d = new Date(text); if (Number.isNaN(d.getTime())) throw new Error('Invalid date (use ISO 8601)'); parsed = firestore.Timestamp.fromDate(d); break; }
-          case 'reference': { if (!text.trim()) throw new Error('Reference path required'); parsed = firestore().doc(text); break; }
-          case 'geopoint': { const [lat, lng] = text.split(',').map((s) => Number(s.trim())); if (Number.isNaN(lat) || Number.isNaN(lng)) throw new Error('Format: lat,lng'); parsed = new firestore.GeoPoint(lat, lng); break; }
+          case 'timestamp': { const d = new Date(text); if (Number.isNaN(d.getTime())) throw new Error('Invalid date (use ISO 8601)'); parsed = Timestamp.fromDate(d); break; }
+          case 'reference': { if (!text.trim()) throw new Error('Reference path required'); parsed = doc(getFirestore(), text); break; }
+          case 'geopoint': { const [lat, lng] = text.split(',').map((s) => Number(s.trim())); if (Number.isNaN(lat) || Number.isNaN(lng)) throw new Error('Format: lat,lng'); parsed = new GeoPoint(lat, lng); break; }
           case 'null': parsed = null; break;
           default: parsed = text;
         }

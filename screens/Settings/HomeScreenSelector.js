@@ -15,8 +15,8 @@ import {
   Pressable,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import { doc, getFirestore, onSnapshot, updateDoc } from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import BackArrow from "../../components/backArrow";
 import SkeletonScreen from "../../components/Skeleton";
 import { PreviewModeProvider } from "../../components/PreviewMode";
@@ -190,25 +190,23 @@ const HomeScreenSelector = () => {
   const liveCount = useStaggeredMounts(availableScreens.length, !isLoading);
 
   useEffect(() => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (user) {
-      const unsubscribe = firestore()
-        .collection("users")
-        .doc(user.uid)
-        .onSnapshot(
-          (doc) => {
-            if (doc.exists) {
-              const data = doc.data();
-              setUserRoles(data);
-              setSelectedScreen(data.homeScreen || "schedule");
-              setIsLoading(false);
-            }
-          },
-          (error) => {
-            console.error("Error fetching user data:", error);
+      const unsubscribe = onSnapshot(
+        doc(getFirestore(), "users", user.uid),
+        (doc) => {
+          if (doc.exists) {
+            const data = doc.data();
+            setUserRoles(data);
+            setSelectedScreen(data.homeScreen || "schedule");
             setIsLoading(false);
-          },
-        );
+          }
+        },
+        (error) => {
+          console.error("Error fetching user data:", error);
+          setIsLoading(false);
+        }
+      );
 
       return () => unsubscribe();
     }
@@ -222,9 +220,9 @@ const HomeScreenSelector = () => {
 
     setIsSaving(true);
     try {
-      const user = auth().currentUser;
+      const user = getAuth().currentUser;
       if (user) {
-        await firestore().collection("users").doc(user.uid).update({
+        await updateDoc(doc(getFirestore(), "users", user.uid), {
           homeScreen: selectedScreen,
         });
         navigation.goBack();

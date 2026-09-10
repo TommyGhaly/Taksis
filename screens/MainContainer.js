@@ -41,8 +41,17 @@ import PaschaHomePage from "./Pascha/PaschaHomePage";
 import DatabaseManager from "./AdminScreens/DatabaseManager";
 import UnavailableRequestModal from "../components/unavailableRequestModal";
 import CustomDrawerContent from "../components/customDrawer";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import {
+  collection,
+  deleteDoc,
+  doc as firestoreDoc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  onSnapshot,
+  updateDoc,
+} from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import CustomHeader from "../components/customHeader";
 import LoadingWheel from "../components/LoadingWheel";
 import { usePendingRoute } from "../utils/deepLinks";
@@ -485,29 +494,27 @@ export default function MainContainer() {
   // 2. Minimum version enforcement (native build updates via Firestore)
   //    Set config/app.minVersion in Firestore to block old builds
   useEffect(() => {
-    const unsub = firestore()
-      .collection("config")
-      .doc("app")
-      .onSnapshot(
-        (doc) => {
-          if (!doc.exists) return;
-          const data = doc.data();
-          const minVersion = data?.minVersion;
-          if (!minVersion) return;
+    const unsub = onSnapshot(
+      firestoreDoc(getFirestore(), "config", "app"),
+      (doc) => {
+        if (!doc.exists) return;
+        const data = doc.data();
+        const minVersion = data?.minVersion;
+        if (!minVersion) return;
 
-          const currentVersion =
-            Constants.expoConfig?.version ||
-            Constants.manifest?.version ||
-            "0.0.0";
+        const currentVersion =
+          Constants.expoConfig?.version ||
+          Constants.manifest?.version ||
+          "0.0.0";
 
-          if (compareVersions(currentVersion, minVersion) < 0) {
-            setForceUpdate(true);
-          } else {
-            setForceUpdate(false);
-          }
-        },
-        () => {},
-      );
+        if (compareVersions(currentVersion, minVersion) < 0) {
+          setForceUpdate(true);
+        } else {
+          setForceUpdate(false);
+        }
+      },
+      () => {}
+    );
 
     return () => unsub();
   }, []);
@@ -532,19 +539,20 @@ export default function MainContainer() {
   // ── Listen for pascha visibility flags ────────────────────────────────────
   useEffect(() => {
     if (!churchId) return;
-    const unsub = firestore()
-      .collection("churches").doc(churchId)
-      .collection("pascha").doc("config")
-      .onSnapshot(doc => {
+    const unsub = onSnapshot(
+      firestoreDoc(getFirestore(), "churches", churchId, "pascha", "config"),
+      doc => {
         if (!doc.exists) { setShowPaschaTab(false); return; }
         const d = doc.data();
         setShowPaschaTab(!!(d.myReadingsVisible || d.fullScheduleVisible));
-      }, () => setShowPaschaTab(false));
+      },
+      () => setShowPaschaTab(false)
+    );
     return () => unsub();
   }, [churchId]);
 
   const fetchUserData = useCallback(async (isRefresh = false) => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user) {
       setIsLoading(false);
       setRefreshing(false);
@@ -553,7 +561,7 @@ export default function MainContainer() {
     if (isRefresh) setRefreshing(true);
 
     try {
-      const doc = await firestore().collection("users").doc(user.uid).get();
+      const doc = await getDoc(firestoreDoc(getFirestore(), "users", user.uid));
       if (doc.exists) {
         const data = doc.data();
         setUserRoles(data);
@@ -573,10 +581,10 @@ export default function MainContainer() {
           else if (data.isAlhan)       selectedHomeScreen = "hymnsClassAttendance";
           else                         selectedHomeScreen = "schedule";
 
-          firestore()
-            .collection("users")
-            .doc(user.uid)
-            .update({ homeScreen: selectedHomeScreen })
+          updateDoc(
+            firestoreDoc(getFirestore(), "users", user.uid),
+            { homeScreen: selectedHomeScreen }
+          )
             .catch(() => {});
         }
         setHomeScreenId(selectedHomeScreen);
@@ -598,30 +606,32 @@ export default function MainContainer() {
       return;
     }
 
-    const unsubscribe = firestore()
-      .collection("churches")
-      .doc(churchId)
-      .collection("schedule")
-      .doc(currentRequest.weekId)
-      .onSnapshot(
-        (doc) => {
-          if (doc.exists) {
-            const data = doc.data();
-            const extraServers = (data.extra || [])
-              .filter((s) => s.name !== "N/A" && s.uid)
-              .sort((a, b) =>
-                a.name.split(" ")[0].toLowerCase()
-                  .localeCompare(b.name.split(" ")[0].toLowerCase()),
-              );
-            setAvailableServers(extraServers);
-            setupUserListeners(extraServers);
-          } else {
-            setAvailableServers([]);
-            cleanupUserListeners();
-          }
-        },
-        () => { setAvailableServers([]); },
-      );
+    const unsubscribe = onSnapshot(
+      firestoreDoc(
+        getFirestore(),
+        "churches",
+        churchId,
+        "schedule",
+        currentRequest.weekId
+      ),
+      (doc) => {
+        if (doc.exists) {
+          const data = doc.data();
+          const extraServers = (data.extra || [])
+            .filter((s) => s.name !== "N/A" && s.uid)
+            .sort((a, b) =>
+              a.name.split(" ")[0].toLowerCase()
+                .localeCompare(b.name.split(" ")[0].toLowerCase()),
+            );
+          setAvailableServers(extraServers);
+          setupUserListeners(extraServers);
+        } else {
+          setAvailableServers([]);
+          cleanupUserListeners();
+        }
+      },
+      () => { setAvailableServers([]); }
+    );
 
     return () => {
       unsubscribe();
@@ -632,58 +642,56 @@ export default function MainContainer() {
   useEffect(() => {
     if (!userRoles.admin || !churchId) return;
 
-    const unsubscribe = firestore()
-      .collection("churches")
-      .doc(churchId)
-      .collection("unavailable")
-      .onSnapshot(
-        async (snapshot) => {
-          const scheduleSnapshot = await firestore()
-            .collection("churches")
-            .doc(churchId)
-            .collection("schedule")
-            .get();
+    const unsubscribe = onSnapshot(
+      collection(getFirestore(), "churches", churchId, "unavailable"),
+      async (snapshot) => {
+        const scheduleSnapshot = await getDocs(collection(
+          getFirestore(),
+          "churches",
+          churchId,
+          "schedule"
+        ));
 
-          const validWeeks = new Set(scheduleSnapshot.docs.map((doc) => doc.id));
-          const validDocs = [];
+        const validWeeks = new Set(scheduleSnapshot.docs.map((doc) => doc.id));
+        const validDocs = [];
 
-          snapshot.docs.forEach((doc) => {
-            if (isWeekPast(doc.id) || !validWeeks.has(doc.id) || !docHasRequests(doc)) {
-              if (!deletedDocsRef.current.has(doc.id)) {
-                deletedDocsRef.current.add(doc.id);
-                doc.ref.delete().catch(() => {});
-              }
-            } else {
-              validDocs.push(doc);
+        snapshot.docs.forEach((doc) => {
+          if (isWeekPast(doc.id) || !validWeeks.has(doc.id) || !docHasRequests(doc)) {
+            if (!deletedDocsRef.current.has(doc.id)) {
+              deletedDocsRef.current.add(doc.id);
+              deleteDoc(doc.ref).catch(() => {});
             }
-          });
+          } else {
+            validDocs.push(doc);
+          }
+        });
 
-          const requests = flattenUnavailableRequests(validDocs);
+        const requests = flattenUnavailableRequests(validDocs);
 
-          const previousIds = new Set(unavailableQueue.map(getRequestId));
-          const newRequests = requests.filter((r) => {
-            const id = getRequestId(r);
-            return !previousIds.has(id) && !skippedRequestsRef.current.has(id);
-          });
+        const previousIds = new Set(unavailableQueue.map(getRequestId));
+        const newRequests = requests.filter((r) => {
+          const id = getRequestId(r);
+          return !previousIds.has(id) && !skippedRequestsRef.current.has(id);
+        });
 
-          setUnavailableQueue(requests);
+        setUnavailableQueue(requests);
 
-          if (newRequests.length > 0 && processedInitialRef.current) {
-            setSkippedAll(false);
-            setCurrentRequestId(getRequestId(newRequests[0]));
+        if (newRequests.length > 0 && processedInitialRef.current) {
+          setSkippedAll(false);
+          setCurrentRequestId(getRequestId(newRequests[0]));
+          setShowUnavailableModal(true);
+        }
+
+        if (!processedInitialRef.current) {
+          processedInitialRef.current = true;
+          if (requests.length > 0) {
+            setCurrentRequestId(getRequestId(requests[0]));
             setShowUnavailableModal(true);
           }
-
-          if (!processedInitialRef.current) {
-            processedInitialRef.current = true;
-            if (requests.length > 0) {
-              setCurrentRequestId(getRequestId(requests[0]));
-              setShowUnavailableModal(true);
-            }
-          }
-        },
-        () => {},
-      );
+        }
+      },
+      () => {}
+    );
 
     return () => unsubscribe();
   }, [userRoles.admin, churchId]);
@@ -713,7 +721,7 @@ export default function MainContainer() {
   }, []);
 
   useEffect(() => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user) {
       setIsLoading(false);
       return;
@@ -721,31 +729,29 @@ export default function MainContainer() {
 
     fetchUserData();
 
-    const unsubscribe = firestore()
-      .collection("users")
-      .doc(user.uid)
-      .onSnapshot(
-        (snapshot) => {
-          if (snapshot.exists) {
-            const data = snapshot.data();
-            setUserRoles(data);
-            setChurchId(data.church || null);
-            avatarCache.primeFromUser({ uid: user.uid, ...data });
+    const unsubscribe = onSnapshot(
+      firestoreDoc(getFirestore(), "users", user.uid),
+      (snapshot) => {
+        if (snapshot.exists) {
+          const data = snapshot.data();
+          setUserRoles(data);
+          setChurchId(data.church || null);
+          avatarCache.primeFromUser({ uid: user.uid, ...data });
 
-            if (data.homeScreen) {
-              setHomeScreenId((prev) => {
-                if (data.homeScreen !== prev) {
-                  const config = screenConfigs[data.homeScreen];
-                  if (config) setHomeTitle(config.name);
-                  return data.homeScreen;
-                }
-                return prev;
-              });
-            }
+          if (data.homeScreen) {
+            setHomeScreenId((prev) => {
+              if (data.homeScreen !== prev) {
+                const config = screenConfigs[data.homeScreen];
+                if (config) setHomeTitle(config.name);
+                return data.homeScreen;
+              }
+              return prev;
+            });
           }
-        },
-        () => {},
-      );
+        }
+      },
+      () => {}
+    );
 
     return () => unsubscribe();
   }, [fetchUserData]);

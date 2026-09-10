@@ -10,7 +10,7 @@ import {
   Dimensions,
 } from "react-native";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
-import firestore from "@react-native-firebase/firestore";
+import { deleteDoc, doc, getFirestore, onSnapshot } from "@react-native-firebase/firestore";
 import BackArrow from "../../components/backArrow";
 import Avatar from "../../components/Avatar";
 import SkeletonScreen from "../../components/Skeleton";
@@ -102,16 +102,19 @@ const ServantAttendance = () => {
           return () => {};
         }
 
-        const servantRef = firestore()
-          .collection("churches")
-          .doc(church)
-          .collection("Sunday School")
-          .doc("Servants")
-          .collection("Servants")
-          .doc(servantId);
+        const servantRef = doc(
+          getFirestore(),
+          "churches",
+          church,
+          "Sunday School",
+          "Servants",
+          "Servants",
+          servantId
+        );
 
         // Set up real-time listener for servant data
-        const unsubscribe = servantRef.onSnapshot(
+        const unsubscribe = onSnapshot(
+          servantRef,
           async (doc) => {
             if (!isMounted.current) return;
             try {
@@ -201,14 +204,15 @@ const ServantAttendance = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              await firestore()
-                .collection("churches")
-                .doc(church)
-                .collection("Sunday School")
-                .doc("Servants")
-                .collection("Servants")
-                .doc(servantId)
-                .delete();
+              await deleteDoc(doc(
+                getFirestore(),
+                "churches",
+                church,
+                "Sunday School",
+                "Servants",
+                "Servants",
+                servantId
+              ));
 
               Alert.alert(
                 "Success",

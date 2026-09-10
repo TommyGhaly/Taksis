@@ -1,4 +1,4 @@
-import auth from "@react-native-firebase/auth";
+import { getAuth, signInWithCustomToken } from "@react-native-firebase/auth";
 import * as Crypto from "expo-crypto";
 
 /**
@@ -16,7 +16,7 @@ import * as Crypto from "expo-crypto";
  *   here     -> microsoft_exchange { code, verifier }
  *   function -> redeems with the client secret, verifies the signature and
  *               tenant, returns a Firebase custom token
- *   here     -> auth().signInWithCustomToken(...)
+ *   here     -> signInWithCustomToken(getAuth(), ...)
  *
  * PKCE is still used even though the exchange is confidential: it binds the
  * code to this specific attempt, so an intercepted code is useless on its own.
@@ -146,7 +146,7 @@ export const signInWithMicrosoftCode = async ({ code, codeVerifier }) => {
     throw err;
   }
 
-  return auth().signInWithCustomToken(body.token);
+  return signInWithCustomToken(getAuth(), body.token);
 };
 
 /**

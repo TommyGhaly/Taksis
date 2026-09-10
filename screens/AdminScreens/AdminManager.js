@@ -17,9 +17,14 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
-import firestore from "@react-native-firebase/firestore";
-import storage from "@react-native-firebase/storage";
-import auth from "@react-native-firebase/auth";
+import {
+  collection,
+  doc,
+  getFirestore,
+  onSnapshot,
+  updateDoc,
+} from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import PhotoInput from "../../components/photoInput";
 import Avatar from "../../components/Avatar";
@@ -267,7 +272,7 @@ const AdminManager = () => {
     isMounted.current = true;
 
     const initializeApp = async () => {
-      const user = auth().currentUser;
+      const user = getAuth().currentUser;
       if (!user) {
         setLoading(false);
         Alert.alert("Error", "No user authenticated.");
@@ -314,44 +319,42 @@ const AdminManager = () => {
   };
 
   const setupUserChurchListener = () => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
 
-    userUnsubscribe.current = firestore()
-      .collection("users")
-      .doc(user.uid)
-      .onSnapshot(
-        async (doc) => {
-          if (!isMounted.current) return;
+    userUnsubscribe.current = onSnapshot(
+      doc(getFirestore(), "users", user.uid),
+      async (doc) => {
+        if (!isMounted.current) return;
 
-          if (doc.exists) {
-            const userChurch = doc.data().church || null;
-            setChurch(userChurch);
-            CacheUtils.set(cacheKeys.current.church, userChurch);
+        if (doc.exists) {
+          const userChurch = doc.data().church || null;
+          setChurch(userChurch);
+          CacheUtils.set(cacheKeys.current.church, userChurch);
 
-            // Only re-attach when the church actually changed. Re-attaching on
-            // every write to your own user doc tore down the roster listener and
-            // replayed a full snapshot, re-rendering the whole list each time.
-            if (userChurch) {
-              if (attachedChurch.current !== userChurch) {
-                attachedChurch.current = userChurch;
-                setupUsersListener(userChurch);
-              }
-            } else {
-              // No church means no user list is coming — stop waiting.
-              attachedChurch.current = null;
-              setLoading(false);
+          // Only re-attach when the church actually changed. Re-attaching on
+          // every write to your own user doc tore down the roster listener and
+          // replayed a full snapshot, re-rendering the whole list each time.
+          if (userChurch) {
+            if (attachedChurch.current !== userChurch) {
+              attachedChurch.current = userChurch;
+              setupUsersListener(userChurch);
             }
           } else {
+            // No church means no user list is coming — stop waiting.
+            attachedChurch.current = null;
             setLoading(false);
           }
-        },
-        () => {
-          if (isMounted.current) {
-            setLoading(false);
-            Alert.alert("Error", "Failed to fetch church data.");
-          }
+        } else {
+          setLoading(false);
         }
-      );
+      },
+      () => {
+        if (isMounted.current) {
+          setLoading(false);
+          Alert.alert("Error", "Failed to fetch church data.");
+        }
+      }
+    );
   };
 
   const setupUsersListener = (churchId) => {
@@ -364,65 +367,64 @@ const AdminManager = () => {
     // Note: deliberately no `.orderBy("name")`. Firestore omits documents that lack
     // the ordered field, and this roster is expected to contain users with no name
     // (hence the `?? ""` below) — ordering server-side would silently hide them.
-    usersUnsubscribe.current = firestore()
-      .collection("users")
-      .onSnapshot(
-        (querySnapshot) => {
-          if (!isMounted.current) return;
+    usersUnsubscribe.current = onSnapshot(
+      collection(getFirestore(), "users"),
+      (querySnapshot) => {
+        if (!isMounted.current) return;
 
-          const changes = querySnapshot.docChanges();
-          const firstDelivery = !rosterDelivered.current;
-          rosterDelivered.current = true;
-          // Nothing changed and the list is already on screen: skip the sort and,
-          // more importantly, don't hand SectionList a new array identity.
-          if (!firstDelivery && changes.length === 0) return;
+        const changes = querySnapshot.docChanges();
+        const firstDelivery = !rosterDelivered.current;
+        rosterDelivered.current = true;
+        // Nothing changed and the list is already on screen: skip the sort and,
+        // more importantly, don't hand SectionList a new array identity.
+        if (!firstDelivery && changes.length === 0) return;
 
-          const roster = rosterRef.current;
-          const touched = [];
+        const roster = rosterRef.current;
+        const touched = [];
 
-          for (const change of changes) {
-            const id = change.doc.id;
-            if (change.type === "removed") {
-              roster.delete(id);
-              continue;
-            }
-            const data = change.doc.data();
-            // String() keeps the comparator total — a non-string `name` (e.g. a
-            // number entered via DatabaseManager) used to reach .toLowerCase() and
-            // throw, killing the whole snapshot handler.
-            const name = String(data.name ?? "");
-            const item = { ...data, id, name };
-            // Sort key precomputed once per doc rather than built inside the
-            // comparator, which runs O(n log n) times.
-            roster.set(id, { item, key: name.trim().toLowerCase() });
-            touched.push(item);
+        for (const change of changes) {
+          const id = change.doc.id;
+          if (change.type === "removed") {
+            roster.delete(id);
+            continue;
           }
-
-          const userList = Array.from(roster.values())
-            .sort(
-              (a, b) =>
-                a.key.localeCompare(b.key) ||
-                (a.item.id < b.item.id ? -1 : a.item.id > b.item.id ? 1 : 0)
-            )
-            .map((entry) => entry.item);
-
-          setUsers(userList);
-          // These docs already carry photoURL, so priming the avatar cache here
-          // costs no extra requests and replaces the old per-user
-          // getDownloadURL() fan-out plus its 30s refetch timer. Only the changed
-          // docs need priming — the rest are already in the cache.
-          if (touched.length > 0) avatarCache.primeMany(touched);
-          // Real data is on screen — only now drop the skeleton.
-          setLoading(false);
-          CacheUtils.set(cacheKeys.current.users, userList);
-        },
-        () => {
-          if (isMounted.current) {
-            setLoading(false);
-            Alert.alert("Error", "Could not fetch users.");
-          }
+          const data = change.doc.data();
+          // String() keeps the comparator total — a non-string `name` (e.g. a
+          // number entered via DatabaseManager) used to reach .toLowerCase() and
+          // throw, killing the whole snapshot handler.
+          const name = String(data.name ?? "");
+          const item = { ...data, id, name };
+          // Sort key precomputed once per doc rather than built inside the
+          // comparator, which runs O(n log n) times.
+          roster.set(id, { item, key: name.trim().toLowerCase() });
+          touched.push(item);
         }
-      );
+
+        const userList = Array.from(roster.values())
+          .sort(
+            (a, b) =>
+              a.key.localeCompare(b.key) ||
+              (a.item.id < b.item.id ? -1 : a.item.id > b.item.id ? 1 : 0)
+          )
+          .map((entry) => entry.item);
+
+        setUsers(userList);
+        // These docs already carry photoURL, so priming the avatar cache here
+        // costs no extra requests and replaces the old per-user
+        // getDownloadURL() fan-out plus its 30s refetch timer. Only the changed
+        // docs need priming — the rest are already in the cache.
+        if (touched.length > 0) avatarCache.primeMany(touched);
+        // Real data is on screen — only now drop the skeleton.
+        setLoading(false);
+        CacheUtils.set(cacheKeys.current.users, userList);
+      },
+      () => {
+        if (isMounted.current) {
+          setLoading(false);
+          Alert.alert("Error", "Could not fetch users.");
+        }
+      }
+    );
   };
 
   // Build sections from users + searchQuery.
@@ -534,10 +536,7 @@ const AdminManager = () => {
         roleUpdates[role.key] = selectedRoles.includes(role.key);
       });
 
-      await firestore()
-        .collection("users")
-        .doc(selectedUser.id)
-        .update(roleUpdates);
+      await updateDoc(doc(getFirestore(), "users", selectedUser.id), roleUpdates);
 
       await CacheUtils.remove(cacheKeys.current.users);
       setModalVisible(false);

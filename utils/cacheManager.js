@@ -1,6 +1,23 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import firestore from '@react-native-firebase/firestore';
-import storage from '@react-native-firebase/storage';
+import {
+  collection,
+  doc as firestoreDoc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  limit,
+  orderBy,
+  query as firestoreQuery,
+  updateDoc,
+  where,
+} from '@react-native-firebase/firestore';
+import {
+  getDownloadURL,
+  getMetadata,
+  getStorage,
+  putFile,
+  ref,
+} from '@react-native-firebase/storage';
 
 const CACHE_PREFIXES = {
   FIRESTORE: 'firestore_cache_',
@@ -120,7 +137,7 @@ export class FirestoreCache {
     
     try {
       // Fetch from Firestore
-      const doc = await firestore().collection(collectionPath).doc(documentId).get();
+      const doc = await getDoc(firestoreDoc(getFirestore(), collectionPath, documentId));
       const data = doc.exists ? { id: doc.id, ...doc.data() } : null;
       
       // Cache the result
@@ -150,26 +167,26 @@ export class FirestoreCache {
     
     try {
       // Build query
-      let query = firestore().collection(collectionPath);
+      let query = collection(getFirestore(), collectionPath);
       
       if (queryOptions.where) {
         queryOptions.where.forEach(([field, operator, value]) => {
-          query = query.where(field, operator, value);
+          query = firestoreQuery(query, where(field, operator, value));
         });
       }
       
       if (queryOptions.orderBy) {
         queryOptions.orderBy.forEach(([field, direction = 'asc']) => {
-          query = query.orderBy(field, direction);
+          query = firestoreQuery(query, orderBy(field, direction));
         });
       }
       
       if (queryOptions.limit) {
-        query = query.limit(queryOptions.limit);
+        query = firestoreQuery(query, limit(queryOptions.limit));
       }
       
       // Execute query
-      const snapshot = await query.get();
+      const snapshot = await getDocs(query);
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
       // Cache the result
@@ -189,7 +206,7 @@ export class FirestoreCache {
   static async updateDocument(collectionPath, documentId, data, options = {}) {
     try {
       // Update Firestore
-      await firestore().collection(collectionPath).doc(documentId).update(data);
+      await updateDoc(firestoreDoc(getFirestore(), collectionPath, documentId), data);
       
       // Invalidate cache if specified
       if (options.invalidateCache !== false) {
@@ -223,7 +240,7 @@ export class StorageCache {
     
     try {
       // Get download URL from Firebase Storage
-      const url = await storage().ref(path).getDownloadURL();
+      const url = await getDownloadURL(ref(getStorage(), path));
       
       // Cache the URL
       await CacheManager.setCache(cacheKey, url, 'STORAGE');
@@ -250,7 +267,7 @@ export class StorageCache {
     
     try {
       // Get metadata from Firebase Storage
-      const metadata = await storage().ref(path).getMetadata();
+      const metadata = await getMetadata(ref(getStorage(), path));
       
       // Cache the metadata
       await CacheManager.setCache(cacheKey, metadata, 'STORAGE');
@@ -269,11 +286,11 @@ export class StorageCache {
   static async uploadFile(path, file, metadata = {}) {
     try {
       // Upload to Firebase Storage
-      const task = storage().ref(path).putFile(file, metadata);
+      const task = putFile(ref(getStorage(), path), file, metadata);
       const snapshot = await task;
       
       // Get download URL and cache it
-      const url = await storage().ref(path).getDownloadURL();
+      const url = await getDownloadURL(ref(getStorage(), path));
       const cacheKey = `url_${path}`;
       await CacheManager.setCache(cacheKey, url, 'STORAGE');
       

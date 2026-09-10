@@ -10,9 +10,9 @@ import {
   Platform,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import firestore from "@react-native-firebase/firestore";
-import storage from "@react-native-firebase/storage";
-import auth from "@react-native-firebase/auth";
+import { doc, getDoc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
+import { getDownloadURL, getStorage, ref } from "@react-native-firebase/storage";
+import { getAuth } from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
@@ -22,7 +22,7 @@ import defaultProfile from "../../assets/default_profile.png";
 
 const ChildPhoto = ({ route }) => {
   const { childData } = route.params;
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
   const userId = user ? user.uid : null;
   const navigation = useNavigation();
   const [showPhotoModal, setShowPhotoModal] = useState(false);
@@ -36,9 +36,9 @@ const ChildPhoto = ({ route }) => {
 
   const updatePhotoUrlInDB = async () => {
     try {
-      const photoUrl = await storage()
-        .ref(`profilePictures/${childData.uid}.png`)
-        .getDownloadURL();
+      const photoUrl = await getDownloadURL(
+        ref(getStorage(), `profilePictures/${childData.uid}.png`)
+      );
       setPreviewUri(photoUrl); // Update preview
       setPhotoUploaded(true); // Mark photo as uploaded
       return photoUrl;
@@ -60,13 +60,13 @@ const ChildPhoto = ({ route }) => {
     }
 
     try {
-      const photoUrl = await storage()
-        .ref(`profilePictures/${childData.uid}.png`)
-        .getDownloadURL();
+      const photoUrl = await getDownloadURL(
+        ref(getStorage(), `profilePictures/${childData.uid}.png`)
+      );
       const updatedChildData = { ...childData, photoUrl };
 
-      const userDocRef = firestore().collection("users").doc(userId);
-      const userDoc = await userDocRef.get();
+      const userDocRef = doc(getFirestore(), "users", userId);
+      const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists) {
         const userData = userDoc.data();
@@ -79,7 +79,7 @@ const ChildPhoto = ({ route }) => {
           children.push(updatedChildData);
         }
 
-        await userDocRef.update({ children });
+        await updateDoc(userDocRef, { children });
         navigation.navigate("ChildDeaconRank", { childData: updatedChildData });
       } else {
         throw new Error("User document does not exist");

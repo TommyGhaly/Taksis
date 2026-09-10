@@ -20,9 +20,24 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
-import storage from "@react-native-firebase/storage";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getFirestore,
+  onSnapshot,
+  setDoc,
+  updateDoc,
+} from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
+import {
+  deleteObject,
+  getDownloadURL,
+  getStorage,
+  ref,
+  uploadBytes,
+} from "@react-native-firebase/storage";
 import * as Haptics from "react-native-haptic-feedback";
 import { Ionicons } from "@expo/vector-icons";
 import AlphabetIndexBar from "../../components/AlphabetIndexBar";
@@ -123,13 +138,10 @@ const getNextSunday = () => {
 // ── Merge logic ───────────────────────────────────────────────────────────────
 
 async function mergeManualIntoReal(church, manualServant, realUID) {
-  const collRef = firestore()
-    .collection("churches")
-    .doc(church)
-    .collection("Servants Meeting");
+  const collRef = collection(getFirestore(), "churches", church, "Servants Meeting");
 
-  const manualDocRef = collRef.doc(manualServant.uid);
-  const realDocRef = collRef.doc(realUID);
+  const manualDocRef = doc(collRef, manualServant.uid);
+  const realDocRef = doc(collRef, realUID);
 
   // Build attendance map from manual doc (exclude metadata fields)
   const SKIP = new Set(["name", "uid", "manual", "phone"]);
@@ -139,7 +151,7 @@ async function mergeManualIntoReal(church, manualServant, realUID) {
   }
 
   // Get real doc (may not exist yet)
-  const realSnap = await realDocRef.get();
+  const realSnap = await getDoc(realDocRef);
   const realData = realSnap.exists ? realSnap.data() : {};
 
   // Merge: real account wins on conflict
@@ -149,27 +161,27 @@ async function mergeManualIntoReal(church, manualServant, realUID) {
   let realName = realData.name || "";
   if (!realName) {
     try {
-      const userSnap = await firestore().collection("users").doc(realUID).get();
+      const userSnap = await getDoc(doc(getFirestore(), "users", realUID));
       if (userSnap.exists) realName = userSnap.data()?.name || "";
     } catch {}
   }
 
   // Write merged doc under real UID
-  await realDocRef.set({ ...merged, uid: realUID, name: realName }, { merge: true });
+  await setDoc(realDocRef, { ...merged, uid: realUID, name: realName }, { merge: true });
 
   // ── Profile photo merge ──
-  const manualPhotoRef = storage().ref(`profilePictures/${manualServant.uid}.png`);
-  const realPhotoRef = storage().ref(`profilePictures/${realUID}.png`);
+  const manualPhotoRef = ref(getStorage(), `profilePictures/${manualServant.uid}.png`);
+  const realPhotoRef = ref(getStorage(), `profilePictures/${realUID}.png`);
 
   let realHasPhoto = false;
   try {
-    await realPhotoRef.getDownloadURL();
+    await getDownloadURL(realPhotoRef);
     realHasPhoto = true;
   } catch {}
 
   let manualHasPhoto = false;
   try {
-    await manualPhotoRef.getDownloadURL();
+    await getDownloadURL(manualPhotoRef);
     manualHasPhoto = true;
   } catch {}
 
@@ -177,20 +189,20 @@ async function mergeManualIntoReal(church, manualServant, realUID) {
     if (!realHasPhoto) {
       // Download manual photo bytes and upload under real UID
       try {
-        const url = await manualPhotoRef.getDownloadURL();
+        const url = await getDownloadURL(manualPhotoRef);
         const response = await fetch(url);
         const blob = await response.blob();
-        await realPhotoRef.put(blob);
+        await uploadBytes(realPhotoRef, blob);
       } catch (e) {
         console.warn("Photo copy failed:", e);
       }
     }
     // Always delete the manual photo regardless
-    try { await manualPhotoRef.delete(); } catch {}
+    try { await deleteObject(manualPhotoRef); } catch {}
   }
 
   // Delete manual doc
-  await manualDocRef.delete();
+  await deleteDoc(manualDocRef);
 }
 
 // ── Main screen ───────────────────────────────────────────────────────────────
@@ -306,7 +318,7 @@ const weekKeyExtractor = (item) => item;
 
 const ServantsAttendance = () => {
   const navigation = useNavigation();
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   // Hold the reads and the Sunday date math until the drawer/stack transition
   // has finished animating — both run on the thread driving that animation.
@@ -421,7 +433,7 @@ const ServantsAttendance = () => {
     // the skeleton forever.
     const stopLoading = () => { if (isMounted.current) setLoading(false); };
     try {
-      const userDoc = await firestore().collection("users").doc(user.uid).get();
+      const userDoc = await getDoc(doc(getFirestore(), "users", user.uid));
       if (!isMounted.current) return;
       if (!userDoc.exists) { stopLoading(); return; }
       const localUserData = userDoc.data();
@@ -429,11 +441,14 @@ const ServantsAttendance = () => {
       CacheUtils.set(cacheKeys.current.user, localUserData);
       if (!localUserData.church) { stopLoading(); Alert.alert("Error", "No church assigned."); return; }
 
-      servantsUnsubscribe.current = firestore()
-        .collection("churches")
-        .doc(localUserData.church)
-        .collection("Servants Meeting")
-        .onSnapshot(async (snapshot) => {
+      servantsUnsubscribe.current = onSnapshot(
+        collection(
+          getFirestore(),
+          "churches",
+          localUserData.church,
+          "Servants Meeting"
+        ),
+        async (snapshot) => {
           if (!isMounted.current) return;
           const data = snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data() }));
           setRawServantsData(data);
@@ -443,7 +458,9 @@ const ServantsAttendance = () => {
           // url/version is unchanged, so attendance toggles cost nothing.
           avatarCache.primeMany(data);
           CacheUtils.set(cacheKeys.current.servants, data);
-        }, () => { stopLoading(); if (isMounted.current) Alert.alert("Error", "Failed to load servants."); });
+        },
+        () => { stopLoading(); if (isMounted.current) Alert.alert("Error", "Failed to load servants."); }
+      );
     } catch (e) { stopLoading(); if (isMounted.current) Alert.alert("Error", e.message); }
   };
 
@@ -534,10 +551,10 @@ const ServantsAttendance = () => {
     const dateKey = selectedDate || getNextSunday();
     if (selectedDate && selectedDate !== getNextSunday()) return;
     Haptics.trigger("impactLight");
-    firestore()
-      .collection("churches").doc(userData?.church)
-      .collection("Servants Meeting").doc(servantID)
-      .update({ [dateKey]: status })
+    updateDoc(
+      doc(getFirestore(), "churches", userData?.church, "Servants Meeting", servantID),
+      { [dateKey]: status }
+    )
       .catch(() => Alert.alert("Error", "Failed to update attendance."));
   }, [selectedDate, userData?.church]);
 
@@ -581,10 +598,10 @@ const ServantsAttendance = () => {
       // The photo (if any) was uploaded to profilePictures/{docId}.png when the
       // user confirmed in PhotoInput. Since the temp uid IS the docId, it's
       // already at the correct path — no move needed.
-      await firestore()
-        .collection("churches").doc(userData.church)
-        .collection("Servants Meeting").doc(docId)
-        .set({ uid: docId, name: trimmed, manual: true });
+      await setDoc(
+        doc(getFirestore(), "churches", userData.church, "Servants Meeting", docId),
+        { uid: docId, name: trimmed, manual: true }
+      );
 
       setAddModalVisible(false);
       setNewName("");

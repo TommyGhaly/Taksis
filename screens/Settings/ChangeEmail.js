@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useState } from "react";
 import BackArrow from "../../components/backArrow";
-import auth from "@react-native-firebase/auth";
+import { getAuth, signInWithEmailAndPassword } from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 
 const ChangeEmail = () => {
@@ -25,8 +25,9 @@ const ChangeEmail = () => {
 
     try {
       // Sign in with the current email and password
-      const userCredential = await auth().signInWithEmailAndPassword(
-        auth().currentUser.email,
+      const userCredential = await signInWithEmailAndPassword(
+        getAuth(),
+        getAuth().currentUser.email,
         password
       );
       // Update the email

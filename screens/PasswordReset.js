@@ -8,7 +8,7 @@ import {
   ScrollView,
   Alert,
 } from "react-native";
-import auth from '@react-native-firebase/auth';  // Import Firebase Auth
+import { getAuth, sendPasswordResetEmail } from '@react-native-firebase/auth';  // Import Firebase Auth
 import BackArrow from "../components/backArrow";
 
 const PasswordReset = ({ navigation }) => {
@@ -23,8 +23,7 @@ const PasswordReset = ({ navigation }) => {
     }
 
     // Send a password reset email using react-native-firebase Auth
-    auth()
-      .sendPasswordResetEmail(email)
+    sendPasswordResetEmail(getAuth(), email)
       .then(() => {
         Alert.alert(
           "Success",

@@ -18,9 +18,18 @@ import {
   PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
-import firestore from "@react-native-firebase/firestore";
-import storage from "@react-native-firebase/storage";
-import auth from "@react-native-firebase/auth";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getFirestore,
+  onSnapshot,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+} from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import { Ionicons } from "@expo/vector-icons";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import PhotoInput from "../../components/photoInput";
@@ -277,7 +286,7 @@ const ServantsAdmin = () => {
     isMounted.current = true;
 
     const initializeApp = async () => {
-      const user = auth().currentUser;
+      const user = getAuth().currentUser;
       if (!user) {
         setLoading(false);
         Alert.alert("Error", "No user authenticated.");
@@ -339,46 +348,44 @@ const ServantsAdmin = () => {
 
   // Set up user church listener
   const setupUserChurchListener = () => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     
-    userUnsubscribe.current = firestore()
-      .collection("users")
-      .doc(user.uid)
-      .onSnapshot(
-        async (doc) => {
-          if (!isMounted.current) return;
+    userUnsubscribe.current = onSnapshot(
+      doc(getFirestore(), "users", user.uid),
+      async (doc) => {
+        if (!isMounted.current) return;
           
-          if (doc.exists) {
-            const userChurch = doc.data().church || null;
-            setChurch(userChurch);
+        if (doc.exists) {
+          const userChurch = doc.data().church || null;
+          setChurch(userChurch);
             
-            // Cache church data
-            CacheUtils.set(cacheKeys.current.church, userChurch);
+          // Cache church data
+          CacheUtils.set(cacheKeys.current.church, userChurch);
             
-            // Set up servants listener when church is available. Only re-attach
-            // when the church actually changed — re-attaching on every write to
-            // your own user doc tore down the roster listener and replayed a full
-            // snapshot, re-rendering the whole list each time.
-            if (userChurch) {
-              if (attachedChurch.current !== userChurch) {
-                attachedChurch.current = userChurch;
-                setupServantsListener(userChurch);
-              }
-            } else {
-              attachedChurch.current = null;
-              setLoading(false);
+          // Set up servants listener when church is available. Only re-attach
+          // when the church actually changed — re-attaching on every write to
+          // your own user doc tore down the roster listener and replayed a full
+          // snapshot, re-rendering the whole list each time.
+          if (userChurch) {
+            if (attachedChurch.current !== userChurch) {
+              attachedChurch.current = userChurch;
+              setupServantsListener(userChurch);
             }
           } else {
+            attachedChurch.current = null;
             setLoading(false);
           }
-        },
-        (error) => {
-          if (isMounted.current) {
-            setLoading(false);
-            Alert.alert("Error", "Failed to fetch church data.");
-          }
+        } else {
+          setLoading(false);
         }
-      );
+      },
+      (error) => {
+        if (isMounted.current) {
+          setLoading(false);
+          Alert.alert("Error", "Failed to fetch church data.");
+        }
+      }
+    );
   };
 
   // Set up servants listener
@@ -388,56 +395,57 @@ const ServantsAdmin = () => {
       servantsUnsubscribe.current();
     }
 
-    servantsUnsubscribe.current = firestore()
-      .collection("users")
-      .where("church", "==", churchId)
-      .where("isSSTeacher", "==", true)
-      .onSnapshot(
-        async (querySnapshot) => {
-          if (!isMounted.current) return;
+    servantsUnsubscribe.current = onSnapshot(
+      query(
+        collection(getFirestore(), "users"),
+        where("church", "==", churchId),
+        where("isSSTeacher", "==", true)
+      ),
+      async (querySnapshot) => {
+        if (!isMounted.current) return;
           
-          // One pass, one doc.data() per doc. The third .map this replaces
-          // re-derived `name` through `querySnapshot.docs.find(...)` — a linear
-          // scan plus another deserialization per servant — to produce a value
-          // the `...doc.data()` spread had already set. O(n²) dead work.
-          // Sort key computed once per doc, not inside the comparator. Each
-          // `doc` property read goes through @react-native-firebase's
-          // deprecation Proxy, so each one is touched exactly once.
-          const servantList = querySnapshot.docs
-            .map((doc) => {
-              const data = doc.data();
-              // String() keeps the comparator total against a non-string `name`.
-              const name = String(data.name ?? "");
-              const id = doc.id;
-              return { item: { ...data, id, name }, key: name.trim().toLowerCase(), id };
-            })
-            .sort(
-              (a, b) =>
-                a.key.localeCompare(b.key) ||
-                (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-            )
-            .map((entry) => entry.item);
+        // One pass, one doc.data() per doc. The third .map this replaces
+        // re-derived `name` through `querySnapshot.docs.find(...)` — a linear
+        // scan plus another deserialization per servant — to produce a value
+        // the `...doc.data()` spread had already set. O(n²) dead work.
+        // Sort key computed once per doc, not inside the comparator. Each
+        // `doc` property read goes through @react-native-firebase's
+        // deprecation Proxy, so each one is touched exactly once.
+        const servantList = querySnapshot.docs
+          .map((doc) => {
+            const data = doc.data();
+            // String() keeps the comparator total against a non-string `name`.
+            const name = String(data.name ?? "");
+            const id = doc.id;
+            return { item: { ...data, id, name }, key: name.trim().toLowerCase(), id };
+          })
+          .sort(
+            (a, b) =>
+              a.key.localeCompare(b.key) ||
+              (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+          )
+          .map((entry) => entry.item);
 
-          setServants(servantList);
+        setServants(servantList);
 
-          // These docs already carry photoURL, so priming the avatar cache
-          // here costs no extra requests and replaces the old per-user
-          // getDownloadURL() fan-out plus its 30s refetch timer.
-          avatarCache.primeMany(servantList);
+        // These docs already carry photoURL, so priming the avatar cache
+        // here costs no extra requests and replaces the old per-user
+        // getDownloadURL() fan-out plus its 30s refetch timer.
+        avatarCache.primeMany(servantList);
 
-          // Real data is on screen — only now drop the skeleton.
+        // Real data is on screen — only now drop the skeleton.
+        setLoading(false);
+
+        // Cache servants data
+        CacheUtils.set(cacheKeys.current.servants, servantList);
+      },
+      (error) => {
+        if (isMounted.current) {
           setLoading(false);
-
-          // Cache servants data
-          CacheUtils.set(cacheKeys.current.servants, servantList);
-        },
-        (error) => {
-          if (isMounted.current) {
-            setLoading(false);
-            Alert.alert("Error", "Could not fetch servants.");
-          }
+          Alert.alert("Error", "Could not fetch servants.");
         }
-      );
+      }
+    );
   };
 
   // Build sections from servants + searchQuery.
@@ -558,7 +566,7 @@ const ServantsAdmin = () => {
 
     try {
       // 1. Update the user document (existing functionality)
-      await firestore().collection("users").doc(selectedServant.id).update({
+      await updateDoc(doc(getFirestore(), "users", selectedServant.id), {
         ssGrades: selectedGrades,
         isServant: isServantMeeting,
       });
@@ -576,14 +584,19 @@ const ServantsAdmin = () => {
       });
 
       // Create or update the document
-      await firestore()
-        .collection("churches")
-        .doc(church)
-        .collection("Sunday School")
-        .doc("Servants")
-        .collection("Servants")
-        .doc(selectedServant.id)
-        .set(servantData, { merge: true });
+      await setDoc(
+        doc(
+          getFirestore(),
+          "churches",
+          church,
+          "Sunday School",
+          "Servants",
+          "Servants",
+          selectedServant.id
+        ),
+        servantData,
+        { merge: true }
+      );
 
       // Clear servants cache to force refresh
       await CacheUtils.remove(cacheKeys.current.servants);
@@ -601,21 +614,22 @@ const ServantsAdmin = () => {
 
     try {
       // 1. Update the user document (existing functionality)
-      await firestore().collection("users").doc(servantId).update({
+      await updateDoc(doc(getFirestore(), "users", servantId), {
         isSSTeacher: false,
         ssGrades: [],
         isServant: false,
       });
 
       // 2. Delete the servant document from the church's Sunday School collection
-      await firestore()
-        .collection("churches")
-        .doc(church)
-        .collection("Sunday School")
-        .doc("Servants")
-        .collection("Servants")
-        .doc(servantId)
-        .delete();
+      await deleteDoc(doc(
+        getFirestore(),
+        "churches",
+        church,
+        "Sunday School",
+        "Servants",
+        "Servants",
+        servantId
+      ));
       
       // Clear servants cache to force refresh
       await CacheUtils.remove(cacheKeys.current.servants);

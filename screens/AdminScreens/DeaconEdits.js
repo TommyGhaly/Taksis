@@ -21,8 +21,18 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
+import {
+  collection,
+  doc as firestoreDoc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  onSnapshot,
+  query,
+  where,
+  writeBatch,
+} from "@react-native-firebase/firestore";
+import { getAuth } from "@react-native-firebase/auth";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import Slider from "@react-native-community/slider";
 import IndividualProfile from "../../components/individualProfile";
@@ -194,9 +204,9 @@ const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const batch = firestore().batch();
-      const churchRef = firestore().collection("churches").doc(deacon.churchId);
-      const churchDoc = await churchRef.get();
+      const batch = writeBatch(getFirestore());
+      const churchRef = firestoreDoc(getFirestore(), "churches", deacon.churchId);
+      const churchDoc = await getDoc(churchRef);
       if (!churchDoc.exists) throw new Error("Church not found");
       const churchData = churchDoc.data();
       const deacons = churchData.deacons || [];
@@ -207,15 +217,15 @@ const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
       };
 
       // Check if this is a child (no own user doc — parent has children[])
-      const userDoc = await firestore().collection("users").doc(deacon.uid).get();
+      const userDoc = await getDoc(firestoreDoc(getFirestore(), "users", deacon.uid));
       const isChild = !userDoc.exists;
 
       if (isChild) {
         // Find parent
-        const allUsersSnap = await firestore()
-          .collection("users")
-          .where("church", "==", deacon.churchId)
-          .get();
+        const allUsersSnap = await getDocs(query(
+          collection(getFirestore(), "users"),
+          where("church", "==", deacon.churchId)
+        ));
         let parentRef = null, parentData = null;
         for (const doc of allUsersSnap.docs) {
           const d = doc.data();
@@ -244,7 +254,7 @@ const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
         }
       } else {
         // Regular user
-        const userRef = firestore().collection("users").doc(deacon.uid);
+        const userRef = firestoreDoc(getFirestore(), "users", deacon.uid);
         batch.update(userRef, { experience: tempExp ?? 0, frequency: tempFreq ?? 0 });
 
         // Sync children if frequency changed
@@ -554,7 +564,7 @@ const SectionHeader = React.memo(({ title }) => (
 SectionHeader.displayName = "SectionHeader";
 
 const DeaconEdits = () => {
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   // Hold every Firestore read until the drawer/stack transition has finished
   // animating — the listeners below would otherwise stall it mid-slide.
@@ -626,18 +636,17 @@ const DeaconEdits = () => {
     if (!ready) return;
     if (!user?.uid) { setUserDataLoading(false); return; }
     if (userListenerRef.current) { userListenerRef.current(); userListenerRef.current = null; }
-    userListenerRef.current = firestore()
-      .collection("users").doc(user.uid)
-      .onSnapshot(
-        (doc) => {
-          if (doc.exists) {
-            const newChurch = doc.data()?.church || null;
-            if (newChurch !== currentChurch) setCurrentChurch(newChurch);
-          }
-          setUserDataLoading(false);
-        },
-        () => setUserDataLoading(false)
-      );
+    userListenerRef.current = onSnapshot(
+      firestoreDoc(getFirestore(), "users", user.uid),
+      (doc) => {
+        if (doc.exists) {
+          const newChurch = doc.data()?.church || null;
+          if (newChurch !== currentChurch) setCurrentChurch(newChurch);
+        }
+        setUserDataLoading(false);
+      },
+      () => setUserDataLoading(false)
+    );
     return () => { if (userListenerRef.current) { userListenerRef.current(); userListenerRef.current = null; } };
   }, [user?.uid, ready]);
 
@@ -740,27 +749,26 @@ const DeaconEdits = () => {
     userDocsRef.current = new Map();
     if (!currentChurch) { setDeacons([]); setLoadedChurch(null); setIsLoadingDeacons(false); return; }
     setIsLoadingDeacons(true);
-    deaconsListenerRef.current = firestore()
-      .collection("churches").doc(currentChurch)
-      .onSnapshot(
-        async (doc) => {
-          if (doc.exists) {
-            const churchData = doc.data();
-            const deaconData = (churchData.deacons || []).map((d) => ({ ...d, churchId: currentChurch }));
-            await processDeaconList(deaconData, churchData);
-          } else {
-            setDeacons([]);
-          }
-          setLoadedChurch(currentChurch);
-          setIsLoadingDeacons(false);
-        },
-        (err) => {
-          console.error("Listener error:", err);
-          Alert.alert("Error", "Failed to fetch deacons.");
-          setLoadedChurch(currentChurch);
-          setIsLoadingDeacons(false);
+    deaconsListenerRef.current = onSnapshot(
+      firestoreDoc(getFirestore(), "churches", currentChurch),
+      async (doc) => {
+        if (doc.exists) {
+          const churchData = doc.data();
+          const deaconData = (churchData.deacons || []).map((d) => ({ ...d, churchId: currentChurch }));
+          await processDeaconList(deaconData, churchData);
+        } else {
+          setDeacons([]);
         }
-      );
+        setLoadedChurch(currentChurch);
+        setIsLoadingDeacons(false);
+      },
+      (err) => {
+        console.error("Listener error:", err);
+        Alert.alert("Error", "Failed to fetch deacons.");
+        setLoadedChurch(currentChurch);
+        setIsLoadingDeacons(false);
+      }
+    );
     return () => { if (deaconsListenerRef.current) { deaconsListenerRef.current(); deaconsListenerRef.current = null; } };
   }, [currentChurch, processDeaconList, ready]);
 
@@ -902,13 +910,13 @@ const DeaconEdits = () => {
       if (user?.uid) {
         // A manual refresh is the one place we do want to re-read user docs.
         userDocsRef.current = new Map();
-        const doc = await firestore().collection("users").doc(user.uid).get();
+        const doc = await getDoc(firestoreDoc(getFirestore(), "users", user.uid));
         if (doc.exists) {
           const church = doc.data()?.church || null;
           if (church !== currentChurch) {
             setCurrentChurch(church);
           } else if (church) {
-            const cDoc = await firestore().collection("churches").doc(church).get();
+            const cDoc = await getDoc(firestoreDoc(getFirestore(), "churches", church));
             if (cDoc.exists) await processDeaconList(cDoc.data().deacons || [], cDoc.data());
           }
         }

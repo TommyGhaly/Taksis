@@ -9,7 +9,15 @@
  * `where(documentId(), "in", [...])` fetches up to ID_CHUNK_SIZE documents per
  * request, so the cost becomes ceil(n / 30) instead of n.
  */
-import firestore from "@react-native-firebase/firestore";
+import {
+  FieldPath,
+  collection,
+  getDocs,
+  getFirestore,
+  onSnapshot,
+  query,
+  where,
+} from "@react-native-firebase/firestore";
 
 /**
  * Firestore's cap on values in an `in` filter. This was 10 for years and was
@@ -50,10 +58,10 @@ export async function getDocsByIds(collectionName, ids, { chunkSize = ID_CHUNK_S
 
   const snapshots = await Promise.all(
     chunks.map((chunk) =>
-      firestore()
-        .collection(collectionName)
-        .where(firestore.FieldPath.documentId(), "in", chunk)
-        .get()
+      getDocs(query(
+        collection(getFirestore(), collectionName),
+        where(FieldPath.documentId(), "in", chunk)
+      ))
         .catch((err) => {
           console.error(`getDocsByIds(${collectionName}) chunk failed:`, err);
           return null;
@@ -105,29 +113,30 @@ export function watchDocsByIds(
   if (chunks.length === 0) return () => {};
 
   const unsubs = chunks.map((chunk, index) =>
-    firestore()
-      .collection(collectionName)
-      .where(firestore.FieldPath.documentId(), "in", chunk)
-      .onSnapshot(
-        (snapshot) => {
-          try {
-            onDocs?.(
-              snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data() })),
-              chunk
-            );
-          } finally {
-            onChunkSettled?.(index);
-          }
-        },
-        (err) => {
-          console.error(`watchDocsByIds(${collectionName}) chunk failed:`, err);
-          try {
-            onError?.(err, index);
-          } finally {
-            onChunkSettled?.(index);
-          }
+    onSnapshot(
+      query(
+        collection(getFirestore(), collectionName),
+        where(FieldPath.documentId(), "in", chunk)
+      ),
+      (snapshot) => {
+        try {
+          onDocs?.(
+            snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data() })),
+            chunk
+          );
+        } finally {
+          onChunkSettled?.(index);
         }
-      )
+      },
+      (err) => {
+        console.error(`watchDocsByIds(${collectionName}) chunk failed:`, err);
+        try {
+          onError?.(err, index);
+        } finally {
+          onChunkSettled?.(index);
+        }
+      }
+    )
   );
 
   return () => unsubs.forEach((u) => u());

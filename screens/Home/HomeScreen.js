@@ -12,11 +12,27 @@ import {
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import firestore, { FieldValue } from "@react-native-firebase/firestore";
-import messaging from "@react-native-firebase/messaging";
-import auth from "@react-native-firebase/auth";
-import { deleteUser } from "@react-native-firebase/auth";
-import storage from "@react-native-firebase/storage";
+import {
+  arrayRemove,
+  arrayUnion,
+  collection,
+  doc,
+  getDoc,
+  getFirestore,
+  onSnapshot,
+  updateDoc,
+} from "@react-native-firebase/firestore";
+import messaging, {
+  getMessaging,
+  getToken,
+  hasPermission,
+  onMessage,
+  registerDeviceForRemoteMessages,
+  requestPermission,
+  setBackgroundMessageHandler,
+} from "@react-native-firebase/messaging";
+import { deleteUser, getAuth } from "@react-native-firebase/auth";
+import { getDownloadURL, getStorage, ref } from "@react-native-firebase/storage";
 import { check, request, PERMISSIONS, RESULTS } from "react-native-permissions";
 import { callFunction } from "../../components/functionCalls";
 import HomeScreenNames from "../../components/homescreenNames";
@@ -42,7 +58,7 @@ import { FirestoreCache } from "../../utils/cacheManager";
 async function createNotificationChannel() {
   if (Platform.OS === "android") {
     try {
-      await messaging().registerDeviceForRemoteMessages();
+      await registerDeviceForRemoteMessages(getMessaging());
     } catch (error) {
       // Error handling for device registration
     }
@@ -51,7 +67,7 @@ async function createNotificationChannel() {
 
 async function getFCMToken() {
   try {
-    const fcmToken = await messaging().getToken();
+    const fcmToken = await getToken(getMessaging());
     return fcmToken || null;
   } catch (error) {
     return null;
@@ -61,9 +77,9 @@ async function getFCMToken() {
 async function storeFCMToken(userId, fcmToken) {
   try {
     // Update Firestore directly for FCM tokens (real-time requirement)
-    const userRef = firestore().collection("users").doc(userId);
-    await userRef.update({
-      fcmTokens: FieldValue.arrayUnion(fcmToken),
+    const userRef = doc(getFirestore(), "users", userId);
+    await updateDoc(userRef, {
+      fcmTokens: arrayUnion(fcmToken),
     });
 
     // Optionally refresh user cache to include new token
@@ -89,7 +105,7 @@ async function requestUserPermissionAndroid() {
         }
       }
     }
-    const authStatus = await messaging().requestPermission();
+    const authStatus = await requestPermission(getMessaging());
     const authorized = authStatus === messaging.AuthorizationStatus.AUTHORIZED;
     return authorized;
   } catch (error) {
@@ -99,7 +115,7 @@ async function requestUserPermissionAndroid() {
 
 async function requestUserPermissionIOS() {
   try {
-    const authStatus = await messaging().requestPermission({
+    const authStatus = await requestPermission(getMessaging(), {
       alert: true,
       badge: true,
       sound: true,
@@ -116,15 +132,15 @@ async function requestUserPermissionIOS() {
 async function checkNotificationPermission() {
   try {
     await createNotificationChannel();
-    const authStatus = await messaging().hasPermission();
+    const authStatus = await hasPermission(getMessaging());
     const isAuthorized =
       authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
       authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
     if (isAuthorized) {
       const fcmToken = await getFCMToken();
-      if (fcmToken && auth().currentUser) {
-        await storeFCMToken(auth().currentUser.uid, fcmToken);
+      if (fcmToken && getAuth().currentUser) {
+        await storeFCMToken(getAuth().currentUser.uid, fcmToken);
       }
     } else {
       const granted = await (Platform.OS === "android"
@@ -132,8 +148,8 @@ async function checkNotificationPermission() {
         : requestUserPermissionIOS());
       if (granted) {
         const fcmToken = await getFCMToken();
-        if (fcmToken && auth().currentUser) {
-          await storeFCMToken(auth().currentUser.uid, fcmToken);
+        if (fcmToken && getAuth().currentUser) {
+          await storeFCMToken(getAuth().currentUser.uid, fcmToken);
         }
       } else {
         Alert.alert(
@@ -153,7 +169,7 @@ async function checkNotificationPermission() {
 const NO_ONE = { name: "N/A" };
 
 const HomeScreen = () => {
-  const user = auth().currentUser;
+  const user = getAuth().currentUser;
 
   // Thumbnail in the home-screen selector. The schedule itself renders normally;
   // what a preview skips is everything that reaches outside its own card —
@@ -249,35 +265,33 @@ const HomeScreen = () => {
     if (!user) return;
 
     // Set up real-time listener specifically for church parameter
-    userRealtimeListenerRef.current = firestore()
-      .collection("users")
-      .doc(user.uid)
-      .onSnapshot(
-        (doc) => {
-          if (doc.exists) {
-            const userData = doc.data();
-            const hasChurch = userData?.church && userData.church.trim() !== "";
+    userRealtimeListenerRef.current = onSnapshot(
+      doc(getFirestore(), "users", user.uid),
+      (doc) => {
+        if (doc.exists) {
+          const userData = doc.data();
+          const hasChurch = userData?.church && userData.church.trim() !== "";
 
-            console.log(
-              "Church realtime check - hasChurch:",
-              hasChurch,
-              "church value:",
-              userData?.church
-            );
+          console.log(
+            "Church realtime check - hasChurch:",
+            hasChurch,
+            "church value:",
+            userData?.church
+          );
 
-            // Update church modal visibility based on real-time data
-            if (!isPreview) setShowChurchModal(!hasChurch);
+          // Update church modal visibility based on real-time data
+          if (!isPreview) setShowChurchModal(!hasChurch);
 
-            // If church was just set, update the cached data
-            if (hasChurch && showChurchModal) {
-              refreshUser();
-            }
+          // If church was just set, update the cached data
+          if (hasChurch && showChurchModal) {
+            refreshUser();
           }
-        },
-        (error) => {
-          console.error("Error in church realtime listener:", error);
         }
-      );
+      },
+      (error) => {
+        console.error("Error in church realtime listener:", error);
+      }
+    );
 
     return () => {
       if (userRealtimeListenerRef.current) {
@@ -290,7 +304,7 @@ const HomeScreen = () => {
     setIsDeacon(true);
     if (isPreview) return;
 
-    const unsubscribe = messaging().onMessage(async (remoteMessage) => {
+    const unsubscribe = onMessage(getMessaging(), async (remoteMessage) => {
       Alert.alert(
         remoteMessage?.notification?.title || "Notification",
         remoteMessage?.notification?.body || "You have a new message."
@@ -300,7 +314,7 @@ const HomeScreen = () => {
     setPhoneModalShownThisSession(false);
 
     const handleAppStateChange = (nextAppState) => {
-      if (nextAppState === "active" && auth().currentUser) {
+      if (nextAppState === "active" && getAuth().currentUser) {
         checkNotificationPermission();
       }
     };
@@ -310,7 +324,7 @@ const HomeScreen = () => {
       handleAppStateChange
     );
 
-    if (auth().currentUser) {
+    if (getAuth().currentUser) {
       checkNotificationPermission();
     }
 
@@ -320,7 +334,7 @@ const HomeScreen = () => {
     };
   }, [isPreview]);
 
-  messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+  setBackgroundMessageHandler(getMessaging(), async (remoteMessage) => {
     // Background message handling
   });
 
@@ -371,7 +385,7 @@ const HomeScreen = () => {
   };
 
   const handleDOBSubmit = async () => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user) {
       Alert.alert("Error", "User not authenticated. Please sign in again.");
       return;
@@ -397,7 +411,7 @@ const HomeScreen = () => {
 
       const userData =
         userDoc ||
-        (await firestore().collection("users").doc(user.uid).get()).data();
+        (await getDoc(doc(getFirestore(), "users", user.uid))).data();
       if (userData?.children?.length > 0) {
         const church = userData.church || null;
         await Promise.all(
@@ -433,7 +447,7 @@ const HomeScreen = () => {
     }
 
     const fullName = `${firstName.trim()} ${lastName.trim()}`;
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user) {
       Alert.alert("Error", "User not authenticated. Please sign in again.");
       return;
@@ -467,7 +481,7 @@ const HomeScreen = () => {
       return;
     }
 
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user) {
       Alert.alert("Error", "User not authenticated.");
       return;
@@ -495,7 +509,7 @@ const HomeScreen = () => {
       return;
     }
 
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user) {
       Alert.alert("Error", "User not authenticated. Please sign in again.");
       return;
@@ -557,21 +571,23 @@ const HomeScreen = () => {
     // Handle confirmed or unsure
     setIsSubmittingStatus(true);
     try {
-      const user = auth().currentUser;
+      const user = getAuth().currentUser;
       if (!user || !churchId || !currentWeek || !userCurrentWeekRoleKey) {
         Alert.alert("Error", "Missing required information.");
         setIsSubmittingStatus(false);
         return;
       }
 
-      const scheduleDocRef = firestore()
-        .collection("churches")
-        .doc(churchId)
-        .collection("schedule")
-        .doc(currentWeek);
+      const scheduleDocRef = doc(
+        getFirestore(),
+        "churches",
+        churchId,
+        "schedule",
+        currentWeek
+      );
 
       // Get current schedule data
-      const scheduleDoc = await scheduleDocRef.get();
+      const scheduleDoc = await getDoc(scheduleDocRef);
       if (!scheduleDoc.exists) {
         Alert.alert("Error", "Schedule not found.");
         setIsSubmittingStatus(false);
@@ -590,12 +606,12 @@ const HomeScreen = () => {
           }
           return server;
         });
-        await scheduleDocRef.update({ altar: updatedAltar });
+        await updateDoc(scheduleDocRef, { altar: updatedAltar });
       } else {
         // Handle single role
         const roleData = scheduleData[userCurrentWeekRoleKey];
         if (roleData && roleData.uid === user.uid) {
-          await scheduleDocRef.update({
+          await updateDoc(scheduleDocRef, {
             [userCurrentWeekRoleKey]: { ...roleData, status }
           });
         }
@@ -627,7 +643,7 @@ const HomeScreen = () => {
   const handleRemoveSelfFromRole = async () => {
     setIsSubmittingStatus(true);
     try {
-      const user = auth().currentUser;
+      const user = getAuth().currentUser;
       if (!user || !churchId || !currentWeek) {
         Alert.alert("Error", "Missing required information.");
         setIsSubmittingStatus(false);
@@ -669,21 +685,23 @@ const HomeScreen = () => {
   const handleKeepButMarkUnavailable = async () => {
     setIsSubmittingStatus(true);
     try {
-      const user = auth().currentUser;
+      const user = getAuth().currentUser;
       if (!user || !churchId || !currentWeek || !userCurrentWeekRoleKey) {
         Alert.alert("Error", "Missing required information.");
         setIsSubmittingStatus(false);
         return;
       }
 
-      const scheduleDocRef = firestore()
-        .collection("churches")
-        .doc(churchId)
-        .collection("schedule")
-        .doc(currentWeek);
+      const scheduleDocRef = doc(
+        getFirestore(),
+        "churches",
+        churchId,
+        "schedule",
+        currentWeek
+      );
 
       // Get current schedule data
-      const scheduleDoc = await scheduleDocRef.get();
+      const scheduleDoc = await getDoc(scheduleDocRef);
       if (!scheduleDoc.exists) {
         Alert.alert("Error", "Schedule not found.");
         setIsSubmittingStatus(false);
@@ -702,12 +720,12 @@ const HomeScreen = () => {
           }
           return server;
         });
-        await scheduleDocRef.update({ altar: updatedAltar });
+        await updateDoc(scheduleDocRef, { altar: updatedAltar });
       } else {
         // Handle single role
         const roleData = scheduleData[userCurrentWeekRoleKey];
         if (roleData && roleData.uid === user.uid) {
-          await scheduleDocRef.update({
+          await updateDoc(scheduleDocRef, {
             [userCurrentWeekRoleKey]: { ...roleData, status: 'unavailable' }
           });
         }
@@ -743,9 +761,9 @@ const HomeScreen = () => {
     setShowPhotoInputModal(false);
 
     try {
-      await storage()
-        .ref(`profilePictures/${auth().currentUser.uid}.png`)
-        .getDownloadURL();
+      await getDownloadURL(
+        ref(getStorage(), `profilePictures/${getAuth().currentUser.uid}.png`)
+      );
       setShowProfilePicModal(false);
       setIsSelectingPhoto(false);
     } catch (error) {
@@ -759,15 +777,15 @@ const HomeScreen = () => {
   };
 
   const handleRemoveChildren = async () => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user) {
       Alert.alert("Error", "User not authenticated. Please sign in again.");
       return;
     }
 
     try {
-      const userRef = firestore().collection("users").doc(user.uid);
-      const userDocSnap = await userRef.get();
+      const userRef = doc(getFirestore(), "users", user.uid);
+      const userDocSnap = await getDoc(userRef);
       const userData = userDocSnap.data();
       const church = userData?.church || null;
 
@@ -782,8 +800,8 @@ const HomeScreen = () => {
         })
       );
 
-      await userRef.update({
-        children: FieldValue.arrayRemove(
+      await updateDoc(userRef, {
+        children: arrayRemove(
           ...userData.children.filter((c) => childrenWithoutPfp.includes(c.uid))
         ),
       });
@@ -805,7 +823,7 @@ const HomeScreen = () => {
   };
 
   const handleUnavailableToServe = async () => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user) {
       Alert.alert("Error", "User not authenticated.");
       return;
@@ -845,7 +863,7 @@ const HomeScreen = () => {
           text: "Confirm",
           style: "destructive",
           onPress: async () => {
-            const user = auth().currentUser;
+            const user = getAuth().currentUser;
             if (!user) {
               Alert.alert(
                 "Error",
@@ -856,10 +874,7 @@ const HomeScreen = () => {
 
             setIsLoading(true);
             try {
-              const userDocSnap = await firestore()
-                .collection("users")
-                .doc(user.uid)
-                .get();
+              const userDocSnap = await getDoc(doc(getFirestore(), "users", user.uid));
 
               if (!userDocSnap.exists) {
                 Alert.alert("Error", "User data not found.");
@@ -869,12 +884,9 @@ const HomeScreen = () => {
               const userData = userDocSnap.data();
               const churchIdFromData = userData?.church;
 
-              await firestore()
-                .collection("users")
-                .doc(user.uid)
-                .update({
-                  unavailableWeeks: FieldValue.arrayUnion(...selectedWeeks),
-                });
+              await updateDoc(doc(getFirestore(), "users", user.uid), {
+                unavailableWeeks: arrayUnion(...selectedWeeks),
+              });
 
               setUnavailableWeeks((prev) => [...prev, ...selectedWeeks]);
 
@@ -914,13 +926,13 @@ const HomeScreen = () => {
   };
 
   useEffect(() => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user || isSelectingPhoto || isPreview) return;
 
     const checkProfilePictures = async () => {
       try {
-        const userRef = firestore().collection("users").doc(user.uid);
-        const userDoc = await userRef.get();
+        const userRef = doc(getFirestore(), "users", user.uid);
+        const userDoc = await getDoc(userRef);
         if (!userDoc.exists) return;
 
         const userData = userDoc.data();
@@ -930,9 +942,7 @@ const HomeScreen = () => {
 
         if (isDeaconUser || isSSTeacherUser) {
           try {
-            await storage()
-              .ref(`profilePictures/${user.uid}.png`)
-              .getDownloadURL();
+            await getDownloadURL(ref(getStorage(), `profilePictures/${user.uid}.png`));
           } catch (error) {
             if (
               error.code === "storage/object-not-found" &&
@@ -951,9 +961,7 @@ const HomeScreen = () => {
           for (const child of children) {
             if (child?.uid) {
               try {
-                await storage()
-                  .ref(`profilePictures/${child.uid}.png`)
-                  .getDownloadURL();
+                await getDownloadURL(ref(getStorage(), `profilePictures/${child.uid}.png`));
               } catch (error) {
                 if (error.code === "storage/object-not-found") {
                   missingPfpChildren.push(child.uid);
@@ -1032,65 +1040,63 @@ const HomeScreen = () => {
   }, [user, userDoc?.church]);
 
   useEffect(() => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user) {
       return;
     }
-    const unsubscribeUser = firestore()
-      .collection("users")
-      .doc(user.uid)
-      .onSnapshot(
-        (doc) => {
-          try {
-            const userData = doc.data();
-            if (userData) {
-              // This logic is now handled by cached user data effect above
-              // Keeping this as backup for real-time updates if needed
-              setIsDeacon(userData.isDeacon || false);
-              setNextWeek(userData.nextWeekServe || null);
-              setNextRole(userData.nextRole || "N/A");
-              setLastServe(userData.lastServe || null);
-              setLastRole(userData.lastRole || null);
-              if (userData.church && userData.church !== churchId) {
-                setChurchId(userData.church);
-              }
-              setUnavailableWeeks(
-                Array.isArray(userData.unavailableWeeks)
-                  ? userData.unavailableWeeks
-                  : []
-              );
-              setIsSSTeacher(userData.isSSTeacher || false);
-
-              // Data validation for grades
-              if (
-                userData.alhanGrades &&
-                !(
-                  Array.isArray(userData.alhanGrades) ||
-                  userData.alhanGrades === "" ||
-                  userData.alhanGrades === null
-                )
-              ) {
-                userData.alhanGrades = null;
-              }
-              if (
-                userData.ssGrades &&
-                !(
-                  Array.isArray(userData.ssGrades) ||
-                  userData.ssGrades === "" ||
-                  userData.ssGrades === null
-                )
-              ) {
-                userData.ssGrades = null;
-              }
+    const unsubscribeUser = onSnapshot(
+      doc(getFirestore(), "users", user.uid),
+      (doc) => {
+        try {
+          const userData = doc.data();
+          if (userData) {
+            // This logic is now handled by cached user data effect above
+            // Keeping this as backup for real-time updates if needed
+            setIsDeacon(userData.isDeacon || false);
+            setNextWeek(userData.nextWeekServe || null);
+            setNextRole(userData.nextRole || "N/A");
+            setLastServe(userData.lastServe || null);
+            setLastRole(userData.lastRole || null);
+            if (userData.church && userData.church !== churchId) {
+              setChurchId(userData.church);
             }
-          } catch (error) {
-            // Error handling for user data processing
+            setUnavailableWeeks(
+              Array.isArray(userData.unavailableWeeks)
+                ? userData.unavailableWeeks
+                : []
+            );
+            setIsSSTeacher(userData.isSSTeacher || false);
+
+            // Data validation for grades
+            if (
+              userData.alhanGrades &&
+              !(
+                Array.isArray(userData.alhanGrades) ||
+                userData.alhanGrades === "" ||
+                userData.alhanGrades === null
+              )
+            ) {
+              userData.alhanGrades = null;
+            }
+            if (
+              userData.ssGrades &&
+              !(
+                Array.isArray(userData.ssGrades) ||
+                userData.ssGrades === "" ||
+                userData.ssGrades === null
+              )
+            ) {
+              userData.ssGrades = null;
+            }
           }
-        },
-        (error) => {
-          // Error handling for user document listener
+        } catch (error) {
+          // Error handling for user data processing
         }
-      );
+      },
+      (error) => {
+        // Error handling for user document listener
+      }
+    );
     return () => unsubscribeUser();
   }, [churchId]);
 
@@ -1099,12 +1105,10 @@ const HomeScreen = () => {
       return;
     }
 
-    const schedulesRef = firestore()
-      .collection("churches")
-      .doc(churchId)
-      .collection("schedule");
+    const schedulesRef = collection(getFirestore(), "churches", churchId, "schedule");
 
-    const unsubscribeSchedules = schedulesRef.onSnapshot(
+    const unsubscribeSchedules = onSnapshot(
+      schedulesRef,
       (snapshot) => {
         try {
           if (!snapshot || snapshot.empty) {
@@ -1129,13 +1133,14 @@ const HomeScreen = () => {
           let chosenDocId = "";
           const today = new Date().setHours(0, 0, 0, 0);
 
-          const churchRef = firestore().collection("churches").doc(churchId);
+          const churchRef = doc(getFirestore(), "churches", churchId);
           // Tear down the previous church listener before opening another.
           // Returning a cleanup from inside an onSnapshot callback does nothing
           // (Firestore discards it), which used to leak one listener per
           // schedule change for the lifetime of the app.
           churchUnsubRef.current?.();
-          churchUnsubRef.current = churchRef.onSnapshot(
+          churchUnsubRef.current = onSnapshot(
+            churchRef,
             (churchDoc) => {
               try {
                 if (!churchDoc.exists) {
@@ -1244,7 +1249,7 @@ const HomeScreen = () => {
 
   // Check if user is scheduled for current week and needs to confirm availability
   useEffect(() => {
-    const user = auth().currentUser;
+    const user = getAuth().currentUser;
     if (!user || !schedule || !currentWeek) {
       return;
     }
@@ -1427,7 +1432,7 @@ const HomeScreen = () => {
       <PhotoInput
         visible={showPhotoInputModal}
         onClose={handleClosePhotoInput}
-        userId={auth().currentUser?.uid || ""}
+        userId={getAuth().currentUser?.uid || ""}
       />
 
       {/* Church Selection Modal */}

@@ -10,12 +10,12 @@ import {
 } from "react-native";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
-import firestore from '@react-native-firebase/firestore';
-import auth from "@react-native-firebase/auth";
-import storage from '@react-native-firebase/storage';
+import { collection, doc, getDoc, getFirestore } from '@react-native-firebase/firestore';
+import { getAuth } from "@react-native-firebase/auth";
+import { deleteObject, getStorage, ref } from '@react-native-firebase/storage';
 
 // Custom function to generate a UID
-const generateUID = () => firestore().collection("dummy").doc().id;
+const generateUID = () => doc(collection(getFirestore(), "dummy")).id;
 
 const AddChild = ({ navigation }) => {
   const [name, setName] = useState("");
@@ -34,9 +34,9 @@ const AddChild = ({ navigation }) => {
   useEffect(() => {
     const getUserData = async () => {
       try {
-        const user = auth().currentUser;
+        const user = getAuth().currentUser;
         if (user) {
-          const userDoc = await firestore().collection("users").doc(user.uid).get();
+          const userDoc = await getDoc(doc(getFirestore(), "users", user.uid));
           if (userDoc.exists) {
             const userData = userDoc.data();
             setChildData((prevData) => ({
@@ -60,8 +60,8 @@ const AddChild = ({ navigation }) => {
   const handleBackPress = async () => {
     try {
       // Attempt to delete the profile picture from cloud storage if it exists
-      const storageRef = storage().ref(`profilePictures/${childData.uid}.png`);
-      await storageRef.delete();
+      const storageRef = ref(getStorage(), `profilePictures/${childData.uid}.png`);
+      await deleteObject(storageRef);
     } catch (error) {
       // Ignore error if file doesn't exist (error code 'storage/object-not-found')
       if (error.code !== 'storage/object-not-found') {

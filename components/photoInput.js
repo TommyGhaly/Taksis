@@ -13,8 +13,8 @@ import {
   ActivityIndicator
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import storage from '@react-native-firebase/storage';
-import firestore from '@react-native-firebase/firestore';
+import { getDownloadURL, getStorage, putFile, ref } from '@react-native-firebase/storage';
+import { doc, getFirestore, updateDoc } from '@react-native-firebase/firestore';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import * as avatarCache from '../utils/avatarCache';
@@ -132,8 +132,8 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, inline = false 
     setUploadProgress(0);
     
     try {
-      const reference = storage().ref(`profilePictures/${userId}.png`);
-      const task = reference.putFile(previewUri);
+      const reference = ref(getStorage(), `profilePictures/${userId}.png`);
+      const task = putFile(reference, previewUri);
       
       task.on('state_changed', 
         (snapshot) => {
@@ -151,7 +151,7 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, inline = false 
         },
         async () => {
           try {
-            const downloadURL = await reference.getDownloadURL();
+            const downloadURL = await getDownloadURL(reference);
             ReactNativeHapticFeedback.trigger('notificationSuccess', hapticOptions);
 
             // A download URL for a fixed path is stable across re-uploads, so
@@ -163,7 +163,7 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, inline = false 
             // Publish onto the user doc so every screen that already reads
             // users/{uid} gets the avatar for free, with no Storage request.
             try {
-              await firestore().collection('users').doc(userId).update({
+              await updateDoc(doc(getFirestore(), 'users', userId), {
                 photoURL: downloadURL,
                 photoUpdatedAt: version,
               });
