@@ -3,7 +3,7 @@
     "name": "Ⲧⲁⲝⲓⲥ",
     "slug": "taksis",
     "scheme": "taksis",
-    "version": "5.0.0",
+    "version": "5.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -67,13 +67,13 @@
       },
       "supportsTablet": true,
       "usesAppleSignIn": true,
-      "buildNumber": "10",
+      "buildNumber": "11",
       "appleTeamId": "5ZRM8X66TN"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.tghaly.taksis",
-      "versionCode": 65,
+      "versionCode": 66,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"

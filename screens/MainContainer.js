@@ -813,9 +813,14 @@ export default function MainContainer() {
     userRoles.trafficAdmin ||
     userRoles.paschaAdmin;
 
-  // Called from both the effect and `onReady`, since on a cold start the link
-  // usually arrives before this container is ready and the effect alone would
-  // not re-run. Does not consume the route -- SettingsNavigation does that.
+  // Set from `onReady`. The link, the roles read and the container becoming
+  // ready all land in a nondeterministic order on a cold start, and each of the
+  // three used to be able to arrive last. Holding readiness as state means the
+  // effect below re-runs on whichever one is last, instead of depending on two
+  // one-shot triggers that could both miss. Does not consume the route --
+  // SettingsNavigation does that.
+  const [shellReady, setShellReady] = useState(false);
+
   const showSettingsTab = useCallback(() => {
     if (!shellNavigationRef.isReady()) return;
     // With the drawer, the tabs are nested under its "Home" screen; without it
@@ -829,8 +834,8 @@ export default function MainContainer() {
   }, [shouldShowDrawer]);
 
   useEffect(() => {
-    if (pendingRoute && !isLoading) showSettingsTab();
-  }, [pendingRoute, isLoading, showSettingsTab]);
+    if (pendingRoute && !isLoading && shellReady) showSettingsTab();
+  }, [pendingRoute, isLoading, shellReady, showSettingsTab]);
 
   // The shell can render any screen, so there is no layout to mimic — a spinner
   // is honest about that, where a full-screen shimmer block just read as a
@@ -847,9 +852,7 @@ export default function MainContainer() {
         independent={true}
         theme={myTheme}
         ref={shellNavigationRef}
-        onReady={() => {
-          if (pendingRoute) showSettingsTab();
-        }}
+        onReady={() => setShellReady(true)}
       >
         {shouldShowDrawer ? (
           <DrawerNavigator

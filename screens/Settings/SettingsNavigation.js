@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   NavigationContainer,
   createNavigationContainerRef,
@@ -50,25 +50,26 @@ export default function SettingsNavigation() {
   // does not immediately bounce the user into it again.
   const pendingRoute = usePendingRoute();
 
-  // Called from both the effect and `onReady`: on a cold start this navigator is
-  // usually not ready when the link arrives, and the effect would not re-run on
-  // its own, so relying on the effect alone drops the link.
-  const goToPendingRoute = useCallback(() => {
+  // Set from `onReady`. The route can arrive before this navigator is ready or
+  // after, so readiness is state and the effect re-runs on whichever is last --
+  // rather than an `onReady` closure that can capture a stale route and an
+  // effect that silently bails on a not-yet-ready ref, which between them could
+  // drop the link entirely.
+  const [navReady, setNavReady] = useState(false);
+
+  useEffect(() => {
+    if (!pendingRoute || !navReady) return;
     if (!settingsNavigationRef.isReady()) return;
     const route = consumePendingRoute();
     if (route) settingsNavigationRef.navigate(route);
-  }, []);
-
-  useEffect(() => {
-    if (pendingRoute) goToPendingRoute();
-  }, [pendingRoute, goToPendingRoute]);
+  }, [pendingRoute, navReady]);
 
   return (
     <NavigationContainer
       independent={true}
       theme={myTheme}
       ref={settingsNavigationRef}
-      onReady={goToPendingRoute}
+      onReady={() => setNavReady(true)}
     >
       <SettingsNav.Navigator
         initialRouteName="Settings"
