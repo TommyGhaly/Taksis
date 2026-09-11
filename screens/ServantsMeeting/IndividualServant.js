@@ -21,20 +21,11 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   getDocs,
   getFirestore,
   onSnapshot,
-  setDoc,
   updateDoc,
 } from "@react-native-firebase/firestore";
-import {
-  deleteObject,
-  getDownloadURL,
-  getStorage,
-  ref,
-  uploadBytes,
-} from "@react-native-firebase/storage";
 import { Ionicons } from "@expo/vector-icons";
 import BackArrow from "../../components/backArrow";
 import Avatar from "../../components/Avatar";
@@ -42,12 +33,17 @@ import SkeletonScreen, { SkeletonPersonList } from "../../components/Skeleton";
 import * as avatarCache from "../../utils/avatarCache";
 import { LIST_PERF, LIST_KEYBOARD } from "../../utils/listConfig";
 import { dateKeyToSortable } from "../../utils/dateKeys";
+import {
+  deleteManualPerson,
+  isManualId,
+  mergeManualIntoReal,
+} from "../../utils/manualPeople";
 
 const { height } = Dimensions.get("window");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const isManual = (uid) => typeof uid === "string" && uid.startsWith("manual_");
+const isManual = isManualId;
 
 /**
  * One attendance record.
@@ -123,64 +119,10 @@ const EmptySyncUsers = () => (
   <Text style={styles.syncEmpty}>No users found.</Text>
 );
 
-// ── Merge helper (same logic as ServantsAttendance) ───────────────────────────
-
-async function mergeManualIntoReal(church, manualServant, realUID) {
-  const collRef = collection(getFirestore(), "churches", church, "Servants Meeting");
-
-  const manualDocRef = doc(collRef, manualServant.uid);
-  const realDocRef = doc(collRef, realUID);
-
-  // Build attendance map — skip metadata fields
-  const SKIP = new Set(["name", "uid", "manual", "phone"]);
-  const manualAttendance = {};
-  for (const [k, v] of Object.entries(manualServant)) {
-    if (!SKIP.has(k)) manualAttendance[k] = v;
-  }
-
-  // Real doc wins on conflict
-  const realSnap = await getDoc(realDocRef);
-  const realData = realSnap.exists ? realSnap.data() : {};
-  const merged = { ...manualAttendance, ...realData };
-
-  // Get real user's name
-  let realName = realData.name || "";
-  if (!realName) {
-    try {
-      const userSnap = await getDoc(doc(getFirestore(), "users", realUID));
-      if (userSnap.exists) realName = userSnap.data()?.name || "";
-    } catch {}
-  }
-
-  await setDoc(realDocRef, { ...merged, uid: realUID, name: realName }, { merge: true });
-
-  // ── Profile photo ──
-  const manualPhotoRef = ref(getStorage(), `profilePictures/${manualServant.uid}.png`);
-  const realPhotoRef = ref(getStorage(), `profilePictures/${realUID}.png`);
-
-  let realHasPhoto = false;
-  try { await getDownloadURL(realPhotoRef); realHasPhoto = true; } catch {}
-
-  let manualHasPhoto = false;
-  try { await getDownloadURL(manualPhotoRef); manualHasPhoto = true; } catch {}
-
-  if (manualHasPhoto) {
-    if (!realHasPhoto) {
-      try {
-        const url = await getDownloadURL(manualPhotoRef);
-        const response = await fetch(url);
-        const blob = await response.blob();
-        await uploadBytes(realPhotoRef, blob);
-        // This uid was cached as "no photo"; drop it so the copy is picked up.
-        await avatarCache.invalidate(realUID);
-      } catch (e) { console.warn("Photo copy failed:", e); }
-    }
-    try { await deleteObject(manualPhotoRef); } catch {}
-    await avatarCache.invalidate(manualServant.uid);
-  }
-
-  await deleteDoc(manualDocRef);
-}
+// The merge lives in utils/manualPeople.js now. It has to fold *both* of a
+// person's projections — Servants Meeting and Sunday School — into the real
+// account, and a copy that only knew about this collection would quietly strand
+// the classes and Sunday School attendance an admin had recorded for them.
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -335,7 +277,9 @@ const IndividualServant = () => {
   const handleDelete = () => {
     Alert.alert(
       "Confirm Removal",
-      `Are you sure you want to remove ${servantName} from Servants Meeting?`,
+      manual
+        ? `Remove ${servantName}? This deletes their record and all of their attendance, in Servants Meeting and Sunday School. It cannot be undone.`
+        : `Are you sure you want to remove ${servantName} from Servants Meeting?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -343,20 +287,22 @@ const IndividualServant = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteDoc(
-                doc(getFirestore(), "churches", church, "Servants Meeting", servantID)
-              );
-
-              // Only delete the stored photo for MANUAL servants. The manual
-              // photo lives solely at profilePictures/{manual_id}.png and is
-              // referenced nowhere else, so removing the servant should clean
-              // it up. For real users, profilePictures/{uid}.png is their
-              // app-wide profile picture and must NOT be deleted just because
-              // they were taken off this list.
               if (manual) {
-                try {
-                  await avatarCache.removePhoto(servantID);
-                } catch {}
+                // One call takes the registry entry, both projections and the
+                // photo. Deleting only the Servants Meeting doc here would leave
+                // the person half-existing: still listed in Sunday School, but
+                // with no registry entry to edit or sync them from.
+                //
+                // The photo is safe to delete because a manual person's
+                // profilePictures/{manual_id}.png is referenced nowhere else. A
+                // real user's is their app-wide picture and must survive being
+                // taken off this list, which is why that branch below does not
+                // touch it.
+                await deleteManualPerson(church, servantID);
+              } else {
+                await deleteDoc(
+                  doc(getFirestore(), "churches", church, "Servants Meeting", servantID)
+                );
               }
 
               if (!manual) {

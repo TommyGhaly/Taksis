@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
+  ActivityIndicator,
+  FlatList,
   View,
   Text,
   SectionList,
@@ -22,6 +24,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   getFirestore,
   onSnapshot,
   query,
@@ -45,6 +48,17 @@ import {
 import { makeScreenCache } from "../../utils/screenCache";
 import useAfterInteractions from "../../hooks/useAfterInteractions";
 import useDeferredSearch from "../../hooks/useDeferredSearch";
+import {
+  GRADES_LIST,
+  cleanFieldName,
+  deleteManualPerson,
+  isManualId,
+  manualPeopleRef,
+  mergeManualIntoReal,
+  newManualId,
+  normalizeManualPerson,
+  saveManualPerson,
+} from "../../utils/manualPeople";
 
 // Simple cache utilities
 const CacheUtils = makeScreenCache();
@@ -55,49 +69,9 @@ const hapticOptions = {
   ignoreAndroidSystemSettings: false,
 };
 
-// Grades list
-const gradesList = [
-  "Pre-School - Age 3",
-  "Pre-School - Age 4",
-  "Kindergarten",
-  "1st Grade",
-  "2nd Grade",
-  "3rd Grade",
-  "4th Grade",
-  "5th Grade",
-  "6th Grade",
-  "7th Grade",
-  "8th Grade",
-  "9th Grade",
-  "10th Grade",
-  "11th Grade",
-  "12th Grade",
-  "College",
-];
-
-// Helper function to clean field names
-const cleanFieldName = (grade) => {
-  // Convert grade names to clean field names
-  const fieldMap = {
-    "Pre-School - Age 3": "preSchoolAge3",
-    "Pre-School - Age 4": "preSchoolAge4",
-    "Kindergarten": "kindergarten",
-    "1st Grade": "1",
-    "2nd Grade": "2",
-    "3rd Grade": "3",
-    "4th Grade": "4",
-    "5th Grade": "5",
-    "6th Grade": "6",
-    "7th Grade": "7",
-    "8th Grade": "8",
-    "9th Grade": "9",
-    "10th Grade": "10",
-    "11th Grade": "11",
-    "12th Grade": "12",
-    "College": "college"
-  };
-  return fieldMap[grade] || grade.toLowerCase().replace(/\s+/g, '');
-};
+// Grades and their on-disk field names now live in utils/manualPeople.js, so the
+// registry and this screen cannot drift apart on what "3rd Grade" is called.
+const gradesList = GRADES_LIST;
 
 // Responsive design helper
 const { width, height } = Dimensions.get("window");
@@ -182,9 +156,22 @@ const ServantRow = React.memo(({ item, onPress, onRemove }) => (
         card height vary per row. See ROW_H.
       */}
       <View style={styles.servantTextInfo}>
-        <Text style={styles.servantName} numberOfLines={1}>
-          {item.name}
-        </Text>
+        {/*
+          The badge sits inside the name's line box rather than on a line of its
+          own, so a manual row is exactly as tall as a real one and ROW_H still
+          holds. flexShrink on the Text is what keeps a long name from pushing
+          the badge off the card.
+        */}
+        <View style={styles.servantNameRow}>
+          <Text style={styles.servantName} numberOfLines={1}>
+            {item.name}
+          </Text>
+          {item.manual && (
+            <View style={styles.manualBadge}>
+              <Text style={styles.manualBadgeText}>Manual</Text>
+            </View>
+          )}
+        </View>
         <Text style={styles.servantGrades} numberOfLines={1}>
           {Array.isArray(item.ssGrades) && item.ssGrades.length > 0
             ? item.ssGrades.join(", ")
@@ -215,7 +202,11 @@ SectionHeader.displayName = "SectionHeader";
 const ServantsAdmin = () => {
   // Core state
   const [church, setChurch] = useState(null);
+  // Two sources, kept apart until the memo below merges them: real servants come
+  // from `users` (isSSTeacher), manual ones from the church's ManualPeople
+  // registry. They arrive on independent snapshots and must not clobber each other.
   const [servants, setServants] = useState([]);
+  const [manualPeople, setManualPeople] = useState([]);
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -225,6 +216,23 @@ const ServantsAdmin = () => {
   const [isServantMeeting, setIsServantMeeting] = useState(false);
   const [photoInputVisible, setPhotoInputVisible] = useState(false);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
+
+  // Manual-person editing. `draftId` is the id the photo is uploaded under, so
+  // for a new person it has to exist before the form is filled in.
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [draftId, setDraftId] = useState(null);
+  const [draftName, setDraftName] = useState("");
+  const [draftPhone, setDraftPhone] = useState("");
+  const [draftEmail, setDraftEmail] = useState("");
+  const [savingManual, setSavingManual] = useState(false);
+  const [draftPhotoUploaded, setDraftPhotoUploaded] = useState(false);
+
+  // Sync
+  const [syncModalVisible, setSyncModalVisible] = useState(false);
+  const [syncCandidates, setSyncCandidates] = useState([]);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [candidateQuery, setCandidateQuery] = useState("");
+  const [syncing, setSyncing] = useState(false);
   const [currentLetter, setCurrentLetter] = useState(null);
   const [indexBarLayout, setIndexBarLayout] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -244,11 +252,13 @@ const ServantsAdmin = () => {
   const isMounted = useRef(true);
   const userUnsubscribe = useRef(null);
   const servantsUnsubscribe = useRef(null);
+  const manualUnsubscribe = useRef(null);
   // The church the roster listener is currently attached to.
   const attachedChurch = useRef(null);
   const cacheKeys = useRef({
     church: null,
-    servants: null
+    servants: null,
+    manual: null
   });
   const searchInputRef = useRef(null);
   const keyboardOffset = useRef(new Animated.Value(0)).current;
@@ -296,7 +306,8 @@ const ServantsAdmin = () => {
       // Set cache keys
       cacheKeys.current = {
         church: `servants_admin_church_${user.uid}`,
-        servants: `servants_admin_list_${user.uid}`
+        servants: `servants_admin_list_${user.uid}`,
+        manual: `servants_admin_manual_${user.uid}`
       };
 
       // Load cached data immediately (non-blocking)
@@ -320,6 +331,9 @@ const ServantsAdmin = () => {
       if (servantsUnsubscribe.current) {
         servantsUnsubscribe.current();
       }
+      if (manualUnsubscribe.current) {
+        manualUnsubscribe.current();
+      }
     };
   }, [ready]);
 
@@ -327,9 +341,10 @@ const ServantsAdmin = () => {
   const loadCachedData = async () => {
     try {
       // Load all cached data in parallel
-      const [cachedChurch, cachedServants] = await Promise.all([
+      const [cachedChurch, cachedServants, cachedManual] = await Promise.all([
         CacheUtils.get(cacheKeys.current.church),
-        CacheUtils.get(cacheKeys.current.servants)
+        CacheUtils.get(cacheKeys.current.servants),
+        CacheUtils.get(cacheKeys.current.manual)
       ]);
 
       if (cachedChurch && isMounted.current) {
@@ -340,6 +355,11 @@ const ServantsAdmin = () => {
         setServants(cachedServants);
         // Cached docs carry photoURL, so avatars paint with no Storage calls.
         avatarCache.primeMany(cachedServants);
+      }
+
+      if (cachedManual && isMounted.current) {
+        setManualPeople(cachedManual);
+        avatarCache.primeMany(cachedManual);
       }
     } catch (error) {
       console.log('Error loading cached data:', error);
@@ -370,6 +390,7 @@ const ServantsAdmin = () => {
             if (attachedChurch.current !== userChurch) {
               attachedChurch.current = userChurch;
               setupServantsListener(userChurch);
+              setupManualListener(userChurch);
             }
           } else {
             attachedChurch.current = null;
@@ -448,6 +469,52 @@ const ServantsAdmin = () => {
     );
   };
 
+  // Set up manual-people listener
+  //
+  // Separate from the roster listener above because the two read different
+  // collections and neither is a subset of the other: a manual person has no
+  // `users` doc for the isSSTeacher query to match, and a real servant has no
+  // registry entry. They are merged in `allServants` below.
+  const setupManualListener = (churchId) => {
+    if (manualUnsubscribe.current) {
+      manualUnsubscribe.current();
+    }
+
+    manualUnsubscribe.current = onSnapshot(
+      manualPeopleRef(churchId),
+      (snapshot) => {
+        if (!isMounted.current) return;
+        const people = snapshot.docs.map((d) =>
+          normalizeManualPerson(d.id, d.data())
+        );
+        setManualPeople(people);
+        avatarCache.primeMany(people);
+        CacheUtils.set(cacheKeys.current.manual, people);
+      },
+      () => {
+        // Non-fatal: the real roster still renders. An alert here would fire on
+        // every church that has never had a manual person, which is most of them.
+        if (isMounted.current) setManualPeople([]);
+      }
+    );
+  };
+
+  /**
+   * The roster the screen actually renders: real servants and manual ones in one
+   * alphabetical list.
+   *
+   * Sorted here rather than relying on the roster listener's own sort, because
+   * that one only ever saw the `users` half.
+   */
+  const allServants = useMemo(() => {
+    if (manualPeople.length === 0) return servants;
+    return [...servants, ...manualPeople].sort((a, b) => {
+      const an = String(a.name ?? "").trim().toLowerCase();
+      const bn = String(b.name ?? "").trim().toLowerCase();
+      return an.localeCompare(bn) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    });
+  }, [servants, manualPeople]);
+
   // Build sections from servants + searchQuery.
   //
   // Derived with useMemo, not state-in-an-effect. An effect runs *after* the
@@ -456,11 +523,11 @@ const ServantsAdmin = () => {
   // before the effect caught up. Deriving it keeps the two consistent within a
   // single render.
   const sections = useMemo(() => {
-    if (servants.length === 0) return [];
+    if (allServants.length === 0) return [];
 
     const filtered = search.active
-      ? servants.filter((s) => (s.name || "").toLowerCase().includes(search.lower))
-      : servants;
+      ? allServants.filter((s) => (s.name || "").toLowerCase().includes(search.lower))
+      : allServants;
 
     // Group by first letter (A-Z or #)
     const grouped = filtered.reduce((acc, servant) => {
@@ -482,7 +549,7 @@ const ServantsAdmin = () => {
         title: letter,
         data: grouped[letter],
       }));
-  }, [servants, search]);
+  }, [allServants, search]);
 
   const availableLetters = useMemo(
     () => sections.map((section) => section.title).sort(),
@@ -534,8 +601,92 @@ const ServantsAdmin = () => {
     setSelectedServant(servant);
     setSelectedGrades(Array.isArray(servant.ssGrades) ? servant.ssGrades : []);
     setIsServantMeeting(servant.isServant || false);
+    // Contact fields are editable for a manual person only — for a real servant
+    // these live on their own profile and are theirs to change.
+    setDraftName(servant.name || "");
+    setDraftPhone(servant.phone || "");
+    setDraftEmail(servant.email || "");
     setModalVisible(true);
   }, []);
+
+  // ── Manual people ─────────────────────────────────────────────────────────
+
+  /**
+   * Open the add sheet.
+   *
+   * The id is minted up front because PhotoInput uploads to
+   * `profilePictures/{id}.png`, so the id has to exist before a photo can be
+   * attached — the same trick ServantsAttendance uses for its temp uid.
+   */
+  const openAddModal = useCallback(() => {
+    ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+    setDraftId(newManualId());
+    setDraftName("");
+    setDraftPhone("");
+    setDraftEmail("");
+    setSelectedGrades([]);
+    setDraftPhotoUploaded(false);
+    setAddModalVisible(true);
+  }, []);
+
+  /**
+   * Cancelling without saving drops any photo already uploaded under the draft
+   * id, so Storage isn't left holding a file nothing references.
+   */
+  const cancelAddModal = useCallback(async () => {
+    setAddModalVisible(false);
+    const id = draftId;
+    const hadPhoto = draftPhotoUploaded;
+    setDraftId(null);
+    setDraftName("");
+    setDraftPhone("");
+    setDraftEmail("");
+    setSelectedGrades([]);
+    setDraftPhotoUploaded(false);
+    if (hadPhoto && id) {
+      // The manual_ prefix means removePhoto skips the users/{id} write.
+      try {
+        await avatarCache.removePhoto(id);
+      } catch {}
+    }
+  }, [draftId, draftPhotoUploaded]);
+
+  const handleAddManual = async () => {
+    if (!church || !draftId) return;
+    const trimmed = draftName.trim().replace(/\s+/g, " ");
+    if (trimmed.split(" ").filter(Boolean).length < 2) {
+      Alert.alert(
+        "Full name required",
+        "Please enter both a first and last name so this person can be matched to their account later."
+      );
+      return;
+    }
+
+    setSavingManual(true);
+    try {
+      await saveManualPerson(church, {
+        id: draftId,
+        name: trimmed,
+        phone: draftPhone,
+        email: draftEmail,
+        ssGrades: selectedGrades,
+        createdBy: getAuth().currentUser?.uid || null,
+      });
+      setAddModalVisible(false);
+      setDraftId(null);
+      setDraftName("");
+      setDraftPhone("");
+      setDraftEmail("");
+      setSelectedGrades([]);
+      // Committed — the photo belongs to a saved person now, so cancelAddModal
+      // must not delete it on the next open.
+      setDraftPhotoUploaded(false);
+    } catch (error) {
+      Alert.alert("Error", "Could not add servant. " + error.message);
+    } finally {
+      setSavingManual(false);
+    }
+  };
 
   // Open photo input modal
   const openPhotoInputModal = () => {
@@ -550,6 +701,9 @@ const ServantsAdmin = () => {
     setSelectedServant(null);
     setSelectedGrades([]);
     setIsServantMeeting(false);
+    setDraftName("");
+    setDraftPhone("");
+    setDraftEmail("");
   };
 
   // Close photo input modal
@@ -563,6 +717,35 @@ const ServantsAdmin = () => {
   // Save classes
   const saveClasses = async () => {
     if (!selectedServant || !church) return;
+
+    // A manual person has no `users` doc to hold the role, and their projections
+    // are derived from the registry — so the whole save is one registry write.
+    if (selectedServant.manual) {
+      const trimmed = draftName.trim().replace(/\s+/g, " ");
+      if (trimmed.split(" ").filter(Boolean).length < 2) {
+        Alert.alert(
+          "Full name required",
+          "Please enter both a first and last name."
+        );
+        return;
+      }
+      try {
+        await saveManualPerson(church, {
+          id: selectedServant.id,
+          name: trimmed,
+          phone: draftPhone,
+          email: draftEmail,
+          ssGrades: selectedGrades,
+          createdAt: selectedServant.createdAt,
+        });
+        await CacheUtils.remove(cacheKeys.current.manual);
+        closeEditModal();
+      } catch (error) {
+        console.error("Error saving manual servant:", error);
+        Alert.alert("Error", "Could not save changes. Please try again.");
+      }
+      return;
+    }
 
     try {
       // 1. Update the user document (existing functionality)
@@ -612,6 +795,35 @@ const ServantsAdmin = () => {
   const removeServant = useCallback(async (servantId) => {
     if (!church) return;
 
+    // Removing a manual person is unrecoverable in a way removing a real one is
+    // not: a real servant keeps their `users` doc and can simply be re-added,
+    // whereas a manual person's registry entry is the only record they exist at
+    // all, and their attendance goes with it. Hence the confirm on this branch
+    // only — the real-servant path keeps its existing one-tap behaviour.
+    if (isManualId(servantId)) {
+      Alert.alert(
+        "Remove servant",
+        "This permanently deletes their record and all of their attendance. It cannot be undone.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Remove",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await deleteManualPerson(church, servantId);
+                await CacheUtils.remove(cacheKeys.current.manual);
+              } catch (error) {
+                console.error("Error removing manual servant:", error);
+                Alert.alert("Error", "Could not remove servant. Please try again.");
+              }
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     try {
       // 1. Update the user document (existing functionality)
       await updateDoc(doc(getFirestore(), "users", servantId), {
@@ -639,6 +851,118 @@ const ServantsAdmin = () => {
       Alert.alert("Error", "Could not remove servant. Please try again.");
     }
   }, [church]);
+
+  // ── Sync to a real account ────────────────────────────────────────────────
+
+  /**
+   * Candidates are the church's existing Servants Meeting docs, minus the manual
+   * ones — i.e. people who already hold the Sunday School role.
+   *
+   * Someone who signs up lands in that collection on their own: they tick
+   * "Sunday School Teacher" during onboarding (SelectApplicable) or later in
+   * Settings (ChangeRoles), and update_user creates the doc. So no admin step is
+   * needed before they become syncable.
+   */
+  const openSyncModal = useCallback(async () => {
+    if (!church) return;
+    setCandidateQuery("");
+    setLoadingCandidates(true);
+    setSyncModalVisible(true);
+    try {
+      const snap = await getDocs(
+        collection(getFirestore(), "churches", church, "Servants Meeting")
+      );
+      const candidates = snap.docs
+        .filter((d) => !isManualId(d.id))
+        .map((d) => ({ uid: d.id, ...d.data() }))
+        .sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? "")));
+      setSyncCandidates(candidates);
+      // These docs already carry photoURL — free avatars, no Storage requests.
+      avatarCache.primeMany(candidates);
+    } catch {
+      Alert.alert("Error", "Could not load accounts.");
+      setSyncCandidates([]);
+    } finally {
+      setLoadingCandidates(false);
+    }
+  }, [church]);
+
+  const filteredCandidates = useMemo(() => {
+    const q = candidateQuery.trim().toLowerCase();
+    if (!q) return syncCandidates;
+    return syncCandidates.filter((c) =>
+      String(c.name ?? "").toLowerCase().includes(q)
+    );
+  }, [syncCandidates, candidateQuery]);
+
+  const handleSyncConfirm = useCallback(
+    (candidate) => {
+      const person = selectedServant;
+      if (!person || !church) return;
+      Alert.alert(
+        "Sync to account",
+        `Merge "${person.name}" into ${candidate.name}'s account?\n\nAny attendance ${candidate.name} already has takes priority. This manual record will be deleted.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Sync",
+            onPress: async () => {
+              setSyncing(true);
+              try {
+                const { carried } = await mergeManualIntoReal(
+                  church,
+                  person,
+                  candidate.uid
+                );
+                const moved =
+                  (carried.servantsMeeting || 0) + (carried.sundaySchool || 0);
+                setSyncModalVisible(false);
+                closeEditModal();
+                await CacheUtils.remove(cacheKeys.current.manual);
+                Alert.alert(
+                  "Synced",
+                  moved > 0
+                    ? `${person.name} was merged into ${candidate.name}'s account, carrying over ${moved} attendance ${moved === 1 ? "date" : "dates"}.`
+                    : `${person.name} was merged into ${candidate.name}'s account.`
+                );
+              } catch (e) {
+                Alert.alert("Sync failed", e.message);
+              } finally {
+                setSyncing(false);
+              }
+            },
+          },
+        ]
+      );
+    },
+    [church, selectedServant]
+  );
+
+  const renderCandidate = useCallback(
+    ({ item }) => (
+      <TouchableOpacity
+        style={styles.candidateRow}
+        onPress={() => handleSyncConfirm(item)}
+        disabled={syncing}
+        activeOpacity={0.7}
+      >
+        <Avatar
+          uid={item.uid}
+          user={item}
+          size={40}
+          borderRadius={20}
+          showBorder={false}
+        />
+        <Text style={styles.candidateName} numberOfLines={1}>
+          {item.name || "Unnamed"}
+        </Text>
+        <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.4)" />
+      </TouchableOpacity>
+    ),
+    [handleSyncConfirm, syncing]
+  );
+
+  const candidateKeyExtractor = useCallback((item) => item.uid, []);
 
   // Scroll to section
   const scrollToSection = (letter) => {
@@ -717,7 +1041,7 @@ const ServantsAdmin = () => {
   // servant list rather than on `church`: church resolves from cache first, and
   // dropping the skeleton then flashed "No servants found." until the snapshot
   // landed.
-  if (!ready || (loading && servants.length === 0)) {
+  if (!ready || (loading && allServants.length === 0)) {
     return (
       <SkeletonScreen
         variant="personCards"
@@ -812,6 +1136,13 @@ const ServantsAdmin = () => {
                 clearButtonMode="while-editing"
               />
             </View>
+            <TouchableOpacity
+              style={styles.addBtn}
+              onPress={openAddModal}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="person-add-outline" size={18} color="#fff" />
+            </TouchableOpacity>
           </View>
         </BlurView>
       </Animated.View>
@@ -855,23 +1186,89 @@ const ServantsAdmin = () => {
                   <Ionicons name="close" size={24 * scale} color="#fff" />
                 </TouchableOpacity>
               </View>
-              <View style={styles.servantTrackerContainer}>
-                <Text
-                  style={[styles.servantTrackerText, { fontSize: 16 * scale }]}
-                >
-                  Servant Meeting Tracker
-                </Text>
-                <Switch
-                  value={isServantMeeting}
-                  onValueChange={(value) => setIsServantMeeting(value)}
-                  trackColor={{ false: "#555", true: "#147efb" }}
-                  thumbColor={isServantMeeting ? "#fff" : "#aaa"}
-                />
-              </View>
+              {/*
+                The switch writes `isServant`, which grants access to the
+                Servants Meeting tracker *screen*. There is no app for it to
+                unlock for someone who has no account, so it is hidden rather
+                than shown disabled. Their Servants Meeting membership is not
+                affected — utils/manualPeople.js keeps that projection
+                unconditional, matching what isSSTeacher does for real servants.
+              */}
+              {!selectedServant?.manual && (
+                <View style={styles.servantTrackerContainer}>
+                  <Text
+                    style={[styles.servantTrackerText, { fontSize: 16 * scale }]}
+                  >
+                    Servant Meeting Tracker
+                  </Text>
+                  <Switch
+                    value={isServantMeeting}
+                    onValueChange={(value) => setIsServantMeeting(value)}
+                    trackColor={{ false: "#555", true: "#147efb" }}
+                    thumbColor={isServantMeeting ? "#fff" : "#aaa"}
+                  />
+                </View>
+              )}
               <ScrollView
                 style={styles.modalScrollView}
                 contentContainerStyle={styles.modalScrollContent}
+                keyboardShouldPersistTaps="handled"
               >
+                {selectedServant?.manual && (
+                  <View style={styles.manualFields}>
+                    <TouchableOpacity
+                      style={styles.syncRow}
+                      onPress={openSyncModal}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="link-outline" size={18} color="#147efb" />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.syncRowTitle}>Sync to account</Text>
+                        <Text style={styles.syncRowSubtitle}>
+                          Merge this record into their account once they join
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={18}
+                        color="rgba(255,255,255,0.4)"
+                      />
+                    </TouchableOpacity>
+
+                    <Text style={styles.inputLabel}>Full name</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={draftName}
+                      onChangeText={setDraftName}
+                      placeholder="First and last name"
+                      placeholderTextColor="rgba(255,255,255,0.3)"
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                    />
+
+                    <Text style={styles.inputLabel}>Phone (optional)</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={draftPhone}
+                      onChangeText={setDraftPhone}
+                      placeholder="Used to match them to their account"
+                      placeholderTextColor="rgba(255,255,255,0.3)"
+                      keyboardType="phone-pad"
+                    />
+
+                    <Text style={styles.inputLabel}>Email (optional)</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={draftEmail}
+                      onChangeText={setDraftEmail}
+                      placeholder="Used to match them to their account"
+                      placeholderTextColor="rgba(255,255,255,0.3)"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                )}
                 <View style={styles.modalContent}>
                   {/* Fixed 16-item list inside a ScrollView: virtualization was
                       already disabled via scrollEnabled={false}, so a plain map
@@ -936,6 +1333,88 @@ const ServantsAdmin = () => {
                 </TouchableOpacity>
               </View>
             </View>
+
+            {/*
+              Rendered inside the edit modal rather than as its own <Modal>.
+              iOS will not present a view controller that is already
+              presenting, so a sibling <Modal> here is silently dropped and the
+              Sync row looks dead with no error. Same constraint that
+              PhotoInput's `inline` prop exists for. As an overlay it also
+              returns to the edit form on cancel instead of to the roster.
+            */}
+            {syncModalVisible && (
+              <View style={styles.syncInlineOverlay}>
+                <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <View style={styles.headerContent}>
+                  <Text style={[styles.modalTitle, { fontSize: 18 * scale }]}>
+                    Sync {selectedServant?.name}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setSyncModalVisible(false)}
+                >
+                  <Ionicons name="close" size={24 * scale} color="#fff" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.syncSearchWrap}>
+                <Ionicons
+                  name="search"
+                  size={16}
+                  color="rgba(255,255,255,0.55)"
+                  style={styles.searchIcon}
+                />
+                <TextInput
+                  style={styles.searchBar}
+                  placeholder="Search accounts"
+                  placeholderTextColor="rgba(255,255,255,0.55)"
+                  value={candidateQuery}
+                  onChangeText={setCandidateQuery}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  clearButtonMode="while-editing"
+                />
+              </View>
+
+              {loadingCandidates ? (
+                <View style={styles.syncLoading}>
+                  <ActivityIndicator color="#147EFB" />
+                </View>
+              ) : (
+                // The wrapper's height is explicit on purpose. modalContainer sizes
+                // itself to its content, and a FlatList in a content-sized parent
+                // has no height to virtualize against — it collapses to nothing.
+                // The sibling edit modal gets away with a bare ScrollView because
+                // its children are all laid out; a virtualized list is not.
+                <View style={styles.syncListWrap}>
+                  <FlatList
+                    {...LIST_PERF}
+                    data={filteredCandidates}
+                    renderItem={renderCandidate}
+                    keyExtractor={candidateKeyExtractor}
+                    contentContainerStyle={styles.syncListContent}
+                    keyboardShouldPersistTaps="handled"
+                    ListEmptyComponent={
+                      <Text style={styles.syncEmpty}>
+                        {candidateQuery
+                          ? "No accounts match your search."
+                          : "No accounts yet. Once this person signs up and selects Sunday School Teacher, they'll appear here."}
+                      </Text>
+                    }
+                  />
+                </View>
+              )}
+
+              {syncing && (
+                <View style={styles.syncOverlay}>
+                  <ActivityIndicator size="large" color="#147EFB" />
+                </View>
+              )}
+                </View>
+              </View>
+            )}
           </View>
         </Modal>
       )}
@@ -946,6 +1425,176 @@ const ServantsAdmin = () => {
           userId={selectedServant.id}
         />
       )}
+
+      {/* ── Add a servant with no account ── */}
+      <Modal
+        visible={addModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={cancelAddModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View style={styles.headerContent}>
+                <Text style={[styles.modalTitle, { fontSize: 18 * scale }]}>
+                  Add Servant Manually
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={cancelAddModal}
+              >
+                <Ionicons name="close" size={24 * scale} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.manualFields}>
+                <TouchableOpacity
+                  style={styles.photoPickerRow}
+                  onPress={openPhotoInputModal}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.photoPickerCircle}>
+                    {draftPhotoUploaded ? (
+                      <Avatar
+                        uid={draftId}
+                        size={64}
+                        borderRadius={32}
+                        showBorder={false}
+                      />
+                    ) : (
+                      <Ionicons
+                        name="camera-outline"
+                        size={28}
+                        color="rgba(255,255,255,0.4)"
+                      />
+                    )}
+                  </View>
+                  <Text style={styles.photoPickerLabel}>
+                    {draftPhotoUploaded ? "Change photo" : "Add photo (optional)"}
+                  </Text>
+                </TouchableOpacity>
+
+                <Text style={styles.inputLabel}>Full name *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={draftName}
+                  onChangeText={setDraftName}
+                  placeholder="First and last name"
+                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                />
+
+                <Text style={styles.inputLabel}>Phone (optional)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={draftPhone}
+                  onChangeText={setDraftPhone}
+                  placeholder="Used to match them to their account"
+                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  keyboardType="phone-pad"
+                />
+
+                <Text style={styles.inputLabel}>Email (optional)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={draftEmail}
+                  onChangeText={setDraftEmail}
+                  placeholder="Used to match them to their account"
+                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+
+                <Text style={[styles.inputLabel, { marginTop: 18 }]}>Classes</Text>
+                <Text style={styles.fieldHint}>
+                  A servant only appears in a class's attendance list once they
+                  are assigned to it.
+                </Text>
+              </View>
+
+              <View style={styles.gradesList}>
+                {gradesList.map((grade) => (
+                  <TouchableOpacity
+                    key={grade}
+                    style={[
+                      styles.gradeItem,
+                      selectedGrades.includes(grade) && styles.gradeItemSelected,
+                    ]}
+                    onPress={() => {
+                      setSelectedGrades((prev) => {
+                        const toggled = prev.includes(grade)
+                          ? prev.filter((g) => g !== grade)
+                          : [...prev, grade];
+                        return gradesList.filter((g) => toggled.includes(g));
+                      });
+                    }}
+                  >
+                    <Text style={[styles.gradeText, { fontSize: 16 * scale }]}>
+                      {grade}
+                    </Text>
+                    {selectedGrades.includes(grade) && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20 * scale}
+                        color="#147efb"
+                      />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={cancelAddModal}
+              >
+                <Text style={[styles.modalButtonText, { fontSize: 16 * scale }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  styles.saveButton,
+                  (!draftName.trim() || savingManual) && { opacity: 0.4 },
+                ]}
+                onPress={handleAddManual}
+                disabled={!draftName.trim() || savingManual}
+              >
+                <Text style={[styles.modalButtonText, { fontSize: 16 * scale }]}>
+                  {savingManual ? "Adding…" : "Add"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/*
+            `inline` rather than its own <Modal>: iOS will not present a view
+            controller that is already presenting, so a stacked modal here is
+            silently dropped and the photo button looks dead.
+          */}
+          {addModalVisible && draftId && (
+            <PhotoInput
+              inline
+              visible={photoInputVisible}
+              onClose={() => setPhotoInputVisible(false)}
+              userId={draftId}
+              onUploadSuccess={() => setDraftPhotoUploaded(true)}
+            />
+          )}
+        </View>
+      </Modal>
+
     </View>
   );
 };
@@ -999,11 +1648,33 @@ const styles = StyleSheet.create({
   },
   // Explicit lineHeights are load-bearing: a Text without one gets the font's
   // natural line box, which JS cannot compute and which differs across platforms.
+  servantNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   servantName: {
     fontSize: 17 * scale,
     lineHeight: NAME_LINE * scale,
     fontWeight: "600",
     color: "#fff",
+    flexShrink: 1,
+  },
+  // Sized to stay inside NAME_LINE's box: 10pt text plus 2pt of padding either
+  // side is ~15pt, under the 20*scale line it shares. See servantNameRow.
+  manualBadge: {
+    marginLeft: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: "rgba(255,159,10,0.18)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,159,10,0.45)",
+  },
+  manualBadgeText: {
+    fontSize: 10,
+    lineHeight: 11,
+    fontWeight: "700",
+    color: "#ff9f0a",
   },
   servantGrades: {
     fontSize: 14 * scale,
@@ -1102,8 +1773,20 @@ const styles = StyleSheet.create({
     backgroundColor: Platform.OS === "android" ? "rgba(28,28,30,0.92)" : "transparent",
   },
   floatingInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     paddingHorizontal: 10,
     paddingVertical: 10,
+  },
+  addBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#147efb",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
   searchContainer: {
     flex: 1,
@@ -1204,6 +1887,135 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
   },
+  // ---------- Manual people ----------
+  manualFields: {
+    paddingHorizontal: 16 * scale,
+    paddingTop: 16 * scale,
+  },
+  inputLabel: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  fieldHint: {
+    color: "rgba(255,255,255,0.35)",
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 4,
+  },
+  textInput: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    color: "#fff",
+    fontSize: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  photoPickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  photoPickerCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  photoPickerLabel: {
+    color: "#147efb",
+    fontSize: 15,
+    fontWeight: "600",
+    marginLeft: 14,
+  },
+  syncRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(20,126,251,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(20,126,251,0.3)",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  syncRowTitle: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  syncRowSubtitle: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  syncSearchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 38,
+    margin: 16 * scale,
+    marginBottom: 8,
+  },
+  syncListWrap: {
+    height: height * 0.45,
+  },
+  syncListContent: {
+    paddingHorizontal: 16 * scale,
+    paddingBottom: 16,
+    flexGrow: 1,
+  },
+  syncLoading: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  syncEmpty: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+    paddingVertical: 30,
+    paddingHorizontal: 10,
+  },
+  // Covers the edit modal's own overlay, so the sync panel reads as a step on
+  // top of the form rather than a separate screen.
+  syncInlineOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  syncOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  candidateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  candidateName: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+
   gradesList: {
     paddingHorizontal: 16 * scale,
   },

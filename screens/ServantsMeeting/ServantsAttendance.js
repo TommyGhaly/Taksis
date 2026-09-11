@@ -22,22 +22,13 @@ import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
 import {
   collection,
-  deleteDoc,
   doc,
   getDoc,
   getFirestore,
   onSnapshot,
-  setDoc,
   updateDoc,
 } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
-import {
-  deleteObject,
-  getDownloadURL,
-  getStorage,
-  ref,
-  uploadBytes,
-} from "@react-native-firebase/storage";
 import * as Haptics from "react-native-haptic-feedback";
 import { Ionicons } from "@expo/vector-icons";
 import AlphabetIndexBar from "../../components/AlphabetIndexBar";
@@ -54,6 +45,11 @@ import * as avatarCache from "../../utils/avatarCache";
 import SkeletonScreen from "../../components/Skeleton";
 import useAfterInteractions from "../../hooks/useAfterInteractions";
 import useDeferredSearch from "../../hooks/useDeferredSearch";
+import {
+  isManualId,
+  newManualId,
+  saveManualPerson,
+} from "../../utils/manualPeople";
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
@@ -114,7 +110,7 @@ const getItemLayout = makeSectionListGetItemLayout({
 
 const auditServantRow = makeRowHeightAudit("ServantRow", ROW_H, 12);
 
-const isManual = (uid) => typeof uid === "string" && uid.startsWith("manual_");
+const isManual = isManualId;
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -135,75 +131,10 @@ const getNextSunday = () => {
 };
 
 
-// ── Merge logic ───────────────────────────────────────────────────────────────
-
-async function mergeManualIntoReal(church, manualServant, realUID) {
-  const collRef = collection(getFirestore(), "churches", church, "Servants Meeting");
-
-  const manualDocRef = doc(collRef, manualServant.uid);
-  const realDocRef = doc(collRef, realUID);
-
-  // Build attendance map from manual doc (exclude metadata fields)
-  const SKIP = new Set(["name", "uid", "manual", "phone"]);
-  const manualAttendance = {};
-  for (const [k, v] of Object.entries(manualServant)) {
-    if (!SKIP.has(k)) manualAttendance[k] = v;
-  }
-
-  // Get real doc (may not exist yet)
-  const realSnap = await getDoc(realDocRef);
-  const realData = realSnap.exists ? realSnap.data() : {};
-
-  // Merge: real account wins on conflict
-  const merged = { ...manualAttendance, ...realData };
-
-  // Fetch real user's name from users collection
-  let realName = realData.name || "";
-  if (!realName) {
-    try {
-      const userSnap = await getDoc(doc(getFirestore(), "users", realUID));
-      if (userSnap.exists) realName = userSnap.data()?.name || "";
-    } catch {}
-  }
-
-  // Write merged doc under real UID
-  await setDoc(realDocRef, { ...merged, uid: realUID, name: realName }, { merge: true });
-
-  // ── Profile photo merge ──
-  const manualPhotoRef = ref(getStorage(), `profilePictures/${manualServant.uid}.png`);
-  const realPhotoRef = ref(getStorage(), `profilePictures/${realUID}.png`);
-
-  let realHasPhoto = false;
-  try {
-    await getDownloadURL(realPhotoRef);
-    realHasPhoto = true;
-  } catch {}
-
-  let manualHasPhoto = false;
-  try {
-    await getDownloadURL(manualPhotoRef);
-    manualHasPhoto = true;
-  } catch {}
-
-  if (manualHasPhoto) {
-    if (!realHasPhoto) {
-      // Download manual photo bytes and upload under real UID
-      try {
-        const url = await getDownloadURL(manualPhotoRef);
-        const response = await fetch(url);
-        const blob = await response.blob();
-        await uploadBytes(realPhotoRef, blob);
-      } catch (e) {
-        console.warn("Photo copy failed:", e);
-      }
-    }
-    // Always delete the manual photo regardless
-    try { await deleteObject(manualPhotoRef); } catch {}
-  }
-
-  // Delete manual doc
-  await deleteDoc(manualDocRef);
-}
+// The merge helper that used to sit here had no call site in this file — the
+// only sync entry point is IndividualServant. It now lives in
+// utils/manualPeople.js, which folds *both* of a person's projections into the
+// real account rather than just this collection's.
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
@@ -561,7 +492,7 @@ const ServantsAttendance = () => {
   // ── Add manual servant ────────────────────────────────────────────────────
 
   const openAddModal = () => {
-    const tempUid = `manual_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const tempUid = newManualId();
     setNewPhotoUid(tempUid);
     setNewName("");
     setTempPhotoUploaded(false);
@@ -598,10 +529,16 @@ const ServantsAttendance = () => {
       // The photo (if any) was uploaded to profilePictures/{docId}.png when the
       // user confirmed in PhotoInput. Since the temp uid IS the docId, it's
       // already at the correct path — no move needed.
-      await setDoc(
-        doc(getFirestore(), "churches", userData.church, "Servants Meeting", docId),
-        { uid: docId, name: trimmed, manual: true }
-      );
+      // Writes the registry entry plus BOTH projections. Adding someone here
+      // makes them a Sunday School servant too — with no classes yet, so they
+      // appear in nobody's class list until an admin assigns some in Servants
+      // Management. That mirrors what isSSTeacher does for a real servant.
+      await saveManualPerson(userData.church, {
+        id: docId,
+        name: trimmed,
+        ssGrades: [],
+        createdBy: user?.uid || null,
+      });
 
       setAddModalVisible(false);
       setNewName("");
