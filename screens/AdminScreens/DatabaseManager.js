@@ -855,11 +855,16 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
   const effectiveConfig = config || { path: collectionPath };
   const protectedColl = !!effectiveConfig.protected;
 
+  // Build the ref from the whole path in one call. Chaining
+  // `collection(parentCollectionRef, ...)` used to look right but always threw:
+  // a CollectionReference has no `.collection()` method, so the modular helper's
+  // `parent.collection.call(...)` blew up on `undefined` — inside a useMemo, i.e.
+  // during render, which crashes the screen. It only bit nested paths
+  // (churches/{id}/schedule, .../unavailable, .../Hymns Class/...), which is why
+  // the top-level collections always worked.
   const collRef = useMemo(() => {
     const segs = collectionPath.split('/').filter(Boolean);
-    let ref = collection(getFirestore(), segs[0]);
-    for (let i = 1; i < segs.length; i += 2) ref = collection(ref, segs[i], segs[i+1]);
-    return ref;
+    return collection(getFirestore(), segs[0], ...segs.slice(1));
   }, [collectionPath]);
 
   const [docs, setDocs] = useState([]);
@@ -1515,11 +1520,12 @@ function StorageView({ prefix }) {
 }
 
 function DocumentView({ docPath, label, onOpenSubcollection, onAfterDelete }) {
+  // Same fix as CollectionView's collRef: a DocumentReference has no `.doc()`,
+  // so chaining `doc(parentDocRef, ...)` threw during render for every nested
+  // document (a schedule week, an `unavailable` week, a student, a pascha doc).
   const docRef = useMemo(() => {
     const segs = docPath.split('/').filter(Boolean);
-    let ref = doc(getFirestore(), segs[0], segs[1]);
-    for (let i = 2; i < segs.length; i += 2) ref = doc(ref, segs[i], segs[i+1]);
-    return ref;
+    return doc(getFirestore(), segs[0], ...segs.slice(1));
   }, [docPath]);
 
   const subcollections = useMemo(() => declaredSubcollectionsForDoc(docPath), [docPath]);
@@ -1732,6 +1738,13 @@ const fromTree = (node) => {
 const treeNodeType = (node) => {
   if (node && typeof node === 'object' && PT_ARR in node) return 'array';
   if (node && typeof node === 'object' && PT_MAP in node) return 'map';
+  // toEditable() turns a nested timestamp/reference/geopoint into a `__fs__`
+  // envelope. detectType() sees a plain object and says 'map', which made
+  // EntryRow offer a drill-in button; drilling in landed the editor on a level
+  // that is neither map nor array, and the next "Add entry" spread
+  // `level.__m` (undefined) and crashed. Report the real type instead — those
+  // types already render as read-only "edit in JSON mode" rows.
+  if (node && typeof node === 'object' && node[SPECIAL_HINT] !== undefined) return node[SPECIAL_HINT];
   return detectType(node);
 };
 const treeGet = (root, path) => {
@@ -1807,7 +1820,13 @@ function MapPreviewLines({ node, max = 3 }) {
             ) : scalar !== null ? (
               <InlineValue value={scalar} style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, flex: 1 }} />
             ) : (
-              <Text style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11 }} numberOfLines={1}>{String(v)}</Text>
+              // timestamp / reference / geopoint arrive as `__fs__` envelopes;
+              // String() on one renders "[object Object]".
+              <Text style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11 }} numberOfLines={1}>
+                {v && typeof v === 'object' && v[SPECIAL_HINT] !== undefined
+                  ? (v.value ?? `${v.lat}, ${v.lng}`)
+                  : String(v)}
+              </Text>
             )}
           </View>
         );
@@ -2006,8 +2025,9 @@ function StructuredEditor({ initial, isArrayRoot, onChange, onValidityChange }) 
     rowIdsRef.current.delete(pathKey);
   };
   const addEntry = () => mutateCurrent((level) => {
-    if (PT_ARR in level) return { [PT_ARR]: [...level[PT_ARR], ''] };
-    return { [PT_MAP]: [...level[PT_MAP], ['', '']] };
+    if (level && typeof level === 'object' && PT_ARR in level) return { [PT_ARR]: [...level[PT_ARR], ''] };
+    if (level && typeof level === 'object' && PT_MAP in level) return { [PT_MAP]: [...level[PT_MAP], ['', '']] };
+    return level;
   });
   const retype = (index, currentType) => {
     const order = PRIMITIVE_TYPES;
@@ -2073,10 +2093,12 @@ function StructuredEditor({ initial, isArrayRoot, onChange, onValidityChange }) 
           <Text style={styles.errorText}>A nested level has a blank or duplicate key.</Text>
         </View>
       )}
-      <TouchableOpacity style={styles.addEntryBtn} onPress={addEntry} activeOpacity={0.8}>
-        <Ionicons name="add" size={16} color={C.accent} />
-        <Text style={styles.addEntryText}>Add {currentIsArray ? 'item' : 'entry'}</Text>
-      </TouchableOpacity>
+      {(currentIsArray || currentIsMap) && (
+        <TouchableOpacity style={styles.addEntryBtn} onPress={addEntry} activeOpacity={0.8}>
+          <Ionicons name="add" size={16} color={C.accent} />
+          <Text style={styles.addEntryText}>Add {currentIsArray ? 'item' : 'entry'}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

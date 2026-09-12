@@ -7,13 +7,27 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "splash": {
-      "image": "./assets/Splash.png",
-      "resizeMode": "cover",
-      "backgroundColor": "#000000"
-    },
     "plugins": [
       "expo-apple-authentication",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#000000",
+          "ios": {
+            "image": "./assets/Splash.png",
+            "tabletImage": "./assets/SplashTablet.png",
+            "backgroundColor": "#000000",
+            "resizeMode": "contain",
+            "enableFullScreenImage_legacy": true
+          },
+          "android": {
+            "image": "./assets/SplashAndroidLogo.png",
+            "backgroundColor": "#000000",
+            "imageWidth": 180,
+            "resizeMode": "contain"
+          }
+        }
+      ],
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-google-signin/google-signin",

@@ -347,6 +347,54 @@ var HourModal = function(props) {
     });
   }, [inAnyPicker]);
 
+  var togglePsalm = function(item) {
+    var k = item.uid || item.name;
+    setPsalmSelected(function(prev) {
+      var next = new Set(prev);
+      if (next.has(k)) {
+        next.delete(k);
+        setPsalmSelectedMap(function(m) { var n = Object.assign({}, m); delete n[k]; return n; });
+      } else {
+        if (next.size >= MAX_PSALM_READERS) return prev;
+        next.add(k);
+        setPsalmSelectedMap(function(m) { return Object.assign({}, m, { [k]: item }); });
+      }
+      return next;
+    });
+  };
+
+  // These three must stay ABOVE the `!visible` guard below. They used to sit
+  // further down, which meant this component rendered 17 hooks while closed and
+  // 20 once an hour was opened - React throws "Rendered more hooks than during
+  // the previous render." the moment that count changes, and <HourModal> is
+  // mounted unconditionally with visible={!!hourOpen}, so opening any hour hit
+  // it. togglePsalm only closes over stable setters, so it moves up with them.
+  var handlePickerToggle = useCallback(function(item, on) {
+    setSel(on ? null : item);
+  }, []);
+
+  var renderPickerRow = useCallback(function(ri) {
+    var item = ri.item;
+    var on = sel != null
+      ? (sel.uid ? sel.uid === item.uid : sel.name === item.name)
+      : false;
+    return <PickerRow item={item} on={on} onToggle={handlePickerToggle} />;
+  }, [sel, handlePickerToggle]);
+
+  var renderPsalmRow = useCallback(function(ri) {
+    var item = ri.item;
+    var k = item.uid || item.name;
+    var on = psalmSelected.has(k);
+    return (
+      <PsalmPickerRow
+        item={item}
+        on={on}
+        atMax={psalmSelected.size >= MAX_PSALM_READERS && !on}
+        onToggle={togglePsalm}
+      />
+    );
+  }, [psalmSelected, togglePsalm]);
+
   if (!visible || !hour) return null;
 
   var rows              = expandReadings(hour, hourAssignments);
@@ -404,21 +452,6 @@ var HourModal = function(props) {
     setPsalmRow(row);
   };
   var closePsalmPicker = function() { restoreScrollRef.current = true; setPsalmRow(null); };
-  var togglePsalm = function(item) {
-    var k = item.uid || item.name;
-    setPsalmSelected(function(prev) {
-      var next = new Set(prev);
-      if (next.has(k)) {
-        next.delete(k);
-        setPsalmSelectedMap(function(m) { var n = Object.assign({}, m); delete n[k]; return n; });
-      } else {
-        if (next.size >= MAX_PSALM_READERS) return prev;
-        next.add(k);
-        setPsalmSelectedMap(function(m) { return Object.assign({}, m, { [k]: item }); });
-      }
-      return next;
-    });
-  };
   var addPsalmManual = function() {
     var name = manual.trim();
     if (!name || psalmSelected.size >= MAX_PSALM_READERS) return;
@@ -436,34 +469,6 @@ var HourModal = function(props) {
     onSavePsalmReaders(hour.id, psalmReadersKey(psalmRow), readers);
     closePsalmPicker();
   };
-
-  // Declared here, after togglePsalm: a dependency array is evaluated during
-  // render, so referencing a `var` initialised further down would read undefined.
-  var handlePickerToggle = useCallback(function(item, on) {
-    setSel(on ? null : item);
-  }, []);
-
-  var renderPickerRow = useCallback(function(ri) {
-    var item = ri.item;
-    var on = sel != null
-      ? (sel.uid ? sel.uid === item.uid : sel.name === item.name)
-      : false;
-    return <PickerRow item={item} on={on} onToggle={handlePickerToggle} />;
-  }, [sel, handlePickerToggle]);
-
-  var renderPsalmRow = useCallback(function(ri) {
-    var item = ri.item;
-    var k = item.uid || item.name;
-    var on = psalmSelected.has(k);
-    return (
-      <PsalmPickerRow
-        item={item}
-        on={on}
-        atMax={psalmSelected.size >= MAX_PSALM_READERS && !on}
-        onToggle={togglePsalm}
-      />
-    );
-  }, [psalmSelected, togglePsalm]);
 
   var pickerMeta  = pickerRow_ != null
     ? (READING_META[pickerRow_.rKey] || { label: pickerRow_.rKey, icon: "book-outline", color: T2 })
