@@ -22,6 +22,17 @@ c/taksis.png
 `apple-app-site-association` has **no file extension**. That is correct. Adding
 `.json` breaks it.
 
+That one file covers **every app on the domain**, not just Taksis — it also
+carries the SPSM Connect app's `applinks` entries. So diff it against what is
+live before copying, rather than overwriting:
+
+```bash
+curl -sS https://www.spsmwayland.org/.well-known/apple-app-site-association | python3 -m json.tool
+```
+
+Copying a stale copy over the live one silently unclaims the other app's URLs,
+and nothing fails loudly when that happens — its links just start opening Safari.
+
 `c/taksis.png` is the **app icon** (square, from `assets/icon.png`), not the
 `assets/taksis.png` wordmark that shares its filename. The install banner draws
 it in a 48x48 box; the wordmark shipped here first and rendered as a squashed

@@ -30,10 +30,19 @@ Adding a snippet touches three places: `ClipDestination` and `RootView` in
 `ios-appclip/`, `SNIPPET_ROUTES` in `utils/deepLinks.js`, and a page under
 `church-site/c/` with a rewrite in the church site's `firebase.json`.
 
-Neither the AASA nor App Store Connect is one of them. The AASA claims `/c/*`
-once. And the registered Advanced App Clip Experience is the **prefix**
+Neither the AASA nor App Store Connect is one of them. The AASA claims `/c` and
+`/c/*` once. And the registered Advanced App Clip Experience is the **prefix**
 `https://www.spsmwayland.org/c`, which Apple matches against every URL beneath
 it — so a new snippet is invocable the moment it ships.
+
+Both AASA components are needed, and the first one is easy to lose. Apple's `*`
+matches any number of characters but the literal `/c/` before it still has to be
+there, so `/c/*` does not match the bare prefix `https://www.spsmwayland.org/c`
+— the very URL an App Clip Code, TestFlight or App Review hands over. The clip
+routes that URL fine (`genericDefault`), but `applinks` is what decides whether
+the *installed* app is given the URL at all: with only `/c/*`, iOS finds no
+match, launches the app with no user activity, and the user lands on the home
+screen as if the code were blank. Adding `{ "/": "/c" }` is the whole fix.
 
 ## Registering App Clip Experiences
 

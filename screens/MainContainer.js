@@ -823,15 +823,15 @@ export default function MainContainer() {
 
   const showSettingsTab = useCallback(() => {
     if (!shellNavigationRef.isReady()) return;
-    // With the drawer, the tabs are nested under its "Home" screen; without it
-    // the tab navigator is the root. Navigation actions bubble up, not down, so
-    // the nested case has to be addressed explicitly.
-    if (shouldShowDrawer) {
-      shellNavigationRef.navigate("Home", { screen: "Settings" });
-    } else {
-      shellNavigationRef.navigate("Settings");
-    }
-  }, [shouldShowDrawer]);
+    // Address the tab by its own name, never by nesting it under the drawer's
+    // "Home" screen. Two routes are called "Home" -- that drawer screen and the
+    // first tab -- and `navigate("Home", { screen: "Settings" })` is resolved by
+    // the *tab* navigator: it focuses the Home tab and parks `{ screen }` on it
+    // as params nothing reads, so the link silently died on the home screen.
+    // "Settings" exists only in the tab navigator, so it is unambiguous, and it
+    // works whether or not the drawer wraps the tabs.
+    shellNavigationRef.navigate("Settings");
+  }, []);
 
   useEffect(() => {
     if (pendingRoute && !isLoading && shellReady) showSettingsTab();

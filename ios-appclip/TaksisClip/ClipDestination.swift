@@ -22,8 +22,11 @@ import Foundation
 ///     a specific URL only to give one snippet its own card. Note that the
 ///     prefix itself is an invocation URL — see `genericDefault`.
 ///
-/// The AASA needs no edit per snippet: it claims `/c/*` once, and its `appclips`
-/// key takes App IDs only, never paths.
+/// The AASA needs no edit per snippet: it claims `/c` and `/c/*` once, and its
+/// `appclips` key takes App IDs only, never paths. Both `applinks` components
+/// matter — `/c/*` does not match the bare prefix, which is the URL an App Clip
+/// Code hands over, so dropping `/c` silently sends installed users to the home
+/// screen.
 ///
 /// Keep each snippet's size in mind: they all ship in one binary, against a
 /// single 15 MB budget.
@@ -35,7 +38,8 @@ enum ClipDestination: String, CaseIterable, Identifiable {
     /// First path component of every snippet URL.
     ///
     /// Namespacing under one prefix is what keeps nine snippets cheap: the AASA
-    /// claims `/c/*` once, and Android needs a single `pathPrefix` intent filter.
+    /// claims `/c` and `/c/*` once, and Android needs a single `pathPrefix`
+    /// intent filter.
     /// Neither is touched again per snippet. It also means the app never claims
     /// an unrelated URL on the church domain.
     ///
