@@ -254,7 +254,9 @@
     border-radius: 14px;
   }
   .app-banner[hidden] { display: none; }
-  .app-banner-icon { border-radius: 10px; flex: none; }
+  /* object-fit guards the 1:1 box: taksis.png was once the wide wordmark and
+     rendered as a squashed smear. A non-square swap now crops instead. */
+  .app-banner-icon { border-radius: 10px; flex: none; object-fit: cover; }
   .app-banner-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
   .app-banner-text strong { font-size: 14px; color: var(--ink); }
   .app-banner-text span { font-size: 12px; color: var(--ink-soft); }

@@ -22,6 +22,11 @@ c/taksis.png
 `apple-app-site-association` has **no file extension**. That is correct. Adding
 `.json` breaks it.
 
+`c/taksis.png` is the **app icon** (square, from `assets/icon.png`), not the
+`assets/taksis.png` wordmark that shares its filename. The install banner draws
+it in a 48x48 box; the wordmark shipped here first and rendered as a squashed
+smear.
+
 ## What to change in that project's `firebase.json`
 
 Merge these into the existing config — do not replace the file.
