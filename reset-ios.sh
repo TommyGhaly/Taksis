@@ -64,7 +64,36 @@ rm -rf ~/Library/Developer/Xcode/DerivedData/app-*/Build
 rm -rf ~/Library/Developer/Xcode/DerivedData/ModuleCache.noindex
 
 echo "→ Pod install"
-( cd ios && pod install --repo-update )
+# Retried, because the failure it guards against is not ours and not persistent.
+#
+# Resolution fetches ~180 podspecs from the CocoaPods CDN (jsDelivr) in parallel.
+# Under that fan-out one connection intermittently dies mid-stream and curl
+# reports error 16:
+#
+#   [!] CDN: trunk URL couldn't be downloaded: https://cdn.jsdelivr.net/cocoa/
+#       Specs/.../gRPC-Core.podspec.json Response: Error in the HTTP2 framing layer
+#
+# The URL is fine — fetched on its own it returns 200 over both HTTP/2 and 1.1 —
+# so a plain retry almost always succeeds. But `set -e` turned that one dropped
+# connection into an aborted run, and because the wipe and prebuild already
+# happened, it left ios/ populated but with no app.xcworkspace: a state that
+# looks like the script is broken rather than like the network blipped.
+#
+# --repo-update only on the first attempt; once the index is current, re-running
+# it just repeats the slow part that has nothing to do with the failure.
+pod_install() {
+  local attempt
+  for attempt in 1 2 3; do
+    if [ "$attempt" -eq 1 ]; then
+      ( cd ios && pod install --repo-update ) && return 0
+    else
+      echo "   … pod install failed (attempt $((attempt - 1))), retrying"
+      ( cd ios && pod install ) && return 0
+    fi
+  done
+  fail "pod install failed 3 times. If every attempt printed a CDN/HTTP2 error the CocoaPods CDN is having a bad day — just run this script again. Any other error is real and the output above is the one to read."
+}
+pod_install
 
 # ── Verify every addition actually landed ────────────────────────────────────
 #
