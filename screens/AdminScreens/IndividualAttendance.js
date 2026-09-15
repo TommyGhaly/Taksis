@@ -109,11 +109,12 @@ const BIRTHDAY_PATTERN = /^\d{2}-\d{2}-\d{4}$/;
  * became five unlabelled boxes — you could not tell which one was the phone
  * number without clearing it.
  */
-const Field = ({ label, hint, required, children }) => (
+const Field = ({ label, hint, required, optional, children }) => (
   <View style={styles.field}>
     <Text style={styles.fieldLabel}>
       {label}
       {required ? <Text style={styles.fieldRequired}> (required)</Text> : null}
+      {optional ? <Text style={styles.fieldOptional}> (optional)</Text> : null}
     </Text>
     {hint ? <Text style={styles.fieldHint}>{hint}</Text> : null}
     {children}
@@ -741,14 +742,14 @@ const IndividualAttendance = () => {
               accessibilityLabel={editMode ? "Close without saving" : "Close"}
               accessibilityRole="button"
             >
-              <Icon name="close" size={24} color="#dcdcdc" />
+              <Icon name="close" size={20} color="#dcdcdc" />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>
               {editMode ? "Edit Student" : "Student Information"}
             </Text>
             {editMode && (
               <Text style={styles.modalSubtitle}>
-                Change anything you need, then tap Save Changes at the bottom.
+                Tap Save Changes when you're done.
               </Text>
             )}
             {/* Scrollable: with a label on every field the form is taller than a
@@ -757,7 +758,7 @@ const IndividualAttendance = () => {
             <ScrollView
               style={styles.modalScroll}
               contentContainerStyle={styles.infoContainer}
-              showsVerticalScrollIndicator={true}
+              showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
               {editMode ? (
@@ -766,9 +767,9 @@ const IndividualAttendance = () => {
                     <Avatar
                       uid={studentId}
                       user={studentData}
-                      size={100}
+                      size={76}
                       finalSize={300}
-                      borderRadius={50}
+                      borderRadius={38}
                       style={styles.modalProfilePicture}
                       expandable
                     />
@@ -830,10 +831,7 @@ const IndividualAttendance = () => {
                     />
                   </Field>
 
-                  <Field
-                    label="Birthday"
-                    hint="Month, day, year — for example 04-15-2016. Leave blank if you don't know it."
-                  >
+                  <Field label="Birthday" optional>
                     <TextInput
                       style={styles.input}
                       value={editData.birthday}
@@ -852,7 +850,7 @@ const IndividualAttendance = () => {
                     />
                   </Field>
 
-                  <Field label="Phone Number" hint="Optional — a parent's number is fine.">
+                  <Field label="Phone Number" optional hint="A parent's number is fine.">
                     <TextInput
                       style={styles.input}
                       value={editData.phone}
@@ -871,7 +869,7 @@ const IndividualAttendance = () => {
                     />
                   </Field>
 
-                  <Field label="Home Address" hint="Optional.">
+                  <Field label="Home Address" optional>
                     <TextInput
                       style={styles.input}
                       value={editData.address}
@@ -885,10 +883,7 @@ const IndividualAttendance = () => {
                     />
                   </Field>
 
-                  <Field
-                    label="Notes"
-                    hint="Optional — anything the servants should know."
-                  >
+                  <Field label="Notes" optional hint="Anything the servants should know.">
                     <TextInput
                       style={[styles.input, styles.descriptionInput]}
                       value={editData.description}
@@ -977,9 +972,9 @@ const IndividualAttendance = () => {
                     <Avatar
                       uid={studentId}
                       user={studentData}
-                      size={100}
+                      size={76}
                       finalSize={300}
-                      borderRadius={50}
+                      borderRadius={38}
                       style={styles.modalProfilePicture}
                       expandable
                     />
@@ -1296,8 +1291,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.8)",
   },
   modalContent: {
-    padding: 25,
-    paddingHorizontal: 25,
+    padding: 18,
+    paddingHorizontal: 20,
     // The edit form is taller than a phone screen; the ScrollView inside needs a
     // bounded parent or the card just grows off the top and bottom of the modal.
     maxHeight: "90%",
@@ -1310,24 +1305,24 @@ const styles = StyleSheet.create({
     elevation: 15,
   },
   modalTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#ffffff",
-    marginBottom: 8,
-    letterSpacing: 0.5,
+    marginBottom: 4,
+    letterSpacing: 0.3,
     textAlign: "center",
     // Room for the close button in the corner.
     alignSelf: "stretch",
-    paddingHorizontal: 44,
+    paddingHorizontal: 36,
   },
   modalCloseButton: {
     position: "absolute",
-    top: 10,
-    right: 10,
+    top: 8,
+    right: 8,
     zIndex: 10,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: "rgba(255,255,255,0.1)",
     alignItems: "center",
     justifyContent: "center",
@@ -1336,51 +1331,57 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   modalSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#aaaaaa",
     textAlign: "center",
-    marginBottom: 8,
-    lineHeight: 19,
+    marginBottom: 4,
+    lineHeight: 17,
   },
   modalScroll: {
     width: "100%",
   },
   infoContainer: {
     width: "100%",
-    paddingTop: 10,
-    paddingBottom: 10,
+    paddingTop: 6,
+    paddingBottom: 6,
   },
   // Label + hint sit above the input, so a filled-in form is still readable.
   field: {
     width: "100%",
-    marginBottom: 18,
+    marginBottom: 12,
   },
   fieldLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
     color: "#ffffff",
     marginBottom: 4,
   },
   fieldRequired: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
     color: "#ff8a80",
   },
+  // "(optional)" rides on the label line instead of taking a hint line of its own.
+  fieldOptional: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#8a8a8a",
+  },
   fieldHint: {
-    fontSize: 13,
+    fontSize: 12,
     color: "#9a9a9a",
-    marginBottom: 8,
-    lineHeight: 18,
+    marginBottom: 6,
+    lineHeight: 16,
   },
   photoSection: {
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: 14,
   },
   photoButtonRow: {
     flexDirection: "row",
     justifyContent: "center",
     flexWrap: "wrap",
-    marginTop: 14,
+    marginTop: 10,
   },
   photoButton: {
     flexDirection: "row",
@@ -1390,17 +1391,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#444",
     borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginHorizontal: 5,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    marginHorizontal: 4,
     marginTop: 6,
-    minHeight: 46,
+    minHeight: 40,
   },
   photoButtonText: {
     color: "#ffffff",
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
-    marginLeft: 8,
+    marginLeft: 6,
   },
   photoButtonDanger: {
     borderColor: "#5a2a2a",
@@ -1412,20 +1413,20 @@ const styles = StyleSheet.create({
   profilePictureContainer: {
     position: "relative",
     alignSelf: "center",
-    marginBottom: 20,
+    marginBottom: 14,
   },
   modalProfilePicture: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     borderWidth: 2,
     borderColor: "#ffffff",
   },
   infoCard: {
     backgroundColor: "#2a2a2a",
     borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
+    padding: 14,
+    marginBottom: 14,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
@@ -1434,40 +1435,40 @@ const styles = StyleSheet.create({
   },
   infoRow: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 15,
-    paddingVertical: 5,
+    alignItems: "flex-start",
+    marginBottom: 8,
+    paddingVertical: 1,
   },
   infoLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
     color: "#ffffff",
-    width: 100,
+    width: 88,
   },
   infoValue: {
-    fontSize: 16,
+    fontSize: 15,
     color: "#ffffff",
     flex: 1,
     flexWrap: "wrap",
   },
   input: {
     width: "100%",
-    padding: 14,
+    padding: 11,
     backgroundColor: "#2a2a2a",
     color: "#fff",
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "#444",
-    fontSize: 17,
+    fontSize: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
   descriptionInput: {
-    height: 100,
+    height: 76,
     textAlignVertical: "top",
-    paddingTop: 12,
+    paddingTop: 10,
   },
   modalButton: {
     width: "100%",
@@ -1482,7 +1483,7 @@ const styles = StyleSheet.create({
   },
   buttonInner: {
     flexDirection: "row",
-    paddingVertical: 16,
+    paddingVertical: 13,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 25,
@@ -1492,7 +1493,7 @@ const styles = StyleSheet.create({
   },
   // A bare word was being tapped; give it a real hit area.
   secondaryButton: {
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1503,7 +1504,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   modalButtonText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "700",
     color: "#ffffff",
     letterSpacing: 0.5,
@@ -1537,9 +1538,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#444",
     borderRadius: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    marginBottom: 22,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    marginBottom: 14,
     alignItems: "center",
   },
   gradeChangeButtonTextGroup: {
@@ -1548,7 +1549,7 @@ const styles = StyleSheet.create({
   },
   gradeChangeButtonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
   },
   gradeChangeButtonHint: {
