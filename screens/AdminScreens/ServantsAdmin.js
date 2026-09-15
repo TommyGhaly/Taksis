@@ -24,7 +24,6 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDocs,
   getFirestore,
   onSnapshot,
   query,
@@ -52,6 +51,7 @@ import {
   GRADES_LIST,
   cleanFieldName,
   deleteManualPerson,
+  fetchMergeCandidates,
   isManualId,
   manualPeopleRef,
   mergeManualIntoReal,
@@ -855,27 +855,22 @@ const ServantsAdmin = () => {
   // ── Sync to a real account ────────────────────────────────────────────────
 
   /**
-   * Candidates are the church's existing Servants Meeting docs, minus the manual
-   * ones — i.e. people who already hold the Sunday School role.
-   *
-   * Someone who signs up lands in that collection on their own: they tick
-   * "Sunday School Teacher" during onboarding (SelectApplicable) or later in
-   * Settings (ChangeRoles), and update_user creates the doc. So no admin step is
-   * needed before they become syncable.
+   * Candidates come from utils/manualPeople.js, which unions the accounts that
+   * hold the Sunday School role with those already projected into Servants
+   * Meeting. This screen used to read the Servants Meeting projection alone, so
+   * any servant whose projection had drifted away from their `users` doc was
+   * missing from the picker — on the roster, but unmergeable.
    */
   const openSyncModal = useCallback(async () => {
     if (!church) return;
+    const person = selectedServant;
     setCandidateQuery("");
     setLoadingCandidates(true);
     setSyncModalVisible(true);
     try {
-      const snap = await getDocs(
-        collection(getFirestore(), "churches", church, "Servants Meeting")
-      );
-      const candidates = snap.docs
-        .filter((d) => !isManualId(d.id))
-        .map((d) => ({ uid: d.id, ...d.data() }))
-        .sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? "")));
+      const candidates = await fetchMergeCandidates(church, {
+        excludeId: person?.id,
+      });
       setSyncCandidates(candidates);
       // These docs already carry photoURL — free avatars, no Storage requests.
       avatarCache.primeMany(candidates);
@@ -885,7 +880,7 @@ const ServantsAdmin = () => {
     } finally {
       setLoadingCandidates(false);
     }
-  }, [church]);
+  }, [church, selectedServant]);
 
   const filteredCandidates = useMemo(() => {
     const q = candidateQuery.trim().toLowerCase();
@@ -901,7 +896,7 @@ const ServantsAdmin = () => {
       if (!person || !church) return;
       Alert.alert(
         "Sync to account",
-        `Merge "${person.name}" into ${candidate.name}'s account?\n\nAny attendance ${candidate.name} already has takes priority. This manual record will be deleted.`,
+        `Merge "${person.name}" into ${candidate.name}'s account?\n\nAny attendance ${candidate.name} already has takes priority. ${candidate.name} becomes a Sunday School servant, and this manual record will be deleted.`,
         [
           { text: "Cancel", style: "cancel" },
           {
@@ -909,7 +904,7 @@ const ServantsAdmin = () => {
             onPress: async () => {
               setSyncing(true);
               try {
-                const { carried } = await mergeManualIntoReal(
+                const { carried, roleGranted } = await mergeManualIntoReal(
                   church,
                   person,
                   candidate.uid
@@ -919,11 +914,16 @@ const ServantsAdmin = () => {
                 setSyncModalVisible(false);
                 closeEditModal();
                 await CacheUtils.remove(cacheKeys.current.manual);
+                const dates =
+                  moved > 0
+                    ? `, carrying over ${moved} attendance ${moved === 1 ? "date" : "dates"}`
+                    : "";
                 Alert.alert(
                   "Synced",
-                  moved > 0
-                    ? `${person.name} was merged into ${candidate.name}'s account, carrying over ${moved} attendance ${moved === 1 ? "date" : "dates"}.`
-                    : `${person.name} was merged into ${candidate.name}'s account.`
+                  `${person.name} was merged into ${candidate.name}'s account${dates}.` +
+                    (roleGranted
+                      ? ""
+                      : `\n\nThe attendance moved, but ${candidate.name}'s Sunday School Teacher role could not be set — turn it on from Servants Management.`)
                 );
               } catch (e) {
                 Alert.alert("Sync failed", e.message);
@@ -1400,7 +1400,7 @@ const ServantsAdmin = () => {
                       <Text style={styles.syncEmpty}>
                         {candidateQuery
                           ? "No accounts match your search."
-                          : "No accounts yet. Once this person signs up and selects Sunday School Teacher, they'll appear here."}
+                          : "No accounts in this church yet. Once this person signs up, they'll appear here."}
                       </Text>
                     }
                   />

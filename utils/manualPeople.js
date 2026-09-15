@@ -44,8 +44,9 @@ import {
   getDoc,
   getDocs,
   getFirestore,
+  query,
   setDoc,
-  updateDoc,
+  where,
 } from "@react-native-firebase/firestore";
 import {
   getDownloadURL,
@@ -196,6 +197,59 @@ export async function fetchManualPeople(church) {
   return snap.docs.map((d) => normalizeManualPerson(d.id, d.data()));
 }
 
+// ── Merge candidates ──────────────────────────────────────────────────────────
+
+/**
+ * Every real account in the church — the full merge target list.
+ *
+ * Deliberately NOT filtered to people who already hold the Sunday School role,
+ * and deliberately not read from `churches/{c}/Servants Meeting`. Both of those
+ * are narrower than the question being asked. The picker exists to answer "which
+ * account is this manual person?", and that account may well be someone who
+ * signed up without ever ticking Sunday School Teacher, or whose projection has
+ * drifted away from their `users` doc:
+ *
+ *   - Removing someone in IndividualServant and answering "No, Keep Role"
+ *     deletes their projection and leaves `isSSTeacher` set.
+ *   - ServantsAdmin's removal clears `isSSTeacher` and the Sunday School doc,
+ *     but never deletes the Servants Meeting doc.
+ *
+ * Reading either source alone hid real accounts from the picker — visible
+ * everywhere else in the app, but impossible to sync a duplicate into, with no
+ * message explaining why. Listing all church users removes the dead end
+ * entirely: mergeManualIntoReal grants the role and writes both projections, so
+ * whoever is picked ends up a fully-formed servant regardless of where they
+ * started.
+ *
+ * `users` is the authoritative collection, so requiring a doc here also drops
+ * orphaned projections whose account no longer exists — merging into one of
+ * those would scatter attendance under a uid that can never sign in.
+ */
+export async function fetchMergeCandidates(church, { excludeId } = {}) {
+  const snap = await getDocs(
+    query(collection(db(), "users"), where("church", "==", church))
+  );
+
+  const candidates = [];
+  for (const d of snap.docs) {
+    const id = d.id;
+    if (isManualId(id) || id === excludeId) continue;
+    const data = d.data() || {};
+    candidates.push({ ...data, uid: id, name: String(data.name ?? "") });
+  }
+
+  // Name order, with the uid as a tiebreak so the list is stable across reads
+  // when two accounts share a name — which is exactly the duplicate case these
+  // screens exist to resolve.
+  candidates.sort((a, b) => {
+    const an = a.name.trim().toLowerCase();
+    const bn = b.name.trim().toLowerCase();
+    return an.localeCompare(bn) || (a.uid < b.uid ? -1 : a.uid > b.uid ? 1 : 0);
+  });
+
+  return candidates;
+}
+
 // ── Writes ────────────────────────────────────────────────────────────────────
 
 /**
@@ -329,7 +383,8 @@ async function mergePhoto(manualId, realUID) {
  * `servant_ok` already holds by the time anything calls that endpoint.
  *
  * Returns a per-collection summary of how many attendance dates were carried
- * over, so the caller can tell the admin what actually moved.
+ * over, plus whether the Sunday School role was successfully granted, so the
+ * caller can tell the admin what actually moved.
  */
 export async function mergeManualIntoReal(church, manualPerson, realUID) {
   const manualId = manualPerson?.id || manualPerson?.uid;
@@ -435,19 +490,33 @@ export async function mergeManualIntoReal(church, manualPerson, realUID) {
 
   // Grant the role. `winningGrades` is the same list the Sunday School
   // projection was just written with, so the two cannot disagree.
+  //
+  // This is the step that makes the merge target an actual servant, and it is
+  // load-bearing now that the picker offers every account in the church rather
+  // than only existing teachers: whoever is chosen may have signed up and never
+  // ticked Sunday School Teacher. Without this they would own the merged
+  // attendance while being absent from every roster that reads `isSSTeacher`.
+  //
+  // setDoc(merge) rather than updateDoc: updateDoc rejects if the doc is missing,
+  // and it is idempotent, so re-running a partly-failed merge is safe.
+  let roleGranted = false;
   try {
-    await updateDoc(doc(db(), "users", realUID), {
-      isSSTeacher: true,
-      ssGrades: winningGrades,
-    });
+    await setDoc(
+      doc(db(), "users", realUID),
+      { isSSTeacher: true, ssGrades: winningGrades },
+      { merge: true }
+    );
+    roleGranted = true;
   } catch (e) {
     // The projections are already merged at this point, which is the part that
     // carries data. A missing role is recoverable from Servants Management; a
-    // half-merged attendance history is not, so this does not rethrow.
+    // half-merged attendance history is not, so this does not rethrow. It is
+    // reported back instead, so the caller can say so rather than claiming a
+    // clean success.
     console.warn("[manualPeople] role not granted on users doc:", e?.message);
   }
 
   await deleteDoc(manualPersonRef(church, manualId)).catch(() => {});
 
-  return { carried, realName };
+  return { carried, realName, roleGranted };
 }

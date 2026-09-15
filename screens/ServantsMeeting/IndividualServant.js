@@ -18,10 +18,8 @@ import {
   useFocusEffect,
 } from "@react-navigation/native";
 import {
-  collection,
   deleteDoc,
   doc,
-  getDocs,
   getFirestore,
   onSnapshot,
   updateDoc,
@@ -35,6 +33,7 @@ import { LIST_PERF, LIST_KEYBOARD } from "../../utils/listConfig";
 import { dateKeyToSortable } from "../../utils/dateKeys";
 import {
   deleteManualPerson,
+  fetchMergeCandidates,
   isManualId,
   mergeManualIntoReal,
 } from "../../utils/manualPeople";
@@ -207,17 +206,22 @@ const IndividualServant = () => {
 
   // ── Sync ──────────────────────────────────────────────────────────────────
 
+  /**
+   * Candidates come from utils/manualPeople.js, which unions the accounts that
+   * hold the Sunday School role with those already projected into Servants
+   * Meeting. This screen used to list its own collection's non-manual docs, so
+   * a servant whose projection had been deleted while their role stayed set was
+   * absent from the picker — and a manual duplicate could not be merged into
+   * the very account it belonged to.
+   */
   const openSyncModal = async () => {
     setUserSearchQuery("");
     setLoadingUsers(true);
     setSyncModalVisible(true);
     try {
-      const snap = await getDocs(
-        collection(getFirestore(), "churches", church, "Servants Meeting")
-      );
-      const servants = snap.docs
-        .filter((d) => !d.id.startsWith("manual_"))
-        .map((d) => ({ uid: d.id, ...d.data() }));
+      const servants = await fetchMergeCandidates(church, {
+        excludeId: servantID,
+      });
       setAllChurchUsers(servants);
 
       // Free: adopt any photoURL already on the docs we just read. Anything
@@ -239,7 +243,7 @@ const IndividualServant = () => {
   const handleSyncConfirm = useCallback((realUser) => {
     Alert.alert(
       "Sync to Account",
-      `Merge "${servantName}" into ${realUser.name}'s account?\n\nTheir existing attendance records will take priority. This manual entry will be deleted.`,
+      `Merge "${servantName}" into ${realUser.name}'s account?\n\nTheir existing attendance records will take priority. ${realUser.name} becomes a Sunday School servant, and this manual entry will be deleted.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -247,11 +251,18 @@ const IndividualServant = () => {
           onPress: async () => {
             setSyncing(true);
             try {
-              await mergeManualIntoReal(church, servantRaw, realUser.uid);
+              const { roleGranted } = await mergeManualIntoReal(
+                church,
+                servantRaw,
+                realUser.uid
+              );
               setSyncModalVisible(false);
               Alert.alert(
                 "Synced",
-                `${servantName} has been merged into ${realUser.name}'s account.`,
+                `${servantName} has been merged into ${realUser.name}'s account.` +
+                  (roleGranted
+                    ? ""
+                    : `\n\nThe attendance moved, but ${realUser.name}'s Sunday School Teacher role could not be set — turn it on from Servants Management.`),
                 [{ text: "OK", onPress: () => navigation.goBack() }]
               );
             } catch (e) {
