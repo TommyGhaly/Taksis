@@ -924,13 +924,18 @@ const IndividualProfile = ({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
 
-      <PhotoInput
-        visible={showPhotoModal}
-        onClose={handlePhotoUpload}
-        userId={userId}
-      />
+        {/* Content of *this* modal (`inline`), not a nested <Modal>: iOS will
+            not present from a view controller that is already presenting, so
+            the stacked modal was dropped with no error and the photo button
+            opened nothing. */}
+        <PhotoInput
+          inline
+          visible={showPhotoModal}
+          onClose={handlePhotoUpload}
+          userId={userId}
+        />
+      </View>
     </Modal>
   );
 };

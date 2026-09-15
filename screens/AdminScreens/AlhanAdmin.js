@@ -803,15 +803,19 @@ const AlhanAdmin = () => {
                 </TouchableOpacity>
               </View>
             </View>
+
+            {/* Content of *this* modal (`inline`), not a second <Modal>: iOS
+                will not present from a view controller that is already
+                presenting, so a sibling modal here was dropped with no error
+                and "Change Photo" opened nothing. */}
+            <PhotoInput
+              inline
+              visible={photoInputVisible}
+              onClose={closePhotoInputModal}
+              userId={selectedTeacher.id}
+            />
           </View>
         </Modal>
-      )}
-      {selectedTeacher && (
-        <PhotoInput
-          visible={photoInputVisible}
-          onClose={closePhotoInputModal}
-          userId={selectedTeacher.id}
-        />
       )}
     </View>
   );

@@ -1415,15 +1415,18 @@ const ServantsAdmin = () => {
                 </View>
               </View>
             )}
+
+            {/* Same constraint as the sync overlay above: content of *this*
+                modal (`inline`), not a second <Modal>. Stacked, it was never
+                presented and "Change Photo" opened nothing. */}
+            <PhotoInput
+              inline
+              visible={photoInputVisible}
+              onClose={closePhotoInputModal}
+              userId={selectedServant.id}
+            />
           </View>
         </Modal>
-      )}
-      {selectedServant && (
-        <PhotoInput
-          visible={photoInputVisible}
-          onClose={closePhotoInputModal}
-          userId={selectedServant.id}
-        />
       )}
 
       {/* ── Add a servant with no account ── */}
