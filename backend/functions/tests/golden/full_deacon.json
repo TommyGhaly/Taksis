@@ -564,10 +564,10 @@
    "gospel": "uid-033",
    "matins": "uid-012",
    "pauline": "uid-007",
-   "praxis": "uid-035",
+   "praxis": "uid-038",
    "sixth": "uid-001",
    "third": "uid-004",
-   "water": "uid-038",
+   "water": "uid-035",
    "wine": "uid-037"
   },
   {
@@ -710,7 +710,7 @@
   },
   {
    "altar": [
-    "uid-015",
+    "uid-012",
     "uid-020",
     "uid-021",
     "uid-022",
@@ -720,7 +720,7 @@
     "uid-026",
     "uid-027"
    ],
-   "catholic": "uid-006",
+   "catholic": "uid-007",
    "extra": [
     "uid-000",
     "uid-002",
@@ -746,12 +746,12 @@
     "uid-039"
    ],
    "gospel": "uid-028",
-   "matins": "uid-012",
-   "pauline": "uid-007",
-   "praxis": "uid-029",
-   "sixth": "uid-001",
-   "third": "uid-004",
-   "water": "uid-031",
+   "matins": "uid-004",
+   "pauline": "uid-015",
+   "praxis": "uid-006",
+   "sixth": "uid-031",
+   "third": "uid-001",
+   "water": "uid-029",
    "wine": "uid-030"
   },
   {
@@ -840,10 +840,10 @@
    "gospel": "uid-033",
    "matins": "uid-012",
    "pauline": "uid-007",
-   "praxis": "uid-035",
+   "praxis": "uid-038",
    "sixth": "uid-001",
    "third": "uid-004",
-   "water": "uid-038",
+   "water": "uid-035",
    "wine": "uid-037"
   },
   {
@@ -986,7 +986,7 @@
   },
   {
    "altar": [
-    "uid-015",
+    "uid-012",
     "uid-020",
     "uid-021",
     "uid-022",
@@ -996,7 +996,7 @@
     "uid-026",
     "uid-027"
    ],
-   "catholic": "uid-006",
+   "catholic": "uid-007",
    "extra": [
     "uid-000",
     "uid-002",
@@ -1022,12 +1022,12 @@
     "uid-039"
    ],
    "gospel": "uid-028",
-   "matins": "uid-012",
-   "pauline": "uid-007",
-   "praxis": "uid-029",
-   "sixth": "uid-001",
-   "third": "uid-004",
-   "water": "uid-031",
+   "matins": "uid-004",
+   "pauline": "uid-015",
+   "praxis": "uid-006",
+   "sixth": "uid-031",
+   "third": "uid-001",
+   "water": "uid-029",
    "wine": "uid-030"
   },
   {
@@ -1116,10 +1116,10 @@
    "gospel": "uid-033",
    "matins": "uid-012",
    "pauline": "uid-007",
-   "praxis": "uid-035",
+   "praxis": "uid-038",
    "sixth": "uid-001",
    "third": "uid-004",
-   "water": "uid-038",
+   "water": "uid-035",
    "wine": "uid-037"
   },
   {
@@ -1262,7 +1262,7 @@
   },
   {
    "altar": [
-    "uid-015",
+    "uid-012",
     "uid-020",
     "uid-021",
     "uid-022",
@@ -1272,7 +1272,7 @@
     "uid-026",
     "uid-027"
    ],
-   "catholic": "uid-006",
+   "catholic": "uid-007",
    "extra": [
     "uid-000",
     "uid-002",
@@ -1298,12 +1298,12 @@
     "uid-039"
    ],
    "gospel": "uid-028",
-   "matins": "uid-012",
-   "pauline": "uid-007",
-   "praxis": "uid-029",
-   "sixth": "uid-001",
-   "third": "uid-004",
-   "water": "uid-031",
+   "matins": "uid-004",
+   "pauline": "uid-015",
+   "praxis": "uid-006",
+   "sixth": "uid-031",
+   "third": "uid-001",
+   "water": "uid-029",
    "wine": "uid-030"
   },
   {
@@ -1392,10 +1392,10 @@
    "gospel": "uid-033",
    "matins": "uid-012",
    "pauline": "uid-007",
-   "praxis": "uid-035",
+   "praxis": "uid-038",
    "sixth": "uid-001",
    "third": "uid-004",
-   "water": "uid-038",
+   "water": "uid-035",
    "wine": "uid-037"
   }
  ]

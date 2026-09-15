@@ -114,9 +114,18 @@ SCORE_DECLARED_UNAVAILABLE = -4000
 #   * someone who serves often, but always in the same role
 #
 # In all three cases weeksSince looks identical. These terms add the missing
-# history. Each is weighted, and every weight defaults to 0 - with the defaults
-# the score is exactly the rotation/age/frequency algorithm, so the memory
-# layer is enabled per church and rolled back by setting the weights to 0.
+# history. Each is weighted, and a church overrides any of them through
+# `scheduleWeights`; setting all three to 0 there restores the plain
+# rotation/age/frequency algorithm for that church.
+#
+# The defaults below used to be 0, which meant the memory layer shipped inert:
+# nothing writes `scheduleWeights` - no seed script, no admin screen - so every
+# church ran with the weights at zero and `memory_bonus` returned 0.0 on every
+# call. `find_replacement` was the visible symptom, naming the same handful of
+# people over and over; over 16 simulated weeks it produced 4 distinct matins
+# suggestions, and with each one approved it settled into a two-person
+# alternation. The values here are the ones `tests/fairness.py` measures as
+# PROPOSED - keep the two in step.
 DEFAULT_WEIGHTS = {
     # How much rotation credit an unreliable person forfeits, 0..1.
     #
@@ -129,12 +138,12 @@ DEFAULT_WEIGHTS = {
     #
     # At 0.8, someone who has never once turned up accrues 20% of normal
     # rotation credit; someone with a spotless record accrues all of it.
-    "reliability": 0.0,
+    "reliability": 0.8,
     # Additive boost, in score points, for people who have served fewer times
     # than the roster median.
-    "famine": 0.0,
+    "famine": 8.0,
     # Additive penalty, in score points, for a role you have held repeatedly.
-    "role_repeat": 0.0,
+    "role_repeat": 10.0,
 }
 
 # How many past assignments `roleHistory` keeps, and the window the repeat
@@ -798,8 +807,8 @@ async def my_async_scheduled_function():
         church_data = church_doc.to_dict()
         num_altar_servers = int(church_data.get("altarServers", 0))
         full_deacon_enabled = church_data.get("fullDeacon", None)
-        # Per-church memory tuning. Absent means DEFAULT_WEIGHTS, which are all
-        # zero - so a church that has not opted in schedules exactly as before.
+        # Per-church memory tuning. Absent means DEFAULT_WEIGHTS, which now
+        # have the memory layer on; a church opts *out* by writing zeros here.
         weights = church_data.get("scheduleWeights")
 
         schedule_ref = church_doc.reference.collection("schedule")

@@ -1,9 +1,9 @@
 """
 fairness.py - Does the memory layer actually fix the three complaints?
 
-Runs the same roster twice, once with the memory weights at their defaults
-(all zero, i.e. today's algorithm) and once with them enabled, and reports the
-three numbers that correspond to the three complaints:
+Runs the same roster twice, once with the memory weights off and once with
+them enabled, and reports the three numbers that correspond to the three
+complaints:
 
   decliner_share    share of assignments given to people who never turn up
   gini              spread of how often people serve (0 = perfectly even)
@@ -20,6 +20,15 @@ from tests.harness import simulate, metrics, decliner_uids, READING_ROLES
 # these are deliberately smaller than an age mismatch but larger than the
 # frequency/experience nudges.
 PROPOSED = {"reliability": 0.8, "famine": 8.0, "role_repeat": 10.0}
+
+# The comparison baseline: the plain rotation/age/frequency algorithm.
+#
+# This has to be passed explicitly. It used to be spelled `weights=None`, back
+# when DEFAULT_WEIGHTS was all zeros - but the defaults are PROPOSED now, so
+# `None` resolves to the enabled weights and every row of the table read
+# "same". A comparison whose two sides silently became the same run reports no
+# effect rather than reporting that it is broken, so keep this explicit.
+OFF = {"reliability": 0.0, "famine": 0.0, "role_repeat": 0.0}
 
 SCENARIO = dict(roster_size=60, weeks=26, num_altar_servers=9, decliner_fraction=0.2)
 
@@ -41,7 +50,7 @@ def main():
     size = SCENARIO["roster_size"]
     fraction = SCENARIO["decliner_fraction"]
 
-    off = asyncio.run(simulate(**SCENARIO))
+    off = asyncio.run(simulate(**SCENARIO, weights=OFF))
     on = asyncio.run(simulate(**SCENARIO, weights=PROPOSED))
 
     m_off, m_on = metrics(off, size), metrics(on, size)
@@ -88,7 +97,8 @@ def slack_sweep():
 
     Churches at or below that line are capacity-bound, not fairness-bound - the
     fix there is more servants, fewer altar slots, or a shorter cooldown, and
-    the weights should be left at zero because they cannot achieve anything.
+    the weights should be set to zero via `scheduleWeights` because they
+    cannot achieve anything.
     """
     weeks = SCENARIO["weeks"]
     altar = SCENARIO["num_altar_servers"]
@@ -106,7 +116,7 @@ def slack_sweep():
     for size in (40, 60, 80, 100, 140):
         cfg = dict(roster_size=size, weeks=weeks,
                    num_altar_servers=altar, decliner_fraction=fraction)
-        off = asyncio.run(simulate(**cfg))
+        off = asyncio.run(simulate(**cfg, weights=OFF))
         on = asyncio.run(simulate(**cfg, weights=PROPOSED))
         a = decliner_share(off["transcript"], size, fraction)
         b = decliner_share(on["transcript"], size, fraction)
