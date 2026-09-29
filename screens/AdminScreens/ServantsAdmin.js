@@ -83,9 +83,11 @@ const indexBarWidth = isTablet ? 32 : 24;
 // Line boxes for the two lines in a servant card, and for the section header.
 // ROW_H / HDR_H below are derived from these — change a font size without
 // revisiting them and the __DEV__ drift warning in ServantRow will say so.
-const NAME_LINE = 20;
-const DETAIL_LINE = 17;
-const HEADER_LINE = 26;
+// Line boxes are ~1.3x their font size. At ~1.2x (their old values) iOS
+// clipped the descenders of g/y/p/j, most visibly in names.
+const NAME_LINE = 23;
+const DETAIL_LINE = 19;
+const HEADER_LINE = 29;
 // The delete button's tallest child is an Ionicons glyph, whose box JS cannot
 // compute. Pinned to what it already measured so the row height is knowable.
 const ACTION_BUTTON_H = 40;

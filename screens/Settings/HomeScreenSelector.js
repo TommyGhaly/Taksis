@@ -8,7 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  Dimensions,
+  useWindowDimensions,
   InteractionManager,
   SafeAreaView,
   Platform,
@@ -20,6 +20,7 @@ import { getAuth } from "@react-native-firebase/auth";
 import BackArrow from "../../components/backArrow";
 import SkeletonScreen from "../../components/Skeleton";
 import { PreviewModeProvider } from "../../components/PreviewMode";
+import { useContentWidth, WIDE_MIN } from "../../hooks/useResponsiveLayout";
 
 // Import actual screen components
 import HomeScreen from "../Home/HomeScreen";
@@ -33,17 +34,50 @@ import AlhanAdmin from "../AdminScreens/AlhanAdmin";
 import PaschaManager from "../AdminScreens/PaschaManager";
 import AdminManager from "../AdminScreens/AdminManager";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
-// Floored, not fractional: the card clips a scaled-down subtree, and a half-point
-// frame puts every rounded corner and text baseline inside it on a sub-pixel
-// boundary.
-const previewSize = Math.floor((screenWidth - 60) / 2); // 2 columns with padding
-const previewCardHeight = Math.round(previewSize * 1.6);
-// The card's border eats into the box the preview is clipped to, so the
-// downscale targets the inner width — otherwise the right edge of the screen
-// is cropped off inside the card.
 const PREVIEW_BORDER_WIDTH = 3;
-const previewInnerWidth = previewSize - PREVIEW_BORDER_WIDTH * 2;
+const GRID_PADDING = 20; // innerContainer's horizontal padding
+const GRID_GAP = 20;
+
+/**
+ * Card and preview geometry for the width this screen actually has.
+ *
+ * This used to be module-level arithmetic on Dimensions.get("window"), which on
+ * an iPad was both too wide (Settings sits in a centered column there, so two
+ * window-sized halves overflowed it) and stale after a rotation. Each preview
+ * renders its screen at the size that screen really gets — the column's width
+ * by the window's height — and scales that down into the card.
+ */
+const usePreviewGeometry = () => {
+  const contentWidth = useContentWidth();
+  const { height: windowHeight } = useWindowDimensions();
+  const columns = contentWidth >= WIDE_MIN ? 3 : 2;
+  // Floored, not fractional: the card clips a scaled-down subtree, and a
+  // half-point frame puts every rounded corner and text baseline inside it on a
+  // sub-pixel boundary.
+  const size = Math.floor(
+    (contentWidth - GRID_PADDING * 2 - GRID_GAP * (columns - 1)) / columns
+  );
+  // The card's border eats into the box the preview is clipped to, so the
+  // downscale targets the inner width — otherwise the right edge of the screen
+  // is cropped off inside the card.
+  const innerWidth = size - PREVIEW_BORDER_WIDTH * 2;
+  const scale = innerWidth / contentWidth;
+  // Memoized so screenStyle keeps its identity between renders — ScreenPreview
+  // is memo'd, and a fresh style object would re-render every mounted screen
+  // each time a card is tapped.
+  return React.useMemo(() => ({
+    size,
+    // Phone-tall at most; a landscape iPad screen is squatter than that and
+    // the card follows it rather than leaving a blank band at the bottom.
+    cardHeight: Math.round(Math.min(size * 1.6, windowHeight * scale + PREVIEW_BORDER_WIDTH * 2)),
+    screenStyle: {
+      width: contentWidth,
+      height: windowHeight,
+      transform: [{ scale }],
+      transformOrigin: "top left",
+    },
+  }), [size, scale, contentWidth, windowHeight]);
+};
 
 // Gap between two preview mounts. Every card gets a real screen, but mounting
 // ten of them in one frame locks the JS thread long enough that the grid can't
@@ -54,7 +88,7 @@ const MOUNT_STAGGER_MS = 220;
 // it shows the skeleton so the grid is laid out and scrollable immediately.
 // memo'd because selecting a card re-renders the selector, and without this
 // every already-mounted screen would re-render along with it.
-const ScreenPreview = React.memo(({ component: Component, live }) => {
+const ScreenPreview = React.memo(({ component: Component, live, screenStyle }) => {
   if (!live) {
     return (
       <View style={styles.previewWrapper} pointerEvents="none">
@@ -65,7 +99,7 @@ const ScreenPreview = React.memo(({ component: Component, live }) => {
 
   return (
     <View style={styles.previewWrapper}>
-      <View style={styles.previewScreen} pointerEvents="none">
+      <View style={screenStyle} pointerEvents="none">
         <PreviewModeProvider>
           <Component isPreview={true} />
         </PreviewModeProvider>
@@ -107,6 +141,7 @@ const useStaggeredMounts = (total, start) => {
 
 const HomeScreenSelector = () => {
   const navigation = useNavigation();
+  const preview = usePreviewGeometry();
   const [userRoles, setUserRoles] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [selectedScreen, setSelectedScreen] = useState("");
@@ -242,12 +277,16 @@ const HomeScreenSelector = () => {
     return (
       <TouchableOpacity
         key={screen.id}
-        style={styles.previewContainer}
+        style={[styles.previewContainer, { width: preview.size }]}
         onPress={() => setSelectedScreen(screen.id)}
         activeOpacity={0.8}
       >
         <View
-          style={[styles.previewCard, isSelected && styles.selectedPreviewCard]}
+          style={[
+            styles.previewCard,
+            { width: preview.size, height: preview.cardHeight },
+            isSelected && styles.selectedPreviewCard,
+          ]}
         >
           {/* Every card mounts its real screen, staggered by liveCount. These
               are live mounts, so anything a screen does on mount that isn't
@@ -256,6 +295,7 @@ const HomeScreenSelector = () => {
           <ScreenPreview
             component={screen.component}
             live={index < liveCount}
+            screenStyle={preview.screenStyle}
           />
           {isSelected && (
             <View style={styles.selectedOverlay}>
@@ -366,16 +406,13 @@ const styles = StyleSheet.create({
   previewGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
+    columnGap: GRID_GAP,
   },
   previewContainer: {
-    width: previewSize,
     marginBottom: 24,
     alignItems: "center",
   },
   previewCard: {
-    width: previewSize,
-    height: previewCardHeight,
     backgroundColor: "#1E1E1E",
     borderRadius: 16,
     marginBottom: 8,
@@ -398,12 +435,6 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     overflow: "hidden",
-  },
-  previewScreen: {
-    width: screenWidth,
-    height: screenHeight,
-    transform: [{ scale: previewInnerWidth / screenWidth }],
-    transformOrigin: "top left",
   },
   selectedOverlay: {
     position: "absolute",

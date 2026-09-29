@@ -28,6 +28,7 @@ import Avatar from "../../components/Avatar";
 import * as avatarCache from "../../utils/avatarCache";
 import SkeletonScreen from "../../components/Skeleton";
 import useAfterInteractions from "../../hooks/useAfterInteractions";
+import useResponsiveLayout from "../../hooks/useResponsiveLayout";
 import {
   expandReadings, countSlots, dayProgress, isAssignableSlot, isPsalmSlot,
   hasLanguagePicker, languageOptionsFor, effectiveLanguage, langDisplay, langShort,
@@ -68,6 +69,14 @@ function sf(base, multiplier) {
   return Math.round(base * multiplier * 10) / 10;
 }
 
+// A scaled font size together with a line box that scales with it. Scaling the
+// size alone left each style's fixed lineHeight behind, so on Large the text
+// outgrew its line: descenders clipped and two-line labels overlapped.
+function tx(base, multiplier) {
+  var size = sf(base, multiplier);
+  return { fontSize: size, lineHeight: Math.ceil(size * 1.3) };
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function buildAllDays(shell) {
   if (!shell || !shell.days) return [];
@@ -86,11 +95,37 @@ function buildAllDays(shell) {
   });
 }
 
+var TILE_GAP = 12;
+
+function chunk(list, size) {
+  var out = [];
+  for (var i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
+
 function calcDate(easter, offset) {
   if (!easter) return null;
   var d = new Date(easter);
   d.setDate(d.getDate() + offset);
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+// Bottom sheet on phones. In a wide window (iPad, either orientation) a sheet
+// stretched edge to edge put the close button a foot from the content and
+// ran every row 1,000pt wide, so there it is a centered card instead.
+var SHEET_CENTER = { justifyContent: "center", alignItems: "center" };
+function useSheetPresentation(maxCardWidth) {
+  var win = useWindowDimensions();
+  var wide = win.width >= 700;
+  return {
+    wide:          wide,
+    height:        win.height,
+    animationType: wide ? "fade" : "slide",
+    center:        wide ? SHEET_CENTER : null,
+    card:          wide
+      ? { width: Math.min(maxCardWidth, win.width - 48), borderRadius: 24, paddingBottom: 16 }
+      : null,
+  };
 }
 
 // Background the old local Avatar painted behind the image. Module-level so the
@@ -116,7 +151,7 @@ var PsalmReadersRow = function(props) {
               );
             })}
           </View>
-          <Text style={[hm.assignedName, { fontSize: sf(14, fs) }]} numberOfLines={1}>
+          <Text style={[hm.assignedName, tx(14, fs)]} numberOfLines={1}>
             {readers.length === 1 ? readers[0].name : (readers.length + " readers assigned")}
           </Text>
           <Icon name="pencil-outline" size={14} color={T2} />
@@ -124,7 +159,7 @@ var PsalmReadersRow = function(props) {
       ) : (
         <>
           <Icon name="account-multiple-plus-outline" size={16} color={T2} />
-          <Text style={[hm.unassignedTxt, { fontSize: sf(14, fs) }]}>{label || ("Assign readers (up to " + MAX_PSALM_READERS + ")")}</Text>
+          <Text style={[hm.unassignedTxt, tx(14, fs)]}>{label || ("Assign readers (up to " + MAX_PSALM_READERS + ")")}</Text>
           <Icon name="chevron-right" size={14} color={T3} />
         </>
       )}
@@ -198,7 +233,7 @@ var ProphecyCopticToggle = function(props) {
         <View style={pct.alphaBox}>
           <Text style={[pct.alpha, { fontSize: sf(10, fs), lineHeight: sf(10, fs) }]}>{"ⲁ"}</Text>
         </View>
-        <Text style={[pct.label, { fontSize: sf(11, fs) }]}>Read in Coptic</Text>
+        <Text style={[pct.label, tx(11, fs)]}>Read in Coptic</Text>
       </View>
       <Switch
         value={enabled}
@@ -242,19 +277,19 @@ var GospelGrid = function(props) {
                 <Text style={[gg.numTxt, { color: meta.color }]}>{row.index + 1}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[gg.ref, { fontSize: sf(12, fs) }]} numberOfLines={1}>{row.refText}</Text>
-                {!!row.location && <Text style={[gg.loc, { fontSize: sf(10, fs) }]} numberOfLines={2}>{row.location}</Text>}
+                <Text style={[gg.ref, tx(12, fs)]} numberOfLines={1}>{row.refText}</Text>
+                {!!row.location && <Text style={[gg.loc, tx(10, fs)]} numberOfLines={2}>{row.location}</Text>}
               </View>
             </View>
             {assignee ? (
               <View style={gg.assigneeRow}>
                 <Avatar uid={assignee.uid} size={18} showBorder={false} style={AVATAR_BG} />
-                <Text style={[gg.assigneeName, { fontSize: sf(11, fs) }]} numberOfLines={1}>{assignee.name}</Text>
+                <Text style={[gg.assigneeName, tx(11, fs)]} numberOfLines={1}>{assignee.name}</Text>
               </View>
             ) : (
               <View style={gg.unassignedRow}>
                 <Icon name="account-plus-outline" size={12} color={T3} />
-                <Text style={[gg.unassignedTxt, { fontSize: sf(11, fs) }]}>Assign</Text>
+                <Text style={[gg.unassignedTxt, tx(11, fs)]}>Assign</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -293,7 +328,8 @@ var HourModal = function(props) {
   var onClose = props.onClose;
   var fs = props.fontScale != null ? props.fontScale : 1;
 
-  var screenH = useWindowDimensions().height;
+  var sheet = useSheetPresentation(640);
+  var screenH = sheet.height;
 
   // single-reader picker state
   var _pickerSlot = useState(null); var pickerSlot = _pickerSlot[0]; var setPickerSlot = _pickerSlot[1];
@@ -406,7 +442,7 @@ var HourModal = function(props) {
   var filled            = counts.filled;
   var complete          = total > 0 && filled === total;
   var pctVal            = total > 0 ? Math.round(filled / total * 100) : 0;
-  var sheetMax          = screenH * 0.92;
+  var sheetMax          = screenH * (sheet.wide ? 0.86 : 0.92);
 
   var gospelGridRows = rows
     .filter(function(r) {
@@ -504,23 +540,24 @@ var HourModal = function(props) {
   var psalmPickerScrollMax = sheetMax - (psalmSelectedList.length > 0 ? 340 : 280);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} statusBarTranslucent>
-      <View style={hm.backdrop}>
+    <Modal visible={visible} animationType={sheet.animationType} transparent onRequestClose={onClose} statusBarTranslucent>
+      <View style={[hm.backdrop, sheet.center]}>
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={inPicker ? closePicker : inPsalmPicker ? closePsalmPicker : onClose}
         />
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={hm.kav}>
-          <View style={[hm.sheet, { maxHeight: sheetMax }]}>
-            <View style={hm.handle} />
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={[hm.kav, sheet.center]} pointerEvents="box-none">
+          <View style={[hm.sheet, sheet.card, { maxHeight: sheetMax }]}>
+            {!sheet.wide && <View style={hm.handle} />}
 
             {/* ── MAIN HOUR VIEW ─────────────────────────────────────────── */}
             {!inAnyPicker && (
               <>
                 <View style={hm.hdr}>
                   <View style={{ flex: 1 }}>
-                    <Text style={[hm.title, { fontSize: sf(20, fs) }]}>{hour.label}</Text>
-                    <Text style={[hm.sub, complete && { color: GREEN }, { fontSize: sf(13, fs) }]}>
+                    <Text style={[hm.title, tx(20, fs)]}>{hour.label}</Text>
+                    <Text style={[hm.sub, complete && { color: GREEN }, tx(13, fs)]}>
                       {complete ? "All readings assigned" : (filled + " of " + total + " assigned")}
                     </Text>
                   </View>
@@ -564,7 +601,7 @@ var HourModal = function(props) {
                           </View>
                           <View style={{ flex: 1 }}>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                              <Text style={[hm.readingLabel, { color: isCopticRow ? COPTIC_COLOR : meta.color, fontSize: sf(10, fs) }]}>
+                              <Text style={[hm.readingLabel, { color: isCopticRow ? COPTIC_COLOR : meta.color }, tx(10, fs)]}>
                                 {isFirstGospelGrid ? "Gospels" : label}
                               </Text>
                               {isCopticRow && (
@@ -574,10 +611,10 @@ var HourModal = function(props) {
                               )}
                             </View>
                             {isFirstGospelGrid
-                              ? <Text style={[hm.readingRef, { fontSize: sf(14, fs) }]}>12 stations</Text>
+                              ? <Text style={[hm.readingRef, tx(14, fs)]}>12 stations</Text>
                               : (row.rKey === "homily" || isExp)
                                 ? null
-                                : !!row.refText && <Text style={[hm.readingRef, { fontSize: sf(14, fs) }]}>{row.refText}</Text>
+                                : !!row.refText && <Text style={[hm.readingRef, tx(14, fs)]}>{row.refText}</Text>
                             }
                           </View>
                           <LanguagePill row={row} hourAssignments={hourAssignments}
@@ -600,13 +637,13 @@ var HourModal = function(props) {
                             {assignee ? (
                               <>
                                 <Avatar uid={assignee.uid} size={28} showBorder={false} style={AVATAR_BG} />
-                                <Text style={[hm.assignedName, { fontSize: sf(14, fs) }]} numberOfLines={1}>{assignee.name}</Text>
+                                <Text style={[hm.assignedName, tx(14, fs)]} numberOfLines={1}>{assignee.name}</Text>
                                 <Icon name="pencil-outline" size={14} color={T2} />
                               </>
                             ) : (
                               <>
                                 <Icon name="account-plus-outline" size={16} color={T2} />
-                                <Text style={[hm.unassignedTxt, { fontSize: sf(14, fs) }]}>Assign reader</Text>
+                                <Text style={[hm.unassignedTxt, tx(14, fs)]}>Assign reader</Text>
                                 <Icon name="chevron-right" size={14} color={T3} />
                               </>
                             )}
@@ -970,22 +1007,28 @@ var DayTabBar = function(props) {
   var schedule = props.schedule;
   var onSelect = props.onSelect;
   var fs = props.fontScale != null ? props.fontScale : 1;
+  var gutter = props.gutter != null ? props.gutter : 12;
   var scrollRef = useRef(null);
   var tabLayouts = useRef({});
-  var screenW = useWindowDimensions().width;
+  // The bar's own width, not the screen's: they differ on iPad, and the screen
+  // width read at mount is wrong after a rotation.
+  var _barW = useState(0); var barW = _barW[0]; var setBarW = _barW[1];
 
   useEffect(function() {
-    if (!selectedId || !scrollRef.current) return;
+    if (!selectedId || !scrollRef.current || !barW) return;
     var layout = tabLayouts.current[selectedId];
     if (!layout) return;
-    var centeredX = layout.x - (screenW / 2) + (layout.width / 2);
-    var x = Math.max(0, centeredX);
-    scrollRef.current.scrollTo({ x: x, animated: true });
-  }, [selectedId, screenW]);
+    var centeredX = layout.x - (barW / 2) + (layout.width / 2);
+    scrollRef.current.scrollTo({ x: Math.max(0, centeredX), animated: true });
+  }, [selectedId, barW]);
+
+  var labelType = tx(11, fs);
+  var dateType  = tx(9, fs);
 
   return (
     <ScrollView ref={scrollRef} horizontal showsHorizontalScrollIndicator={false}
-      contentContainerStyle={dt.content} style={dt.bar}>
+      onLayout={function(e) { setBarW(e.nativeEvent.layout.width); }}
+      contentContainerStyle={[dt.content, { paddingHorizontal: gutter }]} style={dt.bar}>
       {allDays.map(function(day) {
         var ds = schedule[day.id] || {};
         var prog = dayProgress(day, ds);
@@ -1000,13 +1043,18 @@ var DayTabBar = function(props) {
           <TouchableOpacity key={day.id}
             onPress={function() { onSelect(day.id); }}
             onLayout={function(e) { tabLayouts.current[day.id] = e.nativeEvent.layout; }}
-            style={[dt.tab, active && dt.tabActive]} activeOpacity={0.75}>
+            style={[dt.tab, { minWidth: Math.round(66 * fs) }, active && dt.tabActive]} activeOpacity={0.75}>
             <View style={[dt.dot, complete ? dt.dotGreen : started ? dt.dotBlue : dt.dotGray]} />
-            <Text style={[dt.label, active && dt.labelActive, { fontSize: sf(11, fs) }]}
-              numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
+            {/*
+              One line, shrinking to fit: the tab used to be a fixed 58pt box
+              around a two-line label, so on Large the date fell out the bottom.
+              Now the tab sizes to its content and every tab is the same height.
+            */}
+            <Text style={[dt.label, active && dt.labelActive, labelType]}
+              numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
               {day.shortLabel}
             </Text>
-            {dateStr && <Text style={[dt.date, active && dt.dateActive, { fontSize: sf(9, fs) }]}>{dateStr}</Text>}
+            {dateStr && <Text style={[dt.date, active && dt.dateActive, dateType]} numberOfLines={1}>{dateStr}</Text>}
           </TouchableOpacity>
         );
       })}
@@ -1014,18 +1062,24 @@ var DayTabBar = function(props) {
   );
 };
 var dt = StyleSheet.create({
-  bar:         { backgroundColor: BG },
-  content:     { paddingHorizontal: 12, paddingVertical: 8, gap: 5, flexDirection: "row" },
-  tab:         { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: CARD,
-                 alignItems: "center", minWidth: 62, height: 58 },
-  tabActive:   { backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.35)" },
-  dot:         { width: 5, height: 5, borderRadius: 2.5, marginBottom: 3 },
+  // A horizontal ScrollView flexes on the column axis by default: it would
+  // either grow to share height with the hour list below or give height up to
+  // it and squash the tabs. Neither — it is exactly as tall as its tabs.
+  bar:        { backgroundColor: BG, flexGrow: 0, flexShrink: 0 },
+  // flexGrow 1 on the content and the tabs lets the strip fill the width when
+  // every day fits (iPad landscape); when it does not, it scrolls as before.
+  content:     { paddingVertical: 8, gap: 6, flexDirection: "row", flexGrow: 1 },
+  tab:         { flexGrow: 1, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10,
+                 backgroundColor: CARD, alignItems: "center", justifyContent: "center",
+                 borderWidth: 1, borderColor: "transparent" },
+  tabActive:   { backgroundColor: BLUEDIM, borderColor: "rgba(10,132,255,0.35)" },
+  dot:         { width: 5, height: 5, borderRadius: 2.5, marginBottom: 4 },
   dotGray:     { backgroundColor: T3 },
   dotBlue:     { backgroundColor: BLUE },
   dotGreen:    { backgroundColor: GREEN },
-  label:       { fontSize: 11, fontWeight: "600", color: T2, textAlign: "center" },
+  label:       { fontWeight: "600", color: T2, textAlign: "center" },
   labelActive: { color: BLUE },
-  date:        { fontSize: 9, color: T3, marginTop: 2 },
+  date:        { color: T3, marginTop: 1 },
   dateActive:  { color: "rgba(10,132,255,0.7)" },
 });
 
@@ -1118,125 +1172,157 @@ var HourTile = React.memo(function(props) {
     return row.index != null ? (meta.label + " " + (row.index + 1)) : meta.label;
   };
 
+  var nameType  = tx(16, fs);
+  var smallType = tx(11, fs);
+  var typeType  = tx(12, fs);
+  var valueType = tx(13, fs);
+  var badgeType = tx(9, fs);
+  var iconSize  = Math.round(15 * fs);
+  var avatarSize = Math.round(24 * fs);
+
   return (
-    <>
-      <TouchableOpacity onPress={function() { if (onOpenHour) onOpenHour(hour); }} activeOpacity={0.72} style={ht.tile}>
-        <View style={ht.titleRow}>
-          <View style={[ht.accent, complete ? ht.accentDone : started ? ht.accentPartial : ht.accentEmpty]} />
-          <Text style={[ht.name, { fontSize: sf(15, fs) }]}>{hour.label}</Text>
-          {complete
-            ? <View style={ht.pill}>
-                <Icon name="check" size={11} color={GREEN} />
-                <Text style={[ht.pillTxt, { color: GREEN, fontSize: sf(11, fs) }]}>Done</Text>
+    <TouchableOpacity onPress={function() { if (onOpenHour) onOpenHour(hour); }} activeOpacity={0.72}
+      style={[ht.tile, props.style]}>
+      {/* Status runs the full height of the card instead of a stub beside the title. */}
+      <View style={[ht.accent, complete ? ht.accentDone : started ? ht.accentPartial : ht.accentEmpty]} />
+      <View style={ht.titleRow}>
+        <Text style={[ht.name, nameType]} numberOfLines={2}>{hour.label}</Text>
+        {complete
+          ? <View style={ht.pill}>
+              <Icon name="check" size={Math.round(11 * fs)} color={GREEN} />
+              <Text style={[ht.pillTxt, { color: GREEN }, smallType]}>Done</Text>
+            </View>
+          : started
+            ? <View style={[ht.pill, ht.pillPartial]}>
+                <Text style={[ht.pillTxt, { color: BLUE }, smallType]}>{filled + "/" + total}</Text>
               </View>
-            : started
-              ? <View style={[ht.pill, { backgroundColor: "rgba(10,132,255,0.12)", borderColor: "rgba(10,132,255,0.3)" }]}>
-                  <Text style={[ht.pillTxt, { color: BLUE, fontSize: sf(11, fs) }]}>{filled + "/" + total}</Text>
-                </View>
-              : null
-          }
+            : null
+        }
+      </View>
+      <View style={ht.barRow}>
+        <View style={ht.track}>
+          <View style={[ht.trackFill, { flex: pctVal, backgroundColor: statusColor }]} />
+          <View style={{ flex: 1 - pctVal }} />
         </View>
-        <View style={ht.barRow}>
-          <View style={ht.track}>
-            <View style={[ht.trackFill, { flex: pctVal, backgroundColor: statusColor }]} />
-            <View style={{ flex: 1 - pctVal }} />
-          </View>
-          <Text style={[ht.pct, { fontSize: sf(11, fs) }]}>{Math.round(pctVal * 100) + "%"}</Text>
-        </View>
-        <View style={ht.readingList}>
-          {assignableRows.map(function(row, i) {
-            var meta      = READING_META[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
-            var isPsalm   = isPsalmSlot(row.rKey);
-            var isCoptic  = row.isCoptic === true;
-            var readers   = isPsalm ? (hourAssignments[psalmReadersKey(row)] || []) : [];
-            var assignee  = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
-            var typeLabel = rowDisplayLabel(row);
-            var isLast    = i === assignableRows.length - 1;
-            var lang      = (!isCoptic && !isPsalm && hasLanguagePicker(row.rKey))
-              ? langShort(effectiveLanguage(row, hourAssignments))
-              : null;
-            return (
-              <View key={row.slotKey}
-                style={[ht.rRow, !isLast && ht.rRowBorder, isCoptic && ht.rRowCoptic]}>
-                <View style={ht.rLeft}>
-                  <Icon name={meta.icon} size={sf(13, fs)} color={isCoptic ? COPTIC_COLOR : meta.color} />
-                  <View style={ht.rLabelCol}>
-                    <Text style={[ht.rType, { color: isCoptic ? COPTIC_COLOR : meta.color, fontSize: sf(11, fs) }]}>{typeLabel}</Text>
+        <Text style={[ht.pct, smallType]}>{Math.round(pctVal * 100) + "%"}</Text>
+      </View>
+      <View style={ht.readingList}>
+        {assignableRows.map(function(row, i) {
+          var meta      = READING_META[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
+          var isPsalm   = isPsalmSlot(row.rKey);
+          var isCoptic  = row.isCoptic === true;
+          var readers   = isPsalm ? (hourAssignments[psalmReadersKey(row)] || []) : [];
+          var assignee  = !isPsalm ? (hourAssignments[row.slotKey] || null) : null;
+          var typeLabel = rowDisplayLabel(row);
+          var isLast    = i === assignableRows.length - 1;
+          var lang      = (!isCoptic && !isPsalm && hasLanguagePicker(row.rKey))
+            ? langShort(effectiveLanguage(row, hourAssignments))
+            : null;
+          var accent    = isCoptic ? COPTIC_COLOR : meta.color;
+          return (
+            <View key={row.slotKey}
+              style={[ht.rRow, !isLast && ht.rRowBorder, isCoptic && ht.rRowCoptic]}>
+              {/*
+                Two lines on the left — what the reading is, then its reference —
+                and who reads it on the right. The reference used to share one
+                line with the reader and vanish once someone was assigned; this
+                keeps both and needs far less width, which is what lets the
+                cards sit two or three across on an iPad.
+              */}
+              <View style={ht.rLeft}>
+                <Icon name={meta.icon} size={iconSize} color={accent} style={ht.rIcon} />
+                <View style={ht.rLabelCol}>
+                  <View style={ht.rTypeRow}>
+                    <Text style={[ht.rType, { color: accent }, typeType]} numberOfLines={1}>{typeLabel}</Text>
                     {lang != null ? (
-                      <View style={ht.langBadge}><Text style={[ht.langBadgeTxt, { fontSize: sf(9, fs) }]}>{lang}</Text></View>
+                      <View style={ht.langBadge}><Text style={[ht.langBadgeTxt, badgeType]}>{lang}</Text></View>
                     ) : isCoptic ? (
-                      <View style={ht.copticBadge}><Text style={[ht.copticBadgeTxt, { fontSize: sf(9, fs) }]}>COPTIC</Text></View>
+                      <View style={ht.copticBadge}><Text style={[ht.copticBadgeTxt, badgeType]}>COPTIC</Text></View>
                     ) : null}
                   </View>
+                  {!!row.refText && row.rKey !== "homily" && row.rKey !== "exposition" && (
+                    <Text style={[ht.rRef, valueType]} numberOfLines={1}>{row.refText}</Text>
+                  )}
                 </View>
-                {isPsalm ? (
-                  readers.length > 0
-                    ? <View style={ht.assigneeRow}>
-                        {readers.slice(0, 4).map(function(r, idx) {
-                          return (
-                            <Avatar key={r.uid || r.name || idx} uid={r.uid} size={28}
-                              style={{ marginLeft: idx > 0 ? -10 : 0, borderWidth: 2, borderColor: CARD, backgroundColor: CARD2 }} />
-                          );
-                        })}
-                        <Text style={[ht.assigneeName, { fontSize: sf(12, fs) }]} numberOfLines={1}>
-                          {readers.length === 1 ? readers[0].name : (readers.length + " readers")}
-                        </Text>
-                      </View>
-                    : <Text style={[ht.rRef, { fontSize: sf(12, fs) }]} numberOfLines={1}>{row.refText || "\u2014"}</Text>
-                ) : assignee != null ? (
-                  <View style={ht.assigneeRow}>
-                    <Avatar uid={assignee.uid} size={28} style={{ borderWidth: 2, borderColor: CARD, backgroundColor: CARD2 }} />
-                    <Text style={[ht.assigneeName, isCoptic && { color: COPTIC_COLOR }, { fontSize: sf(12, fs) }]} numberOfLines={1}>
-                      {assignee.name}
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={[ht.rRef, { fontSize: sf(12, fs) }]} numberOfLines={1}>
-                    {row.rKey === "homily" || row.rKey === "exposition" ? "Unassigned" : (row.refText || "\u2014")}
-                  </Text>
-                )}
               </View>
-            );
-          })}
-        </View>
-      </TouchableOpacity>
-    </>
+              {isPsalm && readers.length > 0 ? (
+                <View style={ht.assigneeRow}>
+                  <View style={ht.avatarStack}>
+                    {readers.slice(0, 3).map(function(r, idx) {
+                      return (
+                        <Avatar key={r.uid || r.name || idx} uid={r.uid} size={avatarSize}
+                          style={[ht.stackedAvatar, idx > 0 && { marginLeft: -Math.round(avatarSize * 0.35) }]} />
+                      );
+                    })}
+                  </View>
+                  <Text style={[ht.assigneeName, valueType]} numberOfLines={1}>
+                    {readers.length === 1 ? readers[0].name : (readers.length + " readers")}
+                  </Text>
+                </View>
+              ) : assignee != null ? (
+                <View style={ht.assigneeRow}>
+                  <Avatar uid={assignee.uid} size={avatarSize} style={ht.stackedAvatar} />
+                  <Text style={[ht.assigneeName, isCoptic && { color: COPTIC_COLOR }, valueType]} numberOfLines={1}>
+                    {assignee.name}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={[ht.unassigned, valueType]} numberOfLines={1}>Unassigned</Text>
+              )}
+            </View>
+          );
+        })}
+      </View>
+    </TouchableOpacity>
   );
 });
 
 var ht = StyleSheet.create({
-  tile:           { backgroundColor: CARD, borderRadius: 16, marginBottom: 10,
-                    borderWidth: 1, borderColor: SEP, overflow: "hidden", padding: 14 },
-  titleRow:       { flexDirection: "row", alignItems: "center", paddingRight: 14, paddingTop: 4, gap: 12 },
-  accent:         { width: 3, alignSelf: "stretch", marginRight: 10, borderRadius: 0 },
+  // One inset (PAD) for the title, the bar and the rows, so they share a left
+  // edge. They used to be indented 0, 14 and 14 inside a 14pt-padded card.
+  tile:           { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: SEP,
+                    overflow: "hidden", paddingVertical: 14, paddingLeft: 18, paddingRight: 16 },
+  accent:         { position: "absolute", left: 0, top: 0, bottom: 0, width: 3 },
   accentDone:     { backgroundColor: GREEN },
   accentPartial:  { backgroundColor: BLUE },
   accentEmpty:    { backgroundColor: "rgba(255,255,255,0.08)" },
-  name:           { fontSize: 15, fontWeight: "700", color: T1, flex: 1 },
+  titleRow:       { flexDirection: "row", alignItems: "center", gap: 10 },
+  name:           { fontWeight: "700", color: T1, flex: 1, letterSpacing: -0.2 },
   pill:           { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 9,
-                    paddingVertical: 3, borderRadius: 20, backgroundColor: "rgba(48,209,88,0.1)",
+                    paddingVertical: 2, borderRadius: 20, backgroundColor: "rgba(48,209,88,0.1)",
                     borderWidth: 1, borderColor: "rgba(48,209,88,0.28)" },
-  pillTxt:        { fontSize: 11, fontWeight: "700" },
-  barRow:         { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 10 },
+  pillPartial:    { backgroundColor: "rgba(10,132,255,0.12)", borderColor: "rgba(10,132,255,0.3)" },
+  pillTxt:        { fontWeight: "700" },
+  barRow:         { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10, marginBottom: 6 },
   track:          { flex: 1, flexDirection: "row", height: 3, borderRadius: 2, backgroundColor: CARD2, overflow: "hidden" },
   trackFill:      { borderRadius: 2 },
-  pct:            { fontSize: 11, fontWeight: "700", color: T3, minWidth: 32, textAlign: "right" },
+  pct:            { fontWeight: "700", color: T3, minWidth: 34, textAlign: "right" },
   readingList:    { borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)" },
   rRow:           { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                    paddingVertical: 9, paddingHorizontal: 14 },
+                    gap: 12, paddingVertical: 10 },
   rRowBorder:     { borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" },
-  rRowCoptic:     { backgroundColor: "rgba(245,158,11,0.04)" },
-  rLeft:          { flexDirection: "row", alignItems: "center", gap: 7, flex: 1, marginRight: 8 },
-  rLabelCol:      { flexDirection: "column", gap: 2 },
-  rType:          { fontSize: 11, fontWeight: "700" },
-  langBadge:      { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: CARD2, alignSelf: "flex-start" },
-  langBadgeTxt:   { fontSize: 9, fontWeight: "700", color: T3, letterSpacing: 0.3 },
+  // Bleeds the tint to the card edges while the content keeps the shared inset.
+  rRowCoptic:     { backgroundColor: "rgba(245,158,11,0.05)", marginLeft: -18, marginRight: -16,
+                    paddingLeft: 18, paddingRight: 16 },
+  rLeft:          { flexDirection: "row", alignItems: "flex-start", gap: 9, flex: 1 },
+  rIcon:          { marginTop: 1 },
+  rLabelCol:      { flex: 1, gap: 1 },
+  rTypeRow:       { flexDirection: "row", alignItems: "center", gap: 6 },
+  rType:          { fontWeight: "700", flexShrink: 1 },
+  langBadge:      { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: CARD2 },
+  langBadgeTxt:   { fontWeight: "700", color: T3, letterSpacing: 0.3 },
   copticBadge:    { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: COPTIC_BG,
-                    borderWidth: 1, borderColor: COPTIC_BORDER, alignSelf: "flex-start" },
-  copticBadgeTxt: { fontSize: 9, fontWeight: "700", color: COPTIC_COLOR, letterSpacing: 0.3 },
-  rRef:           { fontSize: 12, color: T3, flex: 1, textAlign: "right" },
-  assigneeRow:    { flexDirection: "row", alignItems: "center", gap: 5 },
-  assigneeName:   { fontSize: 12, fontWeight: "600", color: GREEN, maxWidth: 110 },
+                    borderWidth: 1, borderColor: COPTIC_BORDER },
+  copticBadgeTxt: { fontWeight: "700", color: COPTIC_COLOR, letterSpacing: 0.3 },
+  rRef:           { color: T3 },
+  unassigned:     { color: T3, fontStyle: "italic" },
+  // The reader gets up to half the row; a long reading reference on the left
+  // truncates before the name does.
+  assigneeRow:    { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1, maxWidth: "50%",
+                    justifyContent: "flex-end" },
+  avatarStack:    { flexDirection: "row" },
+  stackedAvatar:  { borderWidth: 1.5, borderColor: CARD, backgroundColor: CARD2 },
+  assigneeName:   { fontWeight: "600", color: GREEN, flexShrink: 1 },
 });
 
 // ── Settings sheet ────────────────────────────────────────────────────────────
@@ -1255,6 +1341,7 @@ var SettingsSheet = function(props) {
   var onViewArchives = props.onViewArchives;
   var onClose = props.onClose;
 
+  var sheet = useSheetPresentation(560);
   var _pickerDate = useState(new Date()); var pickerDate = _pickerDate[0]; var setPickerDate = _pickerDate[1];
   var _pickerOpen = useState(false); var pickerOpen = _pickerOpen[0]; var setPickerOpen = _pickerOpen[1];
 
@@ -1283,10 +1370,11 @@ var SettingsSheet = function(props) {
   ];
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={ss.backdrop}>
-        <View style={ss.sheet}>
-          <View style={ss.handle} />
+    <Modal visible={visible} animationType={sheet.animationType} transparent onRequestClose={onClose}>
+      <View style={[ss.backdrop, sheet.center]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[ss.sheet, sheet.card, sheet.wide && { maxHeight: sheet.height * 0.86 }]}>
+          {!sheet.wide && <View style={ss.handle} />}
           <View style={ss.hdr}>
             <Text style={ss.hdrTitle}>Settings</Text>
             <TouchableOpacity style={ss.xBtn} onPress={onClose} activeOpacity={0.7}>
@@ -1454,6 +1542,7 @@ var ArchiveConfirm = function(props) {
   var onConfirm = props.onConfirm;
   var onClose = props.onClose;
 
+  var sheet = useSheetPresentation(460);
   var _archiving = useState(false); var archiving = _archiving[0]; var setArchiving = _archiving[1];
   var _progress = useState(0); var progress = _progress[0]; var setProgress = _progress[1];
   var _done = useState(false); var done = _done[0]; var setDone = _done[1];
@@ -1481,9 +1570,9 @@ var ArchiveConfirm = function(props) {
   return (
     <Modal visible={visible} animationType="fade" transparent
       onRequestClose={!archiving ? onClose : undefined} statusBarTranslucent>
-      <View style={arc.overlay}>
-        <View style={arc.sheet}>
-          <View style={arc.handle} />
+      <View style={[arc.overlay, sheet.center]}>
+        <View style={[arc.sheet, sheet.card, sheet.wide && arc.sheetCard]}>
+          {!sheet.wide && <View style={arc.handle} />}
           <View style={arc.iconWrap}>
             <Icon name={done ? "check-circle-outline" : "archive-clock-outline"} size={32}
               color={done ? GREEN : ORANGE} />
@@ -1529,6 +1618,7 @@ var arc = StyleSheet.create({
                      paddingTop: 12, alignItems: "center" },
   handle:          { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP,
                      alignSelf: "center", marginBottom: 20 },
+  sheetCard:       { paddingTop: 28, paddingBottom: 24 },
   iconWrap:        { width: 60, height: 60, borderRadius: 30, backgroundColor: "rgba(255,159,10,0.1)",
                      justifyContent: "center", alignItems: "center", marginBottom: 14 },
   title:           { fontSize: 20, fontWeight: "800", color: T1, marginBottom: 8, letterSpacing: -0.3 },
@@ -1599,6 +1689,19 @@ export default function PaschaManager() {
   var year        = easterDate ? new Date(easterDate).getFullYear() : new Date().getFullYear();
   var selectedDay = selectedId != null ? (daysById[selectedId] || null) : null;
   var activeFontMultiplier = resolvedFontScale(fontSizeScale, fontSizeMultipliers);
+
+  // Live window metrics, so rotating the iPad (or resizing it in Split View)
+  // re-lays out the grid instead of keeping the width it mounted with.
+  var layout = useResponsiveLayout({ maxContentWidth: 1180 });
+  var gutter = layout.isWide ? layout.gutter : 16;
+  // How many hour cards fit side by side. A card wants ~290pt at 1x type and
+  // grows with the font setting, so a bigger setting gives up a column before
+  // its text truncates. With the multipliers in use today (1 / 1.15 / 1.3) an
+  // 11" iPad shows 2 across in portrait at every size, and in landscape 3 at
+  // Small and Medium, 2 at Large.
+  var columns = layout.isWide
+    ? Math.max(1, Math.min(3, Math.floor((layout.contentWidth + TILE_GAP) / (290 * activeFontMultiplier + TILE_GAP))))
+    : 1;
 
   useEffect(function() {
     if (!ready) return;
@@ -1773,24 +1876,24 @@ export default function PaschaManager() {
           showHeader={false}
           paddingTop={0}
           paddingHorizontal={0}
-          bodyStyle={{ paddingHorizontal: 20 }}
+          bodyStyle={{ paddingHorizontal: gutter }}
           // The title is known before any read, so render the real header rather
           // than shimmering a placeholder that then shifts when data lands.
           header={
-            <View style={mn.header}>
+            <View style={[mn.header, { paddingHorizontal: gutter }]}>
               <View style={{ flex: 1 }}>
                 <Text style={mn.eyebrow}>{"HOLY WEEK · PASCHA"}</Text>
-                <Text style={[mn.title, { fontSize: sf(28, activeFontMultiplier) }]}>Schedule</Text>
+                <Text style={[mn.title, tx(28, activeFontMultiplier)]}>Schedule</Text>
               </View>
             </View>
           }
         />
       ) : (
         <>
-          <View style={mn.header}>
+          <View style={[mn.header, { paddingHorizontal: gutter }]}>
             <View style={{ flex: 1 }}>
               <Text style={mn.eyebrow}>{"HOLY WEEK \u00B7 PASCHA"}</Text>
-              <Text style={[mn.title, { fontSize: sf(28, activeFontMultiplier) }]}>Schedule</Text>
+              <Text style={[mn.title, tx(28, activeFontMultiplier)]}>Schedule</Text>
             </View>
             <TouchableOpacity style={mn.cogBtn} onPress={function() { setSettingsOpen(true); }} activeOpacity={0.7}>
               <Icon name="cog-outline" size={20} color={T2} />
@@ -1798,31 +1901,30 @@ export default function PaschaManager() {
           </View>
 
           {!easterDate && (
-            <TouchableOpacity style={mn.nudge} onPress={function() { setSettingsOpen(true); }} activeOpacity={0.8}>
+            <TouchableOpacity style={[mn.nudge, { marginHorizontal: gutter }]} onPress={function() { setSettingsOpen(true); }} activeOpacity={0.8}>
               <Icon name="alert-circle-outline" size={14} color={ORANGE} />
               <Text style={mn.nudgeTxt}>Set Easter date in Settings</Text>
               <Icon name="chevron-right" size={13} color={ORANGE} />
             </TouchableOpacity>
           )}
 
-          <View style={{ height: 68 }}>
-            <DayTabBar
-              allDays={allDays}
-              selectedId={selectedId}
-              easterDate={easterDate}
-              schedule={schedule}
-              onSelect={setSelectedId}
-              fontScale={activeFontMultiplier}
-            />
-          </View>
+          <DayTabBar
+            allDays={allDays}
+            selectedId={selectedId}
+            easterDate={easterDate}
+            schedule={schedule}
+            onSelect={setSelectedId}
+            fontScale={activeFontMultiplier}
+            gutter={gutter}
+          />
 
           {selectedDay != null && (
-            <View style={mn.dayHdr}>
+            <View style={[mn.dayHdr, { paddingHorizontal: gutter }]}>
               <View style={mn.dayHdrTop}>
                 <View>
-                  <Text style={[mn.dayTitle, { fontSize: sf(20, activeFontMultiplier) }]}>{selectedDay.label}</Text>
+                  <Text style={[mn.dayTitle, tx(20, activeFontMultiplier)]}>{selectedDay.label}</Text>
                   {easterDate && (
-                    <Text style={[mn.dayDate, { fontSize: sf(12, activeFontMultiplier) }]}>{calcDate(easterDate, selectedDay.easterOffset)}</Text>
+                    <Text style={[mn.dayDate, tx(12, activeFontMultiplier)]}>{calcDate(easterDate, selectedDay.easterOffset)}</Text>
                   )}
                 </View>
               </View>
@@ -1837,7 +1939,7 @@ export default function PaschaManager() {
                     );
                   })()}
                 </View>
-                <Text style={[mn.progPct, { fontSize: sf(12, activeFontMultiplier) }]}>
+                <Text style={[mn.progPct, tx(12, activeFontMultiplier)]}>
                   {(function() {
                     var dp = dayProgress(selectedDay, ds);
                     return dp.total > 0 ? (Math.round(dp.filled / dp.total * 100) + "%") : "0%";
@@ -1847,24 +1949,36 @@ export default function PaschaManager() {
             </View>
           )}
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={mn.scroll}>
-            {(selectedDay != null ? (selectedDay.hours || []) : []).map(function(hour) {
+          <ScrollView showsVerticalScrollIndicator={false}
+            contentContainerStyle={[mn.scroll, { paddingHorizontal: gutter }]}>
+            {chunk(selectedDay != null ? (selectedDay.hours || []) : [], columns).map(function(rowHours) {
               return (
-                <HourTile
-                  key={hour.id}
-                  hour={hour}
-                  hourAssignments={ds[hour.id] || {}}
-                  dayId={selectedId}
-                  deacons={deacons}
-                  congregation={congregation}
-                  loadingUsers={loadingUsers}
-                  fontScale={activeFontMultiplier}
-                  onSaveReading={function(hourId, slotKey, person) { return saveReading(selectedId, hourId, slotKey, person); }}
-                  onSavePsalmReaders={function(hourId, readersKey, readers) { return savePsalmReaders(selectedId, hourId, readersKey, readers); }}
-                  onSaveLanguage={function(hourId, slotKey, lang) { return saveLanguage(selectedId, hourId, slotKey, lang); }}
-                  onSaveCopticToggle={function(hourId, toggleKey, value) { return saveCopticToggle(selectedId, hourId, toggleKey, value); }}
-                  onOpenHour={function(hour) { setHourOpen(hour); }}
-                />
+                <View key={rowHours[0].id} style={mn.tileRow}>
+                  {rowHours.map(function(hour) {
+                    return (
+                      <HourTile
+                        key={hour.id}
+                        style={mn.tileCell}
+                        hour={hour}
+                        hourAssignments={ds[hour.id] || {}}
+                        dayId={selectedId}
+                        deacons={deacons}
+                        congregation={congregation}
+                        loadingUsers={loadingUsers}
+                        fontScale={activeFontMultiplier}
+                        onSaveReading={function(hourId, slotKey, person) { return saveReading(selectedId, hourId, slotKey, person); }}
+                        onSavePsalmReaders={function(hourId, readersKey, readers) { return savePsalmReaders(selectedId, hourId, readersKey, readers); }}
+                        onSaveLanguage={function(hourId, slotKey, lang) { return saveLanguage(selectedId, hourId, slotKey, lang); }}
+                        onSaveCopticToggle={function(hourId, toggleKey, value) { return saveCopticToggle(selectedId, hourId, toggleKey, value); }}
+                        onOpenHour={function(hour) { setHourOpen(hour); }}
+                      />
+                    );
+                  })}
+                  {/* Keeps a short last row's cards the same width as the rows above. */}
+                  {Array.from({ length: columns - rowHours.length }, function(_, k) {
+                    return <View key={"pad" + k} style={mn.tileCell} />;
+                  })}
+                </View>
               );
             })}
           </ScrollView>
@@ -1931,18 +2045,16 @@ export default function PaschaManager() {
 var mn = StyleSheet.create({
   container:   { flex: 1, backgroundColor: BG },
   loadingWrap: { flex: 1, backgroundColor: BG, justifyContent: "center", alignItems: "center" },
-  header:      { flexDirection: "row", alignItems: "center", paddingHorizontal: 20,
-                 paddingTop: 18, paddingBottom: 10 },
+  header:      { flexDirection: "row", alignItems: "center", paddingTop: 18, paddingBottom: 6 },
   eyebrow:     { fontSize: 11, fontWeight: "700", color: BLUE, letterSpacing: 1.5, marginBottom: 4 },
   title:       { fontSize: 28, fontWeight: "800", color: T1, letterSpacing: -0.5 },
   cogBtn:      { width: 40, height: 40, borderRadius: 20, backgroundColor: CARD,
                  justifyContent: "center", alignItems: "center" },
-  nudge:       { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16,
-                 marginBottom: 6, padding: 12, borderRadius: 12,
+  nudge:       { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6, padding: 12, borderRadius: 12,
                  backgroundColor: "rgba(255,159,10,0.08)", borderWidth: 1,
                  borderColor: "rgba(255,159,10,0.18)" },
   nudgeTxt:    { flex: 1, fontSize: 13, color: ORANGE, fontWeight: "500" },
-  dayHdr:      { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12 },
+  dayHdr:      { paddingTop: 6, paddingBottom: 12 },
   dayHdrTop:   { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between",
                  marginBottom: 10 },
   dayTitle:    { fontSize: 20, fontWeight: "800", color: T1, letterSpacing: -0.3 },
@@ -1951,5 +2063,9 @@ var mn = StyleSheet.create({
   progTrack:   { flex: 1, height: 3, backgroundColor: CARD2, borderRadius: 2, overflow: "hidden" },
   progFill:    { height: 3, backgroundColor: BLUE, borderRadius: 2 },
   progPct:     { fontSize: 12, fontWeight: "700", color: T3, minWidth: 36, textAlign: "right" },
-  scroll:      { paddingHorizontal: 16, paddingBottom: 48, paddingTop: 4 },
+  scroll:      { paddingBottom: 48, paddingTop: 4 },
+  tileRow:     { flexDirection: "row", gap: TILE_GAP, marginBottom: TILE_GAP },
+  // flexBasis 0 so every card in a row is the same width whatever its content;
+  // the row's default stretch makes them the same height too.
+  tileCell:    { flex: 1, flexBasis: 0 },
 });

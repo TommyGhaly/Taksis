@@ -44,6 +44,7 @@ import Avatar from "../../components/Avatar";
 import * as avatarCache from "../../utils/avatarCache";
 import SkeletonScreen from "../../components/Skeleton";
 import useAfterInteractions from "../../hooks/useAfterInteractions";
+import useResponsiveLayout from "../../hooks/useResponsiveLayout";
 import useDeferredSearch from "../../hooks/useDeferredSearch";
 import {
   isManualId,
@@ -67,14 +68,17 @@ const scale = isTablet ? 1.2 : 1;
 // `paddingVertical: 8 * scale` but `sectionHeaderText` is a bare `fontSize: 22`.
 // HDR_H below has to mirror that mix — it is not a scale bug to be tidied here.
 //
-// SERVANT_HEADER_H is pinned because that row's tallest child is a chevron
-// glyph, whose box JS cannot compute; the name line and the "Manual" badge both
-// sit under it. The line heights are explicit for the same reason a Text without
-// one gets the font's natural line box, which is also not computable.
-const SERVANT_HEADER_H = 24;
-const NAME_LINE = 20;
-const STATUS_LINE = 18;
-const HEADER_LINE = 26;
+// SERVANT_HEADER_H (below, once LH exists) is pinned because that row's tallest
+// child is a chevron glyph, whose box JS cannot compute; the name line and the
+// "Manual" badge both sit under it. The line heights are explicit for the same
+// reason a Text without one gets the font's natural line box, which is also not
+// computable.
+//
+// Each line is ~1.3x its font size. They used to sit at ~1.18x, right at SF's
+// natural ascent + descent, and iOS clipped the tails of g/y/p/j in names.
+const NAME_LINE = 23;
+const STATUS_LINE = 20;
+const HEADER_LINE = 29;
 
 // RN scales a declared lineHeight by the OS font scale (allowFontScaling defaults
 // to on), so the height arithmetic has to scale it too or every constant below is
@@ -89,6 +93,9 @@ const HEADER_LINE = 26;
 const FONT_SCALE = PixelRatio.getFontScale();
 const PX = PixelRatio.get();
 const LH = (v) => Math.ceil(v * FONT_SCALE * PX) / PX;
+
+// Never shorter than the name's own line box, or large text clips it again.
+const SERVANT_HEADER_H = Math.max(24, LH(NAME_LINE));
 
 // servantCard: 1px border top and bottom, 16 padding all round, then the taller
 // of the avatar and the details column, then its own margin.
@@ -254,6 +261,9 @@ const ServantsAttendance = () => {
   // Hold the reads and the Sunday date math until the drawer/stack transition
   // has finished animating — both run on the thread driving that animation.
   const ready = useAfterInteractions();
+  // On an iPad this screen sits in a centered column (MainContainer wraps it);
+  // this is the padding inside it, a touch roomier than a phone's.
+  const { gutter, isWide } = useResponsiveLayout({ maxContentWidth: 720, phoneGutter: 20 });
 
   const [userData, setUserData] = useState(null);
   const [rawServantsData, setRawServantsData] = useState([]);
@@ -628,7 +638,7 @@ const ServantsAttendance = () => {
   const isCurrentWeek = !selectedDate || selectedDate === getNextSunday();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingHorizontal: gutter }]}>
       {isNavigating && (
         <View style={styles.navigatingOverlay}>
           <ActivityIndicator size="large" color="#147EFB" />
@@ -689,7 +699,7 @@ const ServantsAttendance = () => {
 
       {/* Floating search bar + add button */}
       <Animated.View
-        style={[styles.floatingBarWrapper, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
+        style={[styles.floatingBarWrapper, isWide && { left: gutter, right: gutter }, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
         pointerEvents="box-none"
       >
         <BlurView tint="systemChromeMaterialDark" intensity={80} style={styles.floatingBlur}>
@@ -962,7 +972,8 @@ const styles = StyleSheet.create({
   weekModalCard: {
     width: "100%", maxWidth: 400, backgroundColor: "#1a1a1a", borderRadius: 18,
     borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden",
-    maxHeight: height * 0.78,
+    // Of the overlay, so it is still right after an iPad rotates.
+    maxHeight: "78%",
   },
   weekModalHeader: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
@@ -1018,7 +1029,7 @@ const styles = StyleSheet.create({
   centeredCard: {
     width: "100%", maxWidth: 400, backgroundColor: "#1a1a1a", borderRadius: 20,
     borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden",
-    maxHeight: height * 0.82,
+    maxHeight: "82%",
   },
   sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
   sheetTitle: { fontSize: 18, fontWeight: "700", color: "#fff" },

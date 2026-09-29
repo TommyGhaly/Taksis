@@ -56,9 +56,11 @@ const paddingHorizontal = isTablet ? 32 : 16;
 // Named because ROW_H / HDR_H below are derived from them — changing a number
 // here without changing nothing else is fine, but changing a *font size* without
 // revisiting these will trip the __DEV__ drift warning in UserRow.
-const NAME_LINE = 20;
-const DETAIL_LINE = 17;
-const HEADER_LINE = 22;
+// Line boxes are ~1.3x their font size. At ~1.2x (their old values) iOS
+// clipped the descenders of g/y/p/j, most visibly in names.
+const NAME_LINE = 23;
+const DETAIL_LINE = 19;
+const HEADER_LINE = 24;
 
 // RN scales a declared lineHeight by the OS font scale (allowFontScaling defaults
 // to on), so the height arithmetic has to scale it too or every constant below is

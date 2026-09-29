@@ -119,13 +119,15 @@ const paddingHorizontal = isTablet ? 32 : 16;
 //
 // Note `styles` scales with device class but `aStyles` does not, so the deacon
 // row is scale-dependent and the attendance card is one flat number.
-const NAME_LINE = 20;
-const DETAIL_LINE = 17;
-const HEADER_LINE = 26;
-const CARD_NAME_LINE = 17;
+// Line boxes are ~1.3x their font size. At ~1.2x (their old values) iOS
+// clipped the descenders of g/y/p/j, most visibly in names.
+const NAME_LINE = 23;
+const DETAIL_LINE = 19;
+const HEADER_LINE = 29;
+const CARD_NAME_LINE = 19;
 const PILL_H = 22;
-const SLIDER_LABEL_LINE = 14;
-const SAVE_BTN_TEXT_LINE = 16;
+const SLIDER_LABEL_LINE = 15;
+const SAVE_BTN_TEXT_LINE = 18;
 const SAVE_BTN_H = 30;
 // What a <Slider> actually occupies, which is NOT what aStyles.slider asks for.
 // That style says `height: 28`; the rendered view measures 40 — the component

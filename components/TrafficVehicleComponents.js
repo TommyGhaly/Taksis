@@ -15,6 +15,11 @@ import {
 } from "@react-native-firebase/firestore";
 import { LIST_PERF } from "../utils/listConfig";
 
+// Bottom sheets stop at this width, centered along the bottom edge: at full
+// width on an iPad a sheet ran the whole 1,200pt window with its content
+// pinned to either end. Wider than any phone, so phones are unaffected.
+const SHEET_MAX_WIDTH = 640;
+
 const { width: SW, height: SH } = Dimensions.get("window");
 
 // ── Changed: now points to cars/unregistered/people ──────────────────────────
@@ -747,7 +752,7 @@ const s = StyleSheet.create({
   sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
   sheetHeaderLeft: { width: 24 },
   sheetTitle: { fontSize: 17, fontWeight: "600", color: "#fff", letterSpacing: 0 },
-  formSheet: { backgroundColor: "#181818", borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "94%", height: "94%" },
+  formSheet: { width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center", backgroundColor: "#181818", borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "94%", height: "94%" },
   formHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(255,255,255,0.08)" },
   formCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.06)", justifyContent: "center", alignItems: "center" },
   formTitle: { fontSize: 17, fontWeight: "700", color: "#fff", letterSpacing: 0 },

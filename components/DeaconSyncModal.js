@@ -11,7 +11,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   View, Text, TouchableOpacity, Modal, FlatList,
-  ActivityIndicator, StyleSheet, Dimensions,
+  ActivityIndicator, StyleSheet, useWindowDimensions,
 } from "react-native";
 import {
   collection,
@@ -26,7 +26,6 @@ import {
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { LIST_PERF } from "../utils/listConfig";
 
-const { height: SH } = Dimensions.get("window");
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
@@ -298,6 +297,14 @@ const renderLogRow = ({ item }) => (
 // ── Component ────────────────────────────────────────────────────────────────
 
 const DeaconSyncModal = ({ visible, onClose, churchId }) => {
+  // Live, not read at import: an iPad that rotates after launch otherwise keeps
+  // portrait-height caps in landscape and the dialog overflows the screen.
+  const { height: SH } = useWindowDimensions();
+  const heights = useMemo(() => ({
+    dialog:  { maxHeight: SH * 0.72 },
+    list:    { maxHeight: SH * 0.38 },
+    logList: { maxHeight: SH * 0.25 },
+  }), [SH]);
   const [phase, setPhase] = useState(P.SCAN);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -457,7 +464,7 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
   return (
     <Modal visible animationType="fade" transparent onRequestClose={close}>
       <View style={st.backdrop}>
-        <View style={st.dialog}>
+        <View style={[st.dialog, heights.dialog]}>
 
           <TouchableOpacity style={st.closeBtn} onPress={close} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Icon name="close" size={18} color="rgba(255,255,255,0.3)" />
@@ -485,7 +492,7 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
                 data={listRows}
                 keyExtractor={i => i.k}
                 renderItem={renderDiffRow}
-                style={st.list}
+                style={[st.list, heights.list]}
                 contentContainerStyle={st.listContent}
                 showsVerticalScrollIndicator={false}
                 ItemSeparatorComponent={Separator}
@@ -519,7 +526,7 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
                 data={schedRows}
                 keyExtractor={i => i.k}
                 renderItem={renderDiffRow}
-                style={st.list}
+                style={[st.list, heights.list]}
                 contentContainerStyle={st.listContent}
                 showsVerticalScrollIndicator={false}
                 ItemSeparatorComponent={Separator}
@@ -561,7 +568,7 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
                     // Append-only log: the index is stable for a given entry, and
                     // entries are never reordered or removed.
                     keyExtractor={(_, i) => String(i)}
-                    style={st.logList}
+                    style={[st.logList, heights.logList]}
                     showsVerticalScrollIndicator={false}
                     renderItem={renderLogRow}
                   />
@@ -592,7 +599,7 @@ const st = StyleSheet.create({
   },
   dialog: {
     backgroundColor: "#1c1c1e", borderRadius: 20,
-    width: "100%", minHeight: 200, maxHeight: SH * 0.72,
+    width: "100%", maxWidth: 560, minHeight: 200,
     paddingTop: 24, paddingBottom: 22, paddingHorizontal: 22,
   },
   closeBtn: { position: "absolute", top: 16, right: 16, zIndex: 1 },
@@ -603,7 +610,7 @@ const st = StyleSheet.create({
   label: { fontSize: 11, fontWeight: "700", letterSpacing: 1, color: "rgba(255,255,255,0.25)", marginBottom: 6 },
   headerTitle: { fontSize: 22, fontWeight: "700", color: "#fff" },
   headerSub: { fontSize: 14, color: "rgba(255,255,255,0.4)", marginTop: 2 },
-  list: { flexGrow: 0, maxHeight: SH * 0.38, marginBottom: 16 },
+  list: { flexGrow: 0, marginBottom: 16 },
   listContent: { paddingVertical: 4 },
   sep: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.06)" },
   row: { flexDirection: "row", alignItems: "center", paddingVertical: 12 },
@@ -634,7 +641,7 @@ const st = StyleSheet.create({
     width: "100%", marginTop: 12,
   },
   doneBtnText: { fontSize: 16, fontWeight: "600", color: "#fff" },
-  logList: { maxHeight: SH * 0.25, width: "100%", marginBottom: 8 },
+  logList: { width: "100%", marginBottom: 8 },
   logRow: { flexDirection: "row", paddingVertical: 4 },
   logBullet: { fontSize: 13, color: "rgba(255,255,255,0.3)", marginRight: 8, marginTop: 1 },
   logText: { flex: 1, fontSize: 14, color: "rgba(255,255,255,0.5)", lineHeight: 20 },

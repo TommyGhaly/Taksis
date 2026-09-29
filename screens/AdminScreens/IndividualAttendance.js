@@ -10,7 +10,6 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Dimensions,
   ScrollView,
   ActivityIndicator,
 } from "react-native";
@@ -38,13 +37,12 @@ import {
   dateKeyToSortable,
 } from "../../utils/dateKeys";
 
-// Hoisted out of the render body: this was `Dimensions.get("window")` on every
-// render, and the values it derives never change for the life of the screen.
-const SCREEN_WIDTH = Dimensions.get("window").width;
-const IS_TABLET = SCREEN_WIDTH >= 768;
-const CONTAINER_WIDTH = IS_TABLET
-  ? { maxWidth: 600, alignSelf: "center", width: "100%" }
-  : { width: "100%" };
+// On an iPad this screen sits in the centered column MainContainer wraps it
+// in, so the page itself just fills that. The modal card is capped on its
+// own, since a Modal renders at the window root, outside the column.
+// (This used to be `window width >= 768`, read at import — which missed an
+// iPad mini in portrait and went stale on rotation.)
+const MODAL_WIDTH = { maxWidth: 600, alignSelf: "center", width: "100%" };
 
 /**
  * One attendance record: date on the left, status pill on the right.
@@ -648,7 +646,7 @@ const IndividualAttendance = () => {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.contentContainer, CONTAINER_WIDTH]}>
+      <View style={styles.contentContainer}>
         <View style={styles.buttonRow}>
           <BackArrow />
           <TouchableOpacity
@@ -726,7 +724,7 @@ const IndividualAttendance = () => {
         >
           <LinearGradient
             colors={["#1E1E1E", "#151515"]}
-            style={[styles.modalContent, CONTAINER_WIDTH]}
+            style={[styles.modalContent, MODAL_WIDTH]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >

@@ -9,7 +9,6 @@ import {
   Modal,
   FlatList,
   TextInput,
-  Dimensions,
   Platform,
 } from "react-native";
 import {
@@ -38,7 +37,11 @@ import {
   mergeManualIntoReal,
 } from "../../utils/manualPeople";
 
-const { height } = Dimensions.get("window");
+// Bottom sheets stop at this width, centered along the bottom edge: at full
+// width on an iPad a sheet ran the whole 1,200pt window with its content
+// pinned to either end. Wider than any phone, so phones are unaffected.
+const SHEET_MAX_WIDTH = 640;
+
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -423,7 +426,7 @@ const IndividualServant = () => {
       >
         <View style={styles.sheetOverlay}>
           <TouchableOpacity style={styles.sheetDismiss} activeOpacity={1} onPress={() => setSyncModalVisible(false)} />
-          <View style={[styles.sheet, { height: height * 0.65 }]}>
+          <View style={[styles.sheet, styles.syncSheetHeight]}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
               <View>
@@ -532,7 +535,11 @@ const styles = StyleSheet.create({
   // Sync sheet
   sheetOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
   sheetDismiss: { flex: 1 },
+  // 65% of the overlay rather than of the window read at import, which went
+  // stale when an iPad rotated after launch.
+  syncSheetHeight: { height: "65%" },
   sheet: {
+    width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center",
     backgroundColor: "#1a1a1a", borderTopLeftRadius: 20, borderTopRightRadius: 20,
     borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
   },

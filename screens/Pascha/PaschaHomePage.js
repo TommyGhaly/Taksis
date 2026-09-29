@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import {
   View, Text, TouchableOpacity, ScrollView, Switch, Modal,
   StyleSheet, StatusBar, Platform,
-  useWindowDimensions,
 } from "react-native";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { doc, getFirestore, onSnapshot, updateDoc } from "@react-native-firebase/firestore";
@@ -10,12 +9,18 @@ import { getAuth } from "@react-native-firebase/auth";
 import Avatar from "../../components/Avatar";
 import SkeletonScreen from "../../components/Skeleton";
 import useAfterInteractions from "../../hooks/useAfterInteractions";
+import { useContentWidth } from "../../hooks/useResponsiveLayout";
 import * as avatarCache from "../../utils/avatarCache";
 import {
   expandReadings, isAssignableSlot, isPsalmSlot,
   hasLanguagePicker, effectiveLanguage, langShort,
   READING_META,
 } from "../Pascha/PaschaReadingUtils";
+
+// Bottom sheets stop at this width, centered along the bottom edge: at full
+// width on an iPad a sheet ran the whole 1,200pt window with its content
+// pinned to either end. Wider than any phone, so phones are unaffected.
+const SHEET_MAX_WIDTH = 640;
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 const BG      = "#0f0f0f";
@@ -53,6 +58,14 @@ function resolvedFontScale(fontSizeScale, fontSizeMultipliers) {
 
 function sf(base, multiplier) {
   return Math.round(base * multiplier * 10) / 10;
+}
+
+// A scaled font size with a line box that scales with it. Scaling the size
+// alone left each style's fixed lineHeight behind, so on Large the text outgrew
+// its line and clipped. Same helper as PaschaManager.
+function tx(base, multiplier) {
+  const size = sf(base, multiplier);
+  return { fontSize: size, lineHeight: Math.ceil(size * 1.3) };
 }
 
 // ── Day helpers ───────────────────────────────────────────────────────────────
@@ -190,7 +203,7 @@ const HomeSettingsSheet = ({ visible, fontSizeScale, hideNames, onSetFontSize, o
 );
 const ss = StyleSheet.create({
   backdrop:             { flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "flex-end" },
-  sheet:                { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
+  sheet:                { width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center", backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
                           maxHeight: "90%", paddingBottom: Platform.OS === "ios" ? 34 : 20 },
   handle:               { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP,
                           alignSelf: "center", marginTop: 12 },
@@ -224,24 +237,29 @@ const DayTabBar = ({ allDays, selectedId, easterDate, schedule, uid, onSelect, f
         : null;
       return (
         <TouchableOpacity key={day.id} onPress={() => onSelect(day.id)}
-          style={[dt.tab, active && dt.tabActive]} activeOpacity={0.75}>
+          style={[dt.tab, { minWidth: Math.round(64 * fontScale) }, active && dt.tabActive]} activeOpacity={0.75}>
           {hasMe && <View style={dt.dot} />}
           <Text
-            style={[dt.label, active && dt.labelActive, { fontSize: sf(11, fontScale) }]}
-            numberOfLines={2}
+            style={[dt.label, active && dt.labelActive, tx(11, fontScale)]}
+            numberOfLines={1}
             adjustsFontSizeToFit
-            minimumFontScale={0.7}
+            minimumFontScale={0.75}
           >{day.shortLabel}</Text>
-          {dateStr && <Text style={[dt.date, active && dt.dateActive, { fontSize: sf(9, fontScale) }]}>{dateStr}</Text>}
+          {dateStr && <Text style={[dt.date, active && dt.dateActive, tx(9, fontScale)]}>{dateStr}</Text>}
         </TouchableOpacity>
       );
     })}
   </ScrollView>
 );
 const dt = StyleSheet.create({
-  bar:         { backgroundColor: "transparent" },
-  content:     { paddingHorizontal: 16, paddingVertical: 10, gap: 6, flexDirection: "row" },
-  tab:         { paddingHorizontal: 11, paddingVertical: 7, borderRadius: 12, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, alignItems: "center", minWidth: 64, height: 58 },
+  // Sized to its tabs rather than a fixed 58pt box around a 74pt wrapper: on
+  // Large the label and date no longer fit that box and the date fell out.
+  // flexGrow/flexShrink 0 because a horizontal ScrollView otherwise flexes on
+  // the column axis against the pager below it.
+  bar:         { backgroundColor: "transparent", flexGrow: 0, flexShrink: 0 },
+  // flexGrow on the content and tabs fills the width when every day fits.
+  content:     { paddingHorizontal: 16, paddingVertical: 10, gap: 6, flexDirection: "row", flexGrow: 1 },
+  tab:         { flexGrow: 1, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 12, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, alignItems: "center", justifyContent: "center" },
   tabActive:   { backgroundColor: BLUE_D, borderColor: "rgba(59,130,246,0.4)" },
   dot:         { width: 4, height: 4, borderRadius: 2, backgroundColor: BLUE2, marginBottom: 3 },
   label:       { fontSize: 11, fontWeight: "500", color: T2, textAlign: "center" },
@@ -274,31 +292,31 @@ const ReadingCard = ({ row, hourAssignments, uid, isFullSchedule, isMine, hideNa
           <Icon name={meta.icon} size={15} color={accentColor} />
         </View>
 
-        <Text style={[rdc.typeLabel, { color: accentColor, fontSize: sf(11, fontScale) }]}>{label}</Text>
+        <Text style={[rdc.typeLabel, { color: accentColor }, tx(11, fontScale)]}>{label}</Text>
 
         {isCopticRow && (
           <View style={rdc.copticBadge}>
-            <Text style={[rdc.copticBadgeTxt, { fontSize: sf(9, fontScale) }]}>COPTIC</Text>
+            <Text style={[rdc.copticBadgeTxt, tx(9, fontScale)]}>COPTIC</Text>
           </View>
         )}
 
         {showLang && (
           <View style={rdc.langBadge}>
-            <Text style={[rdc.langBadgeTxt, { fontSize: sf(9, fontScale) }]}>{langShort(effectiveLanguage(row, hourAssignments))}</Text>
+            <Text style={[rdc.langBadgeTxt, tx(9, fontScale)]}>{langShort(effectiveLanguage(row, hourAssignments))}</Text>
           </View>
         )}
 
-        {isMine && <View style={rdc.youPill}><Text style={[rdc.youTxt, { fontSize: sf(9, fontScale) }]}>You</Text></View>}
+        {isMine && <View style={rdc.youPill}><Text style={[rdc.youTxt, tx(9, fontScale)]}>You</Text></View>}
       </View>
 
       {!!row.refText && row.rKey !== "homily" && !isExp && (
-        <Text style={[rdc.ref, { fontSize: sf(14, fontScale) }]}>{row.refText}</Text>
+        <Text style={[rdc.ref, tx(14, fontScale)]}>{row.refText}</Text>
       )}
 
       {!!row.location && (
         <View style={rdc.locationRow}>
           <Icon name="map-marker-outline" size={11} color={T3} />
-          <Text style={[rdc.loc, { fontSize: sf(11, fontScale) }]}>{row.location}</Text>
+          <Text style={[rdc.loc, tx(11, fontScale)]}>{row.location}</Text>
         </View>
       )}
 
@@ -308,14 +326,14 @@ const ReadingCard = ({ row, hourAssignments, uid, isFullSchedule, isMine, hideNa
             <View key={r.uid || i} style={[rdc.chip, r.uid === uid && rdc.chipMe, isCopticRow && rdc.chipCoptic]}>
               <Avatar uid={r.uid} size={16} showBorder={false} style={rdc.chipAvatar} />
               <Text style={[rdc.chipName, r.uid === uid && rdc.chipNameMe, isCopticRow && rdc.chipNameCoptic,
-                { fontSize: sf(11, fontScale) }]}
+                tx(11, fontScale)]}
                 numberOfLines={1}>{r.name}</Text>
             </View>
           )) : (
             <View style={[rdc.chip, isMine && rdc.chipMe, isCopticRow && rdc.chipCoptic]}>
               <Avatar uid={assignee.uid} size={16} showBorder={false} style={rdc.chipAvatar} />
               <Text style={[rdc.chipName, isMine && rdc.chipNameMe, isCopticRow && rdc.chipNameCoptic,
-                { fontSize: sf(11, fontScale) }]}
+                tx(11, fontScale)]}
                 numberOfLines={1}>{assignee.name}</Text>
             </View>
           )}
@@ -360,18 +378,18 @@ const HourPage = ({ hour, ha, uid, isFullSchedule, hideNames, pageWidth, pageLab
       <View style={pg.hourHeader}>
         <View style={[pg.hourAccent, { backgroundColor: hasMe ? BLUE : "rgba(255,255,255,0.15)" }]} />
         <View style={{ flex: 1 }}>
-          <Text style={[pg.hourLabel, { fontSize: sf(17, fontScale) }]}>{hour.label}</Text>
+          <Text style={[pg.hourLabel, tx(17, fontScale)]}>{hour.label}</Text>
           {hasMe && (
-            <Text style={[pg.hourSub, { fontSize: sf(12, fontScale) }]}>
+            <Text style={[pg.hourSub, tx(12, fontScale)]}>
               {mySlotSet.size} reading{mySlotSet.size !== 1 ? "s" : ""} for you
             </Text>
           )}
         </View>
-        <Text style={[pg.pageCount, { fontSize: sf(11, fontScale) }]}>{pageLabel}</Text>
+        <Text style={[pg.pageCount, tx(11, fontScale)]}>{pageLabel}</Text>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={pg.cardsScroll}>
         {assignable.length === 0
-          ? <View style={pg.emptyHour}><Text style={[pg.emptyHourTxt, { fontSize: sf(13, fontScale) }]}>No assigned readings</Text></View>
+          ? <View style={pg.emptyHour}><Text style={[pg.emptyHourTxt, tx(13, fontScale)]}>No assigned readings</Text></View>
           : assignable.map(row => (
             <ReadingCard
               key={row.slotKey}
@@ -392,7 +410,9 @@ const HourPage = ({ hour, ha, uid, isFullSchedule, hideNames, pageWidth, pageLab
 
 // ── Hour Pager ────────────────────────────────────────────────────────────────
 const HourPagerController = ({ hours, daySchedule, uid, isFullSchedule, hideNames, targetHourId, fontScale = 1 }) => {
-  const { width } = useWindowDimensions();
+  // The column's width, not the window's: on an iPad this screen sits in a
+  // centered column, and a page the width of the window would straddle two.
+  const width = useContentWidth();
   const visibleHours = useMemo(() => getVisibleHours(hours, daySchedule), [hours, daySchedule]);
 
   const targetIdx = useMemo(() => {
@@ -410,6 +430,15 @@ const HourPagerController = ({ hours, daySchedule, uid, isFullSchedule, hideName
     if (node && targetIdx > 0) node.scrollTo({ x: targetIdx * width, animated: false });
   }, [targetIdx, width]);
 
+  // A rotation changes the page width under a paging ScrollView, which then
+  // rests part-way between two hours. Snap back onto the current one.
+  const lastWidth = useRef(width);
+  useEffect(() => {
+    if (lastWidth.current === width) return;
+    lastWidth.current = width;
+    scrollRef.current?.scrollTo({ x: clamped * width, animated: false });
+  }, [width, clamped]);
+
   const goTo = useCallback(idx => {
     if (idx < 0 || idx >= visibleHours.length) return;
     scrollRef.current?.scrollTo({ x: idx * width, animated: true });
@@ -420,7 +449,7 @@ const HourPagerController = ({ hours, daySchedule, uid, isFullSchedule, hideName
     return (
       <View style={pg.empty}>
         <Icon name="cross" size={28} color={T3} />
-        <Text style={[pg.emptyTxt, { fontSize: sf(14, fontScale) }]}>No readings assigned for this day</Text>
+        <Text style={[pg.emptyTxt, tx(14, fontScale)]}>No readings assigned for this day</Text>
       </View>
     );
   }
@@ -536,10 +565,10 @@ const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onHourPres
         <TouchableOpacity onPress={handleCardPress} activeOpacity={0.78}>
           <View style={tl.cardHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={[tl.dayLabel, { fontSize: sf(16, fontScale) }]}>{day.label}</Text>
-              {dateStr && <Text style={[tl.dateStr, { fontSize: sf(12, fontScale) }]}>{dateStr}</Text>}
+              <Text style={[tl.dayLabel, tx(16, fontScale)]}>{day.label}</Text>
+              {dateStr && <Text style={[tl.dateStr, tx(12, fontScale)]}>{dateStr}</Text>}
             </View>
-            <View style={tl.badge}><Text style={[tl.badgeNum, { fontSize: sf(15, fontScale) }]}>{total}</Text></View>
+            <View style={tl.badge}><Text style={[tl.badgeNum, tx(15, fontScale)]}>{total}</Text></View>
           </View>
           <View style={tl.pillRow}>
             {allTypes.map(rKey => {
@@ -552,7 +581,7 @@ const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onHourPres
                   isCopticKey && tl.pillCoptic,
                 ]}>
                   <Icon name={m.icon} size={10} color={m.color} />
-                  <Text style={[tl.pillTxt, { color: m.color, fontSize: sf(10, fontScale) }]}>{m.label}</Text>
+                  <Text style={[tl.pillTxt, { color: m.color }, tx(10, fontScale)]}>{m.label}</Text>
                 </View>
               );
             })}
@@ -562,9 +591,9 @@ const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onHourPres
           <TouchableOpacity key={hour.id}
             style={[tl.hourRow, hi > 0 && { borderTopWidth: 1, borderTopColor: SEP }]}
             onPress={() => onHourPress(day.id, hour.id)} activeOpacity={0.7}>
-            <Text style={[tl.hourLabel, { fontSize: sf(13, fontScale) }]}>{hour.label}</Text>
+            <Text style={[tl.hourLabel, tx(13, fontScale)]}>{hour.label}</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <Text style={[tl.hourCount, { fontSize: sf(12, fontScale) }]}>{rows.length} {rows.length === 1 ? "reading" : "readings"}</Text>
+              <Text style={[tl.hourCount, tx(12, fontScale)]}>{rows.length} {rows.length === 1 ? "reading" : "readings"}</Text>
               <Icon name="chevron-right" size={13} color={BLUE2} />
             </View>
           </TouchableOpacity>
@@ -738,20 +767,18 @@ export default function PaschaHomePage() {
             <Icon name="arrow-left" size={18} color={T1} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={[mn.eyebrow, { fontSize: sf(11, fontScale) }]}>
+            <Text style={[mn.eyebrow, tx(11, fontScale)]}>
               {isFullSchedule ? "FULL SCHEDULE" : "MY READINGS"}
             </Text>
-            <Text style={[mn.title, { fontSize: sf(26, fontScale) }]} numberOfLines={1}>{dayDef.label}</Text>
-            {dateStr && <Text style={[mn.subtitle, { fontSize: sf(13, fontScale) }]}>{dateStr}</Text>}
+            <Text style={[mn.title, tx(26, fontScale)]} numberOfLines={1}>{dayDef.label}</Text>
+            {dateStr && <Text style={[mn.subtitle, tx(13, fontScale)]}>{dateStr}</Text>}
           </View>
           <TouchableOpacity style={mn.cogBtn} onPress={() => setSettingsOpen(true)} activeOpacity={0.7}>
             <Icon name="cog-outline" size={18} color={T2} />
           </TouchableOpacity>
         </View>
-        <View style={{ height: 74 }}>
-          <DayTabBar allDays={allDays} selectedId={nav.dayId} easterDate={easterDate}
-            schedule={schedule} uid={uid} onSelect={goToDay} fontScale={fontScale} />
-        </View>
+        <DayTabBar allDays={allDays} selectedId={nav.dayId} easterDate={easterDate}
+          schedule={schedule} uid={uid} onSelect={goToDay} fontScale={fontScale} />
         <HourPagerController
           key={`${nav.dayId}__${nav.hourId || "0"}`}
           hours={dayDef.hours || []}
@@ -779,8 +806,8 @@ export default function PaschaHomePage() {
       <StatusBar barStyle="light-content" />
       <View style={mn.header}>
         <View style={{ flex: 1 }}>
-          <Text style={[mn.eyebrow, { fontSize: sf(11, fontScale) }]}>HOLY WEEK  ·  PASCHA</Text>
-          <Text style={[mn.title, { fontSize: sf(26, fontScale) }]}>{isFullSchedule ? "Schedule" : "My Readings"}</Text>
+          <Text style={[mn.eyebrow, tx(11, fontScale)]}>HOLY WEEK  ·  PASCHA</Text>
+          <Text style={[mn.title, tx(26, fontScale)]}>{isFullSchedule ? "Schedule" : "My Readings"}</Text>
         </View>
         <TouchableOpacity style={mn.cogBtn} onPress={() => setSettingsOpen(true)} activeOpacity={0.7}>
           <Icon name="cog-outline" size={20} color={T2} />
@@ -796,7 +823,7 @@ export default function PaschaHomePage() {
           <View style={ov.summaryRow}>
             <View style={ov.summaryPill}>
               <Icon name="cross" size={12} color={BLUE2} />
-              <Text style={[ov.summaryTxt, { fontSize: sf(12, fontScale) }]}>
+              <Text style={[ov.summaryTxt, tx(12, fontScale)]}>
                 {totalMyReadings} reading{totalMyReadings !== 1 ? "s" : ""}
                 {" · "}
                 {myReadingsData.length} day{myReadingsData.length !== 1 ? "s" : ""}
@@ -808,8 +835,8 @@ export default function PaschaHomePage() {
           totalMyReadings === 0 ? (
             <View style={ov.empty}>
               <View style={ov.emptyIconWrap}><Icon name="cross" size={28} color={T3} /></View>
-              <Text style={[ov.emptyTitle, { fontSize: sf(18, fontScale) }]}>Not yet scheduled</Text>
-              <Text style={[ov.emptySub, { fontSize: sf(14, fontScale) }]}>Your assigned readings will appear here once the schedule is set.</Text>
+              <Text style={[ov.emptyTitle, tx(18, fontScale)]}>Not yet scheduled</Text>
+              <Text style={[ov.emptySub, tx(14, fontScale)]}>Your assigned readings will appear here once the schedule is set.</Text>
             </View>
           ) : (
             <View style={{ paddingTop: 8 }}>
@@ -830,8 +857,8 @@ export default function PaschaHomePage() {
         ) : (
           <View style={ov.empty}>
             <View style={ov.emptyIconWrap}><Icon name="cross" size={28} color={T3} /></View>
-            <Text style={[ov.emptyTitle, { fontSize: sf(18, fontScale) }]}>Schedule not yet available</Text>
-            <Text style={[ov.emptySub, { fontSize: sf(14, fontScale) }]}>Check back closer to Holy Week.</Text>
+            <Text style={[ov.emptyTitle, tx(18, fontScale)]}>Schedule not yet available</Text>
+            <Text style={[ov.emptySub, tx(14, fontScale)]}>Check back closer to Holy Week.</Text>
           </View>
         )}
       </ScrollView>

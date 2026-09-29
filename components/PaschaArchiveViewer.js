@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   View, Text, TouchableOpacity, Modal, ScrollView,
   StyleSheet, ActivityIndicator, Platform,
-  Dimensions,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { collection, getDocs, getFirestore } from "@react-native-firebase/firestore";
@@ -14,9 +13,14 @@ import {
   psalmReadersKey, READING_META,
 } from "../screens/Pascha/PaschaReadingUtils";
 import { DAY_SHORT_LABELS } from "../screens/Pascha/DayConstants";
+// Device class, not window width: the width read at import time made an iPad
+// mini in portrait (744pt) a phone and the same iPad in landscape a tablet.
+import { IS_TABLET } from "../hooks/useResponsiveLayout";
 
-var SCREEN_W = Dimensions.get("window").width;
-var IS_TABLET = SCREEN_W >= 768;
+// Bottom sheets stop at this width, centered along the bottom edge: at full
+// width on an iPad a sheet ran the whole 1,200pt window with its content
+// pinned to either end. Wider than any phone, so phones are unaffected.
+var SHEET_MAX_WIDTH = 640;
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 var BG      = "#0f0f0f";
@@ -502,7 +506,7 @@ var PaschaArchiveViewer = function(props) {
 
 const avS = StyleSheet.create({
 overlay:       { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" },
-sheet:         { backgroundColor: BG, borderTopLeftRadius: 30, borderTopRightRadius: 30, height: IS_TABLET ? "92%" : "96%", paddingBottom: Platform.OS === "ios" ? 36 : 24 },
+sheet:         { width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center", backgroundColor: BG, borderTopLeftRadius: 30, borderTopRightRadius: 30, height: IS_TABLET ? "92%" : "96%", paddingBottom: Platform.OS === "ios" ? 36 : 24 },
 handle:        { width: 42, height: 5, borderRadius: 3, backgroundColor: SEP, alignSelf: "center", marginTop: 12 },
 hdr:           { flexDirection: "row", alignItems: "center", gap: IS_TABLET ? 14 : 12, paddingHorizontal: IS_TABLET ? 22 : 16, paddingTop: IS_TABLET ? 18 : 14, paddingBottom: IS_TABLET ? 16 : 12, borderBottomWidth: 1, borderBottomColor: SEP },
 iconBox:       { width: IS_TABLET ? 40 : 34, height: IS_TABLET ? 40 : 34, borderRadius: IS_TABLET ? 12 : 10, backgroundColor: "rgba(255,159,10,0.12)", justifyContent: "center", alignItems: "center" },

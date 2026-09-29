@@ -4,7 +4,7 @@ import React, {
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet,
   FlatList, Modal, TextInput, Alert, ActivityIndicator, Linking,
-  KeyboardAvoidingView, Platform, Keyboard, Dimensions, Switch, Animated,
+  KeyboardAvoidingView, Platform, Keyboard, Switch, Animated,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Image } from "expo-image";
@@ -38,7 +38,11 @@ import { SkeletonProvider, SkeletonBlock, SkeletonCircle } from "../../component
 import { useAfterInteractions } from "../../hooks/useAfterInteractions";
 import { useIsPreview } from "../../components/PreviewMode";
 
-const { width: SW, height: SH } = Dimensions.get("window");
+// Bottom sheets stop at this width, centered along the bottom edge: at full
+// width on an iPad a sheet ran the whole 1,200pt window with its content
+// pinned to either end. Wider than any phone, so phones are unaffected.
+const SHEET_MAX_WIDTH = 640;
+
 const DEFAULT_PROFILE = require("../../assets/default_profile.png");
 const NOTIFICATION_URL = "https://us-central1-taksis-a8ba7.cloudfunctions.net/traffic_notification";
 const DEFAULT_CAR_LIMIT = 2;
@@ -1263,7 +1267,7 @@ const TrafficManager = () => {
         <Modal visible animationType="fade" transparent onRequestClose={() => setNotifyVisible(false)}>
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={s.centerOverlay}>
-              <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
+              <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={s.notifyKav}>
                 <View style={s.notifyCard}>
                   <View style={s.notifyIcon}><Icon name="bell-ring" size={24} color="#ff9f0a" /></View>
                   <Text style={s.notifyTitleText}>Send Notification</Text>
@@ -1405,7 +1409,7 @@ const s = StyleSheet.create({
   sheetTitle: { fontSize: 17, fontWeight: "600", color: "#fff" },
   approvalSheet: { backgroundColor: "#1c1c1e", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "85%", height: "85%" },
   menuOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
-  menuSheet: { backgroundColor: "#1c1c1e", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+  menuSheet: { width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center", backgroundColor: "#1c1c1e", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
   menuHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)", alignSelf: "center", marginBottom: 20 },
   menuItem: { flexDirection: "row", alignItems: "center", paddingVertical: 12 },
   menuIconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(20,126,251,0.15)", justifyContent: "center", alignItems: "center", marginRight: 14 },
@@ -1436,7 +1440,9 @@ const s = StyleSheet.create({
   settingsFooter: { paddingHorizontal: 20, paddingBottom: 40 },
   saveBtn: { backgroundColor: "#147efb", paddingVertical: 16, borderRadius: 14, alignItems: "center" },
   saveBtnText: { fontSize: 17, fontWeight: "600", color: "#fff" },
-  detailCard: { backgroundColor: "#1c1c1e", borderRadius: 20, padding: 20, width: "100%", maxHeight: SH * 0.8 },
+  // Percentages of the overlay, not the window captured at import, so they stay
+  // right after an iPad rotates; the maxWidth keeps them card-shaped on iPad.
+  detailCard: { backgroundColor: "#1c1c1e", borderRadius: 20, padding: 20, width: "100%", maxWidth: 520, maxHeight: "80%" },
   detailHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
   detailPlate: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(20,126,251,0.1)", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, gap: 8 },
   detailPlateText: { fontSize: 18, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
@@ -1482,7 +1488,9 @@ const s = StyleSheet.create({
   matchCardDiffText: { fontSize: 11, color: "rgba(255,255,255,0.4)" },
   noneMatchBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 16, marginTop: 4 },
   noneMatchText: { fontSize: 15, fontWeight: "600", color: "#30d158" },
-  notifyCard: { backgroundColor: "#1c1c1e", borderRadius: 20, padding: 24, width: SW - 48 },
+  // Full width for the card's percentage width to resolve against.
+  notifyKav: { width: "100%", alignItems: "center" },
+  notifyCard: { backgroundColor: "#1c1c1e", borderRadius: 20, padding: 24, width: "100%", maxWidth: 440 },
   notifyIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: "rgba(255,159,10,0.12)", justifyContent: "center", alignItems: "center", alignSelf: "center", marginBottom: 12 },
   notifyTitleText: { fontSize: 18, fontWeight: "600", color: "#fff", textAlign: "center", marginBottom: 20 },
   notifyInput: { backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 15, marginBottom: 12 },

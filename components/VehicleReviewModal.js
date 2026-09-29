@@ -19,6 +19,11 @@ import { COLOR_OPTIONS } from "./TrafficVehicleComponents";
 import { approveReviewItem, deleteReviewItem, resolveDriver } from "../utils/carsMigration";
 import { LIST_PERF } from "../utils/listConfig";
 
+// Bottom sheets stop at this width, centered along the bottom edge: at full
+// width on an iPad a sheet ran the whole 1,200pt window with its content
+// pinned to either end. Wider than any phone, so phones are unaffected.
+const SHEET_MAX_WIDTH = 640;
+
 const DEFAULT_PROFILE = require("../assets/default_profile.png");
 
 // ── Fuzzy matching helpers ───────────────────────────────────────────────────
@@ -618,6 +623,7 @@ const VehicleReviewModal = ({
 const ms = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
   sheet: {
+    width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center",
     backgroundColor: "#1a1a1a", borderTopLeftRadius: 22, borderTopRightRadius: 22,
     maxHeight: "92%", paddingBottom: 40,
   },

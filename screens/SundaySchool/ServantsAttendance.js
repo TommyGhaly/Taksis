@@ -7,7 +7,6 @@ import {
   Alert,
   TouchableOpacity,
   ActivityIndicator,
-  Dimensions,
 } from "react-native";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import { deleteDoc, doc, getFirestore, onSnapshot } from "@react-native-firebase/firestore";
@@ -18,12 +17,11 @@ import * as avatarCache from "../../utils/avatarCache";
 import { LIST_PERF } from "../../utils/listConfig";
 import { isAttendanceDateKey, dateKeyToSortable } from "../../utils/dateKeys";
 
-// Hoisted out of the render body — these never change for the life of the screen.
-const SCREEN_WIDTH = Dimensions.get("window").width;
-const IS_TABLET = SCREEN_WIDTH >= 768;
-const CONTAINER_WIDTH = IS_TABLET
-  ? { maxWidth: 600, alignSelf: "center", width: "100%" }
-  : { width: "100%" };
+// On an iPad this screen sits in the centered column MainContainer wraps it
+// in, so the page itself just fills that. The modal card is capped on its
+// own, since a Modal renders at the window root, outside the column.
+// (This used to be `window width >= 768`, read at import — which missed an
+// iPad mini in portrait and went stale on rotation.)
 
 // Hoisted: this was rebuilt inside getServantGrades on every render.
 const GRADE_LABELS = {
@@ -234,7 +232,7 @@ const ServantAttendance = () => {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.contentContainer, CONTAINER_WIDTH]}>
+      <View style={styles.contentContainer}>
         <View style={styles.buttonRow}>
           <BackArrow />
         </View>

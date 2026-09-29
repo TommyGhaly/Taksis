@@ -15,7 +15,6 @@ import {
   Keyboard,
   Animated,
   ScrollView,
-  Dimensions,
   PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
@@ -42,9 +41,9 @@ import {
 import { shortDateLabel } from "../../utils/dateKeys";
 import SkeletonScreen from "../../components/Skeleton";
 import { useAfterInteractions } from "../../hooks/useAfterInteractions";
+import useResponsiveLayout from "../../hooks/useResponsiveLayout";
 import useDeferredSearch from "../../hooks/useDeferredSearch";
 
-const { height } = Dimensions.get("window");
 
 /* ── Pure date/label helpers ───────────────────────────────────────────────────
  * Hoisted out of the component: they close over nothing, and redefining them on
@@ -87,9 +86,11 @@ const CacheUtils = makeScreenCache();
 // differs between iOS and Android. ADD_PILL_H is pinned because the pill's
 // tallest child is an Ionicons glyph, whose box is likewise not computable.
 // ROW_H / HDR_H below are derived from all three.
-const STUDENT_NAME_LINE = 19;
-const STATUS_LINE = 17;
-const GRADE_HEADER_LINE = 22;
+// Line boxes are ~1.3x their font size. At ~1.2x (their old values) iOS
+// clipped the descenders of g/y/p/j, most visibly in names.
+const STUDENT_NAME_LINE = 22;
+const STATUS_LINE = 19;
+const GRADE_HEADER_LINE = 24;
 const ADD_PILL_H = 26;
 
 // RN scales a declared lineHeight by the OS font scale (allowFontScaling defaults
@@ -368,6 +369,9 @@ const SundaySchoolAttendance = () => {
 
   // Hold every read until the drawer/tab transition has finished animating.
   const ready = useAfterInteractions();
+  // On an iPad this screen sits in a centered column (MainContainer wraps it);
+  // this is the padding inside it, a touch roomier than a phone's.
+  const { gutter, isWide } = useResponsiveLayout({ maxContentWidth: 720, phoneGutter: 16 });
 
   useEffect(() => {
     if (!ready) return;
@@ -981,7 +985,7 @@ const SundaySchoolAttendance = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingHorizontal: gutter }]}>
       {isNavigating && (
         <View style={styles.navigatingOverlay}>
           <ActivityIndicator size="large" color="#147EFB" />
@@ -1057,6 +1061,7 @@ const SundaySchoolAttendance = () => {
       <Animated.View
         style={[
           styles.floatingBarWrapper,
+          isWide && { left: gutter, right: gutter },
           { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] },
         ]}
         pointerEvents="box-none"
@@ -1381,7 +1386,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
     overflow: "hidden",
-    maxHeight: height * 0.78,
+    // Of the overlay, so it is still right after an iPad rotates.
+    maxHeight: "78%",
   },
   weekModalHeader: {
     flexDirection: "row",

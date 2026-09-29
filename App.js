@@ -29,6 +29,7 @@ import Experience from "./screens/AuthenticationScreens/Experience";
 import Frequency from "./screens/AuthenticationScreens/Frequency";
 import PasswordReset from "./screens/PasswordReset";
 import ChurchRegistration from "./screens/ChurchRegistration";
+import withContentColumn from "./components/ContentColumn";
 import MainContainer from "./screens/MainContainer";
 
 LogBox.ignoreLogs([
@@ -36,6 +37,19 @@ LogBox.ignoreLogs([
   "rnfirebase.io/migrating-to-v22",
 ]);
 const Stack = createNativeStackNavigator();
+
+// Onboarding and password reset are phone-width forms; on an iPad they sit in
+// a centered column instead of stretching edge to edge (a no-op on phones).
+// Welcome / SignIn / SignUp lay themselves out for tablets already.
+const FORM_COLUMN = { maxWidth: 560 };
+const PasswordResetCol      = withContentColumn(PasswordReset, FORM_COLUMN);
+const InputPhotoCol         = withContentColumn(InputPhoto, FORM_COLUMN);
+const SelectChurchCol       = withContentColumn(SelectChurch, FORM_COLUMN);
+const ChurchRegistrationCol = withContentColumn(ChurchRegistration, FORM_COLUMN);
+const SelectApplicableCol   = withContentColumn(SelectApplicable, FORM_COLUMN);
+const DeaconRankCol         = withContentColumn(DeaconRank, FORM_COLUMN);
+const ExperienceCol         = withContentColumn(Experience, FORM_COLUMN);
+const FrequencyCol          = withContentColumn(Frequency, FORM_COLUMN);
 
 function NetworkWrapper({ children }) {
   const [isConnected, setIsConnected] = useState(true);
@@ -216,7 +230,7 @@ function AppNavigator() {
             />
             <Stack.Screen
               name="PasswordReset"
-              component={PasswordReset}
+              component={PasswordResetCol}
               options={{ animation: "default" }}
             />
             <Stack.Screen
@@ -246,19 +260,19 @@ function AppNavigator() {
           />
         ) : (
           <>
-            <Stack.Screen name="InputPhoto" component={InputPhoto} />
-            <Stack.Screen name="SelectChurch" component={SelectChurch} />
+            <Stack.Screen name="InputPhoto" component={InputPhotoCol} />
+            <Stack.Screen name="SelectChurch" component={SelectChurchCol} />
             <Stack.Screen
               name="ChurchRegistration"
-              component={ChurchRegistration}
+              component={ChurchRegistrationCol}
             />
             <Stack.Screen
               name="SelectApplicable"
-              component={SelectApplicable}
+              component={SelectApplicableCol}
             />
-            <Stack.Screen name="DeaconRank" component={DeaconRank} />
-            <Stack.Screen name="Experience" component={Experience} />
-            <Stack.Screen name="Frequency" component={Frequency} />
+            <Stack.Screen name="DeaconRank" component={DeaconRankCol} />
+            <Stack.Screen name="Experience" component={ExperienceCol} />
+            <Stack.Screen name="Frequency" component={FrequencyCol} />
             <Stack.Screen 
               name="MainContainer" 
               component={MainContainer}

@@ -47,6 +47,7 @@ import { LIST_PERF } from '../../utils/listConfig';
 // In-place expanding image (thumbnail that animates up to a larger preview).
 // Adjust this path to wherever ProfileImageExpander lives in your tree.
 import ProfileImageExpander from '../../components/ProfileImageExpander';
+import { useContentWidth, WIDE_MIN } from '../../hooks/useResponsiveLayout';
 
 // ── Palette — matches Taksis dark theme ──────────────────────────────────────
 const C = {
@@ -1160,11 +1161,20 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
 // paginate with list({ maxResults, pageToken }). Thumbnails load lazily per
 // row. Single + bulk delete; deletes ONLY the storage object (no Firestore).
 
-const STORAGE_COLUMNS = 3;
 const STORAGE_GRID_GAP = 10;
-const STORAGE_TILE_SIZE = Math.floor(
-  (WINDOW_WIDTH - 24 /* list padding */ - STORAGE_GRID_GAP * (STORAGE_COLUMNS - 1)) / STORAGE_COLUMNS
-);
+const STORAGE_LIST_PADDING = 12;
+
+// Three across on a phone; more when the screen has the room (iPad), so the
+// thumbnails stay thumbnail-sized instead of growing to 250pt. Sized off the
+// width the screen actually has, not the window captured at import time.
+function useStorageGrid() {
+  const width = useContentWidth();
+  const columns = width >= WIDE_MIN ? 5 : 3;
+  const tileSize = Math.floor(
+    (width - STORAGE_LIST_PADDING * 2 - STORAGE_GRID_GAP * (columns - 1)) / columns
+  );
+  return { columns, tileSize };
+}
 
 /**
  * One storage thumbnail.
@@ -1174,7 +1184,7 @@ const STORAGE_TILE_SIZE = Math.floor(
  * Storage calls (getDownloadURL + getMetadata), which is also why windowing this
  * grid matters — fewer mounted cells means fewer requests.
  */
-const StorageItemRow = React.memo(function StorageItemRow({ item, selectMode, isSelected, onPress, onLongPress, onDelete }) {
+const StorageItemRow = React.memo(function StorageItemRow({ item, tileSize, selectMode, isSelected, onPress, onLongPress, onDelete }) {
   const [url, setUrl] = useState(null);
   const [meta, setMeta] = useState(null);
   const [failed, setFailed] = useState(false);
@@ -1207,9 +1217,9 @@ const StorageItemRow = React.memo(function StorageItemRow({ item, selectMode, is
     : {};
 
   return (
-    <View style={styles.gridCell}>
+    <View style={{ width: tileSize }}>
       <Wrapper
-        style={[styles.gridImageWrap, isSelected && styles.gridImageSelected]}
+        style={[styles.gridImageWrap, { width: tileSize, height: tileSize }, isSelected && styles.gridImageSelected]}
         {...wrapperProps}
       >
         {url && !failed ? (
@@ -1219,7 +1229,7 @@ const StorageItemRow = React.memo(function StorageItemRow({ item, selectMode, is
           ) : (
             <ProfileImageExpander
               imageUrl={url}
-              size={STORAGE_TILE_SIZE}
+              size={tileSize}
               finalSize={Math.min(WINDOW_WIDTH, WINDOW_HEIGHT) * 0.9}
               borderRadius={12}
             />
@@ -1261,6 +1271,7 @@ const StorageItemRow = React.memo(function StorageItemRow({ item, selectMode, is
 const storageKeyExtractor = (it) => it.fullPath;
 
 function StorageView({ prefix }) {
+  const grid = useStorageGrid();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
@@ -1384,6 +1395,7 @@ function StorageView({ prefix }) {
     ({ item }) => (
       <StorageItemRow
         item={item}
+        tileSize={grid.tileSize}
         selectMode={selectMode}
         isSelected={selected.has(item.fullPath)}
         onPress={handleStoragePress}
@@ -1391,7 +1403,7 @@ function StorageView({ prefix }) {
         onDelete={confirmDeleteSingle}
       />
     ),
-    [selectMode, selected, handleStoragePress, handleStorageLongPress, confirmDeleteSingle]
+    [grid.tileSize, selectMode, selected, handleStoragePress, handleStorageLongPress, confirmDeleteSingle]
   );
 
   const runBulkDelete = () => {
@@ -1461,10 +1473,12 @@ function StorageView({ prefix }) {
 
       <FlatList
         {...LIST_PERF}
-        key={`storage-grid-${STORAGE_COLUMNS}`}
+        // numColumns cannot change on a mounted FlatList; the key remounts it
+        // when a rotation or resize changes the column count.
+        key={`storage-grid-${grid.columns}`}
         data={filtered}
         keyExtractor={storageKeyExtractor}
-        numColumns={STORAGE_COLUMNS}
+        numColumns={grid.columns}
         columnWrapperStyle={styles.gridRow}
         contentContainerStyle={styles.gridList}
         keyboardShouldPersistTaps="handled"
@@ -2365,12 +2379,9 @@ const styles = StyleSheet.create({
   docMore: { color: C.t5, fontSize: 11, marginTop: 3 },
 
   // Storage grid
-  gridList: { padding: 12, paddingBottom: 110 },
+  gridList: { padding: STORAGE_LIST_PADDING, paddingBottom: 110 },
   gridRow: { gap: STORAGE_GRID_GAP, marginBottom: STORAGE_GRID_GAP },
-  gridCell: { width: STORAGE_TILE_SIZE },
   gridImageWrap: {
-    width: STORAGE_TILE_SIZE,
-    height: STORAGE_TILE_SIZE,
     borderRadius: 12,
     backgroundColor: C.fill,
     overflow: 'hidden',

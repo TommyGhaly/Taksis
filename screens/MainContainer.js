@@ -11,6 +11,7 @@ import {
   Linking,
   Platform,
   AppState,
+  useWindowDimensions,
 } from "react-native";
 import {
   NavigationContainer,
@@ -58,6 +59,8 @@ import { usePendingRoute } from "../utils/deepLinks";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as avatarCache from "../utils/avatarCache";
 import useServeDates from "../hooks/useServeDates";
+import withContentColumn from "../components/ContentColumn";
+import { WIDE_MIN } from "../hooks/useResponsiveLayout";
 
 // Last known roles, so a cold start can render the tab bar without waiting on
 // the network.
@@ -67,6 +70,37 @@ const shellNavigationRef = createNavigationContainerRef();
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
+
+// ── iPad layout ──────────────────────────────────────────────────────────────
+//
+// Every screen is wrapped once, here, in a centered column (see
+// components/ContentColumn.js) — on a phone the wrapper is a no-op. The nested
+// stacks all hide their own headers, so wrapping a navigator puts every screen
+// it pushes (a profile, a settings page) in the same column.
+//
+// Widths: 760 suits lists and forms. The two schedule-style admin screens get
+// more because they lay cards out in a grid and use the room.
+const PASCHA_BG = "#0f0f0f";
+const col = withContentColumn;
+const HomeScreenNavigationCol     = col(HomeScreenNavigation);
+const SundaySchoolNavigatorCol    = col(SundaySchoolNavigator);
+const AlhanNavigatorCol           = col(AlhanNavigator);
+const ServantsMeetingNavigatorCol = col(ServantsMeetingNavigator);
+const LearnItNavigationCol        = col(LearnItNavigation);
+const SettingsNavigationCol       = col(SettingsNavigation);
+const EditScheduleCol             = col(EditSchedule);
+const DeaconEditsCol              = col(DeaconEdits);
+const TrafficManagerCol           = col(TrafficManager, { maxWidth: 900 });
+const PaschaManagerCol            = col(PaschaManager, { maxWidth: 1180, backgroundColor: PASCHA_BG });
+const PaschaHomePageCol           = col(PaschaHomePage, { backgroundColor: PASCHA_BG });
+const ServantsAdminCol            = col(ServantsAdmin);
+const AlhanAdminCol               = col(AlhanAdmin);
+const DatabaseManagerCol          = col(DatabaseManager, { maxWidth: 900 });
+const AdminManagerCol             = col(AdminManager);
+
+// In a wide landscape window the drawer stays open as a sidebar, the way iPad
+// apps present navigation, instead of hiding behind the hamburger.
+const PERMANENT_DRAWER_MIN = 1000;
 
 const myTheme = {
   ...DefaultTheme,
@@ -104,57 +138,57 @@ function compareVersions(current, minimum) {
 
 const screenConfigs = {
   schedule: {
-    component: HomeScreenNavigation,
+    component: HomeScreenNavigationCol,
     name: "Deacon Service Schedule",
     drawerName: "Deacon Service Schedule",
   },
   sundaySchoolAttendance: {
-    component: SundaySchoolNavigator,
+    component: SundaySchoolNavigatorCol,
     name: "Sunday School Attendance",
     drawerName: "Sunday School Attendance",
   },
   hymnsClassAttendance: {
-    component: AlhanNavigator,
+    component: AlhanNavigatorCol,
     name: "Hymns Class Attendance",
     drawerName: "Hymns Class Attendance",
   },
   servantsMeetingTracker: {
-    component: ServantsMeetingNavigator,
+    component: ServantsMeetingNavigatorCol,
     name: "Servants Meeting Tracker",
     drawerName: "Servants Meeting Attendance",
   },
   editDeacons: {
-    component: DeaconEdits,
+    component: DeaconEditsCol,
     name: "Edit Deacons",
     drawerName: "Edit Deacons",
   },
   trafficManager: {
-    component: TrafficManager,
+    component: TrafficManagerCol,
     name: "Traffic Manager",
     drawerName: "Traffic Manager",
   },
   paschaManager: {
-    component: PaschaManager,
+    component: PaschaManagerCol,
     name: "Pascha Manager",
     drawerName: "Pascha Manager",
   },
   servantsManager: {
-    component: ServantsAdmin,
+    component: ServantsAdminCol,
     name: "Servants Manager",
     drawerName: "Servants Management",
   },
   alhanManager: {
-    component: AlhanAdmin,
+    component: AlhanAdminCol,
     name: "Alhan Manager",
     drawerName: "Alhan Management",
   },
   databaseManager: {
-    component: DatabaseManager,
+    component: DatabaseManagerCol,
     name: "Database Manager",
     drawerName: "Database Manager",
   },
   adminManager: {
-    component: AdminManager,
+    component: AdminManagerCol,
     name: "Admin Manager",
     drawerName: "Admin Manager",
   },
@@ -273,13 +307,13 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId, showP
       />
       <Tab.Screen
         name="Learn to Serve"
-        component={LearnItNavigation}
+        component={LearnItNavigationCol}
         listeners={{ focus: () => setHomeTitle("Learn to Serve") }}
       />
       {showPaschaTab && (
         <Tab.Screen
           name="Pascha"
-          component={PaschaHomePage}
+          component={PaschaHomePageCol}
           options={{ headerTitle: "Holy Week · Pascha" }}
           listeners={{ focus: () => setHomeTitle("Holy Week · Pascha") }}
         />
@@ -287,13 +321,13 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId, showP
       {userRoles.admin && (
         <Tab.Screen
           name="Edit Schedule"
-          component={EditSchedule}
+          component={EditScheduleCol}
           listeners={{ focus: () => setHomeTitle("Edit Schedule") }}
         />
       )}
       <Tab.Screen
         name="Settings"
-        component={SettingsNavigation}
+        component={SettingsNavigationCol}
         listeners={{ focus: () => setHomeTitle("Settings") }}
       />
     </Tab.Navigator>
@@ -322,6 +356,9 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId, sho
     [userRoles, homeScreenId],
   );
 
+  const window = useWindowDimensions();
+  const sidebar = window.width >= PERMANENT_DRAWER_MIN && window.width > window.height;
+
   return (
     <Drawer.Navigator
       drawerContent={(props) => (
@@ -334,9 +371,11 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId, sho
       detachInactiveScreens
       screenOptions={({ navigation, route }) => ({
         drawerStyle: { backgroundColor: "transparent", width: 280 },
+        drawerType: sidebar ? "permanent" : "front",
         headerShown: true,
         headerTitle: route.name === "Home" ? homeTitle : route.name,
-        headerLeft: () => <CustomHeader navigation={navigation} />,
+        // Nothing to open when the drawer is already on screen.
+        headerLeft: sidebar ? () => null : () => <CustomHeader navigation={navigation} />,
         headerStyle: consistentHeaderStyle,
         headerTintColor: "#fff",
         // Keep background screens from re-rendering while the drawer animates.
@@ -349,7 +388,7 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId, sho
           <TabNavigator
             userRoles={userRoles}
             setHomeTitle={setHomeTitle}
-            showDrawer={true}
+            showDrawer={!sidebar}
             homeScreenId={homeScreenId}
             showPaschaTab={showPaschaTab}
           />
@@ -357,37 +396,37 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId, sho
       </Drawer.Screen>
 
       {shouldShowInDrawer("schedule") && (
-        <Drawer.Screen name="Deacon Service Schedule" component={HomeScreenNavigation} />
+        <Drawer.Screen name="Deacon Service Schedule" component={screenConfigs.schedule.component} />
       )}
       {shouldShowInDrawer("sundaySchoolAttendance") && (
-        <Drawer.Screen name="Sunday School Attendance" component={SundaySchoolNavigator} />
+        <Drawer.Screen name="Sunday School Attendance" component={screenConfigs.sundaySchoolAttendance.component} />
       )}
       {shouldShowInDrawer("hymnsClassAttendance") && (
-        <Drawer.Screen name="Hymns Class Attendance" component={AlhanNavigator} />
+        <Drawer.Screen name="Hymns Class Attendance" component={screenConfigs.hymnsClassAttendance.component} />
       )}
       {shouldShowInDrawer("servantsMeetingTracker") && (
-        <Drawer.Screen name="Servants Meeting Attendance" component={ServantsMeetingNavigator} />
+        <Drawer.Screen name="Servants Meeting Attendance" component={screenConfigs.servantsMeetingTracker.component} />
       )}
       {shouldShowInDrawer("editDeacons") && (
-        <Drawer.Screen name="Edit Deacons" component={DeaconEdits} />
+        <Drawer.Screen name="Edit Deacons" component={screenConfigs.editDeacons.component} />
       )}
       {shouldShowInDrawer("trafficManager") && (
-        <Drawer.Screen name="Traffic Manager" component={TrafficManager} />
+        <Drawer.Screen name="Traffic Manager" component={screenConfigs.trafficManager.component} />
       )}
       {shouldShowInDrawer("paschaManager") && (
-        <Drawer.Screen name="Pascha Manager" component={PaschaManager} />
+        <Drawer.Screen name="Pascha Manager" component={screenConfigs.paschaManager.component} />
       )}
       {shouldShowInDrawer("servantsManager") && (
-        <Drawer.Screen name="Servants Management" component={ServantsAdmin} />
+        <Drawer.Screen name="Servants Management" component={screenConfigs.servantsManager.component} />
       )}
       {shouldShowInDrawer("alhanManager") && (
-        <Drawer.Screen name="Alhan Management" component={AlhanAdmin} />
+        <Drawer.Screen name="Alhan Management" component={screenConfigs.alhanManager.component} />
       )}
       {shouldShowInDrawer("databaseManager") && (
-        <Drawer.Screen name="Database Manager" component={DatabaseManager} />
+        <Drawer.Screen name="Database Manager" component={screenConfigs.databaseManager.component} />
       )}
       {shouldShowInDrawer("adminManager") && (
-        <Drawer.Screen name="Admin Manager" component={AdminManager} />
+        <Drawer.Screen name="Admin Manager" component={screenConfigs.adminManager.component} />
       )}
     </Drawer.Navigator>
   );
