@@ -2,6 +2,20 @@
 set -e
 cd "$(dirname "$0")"
 
+# Usage:
+#   ./reset-android.sh              bump the versionCode, then build the AAB
+#   ./reset-android.sh --no-bump    rebuild the same versionCode — only when the
+#                                   last one never reached Play
+
+BUMP=1
+for arg in "$@"; do
+  case "$arg" in
+    --bump)    BUMP=1 ;;
+    --no-bump) BUMP=0 ;;
+    *) echo "❌ Unknown option '$arg'. Usage: ./reset-android.sh [--no-bump]"; exit 1 ;;
+  esac
+done
+
 # ── Environment ──────────────────────────────────────────────────────────────
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
@@ -46,6 +60,38 @@ echo "✅ Keystore fingerprint verified ($ACTUAL_SHA1)"
 # ── Kill Gradle daemons ──────────────────────────────────────────────────────
 pkill -f gradle 2>/dev/null || true
 sleep 2
+
+# ── Bump the versionCode ─────────────────────────────────────────────────────
+#
+# This script only ever produces an upload AAB, so the bump is the default
+# rather than a flag. Play refuses a versionCode it has already seen and it
+# refuses it *after the whole AAB has uploaded*, so forgetting costs a full
+# build and a full upload; bumping when you did not need to costs a gap in a
+# sequence nobody reads. Pass --no-bump on a rebuild that never reached Play.
+#
+# Before the prebuild, because `expo prebuild` reads app.json to write
+# android/app/build.gradle. Bumping after it would change the file and leave
+# the AAB carrying the old number.
+if [ "$BUMP" = "1" ]; then
+  CURRENT=$(grep -o '"versionCode": [0-9]*' app.json | grep -o '[0-9]*$')
+  if [ -z "$CURRENT" ]; then
+    echo "❌ No \"versionCode\" in app.json — cannot bump. Every build from here would reuse a versionCode Play has seen."
+    exit 1
+  fi
+
+  NEXT=$((CURRENT + 1))
+  sed -i '' "s/\"versionCode\": ${CURRENT}/\"versionCode\": ${NEXT}/" app.json
+
+  # Read back: a sed that matched nothing looks exactly like a successful bump.
+  WROTE=$(grep -o '"versionCode": [0-9]*' app.json | grep -o '[0-9]*$')
+  if [ "$WROTE" != "$NEXT" ]; then
+    echo "❌ Tried to bump versionCode to $NEXT, app.json still reads $WROTE"
+    exit 1
+  fi
+  echo "✅ versionCode $CURRENT → $NEXT (commit app.json with the release)"
+else
+  echo "⏭  versionCode left at $(grep -o '"versionCode": [0-9]*' app.json | grep -o '[0-9]*$')"
+fi
 
 # ── Clean prebuild ───────────────────────────────────────────────────────────
 rm -rf android
@@ -122,4 +168,5 @@ fi
 echo ""
 echo "✅ Done. AAB at:"
 echo "   $AAB"
+echo "   versionCode $(grep -o '"versionCode": [0-9]*' app.json | grep -o '[0-9]*$')"
 echo "   Size: $(du -sh "$AAB" | cut -f1)"
