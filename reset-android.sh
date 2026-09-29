@@ -80,6 +80,24 @@ if [ "$BUMP" = "1" ]; then
   fi
 
   NEXT=$((CURRENT + 1))
+
+  # Shown, not required: Enter takes the bump straight away, typing a number
+  # uses that instead, and leaving it alone takes the bump after 10 seconds, so
+  # an unattended run is never stuck here. No terminal attached (a task runner,
+  # CI) skips the prompt.
+  if [ -t 0 ]; then
+    while true; do
+      ANSWER=""
+      read -r -t 10 -p "→ Android versionCode $CURRENT → $NEXT — Enter (or wait 10s) to accept, or type another: " ANSWER || echo ""
+      [ -z "$ANSWER" ] && break
+      if [[ "$ANSWER" =~ ^[0-9]+$ ]] && [ "$ANSWER" -gt "$CURRENT" ]; then
+        NEXT="$ANSWER"
+        break
+      fi
+      echo "   '$ANSWER' is not a whole number above $CURRENT — Play only accepts a higher versionCode."
+    done
+  fi
+
   sed -i '' "s/\"versionCode\": ${CURRENT}/\"versionCode\": ${NEXT}/" app.json
 
   # Read back: a sed that matched nothing looks exactly like a successful bump.

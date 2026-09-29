@@ -36,6 +36,40 @@ fail() { echo "   ✗ $1" >&2; exit 1; }
 export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 
+# ── iOS version ──────────────────────────────────────────────────────────────
+#
+# Asked first, before anything is wiped, because `expo prebuild` reads app.json
+# to write Info.plist and the clip's MARKETING_VERSION — a version changed after
+# it would not reach the archive. Enter keeps the current one. With no terminal
+# attached (a task runner, CI) it keeps the current one without asking.
+CURRENT_VERSION=$(grep -o '"version": "[^"]*"' app.json | head -1 | sed 's/.*: "\(.*\)"/\1/')
+[ -n "$CURRENT_VERSION" ] || fail "No \"version\" in app.json."
+
+NEW_VERSION="$CURRENT_VERSION"
+if [ -t 0 ]; then
+  while true; do
+    # `|| ANSWER=""`: under set -e a Ctrl-D (EOF) would otherwise end the whole
+    # script right here, silently. Treat it as Enter.
+    read -r -p "→ iOS version [$CURRENT_VERSION] — Enter to keep, or type a new one: " ANSWER || ANSWER=""
+    [ -z "$ANSWER" ] && break
+    if [[ "$ANSWER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      NEW_VERSION="$ANSWER"
+      break
+    fi
+    echo "   '$ANSWER' is not a version like 5.0.4 — try again."
+  done
+fi
+
+if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
+  sed -i '' "s/\"version\": \"${CURRENT_VERSION}\"/\"version\": \"${NEW_VERSION}\"/" app.json
+  # Read back: a sed that matched nothing looks exactly like a successful edit.
+  WROTE=$(grep -o '"version": "[^"]*"' app.json | head -1 | sed 's/.*: "\(.*\)"/\1/')
+  [ "$WROTE" = "$NEW_VERSION" ] || fail "Tried to set version $NEW_VERSION, app.json still reads $WROTE."
+  echo "   ✓ version $CURRENT_VERSION → $NEW_VERSION (commit app.json with the release)"
+else
+  echo "   ✓ keeping version $CURRENT_VERSION"
+fi
+
 echo "→ Closing Xcode"
 osascript -e 'quit app "Xcode"' 2>/dev/null || true
 sleep 2
