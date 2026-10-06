@@ -18,6 +18,7 @@ const menuSections = [
       { id: "Deacon Service Schedule",      icon: "calendar-month-outline", label: "Deacon Schedule",   role: "schedule"               },
       { id: "Sunday School Attendance",     icon: "school-outline",         label: "Sunday School",     role: "sundaySchoolAttendance" },
       { id: "Hymns Class Attendance",       icon: "music-note-outline",     label: "Hymns Class",       role: "hymnsClassAttendance"   },
+      { id: "College Youth Attendance",     icon: "account-multiple-outline", label: "College Youth",   role: "youthMeetingAttendance" },
       { id: "Servants Meeting Attendance",  icon: "account-group-outline",  label: "Servants Meeting",  role: "servantsMeetingTracker" },
     ],
   },

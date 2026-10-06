@@ -28,6 +28,7 @@ import Constants from "expo-constants";
 import HomeScreenNavigation from "./Home/HomeScreenNavigator";
 import AlhanNavigator from "./Alhan/AlhanNavigator";
 import SundaySchoolNavigator from "./SundaySchool/SundaySchoolNavigator";
+import YouthMeetingNavigator from "./YouthMeeting/YouthMeetingNavigator";
 import LearnItNavigation from "./LearnIt/LearnItNavigation";
 import SettingsNavigation from "./Settings/SettingsNavigation";
 import ServantsMeetingNavigator from "./ServantsMeeting/ServantsMeetingNavigator";
@@ -85,6 +86,7 @@ const col = withContentColumn;
 const HomeScreenNavigationCol     = col(HomeScreenNavigation);
 const SundaySchoolNavigatorCol    = col(SundaySchoolNavigator);
 const AlhanNavigatorCol           = col(AlhanNavigator);
+const YouthMeetingNavigatorCol    = col(YouthMeetingNavigator);
 const ServantsMeetingNavigatorCol = col(ServantsMeetingNavigator);
 const LearnItNavigationCol        = col(LearnItNavigation);
 const SettingsNavigationCol       = col(SettingsNavigation);
@@ -151,6 +153,11 @@ const screenConfigs = {
     component: AlhanNavigatorCol,
     name: "Hymns Class Attendance",
     drawerName: "Hymns Class Attendance",
+  },
+  youthMeetingAttendance: {
+    component: YouthMeetingNavigatorCol,
+    name: "College Youth Attendance",
+    drawerName: "College Youth Attendance",
   },
   servantsMeetingTracker: {
     component: ServantsMeetingNavigatorCol,
@@ -342,6 +349,7 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId, sho
       switch (screenId) {
         case "sundaySchoolAttendance":  return userRoles.isSSTeacher;
         case "hymnsClassAttendance":    return userRoles.isAlhan;
+        case "youthMeetingAttendance":  return userRoles.youthAdmin;
         case "servantsMeetingTracker":  return userRoles.isServant;
         case "editDeacons":             return userRoles.admin;
         case "trafficManager":          return userRoles.trafficAdmin;
@@ -403,6 +411,9 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId, sho
       )}
       {shouldShowInDrawer("hymnsClassAttendance") && (
         <Drawer.Screen name="Hymns Class Attendance" component={screenConfigs.hymnsClassAttendance.component} />
+      )}
+      {shouldShowInDrawer("youthMeetingAttendance") && (
+        <Drawer.Screen name="College Youth Attendance" component={screenConfigs.youthMeetingAttendance.component} />
       )}
       {shouldShowInDrawer("servantsMeetingTracker") && (
         <Drawer.Screen name="Servants Meeting Attendance" component={screenConfigs.servantsMeetingTracker.component} />
@@ -471,6 +482,7 @@ export default function MainContainer() {
     admin: false,
     ssAdmin: false,
     alhanAdmin: false,
+    youthAdmin: false,
     superAdmin: false,
     trafficAdmin: false,
     paschaAdmin: false,
@@ -618,6 +630,7 @@ export default function MainContainer() {
           if (data.isDeacon)           selectedHomeScreen = "schedule";
           else if (data.isSSTeacher)   selectedHomeScreen = "sundaySchoolAttendance";
           else if (data.isAlhan)       selectedHomeScreen = "hymnsClassAttendance";
+          else if (data.youthAdmin)    selectedHomeScreen = "youthMeetingAttendance";
           else                         selectedHomeScreen = "schedule";
 
           updateDoc(
@@ -848,6 +861,7 @@ export default function MainContainer() {
     userRoles.ssAdmin      ||
     userRoles.admin        ||
     userRoles.alhanAdmin   ||
+    userRoles.youthAdmin   ||
     userRoles.superAdmin   ||
     userRoles.trafficAdmin ||
     userRoles.paschaAdmin;

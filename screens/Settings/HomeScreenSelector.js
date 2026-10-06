@@ -26,6 +26,7 @@ import { useContentWidth, WIDE_MIN } from "../../hooks/useResponsiveLayout";
 import HomeScreen from "../Home/HomeScreen";
 import SundaySchoolAttendance from "../SundaySchool/SundaySchoolAttendance";
 import AlhanAttendance from "../Alhan/AlhanAttendance";
+import YouthMeetingAttendance from "../YouthMeeting/YouthMeetingAttendance";
 import ServantsAttendance from "../ServantsMeeting/ServantsAttendance";
 import DeaconEdits from "../AdminScreens/DeaconEdits";
 import TrafficManager from "../AdminScreens/TrafficManager";
@@ -169,6 +170,13 @@ const HomeScreenSelector = () => {
       caption: "Track hymns class attendance",
       component: AlhanAttendance,
       available: userRoles.isAlhan,
+    },
+    {
+      id: "youthMeetingAttendance",
+      name: "College Youth Attendance",
+      caption: "Track College Youth Meeting attendance",
+      component: YouthMeetingAttendance,
+      available: userRoles.youthAdmin,
     },
     {
       id: "servantsMeetingTracker",

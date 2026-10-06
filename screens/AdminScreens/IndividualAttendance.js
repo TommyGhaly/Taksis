@@ -131,7 +131,8 @@ const EmptyAttendance = () => (
 const IndividualAttendance = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { church, category, grade, studentId, userGrades } = route.params;
+  // `showGrade: false` is College Youth Meeting, whose roster has no grades.
+  const { church, category, grade, studentId, userGrades, showGrade = true } = route.params;
   const [studentData, setStudentData] = useState({});
   const [loading, setLoading] = useState(true);
   // Separate from `loading`, which gates the whole-screen skeleton. Writes have
@@ -671,9 +672,11 @@ const IndividualAttendance = () => {
             expandable
           />
         </View>
-        <Text style={styles.subtitle}>{`Grade: ${formatGrade(
-          grade
-        )} - Category: ${category}`}</Text>
+        <Text style={styles.subtitle}>
+          {showGrade
+            ? `Grade: ${formatGrade(grade)} - Category: ${category}`
+            : category}
+        </Text>
         <FlatList
           {...LIST_PERF}
           data={attendanceDataMemo}
@@ -984,10 +987,12 @@ const IndividualAttendance = () => {
                         {studentData.name || "N/A"}
                       </Text>
                     </View>
-                    <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Grade</Text>
-                      <Text style={styles.infoValue}>{formatGrade(grade)}</Text>
-                    </View>
+                    {showGrade && (
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Grade</Text>
+                        <Text style={styles.infoValue}>{formatGrade(grade)}</Text>
+                      </View>
+                    )}
                     <View style={styles.infoRow}>
                       <Text style={styles.infoLabel}>Birthday</Text>
                       <Text style={styles.infoValue}>
