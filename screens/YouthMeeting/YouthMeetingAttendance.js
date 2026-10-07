@@ -133,16 +133,20 @@ const HDR_H = 12 + Math.max(LH(GRADE_HEADER_LINE), ADD_PILL_H) + 10;
 // ---------- This month's birthdays ----------
 //
 // A section above the roster listing everyone whose saved birthday falls in the
-// current month. Its rows are compact and its header has no Add pill, so both
-// get their own pinned heights.
-const BIRTHDAYS = "This Month's Birthdays";
+// current month, or — flipped with the toggle in its header — next month. Its
+// rows are compact and its header carries the toggle instead of an Add pill, so
+// both get their own pinned heights.
+const BIRTHDAYS = "Birthdays";
 const BDAY_NAME_LINE = 21;
 const BDAY_DETAIL_LINE = 18;
 // birthdayRow: 1px border top and bottom, 12 padding all round, the taller of
 // the 40pt avatar and the two text lines, then its own margin.
 const BDAY_ROW_H =
   2 + 24 + Math.max(40, LH(BDAY_NAME_LINE) + 2 + LH(BDAY_DETAIL_LINE)) + 8;
-const HDR_H_PLAIN = 12 + LH(GRADE_HEADER_LINE) + 10;
+// The month toggle's tallest child is text, but it is pinned like the Add pill
+// so the header height does not depend on the font's natural line box.
+const MONTH_TOGGLE_H = 28;
+const HDR_H_BDAY = 12 + Math.max(LH(GRADE_HEADER_LINE), MONTH_TOGGLE_H) + 10;
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -166,7 +170,7 @@ const parseBirthday = (raw) => {
 const getItemLayout = makeSectionListGetItemLayout({
   getItemHeight: (item) => (item?.isBirthday ? BDAY_ROW_H : ROW_H),
   getSectionHeaderHeight: (section) =>
-    section.title === BIRTHDAYS ? HDR_H_PLAIN : HDR_H,
+    section.title === BIRTHDAYS ? HDR_H_BDAY : HDR_H,
 });
 
 const auditStudentRow = makeRowHeightAudit("StudentRow", ROW_H, 10);
@@ -302,15 +306,48 @@ const GradeHeader = React.memo(({ title, onAdd }) => (
 ));
 GradeHeader.displayName = "GradeHeader";
 
-const BirthdaysHeader = React.memo(() => (
-  <View style={styles.gradeHeaderRow}>
-    <Text style={styles.gradeHeader}>{BIRTHDAYS}</Text>
-  </View>
-));
+const BirthdaysHeader = React.memo(({ monthOffset, onChangeMonth }) => {
+  const current = new Date().getMonth();
+  const labels = [MONTH_NAMES[current], MONTH_NAMES[(current + 1) % 12]];
+  return (
+    <View style={styles.gradeHeaderRow}>
+      <Text style={styles.gradeHeader}>{BIRTHDAYS}</Text>
+      <View style={styles.monthToggle}>
+        {labels.map((label, offset) => {
+          const selected = offset === monthOffset;
+          return (
+            <TouchableOpacity
+              key={offset}
+              style={[styles.monthToggleOption, selected && styles.monthToggleOptionSelected]}
+              onPress={() => onChangeMonth(offset)}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8 }}
+            >
+              <Text
+                style={[styles.monthToggleText, selected && styles.monthToggleTextSelected]}
+                numberOfLines={1}
+              >
+                {label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+});
 BirthdaysHeader.displayName = "BirthdaysHeader";
 
 /** One birthday, memoized. Tapping it opens the person, like a roster row. */
 const BirthdayRow = React.memo(({ person, isNavigating, onOpen }) => {
+  if (person.isEmpty) {
+    // Same height as a birthday row, so getItemLayout stays exact.
+    return (
+      <View style={[styles.birthdayRow, styles.birthdayEmpty]} onLayout={auditBirthdayRow}>
+        <Text style={styles.birthdayDetail}>No birthdays in {person.monthName}</Text>
+      </View>
+    );
+  }
   const passed = person.bdayStatus === "passed";
   const detail =
     `${MONTH_NAMES[person.bdayMonth - 1]} ${person.bdayDay}` +
@@ -759,33 +796,51 @@ const YouthMeetingAttendance = () => {
     // never match anything.
   }, [studentsByGrade, search, groups]);
 
-  // Everyone on the roster whose birthday is this month, in day order. The
-  // month is read at render time, so it rolls over on the first open of a new
-  // month without anything having to schedule it.
+  // Everyone on the roster whose birthday is in the chosen month, in day order.
+  // 0 is this month, 1 is next month. The month is read at render time, so it
+  // rolls over on the first open of a new month without anything scheduling it.
+  const [bdayMonthOffset, setBdayMonthOffset] = useState(0);
   const now = new Date();
-  const thisMonth = now.getMonth() + 1;
-  const today = now.getDate();
-  const thisYear = now.getFullYear();
+  const monthIndex = now.getMonth() + bdayMonthOffset; // 12 = next January
+  const targetMonth = (monthIndex % 12) + 1;
+  const targetYear = now.getFullYear() + (monthIndex >= 12 ? 1 : 0);
+  // Only this month has a "today"; next month's birthdays are all upcoming.
+  const today = bdayMonthOffset === 0 ? now.getDate() : 0;
   const birthdays = useMemo(() => {
     const list = [];
     for (const grade of groups) {
       for (const person of studentsByGrade[grade] || []) {
         const b = parseBirthday(person.birthday);
-        if (!b || b.month !== thisMonth) continue;
+        if (!b || b.month !== targetMonth) continue;
         list.push({
           ...person,
           isBirthday: true,
           bdayMonth: b.month,
           bdayDay: b.day,
-          bdayAge: b.year && b.year < thisYear ? thisYear - b.year : null,
+          bdayAge: b.year && b.year < targetYear ? targetYear - b.year : null,
           bdayStatus: b.day === today ? "today" : b.day < today ? "passed" : "upcoming",
         });
       }
     }
-    return list.sort(
+    list.sort(
       (a, b) => a.bdayDay - b.bdayDay || (a.name || "").localeCompare(b.name || "")
     );
-  }, [groups, studentsByGrade, thisMonth, today, thisYear]);
+    // An empty month still shows the section, so the toggle stays reachable.
+    if (list.length === 0) {
+      list.push({
+        uid: "none",
+        isBirthday: true,
+        isEmpty: true,
+        monthName: MONTH_NAMES[targetMonth - 1],
+      });
+    }
+    return list;
+  }, [groups, studentsByGrade, targetMonth, today, targetYear]);
+
+  const changeBirthdayMonth = useCallback((offset) => {
+    Haptics.trigger("selection");
+    setBdayMonthOffset(offset);
+  }, []);
 
   const gradeSections = useMemo(() => {
     const sections = groups.map((grade) => ({
@@ -797,7 +852,8 @@ const YouthMeetingAttendance = () => {
       // would only repeat them.
       return sections.filter((section) => section.data.length > 0);
     }
-    if (birthdays.length > 0) {
+    // Hidden until there is anyone on the roster at all.
+    if (sections.some((section) => section.data.length > 0)) {
       sections.unshift({ title: BIRTHDAYS, data: birthdays });
     }
     return sections;
@@ -877,11 +933,11 @@ const YouthMeetingAttendance = () => {
   const renderGradeHeader = useCallback(
     ({ section: { title } }) =>
       title === BIRTHDAYS ? (
-        <BirthdaysHeader />
+        <BirthdaysHeader monthOffset={bdayMonthOffset} onChangeMonth={changeBirthdayMonth} />
       ) : (
         <GradeHeader title={title} onAdd={openAddStudentModal} />
       ),
-    [openAddStudentModal]
+    [openAddStudentModal, bdayMonthOffset, changeBirthdayMonth]
   );
 
   const listEmpty = useMemo(
@@ -1439,6 +1495,33 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.06)",
+  },
+  birthdayEmpty: {
+    height: BDAY_ROW_H - 8,
+    justifyContent: "center",
+  },
+  monthToggle: {
+    flexDirection: "row",
+    height: MONTH_TOGGLE_H,
+    padding: 2,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  monthToggleOption: {
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    borderRadius: 999,
+  },
+  monthToggleOptionSelected: {
+    backgroundColor: "#147EFB",
+  },
+  monthToggleText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.6)",
+  },
+  monthToggleTextSelected: {
+    color: "#fff",
   },
   birthdayRowToday: {
     backgroundColor: "rgba(20, 126, 251, 0.12)",
