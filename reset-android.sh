@@ -38,7 +38,13 @@ echo "✅ Java $JAVA_VER"
 
 # ── Verify keystore fingerprint before doing anything ────────────────────────
 KEYSTORE="credentials/android/keystore.jks"
-STORE_PASS="REDACTED"
+# Signing secrets live in a gitignored file, not in this script.
+KEYSTORE_ENV="credentials/android/keystore.env"
+if [ ! -f "$KEYSTORE_ENV" ]; then
+  echo "❌ Missing $KEYSTORE_ENV (STORE_PASS, KEY_ALIAS, KEY_PASS)"
+  exit 1
+fi
+. "$KEYSTORE_ENV"
 EXPECTED_SHA1="78:C7:0C:D1:71:A1:B6:18:63:2F:B7:A8:1B:CE:15:0C:4D:B4:5C:61"
 
 if [ ! -f "$KEYSTORE" ]; then
@@ -126,9 +132,9 @@ sed -i '' '/signingConfigs {/,/^    }/ {
         /^        }/a\
 \        release {\
 \            storeFile file('\''../../credentials/android/keystore.jks'\'')\
-\            storePassword '\''REDACTED'\''\
-\            keyAlias '\''REDACTED'\''\
-\            keyPassword '\''REDACTED'\''\
+\            storePassword '\'''"$STORE_PASS"''\''\
+\            keyAlias '\'''"$KEY_ALIAS"''\''\
+\            keyPassword '\'''"$KEY_PASS"''\''\
 \        }
     }
 }' "$BUILD_GRADLE"
