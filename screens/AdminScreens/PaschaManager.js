@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback,
   StyleSheet, ScrollView, Modal, TextInput, Switch,
@@ -225,7 +225,19 @@ var ProphecyCopticToggle = function(props) {
   var toggleKey = prophecyCopticToggleKey(vernacularSlotKey);
   var enabled = hourAssignments[toggleKey] === true;
   var handleChange = function(val) {
-    onSave(toggleKey, val ? true : deleteField());
+    if (val) { onSave(toggleKey, true); return; }
+    // Turning Coptic off also clears whoever reads it, so ask before
+    // throwing away a real assignment.
+    var copticReader = hourAssignments[vernacularSlotKey + "_coptic"];
+    if (!copticReader) { onSave(toggleKey, deleteField()); return; }
+    Alert.alert(
+      "Remove Coptic reading?",
+      copticReader.name + " will be unassigned from the Coptic reading.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Remove", style: "destructive", onPress: function() { onSave(toggleKey, deleteField()); } },
+      ]
+    );
   };
   return (
     <View style={pct.row}>
@@ -327,6 +339,10 @@ var HourModal = function(props) {
   var onSaveCopticToggle = props.onSaveCopticToggle;
   var onClose = props.onClose;
   var fs = props.fontScale != null ? props.fontScale : 1;
+  // Set when a reading was tapped on an hour card: the sheet opens straight
+  // into that reading's picker, and leaving the picker closes the sheet
+  // instead of falling back to the hour's full list.
+  var directRow = props.directRow || null;
 
   var sheet = useSheetPresentation(640);
   var screenH = sheet.height;
@@ -347,6 +363,16 @@ var HourModal = function(props) {
   var _manual = useState(""); var manual = _manual[0]; var setManual = _manual[1];
   var _manualOpen = useState(false); var manualOpen = _manualOpen[0]; var setManualOpen = _manualOpen[1];
 
+  // See PickerAvatar. Rows below `photoBudget` show their photo. It grows by
+  // one only after the last photo has been drawn, plus a short breather, so
+  // at most one resize is ever queued on the main thread. A fixed timer used
+  // to queue them faster than the simulator could draw them, and the close
+  // button's tap waited behind the whole backlog.
+  var _photosReady = useState(false); var photosReady = _photosReady[0]; var setPhotosReady = _photosReady[1];
+  var _photoBudget = useState(0); var photoBudget = _photoBudget[0]; var setPhotoBudget = _photoBudget[1];
+  var shownRef         = useRef(false);
+  var photoTimerRef    = useRef(null);
+
   var bodyScrollRef    = useRef(null);
   var bodyScrollYRef   = useRef(0);
   var restoreScrollRef = useRef(false);
@@ -366,11 +392,79 @@ var HourModal = function(props) {
 
   useEffect(function() {
     if (!visible) {
+      shownRef.current = false; setPhotosReady(false);
       setPickerSlot(null); setPickerRow_(null); setSel(null);
       setPsalmRow(null); setPsalmSelected(new Set()); setPsalmSelectedMap({});
       setTab("deacons"); setQ(""); setManual(""); setManualOpen(false);
     }
   }, [visible]);
+
+  // Layout effect so the picker is in place before the sheet first paints;
+  // a plain effect would flash the hour list for a frame.
+  useLayoutEffect(function() {
+    if (!visible || directRow == null) return;
+    setTab("deacons"); setQ(""); setManual(""); setManualOpen(false);
+    if (isPsalmSlot(directRow.rKey)) {
+      var map = {};
+      var keys = new Set();
+      (hourAssignments[psalmReadersKey(directRow)] || []).forEach(function(r) {
+        var k = r.uid || r.name;
+        keys.add(k);
+        map[k] = r;
+      });
+      setPsalmSelected(keys);
+      setPsalmSelectedMap(map);
+      setPsalmRow(directRow);
+    } else {
+      setSel(hourAssignments[directRow.slotKey] || null);
+      setPickerSlot(directRow.slotKey); setPickerRow_(directRow);
+    }
+    // Only on open: re-running when assignments update would discard the
+    // selection being edited.
+  }, [visible, directRow]);
+
+  // Opening a picker inside a sheet that is already up: draw the list with
+  // stubs first, then load the photos once that frame is on screen.
+  useEffect(function() {
+    if (!inAnyPicker) return;
+    setPhotosReady(false);
+    if (!shownRef.current) return;   // first open: onShow lets them in
+    var t = setTimeout(function() { setPhotosReady(true); }, 250);
+    return function() { clearTimeout(t); };
+  }, [pickerSlot, psalmRow]);
+
+  // A new list (another reading, or the other tab) starts from stubs again.
+  useEffect(function() {
+    clearTimeout(photoTimerRef.current);
+    setPhotoBudget(0);
+  }, [pickerSlot, psalmRow, tab, visible]);
+
+  useEffect(function() {
+    if (photosReady) setPhotoBudget(function(b) { return Math.max(b, 1); });
+  }, [photosReady]);
+
+  var handlePhotoShown = useCallback(function(index) {
+    clearTimeout(photoTimerRef.current);
+    photoTimerRef.current = setTimeout(function() {
+      setPhotoBudget(function(b) { return Math.max(b, index + 2); });
+    }, 120);
+  }, []);
+
+  // Fallback for a row that never draws (scrolled out of the render window,
+  // or a load that fails), so the rest of the list isn't stuck on stubs.
+  useEffect(function() {
+    if (!photosReady || !inAnyPicker || photoBudget < 1) return;
+    if (photoBudget >= pickerSource.length) return;
+    var at = photoBudget;
+    var t = setTimeout(function() {
+      setPhotoBudget(function(b) { return b === at ? b + 1 : b; });
+    }, 800);
+    return function() { clearTimeout(t); };
+  }, [photosReady, inAnyPicker, photoBudget, pickerSource.length]);
+
+  useEffect(function() {
+    return function() { clearTimeout(photoTimerRef.current); };
+  }, []);
 
   useEffect(function() {
     if (inAnyPicker) return;
@@ -414,8 +508,9 @@ var HourModal = function(props) {
     var on = sel != null
       ? (sel.uid ? sel.uid === item.uid : sel.name === item.name)
       : false;
-    return <PickerRow item={item} on={on} onToggle={handlePickerToggle} />;
-  }, [sel, handlePickerToggle]);
+    return <PickerRow item={item} on={on} onToggle={handlePickerToggle} showPhoto={ri.index < photoBudget}
+      index={ri.index} onPhotoShown={handlePhotoShown} />;
+  }, [sel, handlePickerToggle, photoBudget, handlePhotoShown]);
 
   var renderPsalmRow = useCallback(function(ri) {
     var item = ri.item;
@@ -427,9 +522,12 @@ var HourModal = function(props) {
         on={on}
         atMax={psalmSelected.size >= MAX_PSALM_READERS && !on}
         onToggle={togglePsalm}
+        showPhoto={ri.index < photoBudget}
+        index={ri.index}
+        onPhotoShown={handlePhotoShown}
       />
     );
-  }, [psalmSelected, togglePsalm]);
+  }, [psalmSelected, togglePsalm, photoBudget, handlePhotoShown]);
 
   if (!visible || !hour) return null;
 
@@ -469,7 +567,10 @@ var HourModal = function(props) {
     setTab("deacons"); setQ(""); setManual(""); setManualOpen(false);
     setPickerSlot(row.slotKey); setPickerRow_(row);
   };
-  var closePicker  = function() { restoreScrollRef.current = true; setPickerSlot(null); setPickerRow_(null); };
+  var closePicker  = function() {
+    if (directRow != null) { onClose(); return; }
+    restoreScrollRef.current = true; setPickerSlot(null); setPickerRow_(null);
+  };
   var commitPicker = function() { onSaveReading(hour.id, pickerSlot, sel != null ? sel : null); closePicker(); };
 
   // psalm (multi) picker ───
@@ -487,7 +588,10 @@ var HourModal = function(props) {
     setTab("deacons"); setQ(""); setManual(""); setManualOpen(false);
     setPsalmRow(row);
   };
-  var closePsalmPicker = function() { restoreScrollRef.current = true; setPsalmRow(null); };
+  var closePsalmPicker = function() {
+    if (directRow != null) { onClose(); return; }
+    restoreScrollRef.current = true; setPsalmRow(null);
+  };
   var addPsalmManual = function() {
     var name = manual.trim();
     if (!name || psalmSelected.size >= MAX_PSALM_READERS) return;
@@ -536,11 +640,14 @@ var HourModal = function(props) {
   }
   var psalmSelectedList = Object.values(psalmSelectedMap);
 
-  var pickerScrollMax      = sheetMax - (sel != null ? 330 : 270);
+  // The Coptic switch takes a row above the list on prophecies that have one.
+  var pickerHasCoptic      = pickerRow_ != null && pickerRow_.rKey === "prophecies" && pickerRow_.hasCopticOption;
+  var pickerScrollMax      = sheetMax - (sel != null ? 330 : 270) - (pickerHasCoptic ? 56 : 0);
   var psalmPickerScrollMax = sheetMax - (psalmSelectedList.length > 0 ? 340 : 280);
 
   return (
-    <Modal visible={visible} animationType={sheet.animationType} transparent onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible={visible} animationType={sheet.animationType} transparent onRequestClose={onClose} statusBarTranslucent
+      onShow={function() { shownRef.current = true; setPhotosReady(true); }}>
       <View style={[hm.backdrop, sheet.center]}>
         <Pressable
           style={StyleSheet.absoluteFill}
@@ -552,7 +659,7 @@ var HourModal = function(props) {
             {!sheet.wide && <View style={hm.handle} />}
 
             {/* ── MAIN HOUR VIEW ─────────────────────────────────────────── */}
-            {!inAnyPicker && (
+            {!inAnyPicker && directRow == null && (
               <>
                 <View style={hm.hdr}>
                   <View style={{ flex: 1 }}>
@@ -591,10 +698,20 @@ var HourModal = function(props) {
 
                     if (isGospelLoc && !isFirstGospelGrid) return null;
 
+                    // The whole block opens its picker, not just the button. The
+                    // Gospel grid has a picker per station, so it keeps its cells.
+                    var openRow = isFirstGospelGrid ? null
+                      : isPsalm ? function() { openPsalmPicker(row); }
+                      : assignable ? function() { openPicker(row); }
+                      : null;
+
                     return (
-                      <View key={row.slotKey}
-                        style={[hm.readingBlock, isCopticRow && hm.readingBlockCoptic,
-                          i === rows.length - 1 && { borderBottomWidth: 0 }]}>
+                      <Pressable key={row.slotKey} onPress={openRow} disabled={openRow == null}
+                        style={function(state) {
+                          return [hm.readingBlock, isCopticRow && hm.readingBlockCoptic,
+                            i === rows.length - 1 && { borderBottomWidth: 0 },
+                            state.pressed && hm.readingBlockPressed];
+                        }}>
                         <View style={hm.readingTop}>
                           <View style={[hm.readingIcon, { backgroundColor: isCopticRow ? COPTIC_BG : meta.color + "22" }]}>
                             <Icon name={meta.icon} size={15} color={isCopticRow ? COPTIC_COLOR : meta.color} />
@@ -657,7 +774,7 @@ var HourModal = function(props) {
                             onSave={function(key, value) { onSaveCopticToggle(hour.id, key, value); }}
                           />
                         )}
-                      </View>
+                      </Pressable>
                     );
                   })}
                 </ScrollView>
@@ -669,7 +786,7 @@ var HourModal = function(props) {
               <>
                 <View style={hm.pickerHdr}>
                   <TouchableOpacity style={hm.backBtn} onPress={closePicker} activeOpacity={0.7}>
-                    <Icon name="arrow-left" size={19} color={T1} />
+                    <Icon name={directRow != null ? "close" : "arrow-left"} size={19} color={T1} />
                   </TouchableOpacity>
                   <View style={[hm.pickerIconBox, { backgroundColor: isCopticPicker ? COPTIC_BG : pickerColor + "22" }]}>
                     <Icon name={pickerMeta.icon} size={17} color={isCopticPicker ? COPTIC_COLOR : pickerColor} />
@@ -686,6 +803,16 @@ var HourModal = function(props) {
                     )}
                   </View>
                 </View>
+                {pickerHasCoptic && (
+                  <View style={hm.pickerCoptic}>
+                    <ProphecyCopticToggle
+                      vernacularSlotKey={pickerRow_.slotKey}
+                      hourAssignments={hourAssignments}
+                      fontScale={fs}
+                      onSave={function(key, value) { onSaveCopticToggle(hour.id, key, value); }}
+                    />
+                  </View>
+                )}
                 {sel != null && (
                   <View style={hm.selBanner}>
                     <Avatar uid={sel.uid} user={sel} size={44} showBorder={false} style={AVATAR_BG} />
@@ -787,7 +914,7 @@ var HourModal = function(props) {
               <>
                 <View style={hm.pickerHdr}>
                   <TouchableOpacity style={hm.backBtn} onPress={closePsalmPicker} activeOpacity={0.7}>
-                    <Icon name="arrow-left" size={19} color={T1} />
+                    <Icon name={directRow != null ? "close" : "arrow-left"} size={19} color={T1} />
                   </TouchableOpacity>
                   <View style={[hm.pickerIconBox, { backgroundColor: psalmMeta.color + "22" }]}>
                     <Icon name={psalmMeta.icon || "music-note"} size={17} color={psalmMeta.color} />
@@ -915,6 +1042,8 @@ var hm = StyleSheet.create({
   body:               { paddingHorizontal: 20, paddingBottom: 16 },
   readingBlock:       { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: SEP },
   readingBlockCoptic: { backgroundColor: "rgba(245,158,11,0.03)" },
+  // Bleeds past the body's 20pt inset so the highlight spans the sheet.
+  readingBlockPressed: { backgroundColor: "rgba(255,255,255,0.05)", marginHorizontal: -20, paddingHorizontal: 20 },
   readingTop:         { flexDirection: "row", gap: 12, marginBottom: 10, alignItems: "flex-start" },
   readingIcon:        { width: 32, height: 32, borderRadius: 9, justifyContent: "center",
                         alignItems: "center", flexShrink: 0 },
@@ -937,6 +1066,7 @@ var hm = StyleSheet.create({
   pickerIconBox:      { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
   pickerType:         { fontSize: 17, fontWeight: "700" },
   pickerRef:          { fontSize: 12, color: T2, marginTop: 2 },
+  pickerCoptic:       { marginHorizontal: 20, marginTop: 6 },
   selBanner:          { flexDirection: "row", alignItems: "center", marginHorizontal: 20, marginTop: 14,
                         marginBottom: 2, borderRadius: 16, padding: 14, backgroundColor: BLUEDIM,
                         borderWidth: 1, borderColor: "rgba(10,132,255,0.25)" },
@@ -961,6 +1091,7 @@ var hm = StyleSheet.create({
   pRowName:           { fontSize: 14, color: T1, fontWeight: "500" },
   // Hoisted out of the JSX, where they were fresh object literals every render.
   pRowBody:           { flex: 1, marginLeft: 12 },
+  pAvatarStub:        { width: 38, height: 38, borderRadius: 19, justifyContent: "center", alignItems: "center" },
   pRowAtMax:          { opacity: 0.4 },
   pickerList:         { paddingHorizontal: 20 },
   pRowTag:            { fontSize: 9, color: BLUE, fontWeight: "800", marginTop: 2, letterSpacing: 0.6 },
@@ -1091,12 +1222,32 @@ var dt = StyleSheet.create({
  * the search field rebuilt every mounted row — and each row mounts an <Avatar>,
  * which carries a useSyncExternalStore subscription plus two effects.
  */
+// Profile photos are stored at camera resolution, and expo-image shrinks each
+// one on the main thread as it mounts. Ten of those used to hold the sheet
+// back for seconds, so rows draw a plain circle first and the photos are let
+// in one at a time once the sheet is on screen (see `photoBudget`). Each row
+// reports when its photo is actually drawn so the next one can follow.
+var PickerAvatar = function(props) {
+  if (!props.showPhoto) {
+    return (
+      <View style={[hm.pAvatarStub, AVATAR_BG]}>
+        <Icon name="account" size={20} color={T3} />
+      </View>
+    );
+  }
+  var onPhotoShown = props.onPhotoShown, index = props.index;
+  return (
+    <Avatar uid={props.item.uid} user={props.item} size={38} showBorder={false} style={AVATAR_BG}
+      onDisplay={onPhotoShown ? function() { onPhotoShown(index); } : undefined} />
+  );
+};
+
 var PickerRow = React.memo(function(props) {
   var item = props.item, on = props.on;
   return (
     <TouchableOpacity style={[hm.pRow, on && hm.pRowOn]}
       onPress={function() { props.onToggle(item, on); }} activeOpacity={0.65}>
-      <Avatar uid={item.uid} user={item} size={38} showBorder={false} style={AVATAR_BG} />
+      <PickerAvatar item={item} showPhoto={props.showPhoto} index={props.index} onPhotoShown={props.onPhotoShown} />
       <View style={hm.pRowBody}>
         <Text style={hm.pRowName}>{item.name}</Text>
         {item.isDeacon && <Text style={hm.pRowTag}>DEACON</Text>}
@@ -1116,7 +1267,7 @@ var PsalmPickerRow = React.memo(function(props) {
       style={[hm.pRow, on && hm.pRowOn, atMax && hm.pRowAtMax]}
       onPress={function() { if (!atMax) props.onToggle(item); }}
       activeOpacity={0.65}>
-      <Avatar uid={item.uid} user={item} size={38} showBorder={false} style={AVATAR_BG} />
+      <PickerAvatar item={item} showPhoto={props.showPhoto} index={props.index} onPhotoShown={props.onPhotoShown} />
       <View style={hm.pRowBody}>
         <Text style={hm.pRowName}>{item.name}</Text>
         {item.isDeacon && <Text style={hm.pRowTag}>DEACON</Text>}
@@ -1144,6 +1295,7 @@ var HourTile = React.memo(function(props) {
   var onSaveLanguage = props.onSaveLanguage;
   var onSaveCopticToggle = props.onSaveCopticToggle;
   var onOpenHour = props.onOpenHour;
+  var onOpenReading = props.onOpenReading;
   var fs = props.fontScale != null ? props.fontScale : 1;
 
   var rows = expandReadings(hour, hourAssignments);
@@ -1220,8 +1372,11 @@ var HourTile = React.memo(function(props) {
             : null;
           var accent    = isCoptic ? COPTIC_COLOR : meta.color;
           return (
-            <View key={row.slotKey}
-              style={[ht.rRow, !isLast && ht.rRowBorder, isCoptic && ht.rRowCoptic]}>
+            <Pressable key={row.slotKey}
+              onPress={function() { if (onOpenReading) onOpenReading(hour, row); }}
+              style={function(state) {
+                return [ht.rRow, !isLast && ht.rRowBorder, isCoptic && ht.rRowCoptic, state.pressed && ht.rRowPressed];
+              }}>
               {/*
                 Two lines on the left — what the reading is, then its reference —
                 and who reads it on the right. The reference used to share one
@@ -1267,9 +1422,12 @@ var HourTile = React.memo(function(props) {
                   </Text>
                 </View>
               ) : (
-                <Text style={[ht.unassigned, valueType]} numberOfLines={1}>Unassigned</Text>
+                <View style={ht.assignChip}>
+                  <Icon name="account-plus-outline" size={Math.round(13 * fs)} color={BLUE} />
+                  <Text style={[ht.assignChipTxt, smallType]} numberOfLines={1}>Assign</Text>
+                </View>
               )}
-            </View>
+            </Pressable>
           );
         })}
       </View>
@@ -1315,7 +1473,12 @@ var ht = StyleSheet.create({
                     borderWidth: 1, borderColor: COPTIC_BORDER },
   copticBadgeTxt: { fontWeight: "700", color: COPTIC_COLOR, letterSpacing: 0.3 },
   rRef:           { color: T3 },
-  unassigned:     { color: T3, fontStyle: "italic" },
+  // Same bleed as the Coptic tint, so the press highlight spans the card.
+  rRowPressed:    { backgroundColor: "rgba(255,255,255,0.06)", marginLeft: -18, marginRight: -16,
+                    paddingLeft: 18, paddingRight: 16 },
+  assignChip:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8,
+                    paddingVertical: 3, borderRadius: 12, backgroundColor: "rgba(10,132,255,0.12)" },
+  assignChipTxt:  { fontWeight: "700", color: BLUE },
   // The reader gets up to half the row; a long reading reference on the left
   // truncates before the name does.
   assigneeRow:    { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1, maxWidth: "50%",
@@ -1666,6 +1829,7 @@ export default function PaschaManager() {
   var _fontSizeMultipliers = useState(DEFAULT_FONT_MULTIPLIERS);
   var fontSizeMultipliers = _fontSizeMultipliers[0]; var setFontSizeMultipliers = _fontSizeMultipliers[1];
   var _hourOpen = useState(null); var hourOpen = _hourOpen[0]; var setHourOpen = _hourOpen[1];
+  var _hourOpenRow = useState(null); var hourOpenRow = _hourOpenRow[0]; var setHourOpenRow = _hourOpenRow[1];
 
   var allDays  = useMemo(function() { return buildAllDays(scheduleShell); }, [scheduleShell]);
   var daysById = useMemo(function() {
@@ -1970,7 +2134,8 @@ export default function PaschaManager() {
                         onSavePsalmReaders={function(hourId, readersKey, readers) { return savePsalmReaders(selectedId, hourId, readersKey, readers); }}
                         onSaveLanguage={function(hourId, slotKey, lang) { return saveLanguage(selectedId, hourId, slotKey, lang); }}
                         onSaveCopticToggle={function(hourId, toggleKey, value) { return saveCopticToggle(selectedId, hourId, toggleKey, value); }}
-                        onOpenHour={function(hour) { setHourOpen(hour); }}
+                        onOpenHour={function(hour) { setHourOpenRow(null); setHourOpen(hour); }}
+                        onOpenReading={function(hour, row) { setHourOpenRow(row); setHourOpen(hour); }}
                       />
                     );
                   })}
@@ -1988,6 +2153,7 @@ export default function PaschaManager() {
       <HourModal
         visible={!!hourOpen}
         hour={hourOpen}
+        directRow={hourOpenRow}
         hourAssignments={hourOpen ? (ds[hourOpen.id] || {}) : {}}
         dayId={selectedId}
         deacons={deacons}
@@ -1998,7 +2164,7 @@ export default function PaschaManager() {
         onSavePsalmReaders={function(hourId, readersKey, readers) { return savePsalmReaders(selectedId, hourId, readersKey, readers); }}
         onSaveLanguage={function(hourId, slotKey, lang) { return saveLanguage(selectedId, hourId, slotKey, lang); }}
         onSaveCopticToggle={function(hourId, toggleKey, value) { return saveCopticToggle(selectedId, hourId, toggleKey, value); }}
-        onClose={function() { setHourOpen(null); }}
+        onClose={function() { setHourOpen(null); setHourOpenRow(null); }}
       />
 
       <SettingsSheet

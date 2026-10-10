@@ -38,6 +38,7 @@ const Avatar = React.memo(({
   finalSize = 300,
   onPress,
   showBorder = true,
+  onDisplay,
 }) => {
   const resolvedUid = uid || user?.uid || user?.id || null;
   const uri = useAvatarUri(resolvedUid);
@@ -88,6 +89,7 @@ const Avatar = React.memo(({
       cachePolicy="memory-disk"
       recyclingKey={uri || `default-${resolvedUid || "none"}`}
       transition={120}
+      onDisplay={onDisplay}
     />
   );
 
