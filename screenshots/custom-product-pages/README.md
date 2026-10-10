@@ -1,40 +1,90 @@
 # App Store custom product pages
 
-Three alternate App Store listings for Taksis, each aimed at one audience. Every image
-is **1320 × 2868** (6.9" iPhone). App Store Connect scales that size down for every
-smaller iPhone.
+Three alternate App Store listings for Taksis, each aimed at one audience, plus the
+default listing everyone else sees.
 
 The app screens are **HTML recreations with made-up names and initials avatars**, not
 captures, so they're safe to publish. The real captures in `../appstore-6.9` contain
 parishioner data, including minors.
 
-| Page | Audience | Shots |
+| Page | Audience |
+| --- | --- |
+| [`scheduling/`](scheduling) | Priests, church admins, deacon coordinators |
+| [`attendance/`](attendance) | Sunday School, Hymns Class and Servants Meeting servants |
+| [`deacons/`](deacons) | Deacons and altar servers |
+| [`listing/`](listing) | **The default App Store listing** (not a custom page). It covers the whole app and adds subtitle, keywords and description files |
+
+Every page folder is laid out for App Store Connect (Xcode doesn't upload screenshots).
+Each slot gets a numbered folder holding only that slot's files, so you can drag a folder's
+contents straight in. Each page's own `README.md` walks through the slots in order.
+
+| In each page folder | Size | App Store Connect slot |
 | --- | --- | --- |
-| [`scheduling/`](scheduling) | Priests, church admins, deacon coordinators | 5 |
-| [`attendance/`](attendance) | Sunday School, Hymns Class and Servants Meeting servants | 4 |
-| [`deacons/`](deacons) | Deacons and altar servers | 3 |
+| `1-iPhone-6.9/` | 1320 × 2868 | iPhone 6.9" display |
+| `2-iPhone-6.3/` | 1206 × 2622 | iPhone 6.1" or 6.3" display |
+| `3-iPad-13/` | 2752 × 2064, landscape | iPad 12.9" or 13" display |
+| `4-Header-Asset/` | 3840 × 1646 | Header Asset |
+| `5-Search-Results-Asset/` | 3840 × 2560 | Search Results Asset |
+| `alternate-5244x2950/` | 5244 × 2950 | Either asset slot, if you want one image for both |
+| `promotional-text.txt` | | Promotional text, ready to paste |
+| `deep-link.txt` | | Deep link, ready to paste |
 
-## Page copy
+The iPad shots are landscape because that's where Taksis shows its permanent sidebar
+(`PERMANENT_DRAWER_MIN` in `screens/MainContainer.js`). They skip the phone's
+navigation-drawer shot, since on iPad the sidebar is always on screen. The deacons
+page shows a deacon with no other roles, so it has no sidebar, menu button or Edit
+Schedule tab. That matches what such a user actually sees.
 
-Promotional text is limited to 170 characters. Each one below fits.
+## Per-page details
 
-**Scheduling** (reference name: `Scheduling – Admins`)
-> Build Sunday's deacon schedule in minutes. See who's confirmed, nudge who hasn't, and cover last-minute absences with a suggested replacement.
+Promotional text is limited to 170 characters. Each one below fits. The banners use a
+shortened version as their subhead, so it doesn't repeat the headline.
 
-**Attendance** (reference name: `Attendance – Servants`)
-> Take Sunday School, Hymns Class and Servants Meeting attendance in a few taps. Switch classes instantly and find anyone in seconds.
+### Scheduling
 
-**Deacons** (reference name: `Deacons`)
-> Know your reading before Sunday. Confirm with one tap, see who's serving with you, and learn the Liturgy, Midnight Praises and Vespers.
+- **Reference name:** `Scheduling – Admins`
+- **Deep link:** `taksis://scheduling`
+- **Promotional text** (142 characters):
+  > Build Sunday's deacon schedule in minutes. See who's confirmed, nudge who hasn't, and cover last-minute absences with a suggested replacement.
+
+### Attendance
+
+- **Reference name:** `Attendance – Servants`
+- **Deep link:** `taksis://attendance`
+- **Promotional text** (131 characters):
+  > Take Sunday School, Hymns Class and Servants Meeting attendance in a few taps. Switch classes instantly and find anyone in seconds.
+
+### Deacons
+
+- **Reference name:** `Deacons`
+- **Deep link:** `taksis://deacons`
+- **Promotional text** (135 characters):
+  > Know your reading before Sunday. Confirm with one tap, see who's serving with you, and learn the Liturgy, Midnight Praises and Vespers.
+
+### About the deep links
+
+The links use the app's existing `taksis://` URL scheme (`scheme` in `app.json`). They
+are not universal links, because `https://www.spsmwayland.org/c/*` belongs to the App
+Clip: a CPP link there would show the vehicle-registration clip card to anyone
+without the app.
+
+**The app doesn't route these links yet.** `utils/deepLinks.js` only recognizes
+`/c/register-vehicle`, so for now each link just opens Taksis on its home screen.
+Making them land on the right screen needs a small change in `deepLinks.js` and
+`MainContainer.js`, plus a new binary:
+
+| Link | Should open |
+| --- | --- |
+| `taksis://scheduling` | Edit Schedule tab (admins), otherwise Home |
+| `taksis://attendance` | The first attendance screen the user's roles allow: Sunday School, then Hymns Class, then Servants Meeting; otherwise Home |
+| `taksis://deacons` | Home (the week's schedule and the availability prompt) |
 
 ## Uploading
 
-App Store Connect → Taksis → **Custom Product Pages** → **+** → name it, then:
-
-1. Drop that folder's PNGs into the 6.9" iPhone slot. They display in filename order.
-2. Paste the promotional text.
-3. Submit for review. Each page gets its own URL (`…?ppid=<id>`). Use it in church
-   emails, bulletins or QR codes for that audience.
+Follow the page's own README: [scheduling](scheduling/README.md),
+[attendance](attendance/README.md), [deacons](deacons/README.md). Once submitted, each page
+gets its own URL (`…?ppid=<id>`). Use it in church emails, bulletins or QR codes for that
+audience.
 
 App Store Connect also lets you attach search keywords to a custom product page, so
 people who search for those words see it instead of the default listing.
@@ -49,4 +99,9 @@ The `SHOTS` table at the bottom maps each file to its caption and screen. Open
 ./src/render.sh
 ```
 
-This needs Google Chrome. It renders all shots in parallel in about 20 seconds.
+This needs Google Chrome. It renders the iPhone 6.9", iPad and banner images in parallel in
+about 30 seconds, then scales the 6.9" set down to make the 6.3" one. It finishes by running
+`src/page_readmes.py`, which rewrites each page's README and text files. Promotional text and
+deep links are set there.
+The banners are `src/shots.html?banner=<page>&size=<W>x<H>`. Their promotional text comes from the
+`PAGES` table, so edit it there and in this README together.

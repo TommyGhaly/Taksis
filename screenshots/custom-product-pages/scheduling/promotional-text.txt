@@ -1,0 +1,1 @@
+Build Sunday's deacon schedule in minutes. See who's confirmed, nudge who hasn't, and cover last-minute absences with a suggested replacement.

@@ -64,6 +64,12 @@
   .searchdock .fab { width: 38px; height: 38px; border-radius: 12px; background: #147EFB; display: flex; align-items: center; justify-content: center; }
   .dim { position: absolute; inset: 0; background: rgba(0,0,0,.72); z-index: 7; }
   .modal { position: absolute; left: 20px; right: 20px; z-index: 8; background: #1c1c1e; border-radius: 22px; border: 1px solid #2c2c2e; overflow: hidden; }
+
+  /* ---------- Landscape iPad (13") ---------- */
+  .ipad .status, .ipad .burger, .ipad .pane .homebar { display: none; }
+  .ipad .navbar { top: 24px; height: 50px; padding-bottom: 0; }
+  .ipad .content { top: 74px; }
+  .ipad .modal { top: 50% !important; left: 50%; right: auto; width: 420px; transform: translate(-50%, -50%); }
 </style>
 </head>
 <body>
@@ -111,8 +117,10 @@ const statusBar = () => `<div class="status"><div class="time">9:41</div><div cl
   <svg width="17" height="12" viewBox="0 0 17 12" fill="#fff"><path d="M8.5 2.5a10 10 0 0 1 7 2.8l1.2-1.3A11.8 11.8 0 0 0 8.5.7 11.8 11.8 0 0 0 .3 4l1.2 1.3a10 10 0 0 1 7-2.8zm0 3.6a6.4 6.4 0 0 1 4.5 1.8l1.2-1.3a8.2 8.2 0 0 0-11.4 0L4 7.9a6.4 6.4 0 0 1 4.5-1.8zm0 3.5a2.8 2.8 0 0 1 2 .8L8.5 12.3l-2-1.9a2.8 2.8 0 0 1 2-.8z"/></svg>
   <svg width="28" height="13" viewBox="0 0 28 13"><rect x=".5" y=".5" width="24" height="12" rx="3.8" fill="none" stroke="#fff" stroke-opacity=".4"/><rect x="2" y="2" width="21" height="9" rx="2.5" fill="#fff"/><path d="M26 4.5v4c.8-.3 1.4-1.1 1.4-2s-.6-1.7-1.4-2z" fill="#fff" fill-opacity=".4"/></svg>
 </div></div>`;
-const navBar = title => `<div class="navbar"><span class="burger">${I.burger}</span>${title}</div>`;
-const tabBar = active => `<div class="tabbar">${['home','learn','edit','gear'].map(k => TAB[k](k === active ? '#147EFB' : '#8a8a8e')).join('')}</div>`;
+// Plain deacons (the deacons page) have no drawer and no admin-only Edit Schedule tab.
+let PLAIN_DEACON = false;
+const navBar = title => `<div class="navbar">${PLAIN_DEACON ? '' : `<span class="burger">${I.burger}</span>`}${title}</div>`;
+const tabBar = active => `<div class="tabbar">${['home','learn','edit','gear'].filter(k => !(PLAIN_DEACON && k === 'edit')).map(k => TAB[k](k === active ? '#147EFB' : '#8a8a8e')).join('')}</div>`;
 const homeBar = () => `<div class="homebar"></div>`;
 const avatar = (size, who) => who
   ? `<div class="avatar" style="width:${size}px;height:${size}px;font-size:${size*.38}px;background:linear-gradient(135deg,${who[1]},${who[2]})">${who[0]}</div>`
@@ -135,6 +143,35 @@ function homeContent() {
     <div class="card row">${I.wine}<span>Wine: Thomas Iskander</span></div>
   </div>`;
 }
+/* The drawer's panel. On a phone it slides over the screen; on a landscape iPad it is a permanent sidebar. */
+function drawerPanel(active, style) {
+  const P = {
+    home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
+    ss: '<path d="M2 9l10-5 10 5-10 5zM6 11v5c3 2.5 9 2.5 12 0v-5"/>', hymn: '<path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/>',
+    sm: '<circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6M15 14.5c3 0 6 1.8 6 5"/>',
+    youth: '<circle cx="12" cy="7" r="3.5"/><path d="M5 21c0-4 3-7 7-7s7 3 7 7"/>', deac: '<circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6.5 7-6.5M14 20l6-6 2 2-6 6h-2z"/>',
+    car: '<path d="M5 17V12l2-5h10l2 5v5M3 12h18M5 17h14M7 17v2M17 17v2"/><circle cx="8" cy="14.5" r=".6"/><circle cx="16" cy="14.5" r=".6"/>', pascha: '<path d="M12 3v18M6 9h12"/>',
+    shield: '<path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><circle cx="12" cy="10" r="2.5"/>', db: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
+  };
+  const item = (k, t) => {
+    const on = k === active;
+    return `<div style="position:relative;display:flex;align-items:center;gap:15px;height:54px;font-size:17px;${on ? 'margin:4px 8px;padding:0 12px;border-radius:12px;background:rgba(20,126,251,.16);font-weight:600;color:#fff' : 'padding:0 20px;color:rgba(255,255,255,.85)'}">
+      ${on ? '<span style="position:absolute;left:-8px;top:12px;width:3px;height:30px;border-radius:2px;background:#147EFB"></span>' : ''}
+      <div style="width:32px;height:32px;border-radius:9px;background:${on ? 'rgba(20,126,251,.22)' : '#2a2a2c'};display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="${on ? '#147EFB' : '#9a9a9e'}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${P[k]}</svg></div>${t}</div>`;
+  };
+  const hdr = t => `<div style="font-size:11.5px;letter-spacing:2.2px;color:rgba(255,255,255,.4);font-weight:600;padding:22px 20px 8px">${t}</div>`;
+  return `<div style="position:absolute;top:0;bottom:0;left:0;width:280px;background:#1c1c1e;z-index:6;${style}">
+    <div style="display:flex;align-items:center;gap:13px;padding:0 18px 18px;border-bottom:1px solid #2c2c2e;margin:0 6px 8px">
+      <div style="width:43px;height:43px;border-radius:11px;background:rgba(20,126,251,.15);border:1px solid rgba(20,126,251,.35);display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#147EFB" stroke-width="2"><path d="M12 3v18M6 9h12"/></svg></div>
+      <div><div style="font-size:19px">Ⲧⲁⲝⲓⲥ</div><div style="font-size:13px;color:rgba(255,255,255,.55);margin-top:2px">Manage your service</div></div>
+    </div>
+    ${item('home', 'Home')}
+    ${hdr('SCHEDULES &amp; ATTENDANCE')}${item('ss', 'Sunday School')}${item('hymn', 'Hymns Class')}${item('sm', 'Servants Meeting')}${item('youth', 'College Youth Meeting')}
+    ${hdr('ADMINISTRATION')}${item('deac', 'Edit Deacons')}${item('car', 'Traffic Manager')}${item('pascha', 'Pascha Manager')}${item('shield', 'Admin Manager')}${item('db', 'Database Manager')}
+    <div style="position:absolute;bottom:40px;left:18px;right:18px;border-top:1px solid #2c2c2e;padding-top:16px;display:flex;justify-content:space-between;font-size:13px;color:rgba(255,255,255,.3)"><span>Ⲧⲁⲝⲓⲥ</span><i>By TG</i></div>
+  </div>`;
+}
+
 const SCREENS = {
   home: () => statusBar() + navBar('Deacon Service Schedule') + homeContent() + tabBar('home') + homeBar(),
 
@@ -232,33 +269,10 @@ const SCREENS = {
         <div class="pair"><div class="btn ${s === 'a' ? 'absent' : ''}">Absent</div><div class="btn ${s === 'p' ? 'present' : ''}">Present</div></div></div>`).join('')}`).join('')}
   </div><div class="searchdock"><div class="field">${I.search}Search students</div></div>` + homeBar(),
 
-  drawer: () => {
-    const ico = p => `<div style="width:32px;height:32px;border-radius:9px;background:#2a2a2c;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9a9a9e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg></div>`;
-    const P = {
-      ss: '<path d="M2 9l10-5 10 5-10 5zM6 11v5c3 2.5 9 2.5 12 0v-5"/>', hymn: '<path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/>',
-      sm: '<circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6M15 14.5c3 0 6 1.8 6 5"/>',
-      youth: '<circle cx="12" cy="7" r="3.5"/><path d="M5 21c0-4 3-7 7-7s7 3 7 7"/>', deac: '<circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6.5 7-6.5M14 20l6-6 2 2-6 6h-2z"/>',
-      car: '<path d="M5 17V12l2-5h10l2 5v5M3 12h18M5 17h14M7 17v2M17 17v2"/><circle cx="8" cy="14.5" r=".6"/><circle cx="16" cy="14.5" r=".6"/>', pascha: '<path d="M12 3v18M6 9h12"/>',
-      shield: '<path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><circle cx="12" cy="10" r="2.5"/>', db: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
-    };
-    const item = (k, t) => `<div style="display:flex;align-items:center;gap:15px;height:54px;padding:0 20px;font-size:17px;color:rgba(255,255,255,.85)">${ico(P[k])}${t}</div>`;
-    const hdr = t => `<div style="font-size:11.5px;letter-spacing:2.2px;color:rgba(255,255,255,.4);font-weight:600;padding:22px 20px 8px">${t}</div>`;
-    return `<div style="position:absolute;inset:0;background:#0d0d0d"></div>` + statusBar().replace('class="status"', 'class="status" style="z-index:7;background:transparent"') +
-      `<div style="position:absolute;top:0;bottom:0;left:280px;right:0;background:#0a0a0a;z-index:4"><div style="position:absolute;top:62px;left:0;right:0;height:40px;background:#141414;border-bottom:1px solid #1e1e1e"></div><div style="position:absolute;top:70px;left:13px;opacity:.5">${I.burger}</div>
-        <div style="position:absolute;top:150px;left:20px;right:-40px;opacity:.35">${['Account info', 'Change name', 'Change email', 'Change phone', 'Change photo'].map(t => `<div class="card" style="height:54px;margin-bottom:12px;padding:0 18px;display:flex;align-items:center;font-size:19px;white-space:nowrap">${t}</div>`).join('')}</div></div>
-      <div style="position:absolute;top:0;bottom:0;left:0;width:280px;background:#1c1c1e;z-index:6;padding-top:80px;box-shadow:10px 0 40px rgba(0,0,0,.5)">
-        <div style="display:flex;align-items:center;gap:13px;padding:0 18px 18px;border-bottom:1px solid #2c2c2e;margin:0 6px">
-          <div style="width:43px;height:43px;border-radius:11px;background:rgba(20,126,251,.15);border:1px solid rgba(20,126,251,.35);display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#147EFB" stroke-width="2"><path d="M12 3v18M6 9h12"/></svg></div>
-          <div><div style="font-size:19px">Ⲧⲁⲝⲓⲥ</div><div style="font-size:13px;color:rgba(255,255,255,.55);margin-top:2px">Manage your service</div></div>
-        </div>
-        <div style="margin:12px 8px 0;height:54px;border-radius:12px;background:rgba(20,126,251,.16);display:flex;align-items:center;gap:15px;padding:0 13px;font-size:17px;font-weight:600;position:relative">
-          <span style="position:absolute;left:-8px;top:12px;width:3px;height:30px;border-radius:2px;background:#147EFB"></span>
-          <div style="width:32px;height:32px;border-radius:9px;background:rgba(20,126,251,.22);display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#147EFB" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg></div>Home</div>
-        ${hdr('SCHEDULES &amp; ATTENDANCE')}${item('ss', 'Sunday School')}${item('hymn', 'Hymns Class')}${item('sm', 'Servants Meeting')}${item('youth', 'College Youth Meeting')}
-        ${hdr('ADMINISTRATION')}${item('deac', 'Edit Deacons')}${item('car', 'Traffic Manager')}${item('pascha', 'Pascha Manager')}${item('shield', 'Admin Manager')}${item('db', 'Database Manager')}
-        <div style="position:absolute;bottom:40px;left:18px;right:18px;border-top:1px solid #2c2c2e;padding-top:16px;display:flex;justify-content:space-between;font-size:13px;color:rgba(255,255,255,.3)"><span>Ⲧⲁⲝⲓⲥ</span><i>By TG</i></div>
-      </div>` + homeBar();
-  },
+  drawer: () => `<div style="position:absolute;inset:0;background:#0d0d0d"></div>` + statusBar().replace('class="status"', 'class="status" style="z-index:7;background:transparent"') +
+    `<div style="position:absolute;top:0;bottom:0;left:280px;right:0;background:#0a0a0a;z-index:4"><div style="position:absolute;top:62px;left:0;right:0;height:40px;background:#141414;border-bottom:1px solid #1e1e1e"></div><div style="position:absolute;top:70px;left:13px;opacity:.5">${I.burger}</div>
+      <div style="position:absolute;top:150px;left:20px;right:-40px;opacity:.35">${['Account info', 'Change name', 'Change email', 'Change phone', 'Change photo'].map(t => `<div class="card" style="height:54px;margin-bottom:12px;padding:0 18px;display:flex;align-items:center;font-size:19px;white-space:nowrap">${t}</div>`).join('')}</div></div>` +
+    drawerPanel('home', 'padding-top:80px;box-shadow:10px 0 40px rgba(0,0,0,.5)') + homeBar(),
 };
 
 /* ---------- Custom product pages ---------- */
@@ -266,6 +280,7 @@ const THEMES = {
   scheduling: { accent: '#4d9cff', glow: 'rgba(20,126,251,.30)' },
   attendance: { accent: '#3ddc84', glow: 'rgba(40,167,69,.26)' },
   deacons:    { accent: '#e6b45a', glow: 'rgba(214,160,60,.24)' },
+  listing:    { accent: '#4d9cff', glow: 'rgba(20,126,251,.30)' },
 };
 const SHOTS = {
   // Page 1: church administrators / deacon coordinators
@@ -283,16 +298,111 @@ const SHOTS = {
   'deacons-01': ['deacons', 'For deacons', 'Know your reading<br>before Sunday', 'Confirm with one tap, or say you can’t make it.', 'scheduled'],
   'deacons-02': ['deacons', 'This week’s service', 'See who’s<br>serving with you', 'Every reading and offering for the week.', 'home'],
   'deacons-03': ['deacons', 'Learn to Serve', 'Learn the<br>services', 'Liturgy, Midnight Praises and Vespers in your pocket.', 'learn'],
+  // Default App Store listing: one shot from each audience, broadest first
+  'listing-01': ['listing', 'Built for Coptic churches', 'Run Sunday<br>from one app', 'Deacon schedules, attendance and more.', 'edit'],
+  'listing-02': ['listing', 'Last-minute changes', 'Someone can’t<br>serve? Covered.', 'Taksis suggests a replacement. One tap accepts.', 'change'],
+  'listing-03': ['listing', 'For deacons', 'Know your reading<br>before Sunday', 'Confirm with one tap, or say you can’t make it.', 'scheduled'],
+  'listing-04': ['listing', 'Sunday School', 'Attendance in<br>a few taps', 'Present or absent for each child, class by class.', 'sundayschool'],
+  'listing-05': ['listing', 'Servants Meeting', 'Find anyone<br>in seconds', 'Search or jump with the A–Z index.', 'servants'],
+  'listing-06': ['listing', 'Learn to Serve', 'Learn the<br>services', 'Liturgy, Midnight Praises and Vespers in your pocket.', 'learn'],
+  'listing-07': ['listing', 'One app', 'Your whole church<br>in one place', 'Schedules, attendance, traffic and Pascha.', 'drawer'],
 };
 
-const id = new URLSearchParams(location.search).get('shot') || 'scheduling-01';
-const [theme, eyebrow, headline, sub, screen] = SHOTS[id];
-const t = THEMES[theme];
-document.getElementById('root').innerHTML = `<div class="frame" style="--accent:${t.accent};--glow:${t.glow}">
-  <div class="caption"><div class="eyebrow">${eyebrow}</div><div class="headline">${headline}</div><div class="sub">${sub}</div></div>
-  <div class="device"><div class="screen">${SCREENS[screen]()}</div></div>
-</div>`;
-window.SHOT_IDS = Object.keys(SHOTS);
+/* ---------- Landscape banners (one per page) ---------- */
+// `promo` is the page's App Store promotional text (limit 170 chars). `blurb` is the banner
+// subhead: the promo without the part the headline already says.
+const PAGES = {
+  scheduling: { eyebrow: 'Deacon Scheduling', headline: 'Sunday’s schedule,<br>set in minutes', screens: ['change', 'edit', 'home'],
+    promo: 'Build Sunday’s deacon schedule in minutes. See who’s confirmed, nudge who hasn’t, and cover last-minute absences with a suggested replacement.',
+    blurb: 'See who’s confirmed, nudge who hasn’t, and cover last-minute absences with a suggested replacement.' },
+  attendance: { eyebrow: 'Attendance', headline: 'Attendance in<br>a few taps', screens: ['hymns', 'sundayschool', 'servants'],
+    promo: 'Take Sunday School, Hymns Class and Servants Meeting attendance in a few taps. Switch classes instantly and find anyone in seconds.',
+    blurb: 'Sunday School, Hymns Class and Servants Meeting. Switch classes instantly and find anyone in seconds.' },
+  deacons: { eyebrow: 'For Deacons', headline: 'Know your reading<br>before Sunday', screens: ['home', 'scheduled', 'learn'],
+    promo: 'Know your reading before Sunday. Confirm with one tap, see who’s serving with you, and learn the Liturgy, Midnight Praises and Vespers.',
+    blurb: 'Confirm with one tap, see who’s serving with you, and learn the Liturgy, Midnight Praises and Vespers.' },
+  listing: { eyebrow: 'Built for Coptic churches', headline: 'Your whole church<br>in one app', screens: ['sundayschool', 'edit', 'scheduled'],
+    promo: 'Deacon schedules, Sunday School and Servants Meeting attendance, and Learn to Serve, all in one app built for Coptic Orthodox churches.',
+    blurb: 'Deacon schedules, attendance for every class and meeting, and Learn to Serve, together in one app.' },
+};
+const BANNER_SIZES = ['5244x2950', '3840x1646', '3840x2560'];
+
+// Header and search assets are cropped differently on every device, and Apple publishes no
+// safe-area numbers, only its templates' advice to keep text and subject central. So
+// everything sits in a centred box about 1.2x the banner's height wide (SW). The sides only
+// carry background, so losing them costs nothing. Text on top, phones rising off the bottom edge.
+function renderBanner(page, size) {
+  const [W, H] = size.split('x').map(Number);
+  const P = PAGES[page], t = THEMES[page];
+  const SW = Math.min(W * 0.92, H * 1.2), u = SW / 100;
+  const pw = SW / 2.75, s = pw / 464, gap = pw * 0.87;   // three overlapping phones span ~SW
+  document.documentElement.style.cssText = document.body.style.cssText = `width:${W}px;height:${H}px`;
+  const textTop = H * 0.075;
+  // Phones start below the text block, measured once it has laid out.
+  document.getElementById('root').innerHTML = `<div class="frame" style="width:${W}px;height:${H}px;--accent:${t.accent};
+      background:radial-gradient(${SW * .75}px ${H * .85}px at 50% 72%, ${t.glow} 0%, transparent 72%), linear-gradient(180deg,#0b0d12 0%,#050608 100%)">
+    <div id="bannerText" style="position:absolute;top:${textTop}px;left:50%;transform:translateX(-50%);width:${SW}px;text-align:center">
+      <div class="eyebrow" style="font-size:${u * 1.7}px;letter-spacing:${u * .3}px;margin-bottom:${u * 1.3}px">${P.eyebrow}</div>
+      <div class="headline" style="font-size:${u * 6.4}px;letter-spacing:${-u * .14}px">${P.headline}</div>
+      <div class="sub" style="font-size:${u * 2.3}px;margin:${u * 1.6}px auto 0;max-width:${SW * .86}px">${P.blurb}</div>
+    </div>
+  </div>`;
+  const top = textTop + document.getElementById('bannerText').offsetHeight + u * 4;
+  const phone = (screen, dx, k, z, dim) => `<div class="device" style="left:${W / 2 + dx}px;top:${top + (1 - k) * 980 * s * .5}px;transform:translateX(-50%) scale(${s * k});transform-origin:top center;z-index:${z}">
+    <div class="screen">${SCREENS[screen]()}${dim ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,.35);z-index:20"></div>' : ''}</div></div>`;
+  document.querySelector('.frame').insertAdjacentHTML('beforeend',
+    phone(P.screens[0], -gap, .9, 1, true) + phone(P.screens[2], gap, .9, 1, true) + phone(P.screens[1], 0, 1, 2, false));
+}
+
+/* ---------- 13" iPad, landscape ----------
+   Landscape iPad is wide enough for MainContainer's permanent drawer (PERMANENT_DRAWER_MIN),
+   so role holders get the sidebar beside the screen. Plain deacons have no drawer at all. */
+const IPAD_ACTIVE = { sundayschool: 'ss', hymns: 'hymn', servants: 'sm' };
+function renderIPad(id) {
+  const [W, H] = [2752, 2064];
+  const [theme, eyebrow, headline, sub, screen] = SHOTS[id];
+  const t = THEMES[theme];
+  const sidebar = theme !== 'deacons';
+  const modal = screen === 'change' || screen === 'scheduled';
+  const left = sidebar ? 280 : 0;
+  document.documentElement.style.cssText = document.body.style.cssText = `width:${W}px;height:${H}px`;
+  const status = `<div style="position:absolute;top:0;left:0;right:0;height:24px;z-index:30;display:flex;align-items:center;padding:0 22px;font-size:13.5px;font-weight:600">
+    9:41<span style="margin-left:8px;font-weight:500">Sat Oct 17</span>
+    <span style="margin-left:auto;display:flex;gap:6px;align-items:center">${statusBar().match(/<svg width="17"[\s\S]*?<\/svg>/)[0]}<span style="font-size:13px">100%</span>${statusBar().match(/<svg width="28"[\s\S]*?<\/svg>/)[0]}</span></div>`;
+  const s = 1454 / 1076;
+  document.getElementById('root').innerHTML = `<div class="frame" style="width:${W}px;height:${H}px;--accent:${t.accent};
+      background:radial-gradient(1500px 1000px at 50% 0%, ${t.glow} 0%, transparent 70%), linear-gradient(180deg,#0b0d12 0%,#050608 100%)">
+    <div class="caption" style="top:120px"><div class="eyebrow">${eyebrow}</div><div class="headline" style="font-size:96px">${headline.replace('<br>', ' ')}</div><div class="sub">${sub}</div></div>
+    <div class="ipad" style="position:absolute;left:50%;top:520px;width:1420px;height:1076px;transform:translateX(-50%) scale(${s});transform-origin:top center;
+        background:#050505;border-radius:44px;padding:22px;box-shadow:0 0 0 1.5px #3a3a3e,0 0 0 3px #111,0 40px 120px rgba(0,0,0,.6)">
+      <div style="position:relative;width:1376px;height:1032px;border-radius:22px;overflow:hidden;background:#121212">
+        ${status}
+        ${sidebar ? drawerPanel(IPAD_ACTIVE[screen] || 'home', 'padding-top:44px;border-right:1px solid #2c2c2e') : ''}
+        ${sidebar && modal ? '<div style="position:absolute;top:0;bottom:0;left:0;width:280px;background:rgba(0,0,0,.72);z-index:7"></div>' : ''}
+        <div class="pane" style="position:absolute;top:0;bottom:0;left:${left}px;right:0">${SCREENS[screen]()}</div>
+        <div class="homebar" style="width:300px;margin-left:-150px;background:#666;z-index:30"></div>
+      </div>
+    </div>
+  </div>`;
+}
+const IPAD_IDS = Object.keys(SHOTS).filter(k => SHOTS[k][4] !== 'drawer');
+
+const params = new URLSearchParams(location.search);
+const pageOf = params.get('banner') || (params.get('ipad') || params.get('shot') || '').split('-')[0];
+PLAIN_DEACON = pageOf === 'deacons';
+if (params.get('ipad')) {
+  renderIPad(params.get('ipad'));
+} else if (params.get('banner')) {
+  renderBanner(params.get('banner'), params.get('size') || BANNER_SIZES[0]);
+} else {
+  const id = params.get('shot') || 'scheduling-01';
+  const [theme, eyebrow, headline, sub, screen] = SHOTS[id];
+  const t = THEMES[theme];
+  document.getElementById('root').innerHTML = `<div class="frame" style="--accent:${t.accent};--glow:${t.glow}">
+    <div class="caption"><div class="eyebrow">${eyebrow}</div><div class="headline">${headline}</div><div class="sub">${sub}</div></div>
+    <div class="device"><div class="screen">${SCREENS[screen]()}</div></div>
+  </div>`;
+}
 </script>
 </body>
 </html>
