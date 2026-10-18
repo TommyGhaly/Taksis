@@ -916,11 +916,20 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
       }
       const cursor = reset ? null : cursorRef.current;
       let snap;
-      if (activeSort === '__id__') {
+      if (dateSorted) {
+        // mm-dd-yy ids don't sort chronologically as strings, so paging by id
+        // showed Jan–Jun as "newest" until every page arrived. These are one doc
+        // per week, so fetch the whole collection and sort it client-side.
+        snap = await getDocs(query(collRef, limit(BULK_HARD_CEILING)));
+      } else if (activeSort === '__id__') {
         if (probeDocs && reset) { snap = { docs: probeDocs }; }
         else {
           let q = query(collRef, orderBy(FieldPath.documentId()), limit(PAGE_SIZE));
-          if (cursor) q = query(q, startAfter(cursor));
+          // Pass the id, not the snapshot: RNFB resolves a snapshot cursor by
+          // reading the orderBy field from the doc's data, and `__name__` is
+          // never there, so every second page threw "field '__name__' ... does
+          // not exist" (it surfaced as search failing, since search auto-pages).
+          if (cursor) q = query(q, startAfter(cursor.id));
           snap = await getDocs(q);
         }
       } else {
@@ -938,7 +947,7 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
       setDocs((prev) => (reset ? newDocs : [...prev, ...newDocs]));
       const last = snap.docs[snap.docs.length - 1];
       if (last) cursorRef.current = last;
-      setDone(snap.docs.length < PAGE_SIZE);
+      setDone(dateSorted || snap.docs.length < PAGE_SIZE);
     } catch (e) { Alert.alert('Load error', e.message); }
     finally { loadingRef.current = false; setLoading(false); }
   }, [collRef, sortField, effectiveConfig.sortBy, dateSorted]);
