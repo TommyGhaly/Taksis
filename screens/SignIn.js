@@ -35,6 +35,7 @@ import {
   describeAuthError,
 } from "../utils/microsoftAuth";
 import MicrosoftSignInModal from "../components/MicrosoftSignInModal";
+import { setPendingAppleName } from "../utils/pendingAppleName";
 
 const { width, height } = Dimensions.get("window");
 const REFERENCE_WIDTH = 375;
@@ -143,7 +144,7 @@ const SignIn = ({ navigation }) => {
     try {
       const raw = generateNonce();
       const hashed = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, raw);
-      const { identityToken } = await AppleAuthentication.signInAsync({
+      const { identityToken, fullName } = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
@@ -152,8 +153,10 @@ const SignIn = ({ navigation }) => {
       });
       if (!identityToken) throw new Error("No identity token.");
       const cred = AppleAuthProvider.credential(identityToken, raw);
+      setPendingAppleName(fullName);
       await signInWithCredential(getAuth(), cred);
     } catch (e) {
+      setPendingAppleName(null); // never hand this name to a later sign-in
       if (e?.code !== "ERR_REQUEST_CANCELED") Alert.alert("Apple sign-in failed", e?.message);
     } finally {
       setLoading(null);

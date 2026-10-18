@@ -3,7 +3,7 @@ import { LogBox } from "react-native";
 import { StyleSheet, Text, View, ScrollView, RefreshControl } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { getAuth, onAuthStateChanged } from "@react-native-firebase/auth";
+import { getAuth, onAuthStateChanged, updateProfile } from "@react-native-firebase/auth";
 import {
   doc,
   getDoc,
@@ -15,6 +15,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { UserProvider, useUser } from "./UserContext";
 import { initializeCacheManager } from "./utils/cacheManager";
 import { startDeepLinkListener } from "./utils/deepLinks";
+import { takePendingAppleName } from "./utils/pendingAppleName";
 import { hydrate as hydrateAvatarCache } from "./utils/avatarCache";
 import LoadingWheel from "./components/LoadingWheel";
 
@@ -116,6 +117,12 @@ function AppNavigator() {
         setSignUp(true);
         setUser(user);
       } else {
+        // Non-empty only right after Sign in with Apple handed over a name.
+        const appleName = takePendingAppleName();
+        if (appleName && !user.displayName) {
+          updateProfile(user, { displayName: appleName }).catch(() => {});
+        }
+        const name = user.displayName || appleName;
         try {
           // User is logged in, ensure Firestore user doc exists, then check if onboarding is complete.
           const userRef = doc(getFirestore(), "users", user.uid);
@@ -140,6 +147,12 @@ function AppNavigator() {
 
           if (!userDoc) userDoc = await getDoc(userRef);
 
+          // An existing account with no name on file (e.g. made before Apple's
+          // name was saved) takes the one Apple just sent.
+          if (userDoc.exists && appleName && !userDoc.data()?.name) {
+            await setDoc(userRef, { name: appleName }, { merge: true });
+          }
+
           if (!userDoc.exists) {
             // If the Auth user exists but Firestore doc doesn't (race during sign-up, or legacy state),
             // create a minimal doc so onboarding screens can safely update it.
@@ -147,7 +160,7 @@ function AppNavigator() {
               userRef,
               {
                 uid: user.uid,
-                name: user.displayName || "",
+                name: name || "",
                 email: user.email || "",
                 admin: false,
                 rank: "Chanter (Epsaltos)",

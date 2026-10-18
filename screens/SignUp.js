@@ -26,6 +26,7 @@ import {
   describeAuthError,
 } from "../utils/microsoftAuth";
 import MicrosoftSignInModal from "../components/MicrosoftSignInModal";
+import { setPendingAppleName } from "../utils/pendingAppleName";
 
 const { width, height } = Dimensions.get("window");
 const REFERENCE_WIDTH = 375;
@@ -225,6 +226,7 @@ const SignUp = ({ navigation }) => {
       if (!appleAuthRequestResponse.identityToken) throw new Error("Apple Sign-In failed - No identity token received.");
       const { identityToken, fullName } = appleAuthRequestResponse;
       const appleCredential = AppleAuthProvider.credential(identityToken, rawNonce);
+      setPendingAppleName(fullName);
       const userCredential = await signInWithCredential(getAuth(), appleCredential);
       const user = getAuth().currentUser;
       const userDoc = await getDoc(doc(getFirestore(), "users", user.uid));
@@ -238,6 +240,7 @@ const SignUp = ({ navigation }) => {
       await writeUserToDb(userCredential.user, formattedFullName);
       navigation.navigate("InputPhoto");
     } catch (error) {
+      setPendingAppleName(null); // never hand this name to a later sign-in
       if (error?.code !== "ERR_REQUEST_CANCELED") Alert.alert("Sign Up Error", error?.message || "Apple sign up failed.");
     } finally {
       setLoading(null);

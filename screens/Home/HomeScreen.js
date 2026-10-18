@@ -998,12 +998,18 @@ const HomeScreen = () => {
       // A preview shows the schedule, not the profile-completion flow.
       if (isPreview) return;
 
-      // Check for required fields and show modals accordingly
+      // Check for required fields and show modals accordingly.
+      // Sign in with Apple already supplied whatever name the user chose to
+      // share; App Review rejects asking for it again (Guideline 4.0).
+      const signedInWithApple = user.providerData?.some(
+        (p) => p.providerId === "apple.com"
+      );
       const isNameInvalid =
-        !name ||
+        !signedInWithApple &&
+        (!name ||
         name === "null null" ||
         name.trim() === "" ||
-        !name.includes(" ");
+        !name.includes(" "));
       const isDOBInvalid = !userDoc?.DOB || userDoc.DOB.trim() === "";
       const isPhoneInvalid = !userDoc?.phone || userDoc.phone.trim() === "";
       const hasChurch = userDoc?.church && userDoc.church.trim() !== "";
