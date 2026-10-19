@@ -67,6 +67,14 @@ class CacheManager {
     }
   }
 
+  static async removeFromCache(key, cacheType = 'FIRESTORE') {
+    try {
+      await AsyncStorage.removeItem(CACHE_PREFIXES[cacheType] + key);
+    } catch (error) {
+      console.warn('Cache remove error:', error);
+    }
+  }
+
   static async clearCache(cacheType = null) {
     try {
       if (cacheType) {

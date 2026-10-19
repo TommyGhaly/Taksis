@@ -12,7 +12,7 @@ import {
   Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { doc, getDoc, getFirestore } from "@react-native-firebase/firestore";
+import { doc, getFirestore, onSnapshot } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
 import { Ionicons } from "@expo/vector-icons";
 import PhotoInput from "../../components/photoInput";
@@ -82,53 +82,44 @@ const ChildAccountInfo = ({ route, navigation }) => {
     }
   };
 
+  // Paint from cache, then stay live on the parent doc that holds this child,
+  // instead of a single read behind a 3-day cache.
   useEffect(() => {
-    const fetchChildData = async () => {
-      try {
-        const user = getAuth().currentUser;
-        if (user) {
-          const cacheKey = CACHE_KEYS.CHILD_DATA + childUid;
-          const cachedData = await getFromCache(cacheKey);
-          if (cachedData) {
-            setChildData(cachedData);
-            // Adopt photoURL from the doc we already have — no Storage request.
-            avatarCache.primeFromUser({ uid: childUid, ...cachedData });
-            setIsLoadingFromCache(false);
-            getDoc(doc(getFirestore(), "users", user.uid))
-              .then(userDoc => {
-                if (userDoc.exists) {
-                  const userData = userDoc.data();
-                  const child = userData.children?.find((child) => child.uid === childUid);
-                  if (child) {
-                    setChildData(child);
-                    avatarCache.primeFromUser({ uid: childUid, ...child });
-                    saveToCache(cacheKey, child);
-                  }
-                }
-              });
-          } else {
-            const userDoc = await getDoc(doc(getFirestore(), "users", user.uid));
-            if (userDoc.exists) {
-              const userData = userDoc.data();
-              const child = userData.children?.find((child) => child.uid === childUid);
-              if (child) {
-                setChildData(child);
-                avatarCache.primeFromUser({ uid: childUid, ...child });
-                saveToCache(cacheKey, child);
-              } else {
-                Alert.alert("Error", "Child data not found.");
-              }
-            }
-            setIsLoadingFromCache(false);
+    const user = getAuth().currentUser;
+    if (!user) return;
+    const cacheKey = CACHE_KEYS.CHILD_DATA + childUid;
+    let gotLive = false;
+    let warnedMissing = false;
+    getFromCache(cacheKey).then((cachedData) => {
+      if (!cachedData || gotLive) return;
+      setChildData(cachedData);
+      // Adopt photoURL from the doc we already have — no Storage request.
+      avatarCache.primeFromUser({ uid: childUid, ...cachedData });
+      setIsLoadingFromCache(false);
+    });
+    const unsubscribe = onSnapshot(
+      doc(getFirestore(), "users", user.uid),
+      (userDoc) => {
+        gotLive = true;
+        if (userDoc.exists) {
+          const child = userDoc.data().children?.find((c) => c.uid === childUid);
+          if (child) {
+            setChildData(child);
+            avatarCache.primeFromUser({ uid: childUid, ...child });
+            saveToCache(cacheKey, child);
+          } else if (!warnedMissing) {
+            warnedMissing = true;
+            Alert.alert("Error", "Child data not found.");
           }
         }
-      } catch (error) {
         setIsLoadingFromCache(false);
-        Alert.alert("Error", "Could not fetch child data. Please try again.");
+      },
+      (error) => {
+        console.warn("Child account listener failed:", error);
+        setIsLoadingFromCache(false);
       }
-    };
-
-    fetchChildData();
+    );
+    return () => unsubscribe();
   }, [childUid]);
 
   const handleEditPhoto = () => {

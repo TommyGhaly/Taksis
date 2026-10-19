@@ -678,7 +678,7 @@ export default function PaschaHomePage() {
       setChurchId(data.church || null);
       setHideNames(data.paschaHideNames ?? false);
       setFontSizeScale(data.paschaFontSize ?? "medium");
-    });
+    }, err => console.warn("Pascha user listener failed:", err));
     return () => { isMounted.current = false; unsub(); };
   }, [ready]);
 
@@ -696,7 +696,8 @@ export default function PaschaHomePage() {
       doc => {
         if (!isMounted.current) return;
         if (doc.exists) setScheduleShell(doc.data());
-      }
+      },
+      err => console.warn("Pascha schedule_config listener failed:", err)
     );
     const unsubConfig = onSnapshot(
       doc(getFirestore(), "churches", churchId, "pascha", "config"),
@@ -709,6 +710,11 @@ export default function PaschaHomePage() {
         setMyReadingsOn(d.myReadingsVisible ?? false);
         setEasterDate(d.easterDate ?? null);
         if (d.fontSizeMultipliers) setFontSizeMultipliers(d.fontSizeMultipliers);
+      },
+      // Without this a failed read left the screen on its loading state forever.
+      err => {
+        console.warn("Pascha config listener failed:", err);
+        if (isMounted.current) setLoading(false);
       }
     );
     const unsubSchedule = onSnapshot(
@@ -717,6 +723,10 @@ export default function PaschaHomePage() {
         if (!isMounted.current) return;
         setAssignees(doc.exists ? doc.data() : {});
         setAssigneesLoaded(true);
+      },
+      err => {
+        console.warn("Pascha schedule listener failed:", err);
+        if (isMounted.current) setAssigneesLoaded(true);
       }
     );
     return () => { unsubShell(); unsubConfig(); unsubSchedule(); };

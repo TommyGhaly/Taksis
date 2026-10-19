@@ -339,7 +339,9 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
       if (sun <= today) sun.setDate(sun.getDate() + 7);
       const weeks = gw(sun, 5).filter(id => exist.has(id));
       sSnap.docs.forEach(d => { if (!weeks.includes(d.id)) weeks.push(d.id); });
-      weeks.sort();
+      // Ids are MM-DD-YY, so a plain string sort puts 01-04-27 before 12-28-26.
+      const weekKey = id => { const [m, d, y] = id.split("-"); return `${y}-${m}-${d}`; };
+      weeks.sort((a, b) => weekKey(a).localeCompare(weekKey(b)));
 
       const sData = {}, diffs = [];
       for (const w of weeks) {

@@ -515,7 +515,7 @@ const TrafficManager = () => {
         setMaxCarsPerPerson(enabled ? limit : DEFAULT_CAR_LIMIT);
         setTempLimit(String(enabled ? limit : DEFAULT_CAR_LIMIT));
       }
-    });
+    }, (error) => console.error("[TrafficManager] church listener error:", error));
   }, [churchId, ready]);
 
   // ── Migration: run once when churchId is known, before attaching car listeners
@@ -570,6 +570,10 @@ const TrafficManager = () => {
         list.forEach((c) => (c.ownerIds || []).forEach((uid) => {
           if (typeof uid === "string") fetchProfileImage(uid);
         }));
+      },
+      (error) => {
+        console.error("[TrafficManager] cars listener error:", error);
+        setLoading(false);
       }
     );
 
@@ -578,7 +582,8 @@ const TrafficManager = () => {
       (snapshot) => {
         setUnregUsers(snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data(), isUnreg: true }))
           .sort((a, b) => (a.name || "").localeCompare(b.name || "")));
-      }
+      },
+      (error) => console.error("[TrafficManager] unregistered listener error:", error)
     );
 
     return () => { unsubCars(); unsubUnreg(); };
@@ -617,7 +622,8 @@ const TrafficManager = () => {
         setUsers(list);
         // Free: these docs carry photoURL, so no Storage requests at all.
         avatarCache.primeMany(list);
-      }
+      },
+      (error) => console.error("[TrafficManager] users listener error:", error)
     );
   }, [churchId, ready]);
 

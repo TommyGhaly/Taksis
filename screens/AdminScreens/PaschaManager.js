@@ -1878,7 +1878,7 @@ export default function PaschaManager() {
         setChurchId(doc.data().church || null);
         setFontSizeScale(doc.data().paschaFontSize != null ? doc.data().paschaFontSize : "medium");
       }
-    });
+    }, function(err) { console.warn("Pascha manager user listener failed:", err); });
     return function() { isMounted.current = false; unsub(); };
   }, [ready]);
 
@@ -1898,7 +1898,8 @@ export default function PaschaManager() {
             return days != null && days[0] != null ? days[0].id : null;
           });
         }
-      }
+      },
+      function(err) { console.warn("Pascha schedule_config listener failed:", err); }
     );
     var unsubConfig = onSnapshot(
       doc(getFirestore(), "churches", churchId, "pascha", "config"),
@@ -1909,14 +1910,16 @@ export default function PaschaManager() {
         setFullScheduleVisible(d.fullScheduleVisible != null ? d.fullScheduleVisible : false);
         setEasterDate(d.easterDate != null ? d.easterDate : null);
         if (d.fontSizeMultipliers) setFontSizeMultipliers(d.fontSizeMultipliers);
-      }
+      },
+      function(err) { console.warn("Pascha config listener failed:", err); }
     );
     var unsubSchedule = onSnapshot(
       doc(getFirestore(), "churches", churchId, "pascha", "schedule"),
       function(doc) {
         if (!isMounted.current) return;
         setAssignees(doc.exists ? doc.data() : {});
-      }
+      },
+      function(err) { console.warn("Pascha schedule listener failed:", err); }
     );
     return function() { unsubShell(); unsubConfig(); unsubSchedule(); };
   }, [churchId, ready]);
@@ -1933,7 +1936,7 @@ export default function PaschaManager() {
           .map(function(d) { return Object.assign({}, d, { isDeacon: true }); })
           .sort(function(a, b) { return a.name.localeCompare(b.name); })
       );
-    });
+    }, function(err) { console.warn("Pascha manager church listener failed:", err); });
     var unsubU = onSnapshot(
       query(collection(getFirestore(), "users"), where("church", "==", churchId)),
       function(snap) {
@@ -1945,6 +1948,10 @@ export default function PaschaManager() {
         avatarCache.primeMany(users);
         setCongregation(users);
         setLoadingUsers(false);
+      },
+      function(err) {
+        console.warn("Pascha manager users listener failed:", err);
+        if (isMounted.current) setLoadingUsers(false);
       }
     );
     return function() { unsubC(); unsubU(); };

@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { FirestoreCache, StorageCache } from '../utils/cacheManager';
+import {
+  doc as firestoreDoc,
+  getFirestore,
+  onSnapshot,
+} from '@react-native-firebase/firestore';
+import { CacheManager, FirestoreCache, StorageCache } from '../utils/cacheManager';
 
 // Hook for Firestore document caching
 export const useFirestoreDocument = (collectionPath, documentId, options = {}) => {
@@ -62,9 +67,53 @@ export const useFirestoreDocument = (collectionPath, documentId, options = {}) =
     }
   }, [collectionPath, documentId]);
 
+  // Paint from the AsyncStorage copy, then stay live. This hook used to be a
+  // one-shot read behind a 1-day cache, so an admin's edit (or a deleted doc)
+  // never reached the screen until the cache expired or someone pulled to
+  // refresh. The listener is the source of truth; the cache only covers the
+  // first frame.
   useEffect(() => {
-    fetchDocument();
-  }, [fetchDocument]);
+    if (!collectionPath || !documentId) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    CacheManager.getFromCache(`${collectionPath}/${documentId}`, 'FIRESTORE')
+      .then((cached) => {
+        if (cancelled || cached == null || dataRef.current != null) return;
+        dataRef.current = cached;
+        setData(cached);
+        setLoading(false);
+      })
+      .catch(() => {});
+
+    const unsubscribe = onSnapshot(
+      firestoreDoc(getFirestore(), collectionPath, documentId),
+      (snap) => {
+        const result = snap.exists ? { id: snap.id, ...snap.data() } : null;
+        dataRef.current = result;
+        setData(result);
+        setError(null);
+        setLoading(false);
+        if (result) {
+          CacheManager.setCache(`${collectionPath}/${documentId}`, result, 'FIRESTORE');
+        } else {
+          CacheManager.removeFromCache(`${collectionPath}/${documentId}`, 'FIRESTORE');
+        }
+      },
+      (err) => {
+        console.warn(`Live read of ${collectionPath}/${documentId} failed:`, err);
+        setError(err);
+        setLoading(false);
+      }
+    );
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [collectionPath, documentId]);
 
   return {
     data,

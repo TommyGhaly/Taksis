@@ -12,7 +12,7 @@ import {
   Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { doc, getDoc, getFirestore } from "@react-native-firebase/firestore";
+import { doc, getFirestore, onSnapshot } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
 import { Ionicons } from "@expo/vector-icons";
 import PhotoInput from "../../components/photoInput";
@@ -82,44 +82,39 @@ const AccountInfo = ({ navigation }) => {
     }
   };
 
+  // Paint from cache, then stay live: this screen used to read once on mount,
+  // so a change made elsewhere (an admin edit, a role change) didn't show up
+  // until the 3-day cache expired.
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        if (user) {
-          const cacheKey = CACHE_KEYS.USER_DATA + user.uid;
-          const cachedData = await getFromCache(cacheKey);
-          if (cachedData) {
-            setUserData(cachedData);
-            // Adopt photoURL from the doc we already have — no Storage request.
-            avatarCache.primeFromUser({ uid: user.uid, ...cachedData });
-            setIsLoadingFromCache(false);
-            getDoc(doc(getFirestore(), "users", user.uid))
-              .then(userDoc => {
-                if (userDoc.exists) {
-                  const freshData = userDoc.data();
-                  setUserData(freshData);
-                  avatarCache.primeFromUser({ uid: user.uid, ...freshData });
-                  saveToCache(cacheKey, freshData);
-                }
-              });
-          } else {
-            const userDoc = await getDoc(doc(getFirestore(), "users", user.uid));
-            if (userDoc.exists) {
-              const freshData = userDoc.data();
-              setUserData(freshData);
-              avatarCache.primeFromUser({ uid: user.uid, ...freshData });
-              saveToCache(cacheKey, freshData);
-            }
-            setIsLoadingFromCache(false);
-          }
+    if (!user) return;
+    const cacheKey = CACHE_KEYS.USER_DATA + user.uid;
+    let gotLive = false;
+    getFromCache(cacheKey).then((cachedData) => {
+      if (!cachedData || gotLive) return;
+      setUserData(cachedData);
+      // Adopt photoURL from the doc we already have — no Storage request.
+      avatarCache.primeFromUser({ uid: user.uid, ...cachedData });
+      setIsLoadingFromCache(false);
+    });
+    const unsubscribe = onSnapshot(
+      doc(getFirestore(), "users", user.uid),
+      (userDoc) => {
+        gotLive = true;
+        if (userDoc.exists) {
+          const freshData = userDoc.data();
+          setUserData(freshData);
+          avatarCache.primeFromUser({ uid: user.uid, ...freshData });
+          saveToCache(cacheKey, freshData);
         }
-      } catch (error) {
         setIsLoadingFromCache(false);
-        Alert.alert("Error", "Failed to fetch user data. Please try again.");
+      },
+      (error) => {
+        console.warn("Account info listener failed:", error);
+        setIsLoadingFromCache(false);
       }
-    };
-    fetchUserData();
-  }, [user]);
+    );
+    return () => unsubscribe();
+  }, [user?.uid]);
 
   const handleEditPhoto = () => {
     ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);

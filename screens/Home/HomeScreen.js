@@ -187,12 +187,6 @@ const HomeScreen = () => {
     updateDocument: updateUserDoc,
   } = useFirestoreDocument("users", user?.uid);
 
-  // Use cached hook for church data when churchId is available
-  const {
-    data: churchDoc,
-    loading: churchLoading,
-    refresh: refreshChurch,
-  } = useFirestoreDocument("churches", userDoc?.church);
 
   const [schedule, setSchedule] = useState({
     matins: { name: "N/A" },
@@ -252,8 +246,6 @@ const HomeScreen = () => {
 
   // Real-time listener for church parameter specifically
   const userRealtimeListenerRef = useRef(null);
-  // Holds the nested churches/{id} listener so it can be torn down properly.
-  const churchUnsubRef = useRef(null);
 
   // Derive state from cached data
   const derivedUserName = userDoc?.name || userName;
@@ -1106,152 +1098,131 @@ const HomeScreen = () => {
     return () => unsubscribeUser();
   }, [churchId]);
 
+  // Raw schedule docs and the church's fullDeacon flag, each from its own
+  // listener. They used to be nested — a fresh church listener opened inside
+  // every schedule snapshot — and every listener error was swallowed, so a
+  // listener that died on a flaky Android connection left whatever the
+  // on-disk Firestore cache last held on screen indefinitely.
+  const [scheduleDocs, setScheduleDocs] = useState(null);
+  const [fullDeacon, setFullDeacon] = useState(false);
+  // Bumped to tear down and reopen the listeners after an error.
+  const [listenerEpoch, setListenerEpoch] = useState(0);
+
   useEffect(() => {
     if (!churchId) {
       return;
     }
 
-    const schedulesRef = collection(getFirestore(), "churches", churchId, "schedule");
+    let retryTimer = null;
+    const retry = (what, error) => {
+      console.warn(`Schedule ${what} listener failed; retrying:`, error);
+      if (retryTimer) return;
+      retryTimer = setTimeout(() => setListenerEpoch((n) => n + 1), 5000);
+    };
 
     const unsubscribeSchedules = onSnapshot(
-      schedulesRef,
+      collection(getFirestore(), "churches", churchId, "schedule"),
       (snapshot) => {
-        try {
-          if (!snapshot || snapshot.empty) {
-            setScheduleLoaded(true);
-            setSchedule({
-              matins: { name: "N/A" },
-              third: { name: "N/A" },
-              sixth: { name: "N/A" },
-              pauline: { name: "N/A" },
-              catholic: { name: "N/A" },
-              praxis: { name: "N/A" },
-              gospel: { name: "N/A" },
-              water: { name: "N/A" },
-              wine: { name: "N/A" },
-              altar: [],
-            });
-            return;
-          }
-
-          let closestSchedule = null;
-          let closestDate = null;
-          let chosenDocId = "";
-          const today = new Date().setHours(0, 0, 0, 0);
-
-          const churchRef = doc(getFirestore(), "churches", churchId);
-          // Tear down the previous church listener before opening another.
-          // Returning a cleanup from inside an onSnapshot callback does nothing
-          // (Firestore discards it), which used to leak one listener per
-          // schedule change for the lifetime of the app.
-          churchUnsubRef.current?.();
-          churchUnsubRef.current = onSnapshot(
-            churchRef,
-            (churchDoc) => {
-              try {
-                if (!churchDoc.exists) {
-                  return;
-                }
-
-                const fullDeacon = churchDoc.data()?.fullDeacon || false;
-
-                snapshot.docs.forEach((doc) => {
-                  const scheduleData = doc.data();
-                  const scheduleDateStr = doc.id.split("-").slice(-3).join("-");
-                  const [month, day, year] = scheduleDateStr
-                    .split("-")
-                    .map(Number);
-                  const scheduleDate = new Date(
-                    2000 + year,
-                    month - 1,
-                    day
-                  ).setHours(0, 0, 0, 0);
-
-                  if (
-                    !closestDate ||
-                    Math.abs(scheduleDate - today) <
-                      Math.abs(closestDate - today)
-                  ) {
-                    closestDate = scheduleDate;
-                    closestSchedule = scheduleData;
-                    chosenDocId = doc.id;
-                  }
-                });
-
-                if (closestSchedule) {
-                  setCurrentWeek(chosenDocId);
-                  const defaultSchedule = {
-                    matins: { name: "N/A" },
-                    third: { name: "N/A" },
-                    sixth: { name: "N/A" },
-                    pauline: { name: "N/A" },
-                    catholic: { name: "N/A" },
-                    praxis: { name: "N/A" },
-                    gospel: { name: "N/A" },
-                    water: { name: "N/A" },
-                    wine: { name: "N/A" },
-                    altar: [],
-                  };
-
-                  const updatedSchedule = {
-                    ...defaultSchedule,
-                    ...closestSchedule,
-                  };
-
-                  if (!Array.isArray(updatedSchedule.altar)) {
-                    updatedSchedule.altar = [];
-                  }
-
-                  const altarServers = [];
-                  if (
-                    updatedSchedule.water &&
-                    typeof updatedSchedule.water === "object"
-                  ) {
-                    altarServers.push(updatedSchedule.water);
-                  }
-                  if (
-                    !fullDeacon &&
-                    updatedSchedule.wine &&
-                    typeof updatedSchedule.wine === "object"
-                  ) {
-                    altarServers.push(updatedSchedule.wine);
-                  }
-
-                  altarServers.push(
-                    ...(updatedSchedule.altar || []).filter(
-                      (server) => server && typeof server === "object"
-                    )
-                  );
-                  updatedSchedule.altar = altarServers;
-                  setScheduleLoaded(true);
-                  setSchedule(updatedSchedule);
-                }
-              } catch (error) {
-                // Error handling for church document processing
-              }
-            },
-            (error) => {
-              setScheduleLoaded(true);
-              // Error handling for church document listener
-            }
-          );
-
-        } catch (error) {
-          // Error handling for schedules loading
-        }
+        setScheduleDocs(
+          (snapshot?.docs || []).map((d) => ({ id: d.id, data: d.data() }))
+        );
       },
       (error) => {
         setScheduleLoaded(true);
-        // Error handling for schedules listener
+        retry("collection", error);
       }
     );
 
+    const unsubscribeChurch = onSnapshot(
+      doc(getFirestore(), "churches", churchId),
+      (churchDoc) => {
+        setFullDeacon(
+          (churchDoc.exists && churchDoc.data()?.fullDeacon) || false
+        );
+      },
+      (error) => retry("church", error)
+    );
+
     return () => {
+      if (retryTimer) clearTimeout(retryTimer);
       unsubscribeSchedules();
-      churchUnsubRef.current?.();
-      churchUnsubRef.current = null;
+      unsubscribeChurch();
     };
-  }, [churchId]);
+  }, [churchId, listenerEpoch]);
+
+  // Firestore listeners survive backgrounding, but a phone that sat asleep
+  // can come back with a dead stream. Reopen on resume so the schedule is
+  // always current when someone actually looks at it.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") setListenerEpoch((n) => n + 1);
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    if (scheduleDocs == null) return;
+
+    const emptySchedule = {
+      matins: { name: "N/A" },
+      third: { name: "N/A" },
+      sixth: { name: "N/A" },
+      pauline: { name: "N/A" },
+      catholic: { name: "N/A" },
+      praxis: { name: "N/A" },
+      gospel: { name: "N/A" },
+      water: { name: "N/A" },
+      wine: { name: "N/A" },
+      altar: [],
+    };
+
+    // The week being served is the earliest one dated today or later. The
+    // backend archives each week on its Sunday afternoon, so anything older
+    // is a leftover — typically a doc the device's offline cache never
+    // learned was deleted. The old "closest to today in either direction"
+    // pick would happily show one of those from months ago.
+    const today = new Date().setHours(0, 0, 0, 0);
+    let chosen = null;
+    let chosenDate = null;
+    scheduleDocs.forEach(({ id, data }) => {
+      const [month, day, year] = id.split("-").slice(-3).map(Number);
+      const date = new Date(2000 + year, month - 1, day).setHours(0, 0, 0, 0);
+      if (Number.isNaN(date) || date < today) return;
+      if (chosenDate == null || date < chosenDate) {
+        chosenDate = date;
+        chosen = { id, data };
+      }
+    });
+
+    setScheduleLoaded(true);
+    if (!chosen) {
+      setCurrentWeek(null);
+      setSchedule(emptySchedule);
+      return;
+    }
+
+    const updatedSchedule = { ...emptySchedule, ...chosen.data };
+    const altarServers = [];
+    if (updatedSchedule.water && typeof updatedSchedule.water === "object") {
+      altarServers.push(updatedSchedule.water);
+    }
+    if (
+      !fullDeacon &&
+      updatedSchedule.wine &&
+      typeof updatedSchedule.wine === "object"
+    ) {
+      altarServers.push(updatedSchedule.wine);
+    }
+    altarServers.push(
+      ...(Array.isArray(updatedSchedule.altar) ? updatedSchedule.altar : []).filter(
+        (server) => server && typeof server === "object"
+      )
+    );
+    updatedSchedule.altar = altarServers;
+
+    setCurrentWeek(chosen.id);
+    setSchedule(updatedSchedule);
+  }, [scheduleDocs, fullDeacon]);
 
   // Check if user is scheduled for current week and needs to confirm availability
   useEffect(() => {

@@ -290,6 +290,7 @@ const ServantsAttendance = () => {
 
   const isMounted = useRef(true);
   const servantsUnsubscribe = useRef(null);
+  const userUnsubscribe = useRef(null);
   const cacheKeys = useRef({ user: null, servants: null });
   const searchInputRef = useRef(null);
   const keyboardOffset = useRef(new Animated.Value(0)).current;
@@ -324,8 +325,8 @@ const ServantsAttendance = () => {
         user: `servants_user_${user.uid}`,
         servants: `servants_data_${user.uid}`,
       };
-      // Paint from cache as soon as it's read. setupListeners() opens with a
-      // users/{uid}.get(), so awaiting it here meant the screen stayed blocked
+      // Paint from cache as soon as it's read. setupListeners() waits on the
+      // users/{uid} snapshot, so awaiting it here meant the screen stayed blocked
       // on a network round-trip even when the cache already had everything.
       // Fire it off instead; setupListeners' stopLoading() clears the skeleton
       // once the servants snapshot actually delivers. We deliberately do NOT
@@ -337,7 +338,10 @@ const ServantsAttendance = () => {
     init();
     return () => {
       isMounted.current = false;
+      if (userUnsubscribe.current) userUnsubscribe.current();
       if (servantsUnsubscribe.current) servantsUnsubscribe.current();
+      userUnsubscribe.current = null;
+      servantsUnsubscribe.current = null;
     };
   }, [user, ready]);
 
@@ -369,40 +373,50 @@ const ServantsAttendance = () => {
     setPreviousSundays(sundays);
   };
 
-  const setupListeners = async () => {
+  const setupListeners = () => {
     // Every exit path clears loading so a cold start (no cache) can't sit on
     // the skeleton forever.
     const stopLoading = () => { if (isMounted.current) setLoading(false); };
-    try {
-      const userDoc = await getDoc(doc(getFirestore(), "users", user.uid));
-      if (!isMounted.current) return;
-      if (!userDoc.exists) { stopLoading(); return; }
-      const localUserData = userDoc.data();
-      setUserData(localUserData);
-      CacheUtils.set(cacheKeys.current.user, localUserData);
-      if (!localUserData.church) { stopLoading(); Alert.alert("Error", "No church assigned."); return; }
+    // The user doc is live too: it used to be read once, so an admin moving
+    // someone to another church left this screen on the old roster until it
+    // remounted.
+    let servantsChurch = null;
+    userUnsubscribe.current = onSnapshot(
+      doc(getFirestore(), "users", user.uid),
+      (userDoc) => {
+        if (!isMounted.current) return;
+        if (!userDoc.exists) { stopLoading(); return; }
+        const localUserData = userDoc.data();
+        setUserData(localUserData);
+        CacheUtils.set(cacheKeys.current.user, localUserData);
+        if (!localUserData.church) { stopLoading(); Alert.alert("Error", "No church assigned."); return; }
+        if (localUserData.church === servantsChurch) return;
 
-      servantsUnsubscribe.current = onSnapshot(
-        collection(
-          getFirestore(),
-          "churches",
-          localUserData.church,
-          "Servants Meeting"
-        ),
-        async (snapshot) => {
-          if (!isMounted.current) return;
-          const data = snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data() }));
-          setRawServantsData(data);
-          stopLoading();
-          // Adopt any photoURL already on these docs — no Storage request, and
-          // safe to call on every snapshot: primeFromUser is a no-op when the
-          // url/version is unchanged, so attendance toggles cost nothing.
-          avatarCache.primeMany(data);
-          CacheUtils.set(cacheKeys.current.servants, data);
-        },
-        () => { stopLoading(); if (isMounted.current) Alert.alert("Error", "Failed to load servants."); }
-      );
-    } catch (e) { stopLoading(); if (isMounted.current) Alert.alert("Error", e.message); }
+        servantsChurch = localUserData.church;
+        if (servantsUnsubscribe.current) servantsUnsubscribe.current();
+        servantsUnsubscribe.current = onSnapshot(
+          collection(
+            getFirestore(),
+            "churches",
+            localUserData.church,
+            "Servants Meeting"
+          ),
+          async (snapshot) => {
+            if (!isMounted.current) return;
+            const data = snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data() }));
+            setRawServantsData(data);
+            stopLoading();
+            // Adopt any photoURL already on these docs — no Storage request, and
+            // safe to call on every snapshot: primeFromUser is a no-op when the
+            // url/version is unchanged, so attendance toggles cost nothing.
+            avatarCache.primeMany(data);
+            CacheUtils.set(cacheKeys.current.servants, data);
+          },
+          () => { stopLoading(); if (isMounted.current) Alert.alert("Error", "Failed to load servants."); }
+        );
+      },
+      (e) => { stopLoading(); if (isMounted.current) Alert.alert("Error", e.message); }
+    );
   };
 
   // Pull-to-refresh: force a re-check for every servant in case a photo

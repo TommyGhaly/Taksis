@@ -258,47 +258,48 @@ const EditSchedule = () => {
 
   useEffect(() => {
     if (!churchId || !ready) return;
-    const fetchSchedules = async () => {
-      try {
-        const snapshot = await getDocs(
-          collection(getFirestore(), "churches", churchId, "schedule")
-        );
-        if (snapshot.empty) {
-          const today = new Date();
-          const nextSunday = getWeekStart(today);
-          if (nextSunday <= today) nextSunday.setDate(nextSunday.getDate() + 7);
-          setAvailableWeeks(generateWeeks(nextSunday, 5));
-          return;
-        }
+    const nextSundayFallback = () => {
+      const today = new Date();
+      const nextSunday = getWeekStart(today);
+      if (nextSunday <= today) nextSunday.setDate(nextSunday.getDate() + 7);
+      return generateWeeks(nextSunday, 5);
+    };
+    // Live, so a week the backend generates (or archives) while the editor is
+    // open shows up without leaving the screen. Weeks before today are
+    // ignored: the backend archives each one on its Sunday, so an older doc is
+    // a leftover the device's offline cache never saw deleted, and anchoring on
+    // it started the editor months in the past.
+    const unsub = onSnapshot(
+      collection(getFirestore(), "churches", churchId, "schedule"),
+      (snapshot) => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
         const scheduleDates = snapshot.docs
           .map((doc) => ({
             id: doc.id,
             date: parseDate(doc.id, DATE_FORMATS.SCHEDULE),
           }))
-          .filter((item) => item.date !== null)
+          .filter((item) => item.date !== null && item.date >= today)
           .sort((a, b) => a.date - b.date);
         if (scheduleDates.length === 0) {
-          const today = new Date();
-          const nextSunday = getWeekStart(today);
-          if (nextSunday <= today) nextSunday.setDate(nextSunday.getDate() + 7);
-          setAvailableWeeks(generateWeeks(nextSunday, 5));
-          return;
+          setAvailableWeeks(nextSundayFallback());
+        } else {
+          let earliestSunday = scheduleDates.find(
+            (d) => d.date.getDay() === 0,
+          )?.date;
+          if (!earliestSunday)
+            earliestSunday = getWeekStart(scheduleDates[0].date);
+          setAvailableWeeks(generateWeeks(earliestSunday, 5));
         }
-        let earliestSunday = scheduleDates.find(
-          (d) => d.date.getDay() === 0,
-        )?.date;
-        if (!earliestSunday)
-          earliestSunday = getWeekStart(scheduleDates[0].date);
-        setAvailableWeeks(generateWeeks(earliestSunday, 5));
-      } catch (err) {
+        setWeeksLoaded(true);
+      },
+      (err) => {
         console.error("Error fetching schedules:", err);
-        const today = new Date();
-        const nextSunday = getWeekStart(today);
-        if (nextSunday <= today) nextSunday.setDate(nextSunday.getDate() + 7);
-        setAvailableWeeks(generateWeeks(nextSunday, 5));
-      }
-    };
-    fetchSchedules().finally(() => setWeeksLoaded(true));
+        setAvailableWeeks(nextSundayFallback());
+        setWeeksLoaded(true);
+      },
+    );
+    return () => unsub();
   }, [churchId, ready]);
 
   useEffect(() => {
@@ -389,7 +390,8 @@ const EditSchedule = () => {
         } else {
           resetScheduleData();
         }
-      }
+      },
+      (err) => console.error("Error listening to schedule week:", err),
     );
     return () => {
       unsub();
