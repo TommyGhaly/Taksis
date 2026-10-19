@@ -36,6 +36,21 @@ import {
   isAttendanceDateKey,
   dateKeyToSortable,
 } from "../../utils/dateKeys";
+import { GRADES_LIST } from "../../utils/manualPeople";
+
+// Rosters that can take a student into *any* class, not only the ones the
+// servant serves. Both are promoted a grade by the Nayrouz job
+// (backend/functions/main.py `new_years_cleanup`), which is why the picker
+// warns against moving kids up by hand. College Youth Meeting is not here: its
+// groups are not grades and it keeps the served-groups-only picker.
+const ALL_CLASSES_BY_CATEGORY = {
+  "Sunday School": GRADES_LIST,
+  "Hymns Class": GRADES_LIST,
+};
+
+const NAYROUZ_NOTE =
+  "Every student moves up a grade automatically on Nayrouz (September 11). " +
+  "Only move a student who is in the wrong class, not one who is going up a year.";
 
 // On an iPad this screen sits in the centered column MainContainer wraps it
 // in, so the page itself just fills that. The modal card is capped on its
@@ -166,11 +181,29 @@ const IndividualAttendance = () => {
     );
   }, [editData, studentData]);
 
-  // Get available grades for transfer (exclude current grade)
-  const availableGrades = React.useMemo(
-    () => (userGrades ? userGrades.filter((g) => g !== grade) : []),
-    [userGrades, grade]
-  );
+  // Where the student can be moved: the servant's own classes first, then every
+  // other class on rosters that allow it. Moving into an "other" class takes the
+  // student off this servant's sheet, so those are kept apart and confirmed.
+  const allClasses = ALL_CLASSES_BY_CATEGORY[category];
+  const { yourGrades, otherGrades } = React.useMemo(() => {
+    const served = userGrades || [];
+    if (!allClasses) {
+      return { yourGrades: served.filter((g) => g !== grade), otherGrades: [] };
+    }
+    const servedSet = new Set(served);
+    return {
+      yourGrades: allClasses.filter((g) => g !== grade && servedSet.has(g)),
+      otherGrades: allClasses.filter((g) => g !== grade && !servedSet.has(g)),
+    };
+  }, [allClasses, userGrades, grade]);
+  const canMove = yourGrades.length + otherGrades.length > 0;
+  const selectedIsOther = otherGrades.includes(selectedNewGrade);
+
+  const closeMovePicker = () => {
+    if (transferringStudent) return;
+    setGradeChangeModalVisible(false);
+    setSelectedNewGrade("");
+  };
 
   // Set once the student's document has been moved out from under the listener
   // below, so its "document is gone" branch does not race the navigation the
@@ -458,6 +491,64 @@ const IndividualAttendance = () => {
     return `${num}${suffix} Grade`;
   };
 
+  const renderGradeOption = (g, isOther) => {
+    const selected = selectedNewGrade === g;
+    return (
+      <TouchableOpacity
+        key={g}
+        style={[
+          styles.gradeOption,
+          isOther && styles.otherGradeOption,
+          selected && (isOther ? styles.selectedOtherGradeOption : styles.selectedGradeOption),
+        ]}
+        onPress={() => setSelectedNewGrade(g)}
+        accessible={true}
+        accessibilityLabel={`Select ${formatGrade(g)}${isOther ? ", a class you don't serve" : ""}`}
+        accessibilityState={{ selected }}
+      >
+        <Text style={[styles.gradeOptionText, selected && styles.selectedGradeOptionText]}>
+          {formatGrade(g)}
+        </Text>
+        {isOther && (
+          <Text style={[styles.notYourClassTag, selected && styles.selectedGradeOptionText]}>
+            Not your class
+          </Text>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  // Every move is confirmed: it used to fire straight from the picker, and on
+  // these rosters a move is usually someone promoting a kid ahead of Nayrouz,
+  // which then promotes them a second time.
+  const confirmMove = () => {
+    if (transferringStudent || !selectedNewGrade) return;
+    const name = studentData.name || "this student";
+    const to = formatGrade(selectedNewGrade);
+    const lines = [];
+    if (selectedIsOther) {
+      lines.push(
+        `You don't serve ${to}. After the move, ${name} will no longer be on your ` +
+          "attendance sheet, and you won't be able to move them back."
+      );
+    }
+    lines.push(`Their attendance history moves with them.`);
+    if (allClasses) lines.push(NAYROUZ_NOTE);
+
+    Alert.alert(
+      selectedIsOther ? `Move to a class you don't serve?` : `Move ${name} to ${to}?`,
+      lines.join("\n\n"),
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: `Move to ${to}`,
+          style: selectedIsOther ? "destructive" : "default",
+          onPress: transferStudent,
+        },
+      ]
+    );
+  };
+
   // Transfer student to new grade
   const transferStudent = async () => {
     if (transferringStudent) return;
@@ -677,6 +768,27 @@ const IndividualAttendance = () => {
             ? `Grade: ${formatGrade(grade)} - Category: ${category}`
             : category}
         </Text>
+        {/* On the screen itself rather than at the bottom of the edit form,
+            where nobody looking for it would think to scroll. */}
+        {canMove && (
+          <TouchableOpacity
+            style={styles.gradeChangeButton}
+            onPress={() => setGradeChangeModalVisible(true)}
+            accessible={true}
+            accessibilityLabel="Move student to another class"
+          >
+            <Icon name="swap-horizontal" size={20} color="#4d9cff" />
+            <View style={styles.gradeChangeButtonTextGroup}>
+              <Text style={styles.gradeChangeButtonText}>
+                Move to Another Class
+              </Text>
+              <Text style={styles.gradeChangeButtonHint}>
+                For a student in the wrong class
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={22} color="#888" />
+          </TouchableOpacity>
+        )}
         <FlatList
           {...LIST_PERF}
           data={attendanceDataMemo}
@@ -700,10 +812,6 @@ const IndividualAttendance = () => {
         </TouchableOpacity>
       </View>
 
-      {/* The grade picker below is content of *this* modal, not a second one.
-          Stacked <Modal>s are where "Change Grade does nothing" came from: iOS
-          will not present from a view controller that is already presenting, so
-          the second modal was dropped and the tap looked dead. */}
       <Modal
         visible={modalVisible}
         transparent
@@ -712,12 +820,6 @@ const IndividualAttendance = () => {
         onRequestClose={() => {
           // Android hardware back. Peel one layer at a time, top-most first.
           if (photoInputVisible) return closePhotoInputModal();
-          if (gradeChangeModalVisible) {
-            if (transferringStudent) return;
-            setGradeChangeModalVisible(false);
-            setSelectedNewGrade("");
-            return;
-          }
           handleModalClose();
         }}
       >
@@ -900,27 +1002,6 @@ const IndividualAttendance = () => {
                     />
                   </Field>
 
-                  {/* Grade Change Button - only show if there are available grades to move to */}
-                  {availableGrades && availableGrades.length > 0 && (
-                    <TouchableOpacity
-                      style={styles.gradeChangeButton}
-                      onPress={() => setGradeChangeModalVisible(true)}
-                      accessible={true}
-                      accessibilityLabel="Move student to a different grade"
-                    >
-                      <Icon name="swap-horizontal" size={20} color="#4d9cff" />
-                      <View style={styles.gradeChangeButtonTextGroup}>
-                        <Text style={styles.gradeChangeButtonText}>
-                          Move to a Different Grade
-                        </Text>
-                        <Text style={styles.gradeChangeButtonHint}>
-                          Currently in {formatGrade(grade)}
-                        </Text>
-                      </View>
-                      <Icon name="chevron-right" size={22} color="#888" />
-                    </TouchableOpacity>
-                  )}
-
                   <LinearGradient
                     colors={["#147efb", "#0f64d2"]}
                     style={styles.modalButton}
@@ -1052,116 +1133,9 @@ const IndividualAttendance = () => {
           </LinearGradient>
         </KeyboardAvoidingView>
 
-        {/* Grade change: same card, same styles, laid over the edit form. */}
-        {gradeChangeModalVisible && (
-          <TouchableOpacity
-            style={[styles.modalContainer, StyleSheet.absoluteFill]}
-            activeOpacity={1}
-            onPress={() => {
-              if (transferringStudent) return;
-              setGradeChangeModalVisible(false);
-              setSelectedNewGrade("");
-            }}
-          >
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-              style={styles.gradeChangeModalWrapper}
-            >
-              {/* Sized, so the card's own width/maxHeight percentages have a
-                  definite parent to resolve against instead of collapsing to
-                  content size. */}
-              <TouchableOpacity activeOpacity={1} style={styles.gradeChangeCardHost}>
-                <LinearGradient
-                  colors={["#1e1e1e", "#2a2a2a"]}
-                  style={[styles.gradeChangeModalContent]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Text style={styles.modalTitle}>Change Grade</Text>
-                  <Text style={styles.gradeChangeSubtitle}>
-                    Move {studentData.name} from {formatGrade(grade)} to:
-                  </Text>
-
-                  <ScrollView
-                    style={styles.gradeOptionsScrollView}
-                    contentContainerStyle={styles.gradeOptionsContainer}
-                    showsVerticalScrollIndicator={false}
-                  >
-                    {availableGrades.map((availableGrade) => (
-                      <TouchableOpacity
-                        key={availableGrade}
-                        style={[
-                          styles.gradeOption,
-                          selectedNewGrade === availableGrade &&
-                            styles.selectedGradeOption,
-                        ]}
-                        onPress={() => setSelectedNewGrade(availableGrade)}
-                        accessible={true}
-                        accessibilityLabel={`Select ${formatGrade(availableGrade)}`}
-                      >
-                        <Text
-                          style={[
-                            styles.gradeOptionText,
-                            selectedNewGrade === availableGrade &&
-                              styles.selectedGradeOptionText,
-                          ]}
-                        >
-                          {formatGrade(availableGrade)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-
-                  <Text style={styles.warningText}>
-                    ⚠️ This will move all attendance data to the new grade
-                  </Text>
-
-                  <View style={styles.gradeChangeButtonsContainer}>
-                    <LinearGradient
-                      colors={["#147efb", "#0f64d2"]}
-                      style={[
-                        styles.modalButton,
-                        { opacity: transferringStudent ? 0.6 : 1 },
-                      ]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                    >
-                      <TouchableOpacity
-                        onPress={transferStudent}
-                        style={styles.buttonInner}
-                        disabled={transferringStudent || !selectedNewGrade}
-                        accessible={true}
-                        accessibilityLabel="Confirm grade change"
-                      >
-                        {transferringStudent ? (
-                          <Text style={styles.modalButtonText}>Moving...</Text>
-                        ) : (
-                          <Text style={styles.modalButtonText}>Move Student</Text>
-                        )}
-                      </TouchableOpacity>
-                    </LinearGradient>
-
-                    <TouchableOpacity
-                      onPress={() => {
-                        setGradeChangeModalVisible(false);
-                        setSelectedNewGrade("");
-                      }}
-                      disabled={transferringStudent}
-                      accessible={true}
-                      accessibilityLabel="Cancel grade change"
-                    >
-                      <Text style={styles.cancelButtonText}>Cancel</Text>
-                    </TouchableOpacity>
-                  </View>
-                </LinearGradient>
-              </TouchableOpacity>
-            </KeyboardAvoidingView>
-          </TouchableOpacity>
-        )}
-
-        {/* Same reason as the grade picker above: the photo card is content of
-            *this* modal (`inline`), not a second <Modal>. Stacked, it was never
-            presented at all — "Change Profile Picture" opened nothing. */}
+        {/* The photo card is content of *this* modal (`inline`), not a second
+            <Modal>. Stacked, iOS never presented it — "Change Profile Picture"
+            opened nothing. */}
         <PhotoInput
           inline
           visible={photoInputVisible}
@@ -1169,6 +1143,128 @@ const IndividualAttendance = () => {
           onUploadSuccess={handlePhotoUploaded}
           userId={studentId}
         />
+      </Modal>
+
+      {/* Its own <Modal> now that the button lives on the screen, not inside
+          the edit form: only one of the two is ever up at a time, so nothing
+          stacks. onDismiss is wired for the same reason as the one above — the
+          success alert waits on closeModalThen. */}
+      <Modal
+        visible={gradeChangeModalVisible}
+        transparent
+        animationType="fade"
+        onDismiss={runAfterClose}
+        onRequestClose={closeMovePicker}
+      >
+        <TouchableOpacity
+          style={styles.modalContainer}
+          activeOpacity={1}
+          onPress={closeMovePicker}
+        >
+          {/* Sized, so the card's own width/maxHeight percentages have a
+              definite parent to resolve against instead of collapsing to
+              content size. */}
+          <TouchableOpacity activeOpacity={1} style={styles.gradeChangeCardHost}>
+            <LinearGradient
+              colors={["#1e1e1e", "#2a2a2a"]}
+              style={styles.gradeChangeModalContent}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Text style={styles.modalTitle}>Move to Another Class</Text>
+              <Text style={styles.gradeChangeSubtitle}>
+                {studentData.name || "This student"} is in {formatGrade(grade)} now.
+              </Text>
+
+              {allClasses && (
+                <View style={styles.nayrouzBanner}>
+                  <Icon name="calendar-alert" size={18} color="#ffb74d" />
+                  <Text style={styles.nayrouzBannerText}>{NAYROUZ_NOTE}</Text>
+                </View>
+              )}
+
+              <ScrollView
+                style={styles.gradeOptionsScrollView}
+                contentContainerStyle={styles.gradeOptionsContainer}
+                showsVerticalScrollIndicator={false}
+              >
+                {yourGrades.length > 0 && (
+                  <Text style={styles.gradeSectionHeader}>Your classes</Text>
+                )}
+                {yourGrades.map((g) => renderGradeOption(g, false))}
+                {otherGrades.length > 0 && (
+                  <>
+                    <Text style={styles.gradeSectionHeader}>Other classes</Text>
+                    <Text style={styles.gradeSectionHint}>
+                      You don't serve these. A student moved here leaves your
+                      attendance sheet.
+                    </Text>
+                  </>
+                )}
+                {otherGrades.map((g) => renderGradeOption(g, true))}
+              </ScrollView>
+
+              {selectedIsOther && (
+                <Text style={styles.warningText}>
+                  ⚠️ You don't serve {formatGrade(selectedNewGrade)}. You won't
+                  see {studentData.name || "this student"} after the move.
+                </Text>
+              )}
+
+              <View style={styles.gradeChangeButtonsContainer}>
+                <LinearGradient
+                  colors={
+                    selectedIsOther ? ["#e5892b", "#c96f14"] : ["#147efb", "#0f64d2"]
+                  }
+                  style={[
+                    styles.modalButton,
+                    {
+                      opacity:
+                        transferringStudent || !selectedNewGrade ? 0.5 : 1,
+                    },
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <TouchableOpacity
+                    onPress={confirmMove}
+                    style={styles.buttonInner}
+                    disabled={transferringStudent || !selectedNewGrade}
+                    accessible={true}
+                    accessibilityLabel="Move student"
+                  >
+                    {transferringStudent ? (
+                      <>
+                        <ActivityIndicator size="small" color="#fff" />
+                        <Text
+                          style={[styles.modalButtonText, styles.buttonTextWithIcon]}
+                        >
+                          Moving...
+                        </Text>
+                      </>
+                    ) : (
+                      <Text style={styles.modalButtonText}>
+                        {selectedNewGrade
+                          ? `Move to ${formatGrade(selectedNewGrade)}`
+                          : "Pick a class"}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </LinearGradient>
+
+                <TouchableOpacity
+                  onPress={closeMovePicker}
+                  style={styles.secondaryButton}
+                  disabled={transferringStudent}
+                  accessible={true}
+                  accessibilityLabel="Cancel moving student"
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </View>
   );
@@ -1560,12 +1656,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   },
-  gradeChangeModalWrapper: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
   gradeChangeCardHost: {
     width: "100%",
     maxHeight: "100%",
@@ -1589,12 +1679,12 @@ const styles = StyleSheet.create({
     color: "#ccc",
     fontSize: 16,
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 12,
     lineHeight: 22,
   },
   gradeOptionsContainer: {
     width: "100%",
-    paddingBottom: 20,
+    paddingBottom: 12,
   },
   gradeOption: {
     backgroundColor: "#2a2a2a",
@@ -1622,8 +1712,55 @@ const styles = StyleSheet.create({
     color: "#ffa500",
     fontSize: 14,
     textAlign: "center",
-    marginBottom: 20,
-    fontStyle: "italic",
+    marginBottom: 14,
+    lineHeight: 19,
+  },
+  nayrouzBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    width: "100%",
+    backgroundColor: "rgba(255,183,77,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,183,77,0.4)",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+  },
+  nayrouzBannerText: {
+    flex: 1,
+    color: "#ffd59a",
+    fontSize: 13,
+    lineHeight: 18,
+    marginLeft: 8,
+  },
+  gradeSectionHeader: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginTop: 10,
+    marginBottom: 2,
+  },
+  gradeSectionHint: {
+    color: "#9a9a9a",
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 4,
+  },
+  otherGradeOption: {
+    borderStyle: "dashed",
+  },
+  selectedOtherGradeOption: {
+    backgroundColor: "#c96f14",
+    borderColor: "#e5892b",
+    borderStyle: "solid",
+  },
+  notYourClassTag: {
+    color: "#ffb74d",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 2,
   },
   gradeChangeButtonsContainer: {
     width: "100%",
