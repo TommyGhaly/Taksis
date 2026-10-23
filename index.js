@@ -10,6 +10,12 @@ import { enableFreeze, enableScreens } from 'react-native-screens';
 enableScreens(true);
 enableFreeze(true);
 
+// Creating the Crashlytics instance installs its JS error handler, so fatal JS
+// errors are reported along with native crashes. Done before App loads so
+// errors raised while App's modules initialize are caught too.
+import { getCrashlytics } from '@react-native-firebase/crashlytics';
+getCrashlytics();
+
 import { registerRootComponent } from 'expo';
 
 import App from './App';

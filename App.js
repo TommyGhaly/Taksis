@@ -11,6 +11,7 @@ import {
   getFirestore,
   setDoc,
 } from "@react-native-firebase/firestore";
+import { getCrashlytics, setUserId } from "@react-native-firebase/crashlytics";
 import NetInfo from "@react-native-community/netinfo";
 import { UserProvider, useUser } from "./UserContext";
 import { initializeCacheManager } from "./utils/cacheManager";
@@ -111,6 +112,8 @@ function AppNavigator() {
 
   useEffect(() => {
     const subscriber = onAuthStateChanged(getAuth(), async (user) => {
+      // Tag crash reports with the account so a crash can be traced to its data.
+      setUserId(getCrashlytics(), user?.uid ?? "").catch(() => {});
       // Check if user needs to complete sign up BEFORE setting user state
       if (!user) {
         // No user logged in, needs sign up

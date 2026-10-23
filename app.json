@@ -30,6 +30,7 @@
       ],
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
+      "@react-native-firebase/crashlytics",
       "@react-native-google-signin/google-signin",
       [
         "expo-camera",
@@ -53,7 +54,8 @@
             "minSdkVersion": 24,
             "android16KbPageSize": true,
             "enableProguardInReleaseBuilds": true,
-            "enableShrinkResourcesInReleaseBuilds": true
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "# Expo looks up its headless app loader by name (Class.forName from manifest meta-data).\n-keep class * implements expo.modules.apploader.HeadlessAppLoader { *; }\n# Keep file names and line numbers in Crashlytics stack traces.\n-keepattributes SourceFile,LineNumberTable\n-keep public class * extends java.lang.Exception"
           }
         }
       ],
@@ -89,7 +91,7 @@
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.tghaly.taksis",
-      "versionCode": 72,
+      "versionCode": 74,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
