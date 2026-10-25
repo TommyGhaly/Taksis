@@ -139,6 +139,8 @@ except ImportError as e:
 # Initialize Firebase Admin SDK
 initialize_app()
 
+from student_roster_export import export_student_roster
+
 # Microsoft (SPSM) sign-in code exchange. Imported unguarded, unlike the modules
 # above: if this failed to load the endpoint would silently not deploy and
 # sign-in would break with nothing in the logs to explain it.
@@ -925,6 +927,14 @@ def new_years_cleanup(event: scheduler_fn.ScheduledEvent) -> None:
     Annual job: Promotes students to next grade level.
     Runs September 11 to align with Coptic new year.
     """
+    # Snapshot the roster before promotion rewrites every class. A failed
+    # upload must not hold back the promotion itself.
+    try:
+        count, url = export_student_roster()
+        logging.info(f"Student roster snapshot: {count} students -> {url}")
+    except Exception:
+        logging.exception("Student roster snapshot failed")
+
     db = firestore.Client()
     church_count = 0
 
