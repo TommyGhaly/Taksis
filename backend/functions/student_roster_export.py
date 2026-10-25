@@ -1,7 +1,7 @@
 """
 Student roster snapshot: every Sunday School student's profile (name,
 birthday, phone, address, notes) in one workbook, one worksheet per grade,
-plus Coming Up / All Birthdays worksheets, uploaded to the church's SharePoint
+each with an Upcoming Birthdays section, uploaded to the church's SharePoint
 (Teams) drive.
 
 Each run writes a new, date-stamped file rather than overwriting the last
@@ -44,19 +44,9 @@ COLUMNS = [
     ("Notes", "description", 40),
 ]
 
-COMING_UP_COLUMNS = [
-    ("Name", 28),
-    ("Grade", 20),
+UPCOMING_COLUMNS = [
+    ("Upcoming Birthdays", 28),
     ("Birthday", 14),
-    ("Days Until", 12),
-    ("Turning", 10),
-]
-
-BIRTHDAY_COLUMNS = [
-    ("Name", 28),
-    ("Grade", 20),
-    ("Birthday", 14),
-    ("Next Birthday", 16),
     ("Days Until", 12),
     ("Turning", 10),
 ]
@@ -64,7 +54,6 @@ BIRTHDAY_COLUMNS = [
 DATE_FORMAT = "mm/dd/yyyy"
 FONT = "Arial"
 SOON_DAYS = 30
-COMING_UP_COUNT = 15
 DAYS_FORMAT = '[=0]"Today";0'
 SOON_FILL = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
 
@@ -112,134 +101,92 @@ def fetch_students(grade_ref):
     )
 
 
-def add_sheet(wb, title, columns, index=None):
-    """A worksheet with a bold, frozen header row and set column widths."""
-    ws = wb.create_sheet(title, index)
-    ws.append([column[0] for column in columns])
-    for cell in ws[1]:
+def style_header(ws, columns, first_col=1):
+    for i, (title, width) in enumerate(columns, start=first_col):
+        cell = ws.cell(1, i, title)
         cell.font = Font(name=FONT, bold=True)
+        ws.column_dimensions[get_column_letter(i)].width = width
+
+
+def add_grade_sheet(wb, grade, students):
+    """
+    One grade's worksheet: the student list in A:E, and beside it an
+    Upcoming Birthdays section listing the grade's birthdays soonest first.
+
+    The section is ordered by formula off TODAY() (SMALL/MATCH over hidden
+    helper columns), not sorted at export time, so it still shows the next
+    birthdays when the file is opened months later. Birthdays within
+    SOON_DAYS are highlighted; one falling on the day shows "Today".
+    """
+    ws = wb.create_sheet(grade)
+    style_header(ws, [(title, width) for title, _, width in COLUMNS])
     ws.freeze_panes = "A2"
-    for i, column in enumerate(columns, start=1):
-        ws.column_dimensions[get_column_letter(i)].width = column[-1]
-    return ws
 
+    dated = 0
+    for r, data in enumerate(students, start=2):
+        row = [str(data.get(key) or "") for _, key, _ in COLUMNS]
+        # Unparseable birthdays stay as typed rather than being dropped.
+        birthday = parse_birthday(data.get("birthday"))
+        if birthday:
+            row[1] = birthday
+            dated += 1
+        for c, value in enumerate(row, start=1):
+            ws.cell(r, c, value)
+        ws.cell(r, 2).number_format = DATE_FORMAT
 
-def days_until(birthday, today):
-    """
-    Days from today to the next birthday. Feb 29 falls on Mar 1 in other
-    years, matching what Excel's DATE() does in the sheet's formulas.
-    """
-    for year in (today.year, today.year + 1):
-        try:
-            upcoming = birthday.replace(year=year)
-        except ValueError:
-            upcoming = datetime.date(year, 3, 1)
-        if upcoming >= today:
-            return (upcoming - today).days
+        # Hidden helpers L:M: days to the next birthday, and a per-row unique
+        # sort key (SMALL skips the "" left for students with no birthday).
+        this_year = f"DATE(YEAR(TODAY()),MONTH(B{r}),DAY(B{r}))"
+        ws.cell(r, 12, (
+            f"=IF(ISNUMBER(B{r}),DATE(YEAR(TODAY())+IF({this_year}<TODAY(),1,0),"
+            f'MONTH(B{r}),DAY(B{r}))-TODAY(),"")'
+        ))
+        ws.cell(r, 13, f'=IF(ISNUMBER(L{r}),L{r}+ROW()/100000,"")')
 
+    last = max(len(students) + 1, 2)
+    ws.auto_filter.ref = f"A1:E{last}"
 
-def add_birthday_sheets(wb, birthdays):
-    """
-    Two worksheets in front of the grades:
-
-    - All Birthdays: every dated birthday, soonest first as of the export.
-      Next Birthday, Days Until and Turning are formulas off TODAY(), so they
-      stay right whenever the file is opened, not just on the export date.
-    - Coming Up: the next COMING_UP_COUNT birthdays, picked by formula from
-      All Birthdays, so it is still the *next* ones months after the export,
-      when the static order of All Birthdays has drifted.
-
-    Birthdays within SOON_DAYS are highlighted on both.
-    """
-    today = datetime.date.today()
-    birthdays.sort(key=lambda b: (days_until(b[2], today), b[0].lower()))
-    last = len(birthdays) + 1
-
-    ws = add_sheet(wb, "All Birthdays", BIRTHDAY_COLUMNS, index=0)
-    for r, (name, grade, birthday) in enumerate(birthdays, start=2):
-        this_year = f"DATE(YEAR(TODAY()),MONTH(C{r}),DAY(C{r}))"
-        ws.append([
-            name,
-            grade,
-            birthday,
-            f"=DATE(YEAR(TODAY())+IF({this_year}<TODAY(),1,0),MONTH(C{r}),DAY(C{r}))",
-            f"=D{r}-TODAY()",
-            f"=YEAR(D{r})-YEAR(C{r})",
-            # Hidden tiebreak key, unique per row, for Coming Up's SMALL/MATCH.
-            f"=E{r}+ROW()/100000",
-        ])
-        ws.cell(r, 3).number_format = DATE_FORMAT
-        ws.cell(r, 4).number_format = DATE_FORMAT
-        ws.cell(r, 5).number_format = DAYS_FORMAT
-        ws.cell(r, 6).number_format = "0"
-    ws.column_dimensions["G"].hidden = True
-    ws.conditional_formatting.add(
-        f"A2:F{last}",
-        FormulaRule(formula=[f"$E2<={SOON_DAYS}"], fill=SOON_FILL),
-    )
-    ws.auto_filter.ref = f"A1:F{last}"
-
-    source = "'All Birthdays'!"
-    keys = f"{source}$G$2:$G${last}"
-    coming = add_sheet(wb, "Coming Up", COMING_UP_COLUMNS, index=0)
-    for k in range(1, min(COMING_UP_COUNT, len(birthdays)) + 1):
+    style_header(ws, UPCOMING_COLUMNS, first_col=7)
+    keys = f"$M$2:$M${last}"
+    for k in range(1, dated + 1):
         r = k + 1
-        # Column H (hidden) holds the matched row within All Birthdays.
-        pick = lambda col: f"=INDEX({source}${col}$2:${col}${last},$H{r})"
-        coming.append([
-            pick("A"), pick("B"), pick("C"), pick("E"), pick("F"), None, None,
-            f"=MATCH(SMALL({keys},{k}),{keys},0)",
-        ])
-        coming.cell(r, 3).number_format = DATE_FORMAT
-        coming.cell(r, 4).number_format = DAYS_FORMAT
-        coming.cell(r, 5).number_format = "0"
-    coming.column_dimensions["H"].hidden = True
-    coming.conditional_formatting.add(
-        f"A2:E{COMING_UP_COUNT + 1}",
-        FormulaRule(formula=[f"$D2<={SOON_DAYS}"], fill=SOON_FILL),
-    )
+        # Hidden K: which student row holds the k-th soonest birthday.
+        ws.cell(r, 11, f"=MATCH(SMALL({keys},{k}),{keys},0)")
+        ws.cell(r, 7, f"=INDEX($A$2:$A${last},$K{r})")
+        ws.cell(r, 8, f"=INDEX($B$2:$B${last},$K{r})").number_format = DATE_FORMAT
+        ws.cell(r, 9, f"=INDEX($L$2:$L${last},$K{r})").number_format = DAYS_FORMAT
+        ws.cell(r, 10, f"=YEAR(TODAY()+I{r})-YEAR(H{r})").number_format = "0"
+    if dated:
+        ws.conditional_formatting.add(
+            f"G2:J{dated + 1}",
+            FormulaRule(formula=[f"$I2<={SOON_DAYS}"], fill=SOON_FILL),
+        )
+    else:
+        ws.cell(2, 7, "No birthdays on file").font = Font(name=FONT, italic=True)
 
-    note = coming.cell(1, len(COMING_UP_COLUMNS) + 2)
-    note.value = (
-        f"The next {COMING_UP_COUNT} birthdays, updated whenever the file is "
-        f"opened. Highlighted: within {SOON_DAYS} days. Full list on All Birthdays."
-    )
+    for col in "KLM":
+        ws.column_dimensions[col].hidden = True
+
+    note = ws.cell(dated + 3, 7, f"Highlighted: within {SOON_DAYS} days. Updates when opened.")
     note.font = Font(name=FONT, italic=True)
+    return len(students)
 
 
 def build_workbook(church_ref, path):
-    """
-    Write Coming Up and All Birthdays worksheets, then one worksheet per
-    Sunday School grade. Returns the student count.
-    """
+    """Write one worksheet per Sunday School grade. Returns the student count."""
     wb = Workbook()
     wb.remove(wb.active)
-    total = 0
-    birthdays = []
     sunday_school = church_ref.collection("Sunday School")
-
-    for grade in GRADES:
-        ws = add_sheet(wb, grade, COLUMNS)
-
-        for data in fetch_students(sunday_school.document(grade)):
-            row = [str(data.get(key) or "") for _, key, _ in COLUMNS]
-            # Unparseable birthdays stay as typed rather than being dropped.
-            birthday = parse_birthday(data.get("birthday"))
-            if birthday:
-                row[1] = birthday
-                birthdays.append((data["name"], grade, birthday))
-            ws.append(row)
-            ws.cell(ws.max_row, 2).number_format = DATE_FORMAT
-            total += 1
-
-        ws.auto_filter.ref = ws.dimensions
-
-    add_birthday_sheets(wb, birthdays)
+    total = sum(
+        add_grade_sheet(wb, grade, fetch_students(sunday_school.document(grade)))
+        for grade in GRADES
+    )
 
     for ws in wb.worksheets:
         for row in ws.iter_rows(min_row=2):
             for cell in row:
-                cell.font = Font(name=FONT)
+                if cell.font.name != FONT:
+                    cell.font = Font(name=FONT, italic=cell.font.italic)
 
     wb.save(path)
     return total
