@@ -1,6 +1,6 @@
 """
-Student roster snapshot: every Sunday School and Hymns Class student's
-profile (name, class, birthday, phone, address, notes) in one workbook,
+Student roster snapshot: every Sunday School student's profile (name,
+birthday, phone, address, notes) in one workbook, one worksheet per grade,
 uploaded to the church's SharePoint (Teams) drive.
 
 Each run writes a new, date-stamped file rather than overwriting the last
@@ -30,14 +30,11 @@ from attendance_sheets import (
     initialize_firebase,
 )
 
-CLASSES = ["Sunday School", "Hymns Class"]
-
 SHAREPOINT_FOLDER = "General/Student Records"
 FILE_NAME = "Student Roster %s.xlsx"
 
 COLUMNS = [
     ("Name", "name", 28),
-    ("Class", None, 20),
     ("Birthday", "birthday", 14),
     ("Phone", "phone", 18),
     ("Address", "address", 40),
@@ -45,33 +42,24 @@ COLUMNS = [
 ]
 
 
-def class_sort_key(class_name):
-    """Grades in school order, then anything else (Hymns time slots) by name."""
-    if class_name in GRADES:
-        return (0, GRADES.index(class_name), "")
-    return (1, 0, class_name)
-
-
-def fetch_students(church_ref, collection_name):
-    """Return [(class_name, student_dict)] in class order, then by name."""
-    rows = []
-    for class_doc in church_ref.collection(collection_name).list_documents():
-        for student in class_doc.collection("students").stream():
-            data = student.to_dict() or {}
-            if data.get("name"):
-                rows.append((class_doc.id, data))
-    rows.sort(key=lambda r: (class_sort_key(r[0]), r[1]["name"].lower()))
-    return rows
+def fetch_students(grade_ref):
+    """Return the grade's student dicts, sorted by name."""
+    students = [s.to_dict() or {} for s in grade_ref.collection("students").stream()]
+    return sorted(
+        (s for s in students if s.get("name")),
+        key=lambda s: s["name"].lower(),
+    )
 
 
 def build_workbook(church_ref, path):
-    """Write one worksheet per class collection. Returns the student count."""
+    """Write one worksheet per Sunday School grade. Returns the student count."""
     wb = Workbook()
     wb.remove(wb.active)
     total = 0
+    sunday_school = church_ref.collection("Sunday School")
 
-    for collection_name in CLASSES:
-        ws = wb.create_sheet(collection_name)
+    for grade in GRADES:
+        ws = wb.create_sheet(grade)
         ws.append([title for title, _, _ in COLUMNS])
         for cell in ws[1]:
             cell.font = Font(bold=True)
@@ -79,11 +67,8 @@ def build_workbook(church_ref, path):
         for i, (_, _, width) in enumerate(COLUMNS, start=1):
             ws.column_dimensions[get_column_letter(i)].width = width
 
-        for class_name, data in fetch_students(church_ref, collection_name):
-            ws.append([
-                class_name if key is None else str(data.get(key) or "")
-                for _, key, _ in COLUMNS
-            ])
+        for data in fetch_students(sunday_school.document(grade)):
+            ws.append([str(data.get(key) or "") for _, key, _ in COLUMNS])
             total += 1
 
         ws.auto_filter.ref = ws.dimensions
