@@ -100,3 +100,5 @@ credentials.json
 .claude
 .agents
 .firebase
+# Release JS source maps, kept per build by scripts/archive-sourcemaps.sh
+sourcemaps/

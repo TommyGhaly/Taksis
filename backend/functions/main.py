@@ -1322,3 +1322,38 @@ def sync_all_users(req: https_fn.Request) -> https_fn.Response:
     return https_fn.Response("All users synced successfully", status=200)
             
         
+
+# Crash reports from the app (utils/crashReporter.js). Open on purpose: the
+# crashes worth catching most happen before sign-in, e.g. during Play review.
+# Fields are allow-listed and size-capped so the endpoint stores nothing else.
+_CRASH_FIELDS = {
+    "message": 2000, "stack": 20000, "componentStack": 10000, "source": 50,
+    "screen": 200, "uid": 128, "occurredAt": 64, "platform": 20,
+    "osVersion": 50, "appVersion": 50, "build": 50, "device": 200,
+}
+
+@https_fn.on_request()
+def report_crash(req: https_fn.Request) -> https_fn.Response:
+    """Stores one crash report in the crashReports collection."""
+    if req.method != "POST":
+        return https_fn.Response("POST only", status=405)
+    if (req.content_length or 0) > 100_000:
+        return https_fn.Response("Report too large", status=413)
+    data = req.get_json(silent=True)
+    if not isinstance(data, dict):
+        return https_fn.Response("Missing JSON body", status=400)
+
+    report = {
+        key: str(data.get(key, ""))[:limit] for key, limit in _CRASH_FIELDS.items()
+    }
+    report["fatal"] = bool(data.get("fatal"))
+    report["hermes"] = bool(data.get("hermes"))
+    report["delayed"] = bool(data.get("delayed"))
+    crumbs = data.get("breadcrumbs")
+    report["breadcrumbs"] = (
+        [str(c)[:500] for c in crumbs[-60:]] if isinstance(crumbs, list) else []
+    )
+    report["receivedAt"] = firestore.SERVER_TIMESTAMP
+
+    firestore.Client().collection("crashReports").add(report)
+    return https_fn.Response("ok", status=200)

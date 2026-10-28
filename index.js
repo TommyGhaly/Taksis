@@ -16,6 +16,11 @@ enableFreeze(true);
 import { getCrashlytics } from '@react-native-firebase/crashlytics';
 getCrashlytics();
 
+// Wraps Crashlytics' handler so a fatal JS error is sent before the app exits
+// instead of waiting for a next launch that may never come.
+import { installCrashReporter } from './utils/crashReporter';
+installCrashReporter();
+
 import { registerRootComponent } from 'expo';
 
 import App from './App';

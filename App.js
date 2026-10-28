@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { LogBox } from "react-native";
 import { StyleSheet, Text, View, ScrollView, RefreshControl } from "react-native";
-import { NavigationContainer } from "@react-navigation/native";
+import {
+  NavigationContainer,
+  useNavigationContainerRef,
+} from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { getAuth, onAuthStateChanged, updateProfile } from "@react-native-firebase/auth";
 import {
@@ -12,6 +15,8 @@ import {
   setDoc,
 } from "@react-native-firebase/firestore";
 import { getCrashlytics, setUserId } from "@react-native-firebase/crashlytics";
+import { breadcrumb, setCurrentScreen } from "./utils/crashReporter";
+import CrashBoundary from "./components/CrashBoundary";
 import NetInfo from "@react-native-community/netinfo";
 import { UserProvider, useUser } from "./UserContext";
 import { initializeCacheManager } from "./utils/cacheManager";
@@ -103,6 +108,11 @@ function AppNavigator() {
   const { user, setUser, signUp, setSignUp } = useUser();
   const [initializing, setInitializing] = useState(true);
   const [cacheInitialized, setCacheInitialized] = useState(false);
+  const navigationRef = useNavigationContainerRef();
+  // Every screen change becomes a breadcrumb, so a crash report says where
+  // the user was and how they got there.
+  const trackScreen = () =>
+    setCurrentScreen(navigationRef.getCurrentRoute()?.name);
 
   // Universal links (the App Clip URLs) open the installed app instead of the
   // clip, so they have to be handled here. Started above the auth gate on
@@ -114,6 +124,7 @@ function AppNavigator() {
     const subscriber = onAuthStateChanged(getAuth(), async (user) => {
       // Tag crash reports with the account so a crash can be traced to its data.
       setUserId(getCrashlytics(), user?.uid ?? "").catch(() => {});
+      breadcrumb(user ? `signed in ${user.uid}` : "signed out");
       // Check if user needs to complete sign up BEFORE setting user state
       if (!user) {
         // No user logged in, needs sign up
@@ -217,7 +228,12 @@ function AppNavigator() {
   if (initializing) return <LoadingWheel />;
 
   return (
-    <NavigationContainer style={styles.container}>
+    <NavigationContainer
+      ref={navigationRef}
+      style={styles.container}
+      onReady={trackScreen}
+      onStateChange={trackScreen}
+    >
       <Stack.Navigator
         initialRouteName={(!user ? "Welcome" : (!signUp? "MainContainer" : "InputPhoto"))}
         screenOptions={{ headerShown: false, animation: "none" }}
@@ -312,11 +328,13 @@ function AppNavigator() {
 export default function App() {
   // Removed cache initialization from here
   return (
-    <UserProvider>
-      <NetworkWrapper>
-        <AppNavigator />
-      </NetworkWrapper>
-    </UserProvider>
+    <CrashBoundary>
+      <UserProvider>
+        <NetworkWrapper>
+          <AppNavigator />
+        </NetworkWrapper>
+      </UserProvider>
+    </CrashBoundary>
   );
 }
 
