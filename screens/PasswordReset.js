@@ -23,7 +23,7 @@ const PasswordReset = ({ navigation }) => {
     }
 
     // Send a password reset email using react-native-firebase Auth
-    sendPasswordResetEmail(getAuth(), email)
+    sendPasswordResetEmail(getAuth(), email.trim())
       .then(() => {
         Alert.alert(
           "Success",

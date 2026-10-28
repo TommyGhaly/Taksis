@@ -117,7 +117,8 @@ const SignIn = ({ navigation }) => {
     if (!email || !password) return;
     setLoading("email");
     try {
-      await signInWithEmailAndPassword(getAuth(), email, password);
+      // Android keyboards append a space after a suggested email
+      await signInWithEmailAndPassword(getAuth(), email.trim(), password);
     } catch (e) {
       Alert.alert("Sign-in failed", e.message);
     } finally {

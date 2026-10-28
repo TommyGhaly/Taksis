@@ -130,7 +130,7 @@ const SignUp = ({ navigation }) => {
     }
     if (touched.email) {
       if (!email) errs.email = "Required";
-      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Enter a valid email";
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errs.email = "Enter a valid email";
     }
     if (touched.password) {
       if (!password) errs.password = "Required";
@@ -145,7 +145,7 @@ const SignUp = ({ navigation }) => {
 
   const isValid =
     name.trim().split(/\s+/).filter(Boolean).length >= 2 &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
     password.length >= 8 &&
     confirmPassword === password;
 
@@ -170,7 +170,7 @@ const SignUp = ({ navigation }) => {
     if (!isValid) return;
     setLoading("email");
     try {
-      const userCredential = await createUserWithEmailAndPassword(getAuth(), email, password);
+      const userCredential = await createUserWithEmailAndPassword(getAuth(), email.trim(), password);
       const user = userCredential.user;
       if (user) {
         await writeUserToDb(user, name);
