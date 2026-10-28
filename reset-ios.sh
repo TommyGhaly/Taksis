@@ -65,7 +65,7 @@ if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
   # Read back: a sed that matched nothing looks exactly like a successful edit.
   WROTE=$(grep -o '"version": "[^"]*"' app.json | head -1 | sed 's/.*: "\(.*\)"/\1/')
   [ "$WROTE" = "$NEW_VERSION" ] || fail "Tried to set version $NEW_VERSION, app.json still reads $WROTE."
-  echo "   ✓ version $CURRENT_VERSION → $NEW_VERSION (commit app.json with the release)"
+  echo "   ✓ version $CURRENT_VERSION → $NEW_VERSION (committed and pushed once the project verifies)"
 else
   echo "   ✓ keeping version $CURRENT_VERSION"
 fi
@@ -172,6 +172,23 @@ CLIP_B=$(xcodebuild -project ios/app.xcodeproj -target TaksisClip -configuration
 
 echo "   ✓ Firebase configured, App Clip target + scheme + entitlements present, fmt patched"
 echo "   ✓ app and clip both at $APP_V ($APP_B)"
+
+# ── Commit and push the version ──────────────────────────────────────────────
+#
+# Only after verification: a project that failed to generate never gets
+# archived, so its version is not released. Only app.json is committed, so
+# whatever else is in progress in the working tree stays out of the commit. A
+# failed push warns rather than failing the run — the commit is still there to
+# push by hand.
+if [ "$NEW_VERSION" != "$CURRENT_VERSION" ] && ! git diff --quiet -- app.json; then
+  git commit -q -m "Bump the iOS version to $NEW_VERSION" -- app.json
+  echo "   ✓ committed version $NEW_VERSION"
+  if git push -q origin HEAD; then
+    echo "   ✓ pushed $(git branch --show-current)"
+  else
+    echo "   ⚠ push failed — run 'git push' once the remote is reachable or you have pulled."
+  fi
+fi
 
 echo "→ Opening workspace"
 open -a Xcode "$(pwd)/ios/app.xcworkspace"

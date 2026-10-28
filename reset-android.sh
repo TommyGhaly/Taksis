@@ -112,7 +112,7 @@ if [ "$BUMP" = "1" ]; then
     echo "❌ Tried to bump versionCode to $NEXT, app.json still reads $WROTE"
     exit 1
   fi
-  echo "✅ versionCode $CURRENT → $NEXT (commit app.json with the release)"
+  echo "✅ versionCode $CURRENT → $NEXT (committed and pushed once the AAB builds)"
 else
   echo "⏭  versionCode left at $(grep -o '"versionCode": [0-9]*' app.json | grep -o '[0-9]*$')"
 fi
@@ -187,6 +187,24 @@ AAB="android/app/build/outputs/bundle/release/app-release.aab"
 if [ ! -f "$AAB" ]; then
   echo "❌ AAB not found — build likely failed. Check output above."
   exit 1
+fi
+
+# ── Commit and push the versionCode ──────────────────────────────────────────
+#
+# Only after the AAB exists: a failed build never reaches Play, so its number
+# is not spent. Only app.json is committed, so whatever else is in progress in
+# the working tree stays out of the commit. A failed push warns rather than
+# failing the run — the AAB is built either way, and the commit is still there
+# to push by hand.
+if [ "$BUMP" = "1" ] && ! git diff --quiet -- app.json; then
+  VC=$(grep -o '"versionCode": [0-9]*' app.json | grep -o '[0-9]*$')
+  git commit -q -m "Bump the Android versionCode to $VC" -- app.json
+  echo "✅ Committed versionCode $VC"
+  if git push -q origin HEAD; then
+    echo "✅ Pushed $(git branch --show-current)"
+  else
+    echo "⚠️  Push failed — run 'git push' once the remote is reachable or you have pulled."
+  fi
 fi
 
 echo ""
