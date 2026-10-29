@@ -7,7 +7,8 @@
       "namespace": "android_app",
       "package_name": "com.tghaly.taksis",
       "sha256_cert_fingerprints": [
-        "56:3B:E9:36:33:BD:DF:15:43:0C:E6:0B:F8:24:09:B1:DB:E4:6F:1F:87:7B:B2:5F:69:AD:01:E2:BB:42:75:8B"
+        "56:3B:E9:36:33:BD:DF:15:43:0C:E6:0B:F8:24:09:B1:DB:E4:6F:1F:87:7B:B2:5F:69:AD:01:E2:BB:42:75:8B",
+        "10:86:89:F2:39:66:29:AC:42:BC:C6:34:4E:E4:EC:66:28:9A:0A:47:30:BD:1E:E5:63:AF:9C:71:09:D8:75:E2"
       ]
     }
   }
