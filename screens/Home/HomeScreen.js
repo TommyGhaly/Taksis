@@ -242,7 +242,6 @@ const HomeScreen = () => {
   const [userCurrentWeekRoleKey, setUserCurrentWeekRoleKey] = useState(null);
   const [userAvailabilityStatus, setUserAvailabilityStatus] = useState(null);
   const [isSubmittingStatus, setIsSubmittingStatus] = useState(false);
-  const [availabilityModalStep, setAvailabilityModalStep] = useState('initial'); // 'initial' or 'unavailable-options'
 
   // Real-time listener for church parameter specifically
   const userRealtimeListenerRef = useRef(null);
@@ -555,8 +554,14 @@ const HomeScreen = () => {
 
   const handleAvailabilityResponse = async (status) => {
     if (status === 'unavailable') {
-      // Transition to unavailable options step
-      setAvailabilityModalStep('unavailable-options');
+      Alert.alert(
+        "Mark Unavailable?",
+        "You will be removed from the schedule for this week.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Remove Me", style: "destructive", onPress: handleRemoveSelfFromRole },
+        ]
+      );
       return;
     }
 
@@ -612,7 +617,6 @@ const HomeScreen = () => {
       // Update local state
       setUserAvailabilityStatus(status);
       setShowAvailabilityModal(false);
-      setAvailabilityModalStep('initial');
 
       // Show appropriate message
       if (status === 'confirmed') {
@@ -659,7 +663,6 @@ const HomeScreen = () => {
       setUserCurrentWeekRoleKey(null);
       setUserAvailabilityStatus(null);
       setShowAvailabilityModal(false);
-      setAvailabilityModalStep('initial');
 
       Alert.alert(
         "Removed Successfully",
@@ -669,73 +672,6 @@ const HomeScreen = () => {
     } catch (error) {
       console.error("Error removing from role:", error);
       Alert.alert("Error", "Failed to remove from role. Please try again.");
-    } finally {
-      setIsSubmittingStatus(false);
-    }
-  };
-
-  const handleKeepButMarkUnavailable = async () => {
-    setIsSubmittingStatus(true);
-    try {
-      const user = getAuth().currentUser;
-      if (!user || !churchId || !currentWeek || !userCurrentWeekRoleKey) {
-        Alert.alert("Error", "Missing required information.");
-        setIsSubmittingStatus(false);
-        return;
-      }
-
-      const scheduleDocRef = doc(
-        getFirestore(),
-        "churches",
-        churchId,
-        "schedule",
-        currentWeek
-      );
-
-      // Get current schedule data
-      const scheduleDoc = await getDoc(scheduleDocRef);
-      if (!scheduleDoc.exists) {
-        Alert.alert("Error", "Schedule not found.");
-        setIsSubmittingStatus(false);
-        return;
-      }
-
-      const scheduleData = scheduleDoc.data();
-
-      // Update the status to unavailable
-      if (userCurrentWeekRoleKey === 'altar') {
-        // Handle altar array
-        const altarArray = scheduleData.altar || [];
-        const updatedAltar = altarArray.map(server => {
-          if (server && server.uid === user.uid) {
-            return { ...server, status: 'unavailable' };
-          }
-          return server;
-        });
-        await updateDoc(scheduleDocRef, { altar: updatedAltar });
-      } else {
-        // Handle single role
-        const roleData = scheduleData[userCurrentWeekRoleKey];
-        if (roleData && roleData.uid === user.uid) {
-          await updateDoc(scheduleDocRef, {
-            [userCurrentWeekRoleKey]: { ...roleData, status: 'unavailable' }
-          });
-        }
-      }
-
-      // Update local state
-      setUserAvailabilityStatus('unavailable');
-      setShowAvailabilityModal(false);
-      setAvailabilityModalStep('initial');
-
-      Alert.alert(
-        "Status Updated",
-        "You have been marked as unavailable but remain scheduled for this role.",
-        [{ text: "OK" }]
-      );
-    } catch (error) {
-      console.error("Error updating availability status:", error);
-      Alert.alert("Error", "Failed to update availability. Please try again.");
     } finally {
       setIsSubmittingStatus(false);
     }
@@ -1254,7 +1190,6 @@ const HomeScreen = () => {
           setUserCurrentWeekRole(role.label);
           setUserCurrentWeekRoleKey(role.key);
           setUserAvailabilityStatus(null);
-          setAvailabilityModalStep('initial');
           setShowAvailabilityModal(true);
           return;
         } else {
@@ -1277,7 +1212,6 @@ const HomeScreen = () => {
             setUserCurrentWeekRole('Altar Server');
             setUserCurrentWeekRoleKey('altar');
             setUserAvailabilityStatus(null);
-            setAvailabilityModalStep('initial');
             setShowAvailabilityModal(true);
             return;
           } else {
@@ -1492,12 +1426,8 @@ const HomeScreen = () => {
         scaleValue={scaleValue}
         currentWeek={currentWeek}
         userCurrentWeekRole={userCurrentWeekRole}
-        availabilityModalStep={availabilityModalStep}
         isSubmittingStatus={isSubmittingStatus}
         onAvailabilityResponse={handleAvailabilityResponse}
-        onKeepButMarkUnavailable={handleKeepButMarkUnavailable}
-        onRemoveSelfFromRole={handleRemoveSelfFromRole}
-        onGoBack={() => setAvailabilityModalStep("initial")}
       />
 
       <ScrollView
@@ -1548,7 +1478,6 @@ const HomeScreen = () => {
                   userAvailabilityStatus === 'unavailable' && styles.statusPillUnavailable,
                 ]}
                 onPress={() => {
-                  setAvailabilityModalStep('initial');
                   setShowAvailabilityModal(true);
                 }}
                 activeOpacity={0.8}
