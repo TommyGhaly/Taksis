@@ -122,7 +122,7 @@ const recordAdminDeletion = async (entries) => {
     await addDoc(collection(getFirestore(), ADMIN_AUDIT_COLLECTION), {
       ts: serverTimestamp(),
       uid: getAuth().currentUser?.uid || null,
-      action: entries.length === 1 ? 'delete' : 'bulk_delete',
+      action: entries.length === 1 ? 'delete' : 'bulkDelete',
       path: entries.length === 1 ? entries[0].path : entries[0].path.split('/').slice(0, -1).join('/'),
       before: entries.length === 1 ? entries[0].raw : null,
       after: null,
