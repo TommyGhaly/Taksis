@@ -288,7 +288,8 @@ def get_weeks(church):
     return weeks
 
 
-def remove_user_from_schedules(church, uid, alhan_class, sunday_school_class, family):
+def remove_user_from_schedules(church, uid, alhan_class, sunday_school_class, family,
+                               audit_actor=None):
     """
     Removes a user from all future schedules and optionally from teaching assignments.
     
@@ -298,6 +299,7 @@ def remove_user_from_schedules(church, uid, alhan_class, sunday_school_class, fa
         alhan_class: Hymns class to remove from, or "N/A" to skip
         sunday_school_class: SS class to remove from, or "N/A" to skip
         family: If True, also marks user as non-servant
+        audit_actor: Who asked, so each week's removal lands in the schedule audit
     
     Note: Imports unavailable locally to avoid circular import with schedule_generation.
     """
@@ -322,7 +324,7 @@ def remove_user_from_schedules(church, uid, alhan_class, sunday_school_class, fa
             'uid': uid,
             'family': False
         }
-        unavailable(request_data)
+        unavailable(request_data, audit_actor=audit_actor, audit_action="left_schedules")
 
     # Remove from Alhan (Hymns) class if specified
     if not alhan_class == "N/A":

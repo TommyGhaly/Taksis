@@ -38,6 +38,7 @@ import requests
 logging.info('Attempting to import utility and notification_manager in schedule_generation')
 from files.utility import *
 from files.notification_manager import *
+from files.audit import SYSTEM_ACTOR, people_context, record_action
 # Sample-size-aware scoring, shared with the attendance reports: a perfect
 # record over 2 weeks must not outrank a strong record over 40.
 from attendance_statistics import wilson_lower_bound
@@ -899,7 +900,13 @@ async def my_async_scheduled_function():
                 deacons, church_doc.reference, num_altar_servers, ordained(),
                 persist=False, weights=weights, unavailable_uids=away,
             )
-            schedule_ref.document(schedule_id).set(schedule)
+            write = schedule_ref.document(schedule_id).set(schedule)
+            record_action(
+                church_doc.id, schedule_id, write.update_time, "generated",
+                dict(SYSTEM_ACTOR), "Week generated automatically",
+                details={"declaredUnavailable": sorted(away)},
+                client=firestore_client,
+            )
 
         # One roster write covering every week generated above.
         church_doc.reference.update({"deacons": deacons})
@@ -989,7 +996,8 @@ def get_existing_replacement_uids(unavailable_data: Dict[str, Any]) -> set:
     return replacement_uids
 
 
-def unavailable(request_data: dict):
+def unavailable(request_data: dict, audit_actor: Dict[str, Any] = None,
+                audit_action: str = "marked_unavailable"):
     """
     Marks a user (and optionally family) as unavailable for a specific week.
     
@@ -1008,6 +1016,8 @@ def unavailable(request_data: dict):
             - week: Week ID (MM-DD-YY format)
             - uid: User ID marking themselves unavailable
             - family: Boolean - if True, also process children with roles (not extras)
+        audit_actor: Who asked, for the schedule audit (see files/audit.py).
+        audit_action: How the audit labels it; leaving the church reuses this.
     
     Unavailable Collection Structure:
         churches/{churchId}/unavailable/{weekId}
@@ -1069,6 +1079,13 @@ def unavailable(request_data: dict):
     else:
         unavailable_data = {}
     
+    # Before anything is vacated: what each of them had said about this week.
+    affected = people_context(
+        firestore_client, church_id, week_id, schedule_data,
+        [{"uid": uid, "name": None} for uid in all_uids],
+    )
+    vacated = []
+
     extra_deacons, scoring_context = create_extra_deacons(
         church_id, schedule_data.get("extra", []), week_id
     )
@@ -1139,6 +1156,12 @@ def unavailable(request_data: dict):
             }
             
             schedule_data[role_name][key[1]] = na_placeholder
+            vacated.append({
+                "role": role_name,
+                "index": key[1],
+                "original": original_server,
+                "suggestedReplacement": suggested_replacement,
+            })
             
         else:
             role_name = str(key[0])
@@ -1149,9 +1172,29 @@ def unavailable(request_data: dict):
             }
             
             schedule_data[role_name] = na_placeholder
+            vacated.append({
+                "role": role_name,
+                "original": original_server,
+                "suggestedReplacement": suggested_replacement,
+            })
 
     unavailable_ref.set(unavailable_data, merge=True)
-    schedule_ref.update(schedule_data)
+    write = schedule_ref.update(schedule_data)
+
+    if audit_actor is not None:
+        name = (user_data.get("name") if user_doc.exists else None) or user_id
+        if audit_actor.get("uid") == user_id:
+            who = f"{name} marked {'their family' if family else 'themselves'} unavailable"
+        else:
+            who = f"{audit_actor['name']} marked {name}{' and family' if family else ''} unavailable"
+        if not vacated:
+            who += " (not serving that week)"
+        record_action(
+            church_id, week_id, write.update_time, audit_action, audit_actor, who,
+            affected=affected,
+            details={"family": bool(family), "vacated": vacated},
+            client=firestore_client,
+        )
 
     # Frequency decay plus the decline counters, in a single roster write.
     if user_doc.exists:
@@ -1358,9 +1401,13 @@ def trigger_async_function(endpoint_url: str, payload: dict):
         pass
 
 
-def update_future_schedules(church: str):
+def update_future_schedules(church: str, audit_actor: Dict[str, Any] = None,
+                            audit_cause: str = None):
     """
     Rebalances altar/extra assignments when church changes altarServers count.
+
+    Weeks it actually changes are audited as a "rebalance" caused by
+    `audit_cause`, attributed to whoever triggered that.
     """
     firestore_client = firestore.Client()
     church_ref = firestore_client.collection("churches").document(church)
@@ -1386,9 +1433,17 @@ def update_future_schedules(church: str):
         updated_altar_servers = servers[:num_altar_servers]
         updated_extra_servers = servers[num_altar_servers:]
 
-        doc.reference.update(
+        write = doc.reference.update(
             {"altar": updated_altar_servers, "extra": updated_extra_servers}
         )
+
+        if audit_actor is not None and updated_altar_servers != altar_list:
+            record_action(
+                church, doc.id, write.update_time, "rebalance", audit_actor,
+                f"Altar resized to {num_altar_servers} after {audit_cause or 'an edit'}",
+                details={"cause": audit_cause, "altarServers": num_altar_servers},
+                client=firestore_client,
+            )
 
     return
 

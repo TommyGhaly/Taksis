@@ -32,6 +32,7 @@ import IndividualProfile from "../../components/individualProfile";
 import SkeletonScreen from "../../components/Skeleton";
 import { useAfterInteractions } from "../../hooks/useAfterInteractions";
 import ServerSelectionModal from "../../components/ServerSelectionModal";
+import ScheduleAuditModal from "../../components/ScheduleAuditModal";
 import * as avatarCache from "../../utils/avatarCache";
 import { LIST_PERF } from "../../utils/listConfig";
 import { longDateLabelWithYear, parseDateKey } from "../../utils/dateKeys";
@@ -223,6 +224,8 @@ const EditSchedule = () => {
   const [notifyTitle, setNotifyTitle] = useState("");
   const [notifyMsg, setNotifyMsg] = useState("");
   const [notifyDeaconName, setNotifyDeaconName] = useState("");
+  const [notifyUid, setNotifyUid] = useState(null);
+  const [auditVisible, setAuditVisible] = useState(false);
   const [deaconTokens, setDeaconTokens] = useState({});
   const [deaconIsChild, setDeaconIsChild] = useState({});
 
@@ -607,6 +610,7 @@ const EditSchedule = () => {
     const tokens = deaconTokens[uid];
     if (!tokens || Object.keys(tokens).length === 0) return;
     setNotifyTokens(Object.values(tokens));
+    setNotifyUid(uid);
     setNotifyDeaconName(name);
     const weekDisplay = formatWeekDisplay(selectedWeek);
     const isChild = deaconIsChild[uid];
@@ -639,6 +643,13 @@ const EditSchedule = () => {
         tokens: notifyTokens,
         title: notifyTitle.trim(),
         message: notifyMsg.trim(),
+        // Lands the reminder in the schedule audit (backend/functions/files/audit.py).
+        audit: {
+          church: churchId,
+          week: selectedWeek,
+          uid: notifyUid,
+          name: notifyDeaconName,
+        },
       },
       "Failed to send notification.",
     );
@@ -696,6 +707,14 @@ const EditSchedule = () => {
             <View style={styles.weekSelectorIconContainer}>
               <Text style={styles.weekSelectorIcon}>▼</Text>
             </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.historyButton}
+            onPress={() => setAuditVisible(true)}
+            activeOpacity={0.8}
+            accessibilityLabel="Schedule history"
+          >
+            <Icon name="history" size={24} color="#4d9cff" />
           </TouchableOpacity>
         </View>
       )}
@@ -1058,6 +1077,13 @@ const EditSchedule = () => {
         </TouchableWithoutFeedback>
       )}
 
+      <ScheduleAuditModal
+        visible={auditVisible}
+        onClose={() => setAuditVisible(false)}
+        churchId={churchId}
+        week={selectedWeek}
+      />
+
       <IndividualProfile
         userId={selectedUserId}
         show={profileModalVisible}
@@ -1074,7 +1100,17 @@ const EditSchedule = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#121212", padding: 20 },
-  headerContainer: { marginBottom: 24 },
+  headerContainer: { marginBottom: 24, flexDirection: "row", alignItems: "stretch" },
+  historyButton: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+    width: 64,
+    marginLeft: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   scrollView: { flex: 1 },
   sectionHeader: { fontSize: 22, color: "#4d9cff", fontWeight: "600" },
   sectionHeaderContainer: { marginBottom: 14, marginTop: 10 },
@@ -1176,6 +1212,7 @@ const styles = StyleSheet.create({
   },
   addButtonText: { fontSize: 16, color: "#fff", fontWeight: "600" },
   weekSelector: {
+    flex: 1,
     backgroundColor: "#1a1a1a",
     paddingVertical: 18,
     paddingHorizontal: 20,

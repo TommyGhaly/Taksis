@@ -141,6 +141,17 @@ initialize_app()
 
 from student_roster_export import export_student_roster
 
+# Schedule audit trail. Unguarded for the same reason as microsoft_auth below:
+# the trigger it backs would otherwise silently not deploy.
+from files.audit import (
+    SYSTEM_ACTOR,
+    actor_from_token,
+    people_context,
+    record_action,
+    record_event,
+    record_schedule_write,
+)
+
 # Microsoft (SPSM) sign-in code exchange. Imported unguarded, unlike the modules
 # above: if this failed to load the endpoint would silently not deploy and
 # sign-in would break with nothing in the logs to explain it.
@@ -516,6 +527,7 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
     if not all([church_id, week_id, first_server_uid, second_server_uid]):
         return https_fn.Response("Missing required parameters", status=400)
 
+    decoded_token = None
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
@@ -545,6 +557,12 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
         if not first_location or not second_location:
             return https_fn.Response("One or both servers not found", status=404)
 
+        # Read before the swap mutates schedule_data in place.
+        affected = people_context(
+            firestore_client, church_id, week_id, schedule_data,
+            [first_server, second_server],
+        )
+
         # Perform the swap
         if len(first_location) == 2:
             schedule_data[str(first_location[0])][int(first_location[1])] = second_server
@@ -556,13 +574,24 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
         else:
             schedule_data[str(second_location[0])] = first_server
 
-        schedule_ref.update(schedule_data)
-        
+        write = schedule_ref.update(schedule_data)
+
         # Notify if this affects upcoming Sunday
-        if is_today_or_upcoming_sunday(week_id):
+        notified = is_today_or_upcoming_sunday(week_id)
+        if notified:
             handle_switch_server_notification(
                 first_server, second_server, first_location, second_location
             )
+
+        actor = actor_from_token(decoded_token, firestore_client)
+        record_action(
+            church_id, week_id, write.update_time, "switch_server", actor,
+            f"{actor['name']} swapped {first_server.get('name')} ({first_location[0]}) "
+            f"with {second_server.get('name')} ({second_location[0]})",
+            affected=affected,
+            details={"notified": notified},
+            client=firestore_client,
+        )
 
         # Update nextWeekServe fields in background
         trigger_async_function(
@@ -596,6 +625,7 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
     if not all([church_id, week_id, server_uid]):
         return https_fn.Response("Missing required parameters", status=400)
 
+    decoded_token = None
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
@@ -629,13 +659,18 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
     if not removed_servers:
         return https_fn.Response("Server not found in 'altar' list", status=404)
 
+    affected = people_context(
+        firestore_client, church_id, week_id, schedule_data, removed_servers[:1]
+    )
+
     # Move to front of extras list
     extra_servers.insert(0, removed_servers[0])
 
-    schedule_ref.update({"altar": updated_altar_servers, "extra": extra_servers})
-    
+    write = schedule_ref.update({"altar": updated_altar_servers, "extra": extra_servers})
+
     # Notify if upcoming
-    if is_today_or_upcoming_sunday(week_id):
+    notified = is_today_or_upcoming_sunday(week_id)
+    if notified:
         update_notification(
             server_uid,
             "An admin has removed you from serving in the altar this Sunday. Check the app for details.",
@@ -643,8 +678,17 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
             "Schedule Update!",
         )
 
+    actor = actor_from_token(decoded_token, firestore_client)
+    record_action(
+        church_id, week_id, write.update_time, "remove_server", actor,
+        f"{actor['name']} removed {removed_servers[0].get('name')} from the altar",
+        affected=affected,
+        details={"notified": notified},
+        client=firestore_client,
+    )
+
     # Propagate changes to future schedules
-    update_future_schedules(church_id)
+    update_future_schedules(church_id, audit_actor=actor, audit_cause="remove_server")
 
     trigger_async_function(
         "https://set-next-week-serve-async-hy6oofbihq-uc.a.run.app",
@@ -673,6 +717,7 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
     if not all([church_id, week_id]):
         return https_fn.Response("Missing required parameters", status=400)
 
+    decoded_token = None
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
@@ -698,23 +743,37 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
 
     altar_servers = schedule_data.get("altar", [])
     extra_servers = schedule_data.get("extra", [])
+    actor = actor_from_token(decoded_token, firestore_client)
 
     if extra_servers:
+        affected = people_context(
+            firestore_client, church_id, week_id, schedule_data, extra_servers[:1]
+        )
+
         # Move first extra to altar
         altar_servers.append(extra_servers[0])
-        
-        if is_today_or_upcoming_sunday(week_id):
+
+        notified = is_today_or_upcoming_sunday(week_id)
+        if notified:
             update_notification(
                 extra_servers[0]["uid"],
                 f"{extra_servers[0]['name'].split()[0]}! You have been moved to serve in the altar this Sunday! Check the app for details.",
                 f"Your son {extra_servers[0]['name'].split()[0]} has been moved to serve in the altarr this Sunday! Check the app for details.",
                 "Schedule Update!",
             )
-        
-        updated_extra_servers = extra_servers[1:]
-        schedule_ref.update({"altar": altar_servers, "extra": updated_extra_servers})
 
-        update_future_schedules(church_id)
+        updated_extra_servers = extra_servers[1:]
+        write = schedule_ref.update({"altar": altar_servers, "extra": updated_extra_servers})
+
+        record_action(
+            church_id, week_id, write.update_time, "add_server", actor,
+            f"{actor['name']} added {extra_servers[0].get('name')} to the altar",
+            affected=affected,
+            details={"notified": notified},
+            client=firestore_client,
+        )
+
+        update_future_schedules(church_id, audit_actor=actor, audit_cause="add_server")
 
         trigger_async_function(
             "https://set-next-week-serve-async-hy6oofbihq-uc.a.run.app",
@@ -725,8 +784,14 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
     else:
         # No extras available - add placeholder
         altar_servers.append({"name": "N/A", "uid": str(uuid.uuid4())})
-        schedule_ref.update({"altar": altar_servers})
-        update_future_schedules(church_id)
+        write = schedule_ref.update({"altar": altar_servers})
+        record_action(
+            church_id, week_id, write.update_time, "add_server", actor,
+            f"{actor['name']} added an altar slot; nobody was available to fill it",
+            details={"emptySlot": True},
+            client=firestore_client,
+        )
+        update_future_schedules(church_id, audit_actor=actor, audit_cause="add_server")
 
         return https_fn.Response("No extra servers available to move", status=400)
 
@@ -747,14 +812,15 @@ def unavailable_for_week(req: https_fn.Request) -> https_fn.Response:
     if not all([church_id, week_id, user_id]):
         return https_fn.Response("Missing required parameters", status=400)
 
+    decoded_token = None
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
             decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
         except Exception as e:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
-        
-    unavailable(request_data)
+
+    unavailable(request_data, audit_actor=actor_from_token(decoded_token))
 
     return https_fn.Response("User removed and replacement scheduled", status=200)
 
@@ -779,6 +845,7 @@ def handle_unavailable_requests(req: https_fn.Request) -> https_fn.Response:
     if not all([church_id, week_id, name, uid, role]):
         return https_fn.Response("Missing required parameters", status=400)
     
+    decoded_token = None
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
@@ -800,6 +867,21 @@ def handle_unavailable_requests(req: https_fn.Request) -> https_fn.Response:
     
     schedule_data = schedule_doc.to_dict()
 
+    # Context first: the app deletes the unavailable request it came from, and
+    # the slot still shows whoever held it before this replacement.
+    previous = None
+    if isinstance(role, list):
+        try:
+            previous = schedule_data[role[0]][int(role[1])]
+        except (KeyError, IndexError, TypeError, ValueError):
+            previous = None
+    else:
+        previous = schedule_data.get(role)
+    people = [{"uid": uid, "name": name}]
+    if unavailable_uid:
+        people.insert(0, {"uid": unavailable_uid, "name": None})
+    affected = people_context(firestore_client, church_id, week_id, schedule_data, people)
+
     # Remove the replacement (uid) from extras so they don't appear in both places
     schedule_data['extra'] = [d for d in schedule_data.get('extra', []) if d['uid'] != uid]
 
@@ -811,7 +893,34 @@ def handle_unavailable_requests(req: https_fn.Request) -> https_fn.Response:
         schedule_data[role] = {'name': name, 'uid': uid}
         role_name = role
 
-    schedule_ref.update(schedule_data)
+    write = schedule_ref.update(schedule_data)
+
+    # Whether the admin took the suggestion `unavailable()` made, or picked
+    # someone else. The request is on the original person's context entry.
+    request = next(
+        (p["unavailableRequest"] for p in affected
+         if p["uid"] == unavailable_uid and p.get("unavailableRequest")),
+        None,
+    )
+    suggested = (request or {}).get("suggestedReplacement") or {}
+    original_name = next(
+        (p["name"] for p in affected if p["uid"] == unavailable_uid and p.get("name")),
+        "the original server",
+    )
+    actor = actor_from_token(decoded_token, firestore_client)
+    record_action(
+        church_id, week_id, write.update_time, "approve_replacement", actor,
+        f"{actor['name']} assigned {name} to {role_name} in place of {original_name}",
+        affected=affected,
+        details={
+            "role": role_name,
+            "originalUid": unavailable_uid,
+            "replacedSlot": previous,
+            "suggestedReplacement": suggested or None,
+            "acceptedSuggestion": bool(suggested) and suggested.get("uid") == uid,
+        },
+        client=firestore_client,
+    )
 
     # Covering as a replacement is an assignment and has to count as one.
     # Only update_weeks used to touch the rotation counters, and it runs over
@@ -832,6 +941,26 @@ def handle_unavailable_requests(req: https_fn.Request) -> https_fn.Response:
     return https_fn.Response("Unavailable request handled", status=200)
         
         
+@firestore_fn.on_document_written(document="churches/{churchId}/schedule/{weekId}")
+def audit_schedule_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
+    """
+    Records what changed on every write to a week's schedule.
+
+    The endpoints above record who did it and why; this is the half that sees
+    writes no endpoint makes - most importantly the Confirmed / Unsure answers
+    the app writes straight onto the schedule. See files/audit.py.
+    """
+    before = event.data.before.to_dict() if event.data.before else None
+    after = event.data.after.to_dict() if event.data.after else None
+    record_schedule_write(
+        event.params["churchId"],
+        event.params["weekId"],
+        before,
+        after,
+        event.data.after.update_time if event.data.after else None,
+    )
+
+
 @https_fn.on_request()
 def set_next_week_serve_async(req: https_fn.Request) -> https_fn.Response:
     """
@@ -871,6 +1000,7 @@ def remove_family_schedules(req: https_fn.Request) -> https_fn.Response:
     if not all([church_id, user_id]):
         return https_fn.Response("Missing required parameters", status=400)
 
+    decoded_token = None
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
@@ -892,7 +1022,10 @@ def remove_family_schedules(req: https_fn.Request) -> https_fn.Response:
     if user_data["isSSTeacher"] and user_data["ssSetUp"]:
         sunday_school = user_data["ssGrades"]
     
-    remove_user_from_schedules(church_id, user_id, alhan, sunday_school, True)
+    remove_user_from_schedules(
+        church_id, user_id, alhan, sunday_school, True,
+        audit_actor=actor_from_token(decoded_token, firestore_client),
+    )
     
     if user_ref.get().exists:
         user_ref.update({"nextWeekServe": "N/A", "frequency": frequency})
@@ -1124,6 +1257,7 @@ def traffic_notification(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response("Missing parameters", status=400)
 
     # Optional auth verification
+    decoded_token = None
     id_token = req.headers.get("Authorization")
     if id_token:
         try:
@@ -1132,6 +1266,32 @@ def traffic_notification(req: https_fn.Request) -> https_fn.Response:
             return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
 
     send_notification(tokens, message, title)
+
+    # Edit Schedule's "please confirm" reminder sends `audit` with it; the
+    # traffic manager does not, and is not part of the schedule audit.
+    audit = request_data.get("audit") or {}
+    if audit.get("church") and audit.get("uid"):
+        firestore_client = firestore.Client()
+        week_id = audit.get("week")
+        schedule_doc = None
+        if week_id:
+            schedule_doc = (
+                firestore_client.collection("churches").document(audit["church"])
+                .collection("schedule").document(week_id).get()
+            )
+        actor = actor_from_token(decoded_token, firestore_client)
+        record_event(
+            audit["church"], week_id, "reminder_sent", actor,
+            f"{actor['name']} sent {audit.get('name') or 'a server'} a reminder",
+            affected=people_context(
+                firestore_client, audit["church"], week_id,
+                schedule_doc.to_dict() if schedule_doc and schedule_doc.exists else None,
+                [{"uid": audit["uid"], "name": audit.get("name")}],
+            ) if week_id else [],
+            details={"title": title, "message": message},
+            client=firestore_client,
+        )
+
     return https_fn.Response(r"Successfully Notified Driver", status=200)
 
 
