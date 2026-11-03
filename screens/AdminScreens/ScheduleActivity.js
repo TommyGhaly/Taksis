@@ -283,9 +283,11 @@ export default function ScheduleActivity() {
           getDoc(doc(db, 'users', getAuth().currentUser?.uid || '_')),
         ]);
         if (!alive) return;
-        const ids = snap.docs.map((d) => d.id).sort();
-        setChurches(ids);
         const mine = me.exists ? me.data()?.church : null;
+        // The viewer's own church leads the row, so the selected chip is in view.
+        const ids = snap.docs.map((d) => d.id).sort((a, b) =>
+          (a === mine ? -1 : b === mine ? 1 : a.localeCompare(b)));
+        setChurches(ids);
         setChurchId(ids.includes(mine) ? mine : ids[0] || null);
       } catch (e) {
         console.error('Error loading churches:', e);

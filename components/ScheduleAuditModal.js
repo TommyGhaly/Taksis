@@ -109,6 +109,21 @@ const formatWhen = (date) =>
  * endpoint's (action, actor, summary, affected) and the trigger's (changes,
  * inferredAction, inferredActor). Either may be missing.
  */
+// The functions write the triggering action's id into rebalance summaries
+// ("after remove_server"); say it in words instead, for old entries too.
+const REBALANCE_CAUSES = {
+  add_server: "an altar server was added",
+  remove_server: "an altar server was removed",
+};
+
+const summaryFor = (action, data) => {
+  if (action === "rebalance" && data.details?.altarServers != null) {
+    const cause = REBALANCE_CAUSES[data.details.cause] || "an edit";
+    return `Altar set to ${data.details.altarServers} servers after ${cause}`;
+  }
+  return data.summary;
+};
+
 export const normalise = (snap) => {
   const data = snap.data() || {};
   const action = data.action || data.inferredAction || "schedule_changed";
@@ -121,7 +136,7 @@ export const normalise = (snap) => {
     at: data.at?.toDate ? data.at.toDate() : null,
     action,
     actor,
-    summary: data.summary,
+    summary: summaryFor(action, data),
     affected: data.affected || [],
     changes: data.changes || [],
     details: data.details || {},
