@@ -23,10 +23,10 @@ import { LIST_PERF } from "../utils/listConfig";
 import { longDateLabelWithYear, parseDateKey } from "../utils/dateKeys";
 
 // Written by the functions - see backend/functions/files/audit.py for the shape.
-const AUDIT_COLLECTION = "scheduleAudit";
+export const AUDIT_COLLECTION = "scheduleAudit";
 const ALL_WEEKS_LIMIT = 150;
 
-const ACTION_LABELS = {
+export const ACTION_LABELS = {
   switch_server: "Swapped servers",
   remove_server: "Removed from altar",
   add_server: "Added to altar",
@@ -42,7 +42,7 @@ const ACTION_LABELS = {
   schedule_changed: "Schedule changed",
 };
 
-const ACTION_ICONS = {
+export const ACTION_ICONS = {
   switch_server: "swap-horizontal",
   remove_server: "account-minus",
   add_server: "account-plus",
@@ -72,7 +72,7 @@ const ROLE_NAMES = {
   extra: "Not serving",
 };
 
-const STATUS = {
+export const STATUS = {
   confirmed: { label: "Confirmed", color: "#34c759" },
   unsure: { label: "Unsure", color: "#ff9500" },
   unavailable: { label: "Unavailable", color: "#ff3b30" },
@@ -89,9 +89,9 @@ const ACTOR_KINDS = {
 const roleName = (role) =>
   role ? ROLE_NAMES[role] || role : "Off the schedule";
 
-const statusLabel = (status) => STATUS[status]?.label || "No answer";
+export const statusLabel = (status) => STATUS[status]?.label || "No answer";
 
-const weekLabel = (week) =>
+export const weekLabel = (week) =>
   week && parseDateKey(week) ? longDateLabelWithYear(week) : week || "All weeks";
 
 const formatWhen = (date) =>
@@ -109,12 +109,14 @@ const formatWhen = (date) =>
  * endpoint's (action, actor, summary, affected) and the trigger's (changes,
  * inferredAction, inferredActor). Either may be missing.
  */
-const normalise = (snap) => {
+export const normalise = (snap) => {
   const data = snap.data() || {};
   const action = data.action || data.inferredAction || "schedule_changed";
   const actor = data.actor || data.inferredActor || null;
   return {
     id: snap.id,
+    path: snap.ref?.path,
+    raw: data,
     week: data.week,
     at: data.at?.toDate ? data.at.toDate() : null,
     action,
@@ -150,7 +152,7 @@ const fallbackSummary = (entry) => {
   return "";
 };
 
-const AuditRow = React.memo(({ entry, showWeek }) => {
+export const AuditRow = React.memo(({ entry, showWeek, onDelete }) => {
   const [open, setOpen] = useState(false);
   const hasDetail = entry.affected.length > 0 || entry.changes.length > 0;
   const replacement = entry.details?.suggestedReplacement;
@@ -172,6 +174,16 @@ const AuditRow = React.memo(({ entry, showWeek }) => {
             {showWeek && entry.week ? ` · ${weekLabel(entry.week)}` : ""}
           </Text>
         </View>
+        {onDelete && (
+          <TouchableOpacity
+            onPress={() => onDelete(entry)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={styles.deleteButton}
+            accessibilityLabel="Delete entry"
+          >
+            <Icon name="trash-can-outline" size={19} color="#ff453a" />
+          </TouchableOpacity>
+        )}
         {hasDetail && (
           <Icon name={open ? "chevron-up" : "chevron-down"} size={20} color="#666" />
         )}
@@ -409,6 +421,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   rowTitleBlock: { flex: 1 },
+  deleteButton: { paddingHorizontal: 6, marginRight: 4 },
   rowTitle: { color: "#fff", fontSize: 16, fontWeight: "600" },
   rowMeta: { color: "#8e8e93", fontSize: 13, marginTop: 1 },
   summary: { color: "#e5e5ea", fontSize: 15, marginTop: 10, lineHeight: 20 },

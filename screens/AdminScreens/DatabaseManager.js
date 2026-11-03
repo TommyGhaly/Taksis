@@ -47,6 +47,7 @@ import { LIST_PERF } from '../../utils/listConfig';
 // In-place expanding image (thumbnail that animates up to a larger preview).
 // Adjust this path to wherever ProfileImageExpander lives in your tree.
 import ProfileImageExpander from '../../components/ProfileImageExpander';
+import ScheduleActivity from './ScheduleActivity';
 import { useContentWidth, WIDE_MIN } from '../../hooks/useResponsiveLayout';
 
 // ── Palette — matches Taksis dark theme ──────────────────────────────────────
@@ -642,6 +643,7 @@ export default function DatabaseManagerScreen() {
   useEffect(() => { if (gateState === 'locked') runBiometric(); }, [gateState, runBiometric]);
 
   const goCollection = (path, label) => { setStack([{ type: 'collection', path, label: label || path }]); setView('collection'); };
+  const goActivity = () => { setStack([{ type: 'activity', path: 'scheduleActivity', label: 'Schedule Activity' }]); setView('activity'); };
   const goStorage = () => { setStack([{ type: 'storage', path: STORAGE_ROOT_PREFIX, label: 'Profile Pictures' }]); setView('storage'); };
   const goDocument = (path, label) => { setStack((s) => [...s, { type: 'document', path, label }]); setView('document'); };
   const goSubcollection = (path, label) => { setStack((s) => [...s, { type: 'collection', path, label }]); setView('collection'); };
@@ -699,7 +701,8 @@ export default function DatabaseManagerScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <Header view={view} stack={stack} onBack={view !== 'root' ? goBack : null} />
-      {view === 'root' && <RootList onPick={goCollection} onPickStorage={goStorage} />}
+      {view === 'root' && <RootList onPick={goCollection} onPickStorage={goStorage} onPickActivity={goActivity} />}
+      {view === 'activity' && <ScheduleActivity />}
       {view === 'collection' && (
         <CollectionView key={current.path} collectionPath={current.path} label={current.label}
           onOpenDoc={(docPath, id) => goDocument(docPath, id)} />
@@ -750,12 +753,29 @@ function Header({ view, stack, onBack }) {
 
 // ── Root list ─────────────────────────────────────────────────────────────────
 
-function RootList({ onPick, onPickStorage }) {
+function RootList({ onPick, onPickStorage, onPickActivity }) {
   return (
     <FlatList
       data={KNOWN_COLLECTIONS}
       keyExtractor={(c) => c.path}
       contentContainerStyle={styles.rootList}
+      ListHeaderComponent={
+        <>
+          <Text style={[styles.rootSectionLabel, { marginTop: 0 }]}>Activity</Text>
+          <TouchableOpacity style={styles.collectionCard} onPress={onPickActivity} activeOpacity={0.8}>
+            <View style={[styles.collectionIconWrap, { backgroundColor: 'rgba(20,126,251,0.12)' }]}>
+              <Ionicons name="pulse" size={20} color={C.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.collectionTitle}>Schedule Activity</Text>
+              <Text style={styles.collectionPath}>/churches/{'{church}'}/scheduleAudit</Text>
+              <Text style={styles.collectionMeta}>Every schedule change · dashboard &amp; cleanup</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.t5} />
+          </TouchableOpacity>
+          <Text style={styles.rootSectionLabel}>Collections</Text>
+        </>
+      }
       ListFooterComponent={
         <>
           <Text style={styles.rootSectionLabel}>Storage</Text>
