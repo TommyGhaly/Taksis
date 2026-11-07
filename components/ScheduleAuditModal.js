@@ -140,8 +140,52 @@ export const normalise = (snap) => {
     affected: data.affected || [],
     changes: data.changes || [],
     details: data.details || {},
+    parent: data.parent || null,
+    followOns: [],
   };
 };
+
+// Entries written before rebalances carried `parent` are matched to their
+// add/remove by actor and cause: the follow-ons land within seconds of it.
+const LEGACY_FOLLOW_ON_WINDOW_MS = 30 * 1000;
+
+const legacyParentOf = (entry, list) => {
+  if (entry.action !== "rebalance" || !entry.at || !entry.details?.cause) return null;
+  const t = entry.at.getTime();
+  let best = null;
+  list.forEach((p) => {
+    if (p.action !== entry.details.cause || !p.at) return;
+    if (p.actor?.uid !== entry.actor?.uid) return;
+    const gap = t - p.at.getTime();
+    if (gap < 0 || gap > LEGACY_FOLLOW_ON_WINDOW_MS) return;
+    if (!best || p.at > best.at) best = p;
+  });
+  return best;
+};
+
+/**
+ * Adding or removing an altar server re-slices every later week, and each of
+ * those weeks has its own entry. Across weeks that reads as one action, so
+ * fold them into the entry that caused them (`followOns`). A follow-on whose
+ * parent isn't in `list` - another week's view, or outside the loaded range -
+ * stays a row of its own.
+ */
+export const foldFollowOns = (list) => {
+  const byId = new Map(list.map((e) => [e.id, { ...e, followOns: [] }]));
+  const out = [];
+  list.forEach((e) => {
+    const parent = e.parent ? byId.get(e.parent) : legacyParentOf(e, list);
+    const target = parent && byId.get(parent.id);
+    if (target && target.id !== e.id) target.followOns.push(byId.get(e.id));
+    else out.push(byId.get(e.id));
+  });
+  out.forEach((e) => e.followOns.sort((a, b) => (a.week || "").localeCompare(b.week || "")));
+  return out;
+};
+
+/** An entry plus the follow-ons folded into it, for deleting together. */
+export const withFollowOns = (entries) =>
+  entries.flatMap((e) => [e, ...(e.followOns || [])]);
 
 const StatusPill = ({ status }) => (
   <View style={[styles.pill, { borderColor: STATUS[status]?.color || "#555" }]}>
@@ -169,7 +213,9 @@ const fallbackSummary = (entry) => {
 
 export const AuditRow = React.memo(({ entry, showWeek, onDelete }) => {
   const [open, setOpen] = useState(false);
-  const hasDetail = entry.affected.length > 0 || entry.changes.length > 0;
+  const followOns = entry.followOns || [];
+  const hasDetail =
+    entry.affected.length > 0 || entry.changes.length > 0 || followOns.length > 0;
   const replacement = entry.details?.suggestedReplacement;
 
   return (
@@ -205,6 +251,13 @@ export const AuditRow = React.memo(({ entry, showWeek, onDelete }) => {
       </View>
 
       <Text style={styles.summary}>{entry.summary || fallbackSummary(entry)}</Text>
+
+      {followOns.length > 0 && (
+        <Text style={styles.personMeta}>
+          Also resized the altar on {followOns.length} other week
+          {followOns.length === 1 ? "" : "s"}
+        </Text>
+      )}
 
       <Text style={styles.actor}>
         By {actorLine(entry.actor)}
@@ -260,6 +313,25 @@ export const AuditRow = React.memo(({ entry, showWeek, onDelete }) => {
         </View>
       )}
 
+      {open && followOns.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Other weeks</Text>
+          {followOns.map((f) => (
+            <View key={`f-${f.id}`} style={styles.personBlock}>
+              <Text style={styles.personMeta}>{weekLabel(f.week)}</Text>
+              {f.changes.map((c) => (
+                <View key={`fc-${f.id}-${c.uid}`} style={styles.changeRow}>
+                  <Text style={styles.personName}>{c.name}</Text>
+                  <Text style={styles.changeText}>
+                    {`${roleName(c.from)} → ${roleName(c.to)}`}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ))}
+        </View>
+      )}
+
       {open && entry.action === "reminder_sent" && entry.details?.message && (
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Message</Text>
@@ -294,7 +366,7 @@ const ScheduleAuditModal = ({ visible, onClose, churchId, week }) => {
       );
       const list = snap.docs.map(normalise);
       list.sort((a, b) => (b.at?.getTime() || 0) - (a.at?.getTime() || 0));
-      setEntries(list);
+      setEntries(foldFollowOns(list));
     } catch (err) {
       console.error("Error loading schedule audit:", err);
       setError("Couldn't load the history.");

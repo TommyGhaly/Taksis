@@ -25,6 +25,17 @@ Every function here is best-effort. The schedule change has already been
 committed by the time it is audited, and a failure to log it must never turn a
 successful admin action into an error.
 
+Adding or removing an altar server re-slices every week's altar
+(`update_future_schedules`). Those follow-on weeks still get an entry each -
+the trigger writes one regardless, and each week's own History needs it - but
+the endpoint stamps them with `parent`, the id of the add/remove entry that
+caused them, so church-wide views show one action instead of one per week.
+
+Endpoints run their audit reads and writes on `in_background` so they overlap
+the real work instead of adding to it. They still `settle` before returning:
+once the response is sent Cloud Run throttles the CPU, and work left running
+then can stall or be dropped.
+
 Entry shape:
     week:           "MM-DD-YY", or None for a church-wide event
     at:             commit time of the schedule write (or server time)
@@ -39,9 +50,11 @@ Entry shape:
                     "extra" means in the pool but not serving
     inferredAction: the trigger's best guess when no endpoint claimed the write
     inferredActor:  likewise
+    parent:         on a follow-on week, the entry id of the action behind it
 """
 import datetime
 import logging
+from concurrent.futures import Future, ThreadPoolExecutor, wait
 from typing import Any, Dict, List, Optional
 
 from google.cloud import firestore
@@ -55,6 +68,27 @@ UNKNOWN_ACTOR = {"uid": None, "name": "Unknown", "kind": "unknown"}
 # ============================================================================
 # HELPERS
 # ============================================================================
+
+_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="audit")
+
+
+def in_background(fn, *args, **kwargs) -> Future:
+    """Run audit work alongside the endpoint's own. Exceptions are logged and
+    the future resolves to None, so `.result()` never raises."""
+    def run():
+        try:
+            return fn(*args, **kwargs)
+        except Exception:
+            logging.exception("audit: background %s failed", getattr(fn, "__name__", fn))
+            return None
+    return _POOL.submit(run)
+
+
+def settle(*futures: Optional[Future], timeout: float = 20) -> None:
+    """Wait for background audit work before the response goes out."""
+    pending = [f for f in futures if f is not None]
+    if pending:
+        wait(pending, timeout=timeout)
 
 def _audit_ref(client, church_id):
     return (
@@ -261,6 +295,39 @@ def record_event(church_id: str, week_id: Optional[str], action: str,
         })
     except Exception:
         logging.exception("audit: failed to record %s for %s", action, church_id)
+
+
+def record_rebalance(church_id: str, rebalance: Optional[Dict[str, Any]],
+                     actor: Dict[str, Any], cause: str,
+                     parent_id: Optional[str], client=None) -> None:
+    """The endpoint's half for every week `update_future_schedules` re-sliced,
+    in one batch, each pointing at the entry for the action that caused it.
+
+    `rebalance` is what `update_future_schedules` returns.
+    """
+    rebalanced = (rebalance or {}).get("weeks") or []
+    if not rebalanced:
+        return
+    altar_servers = rebalance.get("altarServers")
+    try:
+        client = client or firestore.Client()
+        ref = _audit_ref(client, church_id)
+        batch = client.batch()
+        for item in rebalanced:
+            doc_id = entry_id(item["week"], item["commit_time"])
+            batch.set(ref.document(doc_id) if doc_id else ref.document(), {
+                "week": item["week"],
+                "at": _as_datetime(item["commit_time"]) or firestore.SERVER_TIMESTAMP,
+                "action": "rebalance",
+                "actor": actor or dict(UNKNOWN_ACTOR),
+                "summary": f"Altar resized to {altar_servers} after {cause or 'an edit'}",
+                "affected": [],
+                "details": {"cause": cause, "altarServers": altar_servers},
+                "parent": parent_id,
+            }, merge=True)
+        batch.commit()
+    except Exception:
+        logging.exception("audit: failed to record rebalance for %s", church_id)
 
 
 # ============================================================================

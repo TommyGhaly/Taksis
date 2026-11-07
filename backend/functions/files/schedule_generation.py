@@ -1401,20 +1401,20 @@ def trigger_async_function(endpoint_url: str, payload: dict):
         pass
 
 
-def update_future_schedules(church: str, audit_actor: Dict[str, Any] = None,
-                            audit_cause: str = None):
+def update_future_schedules(church: str) -> Dict[str, Any]:
     """
     Rebalances altar/extra assignments when church changes altarServers count.
 
-    Weeks it actually changes are audited as a "rebalance" caused by
-    `audit_cause`, attributed to whoever triggered that.
+    Only weeks whose altar actually changes are written, all in one batch.
+    Returns {altarServers, weeks: [{week, commit_time}]} for the caller to
+    audit (see `audit.record_rebalance`).
     """
     firestore_client = firestore.Client()
     church_ref = firestore_client.collection("churches").document(church)
     church_doc = church_ref.get()
 
     if not church_doc.exists:
-        return
+        return {"altarServers": None, "weeks": []}
 
     church_data = church_doc.to_dict()
     num_altar_servers = int(church_data.get("altarServers", 0))
@@ -1423,8 +1423,9 @@ def update_future_schedules(church: str, audit_actor: Dict[str, Any] = None,
         firestore_client.collection("churches").document(church).collection("schedule")
     )
 
-    docs = schedule_ref.stream()
-    for doc in docs:
+    batch = firestore_client.batch()
+    weeks = []
+    for doc in schedule_ref.stream():
         schedule_data = doc.to_dict()
         altar_list = schedule_data.get("altar", [])
         extra_list = schedule_data.get("extra", [])
@@ -1433,19 +1434,24 @@ def update_future_schedules(church: str, audit_actor: Dict[str, Any] = None,
         updated_altar_servers = servers[:num_altar_servers]
         updated_extra_servers = servers[num_altar_servers:]
 
-        write = doc.reference.update(
-            {"altar": updated_altar_servers, "extra": updated_extra_servers}
+        if updated_altar_servers == altar_list:
+            continue
+        batch.update(
+            doc.reference,
+            {"altar": updated_altar_servers, "extra": updated_extra_servers},
         )
+        weeks.append(doc.id)
 
-        if audit_actor is not None and updated_altar_servers != altar_list:
-            record_action(
-                church, doc.id, write.update_time, "rebalance", audit_actor,
-                f"Altar resized to {num_altar_servers} after {audit_cause or 'an edit'}",
-                details={"cause": audit_cause, "altarServers": num_altar_servers},
-                client=firestore_client,
-            )
-
-    return
+    if not weeks:
+        return {"altarServers": num_altar_servers, "weeks": []}
+    results = batch.commit()
+    return {
+        "altarServers": num_altar_servers,
+        "weeks": [
+            {"week": week, "commit_time": result.update_time}
+            for week, result in zip(weeks, results)
+        ],
+    }
 
 
 # ============================================================================

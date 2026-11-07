@@ -31,6 +31,8 @@ import {
   AuditRow,
   STATUS,
   normalise,
+  foldFollowOns,
+  withFollowOns,
 } from '../../components/ScheduleAuditModal';
 
 // Same tokens as DatabaseManager's palette.
@@ -308,7 +310,7 @@ export default function ScheduleActivity() {
         ? query(ref, where('at', '>=', new Date(startOfDay(new Date()).getTime() - (rangeDef.days - 1) * DAY)), orderBy('at', 'desc'), limit(MAX_ENTRIES))
         : query(ref, orderBy('at', 'desc'), limit(MAX_ENTRIES));
       const snap = await getDocs(q);
-      setEntries(snap.docs.map(normalise).filter((e) => e.at));
+      setEntries(foldFollowOns(snap.docs.map(normalise).filter((e) => e.at)));
     } catch (e) {
       console.error('Error loading schedule activity:', e);
       setError("Couldn't load activity.");
@@ -408,7 +410,8 @@ export default function ScheduleActivity() {
 
   const removeLocally = (ids) => setEntries((list) => list.filter((e) => !ids.has(e.id)));
 
-  const deleteEntries = useCallback(async (list) => {
+  const deleteEntries = useCallback(async (shown) => {
+    const list = withFollowOns(shown);
     const db = getFirestore();
     for (let i = 0; i < list.length; i += 450) {
       const batch = writeBatch(db);

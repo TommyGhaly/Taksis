@@ -59,6 +59,7 @@ import os
 import sys
 import json
 import logging
+import copy
 
 
 # ============================================================================
@@ -146,10 +147,14 @@ from student_roster_export import export_student_roster
 from files.audit import (
     SYSTEM_ACTOR,
     actor_from_token,
+    entry_id,
+    in_background,
     people_context,
     record_action,
     record_event,
+    record_rebalance,
     record_schedule_write,
+    settle,
 )
 
 # Microsoft (SPSM) sign-in code exchange. Imported unguarded, unlike the modules
@@ -557,10 +562,12 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
         if not first_location or not second_location:
             return https_fn.Response("One or both servers not found", status=404)
 
-        # Read before the swap mutates schedule_data in place.
-        affected = people_context(
-            firestore_client, church_id, week_id, schedule_data,
-            [first_server, second_server],
+        # Audit lookups run alongside the swap; the copy is the week as it
+        # stood before the swap mutates schedule_data in place.
+        actor_f = in_background(actor_from_token, decoded_token, firestore_client)
+        affected_f = in_background(
+            people_context, firestore_client, church_id, week_id,
+            copy.deepcopy(schedule_data), [first_server, second_server],
         )
 
         # Perform the swap
@@ -575,23 +582,25 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
             schedule_data[str(second_location[0])] = first_server
 
         write = schedule_ref.update(schedule_data)
+        notified = is_today_or_upcoming_sunday(week_id)
+
+        def log_swap():
+            actor = actor_f.result()
+            record_action(
+                church_id, week_id, write.update_time, "switch_server", actor,
+                f"{actor['name']} swapped {first_server.get('name')} ({first_location[0]}) "
+                f"with {second_server.get('name')} ({second_location[0]})",
+                affected=affected_f.result(),
+                details={"notified": notified},
+                client=firestore_client,
+            )
+        log_f = in_background(log_swap)
 
         # Notify if this affects upcoming Sunday
-        notified = is_today_or_upcoming_sunday(week_id)
         if notified:
             handle_switch_server_notification(
                 first_server, second_server, first_location, second_location
             )
-
-        actor = actor_from_token(decoded_token, firestore_client)
-        record_action(
-            church_id, week_id, write.update_time, "switch_server", actor,
-            f"{actor['name']} swapped {first_server.get('name')} ({first_location[0]}) "
-            f"with {second_server.get('name')} ({second_location[0]})",
-            affected=affected,
-            details={"notified": notified},
-            client=firestore_client,
-        )
 
         # Update nextWeekServe fields in background
         trigger_async_function(
@@ -599,6 +608,7 @@ def switch_server(req: https_fn.Request) -> https_fn.Response:
             {"church": church_id},
         )
 
+        settle(log_f)
         return https_fn.Response("Servers swapped successfully", status=200)
 
     except Exception as e:
@@ -659,17 +669,30 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
     if not removed_servers:
         return https_fn.Response("Server not found in 'altar' list", status=404)
 
-    affected = people_context(
-        firestore_client, church_id, week_id, schedule_data, removed_servers[:1]
+    actor_f = in_background(actor_from_token, decoded_token, firestore_client)
+    affected_f = in_background(
+        people_context, firestore_client, church_id, week_id,
+        copy.deepcopy(schedule_data), removed_servers[:1],
     )
 
     # Move to front of extras list
     extra_servers.insert(0, removed_servers[0])
 
     write = schedule_ref.update({"altar": updated_altar_servers, "extra": extra_servers})
+    notified = is_today_or_upcoming_sunday(week_id)
+
+    def log_remove():
+        actor = actor_f.result()
+        record_action(
+            church_id, week_id, write.update_time, "remove_server", actor,
+            f"{actor['name']} removed {removed_servers[0].get('name')} from the altar",
+            affected=affected_f.result(),
+            details={"notified": notified},
+            client=firestore_client,
+        )
+    log_f = in_background(log_remove)
 
     # Notify if upcoming
-    notified = is_today_or_upcoming_sunday(week_id)
     if notified:
         update_notification(
             server_uid,
@@ -678,23 +701,21 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
             "Schedule Update!",
         )
 
-    actor = actor_from_token(decoded_token, firestore_client)
-    record_action(
-        church_id, week_id, write.update_time, "remove_server", actor,
-        f"{actor['name']} removed {removed_servers[0].get('name')} from the altar",
-        affected=affected,
-        details={"notified": notified},
-        client=firestore_client,
+    # Propagate changes to future schedules; their entries hang off this one.
+    rebalance = update_future_schedules(church_id)
+    rebalance_f = in_background(
+        lambda: record_rebalance(
+            church_id, rebalance, actor_f.result(), "remove_server",
+            entry_id(week_id, write.update_time), client=firestore_client,
+        )
     )
-
-    # Propagate changes to future schedules
-    update_future_schedules(church_id, audit_actor=actor, audit_cause="remove_server")
 
     trigger_async_function(
         "https://set-next-week-serve-async-hy6oofbihq-uc.a.run.app",
         {"church": church_id},
     )
 
+    settle(log_f, rebalance_f)
     return https_fn.Response("User removed from altar and moved to extra", status=200)
 
 
@@ -743,17 +764,40 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
 
     altar_servers = schedule_data.get("altar", [])
     extra_servers = schedule_data.get("extra", [])
-    actor = actor_from_token(decoded_token, firestore_client)
+    actor_f = in_background(actor_from_token, decoded_token, firestore_client)
+
+    def log_rebalance(write, rebalance):
+        return in_background(
+            lambda: record_rebalance(
+                church_id, rebalance, actor_f.result(), "add_server",
+                entry_id(week_id, write.update_time), client=firestore_client,
+            )
+        )
 
     if extra_servers:
-        affected = people_context(
-            firestore_client, church_id, week_id, schedule_data, extra_servers[:1]
+        affected_f = in_background(
+            people_context, firestore_client, church_id, week_id,
+            copy.deepcopy(schedule_data), extra_servers[:1],
         )
 
         # Move first extra to altar
         altar_servers.append(extra_servers[0])
 
         notified = is_today_or_upcoming_sunday(week_id)
+        updated_extra_servers = extra_servers[1:]
+        write = schedule_ref.update({"altar": altar_servers, "extra": updated_extra_servers})
+
+        def log_add():
+            actor = actor_f.result()
+            record_action(
+                church_id, week_id, write.update_time, "add_server", actor,
+                f"{actor['name']} added {extra_servers[0].get('name')} to the altar",
+                affected=affected_f.result(),
+                details={"notified": notified},
+                client=firestore_client,
+            )
+        log_f = in_background(log_add)
+
         if notified:
             update_notification(
                 extra_servers[0]["uid"],
@@ -762,36 +806,31 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
                 "Schedule Update!",
             )
 
-        updated_extra_servers = extra_servers[1:]
-        write = schedule_ref.update({"altar": altar_servers, "extra": updated_extra_servers})
-
-        record_action(
-            church_id, week_id, write.update_time, "add_server", actor,
-            f"{actor['name']} added {extra_servers[0].get('name')} to the altar",
-            affected=affected,
-            details={"notified": notified},
-            client=firestore_client,
-        )
-
-        update_future_schedules(church_id, audit_actor=actor, audit_cause="add_server")
+        rebalance_f = log_rebalance(write, update_future_schedules(church_id))
 
         trigger_async_function(
             "https://set-next-week-serve-async-hy6oofbihq-uc.a.run.app",
             {"church": church_id},
         )
 
+        settle(log_f, rebalance_f)
         return https_fn.Response("User moved from extra to altar", status=200)
     else:
         # No extras available - add placeholder
         altar_servers.append({"name": "N/A", "uid": str(uuid.uuid4())})
         write = schedule_ref.update({"altar": altar_servers})
-        record_action(
-            church_id, week_id, write.update_time, "add_server", actor,
-            f"{actor['name']} added an altar slot; nobody was available to fill it",
-            details={"emptySlot": True},
-            client=firestore_client,
-        )
-        update_future_schedules(church_id, audit_actor=actor, audit_cause="add_server")
+
+        def log_slot():
+            actor = actor_f.result()
+            record_action(
+                church_id, week_id, write.update_time, "add_server", actor,
+                f"{actor['name']} added an altar slot; nobody was available to fill it",
+                details={"emptySlot": True},
+                client=firestore_client,
+            )
+        log_f = in_background(log_slot)
+        rebalance_f = log_rebalance(write, update_future_schedules(church_id))
+        settle(log_f, rebalance_f)
 
         return https_fn.Response("No extra servers available to move", status=400)
 
