@@ -7,7 +7,7 @@ grids the weekly job maintains. Each church ends up with four files:
 
     attendance.xlsx                 grades, one worksheet each   (weekly job)
     servants_attendance.xlsx        servants grid                (weekly job)
-    sunday_school_statistics.xlsx   per-student stats            (this script)
+    sunday_school_statistics.xlsx   per-student stats            (weekly job + this script)
     servants_statistics.xlsx        per-servant stats            (this script)
 
 ONE-TIME SETUP, per church. The service account has no Drive storage of its
@@ -434,6 +434,22 @@ def generate_servants(db, client, sheet_creds, args):
             skipped += 1
 
     return written, skipped
+
+
+def refresh_sunday_school_statistics():
+    """
+    Weekly-job entry point: rewrite every church's Sunday School statistics
+    spreadsheet and upload its .xlsx, same as running
+    ``python generate_statistics.py --sunday-school``.
+
+    Churches without a registered statistics sheet are skipped (logged).
+    """
+    db = attendance_sheets.initialize_firebase()
+    client, sheet_creds = attendance_sheets.initialize_google_sheets()
+    args = argparse.Namespace(
+        church=None, dry_run=False, no_upload=False, save_xlsx=None,
+    )
+    return generate_sunday_school(db, client, sheet_creds, args)
 
 
 def list_churches(db):

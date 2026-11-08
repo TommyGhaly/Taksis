@@ -20,8 +20,8 @@ service account - which is exactly how the existing attendance spreadsheets
 are set up. Run with --register-sunday-school / --register-servants to attach
 one; see missing_sheet_help() for the full walkthrough.
 
-Everything here is driven by generate_statistics.py. The weekly export job
-does not touch these files.
+Everything here is driven by generate_statistics.py. The weekly Monday job
+(main.generate_sheets) also refreshes the Sunday School statistics.
 """
 
 import json

@@ -1425,6 +1425,7 @@ def traffic_notification(req: https_fn.Request) -> https_fn.Response:
 @scheduler_fn.on_schedule(
     schedule="0 0 * * 1",  # Monday midnight
     timezone=scheduler_fn.Timezone("America/New_York"),
+    timeout_sec=540,  # attendance sheets + Sunday School statistics
 )
 def generate_sheets(event: scheduler_fn.ScheduledEvent) -> None:
     """
@@ -1436,6 +1437,20 @@ def generate_sheets(event: scheduler_fn.ScheduledEvent) -> None:
         set_up_sheets_servants()
     except Exception as e:
         raise
+    _refresh_sunday_school_statistics()
+
+
+def _refresh_sunday_school_statistics():
+    """Refresh Sunday School statistics after the attendance sheets.
+
+    Kept separate so a statistics failure never blocks the attendance export.
+    """
+    try:
+        from generate_statistics import refresh_sunday_school_statistics
+        written, skipped = refresh_sunday_school_statistics()
+        logging.info(f"Sunday School statistics: {written} updated, {skipped} skipped")
+    except Exception as e:
+        logging.exception(f"Sunday School statistics refresh failed: {e}")
 
 
 @https_fn.on_request()
@@ -1444,6 +1459,7 @@ def test_generate_sheets_http(req: https_fn.Request) -> https_fn.Response:
     try:
         set_up_sheets()
         set_up_sheets_servants()
+        _refresh_sunday_school_statistics()
         return https_fn.Response("Document generation completed successfully")
     except Exception as e:
         return https_fn.Response(f"Error: {str(e)}", status=500)

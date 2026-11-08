@@ -591,7 +591,8 @@ def process_church_ultra_optimized(church_doc, client, sheet_creds, data_cache):
         church_doc.reference.update({'currentSchoolYear': school_year})
 
         # NOTE: statistics are NOT written here. They live in a separate
-        # spreadsheet built by generate_statistics.py on demand.
+        # spreadsheet built by generate_statistics.py, which the weekly job
+        # (main.generate_sheets) runs right after this export.
 
         # Handle SharePoint for target church
         if church_name == TARGET_CHURCH_NAME:
