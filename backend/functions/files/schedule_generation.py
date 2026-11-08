@@ -1227,6 +1227,13 @@ def find_replacement(key, extra_deacons: List[Dict[str, Any]], excluded_uids: se
 
     available_deacons = [d for d in extra_deacons if d.get("uid") not in excluded_uids]
 
+    # Same scoring, smaller pool: only deacons marked reliable, unless none of
+    # them are free this week - then everyone available, as before.
+    reliable = (context or {}).get("reliable_uids") or set()
+    reliable_available = [d for d in available_deacons if d.get("uid") in reliable]
+    if reliable_available:
+        available_deacons = reliable_available
+
     if not available_deacons:
         return {"name": "N/A", "uid": str(uuid.uuid4())}
 
@@ -1390,6 +1397,9 @@ def create_extra_deacons(church_id: str, extra_deacons: List[Dict[str, Any]], we
     context = build_context(
         roster, church_data.get("scheduleWeights"), unavailable_uids=away
     )
+    # Admins flag who can be relied on to step in (Deacon Edits, attendance
+    # view). find_replacement draws from them first.
+    context["reliable_uids"] = set(church_data.get("reliableUids") or [])
     return available, context
 
 
@@ -1427,6 +1437,9 @@ def update_future_schedules(church: str) -> Dict[str, Any]:
     weeks = []
     for doc in schedule_ref.stream():
         schedule_data = doc.to_dict()
+        # Weeks an admin sized by hand keep their own count.
+        if schedule_data.get("altarOverride"):
+            continue
         altar_list = schedule_data.get("altar", [])
         extra_list = schedule_data.get("extra", [])
 

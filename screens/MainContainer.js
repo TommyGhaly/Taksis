@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   StyleSheet,
   View,
@@ -42,6 +42,7 @@ import PaschaManager from "./AdminScreens/PaschaManager";
 import PaschaHomePage from "./Pascha/PaschaHomePage";
 import DatabaseManager from "./AdminScreens/DatabaseManager";
 import UnavailableRequestModal from "../components/unavailableRequestModal";
+import UnavailableAlertsBell, { UnavailableAlertsContext } from "../components/UnavailableAlertsBell";
 import CustomDrawerContent from "../components/customDrawer";
 import {
   collection,
@@ -288,6 +289,7 @@ function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId, showP
         headerLeft: showDrawer
           ? () => <CustomHeader navigation={navigation} />
           : undefined,
+        headerRight: () => <UnavailableAlertsBell />,
         tabBarIcon: ({ color, size }) => {
           switch (route.name) {
             case "Home":
@@ -384,6 +386,7 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId, sho
         headerTitle: route.name === "Home" ? homeTitle : route.name,
         // Nothing to open when the drawer is already on screen.
         headerLeft: sidebar ? () => null : () => <CustomHeader navigation={navigation} />,
+        headerRight: () => <UnavailableAlertsBell />,
         headerStyle: consistentHeaderStyle,
         headerTintColor: "#fff",
         // Keep background screens from re-rendering while the drawer animates.
@@ -502,7 +505,6 @@ export default function MainContainer() {
   const [showUnavailableModal, setShowUnavailableModal] = useState(false);
   const [skippedAll, setSkippedAll] = useState(false);
   const skippedRequestsRef = useRef(new Set());
-  const processedInitialRef = useRef(false);
   const deletedDocsRef = useRef(new Set());
 
   const [availableServers, setAvailableServers] = useState([]);
@@ -720,27 +722,10 @@ export default function MainContainer() {
 
         const requests = flattenUnavailableRequests(validDocs);
 
-        const previousIds = new Set(unavailableQueue.map(getRequestId));
-        const newRequests = requests.filter((r) => {
-          const id = getRequestId(r);
-          return !previousIds.has(id) && !skippedRequestsRef.current.has(id);
-        });
-
+        // No popup: admins open these from the header bell, whose badge is
+        // this queue's length. It used to open itself on every new request,
+        // and admins accepted whoever was suggested just to dismiss it.
         setUnavailableQueue(requests);
-
-        if (newRequests.length > 0 && processedInitialRef.current) {
-          setSkippedAll(false);
-          setCurrentRequestId(getRequestId(newRequests[0]));
-          setShowUnavailableModal(true);
-        }
-
-        if (!processedInitialRef.current) {
-          processedInitialRef.current = true;
-          if (requests.length > 0) {
-            setCurrentRequestId(getRequestId(requests[0]));
-            setShowUnavailableModal(true);
-          }
-        }
       },
       () => {}
     );
@@ -837,6 +822,24 @@ export default function MainContainer() {
     moveToNextRequest();
   }, [currentRequestId, moveToNextRequest]);
 
+  // Opened from the header bell. Starts from the top each time; skips only
+  // last until the modal closes, so a skipped request is still counted.
+  const openUnavailableAlerts = useCallback(() => {
+    if (unavailableQueue.length === 0) return;
+    skippedRequestsRef.current = new Set();
+    setSkippedAll(false);
+    setCurrentRequestId(getRequestId(unavailableQueue[0]));
+    setShowUnavailableModal(true);
+  }, [unavailableQueue]);
+
+  const alertsValue = useMemo(
+    () => ({
+      count: unavailableQueue.length,
+      open: userRoles.admin ? openUnavailableAlerts : null,
+    }),
+    [unavailableQueue.length, userRoles.admin, openUnavailableAlerts],
+  );
+
   const handleSkipAll = useCallback(() => {
     const currentIdx = unavailableQueue.findIndex(
       (r) => getRequestId(r) === currentRequestId,
@@ -901,6 +904,7 @@ export default function MainContainer() {
     <>
       <ForceUpdateModal visible={forceUpdate} />
 
+      <UnavailableAlertsContext.Provider value={alertsValue}>
       <NavigationContainer
         independent={true}
         theme={myTheme}
@@ -925,6 +929,7 @@ export default function MainContainer() {
           />
         )}
       </NavigationContainer>
+      </UnavailableAlertsContext.Provider>
 
       {showUnavailableModal && currentRequest && (
         <UnavailableRequestModal

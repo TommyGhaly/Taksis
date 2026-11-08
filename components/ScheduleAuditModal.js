@@ -30,6 +30,7 @@ export const ACTION_LABELS = {
   switch_server: "Swapped servers",
   remove_server: "Removed from altar",
   add_server: "Added to altar",
+  set_altar_default: "Standard altar count changed",
   approve_replacement: "Replacement assigned",
   marked_unavailable: "Marked unavailable",
   left_schedules: "Left the schedule",
@@ -46,6 +47,7 @@ export const ACTION_ICONS = {
   switch_server: "swap-horizontal",
   remove_server: "account-minus",
   add_server: "account-plus",
+  set_altar_default: "tune-variant",
   approve_replacement: "account-check",
   marked_unavailable: "account-cancel",
   left_schedules: "exit-run",
@@ -114,6 +116,7 @@ const formatWhen = (date) =>
 const REBALANCE_CAUSES = {
   add_server: "an altar server was added",
   remove_server: "an altar server was removed",
+  set_altar_default: "the standard count changed",
 };
 
 const summaryFor = (action, data) => {

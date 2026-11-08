@@ -21,7 +21,6 @@ import {
   doc,
   getDocs,
   getFirestore,
-  increment,
   onSnapshot,
   updateDoc,
 } from "@react-native-firebase/firestore";
@@ -573,10 +572,6 @@ const EditSchedule = () => {
         { church: churchId, week: week },
         "Failed to add server.",
       );
-      await updateDoc(
-        doc(getFirestore(), "churches", churchId),
-        { altarServers: increment(1) }
-      );
       await updateSwitchedWeek(promoted, "remove");
       scrollViewRef.current?.scrollToEnd({ animated: false });
     } catch (err) {
@@ -595,13 +590,27 @@ const EditSchedule = () => {
         { church: churchId, week: week, server: serverToRemove.uid },
         "Failed to remove server.",
       );
-      await updateDoc(
-        doc(getFirestore(), "churches", churchId),
-        { altarServers: increment(-1) }
-      );
       await updateSwitchedWeek(serverToRemove, "add");
     } catch (err) {
       console.error("Error removing server:", err);
+    }
+  };
+
+  // The church-wide standard. Re-slices every week that was not given its own
+  // count with the per-week Add / Remove above.
+  const changeDefaultServers = async (delta) => {
+    if (!churchId || !week) return;
+    const next = altarServersCount + delta;
+    if (next < 0 || next > 6) return;
+    try {
+      await callFunction(
+        user,
+        "https://set-altar-servers-hy6oofbihq-uc.a.run.app",
+        { church: churchId, week, delta },
+        "Failed to change the standard number of altar servers.",
+      );
+    } catch (err) {
+      console.error("Error changing default altar servers:", err);
     }
   };
 
@@ -795,9 +804,29 @@ const EditSchedule = () => {
         <View style={styles.altarSectionHeaderContainer}>
           <Text style={styles.sectionHeader}>Altar Servers</Text>
           <View style={styles.serverInfoContainer}>
+            {!isViewingArchived && (
+              <TouchableOpacity
+                onPress={() => changeDefaultServers(-1)}
+                disabled={altarServersCount <= 0}
+                style={styles.stepperButton}
+                accessibilityLabel="Decrease the standard number of altar servers"
+              >
+                <Icon name="minus" size={16} color={altarServersCount <= 0 ? "#555" : "#4d9cff"} />
+              </TouchableOpacity>
+            )}
             <Text style={styles.serverCountText}>
-              {altarServersCount} additional servers
+              {altarServersCount} by default
             </Text>
+            {!isViewingArchived && (
+              <TouchableOpacity
+                onPress={() => changeDefaultServers(1)}
+                disabled={altarServersCount >= 6}
+                style={styles.stepperButton}
+                accessibilityLabel="Increase the standard number of altar servers"
+              >
+                <Icon name="plus" size={16} color={altarServersCount >= 6 ? "#555" : "#4d9cff"} />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               onPress={() => setShowInfoModal(true)}
               style={styles.infoButton}
@@ -869,7 +898,7 @@ const EditSchedule = () => {
 
       {!isViewingArchived && (
         <TouchableOpacity style={styles.addButton} onPress={handleAddServer}>
-          <Text style={styles.addButtonText}>Add Extra Altar Server</Text>
+          <Text style={styles.addButtonText}>Add Altar Server This Week</Text>
         </TouchableOpacity>
       )}
 
@@ -987,7 +1016,7 @@ const EditSchedule = () => {
           <TouchableOpacity activeOpacity={1} style={styles.infoModalWrapper}>
             <View style={styles.infoModalContent}>
               <View style={styles.infoModalHeader}>
-                <Text style={styles.infoModalTitle}>Additional Servers</Text>
+                <Text style={styles.infoModalTitle}>Altar Servers</Text>
                 <TouchableOpacity
                   style={styles.modalCloseButton}
                   onPress={() => setShowInfoModal(false)}
@@ -996,13 +1025,12 @@ const EditSchedule = () => {
                 </TouchableOpacity>
               </View>
               <Text style={styles.infoModalText}>
-                When you add or remove altar servers, the change automatically
-                applies to all future weeks to maintain consistency across your
-                church's schedule.
+                Add and Remove change this week only. That week keeps its own
+                count even if the standard changes later.
                 {"\n\n"}
-                This ensures that the same number of server positions are
-                available each week, making it easier to plan and assign servers
-                for upcoming services.
+                The − and + next to the count change the standard number of
+                altar servers, and every week without its own count is
+                updated to match.
               </Text>
               <TouchableOpacity
                 style={styles.infoModalButton}
@@ -1127,6 +1155,7 @@ const styles = StyleSheet.create({
   },
   serverCountText: { fontSize: 13, color: "rgba(255,255,255,0.4)" },
   infoButton: { paddingHorizontal: 4 },
+  stepperButton: { paddingHorizontal: 6, paddingVertical: 2 },
   infoIcon: { fontSize: 13, color: "rgba(255,255,255,0.4)" },
   listItem: {
     backgroundColor: "#1a1a1a",

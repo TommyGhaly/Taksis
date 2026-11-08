@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   FlatList,
+  Alert,
 } from "react-native";
 import {
   deleteDoc,
@@ -354,6 +355,34 @@ const UnavailableRequestModal = ({
     }
   };
 
+  // Drops the request without assigning anyone. The slot stays open (N/A) on
+  // the schedule, and the bell count goes down for every admin.
+  const handleDelete = () => {
+    Alert.alert(
+      "Delete request?",
+      `${original?.name || "This deacon"}'s slot stays open and nobody is assigned.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setSubmitting(true);
+            try {
+              await deleteUnavailableEntry();
+              onClose();
+            } catch (err) {
+              console.error("Error deleting unavailable request:", err);
+              Alert.alert("Error", "Failed to delete the request. Please try again.");
+            } finally {
+              setSubmitting(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const handleChooseSomeoneElse = () => {
     setViewMode('serverSelect');
   };
@@ -622,6 +651,16 @@ const UnavailableRequestModal = ({
             </TouchableOpacity>
           )}
         </View>
+
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={handleDelete}
+          disabled={submitting}
+          activeOpacity={0.7}
+          accessibilityLabel="Delete this request"
+        >
+          <Text style={styles.deleteButtonText}>Delete Request</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -898,6 +937,16 @@ const styles = StyleSheet.create({
   },
   skipButtonHalf: {
     flex: 0.5,
+  },
+  deleteButton: {
+    marginTop: 6,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  deleteButtonText: {
+    color: "#ff453a",
+    fontSize: 14,
+    fontWeight: "500",
   },
   skipButtonText: {
     color: "#777",

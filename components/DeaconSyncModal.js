@@ -22,6 +22,7 @@ import {
   query,
   updateDoc,
   where,
+  arrayRemove,
 } from "@react-native-firebase/firestore";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { LIST_PERF } from "../utils/listConfig";
@@ -110,7 +111,12 @@ function buildEntry(d) {
   };
 }
 
-function diffList(current, expected) {
+// Rank is synced with the other fields: the user doc (or the child entry on the
+// parent's doc) is the source, and the roster copy is what scheduling reads.
+// Reliability is not a roster field — it is the church's `reliableUids` list
+// (set from the attendance cards) — so the only thing to sync there is dropping
+// uids that are no longer deacons.
+function diffList(current, expected, reliableUids = []) {
   const cSet = new Set(current.map(d => d.uid));
   const eSet = new Set(expected.map(u => u.uid));
   const eMap = new Map(expected.map(u => [u.uid, u]));
@@ -153,10 +159,14 @@ function diffList(current, expected) {
     }
   }
 
+  const names = new Map(current.map(d => [d.uid, d.name]));
   return {
     toAdd: expected.filter(u => !cSet.has(u.uid)),
     toRemove: current.filter(d => !eSet.has(d.uid)),
     stale,
+    reliableStale: reliableUids
+      .filter(uid => !eSet.has(uid))
+      .map(uid => ({ uid, name: names.get(uid) || "Former deacon" })),
   };
 }
 
@@ -195,7 +205,7 @@ function diffSched(data, uids, names) {
   return { needUid, exDeacons, missing };
 }
 
-async function applyListFix(churchId, current, toAdd, toRemove, stale) {
+async function applyListFix(churchId, current, toAdd, toRemove, stale, reliableStale = []) {
   const rm = new Set(toRemove.map(d => d.uid));
   const staleMap = new Map(stale.map(s => [s.uid, s]));
 
@@ -210,7 +220,11 @@ async function applyListFix(churchId, current, toAdd, toRemove, stale) {
     });
 
   for (const u of toAdd) up.push(buildEntry(u));
-  await updateDoc(doc(getFirestore(), "churches", churchId), { deacons: up });
+  const patch = { deacons: up };
+  if (reliableStale.length) {
+    patch.reliableUids = arrayRemove(...reliableStale.map(r => r.uid));
+  }
+  await updateDoc(doc(getFirestore(), "churches", churchId), patch);
   return up;
 }
 
@@ -331,7 +345,7 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
 
       const cDoc = await getDoc(doc(getFirestore(), "churches", churchId));
       const currentList = cDoc.data()?.deacons || [];
-      const ld = diffList(currentList, allDeacons);
+      const ld = diffList(currentList, allDeacons, cDoc.data()?.reliableUids || []);
 
       const sSnap = await getDocs(collection(getFirestore(), "churches", churchId, "schedule"));
       const exist = new Set(sSnap.docs.map(d => d.id));
@@ -357,7 +371,7 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
       ref.current = { allDeacons, names, uids, currentList, sData };
       setListDiff(ld); setSchedDiffs(diffs); setIdx(0);
 
-      const hasListIssues = ld.toAdd.length > 0 || ld.toRemove.length > 0 || ld.stale.length > 0;
+      const hasListIssues = ld.toAdd.length > 0 || ld.toRemove.length > 0 || ld.stale.length > 0 || ld.reliableStale.length > 0;
       if (hasListIssues) setPhase(P.LIST);
       else if (diffs.length > 0) setPhase(P.SCHED);
       else { setLog(["No issues found — everything is clean."]); setPhase(P.DONE); }
@@ -370,13 +384,14 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
   const doFixList = useCallback(async () => {
     setBusy(true); setError(null);
     try {
-      const up = await applyListFix(churchId, ref.current.currentList, listDiff.toAdd, listDiff.toRemove, listDiff.stale);
+      const up = await applyListFix(churchId, ref.current.currentList, listDiff.toAdd, listDiff.toRemove, listDiff.stale, listDiff.reliableStale);
       ref.current.currentList = up;
       listDiff.toAdd.forEach(u => { ref.current.uids.add(u.uid); ref.current.names.set(u.uid, u.name); });
       const p = [];
       if (listDiff.toAdd.length) p.push(`+${listDiff.toAdd.length} added`);
       if (listDiff.toRemove.length) p.push(`-${listDiff.toRemove.length} removed`);
       if (listDiff.stale.length) p.push(`${listDiff.stale.length} updated`);
+      if (listDiff.reliableStale.length) p.push(`${listDiff.reliableStale.length} dropped from reliable`);
       setLog(prev => [...prev, `Deacon list: ${p.join(", ")}`]);
       afterList();
     } catch (e) { setError(e.message); } finally { setBusy(false); }
@@ -422,7 +437,7 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
   // hooks while closed and 15 once opened, and React threw "Rendered more hooks
   // than during the previous render" the moment the Sync button was tapped.
   const cs = schedDiffs[idx];
-  const lc = listDiff ? listDiff.toAdd.length + listDiff.toRemove.length + listDiff.stale.length : 0;
+  const lc = listDiff ? listDiff.toAdd.length + listDiff.toRemove.length + listDiff.stale.length + listDiff.reliableStale.length : 0;
   const sc = cs ? cs.needUid.length + cs.exDeacons.length + cs.missing.length : 0;
 
   // Both of these used to be built inline as the FlatList `data` prop, so the
@@ -438,6 +453,12 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
         n: s.name,
         a: s.fields.map((f) => `${f.field}: ${f.from} → ${f.to}`).join(", "),
         c: "#ff9f0a",
+      })),
+      ...listDiff.reliableStale.map((r) => ({
+        k: `r-${r.uid}`,
+        n: r.name,
+        a: "Not a deacon — drop from Reliable",
+        c: "#ff453a",
       })),
     ];
   }, [listDiff]);

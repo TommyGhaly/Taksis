@@ -68,7 +68,7 @@ const CATEGORIES = {
   admin: {
     label: 'Admin edits',
     icon: 'construct',
-    actions: ['switch_server', 'remove_server', 'add_server', 'approve_replacement', 'rebalance', 'reminder_sent'],
+    actions: ['switch_server', 'remove_server', 'add_server', 'set_altar_default', 'approve_replacement', 'rebalance', 'reminder_sent'],
   },
   availability: {
     label: 'Availability answers',
@@ -358,7 +358,12 @@ export default function ScheduleActivity() {
     const counts = new Map();
     entries.forEach((e) => {
       if (categoryOf(e.action) === 'automatic') return; // generation touches everyone
+      // A replacement entry also carries the person being replaced. They were
+      // already counted when they were marked unavailable, and by now they are
+      // off the sheet, so they arrive nameless and tallied as "Unknown".
+      const skip = e.action === 'approve_replacement' ? e.details?.originalUid : null;
       peopleIn(e).forEach((name, uid) => {
+        if (uid === skip) return;
         const row = counts.get(uid) || { key: uid, name, count: 0 };
         row.count += 1;
         counts.set(uid, row);

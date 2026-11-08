@@ -678,7 +678,11 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
     # Move to front of extras list
     extra_servers.insert(0, removed_servers[0])
 
-    write = schedule_ref.update({"altar": updated_altar_servers, "extra": extra_servers})
+    # A per-week change: this week keeps its own count from now on, and
+    # changing the church default (set_altar_servers) leaves it alone.
+    write = schedule_ref.update({
+        "altar": updated_altar_servers, "extra": extra_servers, "altarOverride": True,
+    })
     notified = is_today_or_upcoming_sunday(week_id)
 
     def log_remove():
@@ -701,21 +705,12 @@ def remove_server(req: https_fn.Request) -> https_fn.Response:
             "Schedule Update!",
         )
 
-    # Propagate changes to future schedules; their entries hang off this one.
-    rebalance = update_future_schedules(church_id)
-    rebalance_f = in_background(
-        lambda: record_rebalance(
-            church_id, rebalance, actor_f.result(), "remove_server",
-            entry_id(week_id, write.update_time), client=firestore_client,
-        )
-    )
-
     trigger_async_function(
         "https://set-next-week-serve-async-hy6oofbihq-uc.a.run.app",
         {"church": church_id},
     )
 
-    settle(log_f, rebalance_f)
+    settle(log_f)
     return https_fn.Response("User removed from altar and moved to extra", status=200)
 
 
@@ -766,14 +761,6 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
     extra_servers = schedule_data.get("extra", [])
     actor_f = in_background(actor_from_token, decoded_token, firestore_client)
 
-    def log_rebalance(write, rebalance):
-        return in_background(
-            lambda: record_rebalance(
-                church_id, rebalance, actor_f.result(), "add_server",
-                entry_id(week_id, write.update_time), client=firestore_client,
-            )
-        )
-
     if extra_servers:
         affected_f = in_background(
             people_context, firestore_client, church_id, week_id,
@@ -785,7 +772,9 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
 
         notified = is_today_or_upcoming_sunday(week_id)
         updated_extra_servers = extra_servers[1:]
-        write = schedule_ref.update({"altar": altar_servers, "extra": updated_extra_servers})
+        write = schedule_ref.update({
+            "altar": altar_servers, "extra": updated_extra_servers, "altarOverride": True,
+        })
 
         def log_add():
             actor = actor_f.result()
@@ -806,19 +795,18 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
                 "Schedule Update!",
             )
 
-        rebalance_f = log_rebalance(write, update_future_schedules(church_id))
 
         trigger_async_function(
             "https://set-next-week-serve-async-hy6oofbihq-uc.a.run.app",
             {"church": church_id},
         )
 
-        settle(log_f, rebalance_f)
+        settle(log_f)
         return https_fn.Response("User moved from extra to altar", status=200)
     else:
         # No extras available - add placeholder
         altar_servers.append({"name": "N/A", "uid": str(uuid.uuid4())})
-        write = schedule_ref.update({"altar": altar_servers})
+        write = schedule_ref.update({"altar": altar_servers, "altarOverride": True})
 
         def log_slot():
             actor = actor_f.result()
@@ -829,10 +817,77 @@ def add_server(req: https_fn.Request) -> https_fn.Response:
                 client=firestore_client,
             )
         log_f = in_background(log_slot)
-        rebalance_f = log_rebalance(write, update_future_schedules(church_id))
-        settle(log_f, rebalance_f)
+        settle(log_f)
 
         return https_fn.Response("No extra servers available to move", status=400)
+
+
+@https_fn.on_request()
+def set_altar_servers(req: https_fn.Request) -> https_fn.Response:
+    """
+    Changes the church's standard number of altar servers by `delta` (+1/-1)
+    and re-slices every week that has not been given its own count with
+    add_server / remove_server. `week` is the week the admin was looking at;
+    the audit entry is filed against it.
+    """
+    try:
+        request_data = req.get_json()
+        if not request_data:
+            return https_fn.Response("Missing JSON body", status=400)
+    except Exception as e:
+        return https_fn.Response(f"Invalid JSON: {str(e)}", status=400)
+
+    church_id = request_data.get("church")
+    week_id = request_data.get("week")
+    try:
+        delta = int(request_data.get("delta"))
+    except (TypeError, ValueError):
+        return https_fn.Response("Missing or invalid delta", status=400)
+    if not all([church_id, week_id]) or delta not in (-1, 1):
+        return https_fn.Response("Missing required parameters", status=400)
+
+    decoded_token = None
+    id_token = req.headers.get("Authorization")
+    if id_token:
+        try:
+            decoded_token = auth.verify_id_token(id_token.split("Bearer ")[-1])
+        except Exception as e:
+            return https_fn.Response(f"Token verification failed: {str(e)}", status=401)
+
+    firestore_client = firestore.Client()
+    church_ref = firestore_client.collection("churches").document(church_id)
+    church_doc = church_ref.get()
+    if not church_doc.exists:
+        return https_fn.Response("Church not found", status=404)
+
+    current = int((church_doc.to_dict() or {}).get("altarServers", 0) or 0)
+    target = max(0, min(6, current + delta))
+    if target == current:
+        return https_fn.Response("Altar server count unchanged", status=200)
+
+    # The stamp marks this as a sanctioned change; guard_altar_servers undoes
+    # any change to the count that arrives without a new one.
+    write = church_ref.update({
+        "altarServers": target, "altarServersStamp": str(uuid.uuid4()),
+    })
+    actor = actor_from_token(decoded_token, firestore_client)
+    record_action(
+        church_id, week_id, write.update_time, "set_altar_default", actor,
+        f"{actor['name']} changed the standard altar servers from {current} to {target}",
+        details={"from": current, "to": target},
+        client=firestore_client,
+    )
+    rebalance = update_future_schedules(church_id)
+    record_rebalance(
+        church_id, rebalance, actor, "set_altar_default",
+        entry_id(week_id, write.update_time), client=firestore_client,
+    )
+
+    trigger_async_function(
+        "https://set-next-week-serve-async-hy6oofbihq-uc.a.run.app",
+        {"church": church_id},
+    )
+    return https_fn.Response(f"Altar servers set to {target}", status=200)
 
 
 @https_fn.on_request()
@@ -980,6 +1035,35 @@ def handle_unavailable_requests(req: https_fn.Request) -> https_fn.Response:
     return https_fn.Response("Unavailable request handled", status=200)
         
         
+@firestore_fn.on_document_updated(document="churches/{churchId}")
+def guard_altar_servers(event: firestore_fn.Event[firestore_fn.Change]) -> None:
+    """
+    Undoes changes to the standard altar count that did not come through
+    set_altar_servers.
+
+    App versions before the week/default split call add_server/remove_server
+    and then bump `altarServers` themselves. Those endpoints now change only
+    the week, so the bump would silently move the default for every future
+    week. Restoring the old value makes an old app's Add/Remove behave as
+    "this week only", same as the current app.
+    """
+    before = event.data.before.to_dict() or {}
+    after = event.data.after.to_dict() or {}
+    if before.get("altarServers") == after.get("altarServers"):
+        return
+    if before.get("altarServersStamp") != after.get("altarServersStamp"):
+        return  # set_altar_servers
+    logging.warning(
+        "guard_altar_servers: reverting %s altarServers %s -> %s",
+        event.params["churchId"], before.get("altarServers"), after.get("altarServers"),
+    )
+    # New stamp, so this revert does not itself get reverted on the next run.
+    event.data.after.reference.update({
+        "altarServers": before.get("altarServers", 0),
+        "altarServersStamp": str(uuid.uuid4()),
+    })
+
+
 @firestore_fn.on_document_written(document="churches/{churchId}/schedule/{weekId}")
 def audit_schedule_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
     """

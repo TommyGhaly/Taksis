@@ -31,6 +31,9 @@ import {
   query,
   where,
   writeBatch,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
 } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
@@ -136,6 +139,17 @@ const SAVE_BTN_H = 30;
 // The declared 28 is left alone deliberately: it is already being ignored, and
 // changing it would be a visual change to chase a number that has no effect.
 const SLIDER_H = 40;
+// Rank chip + Reliable switch. Pinned: a UISwitch is 31pt and not computable.
+const CONTROLS_ROW_H = 32;
+
+// Same titles as components/rank.js; scheduling compares against these strings.
+const RANKS = [
+  "Chanter (Epsaltos)",
+  "Reader (Ognostis)",
+  "Subdeacon (Epideacon)",
+  "Deacon (Full Deacon)",
+];
+const shortRank = (rank) => (rank ? rank.split(" (")[0] : "Set rank");
 
 // RN scales a declared lineHeight by the OS font scale (allowFontScaling defaults
 // to on), so the height arithmetic has to scale it too or every constant below is
@@ -168,7 +182,7 @@ const DEACON_ROW_H =
 const ATT_TOP_ROW_H =
   10 + Math.max(36, LH(CARD_NAME_LINE) + 4 + PILL_H) + 8;
 const ATT_SLIDER_BLOCK_H =
-  1 + 6 + 2 * (LH(SLIDER_LABEL_LINE) + SLIDER_H) + 4 + SAVE_BTN_H + 8;
+  1 + 6 + 2 * (LH(SLIDER_LABEL_LINE) + SLIDER_H) + CONTROLS_ROW_H + 4 + SAVE_BTN_H + 8;
 const ATT_CARD_H = 2 + ATT_TOP_ROW_H + ATT_SLIDER_BLOCK_H + 8;
 
 // sectionHeader: 8*scale padding top and bottom around one 22*scale line. Shared
@@ -179,7 +193,7 @@ const auditDeaconRow = makeRowHeightAudit("DeaconRow", DEACON_ROW_H, 12 * scale)
 const auditAttendanceCard = makeRowHeightAudit("AttendanceCard", ATT_CARD_H, 8);
 
 // ─── Attendance card ──────────────────────────────────────────────────────────
-const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
+const AttendanceCard = React.memo(({ deacon, reliable, onPillPress, onProfilePress }) => {
   const [tempExp, setTempExp] = useState(deacon.experience ?? 0);
   const [tempFreq, setTempFreq] = useState(deacon.frequency ?? 0);
   const [saving, setSaving] = useState(false);
@@ -195,6 +209,66 @@ const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
   const switchedCount = deacon.switchedCount ?? 0;
   const unavailTheme = pillTheme(recentUnavailableCount);
   const switchedTheme = pillTheme(switchedCount);
+
+  // Reliable deacons are who the replacement picker draws from when someone
+  // marks themselves unavailable (find_replacement in schedule_generation.py).
+  // Kept as a list on the church, not on the roster entry, so the many
+  // roster rewrites cannot drop it and children work the same as adults.
+  const toggleReliable = async () => {
+    try {
+      await updateDoc(firestoreDoc(getFirestore(), "churches", deacon.churchId), {
+        reliableUids: reliable ? arrayRemove(deacon.uid) : arrayUnion(deacon.uid),
+      });
+      ReactNativeHapticFeedback.trigger("impactLight", hapticOptions);
+    } catch {
+      Alert.alert("Error", "Failed to update. Please try again.");
+    }
+  };
+
+  // Rank lives on the user doc (or the child entry on the parent's doc) and is
+  // mirrored on the church roster, which is what scheduling reads.
+  const setRank = async (rank) => {
+    if (rank === deacon.rank) return;
+    try {
+      const db = getFirestore();
+      const batch = writeBatch(db);
+      const churchRef = firestoreDoc(db, "churches", deacon.churchId);
+      const churchDoc = await getDoc(churchRef);
+      const roster = (churchDoc.data()?.deacons || []).map((d) =>
+        d.uid === deacon.uid ? { ...d, rank } : d
+      );
+      const userRef = firestoreDoc(db, "users", deacon.uid);
+      const userDoc = await getDoc(userRef);
+      if (userDoc.exists) {
+        batch.update(userRef, { rank });
+      } else {
+        const parents = await getDocs(query(
+          collection(db, "users"), where("church", "==", deacon.churchId)
+        ));
+        const parent = parents.docs.find((d) =>
+          (d.data().children || []).some((c) => c.uid === deacon.uid)
+        );
+        if (parent) {
+          batch.update(parent.ref, {
+            children: parent.data().children.map((c) =>
+              c.uid === deacon.uid ? { ...c, rank } : c
+            ),
+          });
+        }
+      }
+      batch.update(churchRef, { deacons: roster });
+      await batch.commit();
+      ReactNativeHapticFeedback.trigger("notificationSuccess", hapticOptions);
+    } catch {
+      Alert.alert("Error", "Failed to change rank. Please try again.");
+    }
+  };
+
+  const pickRank = () =>
+    Alert.alert(`Rank for ${deacon.name || "this deacon"}`, undefined, [
+      ...RANKS.map((r) => ({ text: r + (r === deacon.rank ? "  ✓" : ""), onPress: () => setRank(r) })),
+      { text: "Cancel", style: "cancel" },
+    ]);
 
   const triggerPulse = () => {
     Animated.sequence([
@@ -360,6 +434,30 @@ const AttendanceCard = React.memo(({ deacon, onPillPress, onProfilePress }) => {
           maximumTrackTintColor="#333"
           style={aStyles.slider}
         />
+        <View style={aStyles.controlsRow}>
+          <TouchableOpacity
+            style={aStyles.rankChip}
+            onPress={pickRank}
+            activeOpacity={0.75}
+            accessibilityLabel={`Rank: ${deacon.rank || "not set"}. Change rank`}
+          >
+            <Ionicons name="ribbon-outline" size={13} color="#4d9cff" />
+            <Text style={aStyles.rankText} numberOfLines={1}>
+              {shortRank(deacon.rank)}
+            </Text>
+            <Ionicons name="chevron-down" size={12} color="rgba(255,255,255,0.45)" />
+          </TouchableOpacity>
+          <View style={aStyles.reliableRow}>
+            <Text style={aStyles.reliableLabel}>Reliable</Text>
+            <Switch
+              value={!!reliable}
+              onValueChange={toggleReliable}
+              trackColor={{ false: "#3a3a3c", true: "#34c759" }}
+              style={aStyles.reliableSwitch}
+              accessibilityLabel="Reliable replacement"
+            />
+          </View>
+        </View>
         <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
           <TouchableOpacity
             style={[aStyles.saveBtn, saving && { opacity: 0.5 }]}
@@ -594,6 +692,7 @@ const DeaconEdits = () => {
 
   // Attendance mode
   const [attendanceMode, setAttendanceMode] = useState(false);
+  const [reliableUids, setReliableUids] = useState(() => new Set());
   const [attendanceData, setAttendanceData] = useState({}); // uid -> { unavailableWeeks, switched_weeks }
   const [pillModal, setPillModal] = useState({ visible: false, type: null, deacon: null });
 
@@ -756,6 +855,7 @@ const DeaconEdits = () => {
       async (doc) => {
         if (doc.exists) {
           const churchData = doc.data();
+          setReliableUids(new Set(churchData.reliableUids || []));
           const deaconData = (churchData.deacons || []).map((d) => ({ ...d, churchId: currentChurch }));
           await processDeaconList(deaconData, churchData);
         } else {
@@ -1023,13 +1123,14 @@ const DeaconEdits = () => {
       attendanceMode ? (
         <AttendanceCard
           deacon={item}
+          reliable={reliableUids.has(item.uid)}
           onPillPress={openPillModal}
           onProfilePress={openEditModal}
         />
       ) : (
         <DeaconRow item={item} onPress={openEditModal} />
       ),
-    [attendanceMode, openPillModal, openEditModal]
+    [attendanceMode, openPillModal, openEditModal, reliableUids]
   );
 
   const keyExtractor = useCallback((item) => item.uid, []);
@@ -1278,6 +1379,26 @@ const aStyles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
   },
+  controlsRow: {
+    height: CONTROLS_ROW_H,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  rankChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    height: 26,
+    paddingHorizontal: 10,
+    borderRadius: 13,
+    backgroundColor: "rgba(77,156,255,0.12)",
+    flexShrink: 1,
+  },
+  rankText: { color: "#4d9cff", fontSize: 12, fontWeight: "600" },
+  reliableRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  reliableLabel: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "600" },
+  reliableSwitch: { transform: [{ scale: 0.8 }] },
   sliderBlock: {
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.06)",
