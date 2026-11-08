@@ -235,13 +235,26 @@ def people_context(client, church_id: str, week_id: str,
     except Exception:
         logging.exception("audit: could not read unavailableWeeks")
 
+    # Someone off the sheet (already vacated, or not serving that week) has no
+    # name there; fall back to their user doc so the entry is not nameless.
+    doc_names = {}
+    missing = [p["uid"] for p in people
+               if not (on_sheet.get(p["uid"]) or {}).get("name") and not p.get("name")]
+    if missing:
+        try:
+            for doc in client.get_all([client.collection("users").document(u) for u in missing]):
+                if doc.exists:
+                    doc_names[doc.id] = (doc.to_dict() or {}).get("name")
+        except Exception:
+            logging.exception("audit: could not read names")
+
     context = []
     for person in people:
         uid = person["uid"]
         where = on_sheet.get(uid) or {}
         context.append({
             "uid": uid,
-            "name": where.get("name") or person.get("name"),
+            "name": where.get("name") or person.get("name") or doc_names.get(uid),
             "role": where.get("role"),
             "status": where.get("status"),
             "declaredUnavailable": uid in declared,

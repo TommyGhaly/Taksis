@@ -356,14 +356,23 @@ export default function ScheduleActivity() {
 
   const topAffected = useMemo(() => {
     const counts = new Map();
+    // Entries can carry a person without a name (someone not on the sheet at
+    // the time), so take the name from wherever it is known: the entry itself,
+    // its actor when they acted on themselves, or any other entry.
+    const known = new Map();
+    entries.forEach((e) => {
+      peopleIn(e).forEach((name, uid) => { if (name !== 'Unknown' && !known.has(uid)) known.set(uid, name); });
+      if (e.actor?.uid && e.actor?.name && !known.has(e.actor.uid)) known.set(e.actor.uid, e.actor.name);
+    });
     entries.forEach((e) => {
       if (categoryOf(e.action) === 'automatic') return; // generation touches everyone
       // A replacement entry also carries the person being replaced. They were
-      // already counted when they were marked unavailable, and by now they are
-      // off the sheet, so they arrive nameless and tallied as "Unknown".
+      // already counted when they were marked unavailable.
       const skip = e.action === 'approve_replacement' ? e.details?.originalUid : null;
-      peopleIn(e).forEach((name, uid) => {
+      peopleIn(e).forEach((_, uid) => {
         if (uid === skip) return;
+        const name = known.get(uid);
+        if (!name) return; // never resolvable: not a person we can report on
         const row = counts.get(uid) || { key: uid, name, count: 0 };
         row.count += 1;
         counts.set(uid, row);
