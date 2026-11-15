@@ -494,9 +494,21 @@ const YouthMeetingAttendance = () => {
   // this is the padding inside it, a touch roomier than a phone's.
   const { gutter, isWide } = useResponsiveLayout({ maxContentWidth: 720, phoneGutter: 16 });
 
+  // Keyed on the uid, never on the `user` object. RNFB builds a brand-new
+  // User every time the ID token changes, and the first open after the app has
+  // sat idle for over an hour refreshes the token a moment after launch. Keying
+  // on the object made that refresh re-run this effect mid-load, and its
+  // cleanup used to tear down the students listeners, which belong to the
+  // effect below and were never re-attached because church and grades had not
+  // changed. The screen was then stuck on whatever it held at that moment,
+  // usually the on-device copy without this week's attendance, until a cold
+  // restart.
   useEffect(() => {
     if (!ready) return;
     isMounted.current = true;
+    // Set by this run's cleanup, so a run superseded while it was still awaiting
+    // the cache read does not go on to open a second, leaked user listener.
+    let cancelled = false;
     const initializeApp = async () => {
       if (!user) {
         Alert.alert("Error", "No user found.");
@@ -512,6 +524,7 @@ const YouthMeetingAttendance = () => {
       // landed (usually a couple of ms) before dropping the skeleton.
       await loadCachedData();
       await generatePreviousMeetings();
+      if (cancelled) return;
       setupUserListener();
       // Deliberately NOT flipping loading here — that only meant the local
       // cache read finished. The skeleton stays until the students snapshot
@@ -519,12 +532,14 @@ const YouthMeetingAttendance = () => {
     };
     initializeApp();
     return () => {
+      cancelled = true;
       isMounted.current = false;
       if (userUnsubscribe.current) userUnsubscribe.current();
-      studentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
-      studentUnsubscribes.current = [];
+      userUnsubscribe.current = null;
+      // The students listeners are not torn down here: the effect that opens
+      // them closes them in its own cleanup, which also runs on unmount.
     };
-  }, [user, ready]);
+  }, [user?.uid, ready]);
 
   const loadCachedData = async () => {
     try {

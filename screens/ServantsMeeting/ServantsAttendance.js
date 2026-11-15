@@ -316,9 +316,15 @@ const ServantsAttendance = () => {
     return () => { showSub.remove(); hideSub.remove(); };
   }, [keyboardOffset]);
 
+  // Keyed on the uid, never on the `user` object: RNFB builds a new User on
+  // every ID-token refresh, which made this effect restart mid-load, drop the
+  // live listeners and repaint the roster from the on-device copy.
   useEffect(() => {
     if (!ready) return;
     isMounted.current = true;
+    // Set by this run's cleanup, so a superseded run that was still awaiting the
+    // cache read does not open a second, leaked pair of listeners.
+    let cancelled = false;
     const init = async () => {
       if (!user) { Alert.alert("Error", "No user found."); setLoading(false); return; }
       cacheKeys.current = {
@@ -333,17 +339,19 @@ const ServantsAttendance = () => {
       // clear it on a cache hit — a warm cache isn't a completed read.
       await loadCachedData();
       await generatePreviousSundays();
+      if (cancelled) return;
       setupListeners();
     };
     init();
     return () => {
+      cancelled = true;
       isMounted.current = false;
       if (userUnsubscribe.current) userUnsubscribe.current();
       if (servantsUnsubscribe.current) servantsUnsubscribe.current();
       userUnsubscribe.current = null;
       servantsUnsubscribe.current = null;
     };
-  }, [user, ready]);
+  }, [user?.uid, ready]);
 
   /** Hydrates from AsyncStorage. Returns true if anything was restored. */
   const loadCachedData = async () => {
