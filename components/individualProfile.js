@@ -8,9 +8,11 @@ import {
   TouchableOpacity,
   Alert,
   Linking,
+  ActivityIndicator,
 } from "react-native";
 import { getAuth } from "@react-native-firebase/auth";
 import { callFunction } from "./functionCalls";
+import { waitForDoc, scheduleHasUid } from "../utils/waitForDoc";
 import Slider from "@react-native-community/slider";
 import {
   arrayUnion,
@@ -153,6 +155,9 @@ const IndividualProfile = ({
   const [isChild, setIsChild] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [isDeacon, setIsDeacon] = useState(false);
+  // Spans both the schedule scan in handleUnavailable and the confirmed
+  // unavailable-for-week call — each can take a few seconds.
+  const [unavailableBusy, setUnavailableBusy] = useState(false);
 
   useEffect(() => {
     // Reset state when modal is opened or userId changes
@@ -418,12 +423,13 @@ const IndividualProfile = ({
   };
 
   const handleUnavailable = async () => {
+    if (unavailableBusy) return;
+    if (!church || !userId) {
+      Alert.alert("Error", "Missing required information.");
+      return;
+    }
+    setUnavailableBusy(true);
     try {
-      if (!church || !userId) {
-        Alert.alert("Error", "Missing required information.");
-        return;
-      }
-
       // Check if user is serving in multiple weeks
       const schedulesRef = collection(getFirestore(), "churches", church, "schedule");
 
@@ -504,6 +510,9 @@ const IndividualProfile = ({
         "Error",
         "Failed to check user's schedule. Please try again."
       );
+    } finally {
+      // The week-picker / confirm Alert is up by now; Confirm turns this back on.
+      setUnavailableBusy(false);
     }
   };
 
@@ -520,6 +529,7 @@ const IndividualProfile = ({
           style: "destructive",
           onPress: async () => {
             ReactNativeHapticFeedback.trigger("impactMedium", hapticOptions);
+            setUnavailableBusy(true);
             try {
               const currentUser = getAuth().currentUser;
               if (!currentUser) {
@@ -540,7 +550,14 @@ const IndividualProfile = ({
                 currentUser,
                 "https://unavailable-for-week-hy6oofbihq-uc.a.run.app",
                 { church, week: targetWeek, uid: userId, family },
-                "Failed to mark as unavailable. Please try again."
+                "Failed to mark as unavailable. Please try again.",
+                true
+              );
+              // unavailable() swaps their slot to N/A and drops them from
+              // extras; keep spinning until the schedule shows that.
+              await waitForDoc(
+                doc(getFirestore(), "churches", church, "schedule", targetWeek),
+                (d) => !scheduleHasUid(d, userId)
               );
               onClose();
             } catch (error) {
@@ -549,6 +566,8 @@ const IndividualProfile = ({
                 "Error",
                 "Failed to mark as unavailable. Please try again."
               );
+            } finally {
+              setUnavailableBusy(false);
             }
           },
         },
@@ -897,12 +916,22 @@ const IndividualProfile = ({
           </View>
 
           <TouchableOpacity
-            style={[styles.button, styles.unavailableButton]}
+            style={[
+              styles.button,
+              styles.unavailableButton,
+              unavailableBusy && styles.busyButton,
+            ]}
             onPress={handleUnavailable}
+            disabled={unavailableBusy}
             activeOpacity={0.7}
             accessibilityLabel="Mark User as Unavailable to Serve"
+            accessibilityState={{ busy: unavailableBusy }}
           >
-            <Text style={styles.buttonText}>Mark as Unavailable</Text>
+            {unavailableBusy ? (
+              <ActivityIndicator color="#fff" size="small" style={styles.buttonSpinner} />
+            ) : (
+              <Text style={styles.buttonText}>Mark as Unavailable</Text>
+            )}
           </TouchableOpacity>
 
           <View style={styles.buttonRow}>
@@ -1103,6 +1132,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#ff3b30",
     marginBottom: 12,
     width: "100%",
+  },
+  busyButton: {
+    opacity: 0.7,
+  },
+  // Same height as the 20pt buttonText line, so the button doesn't jump.
+  buttonSpinner: {
+    height: 20,
   },
   cancelButton: {
     backgroundColor: "#333",

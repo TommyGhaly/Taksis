@@ -26,6 +26,7 @@ import {
 } from "./Skeleton";
 import * as avatarCache from "../utils/avatarCache";
 import { callFunction } from "./functionCalls";
+import { waitForDoc } from "../utils/waitForDoc";
 import IndividualProfile from "./individualProfile";
 import { LIST_PERF } from "../utils/listConfig";
 import { getDocsByIds } from "../utils/firestoreBatch";
@@ -164,7 +165,13 @@ const UnavailableRequestModal = ({
 }) => {
   const user = getAuth().currentUser;
 
-  const [submitting, setSubmitting] = useState(false);
+  // Which action's call is in flight — "accept", "choose" or "delete" — so the
+  // spinner lands on the button that was tapped. It used to be one boolean, and
+  // a pick from Choose Someone Else or a Delete spun the Accept button.
+  const [submitAction, setSubmitAction] = useState(null);
+  const submitting = submitAction !== null;
+  // Shown on the Choose Someone Else button while that pick is being assigned.
+  const [chosenName, setChosenName] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedProfileUid, setSelectedProfileUid] = useState(null);
 
@@ -327,10 +334,21 @@ const UnavailableRequestModal = ({
     }
   };
 
-  const handleAccept = async () => {
-    if (!replacement?.uid || !replacement?.name) return;
+  // Resolves once this week's schedule shows `uid` in the request's slot, so the
+  // spinner stays up until the change is visible, not just sent.
+  const waitForSlot = (uid) =>
+    waitForDoc(
+      doc(getFirestore(), "churches", churchId, "schedule", week),
+      (d) =>
+        Array.isArray(role)
+          ? d?.[role[0]]?.[role[1]]?.uid === uid
+          : d?.[role]?.uid === uid
+    );
 
-    setSubmitting(true);
+  const handleAccept = async () => {
+    if (!replacement?.uid || !replacement?.name || submitting) return;
+
+    setSubmitAction("accept");
     try {
       await callFunction(
         user,
@@ -343,15 +361,17 @@ const UnavailableRequestModal = ({
           role,
           unavailableUid: original?.uid,
         },
-        "Failed to accept replacement. Please try again."
+        "Failed to accept replacement. Please try again.",
+        true
       );
+      await waitForSlot(replacement.uid);
 
       await deleteUnavailableEntry();
       onClose();
     } catch (err) {
       console.error("Error accepting replacement:", err);
     } finally {
-      setSubmitting(false);
+      setSubmitAction(null);
     }
   };
 
@@ -367,7 +387,7 @@ const UnavailableRequestModal = ({
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            setSubmitting(true);
+            setSubmitAction("delete");
             try {
               await deleteUnavailableEntry();
               onClose();
@@ -375,7 +395,7 @@ const UnavailableRequestModal = ({
               console.error("Error deleting unavailable request:", err);
               Alert.alert("Error", "Failed to delete the request. Please try again.");
             } finally {
-              setSubmitting(false);
+              setSubmitAction(null);
             }
           },
         },
@@ -388,8 +408,10 @@ const UnavailableRequestModal = ({
   };
 
   const handleSelectReplacement = async (selectedServer) => {
+    if (submitting) return;
     setViewMode('main');
-    setSubmitting(true);
+    setChosenName(selectedServer.name?.split(" ")[0] || null);
+    setSubmitAction("choose");
 
     try {
       await callFunction(
@@ -403,15 +425,18 @@ const UnavailableRequestModal = ({
           role,
           unavailableUid: original?.uid,
         },
-        "Failed to assign replacement. Please try again."
+        "Failed to assign replacement. Please try again.",
+        true
       );
+      await waitForSlot(selectedServer.uid);
 
       await deleteUnavailableEntry();
       onClose();
     } catch (err) {
       console.error("Error selecting replacement:", err);
     } finally {
-      setSubmitting(false);
+      setSubmitAction(null);
+      setChosenName(null);
     }
   };
 
@@ -602,12 +627,17 @@ const UnavailableRequestModal = ({
 
       <View style={styles.actionsContainer}>
         <TouchableOpacity
-          style={[styles.actionButton, styles.acceptButton]}
+          style={[
+            styles.actionButton,
+            styles.acceptButton,
+            submitting && submitAction !== "accept" && styles.busyDimmed,
+          ]}
           onPress={handleAccept}
           disabled={submitting}
           activeOpacity={0.8}
+          accessibilityState={{ busy: submitAction === "accept" }}
         >
-          {submitting ? (
+          {submitAction === "accept" ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <Text style={styles.acceptButtonText}>Accept</Text>
@@ -617,14 +647,28 @@ const UnavailableRequestModal = ({
         {/* Openable while the roster is still in flight — the list itself
             shows skeleton rows until the servers land. */}
         <TouchableOpacity
-          style={[styles.actionButton, styles.chooseButton]}
+          style={[
+            styles.actionButton,
+            styles.chooseButton,
+            submitting && submitAction !== "choose" && styles.busyDimmed,
+          ]}
           onPress={handleChooseSomeoneElse}
           disabled={submitting}
           activeOpacity={0.8}
+          accessibilityState={{ busy: submitAction === "choose" }}
         >
-          <Text style={styles.chooseButtonText}>
-            Choose Someone Else
-          </Text>
+          {submitAction === "choose" ? (
+            <View style={styles.busyRow}>
+              <ActivityIndicator size="small" color="#fff" style={styles.busySpinner} />
+              <Text style={styles.chooseButtonText} numberOfLines={1}>
+                {chosenName ? `Assigning ${chosenName}…` : "Assigning…"}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.chooseButtonText}>
+              Choose Someone Else
+            </Text>
+          )}
         </TouchableOpacity>
 
         <View style={styles.skipButtonsContainer}>
@@ -632,6 +676,7 @@ const UnavailableRequestModal = ({
             style={[
               styles.skipButton,
               showSkipAll && styles.skipButtonHalf,
+              submitting && styles.busyDimmed,
             ]}
             onPress={onSkip}
             disabled={submitting}
@@ -642,7 +687,7 @@ const UnavailableRequestModal = ({
 
           {showSkipAll && (
             <TouchableOpacity
-              style={[styles.skipButton, styles.skipButtonHalf]}
+              style={[styles.skipButton, styles.skipButtonHalf, submitting && styles.busyDimmed]}
               onPress={onSkipAll}
               disabled={submitting}
               activeOpacity={0.7}
@@ -653,13 +698,21 @@ const UnavailableRequestModal = ({
         </View>
 
         <TouchableOpacity
-          style={styles.deleteButton}
+          style={[
+            styles.deleteButton,
+            submitting && submitAction !== "delete" && styles.busyDimmed,
+          ]}
           onPress={handleDelete}
           disabled={submitting}
           activeOpacity={0.7}
           accessibilityLabel="Delete this request"
+          accessibilityState={{ busy: submitAction === "delete" }}
         >
-          <Text style={styles.deleteButtonText}>Delete Request</Text>
+          {submitAction === "delete" ? (
+            <ActivityIndicator size="small" color="#ff3b30" />
+          ) : (
+            <Text style={styles.deleteButtonText}>Delete Request</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -916,6 +969,9 @@ const styles = StyleSheet.create({
   chooseButton: {
     backgroundColor: "rgba(255,255,255,0.08)",
   },
+  busyDimmed: { opacity: 0.4 },
+  busyRow: { flexDirection: "row", alignItems: "center" },
+  busySpinner: { marginRight: 8 },
   chooseButtonText: {
     color: "#fff",
     fontSize: 15,

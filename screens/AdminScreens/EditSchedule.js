@@ -13,6 +13,7 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import {
   arrayRemove,
@@ -27,6 +28,7 @@ import {
 import { getAuth } from "@react-native-firebase/auth";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import callFunction from "../../components/functionCalls";
+import { waitForDoc } from "../../utils/waitForDoc";
 import IndividualProfile from "../../components/individualProfile";
 import SkeletonScreen from "../../components/Skeleton";
 import { useAfterInteractions } from "../../hooks/useAfterInteractions";
@@ -216,6 +218,27 @@ const EditSchedule = () => {
   // it cannot answer "who does add_server move into the altar next?", which is
   // always the raw extra[0]. A ref rather than state: nothing renders from it.
   const rawExtraRef = useRef([]);
+  // The schedule action in flight: "add", "default", "reader-<i>",
+  // "server-<i>" or "remove-<i>". It stays set until the change is on screen —
+  // the Cloud Run response, then the snapshot showing it (see waitForDoc) —
+  // not just until the request is sent. Only one runs at a time — slots
+  // are addressed by index, and add/remove shift those indexes under a second
+  // action. The ref catches a double tap before the re-render disables anything.
+  const [pendingAction, setPendingAction] = useState(null);
+  const pendingActionRef = useRef(null);
+  const runPending = async (key, fn) => {
+    if (pendingActionRef.current) return;
+    pendingActionRef.current = key;
+    setPendingAction(key);
+    try {
+      await fn();
+    } finally {
+      pendingActionRef.current = null;
+      setPendingAction(null);
+    }
+  };
+  const isBusy = pendingAction !== null;
+  const weekRef = () => doc(getFirestore(), "churches", churchId, "schedule", week);
 
   // Notification state
   const [notifyVisible, setNotifyVisible] = useState(false);
@@ -522,41 +545,51 @@ const EditSchedule = () => {
     ]);
   };
 
+  // The picker closes right away so the spinner on the row itself is visible
+  // while switch-server runs.
   const assignReader = async (index, newReader) => {
+    setReaderDropdownIndex(null);
     if (!week || isViewingArchived) return;
     const readingKey = readings[index];
     const oldReader = currentReaders[readingKey];
     if (!oldReader?.uid) return;
-    try {
-      await callFunction(
-        user,
-        "https://switch-server-hy6oofbihq-uc.a.run.app",
-        { church: churchId, week: week, firstServer: oldReader.uid, secondServer: newReader.uid },
-        "Failed to assign reader.",
-      );
-      await applySwitch(oldReader, newReader);
-    } catch (err) {
-      console.error("Error assigning reader:", err);
-    }
-    setReaderDropdownIndex(null);
+    await runPending(`reader-${index}`, async () => {
+      try {
+        await callFunction(
+          user,
+          "https://switch-server-hy6oofbihq-uc.a.run.app",
+          { church: churchId, week: week, firstServer: oldReader.uid, secondServer: newReader.uid },
+          "Failed to assign reader.",
+          true,
+        );
+        await waitForDoc(weekRef(), (d) => d?.[readingKey]?.uid === newReader.uid);
+        await applySwitch(oldReader, newReader);
+      } catch (err) {
+        console.error("Error assigning reader:", err);
+      }
+    });
   };
 
   const assignServer = async (index, newServer) => {
+    setServerDropdownIndex(null);
     if (!week || isViewingArchived) return;
     const oldServer = altarServers[index];
     if (!oldServer?.uid) return;
-    try {
-      await callFunction(
-        user,
-        "https://switch-server-hy6oofbihq-uc.a.run.app",
-        { church: churchId, week: week, firstServer: oldServer.uid, secondServer: newServer.uid },
-        "Failed to assign server.",
-      );
-      await applySwitch(oldServer, newServer);
-    } catch (err) {
-      console.error("Error assigning server:", err);
-    }
-    setServerDropdownIndex(null);
+    await runPending(`server-${index}`, async () => {
+      try {
+        await callFunction(
+          user,
+          "https://switch-server-hy6oofbihq-uc.a.run.app",
+          { church: churchId, week: week, firstServer: oldServer.uid, secondServer: newServer.uid },
+          "Failed to assign server.",
+          true,
+        );
+        await waitForDoc(weekRef(), (d) => d?.altar?.[index]?.uid === newServer.uid);
+        await applySwitch(oldServer, newServer);
+      } catch (err) {
+        console.error("Error assigning server:", err);
+      }
+    });
   };
 
   const handleAddServer = async () => {
@@ -565,35 +598,50 @@ const EditSchedule = () => {
     // person it removed at the front of that list — so this is exactly the deacon
     // who is about to go back into the altar, including the one just removed.
     const promoted = rawExtraRef.current[0];
-    try {
-      await callFunction(
-        user,
-        "https://add-server-hy6oofbihq-uc.a.run.app",
-        { church: churchId, week: week },
-        "Failed to add server.",
-      );
-      await updateSwitchedWeek(promoted, "remove");
-      scrollViewRef.current?.scrollToEnd({ animated: false });
-    } catch (err) {
-      console.error("Error adding server:", err);
-    }
+    const countBefore = altarServers.length;
+    await runPending("add", async () => {
+      try {
+        await callFunction(
+          user,
+          "https://add-server-hy6oofbihq-uc.a.run.app",
+          { church: churchId, week: week },
+          "Failed to add server.",
+          true,
+        );
+        await waitForDoc(weekRef(), (d) => (d?.altar?.length ?? 0) > countBefore);
+        await updateSwitchedWeek(promoted, "remove");
+        // A frame later, so the new row has been laid out before scrolling to it.
+        requestAnimationFrame(() =>
+          scrollViewRef.current?.scrollToEnd({ animated: false }),
+        );
+      } catch (err) {
+        console.error("Error adding server:", err);
+      }
+    });
   };
 
   const removeServerFromSchedule = async (index) => {
     if (!churchId || !week || isViewingArchived) return;
     const serverToRemove = altarServers[index];
     if (!serverToRemove?.uid) return;
-    try {
-      await callFunction(
-        user,
-        "https://remove-server-hy6oofbihq-uc.a.run.app",
-        { church: churchId, week: week, server: serverToRemove.uid },
-        "Failed to remove server.",
-      );
-      await updateSwitchedWeek(serverToRemove, "add");
-    } catch (err) {
-      console.error("Error removing server:", err);
-    }
+    await runPending(`remove-${index}`, async () => {
+      try {
+        await callFunction(
+          user,
+          "https://remove-server-hy6oofbihq-uc.a.run.app",
+          { church: churchId, week: week, server: serverToRemove.uid },
+          "Failed to remove server.",
+          true,
+        );
+        await waitForDoc(
+          weekRef(),
+          (d) => !(d?.altar || []).some((s) => s?.uid === serverToRemove.uid),
+        );
+        await updateSwitchedWeek(serverToRemove, "add");
+      } catch (err) {
+        console.error("Error removing server:", err);
+      }
+    });
   };
 
   // The church-wide standard. Re-slices every week that was not given its own
@@ -602,16 +650,23 @@ const EditSchedule = () => {
     if (!churchId || !week) return;
     const next = altarServersCount + delta;
     if (next < 0 || next > 6) return;
-    try {
-      await callFunction(
-        user,
-        "https://set-altar-servers-hy6oofbihq-uc.a.run.app",
-        { church: churchId, week, delta },
-        "Failed to change the standard number of altar servers.",
-      );
-    } catch (err) {
-      console.error("Error changing default altar servers:", err);
-    }
+    await runPending("default", async () => {
+      try {
+        await callFunction(
+          user,
+          "https://set-altar-servers-hy6oofbihq-uc.a.run.app",
+          { church: churchId, week, delta },
+          "Failed to change the standard number of altar servers.",
+          true,
+        );
+        await waitForDoc(
+          doc(getFirestore(), "churches", churchId),
+          (d) => (d?.altarServers || 0) === next,
+        );
+      } catch (err) {
+        console.error("Error changing default altar servers:", err);
+      }
+    });
   };
 
   // Notification functions
@@ -784,16 +839,23 @@ const EditSchedule = () => {
                   <TouchableOpacity
                     style={[
                       styles.dropdown,
-                      isViewingArchived && styles.disabledDropdown,
+                      (isViewingArchived ||
+                        (isBusy && pendingAction !== `reader-${index}`)) &&
+                        styles.disabledDropdown,
                     ]}
                     onPress={() =>
                       !isViewingArchived && setReaderDropdownIndex(index)
                     }
-                    disabled={isViewingArchived}
+                    disabled={isViewingArchived || isBusy}
                   >
-                    <Text style={styles.dropdownText}>
-                      {assignedReaders[displayNames[item]] || "Select Reader"}
-                    </Text>
+                    <View style={styles.dropdownInner}>
+                      {pendingAction === `reader-${index}` && (
+                        <ActivityIndicator size="small" color="#4d9cff" style={styles.dropdownSpinner} />
+                      )}
+                      <Text style={styles.dropdownText}>
+                        {assignedReaders[displayNames[item]] || "Select Reader"}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -807,24 +869,28 @@ const EditSchedule = () => {
             {!isViewingArchived && (
               <TouchableOpacity
                 onPress={() => changeDefaultServers(-1)}
-                disabled={altarServersCount <= 0}
+                disabled={altarServersCount <= 0 || isBusy}
                 style={styles.stepperButton}
                 accessibilityLabel="Decrease the standard number of altar servers"
               >
-                <Icon name="minus" size={16} color={altarServersCount <= 0 ? "#555" : "#4d9cff"} />
+                <Icon name="minus" size={16} color={altarServersCount <= 0 || isBusy ? "#555" : "#4d9cff"} />
               </TouchableOpacity>
             )}
-            <Text style={styles.serverCountText}>
-              {altarServersCount} by default
-            </Text>
+            {pendingAction === "default" ? (
+              <ActivityIndicator size="small" color="#4d9cff" style={styles.countSpinner} />
+            ) : (
+              <Text style={styles.serverCountText}>
+                {altarServersCount} by default
+              </Text>
+            )}
             {!isViewingArchived && (
               <TouchableOpacity
                 onPress={() => changeDefaultServers(1)}
-                disabled={altarServersCount >= 6}
+                disabled={altarServersCount >= 6 || isBusy}
                 style={styles.stepperButton}
                 accessibilityLabel="Increase the standard number of altar servers"
               >
-                <Icon name="plus" size={16} color={altarServersCount >= 6 ? "#555" : "#4d9cff"} />
+                <Icon name="plus" size={16} color={altarServersCount >= 6 || isBusy ? "#555" : "#4d9cff"} />
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -853,21 +919,28 @@ const EditSchedule = () => {
                     <TouchableOpacity
                       style={[
                         styles.dropdown,
-                        isViewingArchived && styles.disabledDropdown,
+                        (isViewingArchived ||
+                          (isBusy && pendingAction !== `server-${index}`)) &&
+                          styles.disabledDropdown,
                       ]}
                       onPress={() =>
                         !isViewingArchived && setServerDropdownIndex(index)
                       }
-                      disabled={isViewingArchived}
+                      disabled={isViewingArchived || isBusy}
                     >
-                      <Text
-                        style={[
-                          styles.dropdownText,
-                          !server?.uid && styles.disabledText,
-                        ]}
-                      >
-                        {assignedServers[index] || "Select Server"}
-                      </Text>
+                      <View style={styles.dropdownInner}>
+                        {pendingAction === `server-${index}` && (
+                          <ActivityIndicator size="small" color="#4d9cff" style={styles.dropdownSpinner} />
+                        )}
+                        <Text
+                          style={[
+                            styles.dropdownText,
+                            !server?.uid && styles.disabledText,
+                          ]}
+                        >
+                          {assignedServers[index] || "Select Server"}
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                     {!isViewingArchived && hasToken && (
                       <TouchableOpacity
@@ -886,8 +959,19 @@ const EditSchedule = () => {
                 {!isViewingArchived && (
                   <TouchableOpacity
                     onPress={() => removeServerFromSchedule(index)}
+                    disabled={isBusy}
+                    style={styles.removeTouchable}
+                    accessibilityState={{ busy: pendingAction === `remove-${index}` }}
                   >
-                    <Text style={styles.removeButton}>Remove</Text>
+                    {pendingAction === `remove-${index}` ? (
+                      <ActivityIndicator size="small" color="#ff3b30" />
+                    ) : (
+                      <Text
+                        style={[styles.removeButton, isBusy && styles.disabledText]}
+                      >
+                        Remove
+                      </Text>
+                    )}
                   </TouchableOpacity>
                 )}
               </View>
@@ -897,8 +981,20 @@ const EditSchedule = () => {
       </ScrollView>
 
       {!isViewingArchived && (
-        <TouchableOpacity style={styles.addButton} onPress={handleAddServer}>
-          <Text style={styles.addButtonText}>Add Altar Server This Week</Text>
+        <TouchableOpacity
+          style={[styles.addButton, isBusy && styles.addButtonBusy]}
+          onPress={handleAddServer}
+          disabled={isBusy}
+          accessibilityState={{ busy: pendingAction === "add" }}
+        >
+          {pendingAction === "add" ? (
+            <View style={styles.addButtonInner}>
+              <ActivityIndicator size="small" color="#fff" style={styles.dropdownSpinner} />
+              <Text style={styles.addButtonText}>Adding…</Text>
+            </View>
+          ) : (
+            <Text style={styles.addButtonText}>Add Altar Server This Week</Text>
+          )}
         </TouchableOpacity>
       )}
 
@@ -1219,7 +1315,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "500",
   },
+  dropdownInner: { flexDirection: "row", alignItems: "center" },
+  dropdownSpinner: { marginRight: 8 },
+  countSpinner: { marginHorizontal: 18, transform: [{ scale: 0.8 }] },
   removeButton: { color: "#ff3b30", fontSize: 15, fontWeight: "600" },
+  // Wide enough for "Remove", so swapping in the spinner doesn't shift the row.
+  removeTouchable: { minWidth: 60, alignItems: "flex-end" },
   notifyBtn: {
     width: 40,
     height: 40,
@@ -1240,6 +1341,8 @@ const styles = StyleSheet.create({
     right: 20,
   },
   addButtonText: { fontSize: 16, color: "#fff", fontWeight: "600" },
+  addButtonBusy: { opacity: 0.7 },
+  addButtonInner: { flexDirection: "row", alignItems: "center" },
   weekSelector: {
     flex: 1,
     backgroundColor: "#1a1a1a",
