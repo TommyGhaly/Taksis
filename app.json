@@ -71,6 +71,7 @@
       "./plugins/withPodfilePatches",
       "./plugins/withFirebaseAppDelegate",
       "./plugins/withVehicleAppClip",
+      "./plugins/withGradleMemory",
       "@react-native-community/datetimepicker",
       "expo-web-browser"
     ],
@@ -107,7 +108,7 @@
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.tghaly.taksis",
-      "versionCode": 80,
+      "versionCode": 81,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
