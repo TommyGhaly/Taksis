@@ -179,12 +179,13 @@ echo "   ✓ app and clip both at $APP_V ($APP_B)"
 # archived, so its version is not released. Only app.json is committed, so
 # whatever else is in progress in the working tree stays out of the commit. A
 # failed push warns rather than failing the run — the commit is still there to
-# push by hand.
+# push by hand. The bump always goes to main (HEAD:main), whatever branch is
+# checked out, so a release number never sits on a side branch.
 if [ "$NEW_VERSION" != "$CURRENT_VERSION" ] && ! git diff --quiet -- app.json; then
   git commit -q -m "Bump the iOS version to $NEW_VERSION" -- app.json
   echo "   ✓ committed version $NEW_VERSION"
-  if git push -q origin HEAD; then
-    echo "   ✓ pushed $(git branch --show-current)"
+  if git push -q origin HEAD:main; then
+    echo "   ✓ pushed to main"
   else
     echo "   ⚠ push failed — run 'git push' once the remote is reachable or you have pulled."
   fi

@@ -195,13 +195,14 @@ fi
 # is not spent. Only app.json is committed, so whatever else is in progress in
 # the working tree stays out of the commit. A failed push warns rather than
 # failing the run — the AAB is built either way, and the commit is still there
-# to push by hand.
+# to push by hand. The bump always goes to main (HEAD:main), whatever branch is
+# checked out, so a release number never sits on a side branch.
 if [ "$BUMP" = "1" ] && ! git diff --quiet -- app.json; then
   VC=$(grep -o '"versionCode": [0-9]*' app.json | grep -o '[0-9]*$')
   git commit -q -m "Bump the Android versionCode to $VC" -- app.json
   echo "✅ Committed versionCode $VC"
-  if git push -q origin HEAD; then
-    echo "✅ Pushed $(git branch --show-current)"
+  if git push -q origin HEAD:main; then
+    echo "✅ Pushed to main"
   else
     echo "⚠️  Push failed — run 'git push' once the remote is reachable or you have pulled."
   fi
