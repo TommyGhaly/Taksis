@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { StyleSheet, View, TouchableOpacity, Modal, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
-import { useTheme } from '../theme';
+import { useTheme, useDefaultAvatar } from '../theme';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -13,7 +13,6 @@ import Animated, {
 
 const AnimatedExpoImage = Animated.createAnimatedComponent(Image);
 const { width: WINDOW_WIDTH, height: WINDOW_HEIGHT } = Dimensions.get('window');
-const DEFAULT_PROFILE = require('../assets/default_profile.png');
 
 // Opening springs with a small amount of overshoot so the image settles rather
 // than stopping dead. Closing uses a curve instead — a spring on the way out
@@ -50,6 +49,7 @@ const ProfileImageExpander = React.memo(({
   borderRadius = 30,
   style = {}
 }) => {
+  const DEFAULT_PROFILE = useDefaultAvatar();
   const t = useTheme();
   const [modalVisible, setModalVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -76,7 +76,7 @@ const ProfileImageExpander = React.memo(({
   const imageSource = useMemo(() => {
     if (isDefaultImage) return DEFAULT_PROFILE;
     return imageUrl;
-  }, [imageUrl, isDefaultImage]);
+  }, [imageUrl, isDefaultImage, DEFAULT_PROFILE]);
 
   // recyclingKey must be a string; require()'d assets come through as numbers.
   const recyclingKey = useMemo(

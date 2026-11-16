@@ -5,7 +5,7 @@ import BackArrow from "../../components/backArrow";
 import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
 import { callFunction } from "../../components/functionCalls";
-import { makeStyles, useTabBarInset } from "../../theme";
+import { makeStyles, useTabBarInset, floatingBottom } from "../../theme";
 
 const ChangeRoles = ({ navigation }) => {
   const styles = useStyles();
@@ -35,7 +35,7 @@ const ChangeRoles = ({ navigation }) => {
   };
 
   return (
-    <View style={[styles.container, { paddingBottom: 40 + tabBarInset }]}>
+    <View style={[styles.container, { paddingBottom: floatingBottom(40, tabBarInset) }]}>
       <View style={styles.header}>
         <View style={styles.backArrow}>
           <BackArrow />

@@ -16,7 +16,7 @@ import SkeletonScreen from "../../components/Skeleton";
 import * as avatarCache from "../../utils/avatarCache";
 import { LIST_PERF } from "../../utils/listConfig";
 import { isAttendanceDateKey, dateKeyToSortable } from "../../utils/dateKeys";
-import { makeStyles, useTabBarInset } from "../../theme";
+import { makeStyles, useTabBarInset, floatingBottom } from "../../theme";
 
 // On an iPad this screen sits in the centered column MainContainer wraps it
 // in, so the page itself just fills that. The modal card is capped on its
@@ -240,7 +240,7 @@ const ServantAttendance = () => {
   }
 
   return (
-    <View style={[styles.container, { paddingBottom: 20 + tabBarInset }]}>
+    <View style={[styles.container, { paddingBottom: floatingBottom(20, tabBarInset) }]}>
       <View style={styles.contentContainer}>
         <View style={styles.buttonRow}>
           <BackArrow />

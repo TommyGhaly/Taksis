@@ -6,7 +6,7 @@ import BackArrow from "../../components/backArrow";
 import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
 import { callFunction } from "../../components/functionCalls";
-import { makeStyles, useTabBarInset } from "../../theme";
+import { makeStyles, useTabBarInset, floatingBottom } from "../../theme";
 
 
 const ChangeRank = ({ navigation }) => {
@@ -42,7 +42,7 @@ const ChangeRank = ({ navigation }) => {
   };
 
   return (
-    <View style={[styles.container, { paddingBottom: 16 + tabBarInset }]}>
+    <View style={[styles.container, { paddingBottom: floatingBottom(16, tabBarInset) }]}>
       <BackArrow style={styles.backArrow} />
       <View style={styles.title}>
         <Text style={styles.titleText}>What is your current deacon rank?</Text>

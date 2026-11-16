@@ -36,7 +36,7 @@ import {
   isManualId,
   mergeManualIntoReal,
 } from "../../utils/manualPeople";
-import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset, floatingBottom } from "../../theme";
 
 // Bottom sheets stop at this width, centered along the bottom edge: at full
 // width on an iPad a sheet ran the whole 1,200pt window with its content
@@ -380,7 +380,7 @@ const IndividualServant = () => {
   }
 
   return (
-    <View style={[styles.container, { paddingBottom: 40 + tabBarInset }]}>
+    <View style={[styles.container, { paddingBottom: floatingBottom(40, tabBarInset) }]}>
       <BackArrow style={styles.backArrow} onPress={() => navigation.goBack()} />
 
       {/* Header */}

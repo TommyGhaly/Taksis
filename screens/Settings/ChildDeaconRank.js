@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
 import Rank from "../../components/rank"; // Import Rank component
-import { makeStyles, useTabBarInset } from "../../theme";
+import { makeStyles, useTabBarInset, floatingBottom } from "../../theme";
 
 const ChildRank = ({ route, navigation }) => {
   const styles = useStyles();
@@ -30,7 +30,7 @@ const ChildRank = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={["left", "right"]} style={styles.container}>
       <View style={styles.backarrow}>
         <BackArrow onPress={() => navigation.goBack()} />
       </View>
@@ -47,7 +47,7 @@ const ChildRank = ({ route, navigation }) => {
       </View>
 
       {/* Continue Button */}
-      <View style={[styles.continueLayout, { bottom: 20 + tabBarInset }]}>
+      <View style={[styles.continueLayout, { bottom: floatingBottom(20, tabBarInset) }]}>
         <TouchableOpacity onPress={handleContinue} style={styles.continueButton}>
           <Text style={styles.continuetext}>Continue</Text>
         </TouchableOpacity>

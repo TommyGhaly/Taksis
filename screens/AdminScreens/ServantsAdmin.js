@@ -59,7 +59,7 @@ import {
   normalizeManualPerson,
   saveManualPerson,
 } from "../../utils/manualPeople";
-import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset, floatingBottom } from "../../theme";
 
 // Simple cache utilities
 const CacheUtils = makeScreenCache();
@@ -1124,7 +1124,7 @@ const ServantsAdmin = () => {
       <Animated.View
         style={[
           styles.floatingBarWrapper,
-          tabBarInset > 0 && { bottom: (Platform.OS === "ios" ? 28 : 16) + tabBarInset },
+          tabBarInset > 0 && { bottom: floatingBottom((Platform.OS === "ios" ? 28 : 16), tabBarInset) },
           { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] },
         ]}
         pointerEvents="box-none"

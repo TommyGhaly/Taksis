@@ -15,7 +15,7 @@ import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
 import { callFunction } from "../../components/functionCalls";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
-import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset, floatingBottom } from "../../theme";
 
 const ChildAge = ({ route }) => {
   const styles = useStyles();
@@ -107,7 +107,7 @@ const ChildAge = ({ route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={["left", "right"]} style={styles.container}>
       <View style={styles.innerContainer}>
         <Pressable style={styles.backarrow} onPress={handleBackPress}>
           <BackArrow />
@@ -152,7 +152,7 @@ const ChildAge = ({ route }) => {
           </GlassSurface>
         </View>
 
-        <View style={[styles.continueLayout, { bottom: 20 + tabBarInset }]}>
+        <View style={[styles.continueLayout, { bottom: floatingBottom(20, tabBarInset) }]}>
           <Pressable style={styles.continueButton} onPress={handleContinue}>
             <Text style={styles.buttonText}>Continue</Text>
           </Pressable>

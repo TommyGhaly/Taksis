@@ -2,7 +2,7 @@ import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import { Text, View, Pressable, Animated, Platform } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset, floatingBottom } from "../../theme";
 
 const LearnItMainMenu = ({ navigation }) => {
   const styles = useStyles();
@@ -50,7 +50,7 @@ const LearnItMainMenu = ({ navigation }) => {
         </Animated.View>
       )}
 
-      <View style={[styles.content, tabBarInset > 0 && { paddingBottom: 20 + tabBarInset }]}>
+      <View style={[styles.content, tabBarInset > 0 && { paddingBottom: floatingBottom(20, tabBarInset) }]}>
         <View style={styles.headerContainer}>
           <Text style={styles.headerSubtext}>Ⲧⲁⲝⲓⲥ</Text>
           <Text style={styles.headerText}>Learn It</Text>

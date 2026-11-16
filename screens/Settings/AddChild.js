@@ -12,7 +12,7 @@ import ProgressBar from "../../components/progressBar";
 import { collection, doc, getDoc, getFirestore } from '@react-native-firebase/firestore';
 import { getAuth } from "@react-native-firebase/auth";
 import { deleteObject, getStorage, ref } from '@react-native-firebase/storage';
-import { makeStyles, useTheme, useTabBarInset } from "../../theme";
+import { makeStyles, useTheme, useTabBarInset, floatingBottom } from "../../theme";
 
 // Custom function to generate a UID
 const generateUID = () => doc(collection(getFirestore(), "dummy")).id;
@@ -90,7 +90,7 @@ const AddChild = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={["left", "right"]} style={styles.container}>
       {/* Back Arrow */}
       <View style={styles.backarrow}>
         <BackArrow onPress={handleBackPress} />
@@ -117,7 +117,7 @@ const AddChild = ({ navigation }) => {
         Please only add a child if they are a deacon and not already registered.
       </Text>
       {/* Continue Button */}
-      <View style={[styles.continueLayout, { bottom: 20 + tabBarInset }]}>
+      <View style={[styles.continueLayout, { bottom: floatingBottom(20, tabBarInset) }]}>
         <TouchableOpacity onPress={handleContinue} style={styles.continueButton}>
           <Text style={styles.continueText}>Continue</Text>
         </TouchableOpacity>

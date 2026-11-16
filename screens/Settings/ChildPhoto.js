@@ -17,10 +17,10 @@ import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
 import PhotoInput from "../../components/photoInput";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
-import defaultProfile from "../../assets/default_profile.png";
-import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset, floatingBottom, useDefaultAvatar } from "../../theme";
 
 const ChildPhoto = ({ route }) => {
+  const defaultProfile = useDefaultAvatar();
   const styles = useStyles();
   const t = useTheme();
   const tabBarInset = useTabBarInset();
@@ -102,7 +102,7 @@ const ChildPhoto = ({ route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={["left", "right"]} style={styles.container}>
       <View style={styles.backarrow}>
         <BackArrow onPress={handleBackPress} />
       </View>
@@ -135,7 +135,7 @@ const ChildPhoto = ({ route }) => {
         </GlassSurface>
       </View>
 
-      <View style={[styles.continueLayout, { bottom: 20 + tabBarInset }]}>
+      <View style={[styles.continueLayout, { bottom: floatingBottom(20, tabBarInset) }]}>
         <TouchableOpacity
           style={styles.continueButton}
           onPress={handleContinue}

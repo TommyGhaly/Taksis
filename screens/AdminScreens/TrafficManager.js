@@ -37,14 +37,13 @@ import { LIST_PERF, REMOVE_CLIPPED_ANDROID_ONLY } from "../../utils/listConfig";
 import { SkeletonProvider, SkeletonBlock, SkeletonCircle } from "../../components/Skeleton";
 import { useAfterInteractions } from "../../hooks/useAfterInteractions";
 import { useIsPreview } from "../../components/PreviewMode";
-import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset, floatingBottom, useDefaultAvatar } from "../../theme";
 
 // Bottom sheets stop at this width, centered along the bottom edge: at full
 // width on an iPad a sheet ran the whole 1,200pt window with its content
 // pinned to either end. Wider than any phone, so phones are unaffected.
 const SHEET_MAX_WIDTH = 640;
 
-const DEFAULT_PROFILE = require("../../assets/default_profile.png");
 const NOTIFICATION_URL = "https://us-central1-taksis-a8ba7.cloudfunctions.net/traffic_notification";
 const DEFAULT_CAR_LIMIT = 2;
 
@@ -408,6 +407,7 @@ const TrafficSkeleton = memo(({ count = 7 }) => {
 TrafficSkeleton.displayName = "TrafficSkeleton";
 
 const TrafficManager = () => {
+  const DEFAULT_PROFILE = useDefaultAvatar();
   const s = useS();
   const t = useTheme();
   const tabBarInset = useTabBarInset();
@@ -681,7 +681,7 @@ const TrafficManager = () => {
   const getImageSource = useCallback((uid) => {
     const uri = avatarCache.uriFor(uid);
     return uri ? { uri } : DEFAULT_PROFILE;
-  }, [avatarVer]);
+  }, [avatarVer, DEFAULT_PROFILE]);
 
   const getPresentCarsForPerson = useCallback(
     (uid) => cars.filter((c) => c.ownerIds?.includes(uid) && c.present).length,
@@ -1088,7 +1088,7 @@ const TrafficManager = () => {
         <Animated.View
           style={[
             s.floatingBarWrapper,
-            tabBarInset ? { bottom: (Platform.OS === "ios" ? 28 : 16) + tabBarInset } : null,
+            tabBarInset ? { bottom: floatingBottom((Platform.OS === "ios" ? 28 : 16), tabBarInset) } : null,
             { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] },
           ]}
           pointerEvents="box-none"

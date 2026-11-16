@@ -39,7 +39,7 @@ import { LIST_PERF } from "../../utils/listConfig";
 import { longDateLabelWithYear, parseDateKey } from "../../utils/dateKeys";
 import { getDocsByIds } from "../../utils/firestoreBatch";
 import useServeDates from "../../hooks/useServeDates";
-import { makeStyles, useTheme, GlassSurface, GlassContainer, useTabBarInset } from "../../theme";
+import { makeStyles, useTheme, GlassSurface, GlassContainer, useTabBarInset, floatingBottom } from "../../theme";
 
 const NOTIFICATION_URL =
   "https://us-central1-taksis-a8ba7.cloudfunctions.net/traffic_notification";
@@ -1014,7 +1014,7 @@ const EditSchedule = () => {
 
       {!isViewingArchived && (
         <TouchableOpacity
-          style={[styles.addButton, { bottom: 20 + tabBarInset }, isBusy && styles.addButtonBusy]}
+          style={[styles.addButton, { bottom: floatingBottom(20, tabBarInset) }, isBusy && styles.addButtonBusy]}
           onPress={handleAddServer}
           disabled={isBusy}
           accessibilityState={{ busy: pendingAction === "add" }}

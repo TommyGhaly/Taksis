@@ -15,9 +15,7 @@ import { View, TouchableOpacity, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import * as avatarCache from "../utils/avatarCache";
 import ProfileImageExpander from "./ProfileImageExpander";
-import { useTheme } from "../theme";
-
-const DEFAULT_PROFILE = require("../assets/default_profile.png");
+import { useTheme, useDefaultAvatar } from "../theme";
 
 /**
  * Subscribe to the cache and re-render only when this uid's URI actually
@@ -42,6 +40,7 @@ const Avatar = React.memo(({
   onDisplay,
 }) => {
   const t = useTheme();
+  const DEFAULT_PROFILE = useDefaultAvatar();
   const resolvedUid = uid || user?.uid || user?.id || null;
   const uri = useAvatarUri(resolvedUid);
 

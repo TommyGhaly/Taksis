@@ -35,6 +35,9 @@ import {
 const STORAGE_PREFIX = "avatar_v1_";
 // URLs are long-lived; `photoUpdatedAt` (not time) is what invalidates them.
 const TTL = 30 * 24 * 60 * 60 * 1000;
+// "No photo" is re-checked daily: a photo added later shows up, and a miss
+// recorded wrongly (see resolve) heals itself instead of lasting a month.
+const MISS_TTL = 24 * 60 * 60 * 1000;
 
 // uid -> { url: string|null, version: string|null, ts: number }
 const mem = new Map();
@@ -126,7 +129,7 @@ export async function hydrate() {
       if (!raw) return;
       try {
         const entry = JSON.parse(raw);
-        if (now - (entry.ts || 0) > TTL) {
+        if (now - (entry.ts || 0) > (entry.url ? TTL : MISS_TTL)) {
           expired.push(k);
           return;
         }
@@ -236,7 +239,13 @@ export function resolve(uid) {
       notify();
       return clean;
     })
-    .catch(() => {
+    .catch((e) => {
+      // Only a confirmed "no such file" is a miss worth caching. Anything else
+      // — signed out mid-teardown, a Storage rules denial, offline, a timeout —
+      // says nothing about whether the photo exists; caching it blanked a
+      // user's avatar for the full TTL. Leave it uncached so the next mount
+      // retries.
+      if (e?.code !== "storage/object-not-found") return null;
       // Cache the miss too — otherwise every snapshot refetches users who
       // simply have no photo, which was a major source of request churn.
       const entry = { url: null, version: null, ts: Date.now() };

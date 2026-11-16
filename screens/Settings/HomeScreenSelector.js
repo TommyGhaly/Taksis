@@ -33,7 +33,7 @@ import ServantsAdmin from "../AdminScreens/ServantsAdmin";
 import AlhanAdmin from "../AdminScreens/AlhanAdmin";
 import PaschaManager from "../AdminScreens/PaschaManager";
 import AdminManager from "../AdminScreens/AdminManager";
-import { makeStyles, useTheme, useTabBarInset } from "../../theme";
+import { makeStyles, useTheme, useTabBarInset, floatingBottom } from "../../theme";
 
 const PREVIEW_BORDER_WIDTH = 3;
 const GRID_PADDING = 20; // innerContainer's horizontal padding
@@ -325,15 +325,15 @@ const HomeScreenSelector = () => {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView edges={["left", "right"]} style={styles.container}>
         <SkeletonScreen variant="cards" count={4} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={[styles.innerContainer, { paddingBottom: 20 + tabBarInset }]}>
+    <SafeAreaView edges={["left", "right"]} style={styles.container}>
+      <View style={[styles.innerContainer, { paddingBottom: floatingBottom(20, tabBarInset) }]}>
         <View style={styles.header}>
           <Pressable
             style={styles.backArrow}

@@ -1293,7 +1293,7 @@ const HomeScreen = () => {
   const scheduleStillLoading = !!userDoc?.church && !scheduleLoaded;
   if (userLoading || scheduleStillLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView edges={["left", "right"]} style={styles.container}>
         <SkeletonScreen variant="cards" count={7} />
       </SafeAreaView>
     );
@@ -1302,7 +1302,7 @@ const HomeScreen = () => {
   // Show error state if user data failed to load
   if (userError && !userDoc) {
     return (
-      <SafeAreaView
+      <SafeAreaView edges={["left", "right"]}
         style={[
           styles.container,
           { justifyContent: "center", alignItems: "center" },

@@ -20,7 +20,7 @@ import BackArrow from "../../components/backArrow";
 import { callFunction } from "../../components/functionCalls";
 import Avatar from "../../components/Avatar";
 import * as avatarCache from "../../utils/avatarCache";
-import { makeStyles, GlassSurface, useTabBarInset } from "../../theme";
+import { makeStyles, GlassSurface, useTabBarInset, floatingBottom } from "../../theme";
 
 const ChangeChildren = () => {
   const styles = useStyles();
@@ -133,7 +133,7 @@ const ChangeChildren = () => {
   };
 
   return (
-    <View style={[styles.container, { paddingBottom: 20 + tabBarInset }]}>
+    <View style={[styles.container, { paddingBottom: floatingBottom(20, tabBarInset) }]}>
       <BackArrow style={styles.backArrow} />
       {children.length === 0 ? (
         <Text style={styles.noChildrenText}>You have no children</Text>

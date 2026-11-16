@@ -71,7 +71,7 @@ const ChangeAge = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={["left", "right"]} style={styles.container}>
       <View style={styles.innerContainer}>
         <View style={styles.header}>
           <Pressable

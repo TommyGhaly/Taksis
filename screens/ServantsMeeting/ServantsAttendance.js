@@ -51,7 +51,7 @@ import {
   newManualId,
   saveManualPerson,
 } from "../../utils/manualPeople";
-import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset, floatingBottom } from "../../theme";
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
@@ -733,7 +733,7 @@ const ServantsAttendance = () => {
 
       {/* Floating search bar + add button */}
       <Animated.View
-        style={[styles.floatingBarWrapper, { bottom: (Platform.OS === "ios" ? 28 : 16) + tabBarInset }, isWide && { left: gutter, right: gutter }, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
+        style={[styles.floatingBarWrapper, { bottom: floatingBottom((Platform.OS === "ios" ? 28 : 16), tabBarInset) }, isWide && { left: gutter, right: gutter }, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
         pointerEvents="box-none"
       >
         {(() => {

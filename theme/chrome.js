@@ -27,6 +27,29 @@ export function useTabBarInset() {
   return FLOATING_TAB_HEIGHT + Math.max(insets.bottom, FLOATING_TAB_MARGIN) + FLOATING_TAB_MARGIN + 12;
 }
 
+// Gap between the top of the glass pill and a floating bar/button above it.
+const FLOATING_GAP = 12;
+// What useTabBarInset adds beyond the pill's top edge (gap under the pill is
+// already in the pill-top figure; this is margin + breathing room).
+const INSET_ABOVE_PILL = FLOATING_TAB_MARGIN + 12;
+
+/**
+ * `bottom` for an absolutely positioned floating element (search bar, FAB,
+ * Continue button) given its non-glass `bottom` and the screen's
+ * useTabBarInset() value.
+ *
+ * With the glass tab bar showing, the element sits FLOATING_GAP above the
+ * pill — its original offset was measured from an in-layout tab bar and no
+ * longer applies. Otherwise it keeps its original offset.
+ *
+ * Not the same as adding the inset: that's scroll padding (room to scroll the
+ * last row past the pill), which would float the element far too high.
+ */
+export function floatingBottom(original, tabBarInset) {
+  if (!tabBarInset) return original;
+  return tabBarInset - INSET_ABOVE_PILL + FLOATING_GAP;
+}
+
 /**
  * Wraps a header icon button (menu, bell) in a small glass circle when glass
  * is on — the iOS 26 navigation bar look. A pass-through otherwise.

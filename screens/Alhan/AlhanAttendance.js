@@ -18,7 +18,7 @@ import {
   PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
-import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset, floatingBottom } from "../../theme";
 import { useNavigation } from "@react-navigation/native";
 import {
   collection,
@@ -952,7 +952,7 @@ const AlhanAttendance = () => {
       <Animated.View
         style={[
           styles.floatingBarWrapper,
-          { bottom: (Platform.OS === "ios" ? 28 : 16) + tabBarInset },
+          { bottom: floatingBottom((Platform.OS === "ios" ? 28 : 16), tabBarInset) },
           isWide && { left: gutter, right: gutter },
           { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] },
         ]}

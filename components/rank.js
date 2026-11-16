@@ -48,7 +48,7 @@ const Rank = ({ onSelectRank }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={["left", "right"]} style={styles.container}>
       <FlatList
         data={DATA}
         renderItem={renderItem}

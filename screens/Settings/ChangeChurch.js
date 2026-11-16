@@ -5,7 +5,7 @@ import { getAuth } from "@react-native-firebase/auth";
 import BackArrow from "../../components/backArrow";
 import Churches from "../../components/churches"; // Assuming you have a Churches component for displaying church options
 import { callFunction } from "../../components/functionCalls";
-import { makeStyles, useTabBarInset } from "../../theme";
+import { makeStyles, useTabBarInset, floatingBottom } from "../../theme";
 
 const ChangeChurch = ({ navigation }) => {
   const styles = useStyles();
@@ -138,7 +138,7 @@ const ChangeChurch = ({ navigation }) => {
   };
 
   return (
-    <View style={[styles.container, { paddingBottom: 16 + tabBarInset }]}>
+    <View style={[styles.container, { paddingBottom: floatingBottom(16, tabBarInset) }]}>
       <BackArrow style={styles.backArrow} />
       <Text style={styles.titleText}>
         Select the church you regularly attend

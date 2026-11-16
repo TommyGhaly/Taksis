@@ -13,11 +13,11 @@ import { getDownloadURL, getStorage, ref } from "@react-native-firebase/storage"
 import { getAuth } from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 import PhotoInput from "../../components/photoInput";
-import { makeStyles, useTheme, GlassSurface } from "../../theme";
+import { makeStyles, useTheme, GlassSurface, useDefaultAvatar } from "../../theme";
 
-const DEFAULT_PROFILE = require("../../assets/default_profile.png");
 
 const ChangePhoto = () => {
+  const DEFAULT_PROFILE = useDefaultAvatar();
   const styles = useStyles();
   const t = useTheme();
   const [showPhotoModal, setShowPhotoModal] = useState(false);

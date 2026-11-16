@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
-import { makeStyles, useTheme, GlassSurface, useTabBarInset } from '../../theme';
+import { makeStyles, useTheme, GlassSurface, useTabBarInset, floatingBottom } from '../../theme';
 import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { getAuth } from '@react-native-firebase/auth';
@@ -702,7 +702,7 @@ export default function DatabaseManagerScreen() {
   // Gate screens
   if (gateState === 'checking') {
     return (
-      <SafeAreaView style={g.center}>
+      <SafeAreaView edges={["left", "right"]} style={g.center}>
         <ActivityIndicator color={C.accent} size="large" />
         <Text style={g.sub}>Verifying access…</Text>
       </SafeAreaView>
@@ -710,7 +710,7 @@ export default function DatabaseManagerScreen() {
   }
   if (gateState === 'denied') {
     return (
-      <SafeAreaView style={g.center}>
+      <SafeAreaView edges={["left", "right"]} style={g.center}>
         <View style={[g.iconWrap, { backgroundColor: 'rgba(255,59,48,0.1)' }]}>
           <Ionicons name="lock-closed" size={36} color={C.danger} />
         </View>
@@ -721,7 +721,7 @@ export default function DatabaseManagerScreen() {
   }
   if (gateState === 'bio_unavailable' || gateState === 'bio_prompt' || gateState === 'locked') {
     return (
-      <SafeAreaView style={g.center}>
+      <SafeAreaView edges={["left", "right"]} style={g.center}>
         <View style={g.iconWrap}>
           <Ionicons name={Platform.OS === 'ios' ? 'scan-circle-outline' : 'finger-print'} size={48} color={C.accent} />
         </View>
@@ -742,7 +742,7 @@ export default function DatabaseManagerScreen() {
 
   const current = stack[stack.length - 1];
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView edges={["left", "right"]} style={styles.screen}>
       <Header view={view} stack={stack} onBack={view !== 'root' ? goBack : null} />
       {view === 'root' && <RootList onPick={goCollection} onPickStorage={goStorage} onPickActivity={goActivity} />}
       {view === 'activity' && <ScheduleActivity />}
@@ -1222,7 +1222,7 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
       />
 
       <Animated.View
-        style={[styles.floatingBarWrapper, { bottom: (Platform.OS === 'ios' ? 28 : 16) + tabBarInset }, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
+        style={[styles.floatingBarWrapper, { bottom: floatingBottom((Platform.OS === 'ios' ? 28 : 16), tabBarInset) }, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
         pointerEvents="box-none"
       >
         <FloatingBarSurface style={styles.floatingBlur}>
@@ -1606,7 +1606,7 @@ function StorageView({ prefix }) {
       />
 
       <Animated.View
-        style={[styles.floatingBarWrapper, { bottom: (Platform.OS === 'ios' ? 28 : 16) + tabBarInset }, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
+        style={[styles.floatingBarWrapper, { bottom: floatingBottom((Platform.OS === 'ios' ? 28 : 16), tabBarInset) }, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
         pointerEvents="box-none"
       >
         <FloatingBarSurface style={styles.floatingBlur}>

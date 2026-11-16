@@ -18,14 +18,13 @@ import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { COLOR_OPTIONS } from "./TrafficVehicleComponents";
 import { approveReviewItem, deleteReviewItem, resolveDriver } from "../utils/carsMigration";
 import { LIST_PERF } from "../utils/listConfig";
-import { makeStyles, useTheme, GlassSurface } from "../theme";
+import { makeStyles, useTheme, GlassSurface, useDefaultAvatar } from "../theme";
 
 // Bottom sheets stop at this width, centered along the bottom edge: at full
 // width on an iPad a sheet ran the whole 1,200pt window with its content
 // pinned to either end. Wider than any phone, so phones are unaffected.
 const SHEET_MAX_WIDTH = 640;
 
-const DEFAULT_PROFILE = require("../assets/default_profile.png");
 
 // ── Fuzzy matching helpers ───────────────────────────────────────────────────
 
@@ -156,6 +155,7 @@ const DriverResolutionRow = memo(({
   driver, index, resolved, allUsers, getImageSource,
   onLink, onCreateUnreg, onUnlink,
 }) => {
+  const DEFAULT_PROFILE = useDefaultAvatar();
   const rs = useRs();
   const t = useTheme();
   const [manualSearch, setManualSearch] = useState(false);

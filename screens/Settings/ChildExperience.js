@@ -6,7 +6,7 @@ import Slider from "@react-native-community/slider";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
-import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset, floatingBottom } from "../../theme";
 
 const ChildExperience = ({ navigation, route }) => {
   const styles = useStyles();
@@ -47,7 +47,7 @@ const ChildExperience = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={["left", "right"]} style={styles.container}>
       <View style={styles.innerContainer}>
         <View style={styles.backarrow}>
           <BackArrow onPress={() => navigation.goBack()} />
@@ -83,7 +83,7 @@ const ChildExperience = ({ navigation, route }) => {
           </GlassSurface>
         </View>
 
-        <View style={[styles.continueLayout, { bottom: 20 + tabBarInset }]}>
+        <View style={[styles.continueLayout, { bottom: floatingBottom(20, tabBarInset) }]}>
           <TouchableOpacity onPress={handleContinue} style={styles.continueButton}>
             <Text style={styles.buttonText}>Continue</Text>
           </TouchableOpacity>
