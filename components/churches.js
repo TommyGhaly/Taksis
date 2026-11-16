@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import {
-  StyleSheet,
   View,
   TouchableOpacity,
   Text,
@@ -8,6 +7,7 @@ import {
   Image,
 } from "react-native";
 import * as Haptics from "react-native-haptic-feedback";
+import { makeStyles } from "../theme";
 
 const DATA = [
   {
@@ -27,7 +27,9 @@ const DATA = [
   },
 ];
 
-const ChurchItem = ({ item, onPress, isSelected }) => (
+const ChurchItem = ({ item, onPress, isSelected }) => {
+  const styles = useStyles();
+  return (
   <TouchableOpacity
     onPress={onPress}
     style={[styles.item, isSelected && styles.selectedItem]}
@@ -38,9 +40,11 @@ const ChurchItem = ({ item, onPress, isSelected }) => (
       {item.title}
     </Text>
   </TouchableOpacity>
-);
+  );
+};
 
 const Churches = ({ onSelectChurch }) => {
+  const styles = useStyles();
   const [selectedId, setSelectedId] = useState(null);
 
   const renderItem = ({ item }) => {
@@ -72,7 +76,7 @@ const Churches = ({ onSelectChurch }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
   },
@@ -81,16 +85,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     marginVertical: 8,
-    backgroundColor: "#2A2A2A", // Dark gray for depth
+    backgroundColor: t.surfaceElevated,
     borderRadius: 12,
     elevation: 3,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 3,
   },
   selectedItem: {
-    backgroundColor: "#147EFB", // Matches blue accent
+    backgroundColor: t.accent,
     elevation: 5,
     shadowOpacity: 0.25,
   },
@@ -99,19 +103,19 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 8,
     marginRight: 12,
-    backgroundColor: "#FFF",
+    backgroundColor: "#FFF", // White mat behind the church logos in both modes.
   },
   title: {
     fontSize: 18,
     fontFamily: "Roboto-Regular",
     fontWeight: "500",
-    color: "#E0E0E0", // Light gray for contrast
+    color: t.isDark ? "#E0E0E0" : t.text,
     flexShrink: 1,
   },
   selectedText: {
-    color: "#FFF",
+    color: t.onAccent,
     fontWeight: "600",
   },
-});
+}));
 
 export default Churches;

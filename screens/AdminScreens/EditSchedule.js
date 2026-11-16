@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  StyleSheet,
   FlatList,
   Modal,
   TextInput,
@@ -14,6 +13,7 @@ import {
   TouchableWithoutFeedback,
   Alert,
   ActivityIndicator,
+  StyleSheet,
 } from "react-native";
 import {
   arrayRemove,
@@ -39,6 +39,7 @@ import { LIST_PERF } from "../../utils/listConfig";
 import { longDateLabelWithYear, parseDateKey } from "../../utils/dateKeys";
 import { getDocsByIds } from "../../utils/firestoreBatch";
 import useServeDates from "../../hooks/useServeDates";
+import { makeStyles, useTheme, GlassSurface, GlassContainer, useTabBarInset } from "../../theme";
 
 const NOTIFICATION_URL =
   "https://us-central1-taksis-a8ba7.cloudfunctions.net/traffic_notification";
@@ -142,7 +143,9 @@ const formatWeekDisplay = (weekStr) => {
 };
 
 /** One week in the picker. Label arrives precomputed and cached. */
-const WeekItemRow = React.memo(({ week, label, isSelected, isArchived, onPress }) => (
+const WeekItemRow = React.memo(({ week, label, isSelected, isArchived, onPress }) => {
+  const styles = useStyles();
+  return (
   <TouchableOpacity
     style={[styles.modalItemContainer, isSelected && styles.selectedWeekItem]}
     onPress={() => onPress(week, isArchived)}
@@ -156,13 +159,25 @@ const WeekItemRow = React.memo(({ week, label, isSelected, isArchived, onPress }
     </View>
     {isSelected && <Text style={styles.checkmark}>✓</Text>}
   </TouchableOpacity>
-));
+  );
+});
 WeekItemRow.displayName = "WeekItemRow";
 
 const weekKeyExtractor = (item) => item;
-const WeekSeparator = () => <View style={styles.separator} />;
+const WeekSeparator = () => {
+  const styles = useStyles();
+  return <View style={styles.separator} />;
+};
+
+// Light mode darkens the label so it holds contrast on white; the dot keeps the hue.
+const statusTextColor = (t, status) =>
+  t.isDark
+    ? STATUS_COLORS[status]
+    : { confirmed: t.successText, unsure: t.warningText, unavailable: t.dangerText }[status];
 
 const StatusBadge = ({ status, align = "left" }) => {
+  const styles = useStyles();
+  const t = useTheme();
   if (!status || !STATUS_LABELS[status]) return null;
   return (
     <View
@@ -171,7 +186,7 @@ const StatusBadge = ({ status, align = "left" }) => {
       <View
         style={[styles.statusDot, { backgroundColor: STATUS_COLORS[status] }]}
       />
-      <Text style={[styles.statusText, { color: STATUS_COLORS[status] }]}>
+      <Text style={[styles.statusText, { color: statusTextColor(t, status) }]}>
         {STATUS_LABELS[status]}
       </Text>
     </View>
@@ -179,6 +194,9 @@ const StatusBadge = ({ status, align = "left" }) => {
 };
 
 const EditSchedule = () => {
+  const styles = useStyles();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const user = getAuth().currentUser;
   const scrollViewRef = useRef(null);
   // Hold reads until the drawer transition finishes animating.
@@ -748,13 +766,17 @@ const EditSchedule = () => {
       {availableWeeks.length > 0 && (
         <View style={styles.headerContainer}>
           <TouchableOpacity
+            style={styles.weekSelectorTouch}
+            onPress={() => setShowWeekSelector(true)}
+            activeOpacity={0.8}
+          >
+           <GlassSurface
             style={[
               styles.weekSelector,
               isViewingArchived && styles.archivedWeekSelector,
             ]}
-            onPress={() => setShowWeekSelector(true)}
-            activeOpacity={0.8}
-          >
+            interactive
+           >
             <View style={styles.weekSelectorContent}>
               <View style={styles.weekLabelRow}>
                 <Text style={styles.weekLabel}>Week of</Text>
@@ -771,14 +793,17 @@ const EditSchedule = () => {
             <View style={styles.weekSelectorIconContainer}>
               <Text style={styles.weekSelectorIcon}>▼</Text>
             </View>
+           </GlassSurface>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.historyButton}
+            style={styles.historyButtonTouch}
             onPress={() => setAuditVisible(true)}
             activeOpacity={0.8}
             accessibilityLabel="Schedule history"
           >
-            <Icon name="history" size={24} color="#4d9cff" />
+            <GlassSurface style={styles.historyButton} interactive>
+              <Icon name="history" size={24} color={t.accentText} />
+            </GlassSurface>
           </TouchableOpacity>
         </View>
       )}
@@ -793,10 +818,14 @@ const EditSchedule = () => {
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: 90 }}
+        contentContainerStyle={{ paddingBottom: 90 + tabBarInset }}
         ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
       >
+       {/* Glass panes can't sample other glass, so without a shared container
+           each card refracts the shadow of the one above it and the 12pt gaps
+           fill with a grey band in light mode. spacing 0 keeps them separate. */}
+       <GlassContainer spacing={0}>
         <View style={styles.sectionHeaderContainer}>
           <Text style={styles.sectionHeader}>Assign Readers</Text>
         </View>
@@ -807,11 +836,11 @@ const EditSchedule = () => {
           return (
             <TouchableOpacity
               key={index}
-              style={styles.listItem}
               onPress={() => openProfile(reader?.uid)}
               disabled={!reader?.uid}
               activeOpacity={1}
             >
+             <GlassSurface style={styles.listItem}>
               <View style={styles.listItemContent}>
                 <View style={styles.readerLeftContent}>
                   <Text
@@ -833,7 +862,7 @@ const EditSchedule = () => {
                         openNotify(reader.uid, reader.name);
                       }}
                     >
-                      <Icon name="bell-outline" size={18} color="#ff9f0a" />
+                      <Icon name="bell-outline" size={18} color={t.warning} />
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity
@@ -850,7 +879,7 @@ const EditSchedule = () => {
                   >
                     <View style={styles.dropdownInner}>
                       {pendingAction === `reader-${index}` && (
-                        <ActivityIndicator size="small" color="#4d9cff" style={styles.dropdownSpinner} />
+                        <ActivityIndicator size="small" color={t.accentText} style={styles.dropdownSpinner} />
                       )}
                       <Text style={styles.dropdownText}>
                         {assignedReaders[displayNames[item]] || "Select Reader"}
@@ -859,6 +888,7 @@ const EditSchedule = () => {
                   </TouchableOpacity>
                 </View>
               </View>
+             </GlassSurface>
             </TouchableOpacity>
           );
         })}
@@ -873,11 +903,11 @@ const EditSchedule = () => {
                 style={styles.stepperButton}
                 accessibilityLabel="Decrease the standard number of altar servers"
               >
-                <Icon name="minus" size={16} color={altarServersCount <= 0 || isBusy ? "#555" : "#4d9cff"} />
+                <Icon name="minus" size={16} color={altarServersCount <= 0 || isBusy ? (t.isDark ? "#555" : t.textTertiary) : t.accentText} />
               </TouchableOpacity>
             )}
             {pendingAction === "default" ? (
-              <ActivityIndicator size="small" color="#4d9cff" style={styles.countSpinner} />
+              <ActivityIndicator size="small" color={t.accentText} style={styles.countSpinner} />
             ) : (
               <Text style={styles.serverCountText}>
                 {altarServersCount} by default
@@ -890,7 +920,7 @@ const EditSchedule = () => {
                 style={styles.stepperButton}
                 accessibilityLabel="Increase the standard number of altar servers"
               >
-                <Icon name="plus" size={16} color={altarServersCount >= 6 || isBusy ? "#555" : "#4d9cff"} />
+                <Icon name="plus" size={16} color={altarServersCount >= 6 || isBusy ? (t.isDark ? "#555" : t.textTertiary) : t.accentText} />
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -908,11 +938,11 @@ const EditSchedule = () => {
           return (
             <TouchableOpacity
               key={index}
-              style={styles.listItem}
               onPress={() => openProfile(server?.uid)}
               disabled={!server?.uid}
               activeOpacity={1}
             >
+             <GlassSurface style={styles.listItem}>
               <View style={styles.serverItemContent}>
                 <View style={styles.serverLeftContent}>
                   <View style={styles.serverDropdownRow}>
@@ -930,7 +960,7 @@ const EditSchedule = () => {
                     >
                       <View style={styles.dropdownInner}>
                         {pendingAction === `server-${index}` && (
-                          <ActivityIndicator size="small" color="#4d9cff" style={styles.dropdownSpinner} />
+                          <ActivityIndicator size="small" color={t.accentText} style={styles.dropdownSpinner} />
                         )}
                         <Text
                           style={[
@@ -950,7 +980,7 @@ const EditSchedule = () => {
                           openNotify(server.uid, server.name);
                         }}
                       >
-                        <Icon name="bell-outline" size={18} color="#ff9f0a" />
+                        <Icon name="bell-outline" size={18} color={t.warning} />
                       </TouchableOpacity>
                     )}
                   </View>
@@ -964,7 +994,7 @@ const EditSchedule = () => {
                     accessibilityState={{ busy: pendingAction === `remove-${index}` }}
                   >
                     {pendingAction === `remove-${index}` ? (
-                      <ActivityIndicator size="small" color="#ff3b30" />
+                      <ActivityIndicator size="small" color={t.danger} />
                     ) : (
                       <Text
                         style={[styles.removeButton, isBusy && styles.disabledText]}
@@ -975,21 +1005,23 @@ const EditSchedule = () => {
                   </TouchableOpacity>
                 )}
               </View>
+             </GlassSurface>
             </TouchableOpacity>
           );
         })}
+       </GlassContainer>
       </ScrollView>
 
       {!isViewingArchived && (
         <TouchableOpacity
-          style={[styles.addButton, isBusy && styles.addButtonBusy]}
+          style={[styles.addButton, { bottom: 20 + tabBarInset }, isBusy && styles.addButtonBusy]}
           onPress={handleAddServer}
           disabled={isBusy}
           accessibilityState={{ busy: pendingAction === "add" }}
         >
           {pendingAction === "add" ? (
             <View style={styles.addButtonInner}>
-              <ActivityIndicator size="small" color="#fff" style={styles.dropdownSpinner} />
+              <ActivityIndicator size="small" color={t.onAccent} style={styles.dropdownSpinner} />
               <Text style={styles.addButtonText}>Adding…</Text>
             </View>
           ) : (
@@ -1039,7 +1071,7 @@ const EditSchedule = () => {
           }}
         >
           <TouchableOpacity activeOpacity={1} style={styles.modalWrapper}>
-            <View style={styles.modalContent}>
+            <GlassSurface style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
                   {showArchivedWeeks ? "Archived Weeks" : "Select Week"}
@@ -1093,7 +1125,7 @@ const EditSchedule = () => {
                   ) : null
                 }
               />
-            </View>
+            </GlassSurface>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -1110,7 +1142,7 @@ const EditSchedule = () => {
           onPress={() => setShowInfoModal(false)}
         >
           <TouchableOpacity activeOpacity={1} style={styles.infoModalWrapper}>
-            <View style={styles.infoModalContent}>
+            <GlassSurface style={styles.infoModalContent}>
               <View style={styles.infoModalHeader}>
                 <Text style={styles.infoModalTitle}>Altar Servers</Text>
                 <TouchableOpacity
@@ -1134,7 +1166,7 @@ const EditSchedule = () => {
               >
                 <Text style={styles.infoModalButtonText}>Got it</Text>
               </TouchableOpacity>
-            </View>
+            </GlassSurface>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -1148,9 +1180,9 @@ const EditSchedule = () => {
               style={styles.notifyAvoid}
             >
               <TouchableWithoutFeedback>
-                <View style={styles.notifyModal}>
+                <GlassSurface style={styles.notifyModal}>
                   <View style={styles.notifyIconWrap}>
-                    <Icon name="bell-ring" size={28} color="#ff9f0a" />
+                    <Icon name="bell-ring" size={28} color={t.warning} />
                   </View>
                   <Text style={styles.notifyTitleText}>Send Notification</Text>
                   <Text style={styles.notifySubtitle}>
@@ -1161,7 +1193,8 @@ const EditSchedule = () => {
                   <TextInput
                     style={styles.notifyInput}
                     placeholder="Notification title"
-                    placeholderTextColor="rgba(255,255,255,0.25)"
+                    placeholderTextColor={t.placeholder}
+                    keyboardAppearance={t.keyboardAppearance}
                     value={notifyTitle}
                     onChangeText={setNotifyTitle}
                     autoFocus
@@ -1172,7 +1205,8 @@ const EditSchedule = () => {
                   <TextInput
                     style={[styles.notifyInput, styles.notifyTextarea]}
                     placeholder="Notification message"
-                    placeholderTextColor="rgba(255,255,255,0.25)"
+                    placeholderTextColor={t.placeholder}
+                    keyboardAppearance={t.keyboardAppearance}
                     value={notifyMsg}
                     onChangeText={setNotifyMsg}
                     multiline
@@ -1190,11 +1224,11 @@ const EditSchedule = () => {
                       style={styles.notifySendBtn}
                       onPress={sendNotify}
                     >
-                      <Icon name="send" size={16} color="#fff" />
+                      <Icon name="send" size={16} color={t.onAccent} />
                       <Text style={styles.notifySendText}>Send</Text>
                     </TouchableOpacity>
                   </View>
-                </View>
+                </GlassSurface>
               </TouchableWithoutFeedback>
             </KeyboardAvoidingView>
           </View>
@@ -1222,21 +1256,26 @@ const EditSchedule = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#121212", padding: 20 },
+const useStyles = makeStyles((t) => ({
+  container: { flex: 1, backgroundColor: t.background, padding: 20 },
   headerContainer: { marginBottom: 24, flexDirection: "row", alignItems: "stretch" },
+  // Row direction so the inner surface's flex: 1 grows its width, not its
+  // height — in the default column it collapsed to its padding and hid the week.
+  weekSelectorTouch: { flex: 1, flexDirection: "row" },
+  // The wrapper carries the original button's box (64 wide, stretched to the
+  // week selector's height by the row); the surface just fills it.
+  historyButtonTouch: { marginLeft: 10, width: 64 },
   historyButton: {
-    backgroundColor: "#1a1a1a",
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: t.surface,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
-    width: 64,
-    marginLeft: 10,
+    borderColor: t.border,
     alignItems: "center",
     justifyContent: "center",
   },
   scrollView: { flex: 1 },
-  sectionHeader: { fontSize: 22, color: "#4d9cff", fontWeight: "600" },
+  sectionHeader: { fontSize: 22, color: t.accentText, fontWeight: "600" },
   sectionHeaderContainer: { marginBottom: 14, marginTop: 10 },
   altarSectionHeaderContainer: {
     flexDirection: "row",
@@ -1249,18 +1288,18 @@ const styles = StyleSheet.create({
     alignItems: "baseline",
     marginLeft: 12,
   },
-  serverCountText: { fontSize: 13, color: "rgba(255,255,255,0.4)" },
+  serverCountText: { fontSize: 13, color: t.textTertiary },
   infoButton: { paddingHorizontal: 4 },
   stepperButton: { paddingHorizontal: 6, paddingVertical: 2 },
-  infoIcon: { fontSize: 13, color: "rgba(255,255,255,0.4)" },
+  infoIcon: { fontSize: 13, color: t.textTertiary },
   listItem: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     paddingVertical: 16,
     paddingHorizontal: 18,
     borderRadius: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   listItemContent: {
     flexDirection: "row",
@@ -1292,33 +1331,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  itemText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  disabledText: { color: "rgba(255,255,255,0.4)" },
+  itemText: { color: t.text, fontSize: 16, fontWeight: "600" },
+  disabledText: { color: t.textTertiary },
   dropdownContainer: {
     flexDirection: "row",
     alignItems: "center",
     flexShrink: 1,
   },
   dropdown: {
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: t.fill,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   disabledDropdown: {
     opacity: 0.5,
   },
   dropdownText: {
-    color: "rgba(255,255,255,0.7)",
+    color: t.textSecondary,
     fontSize: 15,
     fontWeight: "500",
   },
   dropdownInner: { flexDirection: "row", alignItems: "center" },
   dropdownSpinner: { marginRight: 8 },
   countSpinner: { marginHorizontal: 18, transform: [{ scale: 0.8 }] },
-  removeButton: { color: "#ff3b30", fontSize: 15, fontWeight: "600" },
+  removeButton: { color: t.dangerText, fontSize: 15, fontWeight: "600" },
   // Wide enough for "Remove", so swapping in the spinner doesn't shift the row.
   removeTouchable: { minWidth: 60, alignItems: "flex-end" },
   notifyBtn: {
@@ -1330,7 +1369,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   addButton: {
-    backgroundColor: "#147efb",
+    backgroundColor: t.accent,
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 14,
@@ -1340,12 +1379,12 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
   },
-  addButtonText: { fontSize: 16, color: "#fff", fontWeight: "600" },
+  addButtonText: { fontSize: 16, color: t.onAccent, fontWeight: "600" },
   addButtonBusy: { opacity: 0.7 },
   addButtonInner: { flexDirection: "row", alignItems: "center" },
   weekSelector: {
     flex: 1,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     paddingVertical: 18,
     paddingHorizontal: 20,
     borderRadius: 14,
@@ -1353,7 +1392,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   archivedWeekSelector: {
     borderColor: "rgba(255, 149, 0, 0.3)",
@@ -1365,7 +1404,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   weekLabel: {
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
     fontSize: 12,
     fontWeight: "600",
     textTransform: "uppercase",
@@ -1379,21 +1418,21 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   archivedBadgeText: {
-    color: "#ff9500",
+    color: t.warningText,
     fontSize: 10,
     fontWeight: "600",
     textTransform: "uppercase",
   },
-  weekSelectorText: { color: "#fff", fontSize: 18, fontWeight: "600" },
+  weekSelectorText: { color: t.text, fontSize: 18, fontWeight: "600" },
   weekSelectorIconContainer: {
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: t.fill,
     width: 36,
     height: 36,
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
-  weekSelectorIcon: { color: "#4d9cff", fontSize: 12 },
+  weekSelectorIcon: { color: t.accentText, fontSize: 12 },
   archivedBanner: {
     backgroundColor: "rgba(255, 149, 0, 0.15)",
     paddingVertical: 10,
@@ -1404,24 +1443,24 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 149, 0, 0.3)",
   },
   archivedBannerText: {
-    color: "#ff9500",
+    color: t.warningText,
     fontSize: 13,
     fontWeight: "500",
     textAlign: "center",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    backgroundColor: t.overlay,
     justifyContent: "center",
     alignItems: "center",
   },
   modalWrapper: { width: "90%", maxHeight: "70%" },
   modalContent: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   modalHeader: {
     flexDirection: "row",
@@ -1430,19 +1469,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.06)",
+    borderBottomColor: t.border,
   },
-  modalTitle: { color: "#fff", fontSize: 20, fontWeight: "600" },
+  modalTitle: { color: t.text, fontSize: 20, fontWeight: "600" },
   modalCloseButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: t.fill,
     alignItems: "center",
     justifyContent: "center",
   },
   modalCloseX: {
-    color: "rgba(255,255,255,0.6)",
+    color: t.textSecondary,
     fontSize: 24,
     fontWeight: "300",
     marginTop: -2,
@@ -1451,10 +1490,10 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.06)",
+    borderTopColor: t.border,
   },
   archiveToggleText: {
-    color: "rgba(255,255,255,0.4)",
+    color: t.textTertiary,
     fontSize: 14,
     fontWeight: "400",
     textAlign: "center",
@@ -1469,35 +1508,35 @@ const styles = StyleSheet.create({
   weekItemContent: {
     flex: 1,
   },
-  modalItem: { color: "#fff", fontSize: 16, fontWeight: "500" },
+  modalItem: { color: t.text, fontSize: 16, fontWeight: "500" },
   archivedLabel: {
-    color: "rgba(255, 149, 0, 0.7)",
+    color: t.isDark ? "rgba(255, 149, 0, 0.7)" : t.warningText,
     fontSize: 12,
     marginTop: 4,
   },
   separator: {
     height: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    backgroundColor: t.border,
     marginHorizontal: 20,
   },
-  checkmark: { color: "#4d9cff", fontSize: 18, fontWeight: "600" },
-  selectedWeekItem: { backgroundColor: "rgba(77, 156, 255, 0.1)" },
-  selectedWeekText: { color: "#4d9cff", fontWeight: "600" },
+  checkmark: { color: t.accentText, fontSize: 18, fontWeight: "600" },
+  selectedWeekItem: { backgroundColor: t.accentFill },
+  selectedWeekText: { color: t.accentText, fontWeight: "600" },
   emptyListContainer: {
     paddingVertical: 30,
     alignItems: "center",
   },
   emptyListText: {
-    color: "rgba(255,255,255,0.4)",
+    color: t.textTertiary,
     fontSize: 14,
   },
   infoModalWrapper: { width: "85%", maxWidth: 400 },
   infoModalContent: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   infoModalHeader: {
     flexDirection: "row",
@@ -1506,24 +1545,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.06)",
+    borderBottomColor: t.border,
   },
-  infoModalTitle: { color: "#fff", fontSize: 20, fontWeight: "600" },
+  infoModalTitle: { color: t.text, fontSize: 20, fontWeight: "600" },
   infoModalText: {
-    color: "rgba(255,255,255,0.7)",
+    color: t.textSecondary,
     fontSize: 15,
     lineHeight: 24,
     padding: 20,
   },
   infoModalButton: {
-    backgroundColor: "#147efb",
+    backgroundColor: t.accent,
     marginHorizontal: 20,
     marginBottom: 20,
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: "center",
   },
-  infoModalButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  infoModalButtonText: { color: t.onAccent, fontSize: 16, fontWeight: "600" },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -1549,7 +1588,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.8)",
+    backgroundColor: t.overlay,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 9999,
@@ -1561,7 +1600,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   notifyModal: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 24,
     width: "90%",
     maxWidth: 360,
@@ -1580,12 +1619,12 @@ const styles = StyleSheet.create({
   notifyTitleText: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#fff",
+    color: t.text,
     textAlign: "center",
   },
   notifySubtitle: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.45)",
+    color: t.textTertiary,
     textAlign: "center",
     marginTop: 4,
     marginBottom: 24,
@@ -1593,15 +1632,15 @@ const styles = StyleSheet.create({
   notifyLabel: {
     fontSize: 13,
     fontWeight: "500",
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
     marginBottom: 8,
   },
   notifyInput: {
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: t.fill,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    color: "#fff",
+    color: t.text,
     fontSize: 15,
     marginBottom: 16,
   },
@@ -1611,25 +1650,25 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: t.fill,
     alignItems: "center",
   },
   notifyCancelText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "rgba(255,255,255,0.7)",
+    color: t.textSecondary,
   },
   notifySendBtn: {
     flex: 1,
     flexDirection: "row",
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: "#ff9f0a",
+    backgroundColor: t.warning,
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
   },
-  notifySendText: { fontSize: 15, fontWeight: "600", color: "#fff" },
-});
+  notifySendText: { fontSize: 15, fontWeight: "600", color: t.onAccent },
+}));
 
 export default EditSchedule;

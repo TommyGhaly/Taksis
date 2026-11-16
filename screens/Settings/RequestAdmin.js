@@ -1,7 +1,9 @@
 import * as React from "react";
-import { StyleSheet, Text, Pressable, Image, View } from "react-native";
+import { Text, Pressable, Image, View } from "react-native";
+import { makeStyles } from "../../theme";
 
 const RequestAdmin = ({ navigation }) => {
+  const styles = useStyles();
   return (
     <View style={styles.container}>
       <Text style={styles.headerText}>Send us a message!</Text>
@@ -23,9 +25,9 @@ const RequestAdmin = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 50,
@@ -34,7 +36,7 @@ const styles = StyleSheet.create({
   headerText: {
     fontSize: 28,
     fontWeight: "500",
-    color: "#ffffff",
+    color: t.text,
     marginVertical: 30,
   },
   verificationImage: {
@@ -44,12 +46,12 @@ const styles = StyleSheet.create({
   },
   message: {
     fontSize: 17,
-    color: "#8e8e93",
+    color: t.textMuted,
     textAlign: "center",
     marginBottom: 30,
   },
   confirmButton: {
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     borderRadius: 10,
     paddingVertical: 15,
     paddingHorizontal: 30,
@@ -58,9 +60,9 @@ const styles = StyleSheet.create({
   },
   confirmText: {
     fontSize: 17,
-    color: "#fff",
+    color: t.text,
     fontWeight: "500",
   },
-});
+}));
 
 export default RequestAdmin;

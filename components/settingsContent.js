@@ -1,7 +1,6 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
 import {
-  StyleSheet,
   Text,
   View,
   TouchableOpacity,
@@ -10,7 +9,11 @@ import {
   Modal,
   TextInput,
   Platform,
+  Switch,
 } from "react-native";
+import Slider from "@react-native-community/slider";
+import { Ionicons } from "@expo/vector-icons";
+import { makeStyles, useTheme, useThemePrefs, GlassSurface } from "../theme";
 import { useNavigation } from "@react-navigation/native";
 import {
   deleteDoc,
@@ -28,7 +31,144 @@ import { getMessaging, getToken } from "@react-native-firebase/messaging";
 import Avatar from "./Avatar";
 import * as avatarCache from "../utils/avatarCache";
 
+// One tappable settings card. The TouchableOpacity is outside the glass so the
+// press fade dims the whole pane, glass included.
+function SettingsRow({ label, onPress }) {
+  const styles = useStyles();
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      <GlassSurface style={styles.card} interactive>
+        <Text style={styles.cardText}>{label}</Text>
+      </GlassSurface>
+    </TouchableOpacity>
+  );
+}
+
+const APPEARANCE_OPTIONS = [
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
+  { value: "system", label: "System" },
+];
+
+function Segmented({ options, value, onChange, disabled = false }) {
+  const styles = useStyles();
+  return (
+    <View style={[styles.segmented, disabled && styles.segmentedDisabled]}>
+      {options.map((opt) => {
+        const selected = value === opt.value;
+        return (
+          <TouchableOpacity
+            key={opt.value}
+            style={[styles.segment, selected && styles.segmentSelected]}
+            onPress={() => onChange(opt.value)}
+            disabled={disabled}
+            accessibilityRole="button"
+            accessibilityLabel={opt.label}
+            accessibilityState={{ selected, disabled }}
+          >
+            <Text style={[styles.segmentText, selected && styles.segmentTextSelected]}>
+              {opt.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+function glassHint(intensity) {
+  if (intensity < 0.2) return "Clear — content shows through strongly";
+  if (intensity < 0.6) return "Frosted glass tab bar, headers and cards";
+  return "Tinted — a solid wash for easier reading";
+}
+
+// Like iOS's own Liquid Glass setting: a switch, and while it's on, a slider
+// from Clear to Tinted. The slider tracks its own value while dragging and only
+// saves on release — every glass surface in the app redraws on a change, and
+// doing that per drag frame would stutter.
+function LiquidGlassSetting() {
+  const styles = useStyles();
+  const theme = useTheme();
+  const { prefs, updatePrefs, glassAvailable } = useThemePrefs();
+  const enabled = glassAvailable && prefs.glassEnabled;
+  const [dragValue, setDragValue] = useState(null);
+  const intensity = dragValue ?? prefs.glassIntensity;
+
+  return (
+    <GlassSurface style={styles.card}>
+      <View style={styles.switchRow}>
+        <View style={styles.switchLabel}>
+          <Text style={styles.cardText}>Liquid Glass</Text>
+          <Text style={styles.cardSubtext}>
+            {!glassAvailable ? "Requires iOS 26 or later" : enabled ? glassHint(intensity) : "Off — solid surfaces"}
+          </Text>
+        </View>
+        <Switch
+          value={enabled}
+          onValueChange={(v) => updatePrefs({ glassEnabled: v })}
+          disabled={!glassAvailable}
+          trackColor={{ true: theme.accent }}
+          accessibilityLabel="Liquid Glass"
+        />
+      </View>
+
+      {enabled && (
+        <View style={styles.sliderRow}>
+          <Ionicons name="water-outline" size={18} color={theme.textSecondary} />
+          <Slider
+            style={styles.slider}
+            minimumValue={0}
+            maximumValue={1}
+            value={prefs.glassIntensity}
+            onValueChange={setDragValue}
+            onSlidingComplete={(v) => {
+              updatePrefs({ glassIntensity: Math.round(v * 100) / 100 });
+              setDragValue(null);
+            }}
+            minimumTrackTintColor={theme.accent}
+            maximumTrackTintColor={theme.fillStrong}
+            accessibilityLabel="Liquid Glass intensity"
+          />
+          <Ionicons name="water" size={18} color={theme.textSecondary} />
+        </View>
+      )}
+      {enabled && (
+        <View style={styles.sliderLabels}>
+          <Text style={styles.sliderLabel}>Clear</Text>
+          <Text style={styles.sliderLabel}>Tinted</Text>
+        </View>
+      )}
+    </GlassSurface>
+  );
+}
+
+// Appearance + Liquid Glass. Both apply instantly — every screen reads its
+// colors from the theme, so there's nothing to restart.
+function DisplaySettings() {
+  const styles = useStyles();
+  const { prefs, updatePrefs } = useThemePrefs();
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Display</Text>
+
+      <GlassSurface style={styles.card}>
+        <Text style={styles.cardText}>Appearance</Text>
+        <Segmented
+          options={APPEARANCE_OPTIONS}
+          value={prefs.appearance}
+          onChange={(appearance) => updatePrefs({ appearance })}
+        />
+      </GlassSurface>
+
+      {Platform.OS === "ios" && <LiquidGlassSetting />}
+    </View>
+  );
+}
+
 const SettingsContent = () => {
+  const styles = useStyles();
+  const theme = useTheme();
   const { signUp, setSignUp } = useUser();
   const navigation = useNavigation();
   const [userRoles, setUserRoles] = useState({ name: "" });
@@ -160,19 +300,20 @@ const SettingsContent = () => {
           ScrollView's full content height. */}
       <Modal animationType="fade" transparent={true} visible={isLoading} onRequestClose={() => {}}>
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#147EFB" />
+          <ActivityIndicator size="large" color={theme.accent} />
         </View>
       </Modal>
 
       <Modal animationType="fade" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <GlassSurface style={styles.modalContent}>
             <Text style={styles.modalTitle}>App Suggestions</Text>
             <Text style={styles.modalSubtitle}>Help us improve by sharing your ideas</Text>
             <TextInput
               style={styles.input}
               placeholder="Enter your suggestion..."
-              placeholderTextColor="rgba(255,255,255,0.4)"
+              placeholderTextColor={theme.placeholder}
+              keyboardAppearance={theme.keyboardAppearance}
               value={suggestion}
               onChangeText={setSuggestion}
               multiline
@@ -182,10 +323,10 @@ const SettingsContent = () => {
                 <Text style={styles.buttonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalButton, styles.submitButtonModal]} onPress={handleSubmitSuggestion}>
-                <Text style={styles.buttonText}>Submit</Text>
+                <Text style={styles.submitButtonText}>Submit</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </GlassSurface>
         </View>
       </Modal>
       <View style={styles.profileSection}>
@@ -203,73 +344,41 @@ const SettingsContent = () => {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("AccountInfo")}>
-          <Text style={styles.cardText}>Account info</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeName")}>
-          <Text style={styles.cardText}>Change name</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeEmail")}>
-          <Text style={styles.cardText}>Change email</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeNumber")}>
-          <Text style={styles.cardText}>Change phone number</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeAge")}>
-          <Text style={styles.cardText}>Change date of birth</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangePhoto")}>
-          <Text style={styles.cardText}>Change profile picture</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangePassword")}>
-          <Text style={styles.cardText}>Change password</Text>
-        </TouchableOpacity>
+        <SettingsRow onPress={() => navigation.navigate("AccountInfo")} label="Account info" />
+        <SettingsRow onPress={() => navigation.navigate("ChangeName")} label="Change name" />
+        <SettingsRow onPress={() => navigation.navigate("ChangeEmail")} label="Change email" />
+        <SettingsRow onPress={() => navigation.navigate("ChangeNumber")} label="Change phone number" />
+        <SettingsRow onPress={() => navigation.navigate("ChangeAge")} label="Change date of birth" />
+        <SettingsRow onPress={() => navigation.navigate("ChangePhoto")} label="Change profile picture" />
+        <SettingsRow onPress={() => navigation.navigate("ChangePassword")} label="Change password" />
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Role</Text>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeRank")}>
-          <Text style={styles.cardText}>Change deacon rank</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeRoles")}>
-          <Text style={styles.cardText}>Change church services that apply to you</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("RequestServants")}>
-          <Text style={styles.cardText}>Apply to be a servants meeting tracker</Text>
-        </TouchableOpacity>
+        <SettingsRow onPress={() => navigation.navigate("ChangeRank")} label="Change deacon rank" />
+        <SettingsRow onPress={() => navigation.navigate("ChangeRoles")} label="Change church services that apply to you" />
+        <SettingsRow onPress={() => navigation.navigate("RequestServants")} label="Apply to be a servants meeting tracker" />
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Children</Text>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeChildren")}>
-          <Text style={styles.cardText}>Change your children</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("AddChild")}>
-          <Text style={styles.cardText}>Add child</Text>
-        </TouchableOpacity>
+        <SettingsRow onPress={() => navigation.navigate("ChangeChildren")} label="Change your children" />
+        <SettingsRow onPress={() => navigation.navigate("AddChild")} label="Add child" />
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Church Adjustments</Text>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ChangeChurch")}>
-          <Text style={styles.cardText}>Change church</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("RegisterVehicle")}>
-          <Text style={styles.cardText}>Register vehicle</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("RequestAdmin")}>
-          <Text style={styles.cardText}>Apply for admin</Text>
-        </TouchableOpacity>
+        <SettingsRow onPress={() => navigation.navigate("ChangeChurch")} label="Change church" />
+        <SettingsRow onPress={() => navigation.navigate("RegisterVehicle")} label="Register vehicle" />
+        <SettingsRow onPress={() => navigation.navigate("RequestAdmin")} label="Apply for admin" />
       </View>
+
+      <DisplaySettings />
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>App Adjustments</Text>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("HomeScreenSelector")}>
-          <Text style={styles.cardText}>Change home screen</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.card} onPress={() => setModalVisible(true)}>
-          <Text style={styles.cardText}>App suggestions</Text>
-        </TouchableOpacity>
+        <SettingsRow onPress={() => navigation.navigate("HomeScreenSelector")} label="Change home screen" />
+        <SettingsRow onPress={() => setModalVisible(true)} label="App suggestions" />
       </View>
 
       <TouchableOpacity style={styles.signOut} onPress={handleSignOut}>
@@ -285,14 +394,14 @@ const SettingsContent = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
   loadingOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: t.overlay,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -300,43 +409,43 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: t.overlay,
   },
   modalContent: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     padding: 28,
     width: "85%",
     maxWidth: 400,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   modalTitle: {
     fontSize: 22,
     fontWeight: "600",
-    color: "#fff",
+    color: t.text,
     marginBottom: 8,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   modalSubtitle: {
     fontSize: 15,
-    color: "rgba(255,255,255,0.6)",
+    color: t.textSecondary,
     marginBottom: 20,
     textAlign: "center",
   },
   input: {
     width: "100%",
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: t.fill,
     borderRadius: 14,
     padding: 14,
     fontSize: 16,
-    color: "#fff",
+    color: t.text,
     marginBottom: 20,
     minHeight: 120,
     textAlignVertical: "top",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   modalButtons: {
     flexDirection: "row",
@@ -351,19 +460,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelButton: {
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: t.fillStrong,
   },
   submitButtonModal: {
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
   },
   buttonText: {
     fontSize: 16,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
   },
   header: {
     fontSize: 36,
-    color: "#fff",
+    color: t.text,
     textAlign: "center",
     marginTop: 20,
     marginBottom: 8,
@@ -386,7 +495,7 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 24,
     fontWeight: "600",
-    color: "#fff",
+    color: t.text,
     flex: 1,
     left: 10
   },
@@ -396,25 +505,25 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 22,
-    color: "#4d9cff",
+    color: t.accentText,
     marginBottom: 14,
     fontWeight: "600",
   },
   card: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     padding: 16,
     borderRadius: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   cardText: {
     fontSize: 18,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
   },
   signOut: {
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
     paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 14,
@@ -424,11 +533,11 @@ const styles = StyleSheet.create({
   },
   signOutText: {
     fontSize: 16,
-    color: "#ffffff",
+    color: t.onAccent,
     fontWeight: "600",
   },
   deleteAccount: {
-    backgroundColor: "#ff3b30",
+    backgroundColor: t.danger,
     paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 14,
@@ -438,12 +547,75 @@ const styles = StyleSheet.create({
   },
   deleteAccountText: {
     fontSize: 16,
-    color: "#ffffff",
+    color: t.onAccent,
     fontWeight: "600",
   },
   bottomPadding: {
     height: 40,
   },
-});
+  cardSubtext: {
+    fontSize: 13,
+    color: t.textSecondary,
+    marginTop: 2,
+  },
+  segmentedDisabled: {
+    opacity: 0.4,
+  },
+  switchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  switchLabel: {
+    flex: 1,
+    marginRight: 12,
+  },
+  sliderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 14,
+  },
+  slider: {
+    flex: 1,
+    marginHorizontal: 10,
+    height: 36,
+  },
+  sliderLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  sliderLabel: {
+    fontSize: 12,
+    color: t.textSecondary,
+  },
+  segmented: {
+    flexDirection: "row",
+    marginTop: 12,
+    backgroundColor: t.fill,
+    borderRadius: 10,
+    padding: 3,
+  },
+  segment: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  segmentSelected: {
+    backgroundColor: t.accent,
+  },
+  segmentText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: t.textSecondary,
+  },
+  segmentTextSelected: {
+    color: t.onAccent,
+  },
+  submitButtonText: {
+    fontSize: 16,
+    color: t.onAccent,
+    fontWeight: "600",
+  },
+}));
 
 export default SettingsContent;

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import {
-  StyleSheet,
   View,
   Text,
   Image,
@@ -38,6 +37,7 @@ import {
   SkeletonText,
 } from "./Skeleton";
 import * as avatarCache from "../utils/avatarCache";
+import { makeStyles, useTheme, GlassSurface } from "../theme";
 
 
 // Haptic feedback options
@@ -148,6 +148,8 @@ const IndividualProfile = ({
   family,
   url,
 }) => {
+  const styles = useStyles();
+  const t = useTheme();
   const [userData, setUserData] = useState(null);
   const [tempExperience, setTempExperience] = useState(0);
   const [tempFrequency, setTempFrequency] = useState(0);
@@ -707,7 +709,7 @@ const IndividualProfile = ({
     return (
       <Modal visible={show} animationType="none" transparent={true}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <GlassSurface style={styles.modalContent}>
             <SkeletonProvider>
               {/* header: spacer + Close button */}
               <View style={styles.headerButtons}>
@@ -774,7 +776,7 @@ const IndividualProfile = ({
                 </View>
               </View>
             </SkeletonProvider>
-          </View>
+          </GlassSurface>
         </View>
       </Modal>
     );
@@ -788,7 +790,7 @@ const IndividualProfile = ({
       onRequestClose={handleCancel}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+        <GlassSurface style={styles.modalContent}>
           <View style={styles.headerButtons}>
             {!isChild && isDeacon && (
               <TouchableOpacity
@@ -797,7 +799,7 @@ const IndividualProfile = ({
                 activeOpacity={0.7}
                 accessibilityLabel="Remove Deacon"
               >
-                <Icon name="delete" size={16} color="#fff" />
+                <Icon name="delete" size={16} color={t.onAccent} />
               </TouchableOpacity>
             )}
             <View style={styles.spacer} />
@@ -826,7 +828,7 @@ const IndividualProfile = ({
               activeOpacity={0.7}
               accessibilityLabel="Edit Profile Picture"
             >
-              <Icon name="pencil" size={18} color="#fff" />
+              <Icon name="pencil" size={18} color={t.onAccent} />
             </TouchableOpacity>
           </View>
 
@@ -891,9 +893,9 @@ const IndividualProfile = ({
               minimumValue={0}
               maximumValue={10}
               step={0.25}
-              thumbTintColor="#147efb"
-              minimumTrackTintColor="#147efb"
-              maximumTrackTintColor="#333"
+              thumbTintColor={t.accent}
+              minimumTrackTintColor={t.accent}
+              maximumTrackTintColor={t.surfaceHighest}
               style={styles.slider}
               accessibilityLabel="Experience"
             />
@@ -907,9 +909,9 @@ const IndividualProfile = ({
               minimumValue={0}
               maximumValue={10}
               step={0.25}
-              thumbTintColor="#147efb"
-              minimumTrackTintColor="#147efb"
-              maximumTrackTintColor="#333"
+              thumbTintColor={t.accent}
+              minimumTrackTintColor={t.accent}
+              maximumTrackTintColor={t.surfaceHighest}
               style={styles.slider}
               accessibilityLabel="Frequency"
             />
@@ -928,7 +930,7 @@ const IndividualProfile = ({
             accessibilityState={{ busy: unavailableBusy }}
           >
             {unavailableBusy ? (
-              <ActivityIndicator color="#fff" size="small" style={styles.buttonSpinner} />
+              <ActivityIndicator color={t.onAccent} size="small" style={styles.buttonSpinner} />
             ) : (
               <Text style={styles.buttonText}>Mark as Unavailable</Text>
             )}
@@ -941,7 +943,9 @@ const IndividualProfile = ({
               activeOpacity={0.7}
               accessibilityLabel="Cancel"
             >
-              <Text style={styles.buttonText}>Cancel</Text>
+              <Text style={[styles.buttonText, styles.cancelButtonText]}>
+                Cancel
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.button, styles.confirmButton]}
@@ -952,7 +956,7 @@ const IndividualProfile = ({
               <Text style={styles.buttonText}>Save</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </GlassSurface>
 
         {/* Content of *this* modal (`inline`), not a nested <Modal>: iOS will
             not present from a view controller that is already presenting, so
@@ -969,22 +973,22 @@ const IndividualProfile = ({
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   modalOverlay: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    backgroundColor: t.overlay,
   },
   modalContent: {
     width: "90%",
     maxWidth: 340,
-    backgroundColor: "#1e1e1e",
+    backgroundColor: t.surface,
     borderRadius: 12,
     padding: 16,
     paddingBottom: 32,
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -998,7 +1002,7 @@ const styles = StyleSheet.create({
   },
   removeDeaconButton: {
     padding: 6,
-    backgroundColor: "#ff3b30",
+    backgroundColor: t.danger,
     borderRadius: 8,
   },
   spacer: {
@@ -1006,13 +1010,13 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 6,
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     borderRadius: 8,
   },
   closeButtonText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#147efb",
+    color: t.accent,
   },
 
   profileImageContainer: {
@@ -1029,21 +1033,21 @@ const styles = StyleSheet.create({
     height: 120, // Changed from 100 to match ProfileImageExpander size
     borderRadius: 60, // Half of width/height
     borderWidth: 2,
-    borderColor: "#147efb",
+    borderColor: t.accent,
   },
   editIconContainer: {
     position: "absolute",
     top: -5,
     right: -5,
-    backgroundColor: "#147efb",
+    backgroundColor: t.accent,
     borderRadius: 16,
     width: 32,
     height: 32,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#fff",
-    shadowColor: "#000",
+    borderColor: t.onAccent,
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -1052,25 +1056,25 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#fff",
+    color: t.text,
     textAlign: "center",
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 12,
-    color: "#bbb",
+    color: t.isDark ? "#bbb" : t.textSecondary,
     textAlign: "center",
     marginBottom: 8,
   },
   currentWeekIndicator: {
     fontSize: 12,
-    color: "#147efb",
+    color: t.accent,
     textAlign: "center",
     marginBottom: 8,
     fontStyle: "italic",
   },
   section: {
-    backgroundColor: "#222",
+    backgroundColor: t.surfaceElevated,
     borderRadius: 8,
     padding: 12,
     marginBottom: 12,
@@ -1084,18 +1088,18 @@ const styles = StyleSheet.create({
   detailLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#bbb",
+    color: t.isDark ? "#bbb" : t.textSecondary,
     width: 160,
   },
   detail: {
     fontSize: 14,
-    color: "#bbb",
+    color: t.isDark ? "#bbb" : t.textSecondary,
     flex: 1,
     textAlign: "left",
   },
   phoneText: {
     fontSize: 14,
-    color: "#bbb",
+    color: t.isDark ? "#bbb" : t.textSecondary,
     flex: 1,
     textAlign: "left",
     textDecorationLine: "underline",
@@ -1104,11 +1108,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: "#333",
+    borderTopColor: t.surfaceHighest,
   },
   lastServeText: {
     fontSize: 13,
-    color: "#999",
+    color: t.textMuted,
     fontStyle: "italic",
     textAlign: "center",
   },
@@ -1122,14 +1126,14 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   buttonText: {
-    color: "#fff",
+    color: t.onAccent,
     fontSize: 15,
     fontWeight: "600",
     textAlign: "center",
     lineHeight: 20,
   },
   unavailableButton: {
-    backgroundColor: "#ff3b30",
+    backgroundColor: t.danger,
     marginBottom: 12,
     width: "100%",
   },
@@ -1141,15 +1145,18 @@ const styles = StyleSheet.create({
     height: 20,
   },
   cancelButton: {
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
+  },
+  cancelButtonText: {
+    color: t.text,
   },
   confirmButton: {
-    backgroundColor: "#147efb",
+    backgroundColor: t.accent,
   },
   label: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#fff",
+    color: t.text,
     marginBottom: 6,
   },
   slider: {
@@ -1175,6 +1182,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 12,
   },
-});
+}));
 
 export default IndividualProfile;

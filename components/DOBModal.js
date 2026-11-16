@@ -5,9 +5,9 @@ import {
   Text,
   Pressable,
   Animated,
-  StyleSheet,
   Platform,
 } from "react-native";
+import { makeStyles, useTheme, GlassSurface } from "../theme";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
 const DOBModal = ({
@@ -21,6 +21,8 @@ const DOBModal = ({
   onShowDatePicker,
   onSubmit,
 }) => {
+  const styles = useStyles();
+  const t = useTheme();
   return (
     <>
       <Modal
@@ -30,40 +32,40 @@ const DOBModal = ({
         onRequestClose={() => {}}
       >
         <View style={styles.modalOverlay}>
-          <Animated.View
-            style={[
-              styles.modalDOBContainer,
-              { transform: [{ scale: scaleValue }] },
-            ]}
-          >
-            <Text style={styles.modalTitle}>We Need Your Date of Birth</Text>
-            <Text style={styles.modalSubtitle}>
-              Please provide your date of birth to continue.
-            </Text>
-            <View style={styles.datePickerContainer}>
-              {Platform.OS === "ios" ? (
-                <>
-                  <Text style={styles.dateText}>{formatDate(date)}</Text>
-                  <DateTimePicker
-                    value={tempDate}
-                    mode="date"
-                    display="spinner"
-                    onChange={onDateChange}
-                    maximumDate={new Date()}
-                    {...(Platform.OS === "ios" ? { textColor: "#F0F0F0" } : {})}
-                    accentColor="#147ffb"
-                    style={styles.datePicker}
-                  />
-                </>
-              ) : (
-                <Pressable onPress={onShowDatePicker}>
-                  <Text style={styles.dateText}>{formatDate(date)}</Text>
-                </Pressable>
-              )}
-            </View>
-            <Pressable style={styles.submitButton} onPress={onSubmit}>
-              <Text style={styles.buttonText}>Submit</Text>
-            </Pressable>
+          <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
+            <GlassSurface style={styles.modalDOBContainer}>
+              <Text style={styles.modalTitle}>We Need Your Date of Birth</Text>
+              <Text style={styles.modalSubtitle}>
+                Please provide your date of birth to continue.
+              </Text>
+              <View style={styles.datePickerContainer}>
+                {Platform.OS === "ios" ? (
+                  <>
+                    <Text style={styles.dateText}>{formatDate(date)}</Text>
+                    <DateTimePicker
+                      value={tempDate}
+                      mode="date"
+                      display="spinner"
+                      onChange={onDateChange}
+                      maximumDate={new Date()}
+                      {...(Platform.OS === "ios"
+                        ? { textColor: t.isDark ? "#F0F0F0" : "#000" }
+                        : {})}
+                      themeVariant={t.isDark ? "dark" : "light"}
+                      accentColor={t.accent}
+                      style={styles.datePicker}
+                    />
+                  </>
+                ) : (
+                  <Pressable onPress={onShowDatePicker}>
+                    <Text style={styles.dateText}>{formatDate(date)}</Text>
+                  </Pressable>
+                )}
+              </View>
+              <Pressable style={styles.submitButton} onPress={onSubmit}>
+                <Text style={styles.buttonText}>Submit</Text>
+              </Pressable>
+            </GlassSurface>
           </Animated.View>
         </View>
       </Modal>
@@ -76,28 +78,25 @@ const DOBModal = ({
           onRequestClose={() => {}}
         >
           <View style={styles.modalOverlay}>
-            <Animated.View
-              style={[
-                styles.modalDOBContainer,
-                { transform: [{ scale: scaleValue }] },
-              ]}
-            >
-              {(() => {
-                try {
-                  return (
-                    <DateTimePicker
-                      value={tempDate}
-                      mode="date"
-                      display="spinner"
-                      onChange={onDateChange}
-                      maximumDate={new Date()}
-                      accentColor="#147ffb"
-                    />
-                  );
-                } catch (error) {
-                  return <Text>Error rendering date picker</Text>;
-                }
-              })()}
+            <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
+              <GlassSurface style={styles.modalDOBContainer}>
+                {(() => {
+                  try {
+                    return (
+                      <DateTimePicker
+                        value={tempDate}
+                        mode="date"
+                        display="spinner"
+                        onChange={onDateChange}
+                        maximumDate={new Date()}
+                        accentColor={t.accent}
+                      />
+                    );
+                  } catch (error) {
+                    return <Text>Error rendering date picker</Text>;
+                  }
+                })()}
+              </GlassSurface>
             </Animated.View>
           </View>
         </Modal>
@@ -106,38 +105,38 @@ const DOBModal = ({
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: t.overlay,
     justifyContent: "center",
     alignItems: "center",
   },
   modalDOBContainer: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     padding: 28,
     alignItems: "center",
     marginHorizontal: 20,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   modalTitle: {
     fontSize: 22,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   modalSubtitle: {
     fontSize: 15,
-    color: "rgba(255,255,255,0.6)",
+    color: t.textSecondary,
     textAlign: "center",
     marginBottom: 24,
     lineHeight: 22,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   datePickerContainer: {
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: t.fill,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -145,11 +144,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   dateText: {
     fontSize: 16,
-    color: "#fff",
+    color: t.text,
     marginBottom: 10,
     textAlign: "center",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
@@ -158,7 +157,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   submitButton: {
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
     paddingVertical: 14,
     paddingHorizontal: 28,
     borderRadius: 14,
@@ -166,11 +165,11 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 16,
-    color: "#ffffff",
+    color: t.onAccent,
     fontWeight: "600",
     textAlign: "center",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
-});
+}));
 
 export default DOBModal;

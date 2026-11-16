@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { StyleSheet, View, TouchableOpacity, Modal, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
+import { useTheme } from '../theme';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -49,6 +50,7 @@ const ProfileImageExpander = React.memo(({
   borderRadius = 30,
   style = {}
 }) => {
+  const t = useTheme();
   const [modalVisible, setModalVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -265,7 +267,7 @@ const ProfileImageExpander = React.memo(({
                 height: size,
                 borderRadius,
                 borderWidth: 1,
-                borderColor: '#333333',
+                borderColor: t.surfaceHighest,
                 opacity: isAnimating ? 0 : 1,
               },
               style,
@@ -285,6 +287,7 @@ const ProfileImageExpander = React.memo(({
   );
 });
 
+// Stays dark in light mode: camera/photo viewer.
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,

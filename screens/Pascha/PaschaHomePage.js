@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, Switch, Modal,
-  StyleSheet, StatusBar, Platform,
+  StyleSheet, Platform,
 } from "react-native";
+import { makeStyles, useTheme, useTabBarInset, GlassSurface } from "../../theme";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { doc, getFirestore, onSnapshot, updateDoc } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
@@ -14,7 +15,7 @@ import * as avatarCache from "../../utils/avatarCache";
 import {
   expandReadings, isAssignableSlot, isPsalmSlot,
   hasLanguagePicker, effectiveLanguage, langShort,
-  READING_META,
+  READING_META, readingMetaFor,
 } from "../Pascha/PaschaReadingUtils";
 
 // Bottom sheets stop at this width, centered along the bottom edge: at full
@@ -23,22 +24,68 @@ import {
 const SHEET_MAX_WIDTH = 640;
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
-const BG      = "#0f0f0f";
-const CARD    = "#1c1c1e";
-const CARD2   = "#2c2c2e";
-const GLASS   = "rgba(255,255,255,0.055)";
-const GLASS2  = "rgba(255,255,255,0.09)";
-const GLASS_B = "rgba(255,255,255,0.1)";
-const SEP     = "rgba(255,255,255,0.07)";
-const BLUE    = "#3b82f6";
-const BLUE2   = "#60a5fa";
-const BLUE_D  = "rgba(59,130,246,0.18)";
-const T1      = "#f1f5f9";
-const T2      = "rgba(241,245,249,0.58)";
-const T3      = "rgba(241,245,249,0.24)";
-const COPTIC_COLOR  = "#f59e0b";
-const COPTIC_BG     = "rgba(245,158,11,0.10)";
-const COPTIC_BORDER = "rgba(245,158,11,0.28)";
+// Dark values are this screen's original palette, unchanged. Light follows the
+// app palette, with the blue/amber/purple accents darkened to read on white.
+const DARK_TOKENS = {
+  BG:      "#0f0f0f",
+  CARD:    "#1c1c1e",
+  CARD2:   "#2c2c2e",
+  GLASS:   "rgba(255,255,255,0.055)",
+  GLASS2:  "rgba(255,255,255,0.09)",
+  GLASS_B: "rgba(255,255,255,0.1)",
+  SEP:     "rgba(255,255,255,0.07)",
+  BLUE:    "#3b82f6",
+  BLUE2:   "#60a5fa",
+  BLUE_D:  "rgba(59,130,246,0.18)",
+  T1:      "#f1f5f9",
+  T2:      "rgba(241,245,249,0.58)",
+  T3:      "rgba(241,245,249,0.24)",
+  COPTIC_COLOR:  "#f59e0b",
+  COPTIC_BG:     "rgba(245,158,11,0.10)",
+  COPTIC_BORDER: "rgba(245,158,11,0.28)",
+  PURPLE:        "#a78bfa",
+  DATE:          "rgba(241,245,249,0.5)",
+  DATE_ACTIVE:   "rgba(96,165,250,0.85)",
+  SUBTITLE:      "rgba(241,245,249,0.45)",
+  HOUR_IDLE:     "rgba(255,255,255,0.15)",
+  BACKDROP:      "rgba(0,0,0,0.72)",
+};
+
+const tokenCache = new Map();
+function paschaTokens(t) {
+  if (t.isDark) return DARK_TOKENS;
+  let tk = tokenCache.get(t.key);
+  if (!tk) {
+    tk = {
+      ...DARK_TOKENS,
+      BG:      t.background,
+      CARD:    t.surface,
+      CARD2:   t.surfaceElevated,
+      GLASS:   t.surface,
+      GLASS2:  t.fill,
+      GLASS_B: t.border,
+      SEP:     "rgba(0,0,0,0.1)",
+      BLUE:    "#2563eb",
+      BLUE2:   "#2563eb",
+      T1:      t.text,
+      T2:      t.textSecondary,
+      T3:      t.textTertiary,
+      COPTIC_COLOR: "#b45309",
+      PURPLE:       "#7c3aed",
+      DATE:         t.textSecondary,
+      DATE_ACTIVE:  "rgba(37,99,235,0.85)",
+      SUBTITLE:     t.textSecondary,
+      HOUR_IDLE:    t.fillStrong,
+      BACKDROP:     t.overlay,
+    };
+    tokenCache.set(t.key, tk);
+  }
+  return tk;
+}
+function usePaschaTokens() {
+  return paschaTokens(useTheme());
+}
+// ── end tokens
 
 // Coptic rKeys — these always render orange regardless of anything else
 const COPTIC_RKEYS = new Set([
@@ -139,24 +186,27 @@ function buildReadingLabel(row) {
 }
 
 // ── Settings Sheet (home page variant: font size + hide names only) ───────────
-const HomeSettingsSheet = ({ visible, fontSizeScale, hideNames, onSetFontSize, onToggleHideNames, onClose }) => (
+const HomeSettingsSheet = ({ visible, fontSizeScale, hideNames, onSetFontSize, onToggleHideNames, onClose }) => {
+  const ss = useSs();
+  const P = usePaschaTokens();
+  return (
   <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
     <View style={ss.backdrop}>
       <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
-      <View style={ss.sheet}>
+      <GlassSurface style={ss.sheet}>
         <View style={ss.handle} />
         <View style={ss.hdr}>
           <Text style={ss.hdrTitle}>Settings</Text>
           <TouchableOpacity style={ss.xBtn} onPress={onClose} activeOpacity={0.7}>
-            <Icon name="close" size={17} color={T2} />
+            <Icon name="close" size={17} color={P.T2} />
           </TouchableOpacity>
         </View>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 12 }}>
 
           <View style={ss.card}>
             <View style={ss.row}>
-              <View style={[ss.iconBox, { backgroundColor: BLUE_D }]}>
-                <Icon name={hideNames ? "account-off-outline" : "account-outline"} size={19} color={BLUE2} />
+              <View style={[ss.iconBox, { backgroundColor: P.BLUE_D }]}>
+                <Icon name={hideNames ? "account-off-outline" : "account-outline"} size={19} color={P.BLUE2} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={ss.label}>Hide Reader Names</Text>
@@ -167,7 +217,7 @@ const HomeSettingsSheet = ({ visible, fontSizeScale, hideNames, onSetFontSize, o
               <Switch
                 value={hideNames}
                 onValueChange={onToggleHideNames}
-                trackColor={{ true: BLUE }}
+                trackColor={{ true: P.BLUE }}
               />
             </View>
           </View>
@@ -175,7 +225,7 @@ const HomeSettingsSheet = ({ visible, fontSizeScale, hideNames, onSetFontSize, o
           <View style={ss.card}>
             <View style={ss.row}>
               <View style={[ss.iconBox, { backgroundColor: "rgba(167,139,250,0.12)" }]}>
-                <Icon name="format-size" size={19} color="#a78bfa" />
+                <Icon name="format-size" size={19} color={P.PURPLE} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={ss.label}>Font Size</Text>
@@ -197,35 +247,41 @@ const HomeSettingsSheet = ({ visible, fontSizeScale, hideNames, onSetFontSize, o
           </View>
 
         </ScrollView>
-      </View>
+      </GlassSurface>
     </View>
   </Modal>
-);
-const ss = StyleSheet.create({
-  backdrop:             { flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "flex-end" },
-  sheet:                { width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center", backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
+  );
+};
+const useSs = makeStyles((t) => {
+  const P = paschaTokens(t);
+  return {
+  backdrop:             { flex: 1, backgroundColor: P.BACKDROP, justifyContent: "flex-end" },
+  sheet:                { width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center", backgroundColor: P.CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
                           maxHeight: "90%", paddingBottom: Platform.OS === "ios" ? 34 : 20 },
-  handle:               { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP,
+  handle:               { width: 38, height: 4, borderRadius: 2, backgroundColor: P.SEP,
                           alignSelf: "center", marginTop: 12 },
   hdr:                  { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                          paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: SEP },
-  hdrTitle:             { fontSize: 20, fontWeight: "700", color: T1 },
-  xBtn:                 { width: 32, height: 32, borderRadius: 16, backgroundColor: CARD2,
+                          paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: P.SEP },
+  hdrTitle:             { fontSize: 20, fontWeight: "700", color: P.T1 },
+  xBtn:                 { width: 32, height: 32, borderRadius: 16, backgroundColor: P.CARD2,
                           justifyContent: "center", alignItems: "center" },
-  card:                 { backgroundColor: CARD2, borderRadius: 14, padding: 16 },
+  card:                 { backgroundColor: P.CARD2, borderRadius: 14, padding: 16 },
   row:                  { flexDirection: "row", alignItems: "center", gap: 12, paddingRight: 4 },
   iconBox:              { width: 40, height: 40, borderRadius: 11, justifyContent: "center", alignItems: "center" },
-  label:                { fontSize: 15, fontWeight: "600", color: T1 },
-  desc:                 { fontSize: 13, color: T2, marginTop: 2 },
+  label:                { fontSize: 15, fontWeight: "600", color: P.T1 },
+  desc:                 { fontSize: 13, color: P.T2, marginTop: 2 },
   fontSizeRow:          { flexDirection: "row", gap: 10, marginTop: 12 },
-  fontSizeBtn:          { flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: CARD, alignItems: "center" },
+  fontSizeBtn:          { flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: P.CARD, alignItems: "center" },
   fontSizeBtnActive:    { backgroundColor: "rgba(167,139,250,0.2)", borderWidth: 1, borderColor: "rgba(167,139,250,0.4)" },
-  fontSizeBtnTxt:       { fontSize: 13, fontWeight: "600", color: T2 },
-  fontSizeBtnTxtActive: { color: "#a78bfa", fontWeight: "700" },
+  fontSizeBtnTxt:       { fontSize: 13, fontWeight: "600", color: P.T2 },
+  fontSizeBtnTxtActive: { color: P.PURPLE, fontWeight: "700" },
+  };
 });
 
 // ── Day Tab Bar ───────────────────────────────────────────────────────────────
-const DayTabBar = ({ allDays, selectedId, easterDate, schedule, uid, onSelect, fontScale = 1 }) => (
+const DayTabBar = ({ allDays, selectedId, easterDate, schedule, uid, onSelect, fontScale = 1 }) => {
+  const dt = useDt();
+  return (
   <ScrollView horizontal showsHorizontalScrollIndicator={false}
     contentContainerStyle={dt.content} style={dt.bar}>
     {allDays.map(day => {
@@ -250,8 +306,11 @@ const DayTabBar = ({ allDays, selectedId, easterDate, schedule, uid, onSelect, f
       );
     })}
   </ScrollView>
-);
-const dt = StyleSheet.create({
+  );
+};
+const useDt = makeStyles((t) => {
+  const P = paschaTokens(t);
+  return {
   // Sized to its tabs rather than a fixed 58pt box around a 74pt wrapper: on
   // Large the label and date no longer fit that box and the date fell out.
   // flexGrow/flexShrink 0 because a horizontal ScrollView otherwise flexes on
@@ -259,24 +318,28 @@ const dt = StyleSheet.create({
   bar:         { backgroundColor: "transparent", flexGrow: 0, flexShrink: 0 },
   // flexGrow on the content and tabs fills the width when every day fits.
   content:     { paddingHorizontal: 16, paddingVertical: 10, gap: 6, flexDirection: "row", flexGrow: 1 },
-  tab:         { flexGrow: 1, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 12, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, alignItems: "center", justifyContent: "center" },
-  tabActive:   { backgroundColor: BLUE_D, borderColor: "rgba(59,130,246,0.4)" },
-  dot:         { width: 4, height: 4, borderRadius: 2, backgroundColor: BLUE2, marginBottom: 3 },
-  label:       { fontSize: 11, fontWeight: "500", color: T2, textAlign: "center" },
-  labelActive: { color: BLUE2, fontWeight: "600" },
-  date:        { fontSize: 9, color: "rgba(241,245,249,0.5)", marginTop: 2 },
-  dateActive:  { color: "rgba(96,165,250,0.85)" },
+  tab:         { flexGrow: 1, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 12, backgroundColor: P.GLASS, borderWidth: 1, borderColor: P.SEP, alignItems: "center", justifyContent: "center" },
+  tabActive:   { backgroundColor: P.BLUE_D, borderColor: "rgba(59,130,246,0.4)" },
+  dot:         { width: 4, height: 4, borderRadius: 2, backgroundColor: P.BLUE2, marginBottom: 3 },
+  label:       { fontSize: 11, fontWeight: "500", color: P.T2, textAlign: "center" },
+  labelActive: { color: P.BLUE2, fontWeight: "600" },
+  date:        { fontSize: 9, color: P.DATE, marginTop: 2 },
+  dateActive:  { color: P.DATE_ACTIVE },
+  };
 });
 
 // ── Reading Card ──────────────────────────────────────────────────────────────
 const ReadingCard = ({ row, hourAssignments, uid, isFullSchedule, isMine, hideNames, fontScale = 1 }) => {
+  const rdc = useRdc();
+  const P = usePaschaTokens();
+  const META = readingMetaFor(useTheme().isDark);
   const isCopticRow = COPTIC_RKEYS.has(row.rKey);
-  const meta        = READING_META[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
+  const meta        = META[row.rKey] || { label: row.rKey, icon: "book-outline", color: P.T2 };
   const isPsalm     = isPsalmSlot(row.rKey);
   const isExp       = row.rKey === "exposition";
 
-  const accentColor = isCopticRow ? COPTIC_COLOR : meta.color;
-  const accentBg    = isCopticRow ? COPTIC_BG    : meta.color + "1a";
+  const accentColor = isCopticRow ? P.COPTIC_COLOR : meta.color;
+  const accentBg    = isCopticRow ? P.COPTIC_BG    : meta.color + "1a";
 
   const label     = buildReadingLabel(row);
   const readers   = isPsalm ? (hourAssignments.psalm_readers || []) : [];
@@ -315,7 +378,7 @@ const ReadingCard = ({ row, hourAssignments, uid, isFullSchedule, isMine, hideNa
 
       {!!row.location && (
         <View style={rdc.locationRow}>
-          <Icon name="map-marker-outline" size={11} color={T3} />
+          <Icon name="map-marker-outline" size={11} color={P.T3} />
           <Text style={[rdc.loc, tx(11, fontScale)]}>{row.location}</Text>
         </View>
       )}
@@ -342,41 +405,47 @@ const ReadingCard = ({ row, hourAssignments, uid, isFullSchedule, isMine, hideNa
     </View>
   );
 };
-const rdc = StyleSheet.create({
-  card:            { backgroundColor: GLASS, borderWidth: 1, borderColor: GLASS_B, borderRadius: 14, padding: 14, marginBottom: 8 },
+const useRdc = makeStyles((t) => {
+  const P = paschaTokens(t);
+  return {
+  card:            { backgroundColor: P.GLASS, borderWidth: 1, borderColor: P.GLASS_B, borderRadius: 14, padding: 14, marginBottom: 8 },
   cardMine:        { borderColor: "rgba(59,130,246,0.3)", backgroundColor: "rgba(59,130,246,0.07)" },
-  cardCoptic:      { borderColor: COPTIC_BORDER, backgroundColor: COPTIC_BG },
+  cardCoptic:      { borderColor: P.COPTIC_BORDER, backgroundColor: P.COPTIC_BG },
   header:          { flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 8 },
   iconWrap:        { width: 30, height: 30, borderRadius: 9, justifyContent: "center", alignItems: "center" },
   typeLabel:       { fontSize: 11, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", flex: 1 },
-  copticBadge:     { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: "rgba(245,158,11,0.20)", borderWidth: 1, borderColor: COPTIC_BORDER },
-  copticBadgeTxt:  { fontSize: 9, fontWeight: "800", color: COPTIC_COLOR, letterSpacing: 0.5 },
-  langBadge:       { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, backgroundColor: GLASS2 },
-  langBadgeTxt:    { fontSize: 9, fontWeight: "700", color: T3, letterSpacing: 0.3 },
-  youPill:         { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: BLUE_D, borderWidth: 1, borderColor: "rgba(59,130,246,0.3)" },
-  youTxt:          { fontSize: 9, fontWeight: "700", color: BLUE2, letterSpacing: 0.4 },
-  ref:             { fontSize: 14, color: T1, fontWeight: "300", lineHeight: 21, marginBottom: 3 },
+  copticBadge:     { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: "rgba(245,158,11,0.20)", borderWidth: 1, borderColor: P.COPTIC_BORDER },
+  copticBadgeTxt:  { fontSize: 9, fontWeight: "800", color: P.COPTIC_COLOR, letterSpacing: 0.5 },
+  langBadge:       { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, backgroundColor: P.GLASS2 },
+  langBadgeTxt:    { fontSize: 9, fontWeight: "700", color: P.T3, letterSpacing: 0.3 },
+  youPill:         { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: P.BLUE_D, borderWidth: 1, borderColor: "rgba(59,130,246,0.3)" },
+  youTxt:          { fontSize: 9, fontWeight: "700", color: P.BLUE2, letterSpacing: 0.4 },
+  ref:             { fontSize: 14, color: P.T1, fontWeight: "300", lineHeight: 21, marginBottom: 3 },
   locationRow:     { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 3 },
-  loc:             { fontSize: 11, color: T3, fontWeight: "400" },
-  assigneeRow:     { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: SEP },
-  chip:            { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: GLASS2, borderWidth: 1, borderColor: SEP, borderRadius: 20, paddingVertical: 3, paddingHorizontal: 8 },
-  chipAvatar:      { backgroundColor: GLASS2 },
-  chipMe:          { backgroundColor: BLUE_D, borderColor: "rgba(59,130,246,0.3)" },
-  chipCoptic:      { backgroundColor: COPTIC_BG, borderColor: COPTIC_BORDER },
-  chipName:        { fontSize: 11, fontWeight: "500", color: T2, maxWidth: 100 },
-  chipNameMe:      { color: BLUE2, fontWeight: "600" },
-  chipNameCoptic:  { color: COPTIC_COLOR, fontWeight: "600" },
+  loc:             { fontSize: 11, color: P.T3, fontWeight: "400" },
+  assigneeRow:     { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: P.SEP },
+  chip:            { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: P.GLASS2, borderWidth: 1, borderColor: P.SEP, borderRadius: 20, paddingVertical: 3, paddingHorizontal: 8 },
+  chipAvatar:      { backgroundColor: P.GLASS2 },
+  chipMe:          { backgroundColor: P.BLUE_D, borderColor: "rgba(59,130,246,0.3)" },
+  chipCoptic:      { backgroundColor: P.COPTIC_BG, borderColor: P.COPTIC_BORDER },
+  chipName:        { fontSize: 11, fontWeight: "500", color: P.T2, maxWidth: 100 },
+  chipNameMe:      { color: P.BLUE2, fontWeight: "600" },
+  chipNameCoptic:  { color: P.COPTIC_COLOR, fontWeight: "600" },
+  };
 });
 
 // ── Single Hour Page ──────────────────────────────────────────────────────────
 const HourPage = ({ hour, ha, uid, isFullSchedule, hideNames, pageWidth, pageLabel, fontScale = 1 }) => {
+  const pg = usePg();
+  const P = usePaschaTokens();
+  const tabBarInset = useTabBarInset();
   const mySlotSet  = getMySlots(hour, ha, uid);
   const hasMe      = mySlotSet.size > 0;
   const assignable = expandReadings(hour, ha).filter(r => isAssignableSlot(r.rKey) || isPsalmSlot(r.rKey));
   return (
     <View style={{ width: pageWidth }}>
       <View style={pg.hourHeader}>
-        <View style={[pg.hourAccent, { backgroundColor: hasMe ? BLUE : "rgba(255,255,255,0.15)" }]} />
+        <View style={[pg.hourAccent, { backgroundColor: hasMe ? P.BLUE : P.HOUR_IDLE }]} />
         <View style={{ flex: 1 }}>
           <Text style={[pg.hourLabel, tx(17, fontScale)]}>{hour.label}</Text>
           {hasMe && (
@@ -387,7 +456,7 @@ const HourPage = ({ hour, ha, uid, isFullSchedule, hideNames, pageWidth, pageLab
         </View>
         <Text style={[pg.pageCount, tx(11, fontScale)]}>{pageLabel}</Text>
       </View>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={pg.cardsScroll}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[pg.cardsScroll, { paddingBottom: 32 + tabBarInset }]}>
         {assignable.length === 0
           ? <View style={pg.emptyHour}><Text style={[pg.emptyHourTxt, tx(13, fontScale)]}>No assigned readings</Text></View>
           : assignable.map(row => (
@@ -410,6 +479,8 @@ const HourPage = ({ hour, ha, uid, isFullSchedule, hideNames, pageWidth, pageLab
 
 // ── Hour Pager ────────────────────────────────────────────────────────────────
 const HourPagerController = ({ hours, daySchedule, uid, isFullSchedule, hideNames, targetHourId, fontScale = 1 }) => {
+  const pg = usePg();
+  const P = usePaschaTokens();
   // The column's width, not the window's: on an iPad this screen sits in a
   // centered column, and a page the width of the window would straddle two.
   const width = useContentWidth();
@@ -448,7 +519,7 @@ const HourPagerController = ({ hours, daySchedule, uid, isFullSchedule, hideName
   if (visibleHours.length === 0) {
     return (
       <View style={pg.empty}>
-        <Icon name="cross" size={28} color={T3} />
+        <Icon name="cross" size={28} color={P.T3} />
         <Text style={[pg.emptyTxt, tx(14, fontScale)]}>No readings assigned for this day</Text>
       </View>
     );
@@ -459,7 +530,7 @@ const HourPagerController = ({ hours, daySchedule, uid, isFullSchedule, hideName
       <View style={pg.nav}>
         <TouchableOpacity onPress={() => goTo(clamped - 1)} disabled={clamped === 0}
           style={[pg.navBtn, clamped === 0 && pg.navBtnDisabled]} activeOpacity={0.7}>
-          <Icon name="chevron-left" size={18} color={clamped === 0 ? T3 : T1} />
+          <Icon name="chevron-left" size={18} color={clamped === 0 ? P.T3 : P.T1} />
         </TouchableOpacity>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={pg.dotsContent}>
           {visibleHours.map((h, i) => {
@@ -483,7 +554,7 @@ const HourPagerController = ({ hours, daySchedule, uid, isFullSchedule, hideName
           disabled={clamped >= visibleHours.length - 1}
           style={[pg.navBtn, clamped >= visibleHours.length - 1 && pg.navBtnDisabled]}
           activeOpacity={0.7}>
-          <Icon name="chevron-right" size={18} color={clamped >= visibleHours.length - 1 ? T3 : T1} />
+          <Icon name="chevron-right" size={18} color={clamped >= visibleHours.length - 1 ? P.T3 : P.T1} />
         </TouchableOpacity>
       </View>
       <ScrollView
@@ -513,30 +584,36 @@ const HourPagerController = ({ hours, daySchedule, uid, isFullSchedule, hideName
   );
 };
 
-const pg = StyleSheet.create({
+const usePg = makeStyles((t) => {
+  const P = paschaTokens(t);
+  return {
   nav:             { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, gap: 4 },
-  navBtn:          { width: 36, height: 36, borderRadius: 18, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, justifyContent: "center", alignItems: "center" },
+  navBtn:          { width: 36, height: 36, borderRadius: 18, backgroundColor: P.GLASS, borderWidth: 1, borderColor: P.SEP, justifyContent: "center", alignItems: "center" },
   navBtnDisabled:  { opacity: 0.3 },
   dotsContent:     { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 6 },
   dotBtn:          { padding: 4 },
-  dotPill:         { width: 6, height: 6, borderRadius: 3, backgroundColor: T3 },
-  dotPillActive:   { width: 18, backgroundColor: T2 },
+  dotPill:         { width: 6, height: 6, borderRadius: 3, backgroundColor: P.T3 },
+  dotPillActive:   { width: 18, backgroundColor: P.T2 },
   dotPillMe:       { backgroundColor: "rgba(59,130,246,0.4)" },
-  dotPillMeActive: { width: 18, backgroundColor: BLUE2 },
+  dotPillMeActive: { width: 18, backgroundColor: P.BLUE2 },
   hourHeader:      { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingBottom: 14 },
   hourAccent:      { width: 3, height: 20, borderRadius: 2 },
-  hourLabel:       { fontSize: 17, fontWeight: "300", color: T1, letterSpacing: -0.3 },
-  hourSub:         { fontSize: 12, color: BLUE2, marginTop: 2, fontWeight: "400" },
-  pageCount:       { fontSize: 11, color: T3, fontWeight: "400" },
+  hourLabel:       { fontSize: 17, fontWeight: "300", color: P.T1, letterSpacing: -0.3 },
+  hourSub:         { fontSize: 12, color: P.BLUE2, marginTop: 2, fontWeight: "400" },
+  pageCount:       { fontSize: 11, color: P.T3, fontWeight: "400" },
   cardsScroll:     { paddingHorizontal: 16, paddingBottom: 32 },
   empty:           { flex: 1, justifyContent: "center", alignItems: "center", gap: 12, padding: 48 },
-  emptyTxt:        { fontSize: 14, color: T2, fontWeight: "300" },
+  emptyTxt:        { fontSize: 14, color: P.T2, fontWeight: "300" },
   emptyHour:       { padding: 24, alignItems: "center" },
-  emptyHourTxt:    { fontSize: 13, color: T3, fontWeight: "400" },
+  emptyHourTxt:    { fontSize: 13, color: P.T3, fontWeight: "400" },
+  };
 });
 
 // ── Timeline Day Card ─────────────────────────────────────────────────────────
 const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onHourPress, fontScale = 1 }) => {
+  const tl = useTl();
+  const P = usePaschaTokens();
+  const META = readingMetaFor(useTheme().isDark);
   const dateStr = easterDate ? calcDate(easterDate, day.easterOffset) : null;
   const myHours = [];
   (day.hours || []).forEach(h => {
@@ -561,7 +638,7 @@ const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onHourPres
         <View style={tl.node} />
         {!isLast && <View style={tl.line} />}
       </View>
-      <View style={tl.card}>
+      <GlassSurface style={tl.card}>
         <TouchableOpacity onPress={handleCardPress} activeOpacity={0.78}>
           <View style={tl.cardHeader}>
             <View style={{ flex: 1 }}>
@@ -572,7 +649,7 @@ const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onHourPres
           </View>
           <View style={tl.pillRow}>
             {allTypes.map(rKey => {
-              const m           = READING_META[rKey] || { icon: "book-outline", color: T3, label: rKey };
+              const m           = META[rKey] || { icon: "book-outline", color: P.T3, label: rKey };
               const isCopticKey = COPTIC_RKEYS.has(rKey);
               return (
                 <View key={rKey} style={[
@@ -589,41 +666,48 @@ const TimelineDayCard = ({ day, daySchedule, easterDate, uid, isLast, onHourPres
         </TouchableOpacity>
         {myHours.map(({ hour, rows }, hi) => (
           <TouchableOpacity key={hour.id}
-            style={[tl.hourRow, hi > 0 && { borderTopWidth: 1, borderTopColor: SEP }]}
+            style={[tl.hourRow, hi > 0 && { borderTopWidth: 1, borderTopColor: P.SEP }]}
             onPress={() => onHourPress(day.id, hour.id)} activeOpacity={0.7}>
             <Text style={[tl.hourLabel, tx(13, fontScale)]}>{hour.label}</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
               <Text style={[tl.hourCount, tx(12, fontScale)]}>{rows.length} {rows.length === 1 ? "reading" : "readings"}</Text>
-              <Icon name="chevron-right" size={13} color={BLUE2} />
+              <Icon name="chevron-right" size={13} color={P.BLUE2} />
             </View>
           </TouchableOpacity>
         ))}
-      </View>
+      </GlassSurface>
     </View>
   );
 };
-const tl = StyleSheet.create({
+const useTl = makeStyles((t) => {
+  const P = paschaTokens(t);
+  return {
   entry:       { flexDirection: "row", paddingHorizontal: 20, marginBottom: 4 },
   spineCol:    { width: 24, alignItems: "center", paddingTop: 18 },
-  node:        { width: 10, height: 10, borderRadius: 5, backgroundColor: BLUE, borderWidth: 2, borderColor: "rgba(59,130,246,0.35)", zIndex: 1 },
+  node:        { width: 10, height: 10, borderRadius: 5, backgroundColor: P.BLUE, borderWidth: 2, borderColor: "rgba(59,130,246,0.35)", zIndex: 1 },
   line:        { flex: 1, width: 1.5, backgroundColor: "rgba(59,130,246,0.2)", marginTop: 4 },
-  card:        { flex: 1, marginLeft: 12, marginBottom: 14, borderRadius: 20, backgroundColor: GLASS, borderWidth: 1, borderColor: GLASS_B, overflow: "hidden" },
+  card:        { flex: 1, marginLeft: 12, marginBottom: 14, borderRadius: 20, backgroundColor: P.GLASS, borderWidth: 1, borderColor: P.GLASS_B, overflow: "hidden" },
   cardHeader:  { flexDirection: "row", alignItems: "flex-start", padding: 16, paddingBottom: 10, gap: 10 },
-  dayLabel:    { fontSize: 16, fontWeight: "300", color: T1, letterSpacing: -0.2, marginBottom: 3 },
-  dateStr:     { fontSize: 12, color: T2, fontWeight: "400" },
-  badge:       { minWidth: 32, height: 32, borderRadius: 16, backgroundColor: BLUE_D, borderWidth: 1, borderColor: "rgba(59,130,246,0.3)", justifyContent: "center", alignItems: "center", paddingHorizontal: 8 },
-  badgeNum:    { fontSize: 15, fontWeight: "300", color: BLUE2 },
+  dayLabel:    { fontSize: 16, fontWeight: "300", color: P.T1, letterSpacing: -0.2, marginBottom: 3 },
+  dateStr:     { fontSize: 12, color: P.T2, fontWeight: "400" },
+  badge:       { minWidth: 32, height: 32, borderRadius: 16, backgroundColor: P.BLUE_D, borderWidth: 1, borderColor: "rgba(59,130,246,0.3)", justifyContent: "center", alignItems: "center", paddingHorizontal: 8 },
+  badgeNum:    { fontSize: 15, fontWeight: "300", color: P.BLUE2 },
   pillRow:     { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 16, paddingBottom: 12 },
   pill:        { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1 },
   pillCoptic:  { borderWidth: 1.5 },
   pillTxt:     { fontSize: 10, fontWeight: "500", letterSpacing: 0.3 },
   hourRow:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 9 },
-  hourLabel:   { fontSize: 13, color: T2, fontWeight: "400" },
-  hourCount:   { fontSize: 12, color: BLUE2, fontWeight: "400" },
+  hourLabel:   { fontSize: 13, color: P.T2, fontWeight: "400" },
+  hourCount:   { fontSize: 12, color: P.BLUE2, fontWeight: "400" },
+  };
 });
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function PaschaHomePage() {
+  const mn = useMn();
+  const ov = useOv();
+  const P = usePaschaTokens();
+  const tabBarInset = useTabBarInset();
   const isMounted = useRef(true);
 
   // Hold the four Firestore listeners below until the drawer/stack transition
@@ -771,10 +855,9 @@ export default function PaschaHomePage() {
     const dateStr     = easterDate ? calcDate(easterDate, dayDef.easterOffset) : null;
     return (
       <View style={mn.container}>
-        <StatusBar barStyle="light-content" />
         <View style={mn.header}>
           <TouchableOpacity style={mn.backBtn} onPress={goBack} activeOpacity={0.7}>
-            <Icon name="arrow-left" size={18} color={T1} />
+            <Icon name="arrow-left" size={18} color={P.T1} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={[mn.eyebrow, tx(11, fontScale)]}>
@@ -784,7 +867,7 @@ export default function PaschaHomePage() {
             {dateStr && <Text style={[mn.subtitle, tx(13, fontScale)]}>{dateStr}</Text>}
           </View>
           <TouchableOpacity style={mn.cogBtn} onPress={() => setSettingsOpen(true)} activeOpacity={0.7}>
-            <Icon name="cog-outline" size={18} color={T2} />
+            <Icon name="cog-outline" size={18} color={P.T2} />
           </TouchableOpacity>
         </View>
         <DayTabBar allDays={allDays} selectedId={nav.dayId} easterDate={easterDate}
@@ -813,14 +896,13 @@ export default function PaschaHomePage() {
 
   return (
     <View style={mn.container}>
-      <StatusBar barStyle="light-content" />
       <View style={mn.header}>
         <View style={{ flex: 1 }}>
           <Text style={[mn.eyebrow, tx(11, fontScale)]}>HOLY WEEK  ·  PASCHA</Text>
           <Text style={[mn.title, tx(26, fontScale)]}>{isFullSchedule ? "Schedule" : "My Readings"}</Text>
         </View>
         <TouchableOpacity style={mn.cogBtn} onPress={() => setSettingsOpen(true)} activeOpacity={0.7}>
-          <Icon name="cog-outline" size={20} color={T2} />
+          <Icon name="cog-outline" size={20} color={P.T2} />
         </TouchableOpacity>
       </View>
       <View style={{ height: 74 }}>
@@ -828,11 +910,11 @@ export default function PaschaHomePage() {
           schedule={schedule} uid={uid} onSelect={goToDay} fontScale={fontScale} />
       </View>
       <ScrollView showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 56, paddingTop: 8 }}>
+        contentContainerStyle={{ paddingBottom: 56 + tabBarInset, paddingTop: 8 }}>
         {showContent && totalMyReadings > 0 && (
           <View style={ov.summaryRow}>
             <View style={ov.summaryPill}>
-              <Icon name="cross" size={12} color={BLUE2} />
+              <Icon name="cross" size={12} color={P.BLUE2} />
               <Text style={[ov.summaryTxt, tx(12, fontScale)]}>
                 {totalMyReadings} reading{totalMyReadings !== 1 ? "s" : ""}
                 {" · "}
@@ -844,7 +926,7 @@ export default function PaschaHomePage() {
         {showContent ? (
           totalMyReadings === 0 ? (
             <View style={ov.empty}>
-              <View style={ov.emptyIconWrap}><Icon name="cross" size={28} color={T3} /></View>
+              <View style={ov.emptyIconWrap}><Icon name="cross" size={28} color={P.T3} /></View>
               <Text style={[ov.emptyTitle, tx(18, fontScale)]}>Not yet scheduled</Text>
               <Text style={[ov.emptySub, tx(14, fontScale)]}>Your assigned readings will appear here once the schedule is set.</Text>
             </View>
@@ -866,7 +948,7 @@ export default function PaschaHomePage() {
           )
         ) : (
           <View style={ov.empty}>
-            <View style={ov.emptyIconWrap}><Icon name="cross" size={28} color={T3} /></View>
+            <View style={ov.emptyIconWrap}><Icon name="cross" size={28} color={P.T3} /></View>
             <Text style={[ov.emptyTitle, tx(18, fontScale)]}>Schedule not yet available</Text>
             <Text style={[ov.emptySub, tx(14, fontScale)]}>Check back closer to Holy Week.</Text>
           </View>
@@ -884,21 +966,27 @@ export default function PaschaHomePage() {
   );
 }
 
-const ov = StyleSheet.create({
+const useOv = makeStyles((t) => {
+  const P = paschaTokens(t);
+  return {
   summaryRow:    { paddingHorizontal: 20, marginBottom: 6 },
-  summaryPill:   { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, backgroundColor: BLUE_D, borderWidth: 1, borderColor: "rgba(59,130,246,0.25)" },
-  summaryTxt:    { fontSize: 12, color: BLUE2, fontWeight: "400" },
+  summaryPill:   { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, backgroundColor: P.BLUE_D, borderWidth: 1, borderColor: "rgba(59,130,246,0.25)" },
+  summaryTxt:    { fontSize: 12, color: P.BLUE2, fontWeight: "400" },
   empty:         { alignItems: "center", padding: 56, gap: 12 },
-  emptyIconWrap: { width: 72, height: 72, borderRadius: 36, backgroundColor: GLASS, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: SEP },
-  emptyTitle:    { fontSize: 18, fontWeight: "300", color: T1, letterSpacing: -0.2 },
-  emptySub:      { fontSize: 14, color: T2, textAlign: "center", lineHeight: 21, maxWidth: 260, fontWeight: "400" },
+  emptyIconWrap: { width: 72, height: 72, borderRadius: 36, backgroundColor: P.GLASS, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: P.SEP },
+  emptyTitle:    { fontSize: 18, fontWeight: "300", color: P.T1, letterSpacing: -0.2 },
+  emptySub:      { fontSize: 14, color: P.T2, textAlign: "center", lineHeight: 21, maxWidth: 260, fontWeight: "400" },
+  };
 });
-const mn = StyleSheet.create({
-  container:           { flex: 1, backgroundColor: BG },
+const useMn = makeStyles((t) => {
+  const P = paschaTokens(t);
+  return {
+  container:           { flex: 1, backgroundColor: P.BG },
   header:              { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 18, paddingBottom: 8, gap: 12 },
-  backBtn:             { width: 36, height: 36, borderRadius: 18, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, justifyContent: "center", alignItems: "center" },
-  cogBtn:              { width: 40, height: 40, borderRadius: 20, backgroundColor: GLASS, borderWidth: 1, borderColor: SEP, justifyContent: "center", alignItems: "center" },
-  eyebrow:             { fontSize: 11, fontWeight: "500", color: BLUE, letterSpacing: 1.8, marginBottom: 2 },
-  title:               { fontSize: 26, fontWeight: "200", color: T1, letterSpacing: -0.6 },
-  subtitle:            { fontSize: 13, color: "rgba(241,245,249,0.45)", fontWeight: "400", marginTop: 2 },
+  backBtn:             { width: 36, height: 36, borderRadius: 18, backgroundColor: P.GLASS, borderWidth: 1, borderColor: P.SEP, justifyContent: "center", alignItems: "center" },
+  cogBtn:              { width: 40, height: 40, borderRadius: 20, backgroundColor: P.GLASS, borderWidth: 1, borderColor: P.SEP, justifyContent: "center", alignItems: "center" },
+  eyebrow:             { fontSize: 11, fontWeight: "500", color: P.BLUE, letterSpacing: 1.8, marginBottom: 2 },
+  title:               { fontSize: 26, fontWeight: "200", color: P.T1, letterSpacing: -0.6 },
+  subtitle:            { fontSize: 13, color: P.SUBTITLE, fontWeight: "400", marginTop: 2 },
+  };
 });

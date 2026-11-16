@@ -5,10 +5,10 @@ import {
   TouchableOpacity,
   Modal,
   FlatList,
-  StyleSheet,
   TextInput,
 } from "react-native";
 import Avatar from "./Avatar";
+import { makeStyles, useTheme, GlassSurface } from "../theme";
 import { LIST_PERF } from "../utils/listConfig";
 import { weeksBetween } from "../utils/dateKeys";
 
@@ -41,6 +41,18 @@ const getColorForWeeks = (weeks) => {
   return '#34c759';
 };
 
+// The stops are tuned for dark backgrounds; the yellows and light greens wash
+// out as text on white, so light mode draws the label in a darker shade.
+const LIGHT_MODE_TEXT = {
+  '#ff3b30': '#D70015',
+  '#ff6b30': '#D9480F',
+  '#ff9500': '#C76A00',
+  '#ffcc00': '#A37800',
+  '#c7dc00': '#7A8700',
+  '#76d600': '#4A8A00',
+  '#34c759': '#248A3D',
+};
+
 const getWeeksDisplayText = (weeks) => {
   if (weeks === null) return 'No data';
   if (weeks < 0) return `Will serve in ${Math.abs(weeks)} week${Math.abs(weeks) === 1 ? '' : 's'}`;
@@ -57,43 +69,53 @@ const getWeeksDisplayText = (weeks) => {
  * for every mounted row on every render — including every keystroke in the search
  * box directly above it.
  */
-const ServerRow = React.memo(({ server, indicatorColor, displayText, secondaryInfo, onPress }) => (
-  <TouchableOpacity
-    style={styles.modalItemContainer}
-    onPress={() => onPress(server)}
-    activeOpacity={0.7}
-  >
-    <View style={styles.modalItemContent}>
-      <View style={styles.profilePicContainer}>
-        <Avatar
-          uid={server.uid}
-          user={server}
-          size={42}
-          borderRadius={21}
-          style={styles.profilePic}
-          showBorder={false}
-        />
-        <View style={[styles.statusIndicator, { backgroundColor: indicatorColor }]} />
-      </View>
-      <View style={styles.serverInfo}>
-        <Text style={styles.modalItem}>{server.name}</Text>
-        <View style={styles.serveInfoContainer}>
-          <Text style={[styles.primaryServeText, { color: indicatorColor }]}>
-            {displayText}
-          </Text>
-          {secondaryInfo && (
-            <Text style={styles.secondaryServeText}>{secondaryInfo}</Text>
-          )}
+const ServerRow = React.memo(({ server, indicatorColor, displayText, secondaryInfo, onPress }) => {
+  const styles = useStyles();
+  const t = useTheme();
+  const labelColor = t.isDark
+    ? indicatorColor
+    : LIGHT_MODE_TEXT[indicatorColor] ?? indicatorColor;
+  return (
+    <TouchableOpacity
+      style={styles.modalItemContainer}
+      onPress={() => onPress(server)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.modalItemContent}>
+        <View style={styles.profilePicContainer}>
+          <Avatar
+            uid={server.uid}
+            user={server}
+            size={42}
+            borderRadius={21}
+            style={styles.profilePic}
+            showBorder={false}
+          />
+          <View style={[styles.statusIndicator, { backgroundColor: indicatorColor }]} />
+        </View>
+        <View style={styles.serverInfo}>
+          <Text style={styles.modalItem}>{server.name}</Text>
+          <View style={styles.serveInfoContainer}>
+            <Text style={[styles.primaryServeText, { color: labelColor }]}>
+              {displayText}
+            </Text>
+            {secondaryInfo && (
+              <Text style={styles.secondaryServeText}>{secondaryInfo}</Text>
+            )}
+          </View>
         </View>
       </View>
-    </View>
-  </TouchableOpacity>
-));
+    </TouchableOpacity>
+  );
+});
 ServerRow.displayName = "ServerRow";
 
 // Hoisted: as inline props these were a new identity every render.
 const serverKeyExtractor = (item) => item.server.uid;
-const Separator = () => <View style={styles.separator} />;
+const Separator = () => {
+  const styles = useStyles();
+  return <View style={styles.separator} />;
+};
 
 /** How long until this server serves again, or null if that isn't worth showing. */
 const nextServeLabel = (selectedWeek, nextServeStr) => {
@@ -117,6 +139,8 @@ const ServerSelectionModal = ({
   title = "Select Server",
   showNextServe = false,
 }) => {
+  const styles = useStyles();
+  const t = useTheme();
   const [query, setQuery] = useState("");
 
   /**
@@ -169,7 +193,7 @@ const ServerSelectionModal = ({
         </Text>
       </View>
     ),
-    [query]
+    [query, styles]
   );
 
   return (
@@ -185,7 +209,7 @@ const ServerSelectionModal = ({
         onPress={onClose}
       >
         <TouchableOpacity activeOpacity={1} style={styles.modalWrapper}>
-          <View style={styles.modalContent}>
+          <GlassSurface style={styles.modalContent}>
             {/* Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{title}</Text>
@@ -200,7 +224,8 @@ const ServerSelectionModal = ({
               <TextInput
                 style={styles.searchInput}
                 placeholder="Search..."
-                placeholderTextColor="#555"
+                placeholderTextColor={t.placeholder}
+                keyboardAppearance={t.keyboardAppearance}
                 value={query}
                 onChangeText={setQuery}
                 clearButtonMode="while-editing"
@@ -225,17 +250,17 @@ const ServerSelectionModal = ({
               ItemSeparatorComponent={Separator}
               ListEmptyComponent={listEmpty}
             />
-          </View>
+          </GlassSurface>
         </TouchableOpacity>
       </TouchableOpacity>
     </Modal>
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    backgroundColor: t.overlay,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -244,11 +269,11 @@ const styles = StyleSheet.create({
     maxHeight: "60%",
   },
   modalContent: {
-    backgroundColor: "#161616",
+    backgroundColor: t.isDark ? "#161616" : t.surface,
     borderRadius: 20,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.07)",
+    borderColor: t.border,
   },
   modalHeader: {
     flexDirection: "row",
@@ -257,10 +282,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.07)",
+    borderBottomColor: t.border,
   },
   modalTitle: {
-    color: "#fff",
+    color: t.text,
     fontSize: 17,
     fontWeight: "700",
     letterSpacing: -0.3,
@@ -269,12 +294,12 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: t.fill,
     alignItems: "center",
     justifyContent: "center",
   },
   modalCloseX: {
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
     fontSize: 20,
     fontWeight: "300",
     lineHeight: 22,
@@ -284,31 +309,31 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: t.fill,
     marginHorizontal: 14,
     marginTop: 12,
     marginBottom: 6,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.07)",
+    borderColor: t.border,
     paddingHorizontal: 12,
     height: 38,
     gap: 8,
   },
   searchIcon: {
     fontSize: 16,
-    color: "rgba(255,255,255,0.3)",
+    color: t.textTertiary,
     marginTop: -1,
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: "#fff",
+    color: t.text,
     paddingVertical: 0,
   },
   clearBtn: {
     fontSize: 18,
-    color: "rgba(255,255,255,0.3)",
+    color: t.textTertiary,
     fontWeight: "300",
     lineHeight: 20,
   },
@@ -331,7 +356,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: "#2a2a2a",
+    backgroundColor: t.surfaceElevated,
   },
   statusIndicator: {
     position: "absolute",
@@ -341,14 +366,14 @@ const styles = StyleSheet.create({
     height: 13,
     borderRadius: 7,
     borderWidth: 2,
-    borderColor: "#161616",
+    borderColor: t.isDark ? "#161616" : t.surface,
   },
   serverInfo: {
     marginLeft: 13,
     flex: 1,
   },
   modalItem: {
-    color: "#fff",
+    color: t.text,
     fontSize: 15,
     fontWeight: "600",
   },
@@ -363,12 +388,12 @@ const styles = StyleSheet.create({
   secondaryServeText: {
     fontSize: 11,
     marginTop: 1,
-    color: "rgba(255,255,255,0.3)",
+    color: t.textTertiary,
     fontWeight: "400",
   },
   separator: {
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: t.border,
     marginHorizontal: 18,
   },
   emptyContainer: {
@@ -376,9 +401,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   emptyText: {
-    color: "rgba(255,255,255,0.3)",
+    color: t.textTertiary,
     fontSize: 14,
   },
-});
+}));
 
 export default ServerSelectionModal;

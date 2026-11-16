@@ -1,5 +1,7 @@
 import React, { useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, FlatList, SafeAreaView } from "react-native";
+import { Text, TouchableOpacity, FlatList } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { makeStyles, useTheme } from "../theme";
 import * as Haptics from "react-native-haptic-feedback";
 
 const DATA = [
@@ -9,7 +11,9 @@ const DATA = [
   { id: 4, title: "Deacon (Full Deacon)" },
 ];
 
-const Item = ({ item, onPress, backgroundColor, textColor }) => (
+const Item = ({ item, onPress, backgroundColor, textColor }) => {
+  const styles = useStyles();
+  return (
   <TouchableOpacity
     onPress={onPress}
     style={[styles.item, { backgroundColor }]}
@@ -17,14 +21,17 @@ const Item = ({ item, onPress, backgroundColor, textColor }) => (
   >
     <Text style={[styles.title, { color: textColor }]}>{item.title}</Text>
   </TouchableOpacity>
-);
+  );
+};
 
 const Rank = ({ onSelectRank }) => {
+  const styles = useStyles();
+  const t = useTheme();
   const [selectedId, setSelectedId] = useState(null);
 
   const renderItem = ({ item }) => {
-    const backgroundColor = item.id === selectedId ? "#147EFB" : "#2A2A2A";
-    const color = item.id === selectedId ? "#FFF" : "#E0E0E0";
+    const backgroundColor = item.id === selectedId ? t.accent : t.surfaceElevated;
+    const color = item.id === selectedId ? t.onAccent : t.isDark ? "#E0E0E0" : t.text;
 
     return (
       <Item
@@ -53,7 +60,7 @@ const Rank = ({ onSelectRank }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
   },
@@ -62,7 +69,7 @@ const styles = StyleSheet.create({
     marginVertical: 8, // Matches Churches spacing
     borderRadius: 12, // Matches Churches
     elevation: 3,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 3,
@@ -73,6 +80,6 @@ const styles = StyleSheet.create({
     fontWeight: "500", // Matches Choices
     textAlign: "left", // Consistent with other components
   },
-});
+}));
 
 export default Rank;

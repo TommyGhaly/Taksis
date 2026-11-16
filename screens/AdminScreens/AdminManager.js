@@ -16,6 +16,7 @@ import {
   PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
 import { Ionicons } from "@expo/vector-icons";
 import {
   collection,
@@ -119,6 +120,8 @@ const adminRoles = [
  * in each one that showed up as a stutter mid-scroll.
  */
 const UserRow = React.memo(({ item, onPress }) => {
+  const styles = useStyles();
+  const t = useTheme();
   const activeRoles =
     adminRoles
       .filter((role) => item[role.key])
@@ -163,7 +166,7 @@ const UserRow = React.memo(({ item, onPress }) => {
         style={[styles.actionButton, styles.editButton]}
         onPress={() => onPress(item)}
       >
-        <Ionicons name="pencil" size={18 * scale} color="#fff" />
+        <Ionicons name="pencil" size={18 * scale} color={t.onAccent} />
         <Text style={styles.buttonText}>Edit</Text>
       </TouchableOpacity>
     </TouchableOpacity>
@@ -171,7 +174,9 @@ const UserRow = React.memo(({ item, onPress }) => {
 });
 UserRow.displayName = "UserRow";
 
-const SectionHeader = React.memo(({ title }) => (
+const SectionHeader = React.memo(({ title }) => {
+  const styles = useStyles();
+  return (
   <View style={styles.sectionHeader}>
     {/*
       This overrides styles.sectionHeaderText's 22*scale, so the lineHeight has to
@@ -187,10 +192,14 @@ const SectionHeader = React.memo(({ title }) => (
       {title}
     </Text>
   </View>
-));
+  );
+});
 SectionHeader.displayName = "SectionHeader";
 
 const AdminManager = () => {
+  const styles = useStyles();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const [church, setChurch] = useState(null);
   const [users, setUsers] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -609,7 +618,7 @@ const AdminManager = () => {
             renderItem={renderUser}
             renderSectionHeader={renderSectionHeader}
             keyExtractor={keyExtractor}
-            contentContainerStyle={styles.listContainer}
+            contentContainerStyle={[styles.listContainer, { paddingBottom: 110 + tabBarInset }]}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
             {...LIST_PERF}
@@ -647,39 +656,46 @@ const AdminManager = () => {
       <Animated.View
         style={[
           styles.floatingBarWrapper,
+          { bottom: (Platform.OS === "ios" ? 28 : 16) + tabBarInset },
           { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] },
         ]}
         pointerEvents="box-none"
       >
-        <BlurView
-          tint="systemChromeMaterialDark"
-          intensity={80}
-          style={styles.floatingBlur}
-        >
-          <View style={styles.floatingInner}>
-            <View style={styles.searchContainer}>
-              <Ionicons name="search" size={16} color="rgba(255,255,255,0.55)" style={styles.searchIcon} />
-              <TextInput
-                ref={searchInputRef}
-                style={styles.searchBar}
-                placeholder="Search users"
-                placeholderTextColor="rgba(255,255,255,0.55)"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoCorrect={false}
-                autoCapitalize="none"
-                returnKeyType="search"
-                clearButtonMode="while-editing"
-              />
+        {(() => {
+          const inner = (
+            <View style={styles.floatingInner}>
+              <View style={styles.searchContainer}>
+                <Ionicons name="search" size={16} color={t.textSecondary} style={styles.searchIcon} />
+                <TextInput
+                  ref={searchInputRef}
+                  style={styles.searchBar}
+                  placeholder="Search users"
+                  placeholderTextColor={t.placeholder}
+                  keyboardAppearance={t.keyboardAppearance}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  returnKeyType="search"
+                  clearButtonMode="while-editing"
+                />
+              </View>
             </View>
-          </View>
-        </BlurView>
+          );
+          return t.glass ? (
+            <GlassSurface style={styles.floatingBlur}>{inner}</GlassSurface>
+          ) : (
+            <BlurView tint={t.blurTint} intensity={80} style={styles.floatingBlur}>
+              {inner}
+            </BlurView>
+          );
+        })()}
       </Animated.View>
 
       {selectedUser && (
         <Modal visible={modalVisible} animationType="fade" transparent>
           <View style={styles.modalOverlay}>
-            <View
+            <GlassSurface
               style={[
                 styles.modalContainer,
                 { width: isTablet ? "70%" : "90%" },
@@ -702,7 +718,7 @@ const AdminManager = () => {
                       onPress={handleEditProfilePicture}
                       disabled={deletingPhoto}
                     >
-                      <Ionicons name="pencil" size={16 * scale} color="#147efb" />
+                      <Ionicons name="pencil" size={16 * scale} color={t.accent} />
                     </TouchableOpacity>
                   </View>
                   <Text style={styles.modalTitle}>
@@ -710,7 +726,7 @@ const AdminManager = () => {
                   </Text>
                 </View>
                 <TouchableOpacity style={styles.closeButton} onPress={closeEditModal}>
-                  <Ionicons name="close" size={24 * scale} color="#fff" />
+                  <Ionicons name="close" size={24 * scale} color={t.onAccent} />
                 </TouchableOpacity>
               </View>
 
@@ -721,7 +737,7 @@ const AdminManager = () => {
                     <Switch
                       value={selectedRoles.includes(role.key)}
                       onValueChange={() => toggleRole(role.key)}
-                      trackColor={{ true: "#147efb" }}
+                      trackColor={{ true: t.accent }}
                     />
                   </View>
                 ))}
@@ -732,7 +748,7 @@ const AdminManager = () => {
                   style={[styles.modalButton, styles.cancelButton]}
                   onPress={closeEditModal}
                 >
-                  <Text style={styles.modalButtonText}>Cancel</Text>
+                  <Text style={[styles.modalButtonText, styles.cancelButtonText]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.modalButton, styles.saveButton]}
@@ -741,7 +757,7 @@ const AdminManager = () => {
                   <Text style={styles.modalButtonText}>Confirm</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </GlassSurface>
 
             {/* Content of *this* modal (`inline`), not a second <Modal>: iOS
                 will not present from a view controller that is already
@@ -760,10 +776,10 @@ const AdminManager = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     paddingTop: 20,
   },
   listWrapper: {
@@ -784,12 +800,12 @@ const styles = StyleSheet.create({
   userCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     padding: 16 * scale,
     marginBottom: 12 * scale,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   userImageContainer: {
     marginRight: 14 * scale,
@@ -809,18 +825,18 @@ const styles = StyleSheet.create({
     fontSize: 17 * scale,
     lineHeight: NAME_LINE * scale,
     fontWeight: "600",
-    color: "#fff",
+    color: t.text,
   },
   userChurch: {
     fontSize: 14 * scale,
     lineHeight: DETAIL_LINE * scale,
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
     marginTop: 4 * scale,
   },
   userRoles: {
     fontSize: 14 * scale,
     lineHeight: DETAIL_LINE * scale,
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
     marginTop: 4 * scale,
   },
   actionButton: {
@@ -831,17 +847,17 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   editButton: {
-    backgroundColor: "#147efb",
+    backgroundColor: t.accent,
   },
   buttonText: {
-    color: "#fff",
+    color: t.onAccent,
     fontSize: 14 * scale,
     fontWeight: "600",
     marginLeft: 6 * scale,
   },
   noData: {
     textAlign: "center",
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
     marginTop: 20,
     fontSize: 16 * scale,
   },
@@ -853,7 +869,7 @@ const styles = StyleSheet.create({
   sectionHeaderText: {
     fontSize: 22 * scale,
     fontWeight: "600",
-    color: "#fff",
+    color: t.text,
   },
 
   // ---------- Floating bottom search ----------
@@ -864,7 +880,7 @@ const styles = StyleSheet.create({
     bottom: Platform.OS === "ios" ? 28 : 16,
     borderRadius: 18,
     overflow: "hidden",
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 12,
@@ -874,8 +890,8 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
-    backgroundColor: Platform.OS === "android" ? "rgba(28,28,30,0.92)" : "transparent",
+    borderColor: t.borderStrong,
+    backgroundColor: Platform.OS === "android" ? (t.isDark ? "rgba(28,28,30,0.92)" : "rgba(255,255,255,0.92)") : "transparent",
   },
   floatingInner: {
     paddingHorizontal: 10,
@@ -885,7 +901,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: t.fillStrong,
     borderRadius: 10,
     paddingHorizontal: 10,
     height: 38,
@@ -895,30 +911,30 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     flex: 1,
-    color: "#fff",
+    color: t.text,
     fontSize: 15,
     paddingVertical: 0,
   },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: t.overlay,
     justifyContent: "center",
     alignItems: "center",
   },
   modalContainer: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     padding: 16 * scale,
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
   },
   headerContent: {
     flex: 1,
@@ -933,20 +949,20 @@ const styles = StyleSheet.create({
     height: 80 * scale,
     borderRadius: 40 * scale,
     borderWidth: 2,
-    borderColor: "#fff",
+    borderColor: t.onAccent,
   },
   editProfilePictureButton: {
     position: "absolute",
     top: 0,
     right: 0,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     padding: 6 * scale,
   },
   modalTitle: {
     fontSize: 18 * scale,
     fontWeight: "600",
-    color: "#fff",
+    color: t.onAccent,
     textAlign: "center",
   },
   closeButton: {
@@ -966,12 +982,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16 * scale,
     borderRadius: 14,
     marginBottom: 8 * scale,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: t.fill,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   roleText: {
-    color: "#fff",
+    color: t.text,
     fontSize: 16 * scale,
     fontWeight: "500",
     flex: 1,
@@ -980,7 +996,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     padding: 16 * scale,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.06)",
+    borderTopColor: t.border,
     justifyContent: "space-between",
     gap: 12 * scale,
   },
@@ -991,16 +1007,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveButton: {
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
   },
   cancelButton: {
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: t.fillStrong,
   },
   modalButtonText: {
-    color: "#fff",
+    color: t.onAccent,
     fontSize: 16 * scale,
     fontWeight: "600",
   },
-});
+  cancelButtonText: {
+    color: t.text,
+  },
+}));
 
 export default AdminManager;

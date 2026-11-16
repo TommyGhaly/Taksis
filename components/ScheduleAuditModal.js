@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   Modal,
   FlatList,
-  StyleSheet,
   ActivityIndicator,
   Platform,
 } from "react-native";
@@ -20,6 +19,7 @@ import {
 } from "@react-native-firebase/firestore";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { LIST_PERF } from "../utils/listConfig";
+import { makeStyles, useTheme } from "../theme";
 import { longDateLabelWithYear, parseDateKey } from "../utils/dateKeys";
 
 // Written by the functions - see backend/functions/files/audit.py for the shape.
@@ -190,13 +190,33 @@ export const foldFollowOns = (list) => {
 export const withFollowOns = (entries) =>
   entries.flatMap((e) => [e, ...(e.followOns || [])]);
 
-const StatusPill = ({ status }) => (
-  <View style={[styles.pill, { borderColor: STATUS[status]?.color || "#555" }]}>
-    <Text style={[styles.pillText, { color: STATUS[status]?.color || "#888" }]}>
-      {statusLabel(status)}
-    </Text>
-  </View>
-);
+// STATUS colors are tuned for dark; as text on white they need the darker
+// light-mode variants.
+const STATUS_LIGHT_TEXT = {
+  confirmed: "successText",
+  unsure: "warningText",
+  unavailable: "dangerText",
+};
+
+const StatusPill = ({ status }) => {
+  const styles = useStyles();
+  const t = useTheme();
+  const color = t.isDark
+    ? STATUS[status]?.color
+    : STATUS_LIGHT_TEXT[status] && t[STATUS_LIGHT_TEXT[status]];
+  return (
+    <View
+      style={[
+        styles.pill,
+        { borderColor: color || (t.isDark ? "#555" : t.borderStrong) },
+      ]}
+    >
+      <Text style={[styles.pillText, { color: color || t.textMuted }]}>
+        {statusLabel(status)}
+      </Text>
+    </View>
+  );
+};
 
 const actorLine = (actor) => {
   if (!actor) return "Unknown";
@@ -215,6 +235,8 @@ const fallbackSummary = (entry) => {
 };
 
 export const AuditRow = React.memo(({ entry, showWeek, onDelete }) => {
+  const styles = useStyles();
+  const t = useTheme();
   const [open, setOpen] = useState(false);
   const followOns = entry.followOns || [];
   const hasDetail =
@@ -229,7 +251,7 @@ export const AuditRow = React.memo(({ entry, showWeek, onDelete }) => {
     >
       <View style={styles.rowHeader}>
         <View style={styles.iconCircle}>
-          <Icon name={ACTION_ICONS[entry.action] || "pencil"} size={18} color="#4d9cff" />
+          <Icon name={ACTION_ICONS[entry.action] || "pencil"} size={18} color={t.accentText} />
         </View>
         <View style={styles.rowTitleBlock}>
           <Text style={styles.rowTitle}>{ACTION_LABELS[entry.action] || entry.action}</Text>
@@ -245,11 +267,11 @@ export const AuditRow = React.memo(({ entry, showWeek, onDelete }) => {
             style={styles.deleteButton}
             accessibilityLabel="Delete entry"
           >
-            <Icon name="trash-can-outline" size={19} color="#ff453a" />
+            <Icon name="trash-can-outline" size={19} color={t.dangerText} />
           </TouchableOpacity>
         )}
         {hasDetail && (
-          <Icon name={open ? "chevron-up" : "chevron-down"} size={20} color="#666" />
+          <Icon name={open ? "chevron-up" : "chevron-down"} size={20} color={t.isDark ? "#666" : t.textMuted} />
         )}
       </View>
 
@@ -349,6 +371,8 @@ AuditRow.displayName = "AuditRow";
 const keyExtractor = (entry) => entry.id;
 
 const ScheduleAuditModal = ({ visible, onClose, churchId, week }) => {
+  const styles = useStyles();
+  const t = useTheme();
   const [scope, setScope] = useState("week");
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -396,7 +420,7 @@ const ScheduleAuditModal = ({ visible, onClose, churchId, week }) => {
           </Text>
         </View>
       ),
-    [loading, error]
+    [loading, error, styles]
   );
 
   return (
@@ -437,7 +461,7 @@ const ScheduleAuditModal = ({ visible, onClose, churchId, week }) => {
         </View>
 
         {loading && entries.length === 0 ? (
-          <ActivityIndicator style={styles.spinner} color="#4d9cff" />
+          <ActivityIndicator style={styles.spinner} color={t.accentText} />
         ) : (
           <FlatList
             {...LIST_PERF}
@@ -455,10 +479,10 @@ const ScheduleAuditModal = ({ visible, onClose, churchId, week }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     paddingTop: Platform.OS === "android" ? 24 : 0,
   },
   header: {
@@ -468,34 +492,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.07)",
+    borderBottomColor: t.border,
   },
-  title: { color: "#fff", fontSize: 20, fontWeight: "700", letterSpacing: -0.3 },
-  subtitle: { color: "#8e8e93", fontSize: 14, marginTop: 2 },
+  title: { color: t.text, fontSize: 20, fontWeight: "700", letterSpacing: -0.3 },
+  subtitle: { color: t.textMuted, fontSize: 14, marginTop: 2 },
   closeButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: t.fill,
     alignItems: "center",
     justifyContent: "center",
   },
-  closeX: { color: "#aaa", fontSize: 22, lineHeight: 24 },
+  closeX: { color: t.textSecondary, fontSize: 22, lineHeight: 24 },
   segment: {
     flexDirection: "row",
     margin: 16,
-    backgroundColor: "#1c1c1e",
+    backgroundColor: t.isDark ? t.surface : t.fillStrong,
     borderRadius: 10,
     padding: 3,
   },
   segmentButton: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center" },
-  segmentActive: { backgroundColor: "#2c2c2e" },
-  segmentText: { color: "#8e8e93", fontSize: 14, fontWeight: "600" },
-  segmentTextActive: { color: "#fff" },
+  segmentActive: { backgroundColor: t.isDark ? t.surfaceElevated : t.surface },
+  segmentText: { color: t.textMuted, fontSize: 14, fontWeight: "600" },
+  segmentTextActive: { color: t.text },
   spinner: { marginTop: 40 },
   listContent: { paddingHorizontal: 16, paddingBottom: 40 },
   row: {
-    backgroundColor: "#1c1c1e",
+    backgroundColor: t.surface,
     borderRadius: 14,
     padding: 14,
     marginBottom: 10,
@@ -505,25 +529,25 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "rgba(77,156,255,0.12)",
+    backgroundColor: t.accentFill,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
   },
   rowTitleBlock: { flex: 1 },
   deleteButton: { paddingHorizontal: 6, marginRight: 4 },
-  rowTitle: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  rowMeta: { color: "#8e8e93", fontSize: 13, marginTop: 1 },
-  summary: { color: "#e5e5ea", fontSize: 15, marginTop: 10, lineHeight: 20 },
-  actor: { color: "#8e8e93", fontSize: 13, marginTop: 6 },
+  rowTitle: { color: t.text, fontSize: 16, fontWeight: "600" },
+  rowMeta: { color: t.textMuted, fontSize: 13, marginTop: 1 },
+  summary: { color: t.isDark ? "#e5e5ea" : "#1C1C1E", fontSize: 15, marginTop: 10, lineHeight: 20 },
+  actor: { color: t.textMuted, fontSize: 13, marginTop: 6 },
   section: {
     marginTop: 12,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.07)",
+    borderTopColor: t.border,
   },
   sectionLabel: {
-    color: "#4d9cff",
+    color: t.accentText,
     fontSize: 12,
     fontWeight: "700",
     textTransform: "uppercase",
@@ -532,15 +556,15 @@ const styles = StyleSheet.create({
   },
   personBlock: { marginBottom: 10 },
   personRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  personName: { color: "#fff", fontSize: 15, fontWeight: "500", flexShrink: 1 },
-  personMeta: { color: "#aeaeb2", fontSize: 13, marginTop: 2 },
-  flag: { color: "#ff9500", fontSize: 13, marginTop: 3 },
+  personName: { color: t.text, fontSize: 15, fontWeight: "500", flexShrink: 1 },
+  personMeta: { color: t.isDark ? "#aeaeb2" : t.textSecondary, fontSize: 13, marginTop: 2 },
+  flag: { color: t.warningText, fontSize: 13, marginTop: 3 },
   pill: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
   pillText: { fontSize: 12, fontWeight: "600" },
   changeRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  changeText: { color: "#aeaeb2", fontSize: 14, marginLeft: 8, flexShrink: 1, textAlign: "right" },
+  changeText: { color: t.isDark ? "#aeaeb2" : t.textSecondary, fontSize: 14, marginLeft: 8, flexShrink: 1, textAlign: "right" },
   empty: { paddingTop: 60, paddingHorizontal: 30, alignItems: "center" },
-  emptyText: { color: "#8e8e93", fontSize: 15, textAlign: "center" },
-});
+  emptyText: { color: t.textMuted, fontSize: 15, textAlign: "center" },
+}));
 
 export default ScheduleAuditModal;

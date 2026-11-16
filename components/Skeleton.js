@@ -13,9 +13,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, StyleSheet, Animated, Easing, AppState } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { makeStyles, useTheme } from "../theme";
 
-const BASE = "#1e1e1e";
-const HIGHLIGHT = "rgba(255,255,255,0.07)";
+// Block fill and the sweep's gradient stops, per scheme. Arrays are hoisted so
+// every block shares one identity (the blocks are memo'd).
+const SHIMMER = {
+  dark: { base: "#1e1e1e", colors: ["transparent", "rgba(255,255,255,0.07)", "transparent"] },
+  light: {
+    base: "#E5E5EA",
+    colors: ["rgba(242,242,247,0)", "rgba(242,242,247,0.9)", "rgba(242,242,247,0)"],
+  },
+};
 const SWEEP_MS = 1300;
 
 /**
@@ -223,6 +231,7 @@ export const SkeletonBlock = React.memo(({
   style,
 }) => {
   const progress = useShimmer();
+  const shimmerColors = useTheme().isDark ? SHIMMER.dark : SHIMMER.light;
   const [measured, setMeasured] = useState(
     typeof width === "number" ? width : 0
   );
@@ -250,7 +259,7 @@ export const SkeletonBlock = React.memo(({
     <View
       onLayout={onLayout}
       style={[
-        { width, height, borderRadius: radius, backgroundColor: BASE, overflow: "hidden" },
+        { width, height, borderRadius: radius, backgroundColor: shimmerColors.base, overflow: "hidden" },
         style,
       ]}
     >
@@ -259,7 +268,7 @@ export const SkeletonBlock = React.memo(({
           style={[StyleSheet.absoluteFill, { transform: [{ translateX }] }]}
         >
           <LinearGradient
-            colors={["transparent", HIGHLIGHT, "transparent"]}
+            colors={shimmerColors.colors}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={{ width: measured, height: "100%" }}
@@ -291,6 +300,7 @@ SkeletonText.displayName = "SkeletonText";
  * the same height as the row replacing it makes the list jump on swap.
  */
 export const SkeletonPersonRow = React.memo(({ avatarSize = 48, card = false, lines = 2 }) => {
+  const s = useS();
   const widths = ["55%", "32%", "72%"];
 
   return (
@@ -322,27 +332,33 @@ export const SkeletonPersonList = React.memo(({ count = 8, avatarSize = 48, card
 SkeletonPersonList.displayName = "SkeletonPersonList";
 
 /** Stacked cards — the HomeScreen readings/offerings shape. */
-export const SkeletonCardList = React.memo(({ count = 6, height = 56 }) => (
-  <View>
-    {Array.from({ length: count }, (_, i) => (
-      <SkeletonBlock key={i} height={height} radius={14} style={s.card} />
-    ))}
-  </View>
-));
+export const SkeletonCardList = React.memo(({ count = 6, height = 56 }) => {
+  const s = useS();
+  return (
+    <View>
+      {Array.from({ length: count }, (_, i) => (
+        <SkeletonBlock key={i} height={height} radius={14} style={s.card} />
+      ))}
+    </View>
+  );
+});
 SkeletonCardList.displayName = "SkeletonCardList";
 
 /** A profile header: big avatar, name, a few detail lines. */
-export const SkeletonProfile = React.memo(({ avatarSize = 100, lines = 4 }) => (
-  <View style={s.profile}>
-    <SkeletonCircle size={avatarSize} />
-    <SkeletonText width="45%" height={20} style={s.profileName} />
-    <View style={s.profileLines}>
-      {Array.from({ length: lines }, (_, i) => (
-        <SkeletonBlock key={i} height={52} radius={14} style={s.profileLine} />
-      ))}
+export const SkeletonProfile = React.memo(({ avatarSize = 100, lines = 4 }) => {
+  const s = useS();
+  return (
+    <View style={s.profile}>
+      <SkeletonCircle size={avatarSize} />
+      <SkeletonText width="45%" height={20} style={s.profileName} />
+      <View style={s.profileLines}>
+        {Array.from({ length: lines }, (_, i) => (
+          <SkeletonBlock key={i} height={52} radius={14} style={s.profileLine} />
+        ))}
+      </View>
     </View>
-  </View>
-));
+  );
+});
 SkeletonProfile.displayName = "SkeletonProfile";
 
 /**
@@ -352,11 +368,14 @@ SkeletonProfile.displayName = "SkeletonProfile";
  * that could render any screen. Inventing card/row shapes there would just be
  * guessing at a layout that won't match what actually loads.
  */
-export const SkeletonFullScreen = React.memo(() => (
-  <View style={s.fullScreen}>
-    <SkeletonBlock width="100%" height="100%" radius={0} />
-  </View>
-));
+export const SkeletonFullScreen = React.memo(() => {
+  const s = useS();
+  return (
+    <View style={s.fullScreen}>
+      <SkeletonBlock width="100%" height="100%" radius={0} />
+    </View>
+  );
+});
 SkeletonFullScreen.displayName = "SkeletonFullScreen";
 
 /**
@@ -384,6 +403,7 @@ export const SkeletonScreen = React.memo(({
   rowLines,
   avatarSize,
 }) => {
+  const s = useS();
   if (variant === "block") return <SkeletonFullScreen />;
 
   return (
@@ -418,12 +438,12 @@ export const SkeletonScreen = React.memo(({
 });
 SkeletonScreen.displayName = "SkeletonScreen";
 
-const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#121212" },
+const useS = makeStyles((t) => ({
+  screen: { flex: 1, backgroundColor: t.background },
   // Was referenced by SkeletonFullScreen but never defined, so the wrapper had no
   // dimensions and its `height: "100%"` child collapsed to nothing — the `block`
   // variant rendered empty.
-  fullScreen: { flex: 1, backgroundColor: "#121212" },
+  fullScreen: { flex: 1, backgroundColor: t.background },
   header: { marginBottom: 26 },
   row: {
     flexDirection: "row",
@@ -432,10 +452,10 @@ const s = StyleSheet.create({
   },
   // Mirrors the admin roster card: same radius, padding and gap.
   rowCard: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: t.border,
     padding: 16,
     marginBottom: 12,
   },
@@ -448,6 +468,6 @@ const s = StyleSheet.create({
   profileName: { marginTop: 16 },
   profileLines: { width: "100%", marginTop: 28 },
   profileLine: { marginBottom: 10 },
-});
+}));
 
 export default SkeletonScreen;

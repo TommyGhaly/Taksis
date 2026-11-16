@@ -59,6 +59,7 @@ import {
   normalizeManualPerson,
   saveManualPerson,
 } from "../../utils/manualPeople";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
 
 // Simple cache utilities
 const CacheUtils = makeScreenCache();
@@ -134,7 +135,10 @@ const auditServantRow = makeRowHeightAudit("ServantRow", ROW_H, 12 * scale);
  * unrelated state change re-rendered every mounted cell — with a 48px avatar in
  * each one, that showed up as a stutter mid-scroll.
  */
-const ServantRow = React.memo(({ item, onPress, onRemove }) => (
+const ServantRow = React.memo(({ item, onPress, onRemove }) => {
+  const styles = useStyles();
+  const t = useTheme();
+  return (
   <TouchableOpacity
     style={styles.servantCard}
     onPress={() => onPress(item)}
@@ -186,22 +190,29 @@ const ServantRow = React.memo(({ item, onPress, onRemove }) => (
         style={[styles.actionButton, styles.deleteButton]}
         onPress={() => onRemove(item.id)}
       >
-        <Ionicons name="trash" size={20 * scale} color="#fff" />
+        <Ionicons name="trash" size={20 * scale} color={t.onAccent} />
         <Text style={styles.buttonText}>Delete</Text>
       </TouchableOpacity>
     </View>
   </TouchableOpacity>
-));
+  );
+});
 ServantRow.displayName = "ServantRow";
 
-const SectionHeader = React.memo(({ title }) => (
+const SectionHeader = React.memo(({ title }) => {
+  const styles = useStyles();
+  return (
   <View style={styles.sectionHeader}>
     <Text style={styles.sectionHeaderText}>{title}</Text>
   </View>
-));
+  );
+});
 SectionHeader.displayName = "SectionHeader";
 
 const ServantsAdmin = () => {
+  const styles = useStyles();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   // Core state
   const [church, setChurch] = useState(null);
   // Two sources, kept apart until the memo below merges them: real servants come
@@ -958,10 +969,10 @@ const ServantsAdmin = () => {
         <Text style={styles.candidateName} numberOfLines={1}>
           {item.name || "Unnamed"}
         </Text>
-        <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.4)" />
+        <Ionicons name="chevron-forward" size={18} color={t.textTertiary} />
       </TouchableOpacity>
     ),
-    [handleSyncConfirm, syncing]
+    [handleSyncConfirm, syncing, styles, t]
   );
 
   const candidateKeyExtractor = useCallback((item) => item.uid, []);
@@ -1079,7 +1090,7 @@ const ServantsAdmin = () => {
             renderItem={renderServant}
             renderSectionHeader={renderSectionHeader}
             keyExtractor={keyExtractor}
-            contentContainerStyle={styles.listContainer}
+            contentContainerStyle={[styles.listContainer, { paddingBottom: 110 + tabBarInset }]}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
             {...LIST_PERF}
@@ -1113,23 +1124,22 @@ const ServantsAdmin = () => {
       <Animated.View
         style={[
           styles.floatingBarWrapper,
+          tabBarInset > 0 && { bottom: (Platform.OS === "ios" ? 28 : 16) + tabBarInset },
           { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] },
         ]}
         pointerEvents="box-none"
       >
-        <BlurView
-          tint="systemChromeMaterialDark"
-          intensity={80}
-          style={styles.floatingBlur}
-        >
+        {(() => {
+          const bar = (
           <View style={styles.floatingInner}>
             <View style={styles.searchContainer}>
-              <Ionicons name="search" size={16} color="rgba(255,255,255,0.55)" style={styles.searchIcon} />
+              <Ionicons name="search" size={16} color={t.textSecondary} style={styles.searchIcon} />
               <TextInput
                 ref={searchInputRef}
                 style={styles.searchBar}
                 placeholder="Search servants"
-                placeholderTextColor="rgba(255,255,255,0.55)"
+                placeholderTextColor={t.placeholder}
+                keyboardAppearance={t.keyboardAppearance}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 autoCorrect={false}
@@ -1143,16 +1153,24 @@ const ServantsAdmin = () => {
               onPress={openAddModal}
               activeOpacity={0.8}
             >
-              <Ionicons name="person-add-outline" size={18} color="#fff" />
+              <Ionicons name="person-add-outline" size={18} color={t.onAccent} />
             </TouchableOpacity>
           </View>
-        </BlurView>
+          );
+          return t.glass ? (
+            <GlassSurface style={styles.floatingBlur}>{bar}</GlassSurface>
+          ) : (
+            <BlurView tint={t.blurTint} intensity={80} style={styles.floatingBlur}>
+              {bar}
+            </BlurView>
+          );
+        })()}
       </Animated.View>
 
       {selectedServant && (
         <Modal visible={modalVisible} animationType="fade" transparent={true}>
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContainer}>
+            <GlassSurface style={styles.modalContainer}>
               <View style={styles.modalHeader}>
                 <View style={styles.headerContent}>
                   <View style={styles.profileImageContainer}>
@@ -1173,7 +1191,7 @@ const ServantsAdmin = () => {
                       <Ionicons
                         name="pencil"
                         size={16 * scale}
-                        color="#147efb"
+                        color={t.accent}
                       />
                     </TouchableOpacity>
                   </View>
@@ -1185,7 +1203,7 @@ const ServantsAdmin = () => {
                   style={styles.closeButton}
                   onPress={closeEditModal}
                 >
-                  <Ionicons name="close" size={24 * scale} color="#fff" />
+                  <Ionicons name="close" size={24 * scale} color={t.onAccent} />
                 </TouchableOpacity>
               </View>
               {/*
@@ -1206,7 +1224,7 @@ const ServantsAdmin = () => {
                   <Switch
                     value={isServantMeeting}
                     onValueChange={(value) => setIsServantMeeting(value)}
-                    trackColor={{ false: "#555", true: "#147efb" }}
+                    trackColor={{ false: t.isDark ? "#555" : t.surfaceHighest, true: t.accent }}
                     thumbColor={isServantMeeting ? "#fff" : "#aaa"}
                   />
                 </View>
@@ -1223,7 +1241,7 @@ const ServantsAdmin = () => {
                       onPress={openSyncModal}
                       activeOpacity={0.8}
                     >
-                      <Ionicons name="link-outline" size={18} color="#147efb" />
+                      <Ionicons name="link-outline" size={18} color={t.accent} />
                       <View style={{ flex: 1, marginLeft: 10 }}>
                         <Text style={styles.syncRowTitle}>Sync to account</Text>
                         <Text style={styles.syncRowSubtitle}>
@@ -1233,7 +1251,7 @@ const ServantsAdmin = () => {
                       <Ionicons
                         name="chevron-forward"
                         size={18}
-                        color="rgba(255,255,255,0.4)"
+                        color={t.textTertiary}
                       />
                     </TouchableOpacity>
 
@@ -1243,7 +1261,8 @@ const ServantsAdmin = () => {
                       value={draftName}
                       onChangeText={setDraftName}
                       placeholder="First and last name"
-                      placeholderTextColor="rgba(255,255,255,0.3)"
+                      placeholderTextColor={t.placeholder}
+                      keyboardAppearance={t.keyboardAppearance}
                       autoCapitalize="words"
                       autoCorrect={false}
                     />
@@ -1254,7 +1273,8 @@ const ServantsAdmin = () => {
                       value={draftPhone}
                       onChangeText={setDraftPhone}
                       placeholder="Used to match them to their account"
-                      placeholderTextColor="rgba(255,255,255,0.3)"
+                      placeholderTextColor={t.placeholder}
+                      keyboardAppearance={t.keyboardAppearance}
                       keyboardType="phone-pad"
                     />
 
@@ -1264,7 +1284,8 @@ const ServantsAdmin = () => {
                       value={draftEmail}
                       onChangeText={setDraftEmail}
                       placeholder="Used to match them to their account"
-                      placeholderTextColor="rgba(255,255,255,0.3)"
+                      placeholderTextColor={t.placeholder}
+                      keyboardAppearance={t.keyboardAppearance}
                       keyboardType="email-address"
                       autoCapitalize="none"
                       autoCorrect={false}
@@ -1304,7 +1325,7 @@ const ServantsAdmin = () => {
                           <Ionicons
                             name="checkmark-circle"
                             size={20 * scale}
-                            color="#147efb"
+                            color={t.accent}
                           />
                         )}
                       </TouchableOpacity>
@@ -1328,13 +1349,13 @@ const ServantsAdmin = () => {
                   onPress={saveClasses}
                 >
                   <Text
-                    style={[styles.modalButtonText, { fontSize: 16 * scale }]}
+                    style={[styles.modalButtonText, styles.saveButtonText, { fontSize: 16 * scale }]}
                   >
                     Confirm
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </GlassSurface>
 
             {/*
               Rendered inside the edit modal rather than as its own <Modal>.
@@ -1346,7 +1367,7 @@ const ServantsAdmin = () => {
             */}
             {syncModalVisible && (
               <View style={styles.syncInlineOverlay}>
-                <View style={styles.modalContainer}>
+                <GlassSurface style={styles.modalContainer}>
               <View style={styles.modalHeader}>
                 <View style={styles.headerContent}>
                   <Text style={[styles.modalTitle, { fontSize: 18 * scale }]}>
@@ -1357,7 +1378,7 @@ const ServantsAdmin = () => {
                   style={styles.closeButton}
                   onPress={() => setSyncModalVisible(false)}
                 >
-                  <Ionicons name="close" size={24 * scale} color="#fff" />
+                  <Ionicons name="close" size={24 * scale} color={t.onAccent} />
                 </TouchableOpacity>
               </View>
 
@@ -1365,13 +1386,14 @@ const ServantsAdmin = () => {
                 <Ionicons
                   name="search"
                   size={16}
-                  color="rgba(255,255,255,0.55)"
+                  color={t.textSecondary}
                   style={styles.searchIcon}
                 />
                 <TextInput
                   style={styles.searchBar}
                   placeholder="Search accounts"
-                  placeholderTextColor="rgba(255,255,255,0.55)"
+                  placeholderTextColor={t.placeholder}
+                keyboardAppearance={t.keyboardAppearance}
                   value={candidateQuery}
                   onChangeText={setCandidateQuery}
                   autoCapitalize="none"
@@ -1382,7 +1404,7 @@ const ServantsAdmin = () => {
 
               {loadingCandidates ? (
                 <View style={styles.syncLoading}>
-                  <ActivityIndicator color="#147EFB" />
+                  <ActivityIndicator color={t.accent} />
                 </View>
               ) : (
                 // The wrapper's height is explicit on purpose. modalContainer sizes
@@ -1411,10 +1433,10 @@ const ServantsAdmin = () => {
 
               {syncing && (
                 <View style={styles.syncOverlay}>
-                  <ActivityIndicator size="large" color="#147EFB" />
+                  <ActivityIndicator size="large" color={t.accent} />
                 </View>
               )}
-                </View>
+                </GlassSurface>
               </View>
             )}
 
@@ -1439,7 +1461,7 @@ const ServantsAdmin = () => {
         onRequestClose={cancelAddModal}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
+          <GlassSurface style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <View style={styles.headerContent}>
                 <Text style={[styles.modalTitle, { fontSize: 18 * scale }]}>
@@ -1450,7 +1472,7 @@ const ServantsAdmin = () => {
                 style={styles.closeButton}
                 onPress={cancelAddModal}
               >
-                <Ionicons name="close" size={24 * scale} color="#fff" />
+                <Ionicons name="close" size={24 * scale} color={t.onAccent} />
               </TouchableOpacity>
             </View>
 
@@ -1477,7 +1499,7 @@ const ServantsAdmin = () => {
                       <Ionicons
                         name="camera-outline"
                         size={28}
-                        color="rgba(255,255,255,0.4)"
+                        color={t.textTertiary}
                       />
                     )}
                   </View>
@@ -1492,7 +1514,8 @@ const ServantsAdmin = () => {
                   value={draftName}
                   onChangeText={setDraftName}
                   placeholder="First and last name"
-                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  placeholderTextColor={t.placeholder}
+                      keyboardAppearance={t.keyboardAppearance}
                   autoCapitalize="words"
                   autoCorrect={false}
                 />
@@ -1503,7 +1526,8 @@ const ServantsAdmin = () => {
                   value={draftPhone}
                   onChangeText={setDraftPhone}
                   placeholder="Used to match them to their account"
-                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  placeholderTextColor={t.placeholder}
+                      keyboardAppearance={t.keyboardAppearance}
                   keyboardType="phone-pad"
                 />
 
@@ -1513,7 +1537,8 @@ const ServantsAdmin = () => {
                   value={draftEmail}
                   onChangeText={setDraftEmail}
                   placeholder="Used to match them to their account"
-                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  placeholderTextColor={t.placeholder}
+                      keyboardAppearance={t.keyboardAppearance}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -1550,7 +1575,7 @@ const ServantsAdmin = () => {
                       <Ionicons
                         name="checkmark-circle"
                         size={20 * scale}
-                        color="#147efb"
+                        color={t.accent}
                       />
                     )}
                   </TouchableOpacity>
@@ -1576,12 +1601,12 @@ const ServantsAdmin = () => {
                 onPress={handleAddManual}
                 disabled={!draftName.trim() || savingManual}
               >
-                <Text style={[styles.modalButtonText, { fontSize: 16 * scale }]}>
+                <Text style={[styles.modalButtonText, styles.saveButtonText, { fontSize: 16 * scale }]}>
                   {savingManual ? "Adding…" : "Add"}
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </GlassSurface>
 
           {/*
             `inline` rather than its own <Modal>: iOS will not present a view
@@ -1604,15 +1629,15 @@ const ServantsAdmin = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     paddingTop: 20,
   },
   header: {
     fontWeight: "600",
-    color: "#fff",
+    color: t.text,
     marginBottom: 20,
     textAlign: "center",
     letterSpacing: 0.5,
@@ -1628,12 +1653,12 @@ const styles = StyleSheet.create({
   },
   servantCard: {
     flexDirection: "column",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     padding: 16 * scale,
     marginBottom: 12 * scale,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   servantInfo: {
     flexDirection: "row",
@@ -1661,7 +1686,7 @@ const styles = StyleSheet.create({
     fontSize: 17 * scale,
     lineHeight: NAME_LINE * scale,
     fontWeight: "600",
-    color: "#fff",
+    color: t.text,
     flexShrink: 1,
   },
   // Sized to stay inside NAME_LINE's box: 10pt text plus 2pt of padding either
@@ -1679,12 +1704,12 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 11,
     fontWeight: "700",
-    color: "#ff9f0a",
+    color: t.warningText,
   },
   servantGrades: {
     fontSize: 14 * scale,
     lineHeight: DETAIL_LINE * scale,
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
     marginTop: 4 * scale,
   },
   buttonContainer: {
@@ -1701,17 +1726,17 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   deleteButton: {
-    backgroundColor: "#ff3b30",
+    backgroundColor: t.danger,
   },
   buttonText: {
-    color: "#fff",
+    color: t.onAccent,
     fontSize: 14 * scale,
     fontWeight: "600",
     marginLeft: 6 * scale,
   },
   noData: {
     textAlign: "center",
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
     marginTop: 20,
     fontSize: 16 * scale,
   },
@@ -1724,7 +1749,7 @@ const styles = StyleSheet.create({
     fontSize: 22 * scale,
     lineHeight: HEADER_LINE * scale,
     fontWeight: "600",
-    color: "#fff",
+    color: t.text,
   },
   indexBar: {
     position: "absolute",
@@ -1745,15 +1770,15 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   indexItemActive: {
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
   },
   indexText: {
-    color: "#147EFB",
+    color: t.accent,
     fontWeight: "500",
     fontSize: 11,
   },
   indexTextActive: {
-    color: "#fff",
+    color: t.onAccent,
   },
 
   // ---------- Floating bottom search ----------
@@ -1764,7 +1789,7 @@ const styles = StyleSheet.create({
     bottom: Platform.OS === "ios" ? 28 : 16,
     borderRadius: 18,
     overflow: "hidden",
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 12,
@@ -1774,8 +1799,8 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
-    backgroundColor: Platform.OS === "android" ? "rgba(28,28,30,0.92)" : "transparent",
+    borderColor: t.isDark ? "rgba(255,255,255,0.12)" : t.border,
+    backgroundColor: Platform.OS === "android" ? (t.isDark ? "rgba(28,28,30,0.92)" : "rgba(249,249,249,0.92)") : "transparent",
   },
   floatingInner: {
     flexDirection: "row",
@@ -1788,7 +1813,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: "#147efb",
+    backgroundColor: t.accent,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -1797,7 +1822,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: t.fillStrong,
     borderRadius: 10,
     paddingHorizontal: 10,
     height: 38,
@@ -1807,24 +1832,24 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     flex: 1,
-    color: "#fff",
+    color: t.text,
     fontSize: 15,
     paddingVertical: 0,
   },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: t.overlay,
     justifyContent: "center",
     alignItems: "center",
   },
   modalContainer: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     width: "85%",
     maxHeight: "80%",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
     overflow: "hidden",
   },
   modalScrollView: {
@@ -1838,7 +1863,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     padding: 16 * scale,
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
   },
   headerContent: {
     flex: 1,
@@ -1859,13 +1884,13 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     right: 0,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     padding: 6 * scale,
   },
   modalTitle: {
     fontWeight: "600",
-    color: "#fff",
+    color: t.onAccent,
     textAlign: "center",
   },
   closeButton: {
@@ -1884,12 +1909,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16 * scale,
     borderRadius: 14,
     margin: 16 * scale,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: t.fill,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   servantTrackerText: {
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
   },
   // ---------- Manual people ----------
@@ -1898,24 +1923,24 @@ const styles = StyleSheet.create({
     paddingTop: 16 * scale,
   },
   inputLabel: {
-    color: "rgba(255,255,255,0.6)",
+    color: t.textSecondary,
     fontSize: 13,
     fontWeight: "600",
     marginBottom: 6,
     marginTop: 12,
   },
   fieldHint: {
-    color: "rgba(255,255,255,0.35)",
+    color: t.textTertiary,
     fontSize: 12,
     lineHeight: 16,
     marginBottom: 4,
   },
   textInput: {
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: t.fill,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    color: "#fff",
+    borderColor: t.border,
+    color: t.text,
     fontSize: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -1929,15 +1954,15 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: t.fill,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderColor: t.separator,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
   photoPickerLabel: {
-    color: "#147efb",
+    color: t.accent,
     fontSize: 15,
     fontWeight: "600",
     marginLeft: 14,
@@ -1953,19 +1978,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   syncRowTitle: {
-    color: "#fff",
+    color: t.text,
     fontSize: 15,
     fontWeight: "600",
   },
   syncRowSubtitle: {
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
     fontSize: 12,
     marginTop: 2,
   },
   syncSearchWrap: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: t.fillStrong,
     borderRadius: 10,
     paddingHorizontal: 10,
     height: 38,
@@ -1985,7 +2010,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   syncEmpty: {
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
     fontSize: 14,
     lineHeight: 20,
     textAlign: "center",
@@ -1996,13 +2021,13 @@ const styles = StyleSheet.create({
   // top of the form rather than a separate screen.
   syncInlineOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: t.overlay,
     alignItems: "center",
     justifyContent: "center",
   },
   syncOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: t.isDark ? "rgba(0,0,0,0.5)" : t.overlay,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2012,11 +2037,11 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.08)",
+    borderBottomColor: t.separator,
   },
   candidateName: {
     flex: 1,
-    color: "#fff",
+    color: t.text,
     fontSize: 16,
     fontWeight: "500",
   },
@@ -2032,23 +2057,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16 * scale,
     borderRadius: 14,
     marginBottom: 8 * scale,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: t.fill,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   gradeItemSelected: {
     backgroundColor: "rgba(20, 126, 251, 0.15)",
     borderColor: "rgba(20, 126, 251, 0.3)",
   },
   gradeText: {
-    color: "#fff",
+    color: t.text,
     fontWeight: "500",
   },
   modalButtons: {
     flexDirection: "row",
     padding: 16 * scale,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.06)",
+    borderTopColor: t.border,
     justifyContent: "space-between",
     gap: 12 * scale,
   },
@@ -2059,15 +2084,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveButton: {
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
   },
   cancelButton: {
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: t.fillStrong,
   },
   modalButtonText: {
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
   },
-});
+  saveButtonText: {
+    color: t.onAccent,
+  },
+}));
 
 export default ServantsAdmin;

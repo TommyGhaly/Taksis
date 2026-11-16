@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   View, Text, TouchableOpacity, Modal, ScrollView,
-  StyleSheet, ActivityIndicator, Platform,
+  ActivityIndicator, Platform,
 } from "react-native";
+import { makeStyles, useTheme, GlassSurface } from "../theme";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { collection, getDocs, getFirestore } from "@react-native-firebase/firestore";
 import Avatar from "./Avatar";
@@ -10,7 +11,7 @@ import { SkeletonCardList } from "./Skeleton";
 import {
   expandReadings, countSlots, dayProgress as dayTotals,
   isAssignableSlot, isPsalmSlot, hasLanguagePicker, effectiveLanguage, langShort,
-  psalmReadersKey, READING_META,
+  psalmReadersKey, readingMetaFor,
 } from "../screens/Pascha/PaschaReadingUtils";
 import { DAY_SHORT_LABELS } from "../screens/Pascha/DayConstants";
 // Device class, not window width: the width read at import time made an iPad
@@ -23,21 +24,61 @@ import { IS_TABLET } from "../hooks/useResponsiveLayout";
 var SHEET_MAX_WIDTH = 640;
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
-var BG      = "#0f0f0f";
-var CARD    = "#1c1c1e";
-var CARD2   = "#2c2c2e";
-var CARD3   = "#3a3a3c";
-var SEP     = "rgba(255,255,255,0.08)";
-var BLUE    = "#0a84ff";
-var BLUEDIM = "rgba(10,132,255,0.15)";
-var GREEN   = "#30d158";
-var ORANGE  = "#ff9f0a";
-var T1      = "#ffffff";
-var T2      = "rgba(255,255,255,0.65)";
-var T3      = "rgba(255,255,255,0.28)";
-var COPTIC_COLOR  = "#f59e0b";
-var COPTIC_BG     = "rgba(245,158,11,0.10)";
-var COPTIC_BORDER = "rgba(245,158,11,0.28)";
+// Dark values are this viewer's original palette, unchanged. Light follows the
+// app palette with the accents darkened to read on white.
+var DARK_TOKENS = {
+  BG:      "#0f0f0f",
+  CARD:    "#1c1c1e",
+  CARD2:   "#2c2c2e",
+  CARD3:   "#3a3a3c",
+  HOUR_CARD: "#2c2c2e",
+  SEP:     "rgba(255,255,255,0.08)",
+  BLUE:    "#0a84ff",
+  BLUEDIM: "rgba(10,132,255,0.15)",
+  BLUE_DATE: "rgba(10,132,255,0.7)",
+  GREEN:   "#30d158",
+  ORANGE:  "#ff9f0a",
+  T1:      "#ffffff",
+  T2:      "rgba(255,255,255,0.65)",
+  T3:      "rgba(255,255,255,0.28)",
+  COPTIC_COLOR:  "#f59e0b",
+  COPTIC_BG:     "rgba(245,158,11,0.10)",
+  COPTIC_BORDER: "rgba(245,158,11,0.28)",
+  OVERLAY: "rgba(0,0,0,0.75)",
+};
+
+var tokenCache = new Map();
+function archiveTokens(t) {
+  if (t.isDark) return DARK_TOKENS;
+  var tk = tokenCache.get(t.key);
+  if (!tk) {
+    tk = Object.assign({}, DARK_TOKENS, {
+      BG:      t.background,
+      CARD:    t.surface,
+      CARD2:   t.surfaceHighest,
+      CARD3:   "#D1D1D6",
+      // Hour cards sit on the sheet background, so white rather than the
+      // grey CARD2 the buttons and progress tracks use.
+      HOUR_CARD: t.surface,
+      SEP:     t.separator,
+      BLUE:    "#007AFF",
+      BLUE_DATE: "rgba(0,122,255,0.7)",
+      GREEN:   t.successText,
+      ORANGE:  t.warningText,
+      T1:      t.text,
+      T2:      t.textSecondary,
+      T3:      t.textTertiary,
+      COPTIC_COLOR: "#b45309",
+      OVERLAY: t.overlay,
+    });
+    tokenCache.set(t.key, tk);
+  }
+  return tk;
+}
+function useArchiveTokens() {
+  return archiveTokens(useTheme());
+}
+// ── end tokens
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function buildAllDays(shell) {
@@ -90,16 +131,16 @@ function allDaysFromArchive(arc) {
   });
 }
 
-// Background the old local Avatar painted behind the image. Module-level so the
-// reference is stable and Avatar's React.memo still holds.
-var AVATAR_BG = { backgroundColor: CARD3 };
 
 // ── Reading row ───────────────────────────────────────────────────────────────
 var ReadingRow = function(props) {
+  var rrS = useRrS();
+  var P = useArchiveTokens();
+  var META = readingMetaFor(useTheme().isDark);
   var row = props.row;
   var hourAssignments = props.hourAssignments;
   var isLast = props.isLast;
-  var meta         = READING_META[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
+  var meta         = META[row.rKey] || { label: row.rKey, icon: "book-outline", color: P.T2 };
   var isPsalm      = isPsalmSlot(row.rKey);
   var isHom        = row.rKey === "homily";
   var isExp        = row.rKey === "exposition";
@@ -117,12 +158,12 @@ var ReadingRow = function(props) {
 
   return (
     <View style={[rrS.row, !isLast && rrS.border]}>
-      <View style={[rrS.iconBox, { backgroundColor: isCopticRow ? COPTIC_BG : meta.color + "20" }]}>
-        <Icon name={meta.icon} size={11} color={isCopticRow ? COPTIC_COLOR : meta.color} />
+      <View style={[rrS.iconBox, { backgroundColor: isCopticRow ? P.COPTIC_BG : meta.color + "20" }]}>
+        <Icon name={meta.icon} size={11} color={isCopticRow ? P.COPTIC_COLOR : meta.color} />
       </View>
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-          <Text style={[rrS.type, { color: isCopticRow ? COPTIC_COLOR : meta.color }]}>{label}</Text>
+          <Text style={[rrS.type, { color: isCopticRow ? P.COPTIC_COLOR : meta.color }]}>{label}</Text>
           {isCopticRow
             ? <View style={rrS.copticBadge}><Text style={rrS.copticBadgeTxt}>COPTIC</Text></View>
             : hasLanguagePicker(row.rKey) && (
@@ -143,7 +184,7 @@ var ReadingRow = function(props) {
               {psalmReaders.map(function(r, i) {
                 return (
                   <View key={r.uid || r.name || i} style={[rrS.chip, isCopticRow && rrS.chipCoptic]}>
-                    <Avatar uid={r.uid} size={16} showBorder={false} style={AVATAR_BG} />
+                    <Avatar uid={r.uid} size={16} showBorder={false} style={rrS.avatarBg} />
                     <Text style={[rrS.chipName, isCopticRow && rrS.chipNameCoptic]} numberOfLines={1}>{r.name}</Text>
                   </View>
                 );
@@ -151,7 +192,7 @@ var ReadingRow = function(props) {
             </View>
           ) : (
             <View style={[rrS.chip, isCopticRow && rrS.chipCoptic]}>
-              <Avatar uid={assignee.uid} size={16} showBorder={false} style={AVATAR_BG} />
+              <Avatar uid={assignee.uid} size={16} showBorder={false} style={rrS.avatarBg} />
               <Text style={[rrS.chipName, isCopticRow && rrS.chipNameCoptic]} numberOfLines={1}>{assignee.name}</Text>
             </View>
           )
@@ -162,26 +203,34 @@ var ReadingRow = function(props) {
     </View>
   );
 };
-const rrS = StyleSheet.create({
+const useRrS = makeStyles((t) => {
+  const P = archiveTokens(t);
+  return {
 row:            { flexDirection: "row", alignItems: "flex-start", paddingVertical: IS_TABLET ? 12 : 9, gap: 10 },
-border:         { borderBottomWidth: 1, borderBottomColor: SEP },
+border:         { borderBottomWidth: 1, borderBottomColor: P.SEP },
 iconBox:        { width: IS_TABLET ? 28 : 24, height: IS_TABLET ? 28 : 24, borderRadius: 7, justifyContent: "center", alignItems: "center", flexShrink: 0, marginTop: 1 },
 type:           { fontSize: IS_TABLET ? 11 : 10, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
-copticBadge:    { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4, backgroundColor: COPTIC_BG, borderWidth: 1, borderColor: COPTIC_BORDER },
-copticBadgeTxt: { fontSize: 9, fontWeight: "800", color: COPTIC_COLOR, letterSpacing: 0.3 },
-langBadge:      { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4, backgroundColor: CARD3 },
-langBadgeTxt:   { fontSize: 9, fontWeight: "700", color: T3, letterSpacing: 0.3 },
-ref:            { fontSize: IS_TABLET ? 13 : 12, color: T2, marginTop: 2, lineHeight: IS_TABLET ? 19 : 17 },
+copticBadge:    { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4, backgroundColor: P.COPTIC_BG, borderWidth: 1, borderColor: P.COPTIC_BORDER },
+copticBadgeTxt: { fontSize: 9, fontWeight: "800", color: P.COPTIC_COLOR, letterSpacing: 0.3 },
+langBadge:      { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4, backgroundColor: P.CARD3 },
+langBadgeTxt:   { fontSize: 9, fontWeight: "700", color: P.T3, letterSpacing: 0.3 },
+ref:            { fontSize: IS_TABLET ? 13 : 12, color: P.T2, marginTop: 2, lineHeight: IS_TABLET ? 19 : 17 },
 assigneeCol:    { alignItems: "flex-end", flexShrink: 0, maxWidth: "42%" },
 chip:           { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(48,209,88,0.08)", borderWidth: 1, borderColor: "rgba(48,209,88,0.18)", borderRadius: 20, paddingVertical: IS_TABLET ? 4 : 3, paddingHorizontal: IS_TABLET ? 8 : 6 },
-chipCoptic:     { backgroundColor: COPTIC_BG, borderColor: COPTIC_BORDER },
-chipName:       { fontSize: IS_TABLET ? 12 : 11, fontWeight: "600", color: GREEN, maxWidth: 90 },
-chipNameCoptic: { color: COPTIC_COLOR },
-unassigned:     { fontSize: 14, color: T3 },
+chipCoptic:     { backgroundColor: P.COPTIC_BG, borderColor: P.COPTIC_BORDER },
+chipName:       { fontSize: IS_TABLET ? 12 : 11, fontWeight: "600", color: P.GREEN, maxWidth: 90 },
+chipNameCoptic: { color: P.COPTIC_COLOR },
+unassigned:     { fontSize: 14, color: P.T3 },
+// Background the old local Avatar painted behind the image. In the per-theme
+// sheet so the reference is stable and Avatar's React.memo still holds.
+avatarBg:       { backgroundColor: P.CARD3 },
+  };
 });
 
 // ── Hour card ─────────────────────────────────────────────────────────────────
 var HourCard = function(props) {
+  var hcS = useHcS();
+  var P = useArchiveTokens();
   var hour = props.hour;
   var hourAssignments = props.hourAssignments;
   var rows              = expandReadings(hour, hourAssignments);
@@ -195,11 +244,11 @@ var HourCard = function(props) {
   return (
     <View style={hcS.card}>
       <View style={hcS.cardTop}>
-        <View style={[hcS.accent, { backgroundColor: complete ? GREEN : pct > 0 ? BLUE : CARD3 }]} />
+        <View style={[hcS.accent, { backgroundColor: complete ? P.GREEN : pct > 0 ? P.BLUE : P.CARD3 }]} />
         <Text style={hcS.label}>{hour.label}</Text>
         <View style={[hcS.badge, complete && hcS.badgeGreen]}>
           {complete
-            ? <Icon name="check" size={10} color={GREEN} />
+            ? <Icon name="check" size={10} color={P.GREEN} />
             : <Text style={hcS.badgeTxt}>{pct + "%"}</Text>
           }
         </View>
@@ -221,19 +270,23 @@ var HourCard = function(props) {
     </View>
   );
 };
-const hcS = StyleSheet.create({
-card:      { backgroundColor: CARD2, borderRadius: IS_TABLET ? 16 : 12, marginBottom: IS_TABLET ? 12 : 8, overflow: "hidden" },
+const useHcS = makeStyles((t) => {
+  const P = archiveTokens(t);
+  return {
+card:      { backgroundColor: P.HOUR_CARD, borderRadius: IS_TABLET ? 16 : 12, marginBottom: IS_TABLET ? 12 : 8, overflow: "hidden" },
 cardTop:   { flexDirection: "row", alignItems: "center", padding: IS_TABLET ? 16 : 12, gap: 10 },
 accent:    { width: 3, alignSelf: "stretch", borderRadius: 2, flexShrink: 0 },
-label:     { flex: 1, fontSize: IS_TABLET ? 15 : 13, fontWeight: "700", color: T1 },
-badge:     { paddingHorizontal: IS_TABLET ? 10 : 8, paddingVertical: IS_TABLET ? 4 : 3, borderRadius: 10, backgroundColor: CARD3 },
+label:     { flex: 1, fontSize: IS_TABLET ? 15 : 13, fontWeight: "700", color: P.T1 },
+badge:     { paddingHorizontal: IS_TABLET ? 10 : 8, paddingVertical: IS_TABLET ? 4 : 3, borderRadius: 10, backgroundColor: P.CARD3 },
 badgeGreen:{ backgroundColor: "rgba(48,209,88,0.1)", borderWidth: 1, borderColor: "rgba(48,209,88,0.25)" },
-badgeTxt:  { fontSize: IS_TABLET ? 12 : 11, fontWeight: "700", color: T2 },
-body:      { borderTopWidth: 1, borderTopColor: SEP, paddingHorizontal: IS_TABLET ? 16 : 12, paddingBottom: IS_TABLET ? 10 : 8 },
+badgeTxt:  { fontSize: IS_TABLET ? 12 : 11, fontWeight: "700", color: P.T2 },
+body:      { borderTopWidth: 1, borderTopColor: P.SEP, paddingHorizontal: IS_TABLET ? 16 : 12, paddingBottom: IS_TABLET ? 10 : 8 },
+  };
 });
 
 // ── Day tab strip ─────────────────────────────────────────────────────────────
 var DayTabStrip = function(props) {
+  var tsS = useTsS();
   var days = props.days;
   var selectedIndex = props.selectedIndex;
   var schedule = props.schedule;
@@ -271,23 +324,28 @@ var DayTabStrip = function(props) {
     </ScrollView>
   );
 };
-const tsS = StyleSheet.create({
-bar:         { backgroundColor: BG, borderBottomWidth: 1, borderBottomColor: SEP },
+const useTsS = makeStyles((t) => {
+  const P = archiveTokens(t);
+  return {
+bar:         { backgroundColor: P.BG, borderBottomWidth: 1, borderBottomColor: P.SEP },
 content:     { paddingHorizontal: IS_TABLET ? 14 : 10, paddingVertical: IS_TABLET ? 12 : 8, gap: IS_TABLET ? 10 : 7, flexDirection: "row" },
-tab:         { paddingHorizontal: IS_TABLET ? 14 : 10, paddingVertical: IS_TABLET ? 10 : 7, borderRadius: 12, backgroundColor: CARD, alignItems: "center", justifyContent: "center", minWidth: IS_TABLET ? 80 : 66, minHeight: IS_TABLET ? 70 : 56 },
-tabActive:   { backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.35)" },
+tab:         { paddingHorizontal: IS_TABLET ? 14 : 10, paddingVertical: IS_TABLET ? 10 : 7, borderRadius: 12, backgroundColor: P.CARD, alignItems: "center", justifyContent: "center", minWidth: IS_TABLET ? 80 : 66, minHeight: IS_TABLET ? 70 : 56 },
+tabActive:   { backgroundColor: P.BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.35)" },
 dot:         { width: IS_TABLET ? 8 : 6, height: IS_TABLET ? 8 : 6, borderRadius: 4, marginBottom: IS_TABLET ? 6 : 4 },
-dotGray:     { backgroundColor: T3 },
-dotBlue:     { backgroundColor: BLUE },
-dotGreen:    { backgroundColor: GREEN },
-label:       { fontSize: IS_TABLET ? 13 : 11, fontWeight: "600", color: T2, textAlign: "center", lineHeight: IS_TABLET ? 17 : 14 },
-labelActive: { color: BLUE, fontWeight: "700" },
-date:        { fontSize: IS_TABLET ? 10 : 9, color: T3, marginTop: IS_TABLET ? 4 : 2 },
-dateActive:  { color: "rgba(10,132,255,0.7)" },
+dotGray:     { backgroundColor: P.T3 },
+dotBlue:     { backgroundColor: P.BLUE },
+dotGreen:    { backgroundColor: P.GREEN },
+label:       { fontSize: IS_TABLET ? 13 : 11, fontWeight: "600", color: P.T2, textAlign: "center", lineHeight: IS_TABLET ? 17 : 14 },
+labelActive: { color: P.BLUE, fontWeight: "700" },
+date:        { fontSize: IS_TABLET ? 10 : 9, color: P.T3, marginTop: IS_TABLET ? 4 : 2 },
+dateActive:  { color: P.BLUE_DATE },
+  };
 });
 
 // ── Year card ─────────────────────────────────────────────────────────────────
 var YearCard = function(props) {
+  var ycS = useYcS();
+  var P = useArchiveTokens();
   var arc = props.arc;
   var onPress = props.onPress;
   var allDays = useMemo(function() { return allDaysFromArchive(arc); }, [arc]);
@@ -305,22 +363,22 @@ var YearCard = function(props) {
   return (
     <TouchableOpacity style={ycS.card} onPress={onPress} activeOpacity={0.75}>
       <View style={ycS.top}>
-        <View style={ycS.iconBox}><Icon name="cross" size={IS_TABLET ? 20 : 17} color={ORANGE} /></View>
+        <View style={ycS.iconBox}><Icon name="cross" size={IS_TABLET ? 20 : 17} color={P.ORANGE} /></View>
         <View style={{ flex: 1, marginLeft: IS_TABLET ? 14 : 12 }}>
           <Text style={ycS.year}>{"Pascha " + arc.year}</Text>
           {arc.archivedAt && <Text style={ycS.sub}>{"Archived " + fmtDate(arc.archivedAt)}</Text>}
         </View>
         {complete
           ? <View style={ycS.donePill}>
-              <Icon name="check" size={10} color={GREEN} />
+              <Icon name="check" size={10} color={P.GREEN} />
               <Text style={ycS.doneTxt}>Complete</Text>
             </View>
           : <Text style={ycS.pct}>{pct + "%"}</Text>
         }
-        <Icon name="chevron-right" size={16} color={T3} style={{ marginLeft: 10 }} />
+        <Icon name="chevron-right" size={16} color={P.T3} style={{ marginLeft: 10 }} />
       </View>
       <View style={ycS.trackWrap}>
-        <View style={[ycS.trackFill, { width: pct + "%" }, complete && { backgroundColor: GREEN }]} />
+        <View style={[ycS.trackFill, { width: pct + "%" }, complete && { backgroundColor: P.GREEN }]} />
       </View>
       <View style={ycS.dots}>
         {allDays.map(function(d) {
@@ -333,25 +391,30 @@ var YearCard = function(props) {
     </TouchableOpacity>
   );
 };
-const ycS = StyleSheet.create({
-card:     { backgroundColor: CARD, borderRadius: IS_TABLET ? 20 : 16, padding: IS_TABLET ? 18 : 14, borderWidth: 1, borderColor: SEP, marginBottom: IS_TABLET ? 14 : 10 },
+const useYcS = makeStyles((t) => {
+  const P = archiveTokens(t);
+  return {
+card:     { backgroundColor: P.CARD, borderRadius: IS_TABLET ? 20 : 16, padding: IS_TABLET ? 18 : 14, borderWidth: 1, borderColor: P.SEP, marginBottom: IS_TABLET ? 14 : 10 },
 top:      { flexDirection: "row", alignItems: "center", marginBottom: IS_TABLET ? 14 : 10 },
 iconBox:  { width: IS_TABLET ? 46 : 38, height: IS_TABLET ? 46 : 38, borderRadius: IS_TABLET ? 14 : 11, backgroundColor: "rgba(255,159,10,0.1)", justifyContent: "center", alignItems: "center", flexShrink: 0 },
-year:     { fontSize: IS_TABLET ? 19 : 16, fontWeight: "800", color: T1, letterSpacing: -0.3 },
-sub:      { fontSize: IS_TABLET ? 13 : 11, color: T3, marginTop: 3 },
+year:     { fontSize: IS_TABLET ? 19 : 16, fontWeight: "800", color: P.T1, letterSpacing: -0.3 },
+sub:      { fontSize: IS_TABLET ? 13 : 11, color: P.T3, marginTop: 3 },
 donePill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20, backgroundColor: "rgba(48,209,88,0.1)", borderWidth: 1, borderColor: "rgba(48,209,88,0.25)" },
-doneTxt:  { fontSize: 11, fontWeight: "700", color: GREEN },
-pct:      { fontSize: IS_TABLET ? 14 : 13, fontWeight: "700", color: T2 },
-trackWrap:{ height: 4, backgroundColor: CARD2, borderRadius: 3, marginBottom: IS_TABLET ? 12 : 9 },
-trackFill:{ height: 4, backgroundColor: BLUE, borderRadius: 3 },
+doneTxt:  { fontSize: 11, fontWeight: "700", color: P.GREEN },
+pct:      { fontSize: IS_TABLET ? 14 : 13, fontWeight: "700", color: P.T2 },
+trackWrap:{ height: 4, backgroundColor: P.CARD2, borderRadius: 3, marginBottom: IS_TABLET ? 12 : 9 },
+trackFill:{ height: 4, backgroundColor: P.BLUE, borderRadius: 3 },
 dots:     { flexDirection: "row", gap: IS_TABLET ? 6 : 5, flexWrap: "wrap" },
-dot:      { width: IS_TABLET ? 8 : 7, height: IS_TABLET ? 8 : 7, borderRadius: 4, backgroundColor: CARD3 },
-dotGreen: { backgroundColor: GREEN },
-dotBlue:  { backgroundColor: BLUE },
+dot:      { width: IS_TABLET ? 8 : 7, height: IS_TABLET ? 8 : 7, borderRadius: 4, backgroundColor: P.CARD3 },
+dotGreen: { backgroundColor: P.GREEN },
+dotBlue:  { backgroundColor: P.BLUE },
+  };
 });
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 var PaschaArchiveViewer = function(props) {
+  var avS = useAvS();
+  var P = useArchiveTokens();
   var visible = props.visible;
   var churchId = props.churchId;
   var onClose = props.onClose;
@@ -401,22 +464,22 @@ var PaschaArchiveViewer = function(props) {
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={onClose} statusBarTranslucent>
       <View style={avS.overlay}>
-        <View style={avS.sheet}>
+        <GlassSurface style={avS.sheet}>
           <View style={avS.handle} />
           <View style={avS.hdr}>
             {selectedYear ? (
               <TouchableOpacity style={avS.backBtn} onPress={function() { setSelectedYear(null); }} activeOpacity={0.7}>
-                <Icon name="arrow-left" size={IS_TABLET ? 18 : 16} color={T1} />
+                <Icon name="arrow-left" size={IS_TABLET ? 18 : 16} color={P.T1} />
               </TouchableOpacity>
             ) : (
-              <View style={avS.iconBox}><Icon name="archive-outline" size={IS_TABLET ? 19 : 17} color={ORANGE} /></View>
+              <View style={avS.iconBox}><Icon name="archive-outline" size={IS_TABLET ? 19 : 17} color={P.ORANGE} /></View>
             )}
             <View style={{ flex: 1 }}>
               <Text style={avS.title}>{selectedYear ? ("Pascha " + selectedYear) : "Archived Schedules"}</Text>
               {selected && selected.archivedAt && <Text style={avS.sub}>{"Archived " + fmtDate(selected.archivedAt)}</Text>}
             </View>
             <TouchableOpacity style={avS.xBtn} onPress={onClose} activeOpacity={0.7}>
-              <Icon name="close" size={17} color={T2} />
+              <Icon name="close" size={17} color={P.T2} />
             </TouchableOpacity>
           </View>
 
@@ -424,7 +487,7 @@ var PaschaArchiveViewer = function(props) {
             <SkeletonCardList count={5} height={64} />
           ) : archives.length === 0 ? (
             <View style={avS.center}>
-              <View style={avS.emptyIconWrap}><Icon name="archive-off-outline" size={IS_TABLET ? 34 : 28} color={T3} /></View>
+              <View style={avS.emptyIconWrap}><Icon name="archive-off-outline" size={IS_TABLET ? 34 : 28} color={P.T3} /></View>
               <Text style={avS.emptyTitle}>No Archives Yet</Text>
               <Text style={avS.emptySub}>Archive a schedule from Settings to see it here.</Text>
             </View>
@@ -467,7 +530,7 @@ var PaschaArchiveViewer = function(props) {
                       var done = dt.total > 0 && dt.filled === dt.total;
                       return done
                         ? <View style={avS.dayDonePill}>
-                            <Icon name="check" size={11} color={GREEN} />
+                            <Icon name="check" size={11} color={P.GREEN} />
                             <Text style={avS.dayDoneTxt}>Complete</Text>
                           </View>
                         : <Text style={avS.dayPct}>{p + "%"}</Text>;
@@ -478,7 +541,7 @@ var PaschaArchiveViewer = function(props) {
                       var dt = dayTotals(currentDay, currentDaySchedule);
                       var p = dt.total > 0 ? Math.round(dt.filled / dt.total * 100) : 0;
                       var done = dt.total > 0 && dt.filled === dt.total;
-                      return <View style={[avS.dayTrackFill, { width: p + "%" }, done && { backgroundColor: GREEN }]} />;
+                      return <View style={[avS.dayTrackFill, { width: p + "%" }, done && { backgroundColor: P.GREEN }]} />;
                     })()}
                   </View>
                   {(currentDay.hours || []).map(function(h) {
@@ -498,38 +561,41 @@ var PaschaArchiveViewer = function(props) {
               )}
             </View>
           )}
-        </View>
+        </GlassSurface>
       </View>
     </Modal>
   );
 };
 
-const avS = StyleSheet.create({
-overlay:       { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" },
-sheet:         { width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center", backgroundColor: BG, borderTopLeftRadius: 30, borderTopRightRadius: 30, height: IS_TABLET ? "92%" : "96%", paddingBottom: Platform.OS === "ios" ? 36 : 24 },
-handle:        { width: 42, height: 5, borderRadius: 3, backgroundColor: SEP, alignSelf: "center", marginTop: 12 },
-hdr:           { flexDirection: "row", alignItems: "center", gap: IS_TABLET ? 14 : 12, paddingHorizontal: IS_TABLET ? 22 : 16, paddingTop: IS_TABLET ? 18 : 14, paddingBottom: IS_TABLET ? 16 : 12, borderBottomWidth: 1, borderBottomColor: SEP },
+const useAvS = makeStyles((t) => {
+  const P = archiveTokens(t);
+  return {
+overlay:       { flex: 1, backgroundColor: P.OVERLAY, justifyContent: "flex-end" },
+sheet:         { width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center", backgroundColor: P.BG, borderTopLeftRadius: 30, borderTopRightRadius: 30, height: IS_TABLET ? "92%" : "96%", paddingBottom: Platform.OS === "ios" ? 36 : 24 },
+handle:        { width: 42, height: 5, borderRadius: 3, backgroundColor: P.SEP, alignSelf: "center", marginTop: 12 },
+hdr:           { flexDirection: "row", alignItems: "center", gap: IS_TABLET ? 14 : 12, paddingHorizontal: IS_TABLET ? 22 : 16, paddingTop: IS_TABLET ? 18 : 14, paddingBottom: IS_TABLET ? 16 : 12, borderBottomWidth: 1, borderBottomColor: P.SEP },
 iconBox:       { width: IS_TABLET ? 40 : 34, height: IS_TABLET ? 40 : 34, borderRadius: IS_TABLET ? 12 : 10, backgroundColor: "rgba(255,159,10,0.12)", justifyContent: "center", alignItems: "center" },
-backBtn:       { width: IS_TABLET ? 40 : 34, height: IS_TABLET ? 40 : 34, borderRadius: IS_TABLET ? 20 : 17, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
-title:         { fontSize: IS_TABLET ? 22 : 18, fontWeight: "800", color: T1, letterSpacing: -0.3 },
-sub:           { fontSize: IS_TABLET ? 13 : 12, color: T2, marginTop: 2 },
-xBtn:          { width: IS_TABLET ? 36 : 32, height: IS_TABLET ? 36 : 32, borderRadius: IS_TABLET ? 18 : 16, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
+backBtn:       { width: IS_TABLET ? 40 : 34, height: IS_TABLET ? 40 : 34, borderRadius: IS_TABLET ? 20 : 17, backgroundColor: P.CARD2, justifyContent: "center", alignItems: "center" },
+title:         { fontSize: IS_TABLET ? 22 : 18, fontWeight: "800", color: P.T1, letterSpacing: -0.3 },
+sub:           { fontSize: IS_TABLET ? 13 : 12, color: P.T2, marginTop: 2 },
+xBtn:          { width: IS_TABLET ? 36 : 32, height: IS_TABLET ? 36 : 32, borderRadius: IS_TABLET ? 18 : 16, backgroundColor: P.CARD2, justifyContent: "center", alignItems: "center" },
 center:        { flex: 1, justifyContent: "center", alignItems: "center", padding: IS_TABLET ? 36 : 24, gap: IS_TABLET ? 18 : 14 },
-loadingTxt:    { fontSize: IS_TABLET ? 15 : 14, color: T2 },
-emptyIconWrap: { width: IS_TABLET ? 80 : 64, height: IS_TABLET ? 80 : 64, borderRadius: IS_TABLET ? 40 : 32, backgroundColor: CARD2, justifyContent: "center", alignItems: "center" },
-emptyTitle:    { fontSize: IS_TABLET ? 21 : 18, fontWeight: "700", color: T1 },
-emptySub:      { fontSize: IS_TABLET ? 15 : 13, color: T2, textAlign: "center", lineHeight: IS_TABLET ? 23 : 20 },
-sectionLabel:  { fontSize: IS_TABLET ? 13 : 11, fontWeight: "700", color: T3, letterSpacing: 1, textTransform: "uppercase", marginBottom: IS_TABLET ? 14 : 10 },
+loadingTxt:    { fontSize: IS_TABLET ? 15 : 14, color: P.T2 },
+emptyIconWrap: { width: IS_TABLET ? 80 : 64, height: IS_TABLET ? 80 : 64, borderRadius: IS_TABLET ? 40 : 32, backgroundColor: P.CARD2, justifyContent: "center", alignItems: "center" },
+emptyTitle:    { fontSize: IS_TABLET ? 21 : 18, fontWeight: "700", color: P.T1 },
+emptySub:      { fontSize: IS_TABLET ? 15 : 13, color: P.T2, textAlign: "center", lineHeight: IS_TABLET ? 23 : 20 },
+sectionLabel:  { fontSize: IS_TABLET ? 13 : 11, fontWeight: "700", color: P.T3, letterSpacing: 1, textTransform: "uppercase", marginBottom: IS_TABLET ? 14 : 10 },
 list:          { padding: IS_TABLET ? 18 : 14 },
 dayScroll:     { padding: IS_TABLET ? 18 : 14, paddingTop: IS_TABLET ? 20 : 14, paddingBottom: 32 },
 dayHeader:     { flexDirection: "row", alignItems: "flex-start", marginBottom: IS_TABLET ? 14 : 10 },
-dayLabel:      { fontSize: IS_TABLET ? 22 : 18, fontWeight: "800", color: T1, letterSpacing: -0.3 },
-dayDate:       { fontSize: IS_TABLET ? 13 : 12, color: T2, marginTop: 3 },
+dayLabel:      { fontSize: IS_TABLET ? 22 : 18, fontWeight: "800", color: P.T1, letterSpacing: -0.3 },
+dayDate:       { fontSize: IS_TABLET ? 13 : 12, color: P.T2, marginTop: 3 },
 dayDonePill:   { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, backgroundColor: "rgba(48,209,88,0.1)", borderWidth: 1, borderColor: "rgba(48,209,88,0.25)" },
-dayDoneTxt:    { fontSize: 12, fontWeight: "700", color: GREEN },
-dayPct:        { fontSize: IS_TABLET ? 16 : 14, fontWeight: "700", color: T2 },
-dayTrackWrap:  { height: 4, backgroundColor: CARD2, borderRadius: 2, marginBottom: IS_TABLET ? 18 : 12 },
-dayTrackFill:  { height: 4, backgroundColor: BLUE, borderRadius: 2 },
+dayDoneTxt:    { fontSize: 12, fontWeight: "700", color: P.GREEN },
+dayPct:        { fontSize: IS_TABLET ? 16 : 14, fontWeight: "700", color: P.T2 },
+dayTrackWrap:  { height: 4, backgroundColor: P.CARD2, borderRadius: 2, marginBottom: IS_TABLET ? 18 : 12 },
+dayTrackFill:  { height: 4, backgroundColor: P.BLUE, borderRadius: 2 },
+  };
 });
 
 export default PaschaArchiveViewer;

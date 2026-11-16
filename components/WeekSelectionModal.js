@@ -4,9 +4,9 @@ import {
   View,
   Text,
   TouchableOpacity,
-  StyleSheet,
   Platform,
 } from "react-native";
+import { makeStyles, useTheme, GlassSurface } from "../theme";
 
 const WeekSelectionModal = ({
   visible,
@@ -18,6 +18,8 @@ const WeekSelectionModal = ({
   onConfirm,
   onCancel,
 }) => {
+  const styles = useStyles();
+  const t = useTheme();
   return (
     <Modal
       animationType="none"
@@ -26,7 +28,7 @@ const WeekSelectionModal = ({
       onRequestClose={onCancel}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
+        <GlassSurface style={styles.modalContainer}>
           <Text style={styles.modalTitle}>Select Unavailable Weeks</Text>
           <Text style={styles.modalSubtitle}>
             This action cannot be undone.
@@ -43,7 +45,16 @@ const WeekSelectionModal = ({
               onPress={() => onWeekSelection(week)}
               disabled={unavailableWeeks.includes(week)}
             >
-              <Text style={styles.weekButtonText}>Week of {week}</Text>
+              <Text
+                style={[
+                  styles.weekButtonText,
+                  (selectedWeeks.includes(week) ||
+                    unavailableWeeks.includes(week)) &&
+                    styles.weekButtonTextSelected,
+                ]}
+              >
+                Week of {week}
+              </Text>
             </TouchableOpacity>
           ))}
           <View style={styles.modalButtonContainer}>
@@ -51,7 +62,9 @@ const WeekSelectionModal = ({
               style={[styles.submitButton, styles.cancelButton]}
               onPress={onCancel}
             >
-              <Text style={styles.buttonText}>Cancel</Text>
+              <Text style={[styles.buttonText, styles.cancelButtonText]}>
+                Cancel
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.submitButton, isLoading && { opacity: 0.6 }]}
@@ -63,75 +76,81 @@ const WeekSelectionModal = ({
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </GlassSurface>
       </View>
     </Modal>
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: t.overlay,
     justifyContent: "center",
     alignItems: "center",
   },
   modalContainer: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     padding: 24,
     borderRadius: 14,
     width: "85%",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   modalTitle: {
     fontSize: 22,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   modalSubtitle: {
     fontSize: 15,
-    color: "rgba(255,255,255,0.6)",
+    color: t.textSecondary,
     textAlign: "center",
     marginBottom: 24,
     lineHeight: 22,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   weekButton: {
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: t.fill,
     paddingVertical: 14,
     borderRadius: 14,
     marginVertical: 6,
     width: "100%",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   weekButtonSelected: {
-    backgroundColor: "#ff3b30",
-    borderColor: "#ff3b30",
+    backgroundColor: t.danger,
+    borderColor: t.danger,
   },
   weekButtonText: {
     fontSize: 16,
-    color: "#fff",
+    color: t.text,
     fontWeight: "500",
   },
+  weekButtonTextSelected: {
+    color: t.onAccent,
+  },
   submitButton: {
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
     paddingVertical: 14,
     paddingHorizontal: 28,
     borderRadius: 14,
     marginTop: 12,
   },
   cancelButton: {
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: t.fillStrong,
     width: "45%",
+  },
+  cancelButtonText: {
+    color: t.text,
   },
   buttonText: {
     fontSize: 16,
-    color: "#ffffff",
+    color: t.onAccent,
     fontWeight: "600",
     textAlign: "center",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
@@ -143,6 +162,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
     gap: 12,
   },
-});
+}));
 
 export default WeekSelectionModal;

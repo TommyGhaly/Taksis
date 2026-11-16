@@ -1,9 +1,11 @@
 import * as React from "react";
-import { Text, StyleSheet, Pressable, View } from "react-native";
+import { Text, Pressable, View } from "react-native";
 import BackArrow from "../components/backArrow";
 import { useNavigation } from "@react-navigation/native";
+import { makeStyles } from "../theme";
 
 const ChurchRegistrationV = () => {
+  const styles = useStyles();
   const navigation = useNavigation();
 
   return (
@@ -22,10 +24,10 @@ const ChurchRegistrationV = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     paddingHorizontal: 16,
     paddingTop: 80,
     paddingBottom: 40,
@@ -35,7 +37,7 @@ const styles = StyleSheet.create({
 
   title: {
     fontSize: 34,
-    color: "#8e8e93",
+    color: t.textMuted,
     textAlign: "center",
     marginBottom: 20,
     fontFamily: "Roboto-Medium",
@@ -43,14 +45,14 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 16,
-    color: "#8e8e93",
+    color: t.textMuted,
     textAlign: "center",
     marginHorizontal: 20,
     lineHeight: 24,
     marginBottom: 40,
   },
   continueButton: {
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     borderRadius: 10,
     paddingVertical: 15,
     paddingHorizontal: 30,
@@ -60,10 +62,10 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 17,
-    color: "#fff",
+    color: t.text,
     fontFamily: "Roboto-Medium",
     fontWeight: "500",
   },
-});
+}));
 
 export default ChurchRegistrationV;

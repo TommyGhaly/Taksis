@@ -29,6 +29,7 @@ import {
   parseRedirectParams,
   REDIRECT_URI,
 } from "../utils/microsoftAuth";
+import { makeStyles, useTheme } from "../theme";
 
 const { width } = Dimensions.get("window");
 const moderateScale = (size, factor = 0.5) =>
@@ -87,6 +88,8 @@ true;
 `;
 
 const MicrosoftSignInModal = ({ visible, onClose, onSuccess, onError }) => {
+  const styles = useStyles();
+  const t = useTheme();
   const [authUrl, setAuthUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const verifierRef = useRef(null);
@@ -170,7 +173,7 @@ const MicrosoftSignInModal = ({ visible, onClose, onSuccess, onError }) => {
             style={styles.closeBtn}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Ionicons name="close" size={moderateScale(26)} color="#E0E0E0" />
+            <Ionicons name="close" size={moderateScale(26)} color={t.isDark ? "#E0E0E0" : t.text} />
           </Pressable>
           <Text style={styles.title}>Sign in with Microsoft</Text>
           {/* Balances the close button so the title stays centered. */}
@@ -203,7 +206,7 @@ const MicrosoftSignInModal = ({ visible, onClose, onSuccess, onError }) => {
 
           {loading ? (
             <View style={styles.loadingOverlay} pointerEvents="none">
-              <ActivityIndicator size="large" color="#147EFB" />
+              <ActivityIndicator size="large" color={t.accent} />
             </View>
           ) : null}
         </View>
@@ -212,8 +215,8 @@ const MicrosoftSignInModal = ({ visible, onClose, onSuccess, onError }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
+const useStyles = makeStyles((t) => ({
+  container: { flex: 1, backgroundColor: t.isDark ? "#000" : t.background },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -221,23 +224,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: moderateScale(12),
     paddingVertical: moderateScale(10),
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.08)",
+    borderBottomColor: t.border,
   },
   closeBtn: { width: moderateScale(34), alignItems: "flex-start" },
   title: {
     fontSize: moderateScale(16),
     fontWeight: "600",
-    color: "#E0E0E0",
+    color: t.isDark ? "#E0E0E0" : t.text,
     letterSpacing: -0.2,
   },
+  // Microsoft's page is white in both modes; this backs it while it loads.
   webWrap: { flex: 1, backgroundColor: "#fff" },
   web: { flex: 1 },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#000",
+    backgroundColor: t.isDark ? "#000" : t.background,
   },
-});
+}));
 
 export default MicrosoftSignInModal;

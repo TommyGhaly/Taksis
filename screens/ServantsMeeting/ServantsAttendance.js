@@ -51,6 +51,7 @@ import {
   newManualId,
   saveManualPerson,
 } from "../../utils/manualPeople";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
@@ -156,6 +157,8 @@ const getNextSunday = () => {
  * cells rebuilt on every state change, including every attendance write.
  */
 const ServantRow = React.memo(({ servant, isPastDate, isNavigating, onOpen, onAttendance }) => {
+  const styles = useStyles();
+  const t = useTheme();
   const manual = isManual(servant.uid);
   const status = servant.attendance;
 
@@ -189,15 +192,15 @@ const ServantRow = React.memo(({ servant, isPastDate, isNavigating, onOpen, onAt
                 </View>
               )}
             </View>
-            <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+            <Ionicons name="chevron-forward" size={20} color={t.textTertiary} />
           </TouchableOpacity>
 
           {isPastDate ? (
             <View style={styles.attendanceStatusContainer}>
               <View style={[styles.attendanceStatus, {
-                backgroundColor: status === true ? "#147EFB" : status === false ? "#ff3b30" : "rgba(255,255,255,0.1)",
+                backgroundColor: status === true ? t.accent : status === false ? t.danger : t.fillStrong,
               }]}>
-                <Text style={styles.attendanceStatusText}>
+                <Text style={[styles.attendanceStatusText, { color: status === null || status === undefined ? t.text : t.onAccent }]}>
                   {status === true ? "Present" : status === false ? "Absent" : "Not Recorded"}
                 </Text>
               </View>
@@ -205,18 +208,18 @@ const ServantRow = React.memo(({ servant, isPastDate, isNavigating, onOpen, onAt
           ) : (
             <View style={styles.attendanceButtons}>
               <TouchableOpacity
-                style={[styles.attendanceButton, { backgroundColor: status === false ? "#ff3b30" : "rgba(255,255,255,0.08)" }]}
+                style={[styles.attendanceButton, { backgroundColor: status === false ? t.danger : t.fill }]}
                 onPress={() => onAttendance(servant.uid, false)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.attendanceButtonText}>Absent</Text>
+                <Text style={[styles.attendanceButtonText, { color: status === false ? t.onAccent : t.text }]}>Absent</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.attendanceButton, { backgroundColor: status === true ? "#147EFB" : "rgba(255,255,255,0.08)" }]}
+                style={[styles.attendanceButton, { backgroundColor: status === true ? t.accent : t.fill }]}
                 onPress={() => onAttendance(servant.uid, true)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.attendanceButtonText}>Present</Text>
+                <Text style={[styles.attendanceButtonText, { color: status === true ? t.onAccent : t.text }]}>Present</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -234,7 +237,10 @@ ServantRow.displayName = "ServantRow";
  * Was an inline `renderItem` closure that called the date formatter per row per
  * render. The label now arrives precomputed and cached (see utils/dateKeys.js).
  */
-const WeekRow = React.memo(({ label, selected, dateKey, onPress }) => (
+const WeekRow = React.memo(({ label, selected, dateKey, onPress }) => {
+  const styles = useStyles();
+  const t = useTheme();
+  return (
   <TouchableOpacity
     style={[styles.weekRow, selected && styles.weekRowSelected]}
     onPress={() => onPress(dateKey)}
@@ -244,17 +250,21 @@ const WeekRow = React.memo(({ label, selected, dateKey, onPress }) => (
       {label}
     </Text>
     {selected ? (
-      <Ionicons name="checkmark-circle" size={20} color="#147EFB" />
+      <Ionicons name="checkmark-circle" size={20} color={t.accent} />
     ) : (
-      <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.25)" />
+      <Ionicons name="chevron-forward" size={18} color={t.textTertiary} />
     )}
   </TouchableOpacity>
-));
+  );
+});
 WeekRow.displayName = "WeekRow";
 
 const weekKeyExtractor = (item) => item;
 
 const ServantsAttendance = () => {
+  const styles = useStyles();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const navigation = useNavigation();
   const user = getAuth().currentUser;
 
@@ -620,23 +630,23 @@ const ServantsAttendance = () => {
       <RefreshControl
         refreshing={refreshing}
         onRefresh={onRefresh}
-        tintColor="#147EFB"
-        colors={["#147EFB"]}
+        tintColor={t.accent}
+        colors={[t.accent]}
       />
     ),
-    [refreshing, onRefresh]
+    [refreshing, onRefresh, t]
   );
 
   const listEmpty = useMemo(
     () => (
       <View style={styles.emptyContainer}>
-        <Ionicons name="people-outline" size={64} color="rgba(255,255,255,0.3)" />
+        <Ionicons name="people-outline" size={64} color={t.textTertiary} />
         <Text style={styles.noStudentsText}>
           {search.active ? "No servants match your search" : "No servants yet"}
         </Text>
       </View>
     ),
-    [search]
+    [search, styles, t]
   );
 
   const renderSectionHeader = useMemo(
@@ -644,7 +654,7 @@ const ServantsAttendance = () => {
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionHeaderText}>{title}</Text>
       </View>
-    ), []
+    ), [styles]
   );
 
   // `loading` is only cleared by stopLoading(), which every terminal path of
@@ -663,25 +673,27 @@ const ServantsAttendance = () => {
     <View style={[styles.container, { paddingHorizontal: gutter }]}>
       {isNavigating && (
         <View style={styles.navigatingOverlay}>
-          <ActivityIndicator size="large" color="#147EFB" />
+          <ActivityIndicator size="large" color={t.accent} />
         </View>
       )}
 
       {/* Week selector */}
-      <TouchableOpacity style={styles.weekSelector} onPress={() => setDateModalVisible(true)} activeOpacity={0.7}>
-        <View style={styles.weekSelectorLeft}>
-          <Ionicons name="calendar-outline" size={20} color="#147EFB" />
-          <View style={styles.weekSelectorTextWrap}>
-            <Text style={styles.weekSelectorLabel}>
-              {isCurrentWeek ? "This Week" : "Viewing"}
-            </Text>
-            <Text style={styles.weekSelectorDate}>{shortDateLabel(dateKey)}</Text>
+      <TouchableOpacity onPress={() => setDateModalVisible(true)} activeOpacity={0.7}>
+        <GlassSurface style={styles.weekSelector} interactive>
+          <View style={styles.weekSelectorLeft}>
+            <Ionicons name="calendar-outline" size={20} color={t.accent} />
+            <View style={styles.weekSelectorTextWrap}>
+              <Text style={styles.weekSelectorLabel}>
+                {isCurrentWeek ? "This Week" : "Viewing"}
+              </Text>
+              <Text style={styles.weekSelectorDate}>{shortDateLabel(dateKey)}</Text>
+            </View>
           </View>
-        </View>
-        <View style={styles.weekSelectorRight}>
-          <Text style={styles.weekSelectorChange}>Change</Text>
-          <Ionicons name="chevron-down" size={14} color="#147EFB" style={{ marginLeft: 4 }} />
-        </View>
+          <View style={styles.weekSelectorRight}>
+            <Text style={styles.weekSelectorChange}>Change</Text>
+            <Ionicons name="chevron-down" size={14} color={t.accent} style={{ marginLeft: 4 }} />
+          </View>
+        </GlassSurface>
       </TouchableOpacity>
 
       <View style={styles.listWrapper}>
@@ -691,7 +703,7 @@ const ServantsAttendance = () => {
           renderItem={renderServant}
           renderSectionHeader={renderSectionHeader}
           keyExtractor={keyExtractor}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={[styles.listContainer, { paddingBottom: 120 + tabBarInset }]}
           {...LIST_PERF}
           // Every row is a fixed height, so the offset of any letter is known
           // without having rendered it. This is what makes the A-Z bar land
@@ -721,18 +733,20 @@ const ServantsAttendance = () => {
 
       {/* Floating search bar + add button */}
       <Animated.View
-        style={[styles.floatingBarWrapper, isWide && { left: gutter, right: gutter }, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
+        style={[styles.floatingBarWrapper, { bottom: (Platform.OS === "ios" ? 28 : 16) + tabBarInset }, isWide && { left: gutter, right: gutter }, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
         pointerEvents="box-none"
       >
-        <BlurView tint="systemChromeMaterialDark" intensity={80} style={styles.floatingBlur}>
+        {(() => {
+          const floatingContent = (
           <View style={styles.floatingInner}>
             <View style={styles.searchContainer}>
-              <Ionicons name="search" size={16} color="rgba(255,255,255,0.55)" style={styles.searchIcon} />
+              <Ionicons name="search" size={16} color={t.textSecondary} style={styles.searchIcon} />
               <TextInput
                 ref={searchInputRef}
                 style={styles.searchBar}
                 placeholder="Search servants"
-                placeholderTextColor="rgba(255,255,255,0.55)"
+                placeholderTextColor={t.isDark ? "rgba(255,255,255,0.55)" : t.placeholder}
+                keyboardAppearance={t.keyboardAppearance}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 autoCorrect={false}
@@ -742,16 +756,22 @@ const ServantsAttendance = () => {
               />
             </View>
             <TouchableOpacity style={styles.addBtn} onPress={openAddModal} activeOpacity={0.8}>
-              <Ionicons name="person-add-outline" size={18} color="#fff" />
+              <Ionicons name="person-add-outline" size={18} color={t.onAccent} />
             </TouchableOpacity>
           </View>
-        </BlurView>
+          );
+          return t.glass ? (
+            <GlassSurface style={styles.floatingBlur}>{floatingContent}</GlassSurface>
+          ) : (
+            <BlurView tint={t.blurTint} intensity={80} style={styles.floatingBlur}>{floatingContent}</BlurView>
+          );
+        })()}
       </Animated.View>
 
       {/* ── Date picker modal ── */}
       <Modal visible={dateModalVisible} transparent animationType="fade" onRequestClose={() => setDateModalVisible(false)}>
         <View style={styles.modalContainer}>
-          <View style={styles.weekModalCard}>
+          <GlassSurface style={styles.weekModalCard}>
             {/* Header */}
             <View style={styles.weekModalHeader}>
               <View>
@@ -763,7 +783,7 @@ const ServantsAttendance = () => {
                 onPress={() => setDateModalVisible(false)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="close" size={20} color="rgba(255,255,255,0.6)" />
+                <Ionicons name="close" size={20} color={t.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -774,13 +794,13 @@ const ServantsAttendance = () => {
               activeOpacity={0.7}
             >
               <View style={styles.thisWeekIcon}>
-                <Ionicons name="today-outline" size={18} color="#147EFB" />
+                <Ionicons name="today-outline" size={18} color={t.accent} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.thisWeekTitle}>This week</Text>
                 <Text style={styles.thisWeekDate}>{shortDateLabel(getNextSunday())}</Text>
               </View>
-              {isCurrentWeek && <Ionicons name="checkmark-circle" size={20} color="#147EFB" />}
+              {isCurrentWeek && <Ionicons name="checkmark-circle" size={20} color={t.accent} />}
             </TouchableOpacity>
 
             <View style={styles.weekModalDivider}>
@@ -795,13 +815,13 @@ const ServantsAttendance = () => {
                 keyExtractor={weekKeyExtractor}
                 style={styles.dateList}
                 showsVerticalScrollIndicator={true}
-                indicatorStyle="white"
+                indicatorStyle={t.isDark ? "white" : "black"}
                 renderItem={renderWeek}
               />
               {/* bottom fade to signal more content scrolls */}
               <View pointerEvents="none" style={styles.weekListFade} />
             </View>
-          </View>
+          </GlassSurface>
         </View>
       </Modal>
 
@@ -809,7 +829,7 @@ const ServantsAttendance = () => {
       <Modal visible={addModalVisible} transparent animationType="fade" onRequestClose={cancelAddModal}>
         <View style={styles.sheetOverlayCentered}>
           <TouchableOpacity style={styles.sheetDismiss} activeOpacity={1} onPress={cancelAddModal} />
-          <View style={styles.centeredCard}>
+          <GlassSurface style={styles.centeredCard}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Add Servant Manually</Text>
               <TouchableOpacity style={styles.sheetClose} onPress={cancelAddModal}>
@@ -830,7 +850,7 @@ const ServantsAttendance = () => {
                       showBorder={false}
                     />
                   ) : (
-                    <Ionicons name="camera-outline" size={28} color="rgba(255,255,255,0.4)" />
+                    <Ionicons name="camera-outline" size={28} color={t.textTertiary} />
                   )}
                 </View>
                 <Text style={styles.photoPickerLabel}>
@@ -843,7 +863,8 @@ const ServantsAttendance = () => {
               <TextInput
                 style={styles.textInput}
                 placeholder="First and last name"
-                placeholderTextColor="rgba(255,255,255,0.3)"
+                placeholderTextColor={t.placeholder}
+                keyboardAppearance={t.keyboardAppearance}
                 value={newName}
                 onChangeText={setNewName}
                 autoCapitalize="words"
@@ -851,7 +872,7 @@ const ServantsAttendance = () => {
               />
 
               <View style={styles.sheetNote}>
-                <Ionicons name="information-circle-outline" size={14} color="rgba(255,255,255,0.35)" />
+                <Ionicons name="information-circle-outline" size={14} color={t.textTertiary} />
                 <Text style={styles.sheetNoteText}>
                   Enter both a first and last name. This servant appears with a Manual badge; once they join the app you can sync their record to their account.
                 </Text>
@@ -869,13 +890,13 @@ const ServantsAttendance = () => {
                 activeOpacity={0.8}
               >
                 {addingServant ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={t.onAccent} />
                 ) : (
                   <Text style={styles.sheetConfirmText}>Add Servant</Text>
                 )}
               </TouchableOpacity>
             </View>
-          </View>
+          </GlassSurface>
         </View>
       </Modal>
 
@@ -897,20 +918,20 @@ const ServantsAttendance = () => {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 20, paddingTop: 20, backgroundColor: "#121212" },
+const useStyles = makeStyles((t) => ({
+  container: { flex: 1, paddingHorizontal: 20, paddingTop: 20, backgroundColor: t.background },
 
   weekSelector: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    backgroundColor: "#1a1a1a", borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14,
-    marginBottom: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: t.surface, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14,
+    marginBottom: 16, borderWidth: 1, borderColor: t.border,
   },
   weekSelectorLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
   weekSelectorTextWrap: { marginLeft: 12 },
-  weekSelectorLabel: { fontSize: 11, color: "rgba(255,255,255,0.5)", fontWeight: "500", textTransform: "uppercase", letterSpacing: 0.5 },
-  weekSelectorDate: { fontSize: 16, color: "#fff", fontWeight: "600", marginTop: 2 },
-  weekSelectorRight: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(20,126,251,0.15)", paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 },
-  weekSelectorChange: { fontSize: 13, color: "#147EFB", fontWeight: "600" },
+  weekSelectorLabel: { fontSize: 11, color: t.textSecondary, fontWeight: "500", textTransform: "uppercase", letterSpacing: 0.5 },
+  weekSelectorDate: { fontSize: 16, color: t.text, fontWeight: "600", marginTop: 2 },
+  weekSelectorRight: { flexDirection: "row", alignItems: "center", backgroundColor: t.accentFill, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 },
+  weekSelectorChange: { fontSize: 13, color: t.accent, fontWeight: "600" },
 
   listWrapper: { flex: 1, position: "relative" },
   // paddingRight clears the alphabet index bar. It was 32 here and then
@@ -920,48 +941,48 @@ const styles = StyleSheet.create({
   listContainer: { flexGrow: 1, paddingRight: 30, paddingBottom: 120 },
 
   servantCard: {
-    backgroundColor: "#1a1a1a", borderRadius: 14, padding: 16, paddingRight: 24,
-    marginBottom: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)",
+    backgroundColor: t.surface, borderRadius: 14, padding: 16, paddingRight: 24,
+    marginBottom: 12, borderWidth: 1, borderColor: t.border,
   },
   servantInfo: { flexDirection: "row", alignItems: "center" },
   servantImage: { width: 48, height: 48, borderRadius: 24, marginRight: 14 },
   servantDetails: { flex: 1 },
   servantHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", height: SERVANT_HEADER_H },
   servantNameRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
-  servantName: { fontSize: 17, lineHeight: NAME_LINE, fontWeight: "600", color: "#fff" },
+  servantName: { fontSize: 17, lineHeight: NAME_LINE, fontWeight: "600", color: t.text },
 
   manualBadge: {
     backgroundColor: "rgba(255,149,0,0.15)", borderRadius: 5,
     paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: "rgba(255,149,0,0.3)",
   },
-  manualBadgeText: { fontSize: 10, fontWeight: "700", color: "#ff9500", textTransform: "uppercase", letterSpacing: 0.3 },
+  manualBadgeText: { fontSize: 10, fontWeight: "700", color: t.warningText, textTransform: "uppercase", letterSpacing: 0.3 },
 
   syncBtn: {
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: "rgba(77,156,255,0.1)", borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: "rgba(77,156,255,0.2)",
   },
-  syncBtnText: { fontSize: 12, fontWeight: "600", color: "#4d9cff" },
+  syncBtnText: { fontSize: 12, fontWeight: "600", color: t.accentText },
 
   attendanceButtons: { flexDirection: "row", justifyContent: "space-between", marginTop: 14, gap: 12 },
   attendanceButton: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center" },
-  attendanceButtonText: { fontSize: 15, lineHeight: STATUS_LINE, fontWeight: "600", color: "#fff" },
+  attendanceButtonText: { fontSize: 15, lineHeight: STATUS_LINE, fontWeight: "600", color: t.onAccent },
   attendanceStatusContainer: { marginTop: 14 },
   attendanceStatus: { borderRadius: 14, paddingVertical: 14, alignItems: "center", justifyContent: "center" },
-  attendanceStatusText: { fontSize: 15, lineHeight: STATUS_LINE, fontWeight: "600", color: "#fff" },
+  attendanceStatusText: { fontSize: 15, lineHeight: STATUS_LINE, fontWeight: "600", color: t.onAccent },
 
   // Floating search + add
   floatingBarWrapper: {
     position: "absolute", left: 12, right: 12,
     bottom: Platform.OS === "ios" ? 28 : 16,
     borderRadius: 18, overflow: "hidden",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+    shadowColor: t.shadow, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35, shadowRadius: 12, elevation: 8,
   },
   floatingBlur: {
     borderRadius: 18, overflow: "hidden",
-    borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)",
-    backgroundColor: Platform.OS === "android" ? "rgba(28,28,30,0.92)" : "transparent",
+    borderWidth: StyleSheet.hairlineWidth, borderColor: t.borderStrong,
+    backgroundColor: Platform.OS === "android" ? (t.isDark ? "rgba(28,28,30,0.92)" : "rgba(242,242,247,0.92)") : "transparent",
   },
   floatingInner: {
     flexDirection: "row", alignItems: "center",
@@ -969,31 +990,31 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     flex: 1, flexDirection: "row", alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 10, paddingHorizontal: 10, height: 38,
+    backgroundColor: t.fillStrong, borderRadius: 10, paddingHorizontal: 10, height: 38,
   },
   searchIcon: { marginRight: 6 },
-  searchBar: { flex: 1, color: "#fff", fontSize: 15, paddingVertical: 0 },
+  searchBar: { flex: 1, color: t.text, fontSize: 15, paddingVertical: 0 },
   addBtn: {
     width: 38, height: 38, borderRadius: 10,
-    backgroundColor: "#147efb",
+    backgroundColor: t.accent,
     alignItems: "center", justifyContent: "center",
     flexShrink: 0,
   },
 
   // Section
   sectionHeader: { backgroundColor: "transparent", paddingVertical: 8 * scale, paddingHorizontal: 4 },
-  sectionHeaderText: { fontSize: 22, lineHeight: HEADER_LINE, fontWeight: "600", color: "#fff" },
+  sectionHeaderText: { fontSize: 22, lineHeight: HEADER_LINE, fontWeight: "600", color: t.text },
 
   // Loading / empty
   emptyContainer: { alignItems: "center", marginTop: 60 },
-  noStudentsText: { fontSize: 16, color: "rgba(255,255,255,0.5)", textAlign: "center", marginTop: 16 },
-  navigatingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "center", alignItems: "center", zIndex: 1000 },
+  noStudentsText: { fontSize: 16, color: t.textSecondary, textAlign: "center", marginTop: 16 },
+  navigatingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: t.overlay, justifyContent: "center", alignItems: "center", zIndex: 1000 },
 
   // ── Week picker modal (redesigned) ──
-  modalContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.7)", paddingHorizontal: 20 },
+  modalContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: t.overlay, paddingHorizontal: 20 },
   weekModalCard: {
-    width: "100%", maxWidth: 400, backgroundColor: "#1a1a1a", borderRadius: 18,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden",
+    width: "100%", maxWidth: 400, backgroundColor: t.surface, borderRadius: 18,
+    borderWidth: 1, borderColor: t.border, overflow: "hidden",
     // Of the overlay, so it is still right after an iPad rotates.
     maxHeight: "78%",
   },
@@ -1001,29 +1022,29 @@ const styles = StyleSheet.create({
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
     paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16,
   },
-  weekModalTitle: { fontSize: 20, color: "#fff", fontWeight: "700" },
-  weekModalSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 4 },
+  weekModalTitle: { fontSize: 20, color: t.text, fontWeight: "700" },
+  weekModalSubtitle: { fontSize: 13, color: t.textSecondary, marginTop: 4 },
   weekModalClose: {
-    width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(255,255,255,0.08)",
+    width: 30, height: 30, borderRadius: 15, backgroundColor: t.fill,
     alignItems: "center", justifyContent: "center",
   },
 
   thisWeekRow: {
     flexDirection: "row", alignItems: "center", gap: 12,
     marginHorizontal: 16, marginBottom: 4, paddingVertical: 14, paddingHorizontal: 14,
-    borderRadius: 12, backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.06)",
+    borderRadius: 12, backgroundColor: t.fill,
+    borderWidth: 1, borderColor: t.border,
   },
   thisWeekIcon: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(20,126,251,0.15)",
+    width: 36, height: 36, borderRadius: 18, backgroundColor: t.accentFill,
     alignItems: "center", justifyContent: "center",
   },
-  thisWeekTitle: { fontSize: 15, color: "#fff", fontWeight: "600" },
-  thisWeekDate: { fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 1 },
+  thisWeekTitle: { fontSize: 15, color: t.text, fontWeight: "600" },
+  thisWeekDate: { fontSize: 13, color: t.textSecondary, marginTop: 1 },
 
   weekModalDivider: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 6 },
   weekModalDividerText: {
-    fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: "600",
+    fontSize: 11, color: t.textTertiary, fontWeight: "600",
     textTransform: "uppercase", letterSpacing: 0.6,
   },
 
@@ -1032,12 +1053,12 @@ const styles = StyleSheet.create({
   weekRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingVertical: 14, paddingHorizontal: 14, marginBottom: 8,
-    borderRadius: 12, backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.06)",
+    borderRadius: 12, backgroundColor: t.fill,
+    borderWidth: 1, borderColor: t.border,
   },
-  weekRowSelected: { backgroundColor: "rgba(20,126,251,0.15)", borderColor: "rgba(20,126,251,0.4)" },
-  weekRowText: { fontSize: 15, color: "#fff", fontWeight: "500" },
-  weekRowTextSelected: { color: "#fff", fontWeight: "700" },
+  weekRowSelected: { backgroundColor: t.accentFill, borderColor: "rgba(20,126,251,0.4)" },
+  weekRowText: { fontSize: 15, color: t.text, fontWeight: "500" },
+  weekRowTextSelected: { color: t.text, fontWeight: "700" },
   weekListFade: {
     position: "absolute", left: 0, right: 0, bottom: 0, height: 28,
     // subtle fade so it's obvious the list scrolls
@@ -1046,33 +1067,33 @@ const styles = StyleSheet.create({
   },
 
   // Centered card (add manual servant — no slide animation)
-  sheetOverlayCentered: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", paddingHorizontal: 20 },
+  sheetOverlayCentered: { flex: 1, backgroundColor: t.overlay, justifyContent: "center", alignItems: "center", paddingHorizontal: 20 },
   sheetDismiss: { ...StyleSheet.absoluteFillObject },
   centeredCard: {
-    width: "100%", maxWidth: 400, backgroundColor: "#1a1a1a", borderRadius: 20,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden",
+    width: "100%", maxWidth: 400, backgroundColor: t.surface, borderRadius: 20,
+    borderWidth: 1, borderColor: t.border, overflow: "hidden",
     maxHeight: "82%",
   },
-  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
-  sheetTitle: { fontSize: 18, fontWeight: "700", color: "#fff" },
-  sheetClose: { width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(255,255,255,0.08)", alignItems: "center", justifyContent: "center" },
-  sheetCloseX: { color: "rgba(255,255,255,0.6)", fontSize: 20, fontWeight: "300", marginTop: -1 },
+  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: t.border },
+  sheetTitle: { fontSize: 18, fontWeight: "700", color: t.text },
+  sheetClose: { width: 30, height: 30, borderRadius: 15, backgroundColor: t.fill, alignItems: "center", justifyContent: "center" },
+  sheetCloseX: { color: t.textSecondary, fontSize: 20, fontWeight: "300", marginTop: -1 },
   sheetBody: { paddingHorizontal: 20, paddingTop: 16 },
-  sheetFooter: { flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.06)" },
-  sheetCancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.07)", alignItems: "center" },
-  sheetCancelText: { color: "rgba(255,255,255,0.6)", fontSize: 15, fontWeight: "600" },
-  sheetConfirmBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: "#147efb", alignItems: "center" },
-  sheetConfirmText: { color: "#fff", fontSize: 15, fontWeight: "600" },
+  sheetFooter: { flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderTopColor: t.border },
+  sheetCancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: t.fill, alignItems: "center" },
+  sheetCancelText: { color: t.textSecondary, fontSize: 15, fontWeight: "600" },
+  sheetConfirmBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: t.accent, alignItems: "center" },
+  sheetConfirmText: { color: t.onAccent, fontSize: 15, fontWeight: "600" },
 
   // Add servant form
   photoPickerRow: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 20 },
-  photoPickerCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: "rgba(255,255,255,0.07)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  photoPickerCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: t.fill, borderWidth: 1, borderColor: t.borderStrong, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   photoPickerImage: { width: 64, height: 64, borderRadius: 32 },
-  photoPickerLabel: { color: "#4d9cff", fontSize: 14, fontWeight: "500" },
-  inputLabel: { color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
-  textInput: { backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, color: "#fff", fontSize: 15, marginBottom: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  sheetNote: { flexDirection: "row", gap: 8, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 12, marginBottom: 8 },
-  sheetNoteText: { flex: 1, color: "rgba(255,255,255,0.35)", fontSize: 12, lineHeight: 17 },
-});
+  photoPickerLabel: { color: t.accentText, fontSize: 14, fontWeight: "500" },
+  inputLabel: { color: t.textSecondary, fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
+  textInput: { backgroundColor: t.fill, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, color: t.text, fontSize: 15, marginBottom: 16, borderWidth: 1, borderColor: t.border },
+  sheetNote: { flexDirection: "row", gap: 8, backgroundColor: t.fill, borderRadius: 10, padding: 12, marginBottom: 8 },
+  sheetNoteText: { flex: 1, color: t.textTertiary, fontSize: 12, lineHeight: 17 },
+}));
 
 export default ServantsAttendance;

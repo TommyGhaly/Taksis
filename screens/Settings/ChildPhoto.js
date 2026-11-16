@@ -1,14 +1,13 @@
 import React, { useState } from "react";
 import {
   Text,
-  StyleSheet,
   View,
   TouchableOpacity,
   Alert,
-  SafeAreaView,
   Image,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { doc, getDoc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
 import { getDownloadURL, getStorage, ref } from "@react-native-firebase/storage";
@@ -19,8 +18,12 @@ import ProgressBar from "../../components/progressBar";
 import PhotoInput from "../../components/photoInput";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import defaultProfile from "../../assets/default_profile.png";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
 
 const ChildPhoto = ({ route }) => {
+  const styles = useStyles();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const { childData } = route.params;
   const user = getAuth().currentUser;
   const userId = user ? user.uid : null;
@@ -112,7 +115,7 @@ const ChildPhoto = ({ route }) => {
       </View>
 
       <View style={styles.content}>
-        <View style={styles.card}>
+        <GlassSurface style={styles.card}>
           <Text style={styles.questionText}>Choose a profile picture for your child</Text>
           <View style={styles.previewContainer}>
             <Image
@@ -125,14 +128,14 @@ const ChildPhoto = ({ route }) => {
             style={styles.uploadButton}
             onPress={handleUploadPress}
           >
-            <Icon name="image-plus" size={24} color="#fff" style={styles.icon} />
+            <Icon name="image-plus" size={24} color={t.onAccent} style={styles.icon} />
             <Text style={styles.uploadButtonText}>Select Profile Picture</Text>
           </TouchableOpacity>
           <Text style={styles.disclaimer}>Select or capture a photo for your child’s profile.</Text>
-        </View>
+        </GlassSurface>
       </View>
 
-      <View style={styles.continueLayout}>
+      <View style={[styles.continueLayout, { bottom: 20 + tabBarInset }]}>
         <TouchableOpacity
           style={styles.continueButton}
           onPress={handleContinue}
@@ -153,10 +156,10 @@ const ChildPhoto = ({ route }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
   backarrow: {
     position: "absolute",
@@ -177,7 +180,7 @@ const styles = StyleSheet.create({
   headerText: {
     fontSize: 32,
     fontWeight: "600",
-    color: "#F0F0F0",
+    color: (t.isDark ? "#F0F0F0" : t.text),
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
     letterSpacing: -0.5,
   },
@@ -188,24 +191,24 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   card: {
-    backgroundColor: "#1E1E1E",
+    backgroundColor: t.surface,
     borderRadius: 28,
     padding: 28,
     width: "100%",
     maxWidth: 400,
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,
     shadowRadius: 16,
     elevation: 10,
     borderWidth: 1.5,
-    borderColor: "#2A2A2A",
+    borderColor: t.surfaceElevated,
   },
   questionText: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#F0F0F0",
+    color: (t.isDark ? "#F0F0F0" : t.text),
     textAlign: "center",
     marginBottom: 24,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
@@ -216,9 +219,9 @@ const styles = StyleSheet.create({
     borderRadius: 70,
     overflow: "hidden",
     marginBottom: 24,
-    backgroundColor: "#2A2A2A",
+    backgroundColor: t.surfaceElevated,
     borderWidth: 1.5,
-    borderColor: "#8e8e93",
+    borderColor: t.textMuted,
   },
   previewImage: {
     width: "100%",
@@ -226,7 +229,7 @@ const styles = StyleSheet.create({
   },
   uploadButton: {
     flexDirection: "row",
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 24,
@@ -235,7 +238,7 @@ const styles = StyleSheet.create({
     width: "100%",
     marginBottom: 16,
     elevation: 4,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
@@ -249,7 +252,7 @@ const styles = StyleSheet.create({
   },
   continueButton: {
     width: "100%",
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
@@ -260,24 +263,24 @@ const styles = StyleSheet.create({
   },
   uploadButtonText: {
     fontSize: 17,
-    color: "#fff",
+    color: t.onAccent,
     fontWeight: "600",
     fontFamily: "Roboto-Medium",
   },
   continueText: {
     fontSize: 17,
     fontFamily: "Roboto-Medium",
-    color: "#fff",
+    color: t.text,
     letterSpacing: -0.2,
     fontWeight: "500",
   },
   disclaimer: {
     fontSize: 15,
-    color: "#ff6347",
+    color: t.isDark ? "#ff6347" : "#D9381E",
     textAlign: "center",
     marginBottom: 20,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
-});
+}));
 
 export default ChildPhoto;

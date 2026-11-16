@@ -1,7 +1,6 @@
 import * as React from "react";
 import {
   Text,
-  StyleSheet,
   View,
   Pressable,
   Alert,
@@ -14,10 +13,13 @@ import { getDownloadURL, getStorage, ref } from "@react-native-firebase/storage"
 import { getAuth } from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 import PhotoInput from "../../components/photoInput";
+import { makeStyles, useTheme, GlassSurface } from "../../theme";
 
 const DEFAULT_PROFILE = require("../../assets/default_profile.png");
 
 const ChangePhoto = () => {
+  const styles = useStyles();
+  const t = useTheme();
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [previewUri, setPreviewUri] = useState(null);
   const navigation = useNavigation();
@@ -54,7 +56,7 @@ const ChangePhoto = () => {
       <View style={styles.headerContainer}>
         <Text style={styles.headerText}>Change Profile Picture</Text>
       </View>
-      <View style={styles.card}>
+      <GlassSurface style={styles.card}>
         <View style={styles.previewContainer}>
           <Image
             source={previewUri ? { uri: previewUri } : DEFAULT_PROFILE}
@@ -69,7 +71,7 @@ const ChangePhoto = () => {
           ]}
           onPress={() => setShowPhotoModal(true)}
         >
-          <Icon name="image-plus" size={24} color="#fff" style={styles.icon} />
+          <Icon name="image-plus" size={24} color={t.onAccent} style={styles.icon} />
           <Text style={styles.uploadButtonText}>Choose Profile Picture</Text>
         </Pressable>
         <Pressable
@@ -79,11 +81,11 @@ const ChangePhoto = () => {
           ]}
           onPress={handleConfirm}
         >
-          <Icon name="check-circle" size={24} color="#fff" style={styles.icon} />
+          <Icon name="check-circle" size={24} color={t.text} style={styles.icon} />
           <Text style={styles.confirmText}>Confirm</Text>
         </Pressable>
         <Text style={styles.disclaimer}>Select or capture a new profile picture.</Text>
-      </View>
+      </GlassSurface>
 
       <PhotoInput
         visible={showPhotoModal}
@@ -97,9 +99,9 @@ const ChangePhoto = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 50,
@@ -121,17 +123,17 @@ const styles = StyleSheet.create({
   headerText: {
     fontSize: 28,
     fontWeight: "600",
-    color: "#ffffff",
+    color: t.text,
     fontFamily: "Roboto-Medium",
   },
   card: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: t.surface,
     borderRadius: 20,
     padding: 25,
     marginTop: 10,
     alignItems: "center",
     elevation: 5,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
@@ -142,9 +144,9 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     overflow: "hidden",
     marginBottom: 20,
-    backgroundColor: "#2A2A2A",
+    backgroundColor: t.surfaceElevated,
     borderWidth: 1,
-    borderColor: "#8e8e93",
+    borderColor: t.textMuted,
   },
   previewImage: {
     width: "100%",
@@ -152,7 +154,7 @@ const styles = StyleSheet.create({
   },
   uploadButton: {
     flexDirection: "row",
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 20,
@@ -161,14 +163,14 @@ const styles = StyleSheet.create({
     width: "100%",
     marginBottom: 15,
     elevation: 3,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
   },
   confirmButton: {
     flexDirection: "row",
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 20,
@@ -176,7 +178,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: "100%",
     elevation: 3,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
@@ -190,23 +192,23 @@ const styles = StyleSheet.create({
   },
   uploadButtonText: {
     fontSize: 16,
-    color: "#fff",
+    color: t.onAccent,
     fontWeight: "500",
     fontFamily: "Roboto-Medium",
   },
   confirmText: {
     fontSize: 17,
-    color: "#fff",
+    color: t.text,
     fontWeight: "500",
     fontFamily: "Roboto-Medium",
   },
   disclaimer: {
     fontSize: 14,
-    color: "#ff6347",
+    color: t.isDark ? "#ff6347" : "#D9381E",
     marginTop: 15,
     textAlign: "center",
     fontFamily: "Roboto-Regular",
   },
-});
+}));
 
 export default ChangePhoto;

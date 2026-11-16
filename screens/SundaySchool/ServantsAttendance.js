@@ -16,6 +16,7 @@ import SkeletonScreen from "../../components/Skeleton";
 import * as avatarCache from "../../utils/avatarCache";
 import { LIST_PERF } from "../../utils/listConfig";
 import { isAttendanceDateKey, dateKeyToSortable } from "../../utils/dateKeys";
+import { makeStyles, useTabBarInset } from "../../theme";
 
 // On an iPad this screen sits in the centered column MainContainer wraps it
 // in, so the page itself just fills that. The modal card is capped on its
@@ -47,7 +48,9 @@ const GRADE_LABELS = {
  * One attendance record. Memoized for the same reason as its sibling in
  * screens/AdminScreens/IndividualAttendance.js — see the note there.
  */
-const AttendanceHistoryRow = React.memo(({ date, status }) => (
+const AttendanceHistoryRow = React.memo(({ date, status }) => {
+  const styles = useStyles();
+  return (
   <View style={styles.attendanceItem}>
     <Text style={styles.dateText}>{date}</Text>
     <View
@@ -61,23 +64,29 @@ const AttendanceHistoryRow = React.memo(({ date, status }) => (
       </Text>
     </View>
   </View>
-));
+  );
+});
 AttendanceHistoryRow.displayName = "AttendanceHistoryRow";
 
 const renderAttendanceRow = ({ item }) => (
   <AttendanceHistoryRow date={item.date} status={item.status} />
 );
 const attendanceKeyExtractor = (item) => item.date;
-const EmptyAttendance = () => (
+const EmptyAttendance = () => {
+  const styles = useStyles();
+  return (
   <View style={styles.noAttendanceContainer}>
     <Text style={styles.noAttendanceText}>No attendance records available.</Text>
     <Text style={styles.noAttendanceSubtext}>
       Attendance will appear here once recorded.
     </Text>
   </View>
-);
+  );
+};
 
 const ServantAttendance = () => {
+  const styles = useStyles();
+  const tabBarInset = useTabBarInset();
   const navigation = useNavigation();
   const route = useRoute();
   const { church, servantId } = route.params;
@@ -231,7 +240,7 @@ const ServantAttendance = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: 20 + tabBarInset }]}>
       <View style={styles.contentContainer}>
         <View style={styles.buttonRow}>
           <BackArrow />
@@ -272,10 +281,10 @@ const ServantAttendance = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     padding: 20,
   },
   contentContainer: {
@@ -290,7 +299,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: "bold",
-    color: "#ffffff",
+    color: t.text,
     marginBottom: 8,
     textAlign: "center",
   },
@@ -303,11 +312,11 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     borderWidth: 2,
-    borderColor: "#ffffff",
+    borderColor: t.text,
   },
   subtitle: {
     fontSize: 18,
-    color: "#b0b0b0",
+    color: t.textSecondary,
     marginBottom: 20,
     textAlign: "center",
   },
@@ -322,11 +331,11 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     marginBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: "#444",
+    borderBottomColor: t.surfaceHighest,
   },
   dateText: {
     fontSize: 18,
-    color: "#ffffff",
+    color: t.text,
     fontWeight: "600",
   },
   statusContainer: {
@@ -342,17 +351,17 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#ffffff",
+    color: t.onAccent,
     lineHeight: 24,
     textAlign: "center",
   },
   present: {
-    backgroundColor: "#147efb",
+    backgroundColor: t.accent,
     borderColor: "#0f64d2",
     borderWidth: 1,
   },
   absent: {
-    backgroundColor: "#F44336",
+    backgroundColor: t.danger,
     borderColor: "#D32F2F",
     borderWidth: 1,
   },
@@ -363,16 +372,16 @@ const styles = StyleSheet.create({
   deleteText: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#F44336",
+    color: t.dangerText,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
   loadingText: {
-    color: "#fff",
+    color: t.text,
     fontSize: 18,
     marginTop: 10,
   },
@@ -384,15 +393,15 @@ const styles = StyleSheet.create({
   },
   noAttendanceText: {
     fontSize: 18,
-    color: "#b0b0b0",
+    color: t.textSecondary,
     textAlign: "center",
     marginBottom: 10,
   },
   noAttendanceSubtext: {
     fontSize: 16,
-    color: "#888",
+    color: t.textMuted,
     textAlign: "center",
   },
-});
+}));
 
 export default ServantAttendance;

@@ -36,6 +36,7 @@ import {
   isManualId,
   mergeManualIntoReal,
 } from "../../utils/manualPeople";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
 
 // Bottom sheets stop at this width, centered along the bottom edge: at full
 // width on an iPad a sheet ran the whole 1,200pt window with its content
@@ -54,7 +55,9 @@ const isManual = isManualId;
  * record ever written for this servant was mounted at once — an unbounded list
  * that grows by one row per week forever. It is a FlatList now.
  */
-const AttendanceHistoryRow = React.memo(({ date, status }) => (
+const AttendanceHistoryRow = React.memo(({ date, status }) => {
+  const styles = useStyles();
+  return (
   <View style={styles.attendanceItem}>
     <Text style={styles.dateText}>{date}</Text>
     <View
@@ -67,21 +70,23 @@ const AttendanceHistoryRow = React.memo(({ date, status }) => (
           : styles.unrecorded,
       ]}
     >
-      <Text style={styles.statusText}>
+      <Text style={[styles.statusText, status !== true && status !== false && styles.unrecordedText]}>
         {status === true ? "Present" : status === false ? "Absent" : "No Status"}
       </Text>
     </View>
   </View>
-));
+  );
+});
 AttendanceHistoryRow.displayName = "AttendanceHistoryRow";
 
 const renderAttendanceRow = ({ item }) => (
   <AttendanceHistoryRow date={item.date} status={item.status} />
 );
 const attendanceKeyExtractor = (item) => item.date;
-const EmptyAttendance = () => (
-  <Text style={styles.emptyText}>No attendance records yet.</Text>
-);
+const EmptyAttendance = () => {
+  const styles = useStyles();
+  return <Text style={styles.emptyText}>No attendance records yet.</Text>;
+};
 
 /**
  * One candidate in the "sync to app account" picker. Memoized because it mounts an
@@ -89,7 +94,10 @@ const EmptyAttendance = () => (
  * as an inline renderItem it was rebuilding all of that for every mounted row on
  * every keystroke in the search field above it.
  */
-const SyncUserRow = React.memo(({ user, syncing, onPress }) => (
+const SyncUserRow = React.memo(({ user, syncing, onPress }) => {
+  const styles = useStyles();
+  const t = useTheme();
+  return (
   <TouchableOpacity
     style={styles.syncUserRow}
     onPress={() => onPress(user)}
@@ -107,19 +115,24 @@ const SyncUserRow = React.memo(({ user, syncing, onPress }) => (
       <Text style={styles.syncUserName}>{user.name}</Text>
     </View>
     {syncing ? (
-      <ActivityIndicator size="small" color="#147efb" />
+      <ActivityIndicator size="small" color={t.accent} />
     ) : (
-      <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.25)" />
+      <Ionicons name="chevron-forward" size={16} color={t.textTertiary} />
     )}
   </TouchableOpacity>
-));
+  );
+});
 SyncUserRow.displayName = "SyncUserRow";
 
 const syncUserKeyExtractor = (u) => u.uid;
-const SyncSeparator = () => <View style={styles.syncSep} />;
-const EmptySyncUsers = () => (
-  <Text style={styles.syncEmpty}>No users found.</Text>
-);
+const SyncSeparator = () => {
+  const styles = useStyles();
+  return <View style={styles.syncSep} />;
+};
+const EmptySyncUsers = () => {
+  const styles = useStyles();
+  return <Text style={styles.syncEmpty}>No users found.</Text>;
+};
 
 // The merge lives in utils/manualPeople.js now. It has to fold *both* of a
 // person's projections — Servants Meeting and Sunday School — into the real
@@ -129,6 +142,9 @@ const EmptySyncUsers = () => (
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const IndividualServant = () => {
+  const styles = useStyles();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const navigation = useNavigation();
   const route = useRoute();
   const { church, servantID } = route.params;
@@ -364,7 +380,7 @@ const IndividualServant = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: 40 + tabBarInset }]}>
       <BackArrow style={styles.backArrow} onPress={() => navigation.goBack()} />
 
       {/* Header */}
@@ -373,7 +389,7 @@ const IndividualServant = () => {
         {manual && (
           <View style={styles.manualBadgeRow}>
             <View style={styles.manualBadge}>
-              <Ionicons name="person-outline" size={11} color="#ff9500" />
+              <Ionicons name="person-outline" size={11} color={t.warningText} />
               <Text style={styles.manualBadgeText}>Manual Entry</Text>
             </View>
           </View>
@@ -408,7 +424,7 @@ const IndividualServant = () => {
       <View style={styles.actionArea}>
         {manual && (
           <TouchableOpacity style={styles.syncButton} onPress={openSyncModal} activeOpacity={0.8}>
-            <Ionicons name="link-outline" size={18} color="#fff" />
+            <Ionicons name="link-outline" size={18} color={t.onAccent} />
             <Text style={styles.syncButtonText}>Sync to App Account</Text>
           </TouchableOpacity>
         )}
@@ -426,7 +442,7 @@ const IndividualServant = () => {
       >
         <View style={styles.sheetOverlay}>
           <TouchableOpacity style={styles.sheetDismiss} activeOpacity={1} onPress={() => setSyncModalVisible(false)} />
-          <View style={[styles.sheet, styles.syncSheetHeight]}>
+          <GlassSurface style={[styles.sheet, styles.syncSheetHeight]}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
               <View>
@@ -439,11 +455,12 @@ const IndividualServant = () => {
             </View>
 
             <View style={styles.syncSearchWrap}>
-              <Ionicons name="search" size={15} color="rgba(255,255,255,0.4)" style={{ marginRight: 8 }} />
+              <Ionicons name="search" size={15} color={t.textTertiary} style={{ marginRight: 8 }} />
               <TextInput
                 style={styles.syncSearchInput}
                 placeholder="Search by name"
-                placeholderTextColor="rgba(255,255,255,0.35)"
+                placeholderTextColor={t.placeholder}
+                keyboardAppearance={t.keyboardAppearance}
                 value={userSearchQuery}
                 onChangeText={setUserSearchQuery}
                 autoCorrect={false}
@@ -469,7 +486,7 @@ const IndividualServant = () => {
                 ItemSeparatorComponent={SyncSeparator}
               />
             )}
-          </View>
+          </GlassSurface>
         </View>
       </Modal>
     </View>
@@ -478,9 +495,9 @@ const IndividualServant = () => {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
-    flex: 1, backgroundColor: "#121212", padding: 20, paddingBottom: 40, justifyContent: "center",
+    flex: 1, backgroundColor: t.background, padding: 20, paddingBottom: 40, justifyContent: "center",
   },
   backArrow: { position: "absolute", top: 50, left: 16 },
 
@@ -488,9 +505,9 @@ const styles = StyleSheet.create({
     alignItems: "center", marginBottom: 20, marginTop: 10, width: "100%", paddingHorizontal: 20,
   },
   profileContainer: { alignItems: "center", marginVertical: 10 },
-  profilePicture: { width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: "#ffffff" },
-  title: { fontSize: 26, fontWeight: "bold", color: "#fff", textAlign: "center", marginBottom: 6, paddingHorizontal: 10 },
-  subtitle: { fontSize: 16, color: "#b0b0b0", textAlign: "center", marginTop: 4 },
+  profilePicture: { width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: t.text },
+  title: { fontSize: 26, fontWeight: "bold", color: t.text, textAlign: "center", marginBottom: 6, paddingHorizontal: 10 },
+  subtitle: { fontSize: 16, color: t.textSecondary, textAlign: "center", marginTop: 4 },
 
   manualBadgeRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 },
   manualBadge: {
@@ -499,79 +516,80 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9, paddingVertical: 4,
     borderWidth: 1, borderColor: "rgba(255,149,0,0.25)",
   },
-  manualBadgeText: { fontSize: 11, fontWeight: "700", color: "#ff9500", textTransform: "uppercase", letterSpacing: 0.3 },
-  manualPhone: { fontSize: 13, color: "rgba(255,255,255,0.45)" },
+  manualBadgeText: { fontSize: 11, fontWeight: "700", color: t.warningText, textTransform: "uppercase", letterSpacing: 0.3 },
+  manualPhone: { fontSize: 13, color: t.textTertiary },
 
   // The list sits between a fixed header block and `actionArea`, so it needs to
   // claim the space between them — a FlatList won't grow into it the way the
   // ScrollView's `flexGrow` contentContainer did.
   attendanceList: { flex: 1 },
   attendanceContainer: { flexGrow: 1, paddingBottom: 16 },
-  emptyText: { color: "rgba(255,255,255,0.35)", textAlign: "center", marginTop: 32, fontSize: 14 },
+  emptyText: { color: t.textTertiary, textAlign: "center", marginTop: 32, fontSize: 14 },
   attendanceItem: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
     paddingVertical: 12, marginBottom: 10,
-    borderBottomWidth: 1, borderBottomColor: "#333",
+    borderBottomWidth: 1, borderBottomColor: t.surfaceHighest,
   },
-  dateText: { fontSize: 16, color: "#fff" },
+  dateText: { fontSize: 16, color: t.text },
   statusContainer: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     paddingVertical: 10, paddingHorizontal: 18, borderRadius: 8, minWidth: 110,
   },
-  statusText: { fontSize: 15, fontWeight: "600", color: "#fff" },
-  present: { backgroundColor: "#147efb", borderColor: "#0f64d2", borderWidth: 1 },
-  absent: { backgroundColor: "#ff3b30", borderColor: "#cc2f26", borderWidth: 1 },
-  unrecorded: { backgroundColor: "rgba(255,255,255,0.08)" },
+  statusText: { fontSize: 15, fontWeight: "600", color: t.onAccent },
+  present: { backgroundColor: t.accent, borderColor: "#0f64d2", borderWidth: 1 },
+  absent: { backgroundColor: t.danger, borderColor: "#cc2f26", borderWidth: 1 },
+  unrecorded: { backgroundColor: t.fill },
+  unrecordedText: { color: t.text },
 
   actionArea: { gap: 10, paddingTop: 8 },
   syncButton: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#147efb", borderRadius: 14, paddingVertical: 15,
+    backgroundColor: t.accent, borderRadius: 14, paddingVertical: 15,
   },
-  syncButtonText: { fontSize: 16, fontWeight: "600", color: "#fff" },
+  syncButtonText: { fontSize: 16, fontWeight: "600", color: t.onAccent },
   removeButton: { paddingVertical: 14, alignItems: "center" },
-  removeButtonText: { fontSize: 16, fontWeight: "600", color: "#ff3b30" },
+  removeButtonText: { fontSize: 16, fontWeight: "600", color: t.dangerText },
 
   // Sync sheet
-  sheetOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  sheetOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: "flex-end" },
   sheetDismiss: { flex: 1 },
   // 65% of the overlay rather than of the window read at import, which went
   // stale when an iPad rotated after launch.
   syncSheetHeight: { height: "65%" },
   sheet: {
     width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center",
-    backgroundColor: "#1a1a1a", borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: t.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    borderWidth: 1, borderColor: t.border,
   },
-  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)", alignSelf: "center", marginTop: 10, marginBottom: 4 },
+  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: t.fillStrong, alignSelf: "center", marginTop: 10, marginBottom: 4 },
   sheetHeader: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
     paddingHorizontal: 20, paddingVertical: 16,
-    borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)",
+    borderBottomWidth: 1, borderBottomColor: t.border,
   },
-  sheetTitle: { fontSize: 18, fontWeight: "700", color: "#fff" },
-  sheetSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 2 },
-  sheetClose: { width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(255,255,255,0.08)", alignItems: "center", justifyContent: "center" },
-  sheetCloseX: { color: "rgba(255,255,255,0.6)", fontSize: 20, fontWeight: "300", marginTop: -1 },
+  sheetTitle: { fontSize: 18, fontWeight: "700", color: t.text },
+  sheetSubtitle: { fontSize: 13, color: t.textTertiary, marginTop: 2 },
+  sheetClose: { width: 30, height: 30, borderRadius: 15, backgroundColor: t.fill, alignItems: "center", justifyContent: "center" },
+  sheetCloseX: { color: t.textSecondary, fontSize: 20, fontWeight: "300", marginTop: -1 },
 
   syncSearchWrap: {
     flexDirection: "row", alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12,
+    backgroundColor: t.fill, borderRadius: 12,
     marginHorizontal: 16, marginVertical: 12,
     paddingHorizontal: 12, height: 44,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1, borderColor: t.border,
   },
-  syncSearchInput: { flex: 1, color: "#fff", fontSize: 15, paddingVertical: 0 },
+  syncSearchInput: { flex: 1, color: t.text, fontSize: 15, paddingVertical: 0 },
   syncSkeleton: { flex: 1, paddingHorizontal: 16 },
-  syncEmpty: { color: "rgba(255,255,255,0.35)", textAlign: "center", fontSize: 14, paddingVertical: 32 },
+  syncEmpty: { color: t.textTertiary, textAlign: "center", fontSize: 14, paddingVertical: 32 },
   syncUserRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
-  syncUserAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.06)" },
-  syncUserName: { color: "#fff", fontSize: 15, fontWeight: "600" },
-  syncUserPhone: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 },
-  syncSep: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.06)", marginHorizontal: 16 },
+  syncUserAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: t.fill },
+  syncUserName: { color: t.text, fontSize: 15, fontWeight: "600" },
+  syncUserPhone: { color: t.textTertiary, fontSize: 12, marginTop: 2 },
+  syncSep: { height: StyleSheet.hairlineWidth, backgroundColor: t.border, marginHorizontal: 16 },
   // Hoisted out of the JSX, where they were fresh object literals every render.
   syncListContent: { paddingBottom: 24 },
   syncUserNameWrap: { flex: 1 },
-});
+}));
 
 export default IndividualServant;

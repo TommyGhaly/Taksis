@@ -1,6 +1,5 @@
 import * as React from "react";
 import {
-  StyleSheet,
   View,
   TextInput,
   Text,
@@ -10,8 +9,12 @@ import {
 } from "react-native";
 import { getAuth, sendPasswordResetEmail } from '@react-native-firebase/auth';  // Import Firebase Auth
 import BackArrow from "../components/backArrow";
+import { makeStyles, useTheme, useTabBarInset } from "../theme";
 
 const PasswordReset = ({ navigation }) => {
+  const styles = useStyles();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
@@ -37,20 +40,22 @@ const PasswordReset = ({ navigation }) => {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={[styles.container, { paddingBottom: 20 + tabBarInset }]}>
       <BackArrow style={styles.backarrow} />
       <Text style={styles.title}>Change Password</Text>
       <TextInput
         style={styles.input}
         placeholder="Enter your email"
-        placeholderTextColor="#8e8e93"
+        placeholderTextColor={t.placeholder}
+        keyboardAppearance={t.keyboardAppearance}
         value={email}
         onChangeText={(text) => setEmail(text)}
       />
       <TextInput
         style={styles.input}
         placeholder="Enter your new password"
-        placeholderTextColor="#8e8e93"
+        placeholderTextColor={t.placeholder}
+        keyboardAppearance={t.keyboardAppearance}
         secureTextEntry
         value={password}
         onChangeText={(text) => setPassword(text)}
@@ -58,7 +63,8 @@ const PasswordReset = ({ navigation }) => {
       <TextInput
         style={styles.input}
         placeholder="Confirm your new password"
-        placeholderTextColor="#8e8e93"
+        placeholderTextColor={t.placeholder}
+        keyboardAppearance={t.keyboardAppearance}
         secureTextEntry
         value={confirmPassword}
         onChangeText={(text) => setConfirmPassword(text)}
@@ -74,9 +80,9 @@ const PasswordReset = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 50,
@@ -90,37 +96,37 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "500",
-    color: "#ffffff",
+    color: t.text,
     textAlign: "center",
     marginBottom: 30,
   },
   input: {
     height: 50,
-    borderColor: "#8e8e93",
+    borderColor: t.textMuted,
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 15,
     fontSize: 16,
-    color: "#fff",
+    color: t.text,
     marginBottom: 20,
   },
   infoText: {
     fontSize: 12,
-    color: "#8e8e93",
+    color: t.textMuted,
     textAlign: "center",
     marginBottom: 30,
   },
   confirmButton: {
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     borderRadius: 10,
     paddingVertical: 15,
     alignItems: "center",
   },
   confirmText: {
     fontSize: 17,
-    color: "#fff",
+    color: t.text,
     fontWeight: "500",
   },
-});
+}));
 
 export default PasswordReset;

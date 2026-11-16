@@ -7,9 +7,9 @@ import {
   Pressable,
   TouchableOpacity,
   Animated,
-  StyleSheet,
   Platform,
 } from "react-native";
+import { makeStyles, useTheme, GlassSurface } from "../theme";
 import { Ionicons } from "@expo/vector-icons";
 
 const PhoneModal = ({
@@ -20,6 +20,8 @@ const PhoneModal = ({
   onSubmit,
   onClose,
 }) => {
+  const styles = useStyles();
+  const t = useTheme();
   return (
     <Modal
       visible={visible}
@@ -28,55 +30,53 @@ const PhoneModal = ({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <Animated.View
-          style={[
-            styles.modalDOBContainer,
-            { transform: [{ scale: scaleValue }] },
-          ]}
-        >
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>We Need Your Phone Number</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.modalSubtitle}>
-            Please provide your phone number to continue (e.g., +1234567890).
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Phone Number"
-            placeholderTextColor="#888"
-            value={phoneNumber}
-            onChangeText={onChangePhoneNumber}
-            keyboardType="phone-pad"
-            autoCapitalize="none"
-            autoFocus={true}
-          />
-          <Pressable style={styles.submitButton} onPress={onSubmit}>
-            <Text style={styles.buttonText}>Submit</Text>
-          </Pressable>
+        <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
+          <GlassSurface style={styles.modalDOBContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>We Need Your Phone Number</Text>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color={t.text} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSubtitle}>
+              Please provide your phone number to continue (e.g., +1234567890).
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Phone Number"
+              placeholderTextColor={t.placeholder}
+              keyboardAppearance={t.keyboardAppearance}
+              value={phoneNumber}
+              onChangeText={onChangePhoneNumber}
+              keyboardType="phone-pad"
+              autoCapitalize="none"
+              autoFocus={true}
+            />
+            <Pressable style={styles.submitButton} onPress={onSubmit}>
+              <Text style={styles.buttonText}>Submit</Text>
+            </Pressable>
+          </GlassSurface>
         </Animated.View>
       </View>
     </Modal>
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: t.overlay,
     justifyContent: "center",
     alignItems: "center",
   },
   modalDOBContainer: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     padding: 28,
     alignItems: "center",
     marginHorizontal: 20,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   modalHeader: {
     flexDirection: "row",
@@ -87,13 +87,13 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 22,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   modalSubtitle: {
     fontSize: 15,
-    color: "rgba(255,255,255,0.6)",
+    color: t.textSecondary,
     textAlign: "center",
     marginBottom: 24,
     lineHeight: 22,
@@ -101,10 +101,10 @@ const styles = StyleSheet.create({
   },
   input: {
     width: "100%",
-    backgroundColor: "rgba(255,255,255,0.05)",
-    color: "#fff",
+    backgroundColor: t.fill,
+    color: t.text,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
     padding: 14,
     borderRadius: 14,
     marginVertical: 8,
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   submitButton: {
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
     paddingVertical: 14,
     paddingHorizontal: 28,
     borderRadius: 14,
@@ -122,11 +122,11 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 16,
-    color: "#ffffff",
+    color: t.onAccent,
     fontWeight: "600",
     textAlign: "center",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
-});
+}));
 
 export default PhoneModal;

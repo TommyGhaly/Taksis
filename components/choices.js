@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { Text, StyleSheet, View, TouchableOpacity } from "react-native";
+import { Text, View, TouchableOpacity } from "react-native";
 import { CheckBox } from "@rneui/themed";
 import * as Haptics from "react-native-haptic-feedback";
 import { doc, getDoc, getFirestore } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
+import { makeStyles, useTheme } from "../theme";
 
 const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
+  const styles = useStyles();
+  const t = useTheme();
   const [deacon, setDeacon] = useState(false);
   const [alhan, setAlhan] = useState(false);
   const [ssTeach, setSSTeach] = useState(false);
@@ -117,8 +120,8 @@ const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
           checkedIcon="checkbox-outline"
           uncheckedIcon="checkbox-blank-outline"
           size={35}
-          checkedColor="#147EFB"
-          uncheckedColor="#B0BEC5"
+          checkedColor={t.accent}
+          uncheckedColor={t.isDark ? "#B0BEC5" : t.textMuted}
         />
         <Text style={styles.optionText}>Deacon</Text>
       </TouchableOpacity>
@@ -143,8 +146,8 @@ const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
           checkedIcon="checkbox-outline"
           uncheckedIcon="checkbox-blank-outline"
           size={35}
-          checkedColor="#147EFB"
-          uncheckedColor="#B0BEC5"
+          checkedColor={t.accent}
+          uncheckedColor={t.isDark ? "#B0BEC5" : t.textMuted}
         />
         <Text style={styles.optionText}>Alhan Teacher</Text>
       </TouchableOpacity>
@@ -169,8 +172,8 @@ const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
           checkedIcon="checkbox-outline"
           uncheckedIcon="checkbox-blank-outline"
           size={35}
-          checkedColor="#147EFB"
-          uncheckedColor="#B0BEC5"
+          checkedColor={t.accent}
+          uncheckedColor={t.isDark ? "#B0BEC5" : t.textMuted}
         />
         <Text style={styles.optionText}>Sunday School Teacher</Text>
       </TouchableOpacity>
@@ -195,8 +198,8 @@ const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
           checkedIcon="checkbox-outline"
           uncheckedIcon="checkbox-blank-outline"
           size={35}
-          checkedColor="#147EFB"
-          uncheckedColor="#B0BEC5"
+          checkedColor={t.accent}
+          uncheckedColor={t.isDark ? "#B0BEC5" : t.textMuted}
         />
         <Text style={styles.optionText}>None Applicable</Text>
       </TouchableOpacity>
@@ -204,13 +207,13 @@ const Choices = ({ onDeaconChange, onAlhanChange, onSSTeachChange }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     borderRadius: 12,
     padding: 25,
     elevation: 3,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 3,
@@ -229,15 +232,15 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: "Roboto-Regular",
     fontWeight: "400",
-    color: "#B0BEC5",
+    color: t.isDark ? "#B0BEC5" : t.text,
     flexShrink: 1,
   },
   divider: {
     height: 1,
-    backgroundColor: "#B0BEC5",
+    backgroundColor: t.isDark ? "#B0BEC5" : t.textMuted,
     opacity: 0.3,
     marginHorizontal: 16,
   },
-});
+}));
 
 export default Choices;

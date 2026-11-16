@@ -1,12 +1,17 @@
 import * as React from "react";
 import { useState, useRef } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, Vibration } from "react-native";
+import { View, Text, TouchableOpacity, Vibration } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Slider from "@react-native-community/slider";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
 
 const ChildExperience = ({ navigation, route }) => {
+  const styles = useStyles();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const [slider, setSlider] = useState(5);
   const previousValueRef = useRef(slider); // Store the previous slider value
   const { childData } = route.params; // Get child data from the previous screen
@@ -52,7 +57,7 @@ const ChildExperience = ({ navigation, route }) => {
         </View>
 
         <View style={styles.content}>
-          <View style={styles.card}>
+          <GlassSurface style={styles.card}>
             <Text style={styles.questionText}>
               How much experience does your child have being a deacon?
             </Text>
@@ -67,18 +72,18 @@ const ChildExperience = ({ navigation, route }) => {
               minimumValue={0}
               maximumValue={10}
               step={0.25}
-              minimumTrackTintColor="#147EFB"
-              maximumTrackTintColor="#444"
-              thumbTintColor="#147EFB"
+              minimumTrackTintColor={t.accent}
+              maximumTrackTintColor={t.surfaceHighest}
+              thumbTintColor={t.accent}
             />
             <View style={styles.sliderLabels}>
               <Text style={styles.label}>Not experienced</Text>
               <Text style={styles.label}>Very experienced</Text>
             </View>
-          </View>
+          </GlassSurface>
         </View>
 
-        <View style={styles.continueLayout}>
+        <View style={[styles.continueLayout, { bottom: 20 + tabBarInset }]}>
           <TouchableOpacity onPress={handleContinue} style={styles.continueButton}>
             <Text style={styles.buttonText}>Continue</Text>
           </TouchableOpacity>
@@ -88,10 +93,10 @@ const ChildExperience = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
   innerContainer: {
     flex: 1,
@@ -117,12 +122,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20
   },
   card: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: t.surface,
     borderRadius: 20,
     padding: 25,
     width: "100%",
     elevation: 5,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
@@ -131,7 +136,7 @@ const styles = StyleSheet.create({
   questionText: {
     fontSize: 24,
     fontWeight: "600",
-    color: "#E0E0E0",
+    color: (t.isDark ? "#E0E0E0" : t.text),
     textAlign: "center",
     marginBottom: 20,
     fontFamily: "Roboto-Regular",
@@ -139,7 +144,7 @@ const styles = StyleSheet.create({
   sliderValue: {
     fontSize: 56,
     fontWeight: "bold",
-    color: "#E0E0E0",
+    color: (t.isDark ? "#E0E0E0" : t.text),
     textAlign: "center",
     marginBottom: 20,
   },
@@ -153,7 +158,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   label: {
-    color: "#8E8E93",
+    color: t.textMuted,
     fontSize: 14,
     fontFamily: "Roboto-Regular",
   },
@@ -168,7 +173,7 @@ const styles = StyleSheet.create({
   },
   continueButton: {
     width: "100%",
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
@@ -179,9 +184,9 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     fontWeight: "500",
     fontFamily: "Roboto-Medium",
-    color: "#fff",
+    color: t.text,
     textAlign: "center",
   },
-});
+}));
 
 export default ChildExperience;

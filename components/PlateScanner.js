@@ -27,6 +27,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import TextRecognition from "@react-native-ml-kit/text-recognition";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { makeStyles, useTheme, GlassSurface } from "../theme";
 
 // ── Plate detection ──────────────────────────────────────────────────────────
 
@@ -239,6 +240,8 @@ function makeVoteTracker() {
 const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry, knownPlates }) => {
   const [perm, reqPerm] = useCameraPermissions();
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const rv = useReviewStyles();
   const cam = useRef(null);
   const stop = useRef(false);
   const running = useRef(false);
@@ -393,7 +396,7 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry, kn
 
   if (!visible) return null;
 
-  // Status line
+  // Status line. Stays dark in light mode: camera overlay.
   let statusIcon = "magnify", statusMsg = "Scanning…", statusColor = "#8e8e93", spinning = true;
   if (phase === "start") { statusMsg = "Starting camera…"; }
   else if (err) { statusIcon = "alert-circle-outline"; statusMsg = err; statusColor = "#ff453a"; spinning = false; }
@@ -506,41 +509,42 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry, kn
         </View>
 
         {/* ── Review ── */}
+        {/* The camera stays dark; the review sheet over it follows the theme. */}
         {phase === "review" && final && (
-          <View style={st.reviewOverlay}>
-            <View style={[st.reviewSheet, { paddingBottom: insets.bottom + 24 }]}>
-              <View style={st.reviewHandle} />
+          <View style={rv.reviewOverlay}>
+            <GlassSurface style={[rv.reviewSheet, { paddingBottom: insets.bottom + 24 }]}>
+              <View style={rv.reviewHandle} />
 
-              <View style={st.reviewTop}>
-                <View style={st.checkCircle}>
-                  <Icon name="check" size={22} color="#fff" />
+              <View style={rv.reviewTop}>
+                <View style={rv.checkCircle}>
+                  <Icon name="check" size={22} color={theme.onAccent} />
                 </View>
-                <Text style={st.reviewHeading}>Plate captured</Text>
+                <Text style={rv.reviewHeading}>Plate captured</Text>
               </View>
 
-              <View style={st.reviewPlateRow}>
-                <Text style={st.reviewPlateText}>{final}</Text>
+              <View style={rv.reviewPlateRow}>
+                <Text style={rv.reviewPlateText}>{final}</Text>
               </View>
 
-              <Text style={st.reviewQuestion}>Does this look correct?</Text>
+              <Text style={rv.reviewQuestion}>Does this look correct?</Text>
 
-              <View style={st.reviewBtns}>
-                <TouchableOpacity style={st.btnSecondary} onPress={rescan} activeOpacity={0.7}>
-                  <Icon name="refresh" size={18} color="#fff" />
-                  <Text style={st.btnSecondaryText}>Rescan</Text>
+              <View style={rv.reviewBtns}>
+                <TouchableOpacity style={rv.btnSecondary} onPress={rescan} activeOpacity={0.7}>
+                  <Icon name="refresh" size={18} color={theme.text} />
+                  <Text style={rv.btnSecondaryText}>Rescan</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={st.btnPrimary} onPress={confirm} activeOpacity={0.8}>
-                  <Text style={st.btnPrimaryText}>Confirm</Text>
-                  <Icon name="arrow-right" size={18} color="#fff" />
+                <TouchableOpacity style={rv.btnPrimary} onPress={confirm} activeOpacity={0.8}>
+                  <Text style={rv.btnPrimaryText}>Confirm</Text>
+                  <Icon name="arrow-right" size={18} color={theme.onAccent} />
                 </TouchableOpacity>
               </View>
 
               {onManualEntry && (
-                <TouchableOpacity style={st.reviewManual} onPress={manual} activeOpacity={0.7}>
-                  <Text style={st.reviewManualText}>Enter a different plate</Text>
+                <TouchableOpacity style={rv.reviewManual} onPress={manual} activeOpacity={0.7}>
+                  <Text style={rv.reviewManualText}>Enter a different plate</Text>
                 </TouchableOpacity>
               )}
-            </View>
+            </GlassSurface>
           </View>
         )}
 
@@ -551,6 +555,7 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry, kn
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
+// Stays dark in light mode: camera viewfinder and its overlays.
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
 
@@ -631,51 +636,55 @@ const st = StyleSheet.create({
   },
   manualText: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginLeft: 6 },
 
+});
+
+// The review sheet that slides up over the camera follows the theme.
+const useReviewStyles = makeStyles((t) => ({
   reviewOverlay: {
     ...StyleSheet.absoluteFillObject, zIndex: 20,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: t.overlay,
     justifyContent: "flex-end",
   },
   reviewSheet: {
-    backgroundColor: "#1c1c1e",
+    backgroundColor: t.surface,
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
     paddingTop: 12, paddingHorizontal: 24,
     alignItems: "center",
   },
   reviewHandle: {
     width: 36, height: 4, borderRadius: 2,
-    backgroundColor: "rgba(255,255,255,0.15)", marginBottom: 20,
+    backgroundColor: t.fillStrong, marginBottom: 20,
   },
   reviewTop: { alignItems: "center", marginBottom: 20 },
   checkCircle: {
     width: 48, height: 48, borderRadius: 24,
-    backgroundColor: "#30d158",
+    backgroundColor: t.success,
     justifyContent: "center", alignItems: "center", marginBottom: 10,
   },
-  reviewHeading: { fontSize: 18, fontWeight: "700", color: "#fff" },
+  reviewHeading: { fontSize: 18, fontWeight: "700", color: t.text },
   reviewPlateRow: {
     backgroundColor: "rgba(48,209,88,0.06)",
     borderWidth: 1.5, borderColor: "rgba(48,209,88,0.25)",
     borderRadius: 14,
     paddingHorizontal: 32, paddingVertical: 16, marginBottom: 8,
   },
-  reviewPlateText: { fontSize: 34, fontWeight: "800", color: "#fff", letterSpacing: 5 },
-  reviewQuestion: { fontSize: 14, color: "rgba(255,255,255,0.35)", marginBottom: 24 },
+  reviewPlateText: { fontSize: 34, fontWeight: "800", color: t.text, letterSpacing: 5 },
+  reviewQuestion: { fontSize: 14, color: t.textTertiary, marginBottom: 24 },
   reviewBtns: { flexDirection: "row", width: "100%" },
   btnSecondary: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
     paddingVertical: 16, borderRadius: 14, marginRight: 10,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: t.fill,
   },
-  btnSecondaryText: { fontSize: 15, fontWeight: "600", color: "#fff", marginLeft: 8 },
+  btnSecondaryText: { fontSize: 15, fontWeight: "600", color: t.text, marginLeft: 8 },
   btnPrimary: {
     flex: 1.5, flexDirection: "row", alignItems: "center", justifyContent: "center",
     paddingVertical: 16, borderRadius: 14,
-    backgroundColor: "#30d158",
+    backgroundColor: t.success,
   },
-  btnPrimaryText: { fontSize: 15, fontWeight: "700", color: "#fff", marginRight: 8 },
+  btnPrimaryText: { fontSize: 15, fontWeight: "700", color: t.onAccent, marginRight: 8 },
   reviewManual: { marginTop: 16, paddingVertical: 8 },
-  reviewManualText: { fontSize: 13, color: "rgba(255,255,255,0.3)" },
-});
+  reviewManualText: { fontSize: 13, color: t.textTertiary },
+}));
 
 export default PlateScanner;

@@ -1,12 +1,15 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Text, Pressable, Alert } from "react-native";
+import { View, Text, Pressable, Alert } from "react-native";
 import Choices from "../../components/choices";
 import BackArrow from "../../components/backArrow";
 import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
 import { callFunction } from "../../components/functionCalls";
+import { makeStyles, useTabBarInset } from "../../theme";
 
 const ChangeRoles = ({ navigation }) => {
+  const styles = useStyles();
+  const tabBarInset = useTabBarInset();
   const [isDeacon, setIsDeacon] = useState(false);
   const [isAlhan, setIsAlhan] = useState(false);
   const [isSSTeach, setIsSSTeach] = useState(false);
@@ -32,7 +35,7 @@ const ChangeRoles = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: 40 + tabBarInset }]}>
       <View style={styles.header}>
         <View style={styles.backArrow}>
           <BackArrow />
@@ -57,10 +60,10 @@ const ChangeRoles = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     paddingHorizontal: 16, // Matches SelectChurch
     paddingTop: 20, // Matches SelectChurch
     paddingBottom: 40, // Matches SelectChurch
@@ -76,7 +79,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     fontFamily: "Roboto-Regular",
     fontWeight: "600",
-    color: "#E0E0E0", // Matches other screens
+    color: (t.isDark ? "#E0E0E0" : t.text), // Matches other screens
     lineHeight: 42,
     textAlign: "left", // Matches SelectChurch
   },
@@ -91,13 +94,13 @@ const styles = StyleSheet.create({
   continueButton: {
     height: 52, // Matches SelectChurch
     width: "100%", // Matches SelectChurch
-    backgroundColor: "#333", // Matches SelectChurch
+    backgroundColor: t.surfaceHighest, // Matches SelectChurch
     borderRadius: 12, // Matches SelectChurch
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16, // Matches SelectChurch
     elevation: 4,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -107,8 +110,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     fontWeight: "600",
     fontFamily: "Roboto-Medium",
-    color: "#FFF",
+    color: t.text,
   },
-});
+}));
 
 export default ChangeRoles;

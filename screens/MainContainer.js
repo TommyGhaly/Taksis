@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
-  StyleSheet,
   View,
   Text,
   ScrollView,
@@ -15,9 +14,17 @@ import {
 } from "react-native";
 import {
   NavigationContainer,
-  DefaultTheme,
   createNavigationContainerRef,
 } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  makeStyles,
+  useTheme,
+  useNavigationTheme,
+  GlassBackdrop,
+  FLOATING_TAB_HEIGHT,
+  FLOATING_TAB_MARGIN,
+} from "../theme";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import Icon from "react-native-vector-icons/FontAwesome";
@@ -82,7 +89,8 @@ const Drawer = createDrawerNavigator();
 //
 // Widths: 760 suits lists and forms. The two schedule-style admin screens get
 // more because they lay cards out in a grid and use the room.
-const PASCHA_BG = "#0f0f0f";
+// Pascha keeps its near-black backdrop in dark mode; in light it follows the app.
+const PASCHA_BG = (t) => (t.isDark ? "#0f0f0f" : t.background);
 const col = withContentColumn;
 const HomeScreenNavigationCol     = col(HomeScreenNavigation);
 const SundaySchoolNavigatorCol    = col(SundaySchoolNavigator);
@@ -105,18 +113,51 @@ const AdminManagerCol             = col(AdminManager);
 // apps present navigation, instead of hiding behind the hamburger.
 const PERMANENT_DRAWER_MIN = 1000;
 
-const myTheme = {
-  ...DefaultTheme,
-  colors: {
-    primary: "#147efb",
-    card: "rgb(255, 255, 255)",
-    background: "#000",
-  },
-};
-
-const consistentHeaderStyle = {
-  backgroundColor: "#1a1a1a",
-};
+// Header + tab bar options shared by the tab and drawer navigators.
+//
+// With Liquid Glass on, the header melts into the screen background (iOS 26
+// bars have no fill of their own) and the tab bar becomes a floating glass
+// pill that content scrolls beneath — screens pad for it with useTabBarInset().
+// With glass off both are the solid chrome the app always had.
+function useChromeOptions() {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  return useMemo(() => {
+    const header = {
+      headerStyle: { backgroundColor: theme.glass ? theme.background : theme.surface },
+      headerShadowVisible: !theme.glass,
+      headerTintColor: theme.text,
+    };
+    const tabBar = theme.glass
+      ? {
+          tabBarStyle: {
+            position: "absolute",
+            marginHorizontal: FLOATING_TAB_MARGIN,
+            bottom: Math.max(insets.bottom, FLOATING_TAB_MARGIN),
+            height: FLOATING_TAB_HEIGHT,
+            paddingBottom: 0,
+            borderRadius: FLOATING_TAB_HEIGHT / 2,
+            borderTopWidth: 0,
+            backgroundColor: "transparent",
+            elevation: 0,
+          },
+          tabBarBackground: () => (
+            <GlassBackdrop style={{ borderRadius: FLOATING_TAB_HEIGHT / 2 }} />
+          ),
+        }
+      : {
+          tabBarStyle: {
+            height: 90,
+            backgroundColor: theme.chrome,
+            borderTopWidth: 0,
+          },
+        };
+    return {
+      header,
+      tabBar: { ...tabBar, tabBarActiveTintColor: theme.accent, tabBarInactiveTintColor: theme.textMuted },
+    };
+  }, [theme, insets.bottom]);
+}
 
 // ── Version helpers ──────────────────────────────────────────────────────────
 
@@ -269,22 +310,18 @@ const flattenUnavailableRequests = (docs) => {
 function TabNavigator({ userRoles, setHomeTitle, showDrawer, homeScreenId, showPaschaTab }) {
   const homeConfig = screenConfigs[homeScreenId] || screenConfigs.schedule;
   const HomeComponent = homeConfig.component;
+  const chrome = useChromeOptions();
 
   return (
     <Tab.Navigator
       detachInactiveScreens
       screenOptions={({ route, navigation }) => ({
         headerShown: true,
-        headerStyle: consistentHeaderStyle,
-        headerTintColor: "#fff",
+        ...chrome.header,
         // Inactive tabs shouldn't re-render behind the active one.
         freezeOnBlur: true,
         lazy: true,
-        tabBarStyle: {
-          height: 90,
-          backgroundColor: "rgba(34,36,40,1)",
-          borderTopWidth: 0,
-        },
+        ...chrome.tabBar,
         tabBarLabel: () => null,
         headerLeft: showDrawer
           ? () => <CustomHeader navigation={navigation} />
@@ -368,6 +405,7 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId, sho
 
   const window = useWindowDimensions();
   const sidebar = window.width >= PERMANENT_DRAWER_MIN && window.width > window.height;
+  const chrome = useChromeOptions();
 
   return (
     <Drawer.Navigator
@@ -387,8 +425,7 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId, sho
         // Nothing to open when the drawer is already on screen.
         headerLeft: sidebar ? () => null : () => <CustomHeader navigation={navigation} />,
         headerRight: () => <UnavailableAlertsBell />,
-        headerStyle: consistentHeaderStyle,
-        headerTintColor: "#fff",
+        ...chrome.header,
         // Keep background screens from re-rendering while the drawer animates.
         freezeOnBlur: true,
         lazy: true,
@@ -449,6 +486,8 @@ function DrawerNavigator({ userRoles, homeTitle, setHomeTitle, homeScreenId, sho
 // ── Update blocker modal ─────────────────────────────────────────────────────
 
 function ForceUpdateModal({ visible }) {
+  const updateStyles = useUpdateStyles();
+  const theme = useTheme();
   const storeUrl = Platform.OS === "ios" ? STORE_URLS.ios : STORE_URLS.android;
 
   return (
@@ -456,7 +495,7 @@ function ForceUpdateModal({ visible }) {
       <View style={updateStyles.container}>
         <View style={updateStyles.card}>
           <View style={updateStyles.iconWrap}>
-            <IconMCI name="update" size={40} color="#147efb" />
+            <IconMCI name="update" size={40} color={theme.accent} />
           </View>
           <Text style={updateStyles.title}>Update Required</Text>
           <Text style={updateStyles.message}>
@@ -478,6 +517,7 @@ function ForceUpdateModal({ visible }) {
 // ── Main container ───────────────────────────────────────────────────────────
 
 export default function MainContainer() {
+  const navTheme = useNavigationTheme();
   const [userRoles, setUserRoles] = useState({
     isAlhan: false,
     isSSTeacher: false,
@@ -907,7 +947,7 @@ export default function MainContainer() {
       <UnavailableAlertsContext.Provider value={alertsValue}>
       <NavigationContainer
         independent={true}
-        theme={myTheme}
+        theme={navTheme}
         ref={shellNavigationRef}
         onReady={() => setShellReady(true)}
       >
@@ -953,41 +993,28 @@ export default function MainContainer() {
   );
 }
 
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#000",
-  },
-  loadingText: {
-    color: "#fff",
-    fontSize: 16,
-  },
-});
-
-const updateStyles = StyleSheet.create({
+const useUpdateStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
   },
   card: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 24,
     padding: 32,
     width: "100%",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: t.border,
   },
   iconWrap: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "rgba(20,126,251,0.1)",
+    backgroundColor: t.accentFill,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 20,
@@ -995,19 +1022,19 @@ const updateStyles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#fff",
+    color: t.text,
     marginBottom: 12,
     textAlign: "center",
   },
   message: {
     fontSize: 15,
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
     textAlign: "center",
     lineHeight: 22,
     marginBottom: 28,
   },
   button: {
-    backgroundColor: "#147efb",
+    backgroundColor: t.accent,
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 14,
@@ -1017,6 +1044,6 @@ const updateStyles = StyleSheet.create({
   buttonText: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#fff",
+    color: t.onAccent,
   },
-});
+}));

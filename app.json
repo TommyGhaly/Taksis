@@ -6,7 +6,7 @@
     "version": "5.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "plugins": [
       "expo-apple-authentication",
       [
@@ -45,6 +45,15 @@
         {
           "ios": {
             "useFrameworks": "static",
+            "forceStaticLinking": [
+              "RNFBApp",
+              "RNFBAuth",
+              "RNFBCrashlytics",
+              "RNFBFirestore",
+              "RNFBFunctions",
+              "RNFBMessaging",
+              "RNFBStorage"
+            ],
             "usesAppleSignIn": true,
             "deploymentTarget": "16.0"
           },
@@ -61,7 +70,9 @@
       ],
       "./plugins/withPodfilePatches",
       "./plugins/withFirebaseAppDelegate",
-      "./plugins/withVehicleAppClip"
+      "./plugins/withVehicleAppClip",
+      "@react-native-community/datetimepicker",
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {
@@ -78,7 +89,12 @@
         "UIBackgroundModes": [
           "remote-notification"
         ],
-        "NSPhotoLibraryUsageDescription": "Ⲧⲁⲝⲓⲥ accesses your photo library so you can pick an existing photo to use as the profile picture on your member record."
+        "NSPhotoLibraryUsageDescription": "Ⲧⲁⲝⲓⲥ accesses your photo library so you can pick an existing photo to use as the profile picture on your member record.",
+        "UIAppFonts": [
+          "FontAwesome.ttf",
+          "MaterialCommunityIcons.ttf",
+          "MaterialIcons.ttf"
+        ]
       },
       "entitlements": {
         "aps-environment": "production"

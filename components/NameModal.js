@@ -5,9 +5,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   Platform,
 } from "react-native";
+import { makeStyles, useTheme, GlassSurface } from "../theme";
 
 const NameModal = ({
   visible,
@@ -17,6 +17,8 @@ const NameModal = ({
   onChangeLastName,
   onSubmit,
 }) => {
+  const styles = useStyles();
+  const t = useTheme();
   return (
     <Modal
       animationType="slide"
@@ -25,7 +27,7 @@ const NameModal = ({
       onRequestClose={() => {}}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
+        <GlassSurface style={styles.modalContainer}>
           <Text style={styles.modalTitle}>We Need Your Name</Text>
           <Text style={styles.modalSubtitle}>
             Please provide your first and last name to continue.
@@ -33,7 +35,8 @@ const NameModal = ({
           <TextInput
             style={styles.input}
             placeholder="First Name"
-            placeholderTextColor="#888"
+            placeholderTextColor={t.placeholder}
+            keyboardAppearance={t.keyboardAppearance}
             value={firstName}
             onChangeText={onChangeFirstName}
             autoCapitalize="words"
@@ -41,7 +44,8 @@ const NameModal = ({
           <TextInput
             style={styles.input}
             placeholder="Last Name"
-            placeholderTextColor="#888"
+            placeholderTextColor={t.placeholder}
+            keyboardAppearance={t.keyboardAppearance}
             value={lastName}
             onChangeText={onChangeLastName}
             autoCapitalize="words"
@@ -49,37 +53,37 @@ const NameModal = ({
           <TouchableOpacity style={styles.submitButton} onPress={onSubmit}>
             <Text style={styles.buttonText}>Submit</Text>
           </TouchableOpacity>
-        </View>
+        </GlassSurface>
       </View>
     </Modal>
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: t.overlay,
     justifyContent: "center",
     alignItems: "center",
   },
   modalContainer: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     padding: 24,
     borderRadius: 14,
     width: "85%",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   modalTitle: {
     fontSize: 22,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   modalSubtitle: {
     fontSize: 15,
-    color: "rgba(255,255,255,0.6)",
+    color: t.textSecondary,
     textAlign: "center",
     marginBottom: 24,
     lineHeight: 22,
@@ -87,17 +91,17 @@ const styles = StyleSheet.create({
   },
   input: {
     width: "100%",
-    backgroundColor: "rgba(255,255,255,0.05)",
-    color: "#fff",
+    backgroundColor: t.fill,
+    color: t.text,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
     padding: 14,
     borderRadius: 14,
     marginVertical: 8,
     fontSize: 16,
   },
   submitButton: {
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
     paddingVertical: 14,
     paddingHorizontal: 28,
     borderRadius: 14,
@@ -105,11 +109,11 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 16,
-    color: "#ffffff",
+    color: t.onAccent,
     fontWeight: "600",
     textAlign: "center",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
-});
+}));
 
 export default NameModal;

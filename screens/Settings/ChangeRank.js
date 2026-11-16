@@ -1,14 +1,17 @@
 import * as React from "react";
 import { useState } from "react";
-import { StyleSheet, View, Pressable, Text, Alert } from "react-native";
+import { View, Pressable, Text, Alert } from "react-native";
 import Rank from "../../components/rank";
 import BackArrow from "../../components/backArrow";
 import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
 import { callFunction } from "../../components/functionCalls";
+import { makeStyles, useTabBarInset } from "../../theme";
 
 
 const ChangeRank = ({ navigation }) => {
+  const styles = useStyles();
+  const tabBarInset = useTabBarInset();
   const [rank, setRank] = useState(null);
   const user = getAuth().currentUser;
 
@@ -39,7 +42,7 @@ const ChangeRank = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: 16 + tabBarInset }]}>
       <BackArrow style={styles.backArrow} />
       <View style={styles.title}>
         <Text style={styles.titleText}>What is your current deacon rank?</Text>
@@ -54,10 +57,10 @@ const ChangeRank = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     padding: 16,
     justifyContent: "space-between", // Distribute space evenly
   },
@@ -76,12 +79,12 @@ const styles = StyleSheet.create({
     fontSize: 34,
     letterSpacing: -0.1,
     fontFamily: "Roboto-Regular",
-    color: "#8e8e93",
+    color: t.textMuted,
     textAlign: "center",
   },
   continueLayout: {
     height: 50,
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     borderRadius: 10,
     justifyContent: "center",
     marginBottom: 30, // Adjusted margin to ensure button is visible
@@ -92,9 +95,9 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     fontWeight: "500",
     fontFamily: "Roboto-Medium",
-    color: "#fff",
+    color: t.text,
     textAlign: "center",
   },
-});
+}));
 
 export default ChangeRank;

@@ -1,7 +1,6 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
 import {
-  StyleSheet,
   Text,
   View,
   TouchableOpacity,
@@ -10,10 +9,10 @@ import {
   Alert,
   useWindowDimensions,
   InteractionManager,
-  SafeAreaView,
   Platform,
   Pressable,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { doc, getFirestore, onSnapshot, updateDoc } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
@@ -34,6 +33,7 @@ import ServantsAdmin from "../AdminScreens/ServantsAdmin";
 import AlhanAdmin from "../AdminScreens/AlhanAdmin";
 import PaschaManager from "../AdminScreens/PaschaManager";
 import AdminManager from "../AdminScreens/AdminManager";
+import { makeStyles, useTheme, useTabBarInset } from "../../theme";
 
 const PREVIEW_BORDER_WIDTH = 3;
 const GRID_PADDING = 20; // innerContainer's horizontal padding
@@ -90,6 +90,7 @@ const MOUNT_STAGGER_MS = 220;
 // memo'd because selecting a card re-renders the selector, and without this
 // every already-mounted screen would re-render along with it.
 const ScreenPreview = React.memo(({ component: Component, live, screenStyle }) => {
+  const styles = useStyles();
   if (!live) {
     return (
       <View style={styles.previewWrapper} pointerEvents="none">
@@ -141,6 +142,9 @@ const useStaggeredMounts = (total, start) => {
 };
 
 const HomeScreenSelector = () => {
+  const styles = useStyles();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const navigation = useNavigation();
   const preview = usePreviewGeometry();
   const [userRoles, setUserRoles] = useState({});
@@ -329,7 +333,7 @@ const HomeScreenSelector = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.innerContainer}>
+      <View style={[styles.innerContainer, { paddingBottom: 20 + tabBarInset }]}>
         <View style={styles.header}>
           <Pressable
             style={styles.backArrow}
@@ -360,7 +364,7 @@ const HomeScreenSelector = () => {
           disabled={isSaving}
         >
           {isSaving ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <ActivityIndicator size="small" color={t.text} />
           ) : (
             <Text style={styles.saveButtonText}>Save Selection</Text>
           )}
@@ -370,10 +374,10 @@ const HomeScreenSelector = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
   innerContainer: {
     flex: 1,
@@ -394,13 +398,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "600",
-    color: "#F0F0F0",
+    color: (t.isDark ? "#F0F0F0" : t.text),
     marginBottom: 8,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   subtitle: {
     fontSize: 16,
-    color: "#888",
+    color: t.textMuted,
     lineHeight: 22,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
@@ -421,7 +425,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   previewCard: {
-    backgroundColor: "#1E1E1E",
+    backgroundColor: t.surface,
     borderRadius: 16,
     marginBottom: 8,
     overflow: "hidden",
@@ -429,15 +433,15 @@ const styles = StyleSheet.create({
     // content box by a point, which re-clips and re-rasterizes the scaled
     // screen inside at a different sub-pixel offset.
     borderWidth: PREVIEW_BORDER_WIDTH,
-    borderColor: "#2A2A2A",
-    shadowColor: "#000",
+    borderColor: t.surfaceElevated,
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
   },
   selectedPreviewCard: {
-    borderColor: "#147EFB",
+    borderColor: t.accent,
   },
   previewWrapper: {
     width: "100%",
@@ -450,7 +454,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(20, 126, 251, 0.1)",
+    backgroundColor: t.accentFill,
     justifyContent: "flex-end",
     alignItems: "flex-end",
     padding: 12,
@@ -459,32 +463,32 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
     justifyContent: "center",
     alignItems: "center",
   },
   checkmarkText: {
-    color: "#FFFFFF",
+    color: t.onAccent,
     fontSize: 18,
     fontWeight: "bold",
   },
   screenName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#F0F0F0",
+    color: (t.isDark ? "#F0F0F0" : t.text),
     marginBottom: 4,
     textAlign: "center",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   screenCaption: {
     fontSize: 12,
-    color: "#888",
+    color: t.textMuted,
     textAlign: "center",
     paddingHorizontal: 8,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   saveButton: {
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
@@ -500,10 +504,10 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     fontSize: 18,
-    color: "#FFFFFF",
+    color: t.text,
     fontWeight: "600",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
-});
+}));
 
 export default HomeScreenSelector;

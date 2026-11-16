@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, View, Text, Pressable, Animated } from "react-native";
+import { View, Text, Pressable, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Avatar from "./Avatar";
+import { makeStyles, useTheme, GlassSurface } from "../theme";
 
 // memo'd because HomeScreen rebuilds its readings/offerings arrays each render;
 // without this every one of these rows remounts on any state change.
 const HomeScreenNames = React.memo(({ role, user }) => {
+  const styles = useStyles();
+  const t = useTheme();
   const [expand, setExpand] = useState(false);
   const heightAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -49,7 +52,8 @@ const HomeScreenNames = React.memo(({ role, user }) => {
   });
 
   return (
-    <Pressable style={styles.card} onPress={() => setExpand(!expand)}>
+    <Pressable onPress={() => setExpand(!expand)}>
+     <GlassSurface style={styles.card} interactive>
       <View style={styles.contentContainer}>
         <Animated.View style={[styles.expandedContent, { height: expandedHeight, opacity: opacityAnim }]}>
           <Avatar
@@ -68,26 +72,30 @@ const HomeScreenNames = React.memo(({ role, user }) => {
             },
           ]}
         >
-          <Ionicons name={getIconName()} size={24} color="rgba(255,255,255,0.7)" style={styles.icon} />
+          <Ionicons name={getIconName()} size={24} color={t.isDark ? "rgba(255,255,255,0.7)" : t.textSecondary} style={styles.icon} />
           <Text style={styles.name}>
             {role}: {user?.name || "N/A"}
           </Text>
         </Animated.View>
       </View>
+     </GlassSurface>
     </Pressable>
   );
 });
 
 HomeScreenNames.displayName = "HomeScreenNames";
 
-const styles = StyleSheet.create({
+// A glass card when Liquid Glass is on. There are 12–25 per schedule, which
+// UIGlassEffect handles fine; the much longer attendance and roster lists stay
+// solid.
+const useStyles = makeStyles((t) => ({
   card: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     padding: 16,
     borderRadius: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   contentContainer: {
     flexDirection: "column",
@@ -101,7 +109,7 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 18,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
   },
   expandedContent: {
@@ -114,22 +122,22 @@ const styles = StyleSheet.create({
     borderRadius: 65,
     marginTop: 0,
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.2)",
+    borderColor: t.borderStrong,
   },
   imagePlaceholder: {
     width: 100,
     height: 100,
     borderRadius: 50,
     marginTop: 0,
-    backgroundColor: "#3c3c3c",
+    backgroundColor: t.isDark ? "#3c3c3c" : t.surfaceHighest,
     justifyContent: "center",
     alignItems: "center",
   },
   noImageText: {
-    color: "#e0e0e0",
+    color: t.isDark ? "#e0e0e0" : t.textSecondary,
     fontSize: 14,
     textAlign: "center",
   },
-});
+}));
 
 export default HomeScreenNames;

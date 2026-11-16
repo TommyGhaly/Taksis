@@ -18,6 +18,7 @@ import {
   PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
 import { useNavigation } from "@react-navigation/native";
 import {
   collection,
@@ -163,6 +164,8 @@ const chipKeyExtractor = (item) => item;
  * every state change, and this screen re-renders once per grade listener on load.
  */
 const StudentRow = React.memo(({ student, dateKey, isPastDate, isNavigating, onOpen, onAttendance }) => {
+  const styles = useStyles();
+  const t = useTheme();
   const status = student[dateKey];
 
   return (
@@ -191,7 +194,7 @@ const StudentRow = React.memo(({ student, dateKey, isPastDate, isNavigating, onO
           <Text style={styles.studentName} numberOfLines={1}>
             {student.name} - {formatGrade(student.grade)}
           </Text>
-          <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+          <Ionicons name="chevron-forward" size={20} color={t.textTertiary} />
         </View>
       </TouchableOpacity>
       {isPastDate ? (
@@ -202,14 +205,14 @@ const StudentRow = React.memo(({ student, dateKey, isPastDate, isNavigating, onO
               {
                 backgroundColor:
                   status === true
-                    ? "#147EFB"
+                    ? t.accent
                     : status === false
-                    ? "#ff3b30"
-                    : "rgba(255,255,255,0.1)",
+                    ? t.danger
+                    : t.fillStrong,
               },
             ]}
           >
-            <Text style={styles.attendanceStatusText}>
+            <Text style={[styles.attendanceStatusText, { color: status === true || status === false ? t.onAccent : t.text }]}>
               {status === true ? "Present" : status === false ? "Absent" : "Not Recorded"}
             </Text>
           </View>
@@ -219,22 +222,22 @@ const StudentRow = React.memo(({ student, dateKey, isPastDate, isNavigating, onO
           <TouchableOpacity
             style={[
               styles.attendanceButton,
-              { backgroundColor: status === false ? "#ff3b30" : "rgba(255,255,255,0.08)" },
+              { backgroundColor: status === false ? t.danger : t.fill },
             ]}
             onPress={() => onAttendance(student, false)}
             activeOpacity={0.7}
           >
-            <Text style={styles.attendanceButtonText}>Absent</Text>
+            <Text style={[styles.attendanceButtonText, { color: status === false ? t.onAccent : t.text }]}>Absent</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[
               styles.attendanceButton,
-              { backgroundColor: status === true ? "#147EFB" : "rgba(255,255,255,0.08)" },
+              { backgroundColor: status === true ? t.accent : t.fill },
             ]}
             onPress={() => onAttendance(student, true)}
             activeOpacity={0.7}
           >
-            <Text style={styles.attendanceButtonText}>Present</Text>
+            <Text style={[styles.attendanceButtonText, { color: status === true ? t.onAccent : t.text }]}>Present</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -243,7 +246,10 @@ const StudentRow = React.memo(({ student, dateKey, isPastDate, isNavigating, onO
 });
 StudentRow.displayName = "StudentRow";
 
-const GradeHeader = React.memo(({ title, onAdd }) => (
+const GradeHeader = React.memo(({ title, onAdd }) => {
+  const styles = useStyles();
+  const t = useTheme();
+  return (
   <View style={styles.gradeHeaderRow}>
     <Text style={styles.gradeHeader}>{formatGrade(title)}</Text>
     <TouchableOpacity
@@ -252,11 +258,12 @@ const GradeHeader = React.memo(({ title, onAdd }) => (
       activeOpacity={0.7}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
     >
-      <Ionicons name="add" size={14} color="#147EFB" />
+      <Ionicons name="add" size={14} color={t.accent} />
       <Text style={styles.addPillText}>Add</Text>
     </TouchableOpacity>
   </View>
-));
+  );
+});
 GradeHeader.displayName = "GradeHeader";
 
 
@@ -266,7 +273,10 @@ GradeHeader.displayName = "GradeHeader";
  * Was an inline `renderItem` closure that called the date formatter per row per
  * render. The label now arrives precomputed and cached (see utils/dateKeys.js).
  */
-const WeekRow = React.memo(({ label, selected, dateKey, onPress }) => (
+const WeekRow = React.memo(({ label, selected, dateKey, onPress }) => {
+  const styles = useStyles();
+  const t = useTheme();
+  return (
   <TouchableOpacity
     style={[styles.weekRow, selected && styles.weekRowSelected]}
     onPress={() => onPress(dateKey)}
@@ -276,17 +286,21 @@ const WeekRow = React.memo(({ label, selected, dateKey, onPress }) => (
       {label}
     </Text>
     {selected ? (
-      <Ionicons name="checkmark-circle" size={20} color="#147EFB" />
+      <Ionicons name="checkmark-circle" size={20} color={t.accent} />
     ) : (
-      <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.25)" />
+      <Ionicons name="chevron-forward" size={18} color={t.textTertiary} />
     )}
   </TouchableOpacity>
-));
+  );
+});
 WeekRow.displayName = "WeekRow";
 
 const weekKeyExtractor = (item) => item;
 
 const AlhanAttendance = () => {
+  const styles = useStyles();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const navigation = useNavigation();
   const user = getAuth().currentUser;
 
@@ -765,7 +779,7 @@ const AlhanAttendance = () => {
         </TouchableOpacity>
       );
     },
-    [visibleChipTitles, scrollToGrade]
+    [visibleChipTitles, scrollToGrade, styles]
   );
 
   // Declared above renderStudent because they appear in its dependency array —
@@ -826,7 +840,7 @@ const AlhanAttendance = () => {
           : "No students in this grade"}
       </Text>
     ),
-    [search]
+    [search, styles]
   );
 
   /**
@@ -855,7 +869,7 @@ const AlhanAttendance = () => {
   if (!userData || !userData.alhanGrades || userData.alhanGrades.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Ionicons name="musical-notes-outline" size={64} color="rgba(255,255,255,0.3)" />
+        <Ionicons name="musical-notes-outline" size={64} color={t.textTertiary} />
         <Text style={styles.message}>Contact your church's alhan admin to get assigned a Hymns class.</Text>
       </View>
     );
@@ -865,27 +879,28 @@ const AlhanAttendance = () => {
     <View style={[styles.container, { paddingHorizontal: gutter }]}>
       {isNavigating && (
         <View style={styles.navigatingOverlay}>
-          <ActivityIndicator size="large" color="#147EFB" />
+          <ActivityIndicator size="large" color={t.accent} />
         </View>
       )}
 
       {/* ---------- Week selector ---------- */}
       <TouchableOpacity
-        style={styles.weekSelector}
         onPress={() => setDateModalVisible(true)}
         activeOpacity={0.7}
       >
-        <View style={styles.weekSelectorLeft}>
-          <Ionicons name="calendar-outline" size={20} color="#147EFB" />
-          <View style={styles.weekSelectorTextWrap}>
-            <Text style={styles.weekSelectorLabel}>{isCurrentWeek ? "This Week" : "Viewing"}</Text>
-            <Text style={styles.weekSelectorDate}>{shortDateLabel(dateKey)}</Text>
+        <GlassSurface style={styles.weekSelector} interactive>
+          <View style={styles.weekSelectorLeft}>
+            <Ionicons name="calendar-outline" size={20} color={t.accent} />
+            <View style={styles.weekSelectorTextWrap}>
+              <Text style={styles.weekSelectorLabel}>{isCurrentWeek ? "This Week" : "Viewing"}</Text>
+              <Text style={styles.weekSelectorDate}>{shortDateLabel(dateKey)}</Text>
+            </View>
           </View>
-        </View>
-        <View style={styles.weekSelectorRight}>
-          <Text style={styles.weekSelectorChange}>Change</Text>
-          <Ionicons name="chevron-down" size={14} color="#147EFB" style={{ marginLeft: 4 }} />
-        </View>
+          <View style={styles.weekSelectorRight}>
+            <Text style={styles.weekSelectorChange}>Change</Text>
+            <Ionicons name="chevron-down" size={14} color={t.accent} style={{ marginLeft: 4 }} />
+          </View>
+        </GlassSurface>
       </TouchableOpacity>
 
       <View style={styles.gradesContainer}>
@@ -916,7 +931,7 @@ const AlhanAttendance = () => {
         // Android only: on iOS this has a history of blanking cells and breaking
         // touch targets, and a floating search bar overlays this list.
         removeClippedSubviews={REMOVE_CLIPPED_ANDROID_ONLY}
-        contentContainerStyle={styles.sectionListContent}
+        contentContainerStyle={[styles.sectionListContent, { paddingBottom: 110 + tabBarInset }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         // Every row is a fixed height, so the offset of any grade is known
@@ -937,24 +952,23 @@ const AlhanAttendance = () => {
       <Animated.View
         style={[
           styles.floatingBarWrapper,
+          { bottom: (Platform.OS === "ios" ? 28 : 16) + tabBarInset },
           isWide && { left: gutter, right: gutter },
           { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] },
         ]}
         pointerEvents="box-none"
       >
-        <BlurView
-          tint="systemChromeMaterialDark"
-          intensity={80}
-          style={styles.floatingBlur}
-        >
+        {(() => {
+          const floatingContent = (
           <View style={styles.floatingInner}>
             <View style={styles.searchContainer}>
-              <Ionicons name="search" size={16} color="rgba(255,255,255,0.55)" style={styles.searchIcon} />
+              <Ionicons name="search" size={16} color={t.textSecondary} style={styles.searchIcon} />
               <TextInput
                 ref={searchInputRef}
                 style={styles.searchBar}
                 placeholder="Search students"
-                placeholderTextColor="rgba(255,255,255,0.55)"
+                placeholderTextColor={t.isDark ? "rgba(255,255,255,0.55)" : t.placeholder}
+                keyboardAppearance={t.keyboardAppearance}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 autoCorrect={false}
@@ -964,7 +978,15 @@ const AlhanAttendance = () => {
               />
             </View>
           </View>
-        </BlurView>
+          );
+          return t.glass ? (
+            <GlassSurface style={styles.floatingBlur}>{floatingContent}</GlassSurface>
+          ) : (
+            <BlurView tint={t.blurTint} intensity={80} style={styles.floatingBlur}>
+              {floatingContent}
+            </BlurView>
+          );
+        })()}
       </Animated.View>
 
       {/* ---------- Add Student modal ---------- */}
@@ -973,10 +995,10 @@ const AlhanAttendance = () => {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalContainer}
         >
-          <View style={styles.modalContentLarge}>
+          <GlassSurface style={styles.modalContentLarge}>
             {submitting ? (
               <View style={styles.modalLoadingContainer}>
-                <ActivityIndicator size="large" color="#147EFB" />
+                <ActivityIndicator size="large" color={t.accent} />
                 <Text style={styles.loadingText}>Adding Student...</Text>
               </View>
             ) : (
@@ -1002,7 +1024,8 @@ const AlhanAttendance = () => {
                     autoCapitalize="words"
                     autoFocus
                     placeholder="Student name"
-                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    placeholderTextColor={t.placeholder}
+                    keyboardAppearance={t.keyboardAppearance}
                     value={newStudentName}
                     onChangeText={setNewStudentName}
                     returnKeyType="next"
@@ -1035,7 +1058,7 @@ const AlhanAttendance = () => {
                             <Ionicons
                               name="checkmark"
                               size={14}
-                              color="#147EFB"
+                              color={t.accent}
                               style={styles.gradeChipIcon}
                             />
                           )}
@@ -1057,7 +1080,8 @@ const AlhanAttendance = () => {
                   <TextInput
                     style={styles.input}
                     placeholder="(555) 123-4567"
-                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    placeholderTextColor={t.placeholder}
+                    keyboardAppearance={t.keyboardAppearance}
                     value={newStudentPhone}
                     onChangeText={(t) => setNewStudentPhone(formatPhoneInput(t))}
                     keyboardType="phone-pad"
@@ -1074,7 +1098,8 @@ const AlhanAttendance = () => {
                   <TextInput
                     style={styles.input}
                     placeholder="MM-DD-YYYY"
-                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    placeholderTextColor={t.placeholder}
+                    keyboardAppearance={t.keyboardAppearance}
                     value={newStudentBirthday}
                     onChangeText={(t) => setNewStudentBirthday(formatBirthdayInput(t))}
                     keyboardType="number-pad"
@@ -1092,7 +1117,8 @@ const AlhanAttendance = () => {
                   <TextInput
                     style={styles.input}
                     placeholder="123 Main St, City, State"
-                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    placeholderTextColor={t.placeholder}
+                    keyboardAppearance={t.keyboardAppearance}
                     value={newStudentAddress}
                     onChangeText={setNewStudentAddress}
                     autoCapitalize="words"
@@ -1109,7 +1135,8 @@ const AlhanAttendance = () => {
                   <TextInput
                     style={[styles.input, styles.inputMultiline]}
                     placeholder="Notes about the student"
-                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    placeholderTextColor={t.placeholder}
+                    keyboardAppearance={t.keyboardAppearance}
                     value={newStudentDescription}
                     onChangeText={setNewStudentDescription}
                     multiline
@@ -1135,14 +1162,14 @@ const AlhanAttendance = () => {
                 </TouchableOpacity>
               </>
             )}
-          </View>
+          </GlassSurface>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* ---------- Week picker modal ---------- */}
       <Modal visible={dateModalVisible} transparent animationType="fade" onRequestClose={() => setDateModalVisible(false)}>
         <View style={styles.modalContainer}>
-          <View style={styles.weekModalCard}>
+          <GlassSurface style={styles.weekModalCard}>
             {/* Header */}
             <View style={styles.weekModalHeader}>
               <View>
@@ -1154,7 +1181,7 @@ const AlhanAttendance = () => {
                 onPress={() => setDateModalVisible(false)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="close" size={20} color="rgba(255,255,255,0.6)" />
+                <Ionicons name="close" size={20} color={t.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -1165,13 +1192,13 @@ const AlhanAttendance = () => {
               activeOpacity={0.7}
             >
               <View style={styles.thisWeekIcon}>
-                <Ionicons name="today-outline" size={18} color="#147EFB" />
+                <Ionicons name="today-outline" size={18} color={t.accent} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.thisWeekTitle}>This week</Text>
                 <Text style={styles.thisWeekDate}>{shortDateLabel(getNextSaturday())}</Text>
               </View>
-              {isCurrentWeek && <Ionicons name="checkmark-circle" size={20} color="#147EFB" />}
+              {isCurrentWeek && <Ionicons name="checkmark-circle" size={20} color={t.accent} />}
             </TouchableOpacity>
 
             <View style={styles.weekModalDivider}>
@@ -1186,23 +1213,23 @@ const AlhanAttendance = () => {
                 keyExtractor={weekKeyExtractor}
                 style={styles.dateList}
                 showsVerticalScrollIndicator={true}
-                indicatorStyle="white"
+                indicatorStyle={t.isDark ? "white" : "black"}
                 renderItem={renderWeek}
               />
             </View>
-          </View>
+          </GlassSurface>
         </View>
       </Modal>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 12,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
 
   // ---------- Week selector ----------
@@ -1210,13 +1237,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: t.border,
   },
   weekSelectorLeft: {
     flexDirection: "row",
@@ -1228,28 +1255,28 @@ const styles = StyleSheet.create({
   },
   weekSelectorLabel: {
     fontSize: 11,
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
     fontWeight: "500",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   weekSelectorDate: {
     fontSize: 16,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
     marginTop: 2,
   },
   weekSelectorRight: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(20, 126, 251, 0.15)",
+    backgroundColor: t.accentFill,
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 8,
   },
   weekSelectorChange: {
     fontSize: 13,
-    color: "#147EFB",
+    color: t.accent,
     fontWeight: "600",
   },
 
@@ -1257,10 +1284,10 @@ const styles = StyleSheet.create({
   weekModalCard: {
     width: "90%",
     maxWidth: 400,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: t.border,
     overflow: "hidden",
     // Of the overlay, so it is still right after an iPad rotates.
     maxHeight: "78%",
@@ -1273,13 +1300,13 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 16,
   },
-  weekModalTitle: { fontSize: 20, color: "#fff", fontWeight: "700" },
-  weekModalSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 4 },
+  weekModalTitle: { fontSize: 20, color: t.text, fontWeight: "700" },
+  weekModalSubtitle: { fontSize: 13, color: t.textSecondary, marginTop: 4 },
   weekModalClose: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: t.fill,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1292,24 +1319,24 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: t.fill,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: t.border,
   },
   thisWeekIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(20,126,251,0.15)",
+    backgroundColor: t.accentFill,
     alignItems: "center",
     justifyContent: "center",
   },
-  thisWeekTitle: { fontSize: 15, color: "#fff", fontWeight: "600" },
-  thisWeekDate: { fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 1 },
+  thisWeekTitle: { fontSize: 15, color: t.text, fontWeight: "600" },
+  thisWeekDate: { fontSize: 13, color: t.textSecondary, marginTop: 1 },
   weekModalDivider: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 6 },
   weekModalDividerText: {
     fontSize: 11,
-    color: "rgba(255,255,255,0.4)",
+    color: t.textTertiary,
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.6,
@@ -1323,13 +1350,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     marginBottom: 8,
     borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: t.fill,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: t.border,
   },
-  weekRowSelected: { backgroundColor: "rgba(20,126,251,0.15)", borderColor: "rgba(20,126,251,0.4)" },
-  weekRowText: { fontSize: 15, color: "#fff", fontWeight: "500" },
-  weekRowTextSelected: { color: "#fff", fontWeight: "700" },
+  weekRowSelected: { backgroundColor: t.accentFill, borderColor: "rgba(20,126,251,0.4)" },
+  weekRowText: { fontSize: 15, color: t.text, fontWeight: "500" },
+  weekRowTextSelected: { color: t.text, fontWeight: "700" },
 
   // ---------- Grade tags ----------
   gradesContainer: {
@@ -1340,17 +1367,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   gradeTag: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 12,
     marginRight: 6,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   gradeTagText: {
     fontSize: 13,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
   },
 
@@ -1362,7 +1389,7 @@ const styles = StyleSheet.create({
     bottom: Platform.OS === "ios" ? 28 : 16,
     borderRadius: 18,
     overflow: "hidden",
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 12,
@@ -1372,8 +1399,8 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
-    backgroundColor: Platform.OS === "android" ? "rgba(28,28,30,0.92)" : "transparent",
+    borderColor: t.borderStrong,
+    backgroundColor: Platform.OS === "android" ? (t.isDark ? "rgba(28,28,30,0.92)" : "rgba(242,242,247,0.92)") : "transparent",
   },
   floatingInner: {
     paddingHorizontal: 10,
@@ -1383,7 +1410,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: t.fillStrong,
     borderRadius: 10,
     paddingHorizontal: 10,
     height: 38,
@@ -1393,7 +1420,7 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     flex: 1,
-    color: "#fff",
+    color: t.text,
     fontSize: 15,
     paddingVertical: 0,
   },
@@ -1406,7 +1433,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     paddingVertical: 6,
     marginBottom: 10,
   },
@@ -1414,14 +1441,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: GRADE_HEADER_LINE,
     fontWeight: "600",
-    color: "#4d9cff",
+    color: t.accentText,
   },
   addPill: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     height: ADD_PILL_H,
-    backgroundColor: "rgba(20, 126, 251, 0.15)",
+    backgroundColor: t.accentFill,
     borderRadius: 999,
     paddingHorizontal: 10,
     borderWidth: 1,
@@ -1429,17 +1456,17 @@ const styles = StyleSheet.create({
   },
   addPillText: {
     fontSize: 12,
-    color: "#147EFB",
+    color: t.accent,
     fontWeight: "600",
     marginLeft: 3,
   },
   studentContainer: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     padding: 14,
     borderRadius: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   studentHeader: {
     flexDirection: "row",
@@ -1460,7 +1487,7 @@ const styles = StyleSheet.create({
   studentName: {
     fontSize: 16,
     lineHeight: STUDENT_NAME_LINE,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
     flex: 1,
   },
@@ -1481,7 +1508,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: STATUS_LINE,
     fontWeight: "600",
-    color: "#fff",
+    color: t.onAccent,
   },
   attendanceStatusContainer: {
     marginTop: 12,
@@ -1496,32 +1523,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: STATUS_LINE,
     fontWeight: "600",
-    color: "#fff",
+    color: t.onAccent,
   },
 
   // ---------- Misc / modals ----------
   loadingText: {
     fontSize: 16,
-    color: "rgba(255,255,255,0.6)",
+    color: t.textSecondary,
     marginTop: 12,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     paddingHorizontal: 40,
   },
   message: {
     fontSize: 16,
-    color: "rgba(255,255,255,0.6)",
+    color: t.textSecondary,
     textAlign: "center",
     marginTop: 16,
     lineHeight: 24,
   },
   noStudentsText: {
     fontSize: 15,
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
     textAlign: "center",
     marginVertical: 20,
   },
@@ -1529,16 +1556,16 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: t.overlay,
   },
   modalContent: {
     width: "85%",
     maxWidth: 360,
     padding: 28,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
     alignItems: "center",
   },
   // Larger variant for the multi-field add-student modal
@@ -1549,10 +1576,10 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 20,
     paddingHorizontal: 20,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   modalScroll: {
     width: "100%",
@@ -1567,14 +1594,14 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 22,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
     marginBottom: 4,
     textAlign: "center",
   },
   modalSubtitle: {
     fontSize: 13,
-    color: "rgba(255,255,255,0.55)",
+    color: t.textSecondary,
     marginBottom: 18,
     textAlign: "center",
   },
@@ -1586,13 +1613,13 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: 13,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
     letterSpacing: 0.2,
   },
   fieldHint: {
     fontSize: 11,
-    color: "rgba(255,255,255,0.4)",
+    color: t.textTertiary,
     fontWeight: "500",
   },
   requiredBadge: {
@@ -1605,7 +1632,7 @@ const styles = StyleSheet.create({
   },
   requiredBadgeText: {
     fontSize: 10,
-    color: "#ff453a",
+    color: t.dangerText,
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -1614,13 +1641,13 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     paddingHorizontal: 8,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: t.fill,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderColor: t.borderStrong,
   },
   optionalBadgeText: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -1629,11 +1656,11 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingVertical: 12,
     paddingHorizontal: 14,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    color: "#fff",
+    backgroundColor: t.fill,
+    color: t.text,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
     fontSize: 15,
   },
   inputMultiline: {
@@ -1652,14 +1679,14 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     paddingHorizontal: 14,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: t.fill,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: t.border,
   },
   gradeChipSelected: {
-    backgroundColor: "rgba(20, 126, 251, 0.18)",
-    borderColor: "#147EFB",
-    shadowColor: "#147EFB",
+    backgroundColor: t.accentFill,
+    borderColor: t.accent,
+    shadowColor: t.accent,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 6,
@@ -1670,16 +1697,16 @@ const styles = StyleSheet.create({
   },
   gradeChipText: {
     fontSize: 13,
-    color: "rgba(255,255,255,0.65)",
+    color: t.textSecondary,
     fontWeight: "600",
   },
   gradeChipTextSelected: {
-    color: "#147EFB",
+    color: t.accent,
     fontWeight: "700",
   },
   modalButton: {
     width: "100%",
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: "center",
@@ -1689,7 +1716,7 @@ const styles = StyleSheet.create({
   modalButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: t.onAccent,
   },
   cancelTouchable: {
     paddingVertical: 8,
@@ -1697,7 +1724,7 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     fontSize: 15,
-    color: "#ff3b30",
+    color: t.dangerText,
     fontWeight: "600",
   },
   dateList: {
@@ -1706,11 +1733,11 @@ const styles = StyleSheet.create({
   },
   navigatingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: t.overlay,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 1000,
   },
-});
+}));
 
 export default AlhanAttendance;

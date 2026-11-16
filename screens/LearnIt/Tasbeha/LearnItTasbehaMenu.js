@@ -1,7 +1,6 @@
 import * as React from "react";
 import { useState, useRef, useEffect } from "react";
 import {
-  StyleSheet,
   View,
   Text,
   Pressable,
@@ -12,6 +11,7 @@ import {
 } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { Ionicons } from "@expo/vector-icons";
+import { makeStyles, useTheme, useTabBarInset } from "../../../theme";
 import hymnsData from "./Tasbeha.json";
 
 const openUrl = async (url) => {
@@ -23,6 +23,9 @@ const openUrl = async (url) => {
 };
 
 const LearnItTasbehaMenu = ({ navigation }) => {
+  const styles = useStyles();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const [expanded, setExpanded] = useState(null);
   const headerAnim = useRef(new Animated.Value(0)).current;
   const itemAnimValues = useRef(hymnsData.map(() => new Animated.Value(0))).current;
@@ -114,11 +117,11 @@ const LearnItTasbehaMenu = ({ navigation }) => {
                   ],
                 }}
               >
-                <Ionicons name="chevron-down" size={20} color="rgba(255,255,255,0.4)" />
+                <Ionicons name="chevron-down" size={20} color={t.textTertiary} />
               </Animated.View>
             )}
             {!hasSubOptions && (
-              <Ionicons name="open-outline" size={18} color="rgba(255,255,255,0.3)" />
+              <Ionicons name="open-outline" size={18} color={t.textTertiary} />
             )}
           </View>
         </Pressable>
@@ -151,7 +154,7 @@ const LearnItTasbehaMenu = ({ navigation }) => {
                 onPress={() => openUrl(subItem.url)}
               >
                 <Text style={styles.subButtonText}>{subItem.title}</Text>
-                <Ionicons name="open-outline" size={16} color="rgba(255,255,255,0.3)" />
+                <Ionicons name="open-outline" size={16} color={t.textTertiary} />
               </Pressable>
             ))}
           </Animated.View>
@@ -182,7 +185,7 @@ const LearnItTasbehaMenu = ({ navigation }) => {
           style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1 }]}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="chevron-back" size={22} color="#fff" />
+          <Ionicons name="chevron-back" size={22} color={t.text} />
         </Pressable>
 
         <View style={styles.headerTitleContainer}>
@@ -195,17 +198,17 @@ const LearnItTasbehaMenu = ({ navigation }) => {
         data={hymnsData}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContainer}
+        contentContainerStyle={[styles.listContainer, { paddingBottom: 40 + tabBarInset }]}
         showsVerticalScrollIndicator={false}
       />
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
   headerContainer: {
     flexDirection: "row",
@@ -218,7 +221,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: t.fill,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -229,13 +232,13 @@ const styles = StyleSheet.create({
   },
   headerSubtext: {
     fontSize: 11,
-    color: "#555",
+    color: t.isDark ? "#555" : t.textMuted,
     letterSpacing: 3,
     marginBottom: 6,
   },
   headerTitle: {
     fontSize: 32,
-    color: "#fff",
+    color: t.text,
     fontWeight: "300",
     letterSpacing: 1,
   },
@@ -248,10 +251,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   button: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: t.border,
   },
   buttonExpanded: {
     borderBottomLeftRadius: 0,
@@ -267,17 +270,17 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 17,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
     flex: 1,
   },
   expandedContainer: {
-    backgroundColor: "#151515",
+    backgroundColor: t.background,
     borderBottomLeftRadius: 14,
     borderBottomRightRadius: 14,
     borderWidth: 1,
     borderTopWidth: 0,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: t.border,
     paddingHorizontal: 8,
     overflow: "hidden",
   },
@@ -285,7 +288,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#1e1e1e",
+    backgroundColor: t.surface,
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 10,
@@ -297,10 +300,10 @@ const styles = StyleSheet.create({
   },
   subButtonText: {
     fontSize: 15,
-    color: "rgba(255,255,255,0.85)",
+    color: t.isDark ? "rgba(255,255,255,0.85)" : t.text,
     fontWeight: "500",
     flex: 1,
   },
-});
+}));
 
 export default LearnItTasbehaMenu;

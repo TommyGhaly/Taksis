@@ -1,12 +1,14 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Pressable, Text, Alert } from "react-native";
+import { View, Pressable, Text, Alert } from "react-native";
 import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
 import Churches from "../../components/churches";
 import ProgressBar from "../../components/progressBar";
 import BackArrow from "../../components/backArrow";
+import { makeStyles } from "../../theme";
 
 const SelectChurch = ({ navigation }) => {
+  const styles = useStyles();
   const [selectedChurch, setSelectedChurch] = useState(null);
   const user = getAuth().currentUser;
 
@@ -64,10 +66,10 @@ const SelectChurch = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     paddingHorizontal: 16,
     paddingTop: 80,
     paddingBottom: 40,
@@ -81,7 +83,7 @@ const styles = StyleSheet.create({
   progressBar: {
     height: 6,
     width: "100%",
-    backgroundColor: "#2A2A2A",
+    backgroundColor: t.isDark ? t.surfaceElevated : t.surfaceHighest,
     borderRadius: 3,
     marginBottom: 12,
   },
@@ -90,7 +92,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     fontFamily: "Roboto-Regular",
     fontWeight: "600",
-    color: "#E0E0E0",
+    color: (t.isDark ? "#E0E0E0" : t.text),
     lineHeight: 42,
     maxWidth: "90%",
     marginTop: 30,
@@ -106,13 +108,13 @@ const styles = StyleSheet.create({
   continueButton: {
     height: 52,
     width: "100%",
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 35,
     elevation: 4,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -122,7 +124,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     fontWeight: "600",
     fontFamily: "Roboto-Medium",
-    color: "#FFF",
+    color: t.onAccent,
   },
   churchRegisterLink: {
     alignSelf: "center",
@@ -133,12 +135,12 @@ const styles = StyleSheet.create({
     fontFamily: "Roboto-Regular",
   },
   linkPrefix: {
-    color: "#B0BEC5",
+    color: t.isDark ? "#B0BEC5" : t.textSecondary,
   },
   linkAction: {
-    color: "#147EFB",
+    color: t.accent,
     fontWeight: "500",
   },
-});
+}));
 
 export default SelectChurch;

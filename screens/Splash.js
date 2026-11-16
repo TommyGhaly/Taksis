@@ -1,7 +1,9 @@
 import * as React from "react";
-import { ImageBackground, StyleSheet, Text, View } from "react-native";
+import { ImageBackground, Text, View } from "react-native";
+import { makeStyles } from "../theme";
 
 const Splash = () => {
+  const styles = useStyles();
   return (
     <View style={styles.splash}>
       <ImageBackground
@@ -17,7 +19,7 @@ const Splash = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   dioceselogoIcon: {
     top: "17.02%",
     right: "14.5%",
@@ -36,12 +38,12 @@ const styles = StyleSheet.create({
     position: "absolute",
   },
   splash: {
-    backgroundColor: "#000",
+    backgroundColor: t.isDark ? "#000" : t.background,
     flex: 1,
     width: "100%",
     height: "100%",
     overflow: "hidden",
   },
-});
+}));
 
 export default Splash;

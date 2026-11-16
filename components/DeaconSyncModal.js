@@ -26,6 +26,7 @@ import {
 } from "@react-native-firebase/firestore";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { LIST_PERF } from "../utils/listConfig";
+import { makeStyles, useTheme, GlassSurface } from "../theme";
 
 
 // ── Config ───────────────────────────────────────────────────────────────────
@@ -285,32 +286,48 @@ const P = { SCAN: 0, LIST: 1, SCHED: 2, DONE: 3 };
 
 // ── Row ──────────────────────────────────────────────────────────────────────
 
-const Row = React.memo(({ name, action, color }) => (
-  <View style={st.row}>
-    <View style={[st.dot, { backgroundColor: color }]} />
-    <Text style={st.rowName} numberOfLines={1}>{name}</Text>
-    <Text style={[st.rowTag, { color }]} numberOfLines={2}>{action}</Text>
-  </View>
-));
+// `tone` is a theme token name (successText / dangerText / warningText), so the
+// row reads the light- or dark-mode shade of that status color.
+const Row = React.memo(({ name, action, tone }) => {
+  const st = useSt();
+  const t = useTheme();
+  const color = t[tone];
+  return (
+    <View style={st.row}>
+      <View style={[st.dot, { backgroundColor: color }]} />
+      <Text style={st.rowName} numberOfLines={1}>{name}</Text>
+      <Text style={[st.rowTag, { color }]} numberOfLines={2}>{action}</Text>
+    </View>
+  );
+});
 Row.displayName = "Row";
 
 // Hoisted: as inline `ItemSeparatorComponent={() => …}` / `renderItem={…}` props
 // these were a new component identity on every render, which remounted every
 // separator and defeated the memo on Row above.
-const Separator = () => <View style={st.sep} />;
+const Separator = () => {
+  const st = useSt();
+  return <View style={st.sep} />;
+};
 const renderDiffRow = ({ item }) => (
-  <Row name={item.n} action={item.a} color={item.c} />
+  <Row name={item.n} action={item.a} tone={item.c} />
 );
-const renderLogRow = ({ item }) => (
-  <View style={st.logRow}>
-    <Text style={st.logBullet}>•</Text>
-    <Text style={st.logText}>{item}</Text>
-  </View>
-);
+const LogRow = ({ text }) => {
+  const st = useSt();
+  return (
+    <View style={st.logRow}>
+      <Text style={st.logBullet}>•</Text>
+      <Text style={st.logText}>{text}</Text>
+    </View>
+  );
+};
+const renderLogRow = ({ item }) => <LogRow text={item} />;
 
 // ── Component ────────────────────────────────────────────────────────────────
 
 const DeaconSyncModal = ({ visible, onClose, churchId }) => {
+  const st = useSt();
+  const t = useTheme();
   // Live, not read at import: an iPad that rotates after launch otherwise keeps
   // portrait-height caps in landscape and the dialog overflows the screen.
   const { height: SH } = useWindowDimensions();
@@ -446,19 +463,19 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
   const listRows = useMemo(() => {
     if (!listDiff) return [];
     return [
-      ...listDiff.toAdd.map((u) => ({ k: u.uid, n: u.name, a: "Add", c: "#30d158" })),
-      ...listDiff.toRemove.map((d) => ({ k: d.uid, n: d.name, a: "Remove", c: "#ff453a" })),
+      ...listDiff.toAdd.map((u) => ({ k: u.uid, n: u.name, a: "Add", c: "successText" })),
+      ...listDiff.toRemove.map((d) => ({ k: d.uid, n: d.name, a: "Remove", c: "dangerText" })),
       ...listDiff.stale.map((s) => ({
         k: `s-${s.uid}`,
         n: s.name,
         a: s.fields.map((f) => `${f.field}: ${f.from} → ${f.to}`).join(", "),
-        c: "#ff9f0a",
+        c: "warningText",
       })),
       ...listDiff.reliableStale.map((r) => ({
         k: `r-${r.uid}`,
         n: r.name,
         a: "Not a deacon — drop from Reliable",
-        c: "#ff453a",
+        c: "dangerText",
       })),
     ];
   }, [listDiff]);
@@ -470,15 +487,15 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
         k: `u-${slotKey(u.loc, u.i)}`,
         n: "N/A",
         a: `Generate UID — ${slotLabel(u.loc, u.i)}`,
-        c: "#ff9f0a",
+        c: "warningText",
       })),
       ...cs.exDeacons.map((g) => ({
         k: `x-${slotKey(g.loc, g.i)}`,
         n: g.name,
         a: `Remove — ${slotLabel(g.loc, g.i)}`,
-        c: "#ff453a",
+        c: "dangerText",
       })),
-      ...cs.missing.map((m) => ({ k: `m${m.uid}`, n: m.name, a: "→ Extras", c: "#30d158" })),
+      ...cs.missing.map((m) => ({ k: `m${m.uid}`, n: m.name, a: "→ Extras", c: "successText" })),
     ];
   }, [cs]);
 
@@ -487,16 +504,16 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
   return (
     <Modal visible animationType="fade" transparent onRequestClose={close}>
       <View style={st.backdrop}>
-        <View style={[st.dialog, heights.dialog]}>
+        <GlassSurface style={[st.dialog, heights.dialog]}>
 
           <TouchableOpacity style={st.closeBtn} onPress={close} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Icon name="close" size={18} color="rgba(255,255,255,0.3)" />
+            <Icon name="close" size={18} color={t.textTertiary} />
           </TouchableOpacity>
 
           {/* ── SCANNING ── */}
           {phase === P.SCAN && (
             <View style={st.center}>
-              <ActivityIndicator color="#147efb" size="large" />
+              <ActivityIndicator color={t.accent} size="large" />
               <Text style={st.scanTitle}>Scanning…</Text>
               <Text style={st.scanText}>Checking deacons and schedules</Text>
             </View>
@@ -528,7 +545,7 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
                   <Text style={st.ghostBtnText}>Skip</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={st.mainBtn} onPress={doFixList} disabled={busy} activeOpacity={0.8}>
-                  {busy && <ActivityIndicator color="#fff" size={14} />}
+                  {busy && <ActivityIndicator color={t.onAccent} size={14} />}
                   <Text style={st.mainBtnText}>Fix List</Text>
                 </TouchableOpacity>
               </View>
@@ -562,7 +579,7 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
                   <Text style={st.ghostBtnText}>Skip</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={st.mainBtn} onPress={doFixSched} disabled={busy} activeOpacity={0.8}>
-                  {busy && <ActivityIndicator color="#fff" size={14} />}
+                  {busy && <ActivityIndicator color={t.onAccent} size={14} />}
                   <Text style={st.mainBtnText}>Fix</Text>
                 </TouchableOpacity>
               </View>
@@ -580,7 +597,7 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
             <View style={st.doneWrap}>
               <View style={st.doneTop}>
                 <View style={st.doneIcon}>
-                  <Icon name={error ? "alert-circle-outline" : "check-circle-outline"} size={28} color={error ? "#ff453a" : "#30d158"} />
+                  <Icon name={error ? "alert-circle-outline" : "check-circle-outline"} size={28} color={error ? t.dangerText : t.successText} />
                 </View>
                 <Text style={st.doneTitle}>{error ? "Finished with errors" : "Sync Complete"}</Text>
 
@@ -606,7 +623,7 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
             </View>
           )}
 
-        </View>
+        </GlassSurface>
       </View>
     </Modal>
   );
@@ -614,60 +631,60 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const st = StyleSheet.create({
+const useSt = makeStyles((t) => ({
   backdrop: {
-    flex: 1, backgroundColor: "rgba(0,0,0,0.6)",
+    flex: 1, backgroundColor: t.overlay,
     justifyContent: "center", alignItems: "center",
     paddingHorizontal: 20,
   },
   dialog: {
-    backgroundColor: "#1c1c1e", borderRadius: 20,
+    backgroundColor: t.surface, borderRadius: 20,
     width: "100%", maxWidth: 560, minHeight: 200,
     paddingTop: 24, paddingBottom: 22, paddingHorizontal: 22,
   },
   closeBtn: { position: "absolute", top: 16, right: 16, zIndex: 1 },
   center: { alignItems: "center", justifyContent: "center", paddingVertical: 48 },
-  scanTitle: { fontSize: 18, fontWeight: "600", color: "#fff", marginTop: 18 },
-  scanText: { fontSize: 14, color: "rgba(255,255,255,0.4)", marginTop: 6 },
+  scanTitle: { fontSize: 18, fontWeight: "600", color: t.text, marginTop: 18 },
+  scanText: { fontSize: 14, color: t.textTertiary, marginTop: 6 },
   header: { marginBottom: 12 },
-  label: { fontSize: 11, fontWeight: "700", letterSpacing: 1, color: "rgba(255,255,255,0.25)", marginBottom: 6 },
-  headerTitle: { fontSize: 22, fontWeight: "700", color: "#fff" },
-  headerSub: { fontSize: 14, color: "rgba(255,255,255,0.4)", marginTop: 2 },
+  label: { fontSize: 11, fontWeight: "700", letterSpacing: 1, color: t.isDark ? "rgba(255,255,255,0.25)" : t.textTertiary, marginBottom: 6 },
+  headerTitle: { fontSize: 22, fontWeight: "700", color: t.text },
+  headerSub: { fontSize: 14, color: t.textTertiary, marginTop: 2 },
   list: { flexGrow: 0, marginBottom: 16 },
   listContent: { paddingVertical: 4 },
-  sep: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.06)" },
+  sep: { height: StyleSheet.hairlineWidth, backgroundColor: t.border },
   row: { flexDirection: "row", alignItems: "center", paddingVertical: 12 },
   dot: { width: 7, height: 7, borderRadius: 4, marginRight: 14 },
-  rowName: { flex: 1, fontSize: 16, color: "#fff" },
+  rowName: { flex: 1, fontSize: 16, color: t.text },
   rowTag: { fontSize: 12, fontWeight: "600", maxWidth: "45%", textAlign: "right" },
-  err: { fontSize: 13, color: "#ff453a", marginBottom: 10 },
+  err: { fontSize: 13, color: t.dangerText, marginBottom: 10 },
   footer: { flexDirection: "row", gap: 10 },
   mainBtn: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8, backgroundColor: "#147efb", paddingVertical: 15, borderRadius: 12,
+    gap: 8, backgroundColor: t.accent, paddingVertical: 15, borderRadius: 12,
   },
-  mainBtnText: { fontSize: 16, fontWeight: "600", color: "#fff" },
+  mainBtnText: { fontSize: 16, fontWeight: "600", color: t.onAccent },
   ghostBtn: {
     paddingVertical: 15, paddingHorizontal: 22, borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: t.fill,
   },
-  ghostBtnText: { fontSize: 16, fontWeight: "500", color: "rgba(255,255,255,0.35)" },
+  ghostBtnText: { fontSize: 16, fontWeight: "500", color: t.textTertiary },
   linkBtn: { alignItems: "center", paddingVertical: 14 },
-  linkBtnText: { fontSize: 14, color: "#147efb", fontWeight: "500" },
+  linkBtnText: { fontSize: 14, color: t.accent, fontWeight: "500" },
   doneWrap: { flex: 1, justifyContent: "space-between" },
   doneTop: { alignItems: "center", flex: 1 },
   doneIcon: { alignItems: "center", marginBottom: 12 },
-  doneTitle: { fontSize: 20, fontWeight: "700", color: "#fff", textAlign: "center", marginBottom: 16 },
+  doneTitle: { fontSize: 20, fontWeight: "700", color: t.text, textAlign: "center", marginBottom: 16 },
   doneBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    backgroundColor: "#30d158", paddingVertical: 15, borderRadius: 12,
+    backgroundColor: t.success, paddingVertical: 15, borderRadius: 12,
     width: "100%", marginTop: 12,
   },
-  doneBtnText: { fontSize: 16, fontWeight: "600", color: "#fff" },
+  doneBtnText: { fontSize: 16, fontWeight: "600", color: t.onAccent },
   logList: { width: "100%", marginBottom: 8 },
   logRow: { flexDirection: "row", paddingVertical: 4 },
-  logBullet: { fontSize: 13, color: "rgba(255,255,255,0.3)", marginRight: 8, marginTop: 1 },
-  logText: { flex: 1, fontSize: 14, color: "rgba(255,255,255,0.5)", lineHeight: 20 },
-});
+  logBullet: { fontSize: 13, color: t.textTertiary, marginRight: 8, marginTop: 1 },
+  logText: { flex: 1, fontSize: 14, color: t.textSecondary, lineHeight: 20 },
+}));
 
 export default DeaconSyncModal;

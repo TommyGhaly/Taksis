@@ -2,22 +2,15 @@ import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeScreen from "./HomeScreen";
-import DefaultTheme from "@react-navigation/native";
+import { useNavigationTheme } from "../../theme";
 import 'react-native-gesture-handler';
 
 
 const HomeNav = createNativeStackNavigator();
-const myTheme = {
-  ...DefaultTheme,
-  colors: {
-    primary: "#000",
-    card: "rgb(255, 255, 255)",
-    background: "#000",
-  },
-};
 export default function HomeNavigation() {
+  const navTheme = useNavigationTheme();
   return (
-    <NavigationContainer independent={true} theme={myTheme}>
+    <NavigationContainer independent={true} theme={navTheme}>
       <HomeNav.Navigator
         initialRouteName="MainMenu"
         screenOptions={{

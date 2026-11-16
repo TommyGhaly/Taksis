@@ -2,7 +2,6 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
   Alert,
   TouchableOpacity,
@@ -37,6 +36,7 @@ import {
   dateKeyToSortable,
 } from "../../utils/dateKeys";
 import { GRADES_LIST } from "../../utils/manualPeople";
+import { makeStyles, useTheme, GlassSurface } from "../../theme";
 
 // Rosters that can take a student into *any* class, not only the ones the
 // servant serves. Both are promoted a grade by the Nayrouz job
@@ -67,7 +67,9 @@ const MODAL_WIDTH = { maxWidth: 600, alignSelf: "center", width: "100%" };
  * screens/SundaySchool/SundaySchoolAttendance.js:94 for why VirtualizedList makes
  * that so expensive — its CellRenderer is not memoized against parent re-renders.
  */
-const AttendanceHistoryRow = React.memo(({ date, status }) => (
+const AttendanceHistoryRow = React.memo(({ date, status }) => {
+  const styles = useStyles();
+  return (
   <View style={styles.attendanceItem}>
     <Text style={styles.dateText}>{date}</Text>
     <View
@@ -81,7 +83,8 @@ const AttendanceHistoryRow = React.memo(({ date, status }) => (
       </Text>
     </View>
   </View>
-));
+  );
+});
 AttendanceHistoryRow.displayName = "AttendanceHistoryRow";
 
 // Module-level so the props keep a stable identity across renders.
@@ -122,7 +125,9 @@ const BIRTHDAY_PATTERN = /^\d{2}-\d{2}-\d{4}$/;
  * became five unlabelled boxes — you could not tell which one was the phone
  * number without clearing it.
  */
-const Field = ({ label, hint, required, optional, children }) => (
+const Field = ({ label, hint, required, optional, children }) => {
+  const styles = useStyles();
+  return (
   <View style={styles.field}>
     <Text style={styles.fieldLabel}>
       {label}
@@ -132,18 +137,43 @@ const Field = ({ label, hint, required, optional, children }) => (
     {hint ? <Text style={styles.fieldHint}>{hint}</Text> : null}
     {children}
   </View>
-);
+  );
+};
 
-const EmptyAttendance = () => (
+const EmptyAttendance = () => {
+  const styles = useStyles();
+  return (
   <View style={styles.noAttendanceContainer}>
     <Text style={styles.noAttendanceText}>No attendance records available.</Text>
     <Text style={styles.noAttendanceSubtext}>
       Attendance will appear here once recorded.
     </Text>
   </View>
-);
+  );
+};
+
+/**
+ * A modal card's background: glass when Liquid Glass is on, otherwise the
+ * gradient it always had in dark mode and a flat surface in light.
+ */
+const ModalPanel = ({ darkColors, style, children }) => {
+  const t = useTheme();
+  if (t.glass) return <GlassSurface style={style}>{children}</GlassSurface>;
+  return (
+    <LinearGradient
+      colors={t.isDark ? darkColors : [t.surface, t.surface]}
+      style={style}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+    >
+      {children}
+    </LinearGradient>
+  );
+};
 
 const IndividualAttendance = () => {
+  const styles = useStyles();
+  const t = useTheme();
   const navigation = useNavigation();
   const route = useRoute();
   // `showGrade: false` is College Youth Meeting, whose roster has no grades.
@@ -747,7 +777,7 @@ const IndividualAttendance = () => {
             accessible={true}
             accessibilityLabel="View and edit student information"
           >
-            <Icon name="account-edit-outline" size={18} color="#fff" />
+            <Icon name="account-edit-outline" size={18} color={t.text} />
             <Text style={styles.infoButtonText}>Info & Edit</Text>
           </TouchableOpacity>
         </View>
@@ -777,7 +807,7 @@ const IndividualAttendance = () => {
             accessible={true}
             accessibilityLabel="Move student to another class"
           >
-            <Icon name="swap-horizontal" size={20} color="#4d9cff" />
+            <Icon name="swap-horizontal" size={20} color={t.accentText} />
             <View style={styles.gradeChangeButtonTextGroup}>
               <Text style={styles.gradeChangeButtonText}>
                 Move to Another Class
@@ -786,7 +816,7 @@ const IndividualAttendance = () => {
                 For a student in the wrong class
               </Text>
             </View>
-            <Icon name="chevron-right" size={22} color="#888" />
+            <Icon name="chevron-right" size={22} color={t.textMuted} />
           </TouchableOpacity>
         )}
         <FlatList
@@ -827,11 +857,9 @@ const IndividualAttendance = () => {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalContainer}
         >
-          <LinearGradient
-            colors={["#1E1E1E", "#151515"]}
+          <ModalPanel
+            darkColors={["#1E1E1E", "#151515"]}
             style={[styles.modalContent, MODAL_WIDTH]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
           >
             {/* Outside the ScrollView on purpose: the way out has to stay put
                 while the form scrolls. Before this the only way to close was a
@@ -845,7 +873,7 @@ const IndividualAttendance = () => {
               accessibilityLabel={editMode ? "Close without saving" : "Close"}
               accessibilityRole="button"
             >
-              <Icon name="close" size={20} color="#dcdcdc" />
+              <Icon name="close" size={20} color={t.textSecondary} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>
               {editMode ? "Edit Student" : "Student Information"}
@@ -886,7 +914,7 @@ const IndividualAttendance = () => {
                         accessible={true}
                         accessibilityLabel="Change profile picture"
                       >
-                        <Icon name="camera" size={18} color="#fff" />
+                        <Icon name="camera" size={18} color={t.text} />
                         <Text style={styles.photoButtonText}>Change Photo</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
@@ -897,13 +925,13 @@ const IndividualAttendance = () => {
                         accessibilityLabel="Remove profile picture"
                       >
                         {deletingPhoto ? (
-                          <ActivityIndicator size="small" color="#ff8a80" />
+                          <ActivityIndicator size="small" color={t.isDark ? "#ff8a80" : t.dangerText} />
                         ) : (
                           <>
                             <Icon
                               name="trash-can-outline"
                               size={18}
-                              color="#ff8a80"
+                              color={t.isDark ? "#ff8a80" : t.dangerText}
                             />
                             <Text
                               style={[
@@ -927,7 +955,8 @@ const IndividualAttendance = () => {
                         setEditData((prev) => ({ ...prev, name: text }))
                       }
                       placeholder="First and last name"
-                      placeholderTextColor="#888"
+                      placeholderTextColor={t.placeholder}
+                      keyboardAppearance={t.keyboardAppearance}
                       autoCapitalize="words"
                       accessible={true}
                       accessibilityLabel="Edit student name"
@@ -945,7 +974,8 @@ const IndividualAttendance = () => {
                         }))
                       }
                       placeholder="MM-DD-YYYY"
-                      placeholderTextColor="#888"
+                      placeholderTextColor={t.placeholder}
+                      keyboardAppearance={t.keyboardAppearance}
                       keyboardType="number-pad"
                       maxLength={10}
                       accessible={true}
@@ -964,7 +994,8 @@ const IndividualAttendance = () => {
                         }))
                       }
                       placeholder="(555) 123-4567"
-                      placeholderTextColor="#888"
+                      placeholderTextColor={t.placeholder}
+                      keyboardAppearance={t.keyboardAppearance}
                       keyboardType="phone-pad"
                       maxLength={14}
                       accessible={true}
@@ -980,7 +1011,8 @@ const IndividualAttendance = () => {
                         setEditData((prev) => ({ ...prev, address: text }))
                       }
                       placeholder="Street, city"
-                      placeholderTextColor="#888"
+                      placeholderTextColor={t.placeholder}
+                      keyboardAppearance={t.keyboardAppearance}
                       accessible={true}
                       accessibilityLabel="Edit student address"
                     />
@@ -994,7 +1026,8 @@ const IndividualAttendance = () => {
                         setEditData((prev) => ({ ...prev, description: text }))
                       }
                       placeholder="Allergies, who picks them up, siblings..."
-                      placeholderTextColor="#888"
+                      placeholderTextColor={t.placeholder}
+                      keyboardAppearance={t.keyboardAppearance}
                       multiline
                       numberOfLines={4}
                       accessible={true}
@@ -1003,7 +1036,7 @@ const IndividualAttendance = () => {
                   </Field>
 
                   <LinearGradient
-                    colors={["#147efb", "#0f64d2"]}
+                    colors={[t.accent, "#0f64d2"]}
                     style={styles.modalButton}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
@@ -1017,7 +1050,7 @@ const IndividualAttendance = () => {
                     >
                       {saving ? (
                         <>
-                          <ActivityIndicator size="small" color="#fff" />
+                          <ActivityIndicator size="small" color={t.onAccent} />
                           <Text
                             style={[styles.modalButtonText, styles.buttonTextWithIcon]}
                           >
@@ -1026,7 +1059,7 @@ const IndividualAttendance = () => {
                         </>
                       ) : (
                         <>
-                          <Icon name="check" size={22} color="#fff" />
+                          <Icon name="check" size={22} color={t.onAccent} />
                           <Text
                             style={[styles.modalButtonText, styles.buttonTextWithIcon]}
                           >
@@ -1100,7 +1133,7 @@ const IndividualAttendance = () => {
                     </View>
                   </View>
                   <LinearGradient
-                    colors={["#147efb", "#0f64d2"]}
+                    colors={[t.accent, "#0f64d2"]}
                     style={styles.modalButton}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
@@ -1111,7 +1144,7 @@ const IndividualAttendance = () => {
                       accessible={true}
                       accessibilityLabel="Edit student information"
                     >
-                      <Icon name="pencil" size={20} color="#fff" />
+                      <Icon name="pencil" size={20} color={t.onAccent} />
                       <Text
                         style={[styles.modalButtonText, styles.buttonTextWithIcon]}
                       >
@@ -1130,7 +1163,7 @@ const IndividualAttendance = () => {
                 </>
               )}
             </ScrollView>
-          </LinearGradient>
+          </ModalPanel>
         </KeyboardAvoidingView>
 
         {/* The photo card is content of *this* modal (`inline`), not a second
@@ -1165,11 +1198,9 @@ const IndividualAttendance = () => {
               definite parent to resolve against instead of collapsing to
               content size. */}
           <TouchableOpacity activeOpacity={1} style={styles.gradeChangeCardHost}>
-            <LinearGradient
-              colors={["#1e1e1e", "#2a2a2a"]}
+            <ModalPanel
+              darkColors={["#1e1e1e", "#2a2a2a"]}
               style={styles.gradeChangeModalContent}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
             >
               <Text style={styles.modalTitle}>Move to Another Class</Text>
               <Text style={styles.gradeChangeSubtitle}>
@@ -1178,7 +1209,7 @@ const IndividualAttendance = () => {
 
               {allClasses && (
                 <View style={styles.nayrouzBanner}>
-                  <Icon name="calendar-alert" size={18} color="#ffb74d" />
+                  <Icon name="calendar-alert" size={18} color={t.isDark ? "#ffb74d" : t.warningText} />
                   <Text style={styles.nayrouzBannerText}>{NAYROUZ_NOTE}</Text>
                 </View>
               )}
@@ -1214,7 +1245,7 @@ const IndividualAttendance = () => {
               <View style={styles.gradeChangeButtonsContainer}>
                 <LinearGradient
                   colors={
-                    selectedIsOther ? ["#e5892b", "#c96f14"] : ["#147efb", "#0f64d2"]
+                    selectedIsOther ? ["#e5892b", "#c96f14"] : [t.accent, "#0f64d2"]
                   }
                   style={[
                     styles.modalButton,
@@ -1235,7 +1266,7 @@ const IndividualAttendance = () => {
                   >
                     {transferringStudent ? (
                       <>
-                        <ActivityIndicator size="small" color="#fff" />
+                        <ActivityIndicator size="small" color={t.onAccent} />
                         <Text
                           style={[styles.modalButtonText, styles.buttonTextWithIcon]}
                         >
@@ -1262,7 +1293,7 @@ const IndividualAttendance = () => {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
               </View>
-            </LinearGradient>
+            </ModalPanel>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -1270,10 +1301,10 @@ const IndividualAttendance = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     padding: 20,
   },
   contentContainer: {
@@ -1288,7 +1319,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: "bold",
-    color: "#ffffff",
+    color: t.text,
     marginBottom: 8,
     textAlign: "center",
   },
@@ -1305,26 +1336,26 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 18,
-    color: "#b0b0b0",
+    color: t.textSecondary,
     marginBottom: 20,
     textAlign: "center",
   },
   infoButton: {
     flexDirection: "row",
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 5,
   },
   infoButtonText: {
-    color: "#fff",
+    color: t.text,
     fontSize: 14,
     fontWeight: "700",
     marginLeft: 6,
@@ -1340,11 +1371,11 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     marginBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: "#444",
+    borderBottomColor: t.surfaceHighest,
   },
   dateText: {
     fontSize: 18,
-    color: "#ffffff",
+    color: t.text,
     fontWeight: "600",
   },
   statusContainer: {
@@ -1360,17 +1391,17 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#ffffff",
+    color: t.onAccent,
     lineHeight: 24,
     textAlign: "center",
   },
   present: {
-    backgroundColor: "#147efb",
+    backgroundColor: t.accent,
     borderColor: "#0f64d2",
     borderWidth: 1,
   },
   absent: {
-    backgroundColor: "#F44336",
+    backgroundColor: t.danger,
     borderColor: "#D32F2F",
     borderWidth: 1,
   },
@@ -1381,13 +1412,13 @@ const styles = StyleSheet.create({
   deleteText: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#F44336",
+    color: t.dangerText,
   },
   modalContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.8)",
+    backgroundColor: t.overlay,
   },
   modalContent: {
     padding: 18,
@@ -1397,7 +1428,7 @@ const styles = StyleSheet.create({
     maxHeight: "90%",
     borderRadius: 20,
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.5,
     shadowRadius: 12,
@@ -1406,7 +1437,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#ffffff",
+    color: t.text,
     marginBottom: 4,
     letterSpacing: 0.3,
     textAlign: "center",
@@ -1422,7 +1453,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: t.fillStrong,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1431,7 +1462,7 @@ const styles = StyleSheet.create({
   },
   modalSubtitle: {
     fontSize: 13,
-    color: "#aaaaaa",
+    color: t.textSecondary,
     textAlign: "center",
     marginBottom: 4,
     lineHeight: 17,
@@ -1452,23 +1483,23 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#ffffff",
+    color: t.text,
     marginBottom: 4,
   },
   fieldRequired: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#ff8a80",
+    color: t.isDark ? "#ff8a80" : t.dangerText,
   },
   // "(optional)" rides on the label line instead of taking a hint line of its own.
   fieldOptional: {
     fontSize: 12,
     fontWeight: "500",
-    color: "#8a8a8a",
+    color: t.textMuted,
   },
   fieldHint: {
     fontSize: 12,
-    color: "#9a9a9a",
+    color: t.textMuted,
     marginBottom: 6,
     lineHeight: 16,
   },
@@ -1486,9 +1517,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#2a2a2a",
+    backgroundColor: t.surfaceElevated,
     borderWidth: 1,
-    borderColor: "#444",
+    borderColor: t.surfaceHighest,
     borderRadius: 10,
     paddingVertical: 9,
     paddingHorizontal: 12,
@@ -1497,17 +1528,17 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   photoButtonText: {
-    color: "#ffffff",
+    color: t.text,
     fontSize: 14,
     fontWeight: "600",
     marginLeft: 6,
   },
   photoButtonDanger: {
-    borderColor: "#5a2a2a",
-    backgroundColor: "#2a1e1e",
+    borderColor: t.isDark ? "#5a2a2a" : "rgba(255,59,48,0.3)",
+    backgroundColor: t.isDark ? "#2a1e1e" : "rgba(255,59,48,0.08)",
   },
   photoButtonDangerText: {
-    color: "#ff8a80",
+    color: t.isDark ? "#ff8a80" : t.dangerText,
   },
   profilePictureContainer: {
     position: "relative",
@@ -1522,11 +1553,11 @@ const styles = StyleSheet.create({
     borderColor: "#ffffff",
   },
   infoCard: {
-    backgroundColor: "#2a2a2a",
+    backgroundColor: t.surfaceElevated,
     borderRadius: 12,
     padding: 14,
     marginBottom: 14,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -1541,25 +1572,25 @@ const styles = StyleSheet.create({
   infoLabel: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#ffffff",
+    color: t.text,
     width: 88,
   },
   infoValue: {
     fontSize: 15,
-    color: "#ffffff",
+    color: t.text,
     flex: 1,
     flexWrap: "wrap",
   },
   input: {
     width: "100%",
     padding: 11,
-    backgroundColor: "#2a2a2a",
-    color: "#fff",
+    backgroundColor: t.surfaceElevated,
+    color: t.text,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#444",
+    borderColor: t.surfaceHighest,
     fontSize: 16,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -1574,7 +1605,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: "hidden",
     marginBottom: 10,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
@@ -1599,19 +1630,19 @@ const styles = StyleSheet.create({
   closeButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#cfcfcf",
+    color: t.textSecondary,
     textAlign: "center",
   },
   modalButtonText: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#ffffff",
+    color: t.onAccent,
     letterSpacing: 0.5,
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#F44336",
+    color: t.dangerText,
     textAlign: "center",
   },
   noAttendanceContainer: {
@@ -1622,20 +1653,20 @@ const styles = StyleSheet.create({
   },
   noAttendanceText: {
     fontSize: 18,
-    color: "#b0b0b0",
+    color: t.textSecondary,
     textAlign: "center",
     marginBottom: 10,
   },
   noAttendanceSubtext: {
     fontSize: 16,
-    color: "#888",
+    color: t.textMuted,
     textAlign: "center",
   },
   gradeChangeButton: {
     flexDirection: "row",
-    backgroundColor: "#2a2a2a",
+    backgroundColor: t.isDark ? "#2a2a2a" : t.surface,
     borderWidth: 1,
-    borderColor: "#444",
+    borderColor: t.surfaceHighest,
     borderRadius: 10,
     paddingVertical: 11,
     paddingHorizontal: 12,
@@ -1647,12 +1678,12 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   gradeChangeButtonText: {
-    color: "#fff",
+    color: t.text,
     fontSize: 15,
     fontWeight: "600",
   },
   gradeChangeButtonHint: {
-    color: "#9a9a9a",
+    color: t.textMuted,
     fontSize: 13,
     marginTop: 2,
   },
@@ -1668,7 +1699,7 @@ const styles = StyleSheet.create({
     padding: 25,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: t.surfaceHighest,
     alignItems: "center",
   },
   gradeOptionsScrollView: {
@@ -1676,7 +1707,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   gradeChangeSubtitle: {
-    color: "#ccc",
+    color: t.textSecondary,
     fontSize: 16,
     textAlign: "center",
     marginBottom: 12,
@@ -1687,29 +1718,29 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   gradeOption: {
-    backgroundColor: "#2a2a2a",
+    backgroundColor: t.surfaceElevated,
     borderWidth: 1,
-    borderColor: "#444",
+    borderColor: t.surfaceHighest,
     borderRadius: 10,
     padding: 15,
     marginVertical: 5,
     alignItems: "center",
   },
   selectedGradeOption: {
-    backgroundColor: "#147efb",
-    borderColor: "#147efb",
+    backgroundColor: t.accent,
+    borderColor: t.accent,
   },
   gradeOptionText: {
-    color: "#fff",
+    color: t.text,
     fontSize: 16,
     fontWeight: "600",
   },
   selectedGradeOptionText: {
-    color: "#fff",
+    color: t.onAccent,
     fontWeight: "bold",
   },
   warningText: {
-    color: "#ffa500",
+    color: t.warningText,
     fontSize: 14,
     textAlign: "center",
     marginBottom: 14,
@@ -1728,13 +1759,13 @@ const styles = StyleSheet.create({
   },
   nayrouzBannerText: {
     flex: 1,
-    color: "#ffd59a",
+    color: t.isDark ? "#ffd59a" : "#8A5300",
     fontSize: 13,
     lineHeight: 18,
     marginLeft: 8,
   },
   gradeSectionHeader: {
-    color: "#ffffff",
+    color: t.text,
     fontSize: 13,
     fontWeight: "700",
     textTransform: "uppercase",
@@ -1743,7 +1774,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   gradeSectionHint: {
-    color: "#9a9a9a",
+    color: t.textMuted,
     fontSize: 12,
     lineHeight: 16,
     marginBottom: 4,
@@ -1757,7 +1788,7 @@ const styles = StyleSheet.create({
     borderStyle: "solid",
   },
   notYourClassTag: {
-    color: "#ffb74d",
+    color: t.isDark ? "#ffb74d" : t.warningText,
     fontSize: 12,
     fontWeight: "600",
     marginTop: 2,
@@ -1766,6 +1797,6 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
   },
-});
+}));
 
 export default IndividualAttendance;

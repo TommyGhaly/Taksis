@@ -1,7 +1,6 @@
 import * as React from "react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
-  StyleSheet,
   View,
   TextInput,
   Pressable,
@@ -36,6 +35,7 @@ import {
 } from "../utils/microsoftAuth";
 import MicrosoftSignInModal from "../components/MicrosoftSignInModal";
 import { setPendingAppleName } from "../utils/pendingAppleName";
+import { makeStyles, useTheme } from "../theme";
 
 const { width, height } = Dimensions.get("window");
 const REFERENCE_WIDTH = 375;
@@ -50,6 +50,8 @@ const FloatingInput = React.forwardRef(({
   isSecureVisible, autoCapitalize, keyboardType, textContentType,
   returnKeyType, onSubmitEditing, blurOnSubmit, t, ...rest
 }, ref) => {
+  const styles = useStyles();
+  const theme = useTheme();
   const [focused, setFocused] = useState(false);
   const animated = useRef(new Animated.Value(value ? 1 : 0)).current;
 
@@ -66,12 +68,12 @@ const FloatingInput = React.forwardRef(({
     left: t ? t.labelLeft : scale(14),
     top: animated.interpolate({ inputRange: [0, 1], outputRange: t ? t.labelTop : [verticalScale(16), verticalScale(6)] }),
     fontSize: animated.interpolate({ inputRange: [0, 1], outputRange: t ? t.labelFont : [moderateScale(15), moderateScale(11)] }),
-    color: animated.interpolate({ inputRange: [0, 1], outputRange: ["rgba(255,255,255,0.35)", "rgba(255,255,255,0.5)"] }),
+    color: animated.interpolate({ inputRange: [0, 1], outputRange: [theme.textTertiary, theme.textSecondary] }),
   };
 
   return (
     <View style={[{ marginBottom: verticalScale(12) }, t && t.fieldWrap]}>
-      <View style={[styles.inputWrap, t && t.inputWrap, { borderColor: focused ? "#147efb" : "rgba(255,255,255,0.08)" }]}>
+      <View style={[styles.inputWrap, t && t.inputWrap, { borderColor: focused ? theme.accent : theme.border }]}>
         <Animated.Text style={labelStyle} pointerEvents="none">{label}</Animated.Text>
         <TextInput
           ref={ref} value={value} onChangeText={onChangeText}
@@ -81,11 +83,12 @@ const FloatingInput = React.forwardRef(({
           onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
           returnKeyType={returnKeyType} onSubmitEditing={onSubmitEditing}
           blurOnSubmit={blurOnSubmit} style={[styles.input, t && t.input]}
-          placeholderTextColor="rgba(255,255,255,0.3)" {...rest}
+          placeholderTextColor={theme.placeholder}
+          keyboardAppearance={theme.keyboardAppearance} {...rest}
         />
         {showToggle ? (
           <Pressable onPress={onToggleSecure} style={[styles.eyeBtn, t && t.eyeBtn]} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name={isSecureVisible ? "eye-off-outline" : "eye-outline"} size={t ? t.eyeSize : 20} color="rgba(255,255,255,0.35)" />
+            <Ionicons name={isSecureVisible ? "eye-off-outline" : "eye-outline"} size={t ? t.eyeSize : 20} color={theme.textTertiary} />
           </Pressable>
         ) : null}
       </View>
@@ -94,6 +97,8 @@ const FloatingInput = React.forwardRef(({
 });
 
 const SignIn = ({ navigation }) => {
+  const styles = useStyles();
+  const theme = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -225,8 +230,8 @@ const SignIn = ({ navigation }) => {
           style={({ pressed }) => [styles.continueButton, t && t.continueButton, (!canSubmit || isLoading) && styles.continueButtonDisabled, pressed && canSubmit && { opacity: 0.85 }]}
           onPress={handleSignIn} disabled={!canSubmit || isLoading}
         >
-          {loading === "email" ? <ActivityIndicator color="#fff" /> : (
-            <><Text style={[styles.continueText, t && t.continueText]}>Continue</Text><Ionicons name="arrow-forward" size={t ? t.continueIconSize : 18} color="#fff" /></>
+          {loading === "email" ? <ActivityIndicator color={theme.onAccent} /> : (
+            <><Text style={[styles.continueText, t && t.continueText]}>Continue</Text><Ionicons name="arrow-forward" size={t ? t.continueIconSize : 18} color={theme.onAccent} /></>
           )}
         </Pressable>
 
@@ -247,13 +252,13 @@ const SignIn = ({ navigation }) => {
             <SocialButton
               t={t}
               onPress={handleApple} disabled={isLoading} isLoading={loading === "apple"}
-              icon={<Ionicons name="logo-apple" size={t ? t.socialIconSize : 26} color="#fff" />} label="Apple"
+              icon={<Ionicons name="logo-apple" size={t ? t.socialIconSize : 26} color={theme.text} />} label="Apple"
             />
           ) : null}
           <SocialButton
             t={t}
             onPress={() => setMsVisible(true)} disabled={isLoading} isLoading={loading === "microsoft"}
-            icon={<Ionicons name="logo-microsoft" size={t ? t.socialIconSize : 26} color="#fff" />}
+            icon={<Ionicons name="logo-microsoft" size={t ? t.socialIconSize : 26} color={theme.text} />}
             label="Microsoft"
           />
         </View>
@@ -276,48 +281,52 @@ const SignIn = ({ navigation }) => {
   );
 };
 
-const SocialButton = ({ onPress, icon, label, disabled, isLoading, t }) => (
+const SocialButton = ({ onPress, icon, label, disabled, isLoading, t }) => {
+  const styles = useStyles();
+  const theme = useTheme();
+  return (
   <Pressable onPress={onPress} disabled={disabled} style={({ pressed }) => [styles.socialButton, t && t.socialButton, disabled && { opacity: 0.5 }, pressed && { transform: [{ scale: 0.97 }] }]}>
-    {isLoading ? <ActivityIndicator color="#fff" /> : (
+    {isLoading ? <ActivityIndicator color={theme.text} /> : (
       <><View style={[styles.socialIconWrap, t && t.socialIconWrap]}>{icon}</View><Text style={[styles.socialLabel, t && t.socialLabel]}>{label}</Text></>
     )}
   </Pressable>
-);
+  );
+};
 
 const generateNonce = (length = 32) => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
+const useStyles = makeStyles((t) => ({
+  container: { flex: 1, backgroundColor: t.isDark ? "#000" : t.background },
   scrollContent: { paddingHorizontal: scale(20), paddingTop: verticalScale(60), paddingBottom: verticalScale(32), flexGrow: 1 },
   backArrowContainer: { marginBottom: verticalScale(16) },
   heading: { marginBottom: verticalScale(28) },
   icon: { width: scale(220), height: scale(220) * (499 / 1089), alignSelf: "center", marginBottom: verticalScale(20) },
-  title: { fontSize: moderateScale(34), fontWeight: "700", color: "#E0E0E0", letterSpacing: -0.5, lineHeight: moderateScale(40) },
-  subtitle: { fontSize: moderateScale(15), color: "rgba(255,255,255,0.5)", marginTop: verticalScale(8), lineHeight: moderateScale(21) },
+  title: { fontSize: moderateScale(34), fontWeight: "700", color: t.isDark ? "#E0E0E0" : t.text, letterSpacing: -0.5, lineHeight: moderateScale(40) },
+  subtitle: { fontSize: moderateScale(15), color: t.textSecondary, marginTop: verticalScale(8), lineHeight: moderateScale(21) },
   form: { marginBottom: verticalScale(4) },
-  inputWrap: { height: verticalScale(58), borderWidth: 1, borderRadius: moderateScale(12), backgroundColor: "#1A1A1A", paddingHorizontal: scale(14), paddingTop: verticalScale(14), flexDirection: "row", alignItems: "center" },
-  input: { flex: 1, fontSize: moderateScale(15), color: "#E0E0E0", paddingVertical: 0, paddingTop: verticalScale(8) },
+  inputWrap: { height: verticalScale(58), borderWidth: 1, borderRadius: moderateScale(12), backgroundColor: t.surface, paddingHorizontal: scale(14), paddingTop: verticalScale(14), flexDirection: "row", alignItems: "center" },
+  input: { flex: 1, fontSize: moderateScale(15), color: t.isDark ? "#E0E0E0" : t.text, paddingVertical: 0, paddingTop: verticalScale(8) },
   eyeBtn: { padding: scale(4), marginLeft: scale(4) },
   forgotRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", marginBottom: verticalScale(20), marginTop: verticalScale(4) },
-  forgotText: { fontSize: moderateScale(14), color: "rgba(255,255,255,0.45)" },
-  forgotLink: { fontSize: moderateScale(14), color: "#147EFB", fontWeight: "600" },
-  continueButton: { height: verticalScale(52), width: "100%", backgroundColor: "#147EFB", borderRadius: moderateScale(12), flexDirection: "row", justifyContent: "center", alignItems: "center", gap: scale(8), marginBottom: verticalScale(20), elevation: 4, shadowColor: "#147EFB", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8 },
-  continueButtonDisabled: { backgroundColor: "#555", shadowOpacity: 0, elevation: 0 },
-  continueText: { fontSize: moderateScale(16), fontWeight: "600", color: "#fff", letterSpacing: -0.2 },
+  forgotText: { fontSize: moderateScale(14), color: t.textTertiary },
+  forgotLink: { fontSize: moderateScale(14), color: t.accent, fontWeight: "600" },
+  continueButton: { height: verticalScale(52), width: "100%", backgroundColor: t.accent, borderRadius: moderateScale(12), flexDirection: "row", justifyContent: "center", alignItems: "center", gap: scale(8), marginBottom: verticalScale(20), elevation: 4, shadowColor: t.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8 },
+  continueButtonDisabled: { backgroundColor: t.isDark ? "#555" : "#AEAEB2", shadowOpacity: 0, elevation: 0 },
+  continueText: { fontSize: moderateScale(16), fontWeight: "600", color: t.onAccent, letterSpacing: -0.2 },
   dividerContainer: { flexDirection: "row", alignItems: "center", marginBottom: verticalScale(16) },
-  divider: { flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.08)" },
-  orText: { marginHorizontal: scale(12), fontSize: moderateScale(12), color: "rgba(255,255,255,0.35)", fontWeight: "500", textTransform: "uppercase", letterSpacing: 0.5 },
+  divider: { flex: 1, height: 1, backgroundColor: t.separator },
+  orText: { marginHorizontal: scale(12), fontSize: moderateScale(12), color: t.textTertiary, fontWeight: "500", textTransform: "uppercase", letterSpacing: 0.5 },
   socialRow: { flexDirection: "row", gap: scale(10), marginBottom: verticalScale(28) },
-  socialButton: { flex: 1, height: verticalScale(64), backgroundColor: "#1A1A1A", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: moderateScale(14), justifyContent: "center", alignItems: "center", gap: verticalScale(4) },
+  socialButton: { flex: 1, height: verticalScale(64), backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, borderRadius: moderateScale(14), justifyContent: "center", alignItems: "center", gap: verticalScale(4) },
   socialIconWrap: { height: 26, justifyContent: "center", alignItems: "center" },
-  socialLabel: { fontSize: moderateScale(11), color: "rgba(255,255,255,0.65)", fontWeight: "500" },
+  socialLabel: { fontSize: moderateScale(11), color: t.textSecondary, fontWeight: "500" },
   googleIcon: { width: moderateScale(24), height: moderateScale(24) },
   signUpRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: scale(6), marginTop: "auto", paddingTop: verticalScale(12) },
-  signUpPrompt: { fontSize: moderateScale(14), color: "rgba(255,255,255,0.45)" },
-  signUpLink: { fontSize: moderateScale(14), color: "#147EFB", fontWeight: "600" },
-});
+  signUpPrompt: { fontSize: moderateScale(14), color: t.textTertiary },
+  signUpLink: { fontSize: moderateScale(14), color: t.accent, fontWeight: "600" },
+}));
 
 export default SignIn;

@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback,
   StyleSheet, ScrollView, Modal, TextInput, Switch,
   FlatList, Alert, KeyboardAvoidingView, Platform,
-  ActivityIndicator, StatusBar, Pressable,
+  ActivityIndicator, Pressable,
   useWindowDimensions,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
@@ -33,28 +33,51 @@ import {
   expandReadings, countSlots, dayProgress, isAssignableSlot, isPsalmSlot,
   hasLanguagePicker, languageOptionsFor, effectiveLanguage, langDisplay, langShort,
   langFirestoreKey, psalmReadersKey, prophecyCopticToggleKey,
-  ASSIGNABLE, READING_META, MAX_PSALM_READERS, readingDisplay,
+  ASSIGNABLE, READING_META, MAX_PSALM_READERS, readingDisplay, readingMetaFor,
 } from "../Pascha/PaschaReadingUtils";
 import { DAY_SHORT_LABELS } from "../Pascha/DayConstants";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
-var BG      = "#0f0f0f";
-var CARD    = "#1c1c1e";
-var CARD2   = "#2c2c2e";
-var CARD3   = "#3a3a3c";
-var SEP     = "rgba(255,255,255,0.08)";
-var BLUE    = "#0a84ff";
-var BLUEDIM = "rgba(10,132,255,0.15)";
-var GREEN   = "#30d158";
-var RED     = "#ff453a";
-var ORANGE  = "#ff9f0a";
-var T1      = "#ffffff";
-var T2      = "rgba(255,255,255,0.65)";
-var T3      = "rgba(255,255,255,0.30)";
-var COPTIC_COLOR  = "#f59e0b";
-var COPTIC_BG     = "rgba(245,158,11,0.10)";
-var COPTIC_BORDER = "rgba(245,158,11,0.28)";
-var COPTIC_TRACK  = "rgba(245,158,11,0.45)";
+// This screen keeps its own iOS-grouped dark palette (MainContainer gives it a
+// #0f0f0f column), so dark values stay exactly as they were; light follows the
+// app palette. Built once per theme so object identities (AVATAR_BG) are
+// stable and Avatar's React.memo still holds.
+var tokenCache = new Map();
+function paschaTokens(t) {
+  var cached = tokenCache.get(t.key);
+  if (cached) return cached;
+  var d = t.isDark;
+  var CARD2 = d ? "#2c2c2e" : t.surfaceElevated;
+  var tokens = {
+    THEME:   t,
+    BG:      d ? "#0f0f0f" : t.background,
+    CARD:    d ? "#1c1c1e" : t.surface,
+    CARD2:   CARD2,
+    CARD3:   d ? "#3a3a3c" : t.surfaceHighest,
+    SEP:     d ? "rgba(255,255,255,0.08)" : t.border,
+    BLUE:    d ? "#0a84ff" : t.accent,
+    BLUEDIM: d ? "rgba(10,132,255,0.15)" : t.accentFill,
+    GREEN:   t.successText,
+    RED:     t.dangerText,
+    ORANGE:  t.warningText,
+    T1:      t.text,
+    T2:      d ? "rgba(255,255,255,0.65)" : t.textSecondary,
+    T3:      d ? "rgba(255,255,255,0.30)" : t.textTertiary,
+    ON:      t.onAccent, // text/icons on a BLUE/RED fill
+    COPTIC_COLOR:  d ? "#f59e0b" : "#B45309",
+    COPTIC_BG:     "rgba(245,158,11,0.10)",
+    COPTIC_BORDER: "rgba(245,158,11,0.28)",
+    COPTIC_TRACK:  "rgba(245,158,11,0.45)",
+    // Background the old local Avatar painted behind the image.
+    AVATAR_BG: { backgroundColor: CARD2 },
+  };
+  tokenCache.set(t.key, tokens);
+  return tokens;
+}
+function usePaschaTokens() {
+  return paschaTokens(useTheme());
+}
 
 // ── Font size multiplier ──────────────────────────────────────────────────────
 var DEFAULT_FONT_MULTIPLIERS = { small: 0.85, medium: 1.0, large: 1.18 };
@@ -128,12 +151,11 @@ function useSheetPresentation(maxCardWidth) {
   };
 }
 
-// Background the old local Avatar painted behind the image. Module-level so the
-// reference is stable and Avatar's React.memo still holds.
-var AVATAR_BG = { backgroundColor: CARD2 };
 
 // ── Psalm reader row ──────────────────────────────────────────────────────────
 var PsalmReadersRow = function(props) {
+  var { CARD, CARD2, T2, T3 } = usePaschaTokens();
+  var hm = useHmStyles();
   var readers = props.readers != null ? props.readers : [];
   var onOpen = props.onOpen;
   var label = props.label;
@@ -169,6 +191,8 @@ var PsalmReadersRow = function(props) {
 
 // ── Language pill ─────────────────────────────────────────────────────────────
 var LanguagePill = function(props) {
+  var { BLUE, T2 } = usePaschaTokens();
+  var lp = useLpStyles();
   var row = props.row;
   var hourAssignments = props.hourAssignments;
   var onSave = props.onSave;
@@ -201,23 +225,28 @@ var LanguagePill = function(props) {
     </View>
   );
 };
-var lp = StyleSheet.create({
+var useLpStyles = makeStyles(function(t) {
+  var { BG, CARD, CARD2, CARD3, SEP, BLUE, BLUEDIM, GREEN, RED, ORANGE, T1, T2, T3, ON, COPTIC_COLOR, COPTIC_BG, COPTIC_BORDER, COPTIC_TRACK } = paschaTokens(t);
+  return {
   pill:           { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8,
                     paddingVertical: 4, borderRadius: 8, backgroundColor: CARD2, borderWidth: 1, borderColor: SEP },
   pillTxt:        { fontSize: 10, fontWeight: "700", color: T2, letterSpacing: 0.5 },
   dropdown:       { position: "absolute", top: 30, right: 0, zIndex: 100, backgroundColor: CARD,
                     borderRadius: 12, borderWidth: 1, borderColor: SEP, paddingVertical: 4, minWidth: 120,
-                    ...Platform.select({ ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+                    ...Platform.select({ ios: { shadowColor: t.shadow, shadowOffset: { width: 0, height: 4 },
                     shadowOpacity: 0.4, shadowRadius: 12 }, android: { elevation: 8 } }) },
   dropItem:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                     paddingHorizontal: 14, paddingVertical: 10 },
   dropItemActive: { backgroundColor: BLUEDIM },
   dropTxt:        { fontSize: 14, color: T2, fontWeight: "500" },
   dropTxtActive:  { color: BLUE, fontWeight: "600" },
+};
 });
 
 // ── Prophecy Coptic Toggle ────────────────────────────────────────────────────
 var ProphecyCopticToggle = function(props) {
+  var { COPTIC_COLOR } = usePaschaTokens();
+  var pct = usePctStyles();
   var vernacularSlotKey = props.vernacularSlotKey;
   var hourAssignments = props.hourAssignments;
   var onSave = props.onSave;
@@ -256,27 +285,32 @@ var ProphecyCopticToggle = function(props) {
     </View>
   );
 };
-var pct = StyleSheet.create({
+var usePctStyles = makeStyles(function(t) {
+  var { BG, CARD, CARD2, CARD3, SEP, BLUE, BLUEDIM, GREEN, RED, ORANGE, T1, T2, T3, ON, COPTIC_COLOR, COPTIC_BG, COPTIC_BORDER, COPTIC_TRACK } = paschaTokens(t);
+  return {
   row:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center",
               paddingVertical: 3, paddingHorizontal: 8, marginTop: 8, marginBottom: 6,
-              borderRadius: 9, backgroundColor: "rgba(255,255,255,0.05)",
-              borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.06)" },
+              borderRadius: 9, backgroundColor: t.isDark ? "rgba(255,255,255,0.05)" : t.fill,
+              borderWidth: 1, borderColor: t.isDark ? "rgba(255, 255, 255, 0.06)" : t.border },
   labelRow: { flexDirection: "row", alignItems: "center", flex: 1, marginRight: 8, gap: 6 },
-  alphaBox: { width: 22, height: 22, borderRadius: 6, backgroundColor: "rgba(255,255,255,0.03)",
-              borderWidth: 1, borderColor: "rgba(255,255,255,0.2)",
+  alphaBox: { width: 22, height: 22, borderRadius: 6, backgroundColor: t.isDark ? "rgba(255,255,255,0.03)" : t.fill,
+              borderWidth: 1, borderColor: t.isDark ? "rgba(255,255,255,0.2)" : t.borderStrong,
               justifyContent: "center", alignItems: "center", flexShrink: 0 },
   alpha:    { fontWeight: "600", color: T3, textAlign: "center", textAlignVertical: "center", includeFontPadding: false },
   label:    { color: T2, fontWeight: "400", flex: 1 },
   toggle:   { transform: [{ scaleX: 0.88 }, { scaleY: 0.88 }], marginRight: 8 },
+};
 });
 
 // ── Gospel grid ───────────────────────────────────────────────────────────────
 var GospelGrid = function(props) {
+  var { T3, AVATAR_BG, THEME } = usePaschaTokens();
+  var gg = useGgStyles();
   var rows = props.rows;
   var hourAssignments = props.hourAssignments;
   var onOpenPicker = props.onOpenPicker;
   var fs = props.fontScale != null ? props.fontScale : 1;
-  var meta = READING_META.gospels;
+  var meta = readingMetaFor(THEME.isDark).gospels;
   return (
     <View style={gg.grid}>
       {rows.map(function(row) {
@@ -310,7 +344,9 @@ var GospelGrid = function(props) {
     </View>
   );
 };
-var gg = StyleSheet.create({
+var useGgStyles = makeStyles(function(t) {
+  var { BG, CARD, CARD2, CARD3, SEP, BLUE, BLUEDIM, GREEN, RED, ORANGE, T1, T2, T3, ON, COPTIC_COLOR, COPTIC_BG, COPTIC_BORDER, COPTIC_TRACK } = paschaTokens(t);
+  return {
   grid:          { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
   cell:          { width: "48%", backgroundColor: CARD2, borderRadius: 12, padding: 10, gap: 6 },
   cellTop:       { flexDirection: "row", alignItems: "flex-start", gap: 8 },
@@ -322,10 +358,14 @@ var gg = StyleSheet.create({
   assigneeName:  { fontSize: 11, fontWeight: "600", color: GREEN, flex: 1 },
   unassignedRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   unassignedTxt: { fontSize: 11, color: T3 },
+};
 });
 
 // ── HourModal ─────────────────────────────────────────────────────────────────
 var HourModal = function(props) {
+  var { BLUE, GREEN, RED, T1, T2, T3, COPTIC_COLOR, COPTIC_BG, AVATAR_BG, THEME } = usePaschaTokens();
+  var hm = useHmStyles();
+  var pmS = usePmSStyles();
   props = props || {};
   var visible = !!props.visible;
   var hour = props.hour;
@@ -555,7 +595,7 @@ var HourModal = function(props) {
   var firstGospelGridSlotKey = hasGospelGrid ? gospelGridRows[0].slotKey : null;
 
   var rowLabel = function(row) {
-    var meta = READING_META[row.rKey] || { label: row.rKey };
+    var meta = readingMetaFor(THEME.isDark)[row.rKey] || { label: row.rKey };
     if (row.rKey === "homily")     return "Homily \u2014 " + (row.author || row.refText);
     if (row.rKey === "exposition") return "Exposition";
     return row.index != null ? (meta.label + " " + (row.index + 1)) : meta.label;
@@ -611,7 +651,7 @@ var HourModal = function(props) {
   };
 
   var pickerMeta  = pickerRow_ != null
-    ? (READING_META[pickerRow_.rKey] || { label: pickerRow_.rKey, icon: "book-outline", color: T2 })
+    ? (readingMetaFor(THEME.isDark)[pickerRow_.rKey] || { label: pickerRow_.rKey, icon: "book-outline", color: T2 })
     : null;
   var pickerColor    = pickerMeta != null ? pickerMeta.color : T2;
   var isCopticPicker = pickerRow_ != null && pickerRow_.isCoptic === true;
@@ -630,7 +670,7 @@ var HourModal = function(props) {
   }
 
   var psalmMeta  = psalmRow != null
-    ? (READING_META[psalmRow.rKey] || { label: psalmRow.rKey, icon: "music-note", color: T2 })
+    ? (readingMetaFor(THEME.isDark)[psalmRow.rKey] || { label: psalmRow.rKey, icon: "music-note", color: T2 })
     : null;
   var psalmLabel = "";
   if (psalmRow != null) {
@@ -655,7 +695,7 @@ var HourModal = function(props) {
         />
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={[hm.kav, sheet.center]} pointerEvents="box-none">
-          <View style={[hm.sheet, sheet.card, { maxHeight: sheetMax }]}>
+          <GlassSurface style={[hm.sheet, sheet.card, { maxHeight: sheetMax }]}>
             {!sheet.wide && <View style={hm.handle} />}
 
             {/* ── MAIN HOUR VIEW ─────────────────────────────────────────── */}
@@ -685,7 +725,7 @@ var HourModal = function(props) {
                   onScroll={function(e) { bodyScrollYRef.current = e != null && e.nativeEvent ? e.nativeEvent.contentOffset.y : 0; }}
                   keyboardShouldPersistTaps="handled">
                   {rows.map(function(row, i) {
-                    var meta        = READING_META[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
+                    var meta        = readingMetaFor(THEME.isDark)[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
                     var assignable  = isAssignableSlot(row.rKey);
                     var isPsalm     = isPsalmSlot(row.rKey);
                     var isExp       = row.rKey === "exposition";
@@ -842,7 +882,7 @@ var HourModal = function(props) {
                 </View>
                 <View style={hm.searchRow}>
                   <Icon name="magnify" size={16} color={T3} />
-                  <TextInput style={hm.searchIn} placeholder="Search..." placeholderTextColor={T3}
+                  <TextInput style={hm.searchIn} placeholder="Search..." placeholderTextColor={THEME.placeholder} keyboardAppearance={THEME.keyboardAppearance}
                     value={q} onChangeText={setQ} returnKeyType="search" />
                   {q.length > 0 && (
                     <TouchableOpacity onPress={function() { setQ(""); }}
@@ -866,7 +906,7 @@ var HourModal = function(props) {
                 }
                 {manualOpen ? (
                   <View style={hm.manualBox}>
-                    <TextInput style={hm.manualIn} placeholder="Full name..." placeholderTextColor={T3}
+                    <TextInput style={hm.manualIn} placeholder="Full name..." placeholderTextColor={THEME.placeholder} keyboardAppearance={THEME.keyboardAppearance}
                       value={manual} onChangeText={setManual} autoFocus returnKeyType="done"
                       onSubmitEditing={function() {
                         var n = manual.trim();
@@ -959,7 +999,7 @@ var HourModal = function(props) {
                 </View>
                 <View style={hm.searchRow}>
                   <Icon name="magnify" size={16} color={T3} />
-                  <TextInput style={hm.searchIn} placeholder="Search..." placeholderTextColor={T3}
+                  <TextInput style={hm.searchIn} placeholder="Search..." placeholderTextColor={THEME.placeholder} keyboardAppearance={THEME.keyboardAppearance}
                     value={q} onChangeText={setQ} returnKeyType="search" />
                   {q.length > 0 && (
                     <TouchableOpacity onPress={function() { setQ(""); }}
@@ -983,7 +1023,7 @@ var HourModal = function(props) {
                 }
                 {manualOpen ? (
                   <View style={hm.manualBox}>
-                    <TextInput style={hm.manualIn} placeholder="Full name..." placeholderTextColor={T3}
+                    <TextInput style={hm.manualIn} placeholder="Full name..." placeholderTextColor={THEME.placeholder} keyboardAppearance={THEME.keyboardAppearance}
                       value={manual} onChangeText={setManual} autoFocus returnKeyType="done"
                       onSubmitEditing={addPsalmManual} />
                     <View style={hm.manualBtns}>
@@ -1017,15 +1057,17 @@ var HourModal = function(props) {
               </>
             )}
 
-          </View>
+          </GlassSurface>
         </KeyboardAvoidingView>
       </View>
     </Modal>
   );
 };
 
-var hm = StyleSheet.create({
-  backdrop:           { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },
+var useHmStyles = makeStyles(function(t) {
+  var { BG, CARD, CARD2, CARD3, SEP, BLUE, BLUEDIM, GREEN, RED, ORANGE, T1, T2, T3, ON, COPTIC_COLOR, COPTIC_BG, COPTIC_BORDER, COPTIC_TRACK } = paschaTokens(t);
+  return {
+  backdrop:           { flex: 1, backgroundColor: t.isDark ? "rgba(0,0,0,0.65)" : t.overlay, justifyContent: "flex-end" },
   kav:                { flex: 1, width: "100%", justifyContent: "flex-end" },
   sheet:              { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
                         paddingBottom: Platform.OS === "ios" ? 34 : 20, flexShrink: 1 },
@@ -1043,7 +1085,7 @@ var hm = StyleSheet.create({
   readingBlock:       { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: SEP },
   readingBlockCoptic: { backgroundColor: "rgba(245,158,11,0.03)" },
   // Bleeds past the body's 20pt inset so the highlight spans the sheet.
-  readingBlockPressed: { backgroundColor: "rgba(255,255,255,0.05)", marginHorizontal: -20, paddingHorizontal: 20 },
+  readingBlockPressed: { backgroundColor: t.isDark ? "rgba(255,255,255,0.05)" : t.fill, marginHorizontal: -20, paddingHorizontal: 20 },
   readingTop:         { flexDirection: "row", gap: 12, marginBottom: 10, alignItems: "flex-start" },
   readingIcon:        { width: 32, height: 32, borderRadius: 9, justifyContent: "center",
                         alignItems: "center", flexShrink: 0 },
@@ -1109,14 +1151,17 @@ var hm = StyleSheet.create({
   mCancel:            { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: CARD2, alignItems: "center" },
   mCancelTxt:         { fontSize: 14, fontWeight: "600", color: T2 },
   mAdd:               { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: BLUE, alignItems: "center" },
-  mAddTxt:            { fontSize: 14, fontWeight: "700", color: T1 },
+  mAddTxt:            { fontSize: 14, fontWeight: "700", color: ON },
   pickerFooter:       { paddingHorizontal: 20, paddingTop: 10, borderTopWidth: 1, borderTopColor: SEP },
   saveBtn:            { backgroundColor: BLUE, paddingVertical: 15, borderRadius: 14, alignItems: "center" },
   saveBtnClear:       { backgroundColor: "rgba(255,69,58,0.1)", borderWidth: 1, borderColor: "rgba(255,69,58,0.2)" },
-  saveBtnTxt:         { fontSize: 15, fontWeight: "700", color: T1 },
+  saveBtnTxt:         { fontSize: 15, fontWeight: "700", color: ON },
+};
 });
 
-var pmS = StyleSheet.create({
+var usePmSStyles = makeStyles(function(t) {
+  var { BG, CARD, CARD2, CARD3, SEP, BLUE, BLUEDIM, GREEN, RED, ORANGE, T1, T2, T3, ON, COPTIC_COLOR, COPTIC_BG, COPTIC_BORDER, COPTIC_TRACK } = paschaTokens(t);
+  return {
   counter:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: CARD2 },
   counterTxt: { fontSize: 13, fontWeight: "700", color: T2 },
   chipScroll: { maxHeight: 48, marginHorizontal: 20, marginBottom: 4 },
@@ -1128,10 +1173,12 @@ var pmS = StyleSheet.create({
   checkbox:   { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: T3,
                 justifyContent: "center", alignItems: "center" },
   checkboxOn: { backgroundColor: BLUE, borderColor: BLUE },
+};
 });
 
 // ── Day tab bar ───────────────────────────────────────────────────────────────
 var DayTabBar = function(props) {
+  var dt = useDtStyles();
   var allDays = props.allDays;
   var selectedId = props.selectedId;
   var easterDate = props.easterDate;
@@ -1192,7 +1239,9 @@ var DayTabBar = function(props) {
     </ScrollView>
   );
 };
-var dt = StyleSheet.create({
+var useDtStyles = makeStyles(function(t) {
+  var { BG, CARD, CARD2, CARD3, SEP, BLUE, BLUEDIM, GREEN, RED, ORANGE, T1, T2, T3, ON, COPTIC_COLOR, COPTIC_BG, COPTIC_BORDER, COPTIC_TRACK } = paschaTokens(t);
+  return {
   // A horizontal ScrollView flexes on the column axis by default: it would
   // either grow to share height with the hour list below or give height up to
   // it and squash the tabs. Neither — it is exactly as tall as its tabs.
@@ -1212,6 +1261,7 @@ var dt = StyleSheet.create({
   labelActive: { color: BLUE },
   date:        { color: T3, marginTop: 1 },
   dateActive:  { color: "rgba(10,132,255,0.7)" },
+};
 });
 
 // ── Hour tile ─────────────────────────────────────────────────────────────────
@@ -1228,6 +1278,8 @@ var dt = StyleSheet.create({
 // in one at a time once the sheet is on screen (see `photoBudget`). Each row
 // reports when its photo is actually drawn so the next one can follow.
 var PickerAvatar = function(props) {
+  var { T3, AVATAR_BG } = usePaschaTokens();
+  var hm = useHmStyles();
   if (!props.showPhoto) {
     return (
       <View style={[hm.pAvatarStub, AVATAR_BG]}>
@@ -1243,6 +1295,7 @@ var PickerAvatar = function(props) {
 };
 
 var PickerRow = React.memo(function(props) {
+  var hm = useHmStyles();
   var item = props.item, on = props.on;
   return (
     <TouchableOpacity style={[hm.pRow, on && hm.pRowOn]}
@@ -1261,6 +1314,9 @@ var PickerRow = React.memo(function(props) {
 PickerRow.displayName = "PickerRow";
 
 var PsalmPickerRow = React.memo(function(props) {
+  var { ON } = usePaschaTokens();
+  var hm = useHmStyles();
+  var pmS = usePmSStyles();
   var item = props.item, on = props.on, atMax = props.atMax;
   return (
     <TouchableOpacity
@@ -1273,7 +1329,7 @@ var PsalmPickerRow = React.memo(function(props) {
         {item.isDeacon && <Text style={hm.pRowTag}>DEACON</Text>}
       </View>
       <View style={[pmS.checkbox, on && pmS.checkboxOn]}>
-        {on && <Icon name="check" size={13} color={T1} />}
+        {on && <Icon name="check" size={13} color={ON} />}
       </View>
     </TouchableOpacity>
   );
@@ -1281,9 +1337,12 @@ var PsalmPickerRow = React.memo(function(props) {
 PsalmPickerRow.displayName = "PsalmPickerRow";
 
 var pickerKeyExtractor = function(i) { return i.uid || i.name; };
-var PickerEmpty = function() { return <Text style={hm.empty}>No results</Text>; };
+var PickerEmpty = function() {
+  var hm = useHmStyles(); return <Text style={hm.empty}>No results</Text>; };
 
 var HourTile = React.memo(function(props) {
+  var { BLUE, GREEN, T2, COPTIC_COLOR, THEME } = usePaschaTokens();
+  var ht = useHtStyles();
   var hour = props.hour;
   var hourAssignments = props.hourAssignments;
   var dayId = props.dayId;
@@ -1315,10 +1374,10 @@ var HourTile = React.memo(function(props) {
   var complete       = total > 0 && filled === total;
   var started        = filled > 0 && !complete;
   var pctVal         = total > 0 ? filled / total : 0;
-  var statusColor    = complete ? GREEN : started ? BLUE : "rgba(255,255,255,0.1)";
+  var statusColor    = complete ? GREEN : started ? BLUE : (THEME.isDark ? "rgba(255,255,255,0.1)" : THEME.fillStrong);
 
   var rowDisplayLabel = function(row) {
-    var meta = READING_META[row.rKey] || { label: row.rKey };
+    var meta = readingMetaFor(THEME.isDark)[row.rKey] || { label: row.rKey };
     if (row.rKey === "homily")     return "Homily \u2014 " + (row.author || row.refText);
     if (row.rKey === "exposition") return "Exposition";
     return row.index != null ? (meta.label + " " + (row.index + 1)) : meta.label;
@@ -1334,7 +1393,8 @@ var HourTile = React.memo(function(props) {
 
   return (
     <TouchableOpacity onPress={function() { if (onOpenHour) onOpenHour(hour); }} activeOpacity={0.72}
-      style={[ht.tile, props.style]}>
+      style={props.style}>
+     <GlassSurface style={[ht.tile, ht.tileFill]} interactive>
       {/* Status runs the full height of the card instead of a stub beside the title. */}
       <View style={[ht.accent, complete ? ht.accentDone : started ? ht.accentPartial : ht.accentEmpty]} />
       <View style={ht.titleRow}>
@@ -1360,7 +1420,7 @@ var HourTile = React.memo(function(props) {
       </View>
       <View style={ht.readingList}>
         {assignableRows.map(function(row, i) {
-          var meta      = READING_META[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
+          var meta      = readingMetaFor(THEME.isDark)[row.rKey] || { label: row.rKey, icon: "book-outline", color: T2 };
           var isPsalm   = isPsalmSlot(row.rKey);
           var isCoptic  = row.isCoptic === true;
           var readers   = isPsalm ? (hourAssignments[psalmReadersKey(row)] || []) : [];
@@ -1431,19 +1491,23 @@ var HourTile = React.memo(function(props) {
           );
         })}
       </View>
+     </GlassSurface>
     </TouchableOpacity>
   );
 });
 
-var ht = StyleSheet.create({
+var useHtStyles = makeStyles(function(t) {
+  var { BG, CARD, CARD2, CARD3, SEP, BLUE, BLUEDIM, GREEN, RED, ORANGE, T1, T2, T3, ON, COPTIC_COLOR, COPTIC_BG, COPTIC_BORDER, COPTIC_TRACK } = paschaTokens(t);
+  return {
   // One inset (PAD) for the title, the bar and the rows, so they share a left
   // edge. They used to be indented 0, 14 and 14 inside a 14pt-padded card.
+  tileFill:       { flexGrow: 1 },
   tile:           { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: SEP,
                     overflow: "hidden", paddingVertical: 14, paddingLeft: 18, paddingRight: 16 },
   accent:         { position: "absolute", left: 0, top: 0, bottom: 0, width: 3 },
   accentDone:     { backgroundColor: GREEN },
   accentPartial:  { backgroundColor: BLUE },
-  accentEmpty:    { backgroundColor: "rgba(255,255,255,0.08)" },
+  accentEmpty:    { backgroundColor: t.isDark ? "rgba(255,255,255,0.08)" : t.fillStrong },
   titleRow:       { flexDirection: "row", alignItems: "center", gap: 10 },
   name:           { fontWeight: "700", color: T1, flex: 1, letterSpacing: -0.2 },
   pill:           { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 9,
@@ -1455,10 +1519,10 @@ var ht = StyleSheet.create({
   track:          { flex: 1, flexDirection: "row", height: 3, borderRadius: 2, backgroundColor: CARD2, overflow: "hidden" },
   trackFill:      { borderRadius: 2 },
   pct:            { fontWeight: "700", color: T3, minWidth: 34, textAlign: "right" },
-  readingList:    { borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)" },
+  readingList:    { borderTopWidth: 1, borderTopColor: t.isDark ? "rgba(255,255,255,0.05)" : t.border },
   rRow:           { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                     gap: 12, paddingVertical: 10 },
-  rRowBorder:     { borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" },
+  rRowBorder:     { borderBottomWidth: 1, borderBottomColor: t.isDark ? "rgba(255,255,255,0.04)" : t.border },
   // Bleeds the tint to the card edges while the content keeps the shared inset.
   rRowCoptic:     { backgroundColor: "rgba(245,158,11,0.05)", marginLeft: -18, marginRight: -16,
                     paddingLeft: 18, paddingRight: 16 },
@@ -1474,7 +1538,7 @@ var ht = StyleSheet.create({
   copticBadgeTxt: { fontWeight: "700", color: COPTIC_COLOR, letterSpacing: 0.3 },
   rRef:           { color: T3 },
   // Same bleed as the Coptic tint, so the press highlight spans the card.
-  rRowPressed:    { backgroundColor: "rgba(255,255,255,0.06)", marginLeft: -18, marginRight: -16,
+  rRowPressed:    { backgroundColor: t.isDark ? "rgba(255,255,255,0.06)" : t.fill, marginLeft: -18, marginRight: -16,
                     paddingLeft: 18, paddingRight: 16 },
   assignChip:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8,
                     paddingVertical: 3, borderRadius: 12, backgroundColor: "rgba(10,132,255,0.12)" },
@@ -1486,10 +1550,13 @@ var ht = StyleSheet.create({
   avatarStack:    { flexDirection: "row" },
   stackedAvatar:  { borderWidth: 1.5, borderColor: CARD, backgroundColor: CARD2 },
   assigneeName:   { fontWeight: "600", color: GREEN, flexShrink: 1 },
+};
 });
 
 // ── Settings sheet ────────────────────────────────────────────────────────────
 var SettingsSheet = function(props) {
+  var { BLUE, BLUEDIM, GREEN, RED, T2, T3, THEME } = usePaschaTokens();
+  var ss = useSsStyles();
   var visible = props.visible;
   var myReadingsVisible = props.myReadingsVisible;
   var fullScheduleVisible = props.fullScheduleVisible;
@@ -1536,7 +1603,7 @@ var SettingsSheet = function(props) {
     <Modal visible={visible} animationType={sheet.animationType} transparent onRequestClose={onClose}>
       <View style={[ss.backdrop, sheet.center]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={[ss.sheet, sheet.card, sheet.wide && { maxHeight: sheet.height * 0.86 }]}>
+        <GlassSurface style={[ss.sheet, sheet.card, sheet.wide && { maxHeight: sheet.height * 0.86 }]}>
           {!sheet.wide && <View style={ss.handle} />}
           <View style={ss.hdr}>
             <Text style={ss.hdrTitle}>Settings</Text>
@@ -1583,7 +1650,7 @@ var SettingsSheet = function(props) {
             <View style={ss.card}>
               <View style={ss.row}>
                 <View style={[ss.iconBox, { backgroundColor: "rgba(167,139,250,0.12)" }]}>
-                  <Icon name="format-size" size={19} color="#a78bfa" />
+                  <Icon name="format-size" size={19} color={THEME.isDark ? "#a78bfa" : "#7C3AED"} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={ss.label}>Font Size</Text>
@@ -1628,7 +1695,7 @@ var SettingsSheet = function(props) {
                   onChange={handleChange}
                   minimumDate={new Date(2020, 0, 1)} maximumDate={new Date(2050, 11, 31)}
                   style={{ width: "100%", height: Platform.OS === "ios" ? 150 : 180, marginTop: 8 }}
-                  {...(Platform.OS === "ios" ? { textColor: "#E0E0E0", accentColor: BLUE } : {})} />
+                  {...(Platform.OS === "ios" ? { textColor: THEME.isDark ? "#E0E0E0" : THEME.text, accentColor: BLUE } : {})} />
               )}
               {easterDate && !pickerOpen && (
                 <>
@@ -1657,13 +1724,15 @@ var SettingsSheet = function(props) {
               <Text style={ss.archiveTxt}>{"Archive " + year + " Schedule"}</Text>
             </TouchableOpacity>
           </ScrollView>
-        </View>
+        </GlassSurface>
       </View>
     </Modal>
   );
 };
-var ss = StyleSheet.create({
-  backdrop:             { flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "flex-end" },
+var useSsStyles = makeStyles(function(t) {
+  var { BG, CARD, CARD2, CARD3, SEP, BLUE, BLUEDIM, GREEN, RED, ORANGE, T1, T2, T3, ON, COPTIC_COLOR, COPTIC_BG, COPTIC_BORDER, COPTIC_TRACK } = paschaTokens(t);
+  return {
+  backdrop:             { flex: 1, backgroundColor: t.isDark ? "rgba(0,0,0,0.72)" : t.overlay, justifyContent: "flex-end" },
   sheet:                { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
                           maxHeight: "90%", paddingBottom: Platform.OS === "ios" ? 34 : 20 },
   handle:               { width: 38, height: 4, borderRadius: 2, backgroundColor: SEP,
@@ -1682,7 +1751,7 @@ var ss = StyleSheet.create({
   fontSizeBtn:          { flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: CARD, alignItems: "center" },
   fontSizeBtnActive:    { backgroundColor: "rgba(167,139,250,0.2)", borderWidth: 1, borderColor: "rgba(167,139,250,0.4)" },
   fontSizeBtnTxt:       { fontSize: 13, fontWeight: "600", color: T2 },
-  fontSizeBtnTxtActive: { color: "#a78bfa", fontWeight: "700" },
+  fontSizeBtnTxtActive: { color: t.isDark ? "#a78bfa" : "#7C3AED", fontWeight: "700" },
   editBtn:              { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 9, backgroundColor: CARD },
   editTxt:              { fontSize: 13, fontWeight: "600", color: BLUE },
   divider:              { height: 1, backgroundColor: SEP, marginVertical: 12 },
@@ -1696,10 +1765,13 @@ var ss = StyleSheet.create({
                           padding: 15, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,69,58,0.22)",
                           backgroundColor: "rgba(255,69,58,0.06)" },
   archiveTxt:           { fontSize: 15, fontWeight: "600", color: RED },
+};
 });
 
 // ── Archive confirm ───────────────────────────────────────────────────────────
 var ArchiveConfirm = function(props) {
+  var { GREEN, ORANGE, ON } = usePaschaTokens();
+  var arc = useArcStyles();
   var visible = props.visible;
   var year = props.year;
   var onConfirm = props.onConfirm;
@@ -1734,7 +1806,7 @@ var ArchiveConfirm = function(props) {
     <Modal visible={visible} animationType="fade" transparent
       onRequestClose={!archiving ? onClose : undefined} statusBarTranslucent>
       <View style={[arc.overlay, sheet.center]}>
-        <View style={[arc.sheet, sheet.card, sheet.wide && arc.sheetCard]}>
+        <GlassSurface style={[arc.sheet, sheet.card, sheet.wide && arc.sheetCard]}>
           {!sheet.wide && <View style={arc.handle} />}
           <View style={arc.iconWrap}>
             <Icon name={done ? "check-circle-outline" : "archive-clock-outline"} size={32}
@@ -1764,18 +1836,20 @@ var ArchiveConfirm = function(props) {
                 <Text style={arc.cancelTxt}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={arc.confirmBtn} onPress={handleConfirm} activeOpacity={0.8}>
-                <Icon name="archive-arrow-down-outline" size={16} color={T1} />
+                <Icon name="archive-arrow-down-outline" size={16} color={ON} />
                 <Text style={arc.confirmTxt}>Archive &amp; Clear</Text>
               </TouchableOpacity>
             </View>
           )}
-        </View>
+        </GlassSurface>
       </View>
     </Modal>
   );
 };
-var arc = StyleSheet.create({
-  overlay:         { flex: 1, backgroundColor: "rgba(0,0,0,0.82)", justifyContent: "flex-end" },
+var useArcStyles = makeStyles(function(t) {
+  var { BG, CARD, CARD2, CARD3, SEP, BLUE, BLUEDIM, GREEN, RED, ORANGE, T1, T2, T3, ON, COPTIC_COLOR, COPTIC_BG, COPTIC_BORDER, COPTIC_TRACK } = paschaTokens(t);
+  return {
+  overlay:         { flex: 1, backgroundColor: t.isDark ? "rgba(0,0,0,0.82)" : t.overlay, justifyContent: "flex-end" },
   sheet:           { backgroundColor: CARD, borderTopLeftRadius: 26, borderTopRightRadius: 26,
                      paddingHorizontal: 24, paddingBottom: Platform.OS === "ios" ? 44 : 28,
                      paddingTop: 12, alignItems: "center" },
@@ -1792,17 +1866,21 @@ var arc = StyleSheet.create({
   cancelTxt:       { fontSize: 15, fontWeight: "600", color: T2 },
   confirmBtn:      { flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center",
                      gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: RED },
-  confirmTxt:      { fontSize: 15, fontWeight: "700", color: T1 },
+  confirmTxt:      { fontSize: 15, fontWeight: "700", color: ON },
   progressSection: { width: "100%" },
   progressHeader:  { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
   progressLabel:   { flex: 1, fontSize: 13, color: T2, fontWeight: "500" },
   progressPct:     { fontSize: 13, fontWeight: "700", color: T1 },
   progressTrack:   { height: 5, backgroundColor: CARD2, borderRadius: 3, overflow: "hidden" },
   progressFill:    { height: 5, borderRadius: 3 },
+};
 });
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function PaschaManager() {
+  var tabBarInset = useTabBarInset();
+  var { GREEN, ORANGE, T2 } = usePaschaTokens();
+  var mn = useMnStyles();
   var isMounted = useRef(true);
 
   // Hold the six Firestore listeners below until the drawer/stack transition
@@ -2038,8 +2116,6 @@ export default function PaschaManager() {
 
   return (
     <View style={mn.container}>
-      <StatusBar barStyle="light-content" />
-
       {(!ready || !scheduleShell) ? (
         <SkeletonScreen
           variant="cards"
@@ -2121,7 +2197,7 @@ export default function PaschaManager() {
           )}
 
           <ScrollView showsVerticalScrollIndicator={false}
-            contentContainerStyle={[mn.scroll, { paddingHorizontal: gutter }]}>
+            contentContainerStyle={[mn.scroll, { paddingHorizontal: gutter, paddingBottom: 48 + tabBarInset }]}>
             {chunk(selectedDay != null ? (selectedDay.hours || []) : [], columns).map(function(rowHours) {
               return (
                 <View key={rowHours[0].id} style={mn.tileRow}>
@@ -2215,7 +2291,9 @@ export default function PaschaManager() {
   );
 }
 
-var mn = StyleSheet.create({
+var useMnStyles = makeStyles(function(t) {
+  var { BG, CARD, CARD2, CARD3, SEP, BLUE, BLUEDIM, GREEN, RED, ORANGE, T1, T2, T3, ON, COPTIC_COLOR, COPTIC_BG, COPTIC_BORDER, COPTIC_TRACK } = paschaTokens(t);
+  return {
   container:   { flex: 1, backgroundColor: BG },
   loadingWrap: { flex: 1, backgroundColor: BG, justifyContent: "center", alignItems: "center" },
   header:      { flexDirection: "row", alignItems: "center", paddingTop: 18, paddingBottom: 6 },
@@ -2241,4 +2319,5 @@ var mn = StyleSheet.create({
   // flexBasis 0 so every card in a row is the same width whatever its content;
   // the row's default stretch makes them the same height too.
   tileCell:    { flex: 1, flexBasis: 0 },
+};
 });

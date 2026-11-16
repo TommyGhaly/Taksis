@@ -1,13 +1,16 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Text, Pressable, Alert } from "react-native";
+import { View, Text, Pressable, Alert } from "react-native";
 import Slider from "@react-native-community/slider";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
 import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
+import { makeStyles, useTheme, GlassSurface } from "../../theme";
 
 const Experience = ({ navigation }) => {
+  const styles = useStyles();
+  const t = useTheme();
   const [slider, setSlider] = useState(5);
   const user = getAuth().currentUser;
 
@@ -52,7 +55,7 @@ const Experience = ({ navigation }) => {
         </View>
       </View>
       <View style={styles.content}>
-        <View style={styles.card}>
+        <GlassSurface style={styles.card}>
           <Text style={styles.questionText}>
             How much experience being a deacon do you have?
           </Text>
@@ -67,15 +70,15 @@ const Experience = ({ navigation }) => {
             minimumValue={0}
             maximumValue={10}
             step={0.25}
-            minimumTrackTintColor="#147EFB"
-            maximumTrackTintColor="#444"
-            thumbTintColor="#147EFB"
+            minimumTrackTintColor={t.accent}
+            maximumTrackTintColor={t.surfaceHighest}
+            thumbTintColor={t.accent}
           />
           <View style={styles.sliderLabels}>
             <Text style={styles.label}>Not experienced</Text>
             <Text style={styles.label}>Very experienced</Text>
           </View>
-        </View>
+        </GlassSurface>
       </View>
       <View style={styles.footer}>
         <Pressable
@@ -92,10 +95,10 @@ const Experience = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     paddingHorizontal: 16,
     paddingTop: 80,
     paddingBottom: 40,
@@ -109,7 +112,7 @@ const styles = StyleSheet.create({
   progressBar: {
     height: 6,
     width: "100%",
-    backgroundColor: "#2A2A2A",
+    backgroundColor: t.isDark ? t.surfaceElevated : t.surfaceHighest,
     borderRadius: 3,
     marginBottom: 12,
   },
@@ -117,12 +120,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   card: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: t.surface,
     borderRadius: 20,
     padding: 25,
     width: "100%",
     elevation: 5,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
@@ -130,7 +133,7 @@ const styles = StyleSheet.create({
   questionText: {
     fontSize: 24,
     fontWeight: "600",
-    color: "#E0E0E0",
+    color: (t.isDark ? "#E0E0E0" : t.text),
     textAlign: "center",
     marginBottom: 20,
     fontFamily: "Roboto-Regular",
@@ -138,7 +141,7 @@ const styles = StyleSheet.create({
   sliderValue: {
     fontSize: 56,
     fontWeight: "bold",
-    color: "#E0E0E0",
+    color: (t.isDark ? "#E0E0E0" : t.text),
     textAlign: "center",
     marginBottom: 20,
   },
@@ -152,7 +155,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   label: {
-    color: "#8E8E93",
+    color: t.textMuted,
     fontSize: 14,
     fontFamily: "Roboto-Regular",
   },
@@ -162,13 +165,13 @@ const styles = StyleSheet.create({
   continueButton: {
     height: 52,
     width: "100%",
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 67,
     elevation: 4,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -180,10 +183,10 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#FFF",
+    color: t.onAccent,
     fontFamily: "Roboto-Medium",
     letterSpacing: -0.2,
   },
-});
+}));
 
 export default Experience;

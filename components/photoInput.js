@@ -18,6 +18,7 @@ import { doc, getFirestore, updateDoc } from '@react-native-firebase/firestore';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import * as avatarCache from '../utils/avatarCache';
+import { makeStyles, useTheme, GlassSurface } from '../theme';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -30,6 +31,8 @@ const { width: screenWidth } = Dimensions.get('window');
  * mode lays the same card over the parent modal, so there is one presentation.
  */
 const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, inline = false }) => {
+  const styles = useStyles();
+  const t = useTheme();
   const [loading, setLoading] = useState(false);
   const [previewUri, setPreviewUri] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -236,157 +239,159 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, inline = false 
       <Animated.View style={[styles.modalOverlay, { opacity: fadeAnim }]}>
         <Animated.View 
           style={[
-            styles.card,
+            styles.cardFrame,
             { transform: [{ scale: scaleAnim }] }
           ]}
         >
-          {/* Close Button */}
-          <Pressable
-            style={({ pressed }) => [
-              styles.closeIconButton,
-              pressed && styles.closeIconPressed
-            ]}
-            onPress={handleClose}
-            disabled={loading}
-          >
-            <Icon name="close" size={24} color="#888" />
-          </Pressable>
+          <GlassSurface style={styles.card}>
+            {/* Close Button */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.closeIconButton,
+                pressed && styles.closeIconPressed
+              ]}
+              onPress={handleClose}
+              disabled={loading}
+            >
+              <Icon name="close" size={24} color={t.textMuted} />
+            </Pressable>
 
-          {previewUri ? (
-            <>
-              {/* Header */}
-              <View style={styles.header}>
-                <Text style={styles.title}>Looking Good!</Text>
-                <Text style={styles.subtitle}>Your photo looks great!</Text>
-              </View>
-
-              {/* Preview Section */}
-              <View style={styles.previewSection}>
-                <View style={styles.previewContainer}>
-                  <Image
-                    source={{ uri: previewUri }}
-                    style={styles.previewImage}
-                    resizeMode="cover"
-                  />
-                  {!loading && (
-                    <View style={styles.previewBadge}>
-                      <Icon name="check" size={20} color="#fff" />
-                    </View>
-                  )}
-                  {loading && (
-                    <View style={styles.uploadingOverlay}>
-                      <ActivityIndicator color="#fff" size="large" />
-                    </View>
-                  )}
+            {previewUri ? (
+              <>
+                {/* Header */}
+                <View style={styles.header}>
+                  <Text style={styles.title}>Looking Good!</Text>
+                  <Text style={styles.subtitle}>Your photo looks great!</Text>
                 </View>
-              </View>
 
-              {/* Upload Progress */}
-              {loading && (
-                <View style={styles.progressContainer}>
-                  <View style={styles.progressHeader}>
-                    <Text style={styles.progressLabel}>Uploading...</Text>
-                    <Text style={styles.progressPercent}>{Math.round(uploadProgress)}%</Text>
-                  </View>
-                  <View style={styles.progressBar}>
-                    <Animated.View 
-                      style={[
-                        styles.progressFill, 
-                        {
-                          width: progressAnim.interpolate({
-                            inputRange: [0, 100],
-                            outputRange: ['0%', '100%']
-                          })
-                        }
-                      ]} 
+                {/* Preview Section */}
+                <View style={styles.previewSection}>
+                  <View style={styles.previewContainer}>
+                    <Image
+                      source={{ uri: previewUri }}
+                      style={styles.previewImage}
+                      resizeMode="cover"
                     />
+                    {!loading && (
+                      <View style={styles.previewBadge}>
+                        <Icon name="check" size={20} color={t.onAccent} />
+                      </View>
+                    )}
+                    {loading && (
+                      <View style={styles.uploadingOverlay}>
+                        <ActivityIndicator color={t.onAccent} size="large" />
+                      </View>
+                    )}
                   </View>
                 </View>
-              )}
 
-              {/* Action Buttons */}
-              <View style={styles.buttonContainer}>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.primaryButton,
-                    loading && styles.disabledButton,
-                    pressed && !loading && styles.buttonPressed,
-                  ]}
-                  onPress={handleConfirmUpload}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <>
-                      <ActivityIndicator color="#fff" size="small" />
-                      <Text style={styles.buttonText}>Uploading...</Text>
-                    </>
-                  ) : (
-                    <>
-                      <Icon name="cloud-upload" size={24} color="#fff" />
-                      <Text style={styles.buttonText}>Upload Photo</Text>
-                    </>
-                  )}
-                </Pressable>
+                {/* Upload Progress */}
+                {loading && (
+                  <View style={styles.progressContainer}>
+                    <View style={styles.progressHeader}>
+                      <Text style={styles.progressLabel}>Uploading...</Text>
+                      <Text style={styles.progressPercent}>{Math.round(uploadProgress)}%</Text>
+                    </View>
+                    <View style={styles.progressBar}>
+                      <Animated.View 
+                        style={[
+                          styles.progressFill, 
+                          {
+                            width: progressAnim.interpolate({
+                              inputRange: [0, 100],
+                              outputRange: ['0%', '100%']
+                            })
+                          }
+                        ]} 
+                      />
+                    </View>
+                  </View>
+                )}
 
-                {!loading && (
+                {/* Action Buttons */}
+                <View style={styles.buttonContainer}>
                   <Pressable
                     style={({ pressed }) => [
-                      styles.secondaryButton,
-                      pressed && styles.buttonPressed,
+                      styles.primaryButton,
+                      loading && styles.disabledButton,
+                      pressed && !loading && styles.buttonPressed,
                     ]}
-                    onPress={handleCancelPreview}
+                    onPress={handleConfirmUpload}
+                    disabled={loading}
                   >
-                    <Icon name="camera-retake" size={22} color="#e0e0e0" />
-                    <Text style={[styles.buttonText, styles.secondaryButtonText]}>Choose Another</Text>
+                    {loading ? (
+                      <>
+                        <ActivityIndicator color={t.onAccent} size="small" />
+                        <Text style={styles.buttonText}>Uploading...</Text>
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="cloud-upload" size={24} color={t.onAccent} />
+                        <Text style={styles.buttonText}>Upload Photo</Text>
+                      </>
+                    )}
                   </Pressable>
-                )}
-              </View>
-            </>
-          ) : (
-            <>
-              {/* Header */}
-              <View style={styles.header}>
-                <Text style={styles.title}>Add Profile Picture</Text>
-                <Text style={styles.subtitle}>Choose how you want to add your photo</Text>
-              </View>
 
-              {/* Options Grid */}
-              <View style={styles.optionsGrid}>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.optionCard,
-                    pressed && styles.optionCardPressed,
-                  ]}
-                  onPress={handlePickPhoto}
-                >
-                  <View style={styles.iconContainer}>
-                    <Icon name="image-multiple" size={36} color="#147EFB" />
-                  </View>
-                  <Text style={styles.optionTitle}>Gallery</Text>
-                  <Text style={styles.optionDescription}>Choose existing</Text>
-                </Pressable>
+                  {!loading && (
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.secondaryButton,
+                        pressed && styles.buttonPressed,
+                      ]}
+                      onPress={handleCancelPreview}
+                    >
+                      <Icon name="camera-retake" size={22} color={t.isDark ? "#e0e0e0" : t.text} />
+                      <Text style={[styles.buttonText, styles.secondaryButtonText]}>Choose Another</Text>
+                    </Pressable>
+                  )}
+                </View>
+              </>
+            ) : (
+              <>
+                {/* Header */}
+                <View style={styles.header}>
+                  <Text style={styles.title}>Add Profile Picture</Text>
+                  <Text style={styles.subtitle}>Choose how you want to add your photo</Text>
+                </View>
 
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.optionCard,
-                    pressed && styles.optionCardPressed,
-                  ]}
-                  onPress={handleTakePhoto}
-                >
-                  <View style={[styles.iconContainer, styles.cameraIconContainer]}>
-                    <Icon name="camera" size={36} color="#4d9cff" />
-                  </View>
-                  <Text style={styles.optionTitle}>Camera</Text>
-                  <Text style={styles.optionDescription}>Take new photo</Text>
-                </Pressable>
-              </View>
+                {/* Options Grid */}
+                <View style={styles.optionsGrid}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.optionCard,
+                      pressed && styles.optionCardPressed,
+                    ]}
+                    onPress={handlePickPhoto}
+                  >
+                    <View style={styles.iconContainer}>
+                      <Icon name="image-multiple" size={36} color={t.accent} />
+                    </View>
+                    <Text style={styles.optionTitle}>Gallery</Text>
+                    <Text style={styles.optionDescription}>Choose existing</Text>
+                  </Pressable>
 
-              {/* Bottom Hint */}
-              <View style={styles.hintContainer}>
-                <Text style={styles.hintText}>Your photo will be visible to other members</Text>
-              </View>
-            </>
-          )}
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.optionCard,
+                      pressed && styles.optionCardPressed,
+                    ]}
+                    onPress={handleTakePhoto}
+                  >
+                    <View style={[styles.iconContainer, styles.cameraIconContainer]}>
+                      <Icon name="camera" size={36} color={t.accentText} />
+                    </View>
+                    <Text style={styles.optionTitle}>Camera</Text>
+                    <Text style={styles.optionDescription}>Take new photo</Text>
+                  </Pressable>
+                </View>
+
+                {/* Bottom Hint */}
+                <View style={styles.hintContainer}>
+                  <Text style={styles.hintText}>Your photo will be visible to other members</Text>
+                </View>
+              </>
+            )}
+          </GlassSurface>
         </Animated.View>
       </Animated.View>
   );
@@ -407,20 +412,24 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, inline = false 
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: t.overlay,
   },
-  card: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 10,
+  // Sizing lives on the animated wrapper so the percentage resolves against
+  // the overlay, not the glass card.
+  cardFrame: {
     width: '90%',
     maxWidth: 400,
+  },
+  card: {
+    backgroundColor: t.surface,
+    borderRadius: 10,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -434,12 +443,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: t.fillStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
   closeIconPressed: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: t.isDark ? 'rgba(255, 255, 255, 0.2)' : t.surfaceHighest,
   },
   header: {
     alignItems: 'center',
@@ -449,13 +458,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#e0e0e0',
+    color: t.isDark ? '#e0e0e0' : t.text,
     marginBottom: 8,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   subtitle: {
     fontSize: 16,
-    color: '#888',
+    color: t.textMuted,
     textAlign: 'center',
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
     lineHeight: 22,
@@ -470,9 +479,9 @@ const styles = StyleSheet.create({
     height: 140,
     borderRadius: 70,
     overflow: 'hidden',
-    backgroundColor: '#2a2a2a',
+    backgroundColor: t.surfaceElevated,
     borderWidth: 3,
-    borderColor: '#147EFB',
+    borderColor: t.accent,
     position: 'relative',
   },
   previewImage: {
@@ -490,7 +499,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
-    borderColor: '#1e1e1e',
+    borderColor: t.surface,
   },
   uploadingOverlay: {
     position: 'absolute',
@@ -512,24 +521,24 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   progressLabel: {
-    color: '#888',
+    color: t.textMuted,
     fontSize: 14,
     fontWeight: '500',
   },
   progressPercent: {
-    color: '#147EFB',
+    color: t.accent,
     fontSize: 14,
     fontWeight: '600',
   },
   progressBar: {
     height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: t.fillStrong,
     borderRadius: 2,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#147EFB',
+    backgroundColor: t.accent,
     borderRadius: 2,
   },
   buttonContainer: {
@@ -537,14 +546,14 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flexDirection: 'row',
-    backgroundColor: '#147EFB',
+    backgroundColor: t.accent,
     borderRadius: 10,
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    shadowColor: '#000',
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -552,7 +561,7 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     flexDirection: 'row',
-    backgroundColor: '#333',
+    backgroundColor: t.surfaceHighest,
     borderRadius: 10,
     paddingVertical: 14,
     paddingHorizontal: 20,
@@ -568,37 +577,37 @@ const styles = StyleSheet.create({
   },
   optionCard: {
     flex: 1,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: t.surfaceElevated,
     borderRadius: 10,
     padding: 20,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: t.surfaceHighest,
   },
   optionCardPressed: {
-    backgroundColor: '#333',
+    backgroundColor: t.surfaceHighest,
   },
   iconContainer: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(20, 126, 251, 0.1)',
+    backgroundColor: t.accentFill,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
   },
   cameraIconContainer: {
-    backgroundColor: 'rgba(77, 156, 255, 0.1)',
+    backgroundColor: t.isDark ? 'rgba(77, 156, 255, 0.1)' : t.accentFill,
   },
   optionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#e0e0e0',
+    color: t.isDark ? '#e0e0e0' : t.text,
     marginBottom: 4,
   },
   optionDescription: {
     fontSize: 14,
-    color: '#888',
+    color: t.textMuted,
   },
   hintContainer: {
     flexDirection: 'row',
@@ -609,10 +618,10 @@ const styles = StyleSheet.create({
   },
   hintText: {
     fontSize: 13,
-    color: '#888',
+    color: t.textMuted,
   },
   disabledButton: {
-    backgroundColor: '#555',
+    backgroundColor: t.isDark ? '#555' : '#C7C7CC',
   },
   buttonPressed: {
     opacity: 0.8,
@@ -620,13 +629,13 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 17,
-    color: '#FFFFFF',
+    color: t.onAccent,
     fontWeight: '600',
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   secondaryButtonText: {
-    color: '#e0e0e0',
+    color: t.isDark ? '#e0e0e0' : t.text,
   },
-});
+}));
 
 export default PhotoInput;

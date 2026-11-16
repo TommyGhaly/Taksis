@@ -1,12 +1,15 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Text, Pressable, Alert } from "react-native";
+import { View, Text, Pressable, Alert } from "react-native";
 import { doc, getDoc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
 import BackArrow from "../../components/backArrow";
 import Churches from "../../components/churches"; // Assuming you have a Churches component for displaying church options
 import { callFunction } from "../../components/functionCalls";
+import { makeStyles, useTabBarInset } from "../../theme";
 
 const ChangeChurch = ({ navigation }) => {
+  const styles = useStyles();
+  const tabBarInset = useTabBarInset();
   const [selectedChurch, setSelectedChurch] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const user = getAuth().currentUser;
@@ -135,7 +138,7 @@ const ChangeChurch = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: 16 + tabBarInset }]}>
       <BackArrow style={styles.backArrow} />
       <Text style={styles.titleText}>
         Select the church you regularly attend
@@ -159,10 +162,10 @@ const ChangeChurch = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     padding: 16,
     justifyContent: "space-between",
   },
@@ -173,7 +176,7 @@ const styles = StyleSheet.create({
     fontSize: 34,
     letterSpacing: -0.1,
     fontFamily: "Roboto-Regular",
-    color: "#8e8e93",
+    color: t.textMuted,
     textAlign: "center",
     marginVertical: 20,
   },
@@ -183,14 +186,14 @@ const styles = StyleSheet.create({
   },
   continueButton: {
     height: 50,
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     borderRadius: 10,
     justifyContent: "center",
     marginBottom: 30,
     marginTop: 5,
   },
   continueButtonDisabled: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     opacity: 0.6,
   },
   continueText: {
@@ -198,7 +201,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     fontWeight: "500",
     fontFamily: "Roboto-Medium",
-    color: "#fff",
+    color: t.text,
     textAlign: "center",
   },
   progressBar: {
@@ -207,6 +210,6 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
   },
-});
+}));
 
 export default ChangeChurch;

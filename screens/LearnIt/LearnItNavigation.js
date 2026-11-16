@@ -10,21 +10,14 @@ import LearnItOfferingLamb from "./Liturgy/LearnItOfferingLamb";
 import LearnItLiturgyWord from "./Liturgy/LearnItLiturgyWord";
 import LearnItLiturgyFaithful from "./Liturgy/LearnItLiturgyFaithful";
 import LearnItDistribution from "./Liturgy/LearnItDistribution";
-import DefaultTheme from "@react-navigation/native";
+import { useNavigationTheme } from "../../theme";
 import "react-native-gesture-handler";
 
 const LearnNav = createNativeStackNavigator();
-const myTheme = {
-  ...DefaultTheme,
-  colors: {
-    primary: "#000",
-    card: "rgb(255, 255, 255)",
-    background: "#000",
-  },
-};
 export default function LearnNavigation() {
+  const navTheme = useNavigationTheme();
   return (
-    <NavigationContainer independent={true} theme={myTheme}>
+    <NavigationContainer independent={true} theme={navTheme}>
       <LearnNav.Navigator
         initialRouteName="MainMenu"
         screenOptions={{

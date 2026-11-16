@@ -18,6 +18,7 @@ import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { COLOR_OPTIONS } from "./TrafficVehicleComponents";
 import { approveReviewItem, deleteReviewItem, resolveDriver } from "../utils/carsMigration";
 import { LIST_PERF } from "../utils/listConfig";
+import { makeStyles, useTheme, GlassSurface } from "../theme";
 
 // Bottom sheets stop at this width, centered along the bottom edge: at full
 // width on an iPad a sheet ran the whole 1,200pt window with its content
@@ -110,7 +111,9 @@ function findCandidates(driver, allUsers, maxResults = 5) {
  * Hoisted and memoized: it used to be an inline `renderItem` closure, rebuilt for
  * every mounted row on each keystroke in the search box above it.
  */
-const CandidateRow = memo(({ user, imageSource, onSelect }) => (
+const CandidateRow = memo(({ user, imageSource, onSelect }) => {
+  const rs = useRs();
+  return (
   <TouchableOpacity
     style={rs.candidateRow}
     onPress={() => onSelect(user.uid)}
@@ -127,21 +130,25 @@ const CandidateRow = memo(({ user, imageSource, onSelect }) => (
       </View>
     )}
   </TouchableOpacity>
-));
+  );
+});
 CandidateRow.displayName = "CandidateRow";
 
 // Module-level so these props stay identity-stable across renders.
 const driverKeyExtractor = (_, index) => String(index);
 
-// A component rather than a bare element on purpose: `ms` is declared at the bottom
-// of this file, so building the element at module scope would read it before
-// initialization. A function body only runs at render time, by which point it exists.
-const EmptyDrivers = () => (
-  <View style={ms.emptyDrivers}>
-    <Icon name="account-off" size={24} color="rgba(255,255,255,0.2)" />
-    <Text style={ms.emptyDriversText}>No drivers listed</Text>
-  </View>
-);
+// A component rather than a bare element on purpose: its styles come from the
+// theme, which is only readable at render time.
+const EmptyDrivers = () => {
+  const ms = useMs();
+  const t = useTheme();
+  return (
+    <View style={ms.emptyDrivers}>
+      <Icon name="account-off" size={24} color={tintText(t, 0.2)} />
+      <Text style={ms.emptyDriversText}>No drivers listed</Text>
+    </View>
+  );
+};
 
 // ── DriverResolutionRow ──────────────────────────────────────────────────────
 
@@ -149,6 +156,8 @@ const DriverResolutionRow = memo(({
   driver, index, resolved, allUsers, getImageSource,
   onLink, onCreateUnreg, onUnlink,
 }) => {
+  const rs = useRs();
+  const t = useTheme();
   const [manualSearch, setManualSearch] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -212,10 +221,10 @@ const DriverResolutionRow = memo(({
           </Text>
         </View>
         <View style={rs.linkedCheck}>
-          <Icon name="check-circle" size={18} color="#34c759" />
+          <Icon name="check-circle" size={18} color={t.success} />
         </View>
         <TouchableOpacity style={rs.unlinkBtn} onPress={() => onUnlink(index)}>
-          <Icon name="close-circle" size={18} color="#ff453a" />
+          <Icon name="close-circle" size={18} color={t.dangerText} />
         </TouchableOpacity>
       </View>
     );
@@ -227,7 +236,7 @@ const DriverResolutionRow = memo(({
       {/* Driver info header */}
       <View style={rs.driverHeader}>
         <View style={rs.avatarWarning}>
-          <Icon name="account-question" size={18} color="#ff9f0a" />
+          <Icon name="account-question" size={18} color={t.warningText} />
         </View>
         <View style={rs.driverHeaderInfo}>
           <Text style={rs.driverHeaderName}>{driverLabel}</Text>
@@ -237,7 +246,7 @@ const DriverResolutionRow = memo(({
           style={rs.unregBtn}
           onPress={() => onCreateUnreg(index, driver)}
         >
-          <Icon name="account-plus" size={15} color="#bf5af2" />
+          <Icon name="account-plus" size={15} color={t.purple} />
           <Text style={rs.unregBtnText}>New</Text>
         </TouchableOpacity>
       </View>
@@ -267,7 +276,7 @@ const DriverResolutionRow = memo(({
                   {score >= 80 ? "Strong" : score >= 50 ? "Likely" : "Weak"}
                 </Text>
               </View>
-              <Icon name="chevron-right" size={18} color="rgba(255,255,255,0.2)" />
+              <Icon name="chevron-right" size={18} color={tintText(t, 0.2)} />
             </TouchableOpacity>
           ))}
         </View>
@@ -276,7 +285,7 @@ const DriverResolutionRow = memo(({
       {/* No auto-suggestions found */}
       {candidates.length === 0 && !manualSearch && (
         <View style={rs.noMatchBox}>
-          <Icon name="magnify-close" size={16} color="rgba(255,255,255,0.25)" />
+          <Icon name="magnify-close" size={16} color={tintText(t, 0.25)} />
           <Text style={rs.noMatchText}>No auto-matches found</Text>
         </View>
       )}
@@ -290,7 +299,7 @@ const DriverResolutionRow = memo(({
         <Icon
           name={manualSearch ? "chevron-up" : "magnify"}
           size={15}
-          color="#147efb"
+          color={t.accent}
         />
         <Text style={rs.manualToggleText}>
           {manualSearch ? "Hide search" : "Search manually"}
@@ -301,18 +310,19 @@ const DriverResolutionRow = memo(({
       {manualSearch && (
         <View style={rs.searchPanel}>
           <View style={rs.searchBox}>
-            <Icon name="magnify" size={16} color="rgba(255,255,255,0.4)" />
+            <Icon name="magnify" size={16} color={t.textTertiary} />
             <TextInput
               style={rs.searchInput}
               placeholder="Name or phone..."
-              placeholderTextColor="rgba(255,255,255,0.25)"
+              placeholderTextColor={t.placeholder}
+              keyboardAppearance={t.keyboardAppearance}
               value={search}
               onChangeText={setSearch}
               autoFocus
             />
             {search.length > 0 && (
               <TouchableOpacity onPress={() => setSearch("")}>
-                <Icon name="close-circle" size={14} color="rgba(255,255,255,0.3)" />
+                <Icon name="close-circle" size={14} color={t.textTertiary} />
               </TouchableOpacity>
             )}
           </View>
@@ -360,6 +370,8 @@ const VehicleReviewModal = ({
   onComplete,
   onItemResolved,
 }) => {
+  const ms = useMs();
+  const t = useTheme();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [resolvedDrivers, setResolvedDrivers] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -519,7 +531,7 @@ const VehicleReviewModal = ({
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onComplete}>
       <View style={ms.overlay}>
-        <View style={ms.sheet}>
+        <GlassSurface style={ms.sheet}>
           {/* Header */}
           <View style={ms.header}>
             <View style={ms.headerLeft}>
@@ -530,11 +542,11 @@ const VehicleReviewModal = ({
                 <Icon
                   name={item.source === "malformed_car" ? "alert-circle" : "clock-outline"}
                   size={12}
-                  color={item.source === "malformed_car" ? "#ff9f0a" : "#147efb"}
+                  color={item.source === "malformed_car" ? t.warningText : t.accent}
                 />
                 <Text style={[
                   ms.sourceBadgeText,
-                  { color: item.source === "malformed_car" ? "#ff9f0a" : "#147efb" },
+                  { color: item.source === "malformed_car" ? t.warningText : t.accent },
                 ]}>{sourceLabel}</Text>
               </View>
               <Text style={ms.counter}>{remaining} remaining</Text>
@@ -546,14 +558,14 @@ const VehicleReviewModal = ({
               disabled={busy}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Icon name="close" size={22} color="rgba(255,255,255,0.5)" />
+              <Icon name="close" size={22} color={t.textSecondary} />
             </TouchableOpacity>
           </View>
 
           {/* Vehicle info */}
           <View style={ms.vehicleSection}>
             <View style={ms.plateRow}>
-              <Icon name="car" size={20} color="#147efb" />
+              <Icon name="car" size={20} color={t.accent} />
               <Text style={ms.plateText}>{item.license || "NO PLATE"}</Text>
             </View>
             {(item.make || item.model || item.color) && (
@@ -592,7 +604,7 @@ const VehicleReviewModal = ({
           {/* Actions */}
           <View style={ms.footer}>
             {busy ? (
-              <ActivityIndicator size="small" color="#147efb" style={{ paddingVertical: 16 }} />
+              <ActivityIndicator size="small" color={t.accent} style={{ paddingVertical: 16 }} />
             ) : (
               <>
                 <TouchableOpacity
@@ -601,18 +613,18 @@ const VehicleReviewModal = ({
                   disabled={!allResolved}
                   activeOpacity={0.8}
                 >
-                  <Icon name="check" size={18} color="#fff" />
+                  <Icon name="check" size={18} color={t.onAccent} />
                   <Text style={ms.approveBtnText}>
                     {item.source === "malformed_car" ? "Fix & Save" : "Approve"}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={ms.deleteBtn} onPress={handleDelete} activeOpacity={0.8}>
-                  <Icon name="trash-can-outline" size={18} color="#ff453a" />
+                  <Icon name="trash-can-outline" size={18} color={t.dangerText} />
                 </TouchableOpacity>
               </>
             )}
           </View>
-        </View>
+        </GlassSurface>
       </View>
     </Modal>
   );
@@ -620,11 +632,15 @@ const VehicleReviewModal = ({
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const ms = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+// Translucent white tints with no exact token: dark keeps the original alpha,
+// light gets the matching dark-on-light tint.
+const tintText = (t, a) => (t.isDark ? `rgba(255,255,255,${a})` : `rgba(60,60,67,${Math.max(a, 0.3)})`);
+
+const useMs = makeStyles((t) => ({
+  overlay: { flex: 1, backgroundColor: t.overlay, justifyContent: "flex-end" },
   sheet: {
     width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center",
-    backgroundColor: "#1a1a1a", borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    backgroundColor: t.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22,
     maxHeight: "92%", paddingBottom: 40,
   },
   header: {
@@ -635,54 +651,54 @@ const ms = StyleSheet.create({
   closeBtn: {
     width: 32, height: 32, borderRadius: 16,
     alignItems: "center", justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.07)",
+    backgroundColor: t.fill,
   },
   sourceBadge: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, alignSelf: "flex-start",
   },
   sourceBadgeMalformed: { backgroundColor: "rgba(255,159,10,0.12)" },
-  sourceBadgePending: { backgroundColor: "rgba(20,126,251,0.12)" },
+  sourceBadgePending: { backgroundColor: t.accentFill },
   sourceBadgeText: { fontSize: 12, fontWeight: "600" },
-  counter: { fontSize: 13, color: "rgba(255,255,255,0.35)", marginTop: 6 },
+  counter: { fontSize: 13, color: t.textTertiary, marginTop: 6 },
   vehicleSection: { paddingHorizontal: 20, paddingBottom: 16 },
   plateRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     backgroundColor: "rgba(20,126,251,0.08)", padding: 14, borderRadius: 12,
   },
-  plateText: { fontSize: 22, fontWeight: "700", color: "#fff", letterSpacing: 1 },
+  plateText: { fontSize: 22, fontWeight: "700", color: t.text, letterSpacing: 1 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
   colorDot: {
     width: 12, height: 12, borderRadius: 6,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.15)",
+    borderWidth: 1, borderColor: t.borderStrong,
   },
-  metaText: { fontSize: 14, color: "rgba(255,255,255,0.5)" },
+  metaText: { fontSize: 14, color: t.textSecondary },
   sectionLabel: {
-    fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.4)",
+    fontSize: 12, fontWeight: "600", color: t.textTertiary,
     textTransform: "uppercase", letterSpacing: 0.5,
     paddingHorizontal: 20, marginBottom: 10,
   },
   driverList: { flexGrow: 0, maxHeight: 420 },
   driverListContent: { paddingHorizontal: 20, paddingBottom: 8 },
   emptyDrivers: { alignItems: "center", paddingVertical: 24, gap: 8 },
-  emptyDriversText: { fontSize: 14, color: "rgba(255,255,255,0.3)" },
+  emptyDriversText: { fontSize: 14, color: t.textTertiary },
   footer: {
     flexDirection: "row", paddingHorizontal: 20, paddingTop: 16, gap: 10,
   },
   approveBtn: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    backgroundColor: "#34c759", paddingVertical: 16, borderRadius: 14, gap: 8,
+    backgroundColor: t.success, paddingVertical: 16, borderRadius: 14, gap: 8,
   },
   approveBtnDisabled: { backgroundColor: "rgba(52,199,89,0.3)" },
-  approveBtnText: { fontSize: 16, fontWeight: "600", color: "#fff" },
+  approveBtnText: { fontSize: 16, fontWeight: "600", color: t.onAccent },
   deleteBtn: {
     width: 54, height: 54, borderRadius: 14,
     backgroundColor: "rgba(255,69,58,0.12)",
     justifyContent: "center", alignItems: "center",
   },
-});
+}));
 
-const rs = StyleSheet.create({
+const useRs = makeStyles((t) => ({
   // ── Linked state ──
   linkedRow: {
     flexDirection: "row", alignItems: "center",
@@ -691,8 +707,8 @@ const rs = StyleSheet.create({
   },
   avatar: { width: 40, height: 40, borderRadius: 20 },
   rowInfo: { flex: 1, marginLeft: 12 },
-  rowName: { fontSize: 15, fontWeight: "500", color: "#fff" },
-  rowSub: { fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 1 },
+  rowName: { fontSize: 15, fontWeight: "500", color: t.text },
+  rowSub: { fontSize: 12, color: t.textTertiary, marginTop: 1 },
   linkedCheck: { marginRight: 8 },
   unlinkBtn: {
     width: 32, height: 32, borderRadius: 8,
@@ -701,7 +717,7 @@ const rs = StyleSheet.create({
 
   // ── Unresolved state ──
   unresolvedBlock: {
-    backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 14,
+    backgroundColor: t.fill, borderRadius: 14,
     marginBottom: 10, borderWidth: 1, borderColor: "rgba(255,159,10,0.15)",
     overflow: "hidden",
   },
@@ -713,61 +729,61 @@ const rs = StyleSheet.create({
     backgroundColor: "rgba(255,159,10,0.12)", justifyContent: "center", alignItems: "center",
   },
   driverHeaderInfo: { flex: 1 },
-  driverHeaderName: { fontSize: 15, fontWeight: "600", color: "#fff" },
-  driverHeaderSub: { fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 1 },
+  driverHeaderName: { fontSize: 15, fontWeight: "600", color: t.text },
+  driverHeaderSub: { fontSize: 12, color: t.textTertiary, marginTop: 1 },
   unregBtn: {
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: "rgba(191,90,242,0.12)", paddingHorizontal: 10, paddingVertical: 7,
     borderRadius: 8,
   },
-  unregBtnText: { fontSize: 12, fontWeight: "600", color: "#bf5af2" },
+  unregBtnText: { fontSize: 12, fontWeight: "600", color: t.purple },
 
   // ── Auto-suggested candidates ──
   candidateList: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(255,255,255,0.06)",
+    borderTopColor: t.border,
   },
   candidateRow: {
     flexDirection: "row", alignItems: "center",
     paddingVertical: 10, paddingHorizontal: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.04)",
+    borderBottomColor: t.border,
   },
   candidateAvatar: { width: 34, height: 34, borderRadius: 17 },
   candidateInfo: { flex: 1, marginLeft: 10 },
-  candidateName: { fontSize: 14, fontWeight: "500", color: "#fff" },
-  candidatePhone: { fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 1 },
+  candidateName: { fontSize: 14, fontWeight: "500", color: t.text },
+  candidatePhone: { fontSize: 12, color: t.textTertiary, marginTop: 1 },
   unregBadge: {
     backgroundColor: "rgba(255,159,10,0.15)", paddingHorizontal: 5, paddingVertical: 2,
     borderRadius: 4, marginRight: 6,
   },
-  unregBadgeText: { fontSize: 9, fontWeight: "600", color: "#ff9f0a" },
+  unregBadgeText: { fontSize: 9, fontWeight: "600", color: t.warningText },
   scoreBadge: {
     paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, marginRight: 6,
   },
   scoreBadgeHigh: { backgroundColor: "rgba(52,199,89,0.12)" },
-  scoreBadgeLow: { backgroundColor: "rgba(255,255,255,0.06)" },
+  scoreBadgeLow: { backgroundColor: t.fill },
   scoreBadgeText: { fontSize: 10, fontWeight: "600" },
-  scoreBadgeTextHigh: { color: "#34c759" },
-  scoreBadgeTextLow: { color: "rgba(255,255,255,0.35)" },
+  scoreBadgeTextHigh: { color: t.successText },
+  scoreBadgeTextLow: { color: t.textTertiary },
 
   // ── No match ──
   noMatchBox: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 12, paddingVertical: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(255,255,255,0.06)",
+    borderTopColor: t.border,
   },
-  noMatchText: { fontSize: 13, color: "rgba(255,255,255,0.25)" },
+  noMatchText: { fontSize: 13, color: tintText(t, 0.25) },
 
   // ── Manual search toggle ──
   manualToggle: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 12, paddingVertical: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(255,255,255,0.06)",
+    borderTopColor: t.border,
   },
-  manualToggleText: { fontSize: 13, fontWeight: "500", color: "#147efb" },
+  manualToggleText: { fontSize: 13, fontWeight: "500", color: t.accent },
 
   // ── Manual search panel ──
   searchPanel: {
@@ -775,13 +791,13 @@ const rs = StyleSheet.create({
   },
   searchBox: {
     flexDirection: "row", alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 8, paddingHorizontal: 10,
+    backgroundColor: t.fill, borderRadius: 8, paddingHorizontal: 10,
   },
-  searchInput: { flex: 1, color: "#fff", fontSize: 14, paddingVertical: 10, marginLeft: 6 },
+  searchInput: { flex: 1, color: t.text, fontSize: 14, paddingVertical: 10, marginLeft: 6 },
   searchResults: { maxHeight: 160, marginTop: 6 },
   noResults: {
-    fontSize: 13, color: "rgba(255,255,255,0.25)", textAlign: "center", paddingVertical: 16,
+    fontSize: 13, color: tintText(t, 0.25), textAlign: "center", paddingVertical: 16,
   },
-});
+}));
 
 export default VehicleReviewModal;

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import {
-  StyleSheet,
   Text,
   View,
   TouchableOpacity,
@@ -21,8 +20,11 @@ import BackArrow from "../../components/backArrow";
 import { callFunction } from "../../components/functionCalls";
 import Avatar from "../../components/Avatar";
 import * as avatarCache from "../../utils/avatarCache";
+import { makeStyles, GlassSurface, useTabBarInset } from "../../theme";
 
 const ChangeChildren = () => {
+  const styles = useStyles();
+  const tabBarInset = useTabBarInset();
   const navigation = useNavigation();
   const [children, setChildren] = useState([]);
 
@@ -131,7 +133,7 @@ const ChangeChildren = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: 20 + tabBarInset }]}>
       <BackArrow style={styles.backArrow} />
       {children.length === 0 ? (
         <Text style={styles.noChildrenText}>You have no children</Text>
@@ -141,7 +143,7 @@ const ChangeChildren = () => {
           showsVerticalScrollIndicator={false}
         >
           {children.map((child) => (
-            <View key={child.uid} style={styles.childContainer}>
+            <GlassSurface key={child.uid} style={styles.childContainer}>
               <Avatar
                 uid={child.uid}
                 user={child}
@@ -156,7 +158,7 @@ const ChangeChildren = () => {
               >
                 <Text style={styles.removeButtonText}>Remove</Text>
               </TouchableOpacity>
-            </View>
+            </GlassSurface>
           ))}
         </ScrollView>
       )}
@@ -170,10 +172,10 @@ const ChangeChildren = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     paddingHorizontal: 16,
     paddingVertical: 20,
   },
@@ -181,7 +183,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   noChildrenText: {
-    color: "#8e8e93",
+    color: t.textMuted,
     fontSize: 25,
     textAlign: "center",
     marginTop: 50,
@@ -194,7 +196,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#2e2e2e",
+    backgroundColor: t.isDark ? "#2e2e2e" : t.surface,
     borderRadius: 10,
     padding: 15,
     marginBottom: 10,
@@ -205,34 +207,34 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 10,
     borderWidth: 1,
-    borderColor: "#333333",
+    borderColor: t.surfaceHighest,
   },
   childName: {
-    color: "#8e8e93",
+    color: t.textMuted,
     fontSize: 18,
     flex: 1,
   },
   removeButton: {
-    backgroundColor: "#ff3b30",
+    backgroundColor: t.danger,
     borderRadius: 5,
     padding: 10,
   },
   removeButtonText: {
-    color: "#ffffff",
+    color: t.onDanger,
     fontSize: 16,
   },
   confirmButton: {
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     borderRadius: 10,
     padding: 15,
     marginTop: 20,
     alignItems: "center",
   },
   confirmButtonText: {
-    color: "#ffffff",
+    color: t.text,
     fontSize: 17,
     fontWeight: "500",
   },
-});
+}));
 
 export default ChangeChildren;

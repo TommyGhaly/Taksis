@@ -15,6 +15,7 @@ import { View, TouchableOpacity, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import * as avatarCache from "../utils/avatarCache";
 import ProfileImageExpander from "./ProfileImageExpander";
+import { useTheme } from "../theme";
 
 const DEFAULT_PROFILE = require("../assets/default_profile.png");
 
@@ -40,6 +41,7 @@ const Avatar = React.memo(({
   showBorder = true,
   onDisplay,
 }) => {
+  const t = useTheme();
   const resolvedUid = uid || user?.uid || user?.id || null;
   const uri = useAvatarUri(resolvedUid);
 
@@ -78,7 +80,7 @@ const Avatar = React.memo(({
           width: size,
           height: size,
           borderRadius: radius,
-          ...(showBorder ? { borderWidth: 1, borderColor: "#333333" } : null),
+          ...(showBorder ? { borderWidth: 1, borderColor: t.surfaceHighest } : null),
         },
         style,
       ]}

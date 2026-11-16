@@ -2,7 +2,6 @@ import * as React from "react";
 import { useState, useEffect, useRef } from "react";
 import {
   Text,
-  StyleSheet,
   View,
   ScrollView,
   TouchableOpacity,
@@ -19,6 +18,7 @@ import PhotoInput from "../../components/photoInput";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import Avatar from "../../components/Avatar";
 import * as avatarCache from "../../utils/avatarCache";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
 
 const hapticOptions = {
   enableVibrateFallback: true,
@@ -33,6 +33,9 @@ const CACHE_KEYS = {
 const CACHE_DURATION = 3 * 24 * 60 * 60 * 1000;
 
 const ChildAccountInfo = ({ route, navigation }) => {
+  const styles = useStyles();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const { childUid } = route.params;
   const [childData, setChildData] = useState(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
@@ -142,10 +145,10 @@ const ChildAccountInfo = ({ route, navigation }) => {
   }
 
   const InfoCard = ({ label, value }) => (
-    <View style={styles.infoCard}>
+    <GlassSurface style={styles.infoCard}>
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue}>{value}</Text>
-    </View>
+    </GlassSurface>
   );
 
   return (
@@ -163,7 +166,7 @@ const ChildAccountInfo = ({ route, navigation }) => {
           style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1 }]}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="chevron-back" size={22} color="#fff" />
+          <Ionicons name="chevron-back" size={22} color={t.text} />
         </Pressable>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerSubtext}>CHILD</Text>
@@ -171,7 +174,7 @@ const ChildAccountInfo = ({ route, navigation }) => {
         </View>
       </Animated.View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + tabBarInset }]} showsVerticalScrollIndicator={false}>
         <Animated.View
           style={{
             transform: [{ translateY: contentAnim.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }],
@@ -194,7 +197,7 @@ const ChildAccountInfo = ({ route, navigation }) => {
                 onPress={handleEditPhoto}
                 activeOpacity={0.7}
               >
-                <Ionicons name="pencil" size={16} color="#fff" />
+                <Ionicons name="pencil" size={16} color={t.onAccent} />
               </TouchableOpacity>
             </View>
             <Text style={styles.profileName}>{childData.name || "Child"}</Text>
@@ -208,7 +211,7 @@ const ChildAccountInfo = ({ route, navigation }) => {
           </View>
 
           <View style={styles.disclaimerCard}>
-            <Ionicons name="information-circle" size={20} color="#ff9500" style={{ marginRight: 10 }} />
+            <Ionicons name="information-circle" size={20} color={t.warning} style={{ marginRight: 10 }} />
             <Text style={styles.disclaimerText}>
               To change any child information, please remove the child and add them again.
             </Text>
@@ -221,10 +224,10 @@ const ChildAccountInfo = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
   headerContainer: {
     flexDirection: "row",
@@ -237,7 +240,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: t.fill,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -248,13 +251,13 @@ const styles = StyleSheet.create({
   },
   headerSubtext: {
     fontSize: 10,
-    color: "#555",
+    color: t.isDark ? "#555" : t.textTertiary,
     letterSpacing: 2,
     marginBottom: 4,
   },
   headerTitle: {
     fontSize: 24,
-    color: "#fff",
+    color: t.text,
     fontWeight: "300",
     letterSpacing: 1,
   },
@@ -279,18 +282,18 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 0,
     right: 0,
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
     borderRadius: 14,
     width: 28,
     height: 28,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#121212",
+    borderColor: t.background,
   },
   profileName: {
     fontSize: 24,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
   },
   section: {
@@ -298,28 +301,28 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 22,
-    color: "#4d9cff",
+    color: t.accentText,
     marginBottom: 14,
     fontWeight: "600",
   },
   infoCard: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     padding: 16,
     borderRadius: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   infoLabel: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
     marginBottom: 4,
     textTransform: "uppercase",
     letterSpacing: 1,
   },
   infoValue: {
     fontSize: 17,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
   },
   disclaimerCard: {
@@ -333,7 +336,7 @@ const styles = StyleSheet.create({
   },
   disclaimerText: {
     fontSize: 14,
-    color: "#ff9500",
+    color: t.warningText,
     flex: 1,
     lineHeight: 20,
   },
@@ -341,12 +344,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
   loadingText: {
     fontSize: 16,
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
   },
-});
+}));
 
 export default ChildAccountInfo;

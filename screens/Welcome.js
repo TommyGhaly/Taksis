@@ -2,13 +2,13 @@ import * as React from "react";
 import {
   Image,
   Platform,
-  StyleSheet,
   Text,
   View,
   TouchableOpacity,
   useWindowDimensions,
 } from "react-native";
 import { useUser } from "../UserContext";
+import { makeStyles } from "../theme";
 
 // Define image dimensions as constants
 const TAKSIS_WIDTH = 356;
@@ -71,6 +71,7 @@ const getSplitSizes = (width, height) => {
 };
 
 const Welcome = ({ navigation }) => {
+  const styles = useStyles();
   // Move useUser inside the component
   const { signUp, setSignUp } = useUser();
   const { width, height } = useWindowDimensions();
@@ -149,10 +150,10 @@ const Welcome = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: t.isDark ? "#000" : t.background,
   },
   spacer: {
   },
@@ -170,7 +171,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: "center",
     backgroundColor: "#8e8e93",
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -180,8 +181,8 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 10,
     justifyContent: "center",
-    backgroundColor: "#000",
-    shadowColor: "#000",
+    backgroundColor: t.isDark ? "#000" : t.background,
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -199,8 +200,8 @@ const styles = StyleSheet.create({
     fontFamily: "Roboto-Bold",
     fontWeight: "600",
     fontSize: 20,
-    color: "#8e8e93",
+    color: t.textMuted,
   },
-});
+}));
 
 export default Welcome;

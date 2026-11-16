@@ -1,13 +1,12 @@
 import React, { useState } from "react";
 import {
   Text,
-  StyleSheet,
   View,
   Pressable,
   Alert,
-  SafeAreaView,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import BackArrow from "../../components/backArrow";
 import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
@@ -15,8 +14,11 @@ import { useNavigation } from "@react-navigation/native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { callFunction } from "../../components/functionCalls";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
+import { makeStyles, useTheme, GlassSurface } from "../../theme";
 
 const ChangeAge = () => {
+  const styles = useStyles();
+  const t = useTheme();
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const navigation = useNavigation();
@@ -81,7 +83,7 @@ const ChangeAge = () => {
         </View>
 
         <View style={styles.content}>
-          <View style={styles.card}>
+          <GlassSurface style={styles.card}>
             <Text style={styles.title}>Update Your Date of Birth</Text>
             <View style={styles.datePickerContainer}>
               <Pressable
@@ -106,12 +108,12 @@ const ChangeAge = () => {
                   maximumDate={new Date()}
                   minimumDate={new Date(1900, 0, 1)} // Allow dates from 1900
                   style={styles.datePicker}
-                  textColor="#F0F0F0"
-                  accentColor="#147EFB"
+                  textColor={t.isDark ? "#F0F0F0" : t.text}
+                  accentColor={t.accent}
                 />
               )}
             </View>
-          </View>
+          </GlassSurface>
         </View>
 
         <Pressable style={styles.confirmButton} onPress={handleConfirm}>
@@ -122,10 +124,10 @@ const ChangeAge = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
   innerContainer: {
     flex: 1,
@@ -144,24 +146,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   card: {
-    backgroundColor: "#1E1E1E",
+    backgroundColor: t.surface,
     borderRadius: 24,
     padding: 24,
     width: "100%",
     maxWidth: 400,
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
     borderWidth: 1,
-    borderColor: "#2A2A2A",
+    borderColor: t.surfaceElevated,
   },
   title: {
     fontSize: 24,
     fontWeight: "600",
-    color: "#F0F0F0",
+    color: (t.isDark ? "#F0F0F0" : t.text),
     textAlign: "center",
     marginBottom: 20,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
@@ -176,14 +178,14 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 20,
-    color: "#F0F0F0",
+    color: (t.isDark ? "#F0F0F0" : t.text),
     marginTop: 5,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
     textAlign: "center",
     textDecorationLine: "underline",
   },
   confirmButton: {
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
@@ -195,10 +197,10 @@ const styles = StyleSheet.create({
   },
   confirmText: {
     fontSize: 18,
-    color: "#FFFFFF",
+    color: t.text,
     fontWeight: "600",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
-});
+}));
 
 export default ChangeAge;

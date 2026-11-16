@@ -6,11 +6,10 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
-  SafeAreaView,
   Animated,
   AppState,
-  StyleSheet,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
   arrayRemove,
@@ -47,6 +46,7 @@ import ChildrenProfilePictureModal from "../../components/ChildrenProfilePicture
 import AvailabilityModal from "../../components/AvailabilityModal";
 import SkeletonScreen from "../../components/Skeleton";
 import { useIsPreview } from "../../components/PreviewMode";
+import { makeStyles, useTheme, useTabBarInset, GlassSurface } from "../../theme";
 
 // Import caching system
 import {
@@ -169,6 +169,9 @@ async function checkNotificationPermission() {
 const NO_ONE = { name: "N/A" };
 
 const HomeScreen = () => {
+  const styles = useStyles();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const user = getAuth().currentUser;
 
   // Thumbnail in the home-screen selector. The schedule itself renders normally;
@@ -1305,13 +1308,13 @@ const HomeScreen = () => {
           { justifyContent: "center", alignItems: "center" },
         ]}
       >
-        <Text style={{ fontSize: 18, color: "#ff6b6b", marginBottom: 10 }}>
+        <Text style={{ fontSize: 18, color: t.isDark ? "#ff6b6b" : t.dangerText, marginBottom: 10 }}>
           Connection Error
         </Text>
         <Text
           style={{
             fontSize: 14,
-            color: "#888",
+            color: t.textMuted,
             textAlign: "center",
             marginBottom: 20,
           }}
@@ -1321,14 +1324,14 @@ const HomeScreen = () => {
         <TouchableOpacity
           onPress={refreshUser}
           style={{
-            backgroundColor: "#007AFF",
+            backgroundColor: t.isDark ? "#007AFF" : t.accent,
             padding: 12,
             borderRadius: 8,
             minWidth: 120,
           }}
         >
           <Text
-            style={{ color: "white", textAlign: "center", fontWeight: "600" }}
+            style={{ color: t.onAccent, textAlign: "center", fontWeight: "600" }}
           >
             Retry
           </Text>
@@ -1338,7 +1341,7 @@ const HomeScreen = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["left", "right"]}>
       {/* PhotoInput Component - Placed first, outside of any Modal */}
       <PhotoInput
         visible={showPhotoInputModal}
@@ -1432,7 +1435,10 @@ const HomeScreen = () => {
 
       <ScrollView
         style={styles.homescreen}
-        contentContainerStyle={styles.scrollContainer}
+        contentContainerStyle={[
+          styles.scrollContainer,
+          { paddingBottom: 40 + tabBarInset },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.header}>
@@ -1462,7 +1468,7 @@ const HomeScreen = () => {
         </View>
 
         {isDeacon && (
-          <View style={styles.nextServiceBox}>
+          <GlassSurface style={styles.nextServiceBox}>
             <Text style={styles.nextServiceWeek}>Next Service Week</Text>
             <Text style={styles.nextServiceText}>
               Your next service is on: {nextWeek || "N/A"}
@@ -1489,7 +1495,7 @@ const HomeScreen = () => {
                     'close-circle'
                   }
                   size={16}
-                  color="#FFFFFF"
+                  color={t.onAccent}
                 />
                 <Text style={styles.statusPillText}>
                   {userAvailabilityStatus === 'confirmed' ? 'Confirmed' :
@@ -1512,7 +1518,7 @@ const HomeScreen = () => {
                 Last served on {lastServe} as {lastRole}
               </Text>
             )}
-          </View>
+          </GlassSurface>
         )}
       </ScrollView>
       <View style={styles.blackspace} />
@@ -1520,10 +1526,10 @@ const HomeScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
   scrollContainer: {
     paddingBottom: 40,
@@ -1534,7 +1540,7 @@ const styles = StyleSheet.create({
   },
   header: {
     fontSize: 36,
-    color: "#fff",
+    color: t.text,
     textAlign: "center",
     marginTop: 20,
     marginBottom: 8,
@@ -1544,7 +1550,7 @@ const styles = StyleSheet.create({
   headerDivider: {
     width: 60,
     height: 2,
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     alignSelf: "center",
     marginBottom: 30,
     borderRadius: 1,
@@ -1555,13 +1561,13 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 22,
-    color: "#4d9cff",
+    color: t.accentText,
     marginBottom: 14,
     fontWeight: "600",
   },
   nextServiceWeek: {
     fontSize: 20,
-    color: "#4d9cff",
+    color: t.accentText,
     textAlign: "center",
     marginBottom: 12,
     fontWeight: "600",
@@ -1569,44 +1575,44 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     padding: 16,
     borderRadius: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   icon: {
     marginRight: 14,
   },
   name: {
     fontSize: 18,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
   },
   nextServiceBox: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     padding: 20,
     borderRadius: 14,
     marginHorizontal: 20,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: t.border,
   },
   nextServiceText: {
     fontSize: 16,
-    color: "rgba(255,255,255,0.6)",
+    color: t.textSecondary,
     textAlign: "center",
     marginBottom: 8,
   },
   nextRoleText: {
     fontSize: 18,
-    color: "#fff",
+    color: t.text,
     textAlign: "center",
     fontWeight: "600",
     marginBottom: 16,
   },
   unavailableButton: {
-    backgroundColor: "#ff3b30",
+    backgroundColor: t.danger,
     paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 14,
@@ -1615,17 +1621,17 @@ const styles = StyleSheet.create({
   },
   requestButtonText: {
     fontSize: 16,
-    color: "#ffffff",
+    color: t.onAccent,
     fontWeight: "600",
     textAlign: "center",
   },
   blackspace: {
     height: 0,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
   lastServeText: {
     fontSize: 13,
-    color: "rgba(255,255,255,0.4)",
+    color: t.textTertiary,
     textAlign: "center",
     marginTop: 12,
     fontStyle: "italic",
@@ -1648,14 +1654,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#E68A00",
   },
   statusPillUnavailable: {
-    backgroundColor: "#ff3b30",
+    backgroundColor: t.danger,
   },
   statusPillText: {
     fontSize: 12,
-    color: "#FFFFFF",
+    color: t.onAccent,
     fontWeight: "600",
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
-});
+}));
 
 export default HomeScreen;

@@ -1,5 +1,5 @@
 // metro.config.js
-const { getDefaultConfig } = require('@expo/metro-config');
+const { getDefaultConfig } = require('expo/metro-config');
 
 const defaultConfig = getDefaultConfig(__dirname);
 
@@ -13,6 +13,14 @@ defaultConfig.resolver.extraNodeModules = {
   buffer: require.resolve('buffer'),
   // add any other Node modules needed
 };
+
+// Agent worktrees live under .claude/worktrees, each with its own full
+// node_modules (tens of GB). Metro would crawl and watch all of it, which
+// stalls the watcher so edits in the real tree stop reaching the bundle.
+defaultConfig.resolver.blockList = [
+  ...[].concat(defaultConfig.resolver.blockList || []),
+  /\/\.claude\/worktrees\/.*/,
+];
 
 // Defer module evaluation until first use. MainContainer + the nested
 // navigators statically import ~46 screen modules, and without this every one

@@ -19,7 +19,7 @@
  * Firebase is configured before any JS can run.
  */
 
-const { withAppDelegate } = require("@expo/config-plugins");
+const { withAppDelegate } = require("expo/config-plugins");
 
 const ANCHOR = "bindReactNativeFactory(factory)";
 const CALL = "FirebaseApp.configure()";

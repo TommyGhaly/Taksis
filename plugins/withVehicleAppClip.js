@@ -16,7 +16,7 @@ const {
   withXcodeProject,
   withEntitlementsPlist,
   withDangerousMod,
-} = require("@expo/config-plugins");
+} = require("expo/config-plugins");
 const plist = require("@expo/plist").default;
 const fs = require("fs");
 const path = require("path");

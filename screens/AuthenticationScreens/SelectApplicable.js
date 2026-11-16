@@ -1,12 +1,14 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Text, Pressable, Alert } from "react-native";
+import { View, Text, Pressable, Alert } from "react-native";
 import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
 import Choices from "../../components/choices";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
+import { makeStyles } from "../../theme";
 
 const SelectApplicable = ({ navigation }) => {
+  const styles = useStyles();
   const user = getAuth().currentUser;
   const [isDeacon, setIsDeacon] = useState(false);
   const [isAlhan, setIsAlhan] = useState(false);
@@ -70,10 +72,10 @@ const SelectApplicable = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     paddingHorizontal: 16,
     paddingTop: 80,
     paddingBottom: 40, // Matches SelectChurch
@@ -87,7 +89,7 @@ const styles = StyleSheet.create({
   progressBar: {
     height: 6,
     width: "100%",
-    backgroundColor: "#2A2A2A",
+    backgroundColor: t.isDark ? t.surfaceElevated : t.surfaceHighest,
     borderRadius: 3,
     marginBottom: 12,
   },
@@ -96,7 +98,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     fontFamily: "Roboto-Regular",
     fontWeight: "600",
-    color: "#E0E0E0",
+    color: (t.isDark ? "#E0E0E0" : t.text),
     lineHeight: 42,
     marginTop: 30,
   },
@@ -111,13 +113,13 @@ const styles = StyleSheet.create({
   continueButton: {
     height: 52,
     width: "100%",
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 35, // Matches SelectChurch
     elevation: 4,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -127,8 +129,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     fontWeight: "600",
     fontFamily: "Roboto-Medium",
-    color: "#FFF",
+    color: t.onAccent,
   },
-});
+}));
 
 export default SelectApplicable;

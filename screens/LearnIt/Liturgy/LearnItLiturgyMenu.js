@@ -2,7 +2,6 @@ import * as React from "react";
 import { useRef, useEffect } from "react";
 import {
   Pressable,
-  StyleSheet,
   View,
   Text,
   Animated,
@@ -10,6 +9,7 @@ import {
   FlatList,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { makeStyles, useTheme, useTabBarInset } from "../../../theme";
 
 const menuItems = [
   { screen: "Matins", label: "Matins" },
@@ -20,6 +20,9 @@ const menuItems = [
 ];
 
 const LearnItLiturgyMenu = ({ navigation }) => {
+  const styles = useStyles();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const headerAnim = useRef(new Animated.Value(0)).current;
   const itemAnimValues = useRef(menuItems.map(() => new Animated.Value(0))).current;
 
@@ -56,7 +59,7 @@ const LearnItLiturgyMenu = ({ navigation }) => {
       >
         <View style={styles.buttonContent}>
           <Text style={styles.buttonText}>{item.label}</Text>
-          <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+          <Ionicons name="chevron-forward" size={20} color={t.textTertiary} />
         </View>
       </Pressable>
     </Animated.View>
@@ -84,7 +87,7 @@ const LearnItLiturgyMenu = ({ navigation }) => {
           style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1 }]}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="chevron-back" size={22} color="#fff" />
+          <Ionicons name="chevron-back" size={22} color={t.text} />
         </Pressable>
 
         <View style={styles.headerTitleContainer}>
@@ -97,17 +100,17 @@ const LearnItLiturgyMenu = ({ navigation }) => {
         data={menuItems}
         renderItem={renderItem}
         keyExtractor={(item) => item.screen}
-        contentContainerStyle={styles.listContainer}
+        contentContainerStyle={[styles.listContainer, { paddingBottom: 40 + tabBarInset }]}
         showsVerticalScrollIndicator={false}
       />
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
   headerContainer: {
     flexDirection: "row",
@@ -120,7 +123,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: t.fill,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -131,13 +134,13 @@ const styles = StyleSheet.create({
   },
   headerSubtext: {
     fontSize: 11,
-    color: "#555",
+    color: t.isDark ? "#555" : t.textMuted,
     letterSpacing: 3,
     marginBottom: 6,
   },
   headerTitle: {
     fontSize: 32,
-    color: "#fff",
+    color: t.text,
     fontWeight: "300",
     letterSpacing: 1,
   },
@@ -147,10 +150,10 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   button: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: t.border,
   },
   buttonContent: {
     flexDirection: "row",
@@ -161,10 +164,10 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 17,
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
     flex: 1,
   },
-});
+}));
 
 export default LearnItLiturgyMenu;

@@ -20,6 +20,7 @@ import {
   PixelRatio,
 } from "react-native";
 import { BlurView } from "expo-blur";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
 import { Ionicons } from "@expo/vector-icons";
 import {
   collection,
@@ -96,10 +97,10 @@ const formatNumber = (num) => {
 const RECENT_WEEKS = 12;
 
 // Returns { color, bg, border } based on 0-1=neutral, 2-3=amber, 4+=red
-const pillTheme = (count) => {
-  if (count >= 4) return { color: "#ff3b30", bg: "rgba(255,59,48,0.12)", border: "rgba(255,59,48,0.3)" };
-  if (count >= 2) return { color: "#ff9f0a", bg: "rgba(255,159,10,0.12)", border: "rgba(255,159,10,0.28)" };
-  return { color: "rgba(255,255,255,0.35)", bg: "rgba(255,255,255,0.06)", border: "rgba(255,255,255,0.1)" };
+const pillTheme = (count, t) => {
+  if (count >= 4) return { color: t.isDark ? "#ff3b30" : t.dangerText, bg: "rgba(255,59,48,0.12)", border: "rgba(255,59,48,0.3)" };
+  if (count >= 2) return { color: t.warningText, bg: "rgba(255,159,10,0.12)", border: "rgba(255,159,10,0.28)" };
+  return { color: t.textTertiary, bg: t.fill, border: t.borderStrong };
 };
 
 const { width, height } = Dimensions.get("window");
@@ -194,6 +195,8 @@ const auditAttendanceCard = makeRowHeightAudit("AttendanceCard", ATT_CARD_H, 8);
 
 // ─── Attendance card ──────────────────────────────────────────────────────────
 const AttendanceCard = React.memo(({ deacon, reliable, onPillPress, onProfilePress }) => {
+  const aStyles = useAStyles();
+  const t = useTheme();
   const [tempExp, setTempExp] = useState(deacon.experience ?? 0);
   const [tempFreq, setTempFreq] = useState(deacon.frequency ?? 0);
   const [saving, setSaving] = useState(false);
@@ -207,8 +210,8 @@ const AttendanceCard = React.memo(({ deacon, reliable, onPillPress, onProfilePre
   // full history. See the note on RECENT_WEEKS.
   const recentUnavailableCount = deacon.recentUnavailableCount ?? 0;
   const switchedCount = deacon.switchedCount ?? 0;
-  const unavailTheme = pillTheme(recentUnavailableCount);
-  const switchedTheme = pillTheme(switchedCount);
+  const unavailTheme = pillTheme(recentUnavailableCount, t);
+  const switchedTheme = pillTheme(switchedCount, t);
 
   // Reliable deacons are who the replacement picker draws from when someone
   // marks themselves unavailable (find_replacement in schedule_generation.py).
@@ -414,9 +417,9 @@ const AttendanceCard = React.memo(({ deacon, reliable, onPillPress, onProfilePre
           minimumValue={0}
           maximumValue={10}
           step={0.25}
-          thumbTintColor="#147efb"
-          minimumTrackTintColor="#147efb"
-          maximumTrackTintColor="#333"
+          thumbTintColor={t.accent}
+          minimumTrackTintColor={t.accent}
+          maximumTrackTintColor={t.surfaceHighest}
           style={aStyles.slider}
         />
         <View style={aStyles.sliderRow}>
@@ -429,9 +432,9 @@ const AttendanceCard = React.memo(({ deacon, reliable, onPillPress, onProfilePre
           minimumValue={0}
           maximumValue={10}
           step={0.25}
-          thumbTintColor="#147efb"
-          minimumTrackTintColor="#147efb"
-          maximumTrackTintColor="#333"
+          thumbTintColor={t.accent}
+          minimumTrackTintColor={t.accent}
+          maximumTrackTintColor={t.surfaceHighest}
           style={aStyles.slider}
         />
         <View style={aStyles.controlsRow}>
@@ -441,18 +444,18 @@ const AttendanceCard = React.memo(({ deacon, reliable, onPillPress, onProfilePre
             activeOpacity={0.75}
             accessibilityLabel={`Rank: ${deacon.rank || "not set"}. Change rank`}
           >
-            <Ionicons name="ribbon-outline" size={13} color="#4d9cff" />
+            <Ionicons name="ribbon-outline" size={13} color={t.accentText} />
             <Text style={aStyles.rankText} numberOfLines={1}>
               {shortRank(deacon.rank)}
             </Text>
-            <Ionicons name="chevron-down" size={12} color="rgba(255,255,255,0.45)" />
+            <Ionicons name="chevron-down" size={12} color={t.textTertiary} />
           </TouchableOpacity>
           <View style={aStyles.reliableRow}>
             <Text style={aStyles.reliableLabel}>Reliable</Text>
             <Switch
               value={!!reliable}
               onValueChange={toggleReliable}
-              trackColor={{ false: "#3a3a3c", true: "#34c759" }}
+              trackColor={{ false: t.isDark ? "#3a3a3c" : "#E9E9EB", true: t.success }}
               style={aStyles.reliableSwitch}
               accessibilityLabel="Reliable replacement"
             />
@@ -466,7 +469,7 @@ const AttendanceCard = React.memo(({ deacon, reliable, onPillPress, onProfilePre
             activeOpacity={0.8}
           >
             {saving ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={t.onAccent} />
             ) : (
               <Text style={aStyles.saveBtnText}>Save</Text>
             )}
@@ -491,7 +494,9 @@ AttendanceCard.displayName = "AttendanceCard";
  * every row there is equally current, so none of them are dimmed or badged.
  */
 const PillDateRow = React.memo(({ label, isRecent, showRecency, accentColor }) => {
-  const dotColor = !showRecency || isRecent ? accentColor : "rgba(255,255,255,0.2)";
+  const pmStyles = usePmStyles();
+  const t = useTheme();
+  const dotColor = !showRecency || isRecent ? accentColor : t.isDark ? "rgba(255,255,255,0.2)" : "rgba(60,60,67,0.3)";
   return (
     <View style={pmStyles.dateRow}>
       <View style={[pmStyles.dot, { backgroundColor: dotColor }]} />
@@ -511,7 +516,10 @@ const PillDateRow = React.memo(({ label, isRecent, showRecency, accentColor }) =
 });
 PillDateRow.displayName = "PillDateRow";
 
-const PillSeparator = () => <View style={pmStyles.sep} />;
+const PillSeparator = () => {
+  const pmStyles = usePmStyles();
+  return <View style={pmStyles.sep} />;
+};
 // Index-suffixed on purpose. `unavailableWeeks` is a plain array that could in
 // principle hold the same date twice, and unlike the attendance-history lists this
 // one is a static snapshot of the deacon taken when the sheet opened — it never
@@ -519,6 +527,8 @@ const PillSeparator = () => <View style={pmStyles.sep} />;
 const pillKeyExtractor = (item, index) => `${item.date}-${index}`;
 
 const PillModal = React.memo(({ visible, type, deacon, onClose }) => {
+  const pmStyles = usePmStyles();
+  const t = useTheme();
   const isUnavail = type === "unavailable";
 
   /**
@@ -553,7 +563,7 @@ const PillModal = React.memo(({ visible, type, deacon, onClose }) => {
     () => (isUnavail ? rows.reduce((n, r) => (r.isRecent ? n + 1 : n), 0) : rows.length),
     [rows, isUnavail]
   );
-  const accentColor = pillTheme(accentCount).color;
+  const accentColor = pillTheme(accentCount, t).color;
 
   const renderPillRow = useCallback(
     ({ item }) => (
@@ -574,7 +584,7 @@ const PillModal = React.memo(({ visible, type, deacon, onClose }) => {
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={pmStyles.overlay}>
         <TouchableOpacity style={pmStyles.dismissArea} activeOpacity={1} onPress={onClose} />
-        <View style={pmStyles.sheet}>
+        <GlassSurface style={pmStyles.sheet}>
           {/* Drag handle */}
           <View style={pmStyles.handle} />
 
@@ -616,7 +626,7 @@ const PillModal = React.memo(({ visible, type, deacon, onClose }) => {
               ItemSeparatorComponent={PillSeparator}
             />
           )}
-        </View>
+        </GlassSurface>
       </View>
     </Modal>
   );
@@ -631,7 +641,10 @@ PillModal.displayName = "PillModal";
  * unrelated state change re-rendered every mounted cell — with a 48px avatar in
  * each one, that showed up as a stutter mid-scroll.
  */
-const DeaconRow = React.memo(({ item, onPress }) => (
+const DeaconRow = React.memo(({ item, onPress }) => {
+  const styles = useStyles();
+  const t = useTheme();
+  return (
   <TouchableOpacity style={styles.deaconItem} onPress={() => onPress(item)} activeOpacity={0.7} onLayout={auditDeaconRow}>
     <View style={styles.deaconImageContainer}>
       <Avatar
@@ -651,19 +664,26 @@ const DeaconRow = React.memo(({ item, onPress }) => (
       <Text style={styles.deaconDetail} numberOfLines={1}>Experience: {formatNumber(item.experience)}</Text>
       <Text style={styles.deaconDetail} numberOfLines={1}>Frequency: {formatNumber(item.frequency)}</Text>
     </View>
-    <Ionicons name="pencil" size={20 * scale} color="#147efb" />
+    <Ionicons name="pencil" size={20 * scale} color={t.accent} />
   </TouchableOpacity>
-));
+  );
+});
 DeaconRow.displayName = "DeaconRow";
 
-const SectionHeader = React.memo(({ title }) => (
-  <View style={styles.sectionHeader}>
-    <Text style={styles.sectionHeaderText}>{title}</Text>
-  </View>
-));
+const SectionHeader = React.memo(({ title }) => {
+  const styles = useStyles();
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionHeaderText}>{title}</Text>
+    </View>
+  );
+});
 SectionHeader.displayName = "SectionHeader";
 
 const DeaconEdits = () => {
+  const styles = useStyles();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const user = getAuth().currentUser;
 
   // Hold every Firestore read until the drawer/stack transition has finished
@@ -1036,11 +1056,11 @@ const DeaconEdits = () => {
       <RefreshControl
         refreshing={isRefreshing}
         onRefresh={onRefresh}
-        tintColor="#147efb"
-        colors={["#147efb"]}
+        tintColor={t.accent}
+        colors={[t.accent]}
       />
     ),
-    [isRefreshing, onRefresh]
+    [isRefreshing, onRefresh, t]
   );
 
   /**
@@ -1189,9 +1209,9 @@ const DeaconEdits = () => {
             <Ionicons
               name="bar-chart-outline"
               size={15}
-              color={attendanceMode ? "#fff" : "#ff9f0a"}
+              color={attendanceMode ? t.onAccent : t.warningText}
             />
-            <Text style={[styles.headerBtnText, { color: attendanceMode ? "#fff" : "#ff9f0a" }, attendanceMode && { color: "#fff" }]}>
+            <Text style={[styles.headerBtnText, { color: attendanceMode ? t.onAccent : t.warningText }, attendanceMode && { color: t.onAccent }]}>
               Attendance
             </Text>
           </TouchableOpacity>
@@ -1200,8 +1220,8 @@ const DeaconEdits = () => {
             onPress={() => setSyncModalVisible(true)}
             activeOpacity={0.7}
           >
-            <Ionicons name="sync" size={15} color="#147efb" />
-            <Text style={[styles.headerBtnText, { color: "#147efb" }]}>Sync</Text>
+            <Ionicons name="sync" size={15} color={t.accent} />
+            <Text style={[styles.headerBtnText, { color: t.accent }]}>Sync</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1209,14 +1229,14 @@ const DeaconEdits = () => {
       {/* Mode label */}
       {attendanceMode && (
         <View style={styles.modeBanner}>
-          <Ionicons name="bar-chart-outline" size={13} color="#ff9f0a" />
+          <Ionicons name="bar-chart-outline" size={13} color={t.warningText} />
           <Text style={styles.modeBannerText}>Attendance Monitor — last 12 weeks</Text>
         </View>
       )}
 
       {activeSections.length === 0 ? (
         <ScrollView
-          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#147efb" colors={["#147efb"]} />}
+          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={t.accent} colors={[t.accent]} />}
           contentContainerStyle={styles.centered}
         >
           <Text style={[styles.noData, { fontSize: 16 * scale }]}>
@@ -1234,7 +1254,7 @@ const DeaconEdits = () => {
             renderItem={renderDeacon}
             renderSectionHeader={renderSectionHeader}
             keyExtractor={keyExtractor}
-            contentContainerStyle={styles.listContainer}
+            contentContainerStyle={[styles.listContainer, { paddingBottom: 110 + tabBarInset }]}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={true}
             {...LIST_PERF}
@@ -1274,28 +1294,38 @@ const DeaconEdits = () => {
 
       {/* Floating search bar */}
       <Animated.View
-        style={[styles.floatingBarWrapper, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
+        style={[styles.floatingBarWrapper, { bottom: (Platform.OS === "ios" ? 28 : 16) + tabBarInset }, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
         pointerEvents="box-none"
       >
-        <BlurView tint="systemChromeMaterialDark" intensity={80} style={styles.floatingBlur}>
-          <View style={styles.floatingInner}>
-            <View style={styles.searchContainer}>
-              <Ionicons name="search" size={16} color="rgba(255,255,255,0.55)" style={styles.searchIcon} />
-              <TextInput
-                ref={searchInputRef}
-                style={styles.searchBar}
-                placeholder="Search deacons"
-                placeholderTextColor="rgba(255,255,255,0.55)"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoCorrect={false}
-                autoCapitalize="none"
-                returnKeyType="search"
-                clearButtonMode="while-editing"
-              />
+        {(() => {
+          const inner = (
+            <View style={styles.floatingInner}>
+              <View style={styles.searchContainer}>
+                <Ionicons name="search" size={16} color={t.textSecondary} style={styles.searchIcon} />
+                <TextInput
+                  ref={searchInputRef}
+                  style={styles.searchBar}
+                  placeholder="Search deacons"
+                  placeholderTextColor={t.placeholder}
+                  keyboardAppearance={t.keyboardAppearance}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  returnKeyType="search"
+                  clearButtonMode="while-editing"
+                />
+              </View>
             </View>
-          </View>
-        </BlurView>
+          );
+          return t.glass ? (
+            <GlassSurface style={styles.floatingBlur}>{inner}</GlassSurface>
+          ) : (
+            <BlurView tint={t.blurTint} intensity={80} style={styles.floatingBlur}>
+              {inner}
+            </BlurView>
+          );
+        })()}
       </Animated.View>
 
       {/* Standard edit modal */}
@@ -1329,13 +1359,13 @@ const DeaconEdits = () => {
 };
 
 // ─── Attendance card styles ───────────────────────────────────────────────────
-const aStyles = StyleSheet.create({
+const useAStyles = makeStyles((t) => ({
   card: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: t.border,
     overflow: "hidden",
   },
   topRow: {
@@ -1358,7 +1388,7 @@ const aStyles = StyleSheet.create({
     fontSize: 14,
     lineHeight: CARD_NAME_LINE,
     fontWeight: "600",
-    color: "#fff",
+    color: t.text,
     marginBottom: 4,
   },
   pillRow: {
@@ -1392,16 +1422,16 @@ const aStyles = StyleSheet.create({
     height: 26,
     paddingHorizontal: 10,
     borderRadius: 13,
-    backgroundColor: "rgba(77,156,255,0.12)",
+    backgroundColor: t.accentFill,
     flexShrink: 1,
   },
-  rankText: { color: "#4d9cff", fontSize: 12, fontWeight: "600" },
+  rankText: { color: t.accentText, fontSize: 12, fontWeight: "600" },
   reliableRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  reliableLabel: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "600" },
+  reliableLabel: { color: t.textSecondary, fontSize: 12, fontWeight: "600" },
   reliableSwitch: { transform: [{ scale: 0.8 }] },
   sliderBlock: {
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.06)",
+    borderTopColor: t.border,
     paddingHorizontal: 12,
     paddingTop: 6,
     paddingBottom: 8,
@@ -1416,13 +1446,13 @@ const aStyles = StyleSheet.create({
     fontSize: 11,
     lineHeight: SLIDER_LABEL_LINE,
     fontWeight: "500",
-    color: "rgba(255,255,255,0.45)",
+    color: t.textTertiary,
   },
   sliderValue: {
     fontSize: 11,
     lineHeight: SLIDER_LABEL_LINE,
     fontWeight: "600",
-    color: "#fff",
+    color: t.text,
   },
   slider: {
     width: "100%",
@@ -1433,7 +1463,7 @@ const aStyles = StyleSheet.create({
   // for an ActivityIndicator while saving, and a "small" spinner is taller than
   // a 13pt line — so the card used to grow a few px mid-save.
   saveBtn: {
-    backgroundColor: "#147efb",
+    backgroundColor: t.accent,
     borderRadius: 8,
     height: SAVE_BTN_H,
     alignItems: "center",
@@ -1441,18 +1471,18 @@ const aStyles = StyleSheet.create({
     marginTop: 4,
   },
   saveBtnText: {
-    color: "#fff",
+    color: t.onAccent,
     fontSize: 13,
     lineHeight: SAVE_BTN_TEXT_LINE,
     fontWeight: "600",
   },
-});
+}));
 
 // ─── Pill modal styles ────────────────────────────────────────────────────────
-const pmStyles = StyleSheet.create({
+const usePmStyles = makeStyles((t) => ({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: t.overlay,
     justifyContent: "flex-end",
   },
   dismissArea: {
@@ -1460,18 +1490,18 @@ const pmStyles = StyleSheet.create({
   },
   sheet: {
     height: height * 0.5,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: t.border,
     overflow: "hidden",
   },
   handle: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: t.isDark ? "rgba(255,255,255,0.2)" : "rgba(60,60,67,0.3)",
     alignSelf: "center",
     marginTop: 10,
     marginBottom: 4,
@@ -1483,19 +1513,19 @@ const pmStyles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.06)",
+    borderBottomColor: t.border,
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  title: { fontSize: 17, fontWeight: "600", color: "#fff" },
+  title: { fontSize: 17, fontWeight: "600", color: t.text },
   closeBtn: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: t.fill,
     alignItems: "center",
     justifyContent: "center",
   },
-  closeX: { color: "rgba(255,255,255,0.6)", fontSize: 20, fontWeight: "300", marginTop: -1 },
+  closeX: { color: t.textSecondary, fontSize: 20, fontWeight: "300", marginTop: -1 },
   subtitleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1504,7 +1534,7 @@ const pmStyles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 6,
   },
-  subtitle: { fontSize: 13, color: "rgba(255,255,255,0.4)" },
+  subtitle: { fontSize: 13, color: t.textTertiary },
   countBadge: {
     borderRadius: 8,
     borderWidth: 1,
@@ -1516,7 +1546,7 @@ const pmStyles = StyleSheet.create({
   // Hoisted out of the JSX, where it was a fresh object literal every render.
   listContent: { paddingBottom: 16 },
   empty: {
-    color: "rgba(255,255,255,0.35)",
+    color: t.textTertiary,
     fontSize: 14,
     textAlign: "center",
     paddingVertical: 40,
@@ -1529,8 +1559,8 @@ const pmStyles = StyleSheet.create({
     gap: 10,
   },
   dot: { width: 7, height: 7, borderRadius: 3.5 },
-  dateText: { flex: 1, fontSize: 14, color: "rgba(255,255,255,0.85)" },
-  dateTextOld: { color: "rgba(255,255,255,0.4)" },
+  dateText: { flex: 1, fontSize: 14, color: t.isDark ? "rgba(255,255,255,0.85)" : t.text },
+  dateTextOld: { color: t.textTertiary },
   recentBadge: {
     borderRadius: 6,
     borderWidth: 1,
@@ -1540,32 +1570,32 @@ const pmStyles = StyleSheet.create({
   recentText: { fontSize: 11, fontWeight: "600" },
   sep: {
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: t.fill,
     marginHorizontal: 18,
   },
-});
+}));
 
 // ─── Main screen styles ───────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#121212", paddingTop: 20 },
+const useStyles = makeStyles((t) => ({
+  container: { flex: 1, backgroundColor: t.background, paddingTop: 20 },
   pageHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 12,
   },
-  pageTitle: { fontSize: 28, fontWeight: "700", color: "#fff" },
+  pageTitle: { fontSize: 28, fontWeight: "700", color: t.text },
   headerButtons: { flexDirection: "row", gap: 8 },
   headerBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: t.fill,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderColor: t.borderStrong,
   },
   headerBtnActive: {
     backgroundColor: "rgba(255,159,10,0.2)",
@@ -1584,39 +1614,39 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginBottom: 12,
   },
-  modeBannerText: { fontSize: 12, fontWeight: "500", color: "#ff9f0a" },
+  modeBannerText: { fontSize: 12, fontWeight: "500", color: t.warningText },
   listWrapper: { flex: 1, position: "relative" },
   listContainer: { paddingBottom: 110, flexGrow: 1, paddingRight: 32 },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#121212" },
-  errorText: { color: "#ff6b6b", marginBottom: 10, textAlign: "center" },
-  errorSubtext: { color: "rgba(255,255,255,0.5)", textAlign: "center", marginBottom: 20 },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: t.background },
+  errorText: { color: t.isDark ? "#ff6b6b" : t.dangerText, marginBottom: 10, textAlign: "center" },
+  errorSubtext: { color: t.textSecondary, textAlign: "center", marginBottom: 20 },
   deaconItem: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 14,
     padding: 16 * scale,
     marginBottom: 12 * scale,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: t.border,
   },
   deaconImageContainer: { marginRight: 14 * scale },
   deaconImage: { width: 48 * scale, height: 48 * scale, borderRadius: 24 * scale },
   deaconInfo: { flex: 1 },
-  deaconName: { fontSize: 17 * scale, lineHeight: NAME_LINE * scale, fontWeight: "600", color: "#fff" },
-  deaconDetail: { fontSize: 14 * scale, lineHeight: DETAIL_LINE * scale, color: "rgba(255,255,255,0.5)", marginTop: 4 * scale },
-  noData: { textAlign: "center", color: "rgba(255,255,255,0.5)", marginTop: 20 },
-  noDataSubtext: { textAlign: "center", color: "rgba(255,255,255,0.4)", marginTop: 10 },
+  deaconName: { fontSize: 17 * scale, lineHeight: NAME_LINE * scale, fontWeight: "600", color: t.text },
+  deaconDetail: { fontSize: 14 * scale, lineHeight: DETAIL_LINE * scale, color: t.textSecondary, marginTop: 4 * scale },
+  noData: { textAlign: "center", color: t.textSecondary, marginTop: 20 },
+  noDataSubtext: { textAlign: "center", color: t.textTertiary, marginTop: 10 },
   sectionHeader: { backgroundColor: "transparent", paddingVertical: 8 * scale, paddingHorizontal: 4 },
-  sectionHeaderText: { fontSize: 22 * scale, lineHeight: HEADER_LINE * scale, fontWeight: "600", color: "#fff" },
+  sectionHeaderText: { fontSize: 22 * scale, lineHeight: HEADER_LINE * scale, fontWeight: "600", color: t.text },
   floatingBarWrapper: {
     position: "absolute",
     left: 12, right: 12,
     bottom: Platform.OS === "ios" ? 28 : 16,
     borderRadius: 18,
     overflow: "hidden",
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 12,
@@ -1626,21 +1656,21 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
-    backgroundColor: Platform.OS === "android" ? "rgba(28,28,30,0.92)" : "transparent",
+    borderColor: t.borderStrong,
+    backgroundColor: Platform.OS === "android" ? (t.isDark ? "rgba(28,28,30,0.92)" : "rgba(255,255,255,0.92)") : "transparent",
   },
   floatingInner: { paddingHorizontal: 10, paddingVertical: 10 },
   searchContainer: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: t.fillStrong,
     borderRadius: 10,
     paddingHorizontal: 10,
     height: 38,
   },
   searchIcon: { marginRight: 6 },
-  searchBar: { flex: 1, color: "#fff", fontSize: 15, paddingVertical: 0 },
-});
+  searchBar: { flex: 1, color: t.text, fontSize: 15, paddingVertical: 0 },
+}));
 
 export default DeaconEdits;

@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   Modal,
-  StyleSheet,
   ActivityIndicator,
   FlatList,
   Alert,
@@ -29,6 +28,7 @@ import { callFunction } from "./functionCalls";
 import { waitForDoc } from "../utils/waitForDoc";
 import IndividualProfile from "./individualProfile";
 import { LIST_PERF } from "../utils/listConfig";
+import { makeStyles, useTheme, GlassSurface } from "../theme";
 import { getDocsByIds } from "../utils/firestoreBatch";
 import { weeksBetween, longDateLabel } from "../utils/dateKeys";
 
@@ -73,6 +73,18 @@ const getColorForWeeks = (weeks) => {
   return '#34c759';
 };
 
+// The stops are tuned for dark backgrounds; the yellows and light greens wash
+// out as text on white, so light mode draws the label in a darker shade.
+const LIGHT_MODE_TEXT = {
+  '#ff3b30': '#D70015',
+  '#ff6b30': '#D9480F',
+  '#ff9500': '#C76A00',
+  '#ffcc00': '#A37800',
+  '#c7dc00': '#7A8700',
+  '#76d600': '#4A8A00',
+  '#34c759': '#248A3D',
+};
+
 const getWeeksDisplayText = (weeks) => {
   if (weeks === null) return 'No data';
   if (weeks < 0) return `Will serve in ${Math.abs(weeks)} week${Math.abs(weeks) === 1 ? '' : 's'}`;
@@ -97,48 +109,61 @@ const nextServeLabel = (selectedWeek, nextServeStr) => {
  * memoization at all, so each row redid the week arithmetic, colour interpolation
  * and label formatting on every render of the modal.
  */
-const ServerCandidateRow = React.memo(({ server, indicatorColor, displayText, secondaryInfo, onPress }) => (
-  <TouchableOpacity
-    style={styles.serverItemContainer}
-    onPress={() => onPress(server)}
-    activeOpacity={0.7}
-  >
-    <View style={styles.serverItemContent}>
-      <View style={styles.serverProfilePicContainer}>
-        <Avatar
-          uid={server.uid}
-          user={server}
-          size={48}
-          borderRadius={24}
-          style={styles.serverProfilePic}
-          showBorder={false}
-        />
-        <View style={[styles.serverStatusIndicator, { backgroundColor: indicatorColor }]} />
-      </View>
-      <View style={styles.serverInfo}>
-        <Text style={styles.serverName}>{server.name}</Text>
-        <View style={styles.serveInfoContainer}>
-          <Text style={[styles.primaryServeText, { color: indicatorColor }]}>
-            {displayText}
-          </Text>
-          {secondaryInfo && (
-            <Text style={styles.secondaryServeText}>{secondaryInfo}</Text>
-          )}
+const ServerCandidateRow = React.memo(({ server, indicatorColor, displayText, secondaryInfo, onPress }) => {
+  const styles = useStyles();
+  const t = useTheme();
+  const labelColor = t.isDark
+    ? indicatorColor
+    : LIGHT_MODE_TEXT[indicatorColor] ?? indicatorColor;
+  return (
+    <TouchableOpacity
+      style={styles.serverItemContainer}
+      onPress={() => onPress(server)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.serverItemContent}>
+        <View style={styles.serverProfilePicContainer}>
+          <Avatar
+            uid={server.uid}
+            user={server}
+            size={48}
+            borderRadius={24}
+            style={styles.serverProfilePic}
+            showBorder={false}
+          />
+          <View style={[styles.serverStatusIndicator, { backgroundColor: indicatorColor }]} />
+        </View>
+        <View style={styles.serverInfo}>
+          <Text style={styles.serverName}>{server.name}</Text>
+          <View style={styles.serveInfoContainer}>
+            <Text style={[styles.primaryServeText, { color: labelColor }]}>
+              {displayText}
+            </Text>
+            {secondaryInfo && (
+              <Text style={styles.secondaryServeText}>{secondaryInfo}</Text>
+            )}
+          </View>
         </View>
       </View>
-    </View>
-  </TouchableOpacity>
-));
+    </TouchableOpacity>
+  );
+});
 ServerCandidateRow.displayName = "ServerCandidateRow";
 
 // Hoisted: as inline props these were a new identity every render.
 const serverRowKeyExtractor = (item) => item.server.uid;
-const ServerSeparator = () => <View style={styles.separator} />;
-const EmptyServers = () => (
-  <View style={styles.emptyContainer}>
-    <Text style={styles.emptyText}>No servers available</Text>
-  </View>
-);
+const ServerSeparator = () => {
+  const styles = useStyles();
+  return <View style={styles.separator} />;
+};
+const EmptyServers = () => {
+  const styles = useStyles();
+  return (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyText}>No servers available</Text>
+    </View>
+  );
+};
 
 const getRoleDisplayName = (role) => {
   if (Array.isArray(role)) {
@@ -163,6 +188,8 @@ const UnavailableRequestModal = ({
   nextServeData: propNextServeData,
   selectedWeek: propSelectedWeek,
 }) => {
+  const styles = useStyles();
+  const t = useTheme();
   const user = getAuth().currentUser;
 
   // Which action's call is in flight — "accept", "choose" or "delete" — so the
@@ -516,7 +543,7 @@ const UnavailableRequestModal = ({
 
   // Render server selection view
   const renderServerSelectView = () => (
-    <View style={styles.modalContent}>
+    <GlassSurface style={styles.modalContent}>
       <View style={styles.serverSelectHeader}>
         <TouchableOpacity 
           style={styles.backButton} 
@@ -542,12 +569,12 @@ const UnavailableRequestModal = ({
           ListEmptyComponent={EmptyServers}
         />
       )}
-    </View>
+    </GlassSurface>
   );
 
   // Render main view
   const renderMainView = () => (
-    <View style={styles.modalContent}>
+    <GlassSurface style={styles.modalContent}>
       <View style={styles.modalHeader}>
         <Text style={styles.modalTitle}>Schedule Change</Text>
       </View>
@@ -638,7 +665,7 @@ const UnavailableRequestModal = ({
           accessibilityState={{ busy: submitAction === "accept" }}
         >
           {submitAction === "accept" ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={t.onAccent} />
           ) : (
             <Text style={styles.acceptButtonText}>Accept</Text>
           )}
@@ -659,7 +686,7 @@ const UnavailableRequestModal = ({
         >
           {submitAction === "choose" ? (
             <View style={styles.busyRow}>
-              <ActivityIndicator size="small" color="#fff" style={styles.busySpinner} />
+              <ActivityIndicator size="small" color={t.text} style={styles.busySpinner} />
               <Text style={styles.chooseButtonText} numberOfLines={1}>
                 {chosenName ? `Assigning ${chosenName}…` : "Assigning…"}
               </Text>
@@ -709,13 +736,13 @@ const UnavailableRequestModal = ({
           accessibilityState={{ busy: submitAction === "delete" }}
         >
           {submitAction === "delete" ? (
-            <ActivityIndicator size="small" color="#ff3b30" />
+            <ActivityIndicator size="small" color={t.dangerText} />
           ) : (
             <Text style={styles.deleteButtonText}>Delete Request</Text>
           )}
         </TouchableOpacity>
       </View>
-    </View>
+    </GlassSurface>
   );
 
   return (
@@ -753,10 +780,10 @@ const UnavailableRequestModal = ({
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.9)",
+    backgroundColor: t.isDark ? "rgba(0, 0, 0, 0.9)" : t.overlay,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -768,10 +795,10 @@ const styles = StyleSheet.create({
     maxHeight: "80%",
   },
   modalContent: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: t.surface,
     borderRadius: 20,
     overflow: "hidden",
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 15 },
     shadowOpacity: 0.6,
     shadowRadius: 25,
@@ -783,7 +810,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.08)",
+    borderBottomColor: t.border,
   },
   serverSelectHeader: {
     flexDirection: "row",
@@ -792,8 +819,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.08)",
-    backgroundColor: "#252525",
+    borderBottomColor: t.border,
+    // Under glass a solid band would hide the effect; a light fill keeps the band.
+    backgroundColor: t.glass ? t.fill : t.surfaceElevated,
   },
   backButton: {
     width: 40,
@@ -802,12 +830,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   backButtonText: {
-    color: "#fff",
+    color: t.text,
     fontSize: 24,
     fontWeight: "300",
   },
   modalTitle: {
-    color: "#fff",
+    color: t.text,
     fontSize: 18,
     fontWeight: "700",
     letterSpacing: 0.3,
@@ -819,29 +847,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   messageText: {
-    color: "#999",
+    color: t.textMuted,
     fontSize: 16,
     textAlign: "center",
     lineHeight: 24,
     marginBottom: 12,
   },
   highlightName: {
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
   },
   roleHighlight: {
-    color: "#4d9cff",
+    color: t.accentText,
     fontWeight: "600",
   },
   weekBadge: {
-    backgroundColor: "rgba(77, 156, 255, 0.15)",
+    backgroundColor: t.isDark ? "rgba(77, 156, 255, 0.15)" : t.accentFill,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     marginBottom: 28,
   },
   weekBadgeText: {
-    color: "#4d9cff",
+    color: t.accentText,
     fontSize: 13,
     fontWeight: "600",
   },
@@ -863,7 +891,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#2a2a2a",
+    backgroundColor: t.surfaceElevated,
   },
   profileImagePlaceholder: {
     alignItems: "center",
@@ -887,28 +915,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 3,
-    borderColor: "#1a1a1a",
+    borderColor: t.surface,
   },
   unavailableBadge: {
-    backgroundColor: "#ff3b30",
+    backgroundColor: t.danger,
   },
   suggestedBadge: {
-    backgroundColor: "#34c759",
+    backgroundColor: t.success,
   },
   statusIcon: {
-    color: "#fff",
+    color: t.onAccent,
     fontSize: 12,
     fontWeight: "bold",
   },
   profileName: {
-    color: "#fff",
+    color: t.text,
     fontSize: 15,
     fontWeight: "600",
     textAlign: "center",
     maxWidth: 90,
   },
   unavailableLabel: {
-    color: "#ff6b6b",
+    color: t.isDark ? "#ff6b6b" : t.dangerText,
     fontSize: 11,
     fontWeight: "500",
     marginTop: 4,
@@ -916,7 +944,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   suggestedLabel: {
-    color: "#5fd97d",
+    color: t.isDark ? "#5fd97d" : t.successText,
     fontSize: 11,
     fontWeight: "500",
     marginTop: 4,
@@ -932,7 +960,7 @@ const styles = StyleSheet.create({
   arrowLine: {
     width: 24,
     height: 2,
-    backgroundColor: "#444",
+    backgroundColor: t.surfaceHighest,
     borderRadius: 1,
   },
   arrowHead: {
@@ -943,7 +971,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 8,
     borderTopColor: "transparent",
     borderBottomColor: "transparent",
-    borderLeftColor: "#444",
+    borderLeftColor: t.surfaceHighest,
     marginLeft: -1,
   },
   actionsContainer: {
@@ -958,22 +986,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   acceptButton: {
-    backgroundColor: "#147efb",
+    backgroundColor: t.accent,
   },
   acceptButtonText: {
-    color: "#fff",
+    color: t.onAccent,
     fontSize: 16,
     fontWeight: "600",
     letterSpacing: 0.3,
   },
   chooseButton: {
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: t.fill,
   },
   busyDimmed: { opacity: 0.4 },
   busyRow: { flexDirection: "row", alignItems: "center" },
   busySpinner: { marginRight: 8 },
   chooseButtonText: {
-    color: "#fff",
+    color: t.text,
     fontSize: 15,
     fontWeight: "500",
   },
@@ -987,9 +1015,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
     borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: t.fill,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderColor: t.borderStrong,
   },
   skipButtonHalf: {
     flex: 0.5,
@@ -1000,12 +1028,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   deleteButtonText: {
-    color: "#ff453a",
+    color: t.dangerText,
     fontSize: 14,
     fontWeight: "500",
   },
   skipButtonText: {
-    color: "#777",
+    color: t.isDark ? "#777" : t.textMuted,
     fontSize: 14,
     fontWeight: "500",
   },
@@ -1033,8 +1061,8 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     borderWidth: 2,
-    borderColor: "#2a2a2a",
-    backgroundColor: "#2a2a2a",
+    borderColor: t.surfaceElevated,
+    backgroundColor: t.surfaceElevated,
   },
   serverStatusIndicator: {
     position: "absolute",
@@ -1044,14 +1072,14 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 8,
     borderWidth: 2,
-    borderColor: "#1a1a1a",
+    borderColor: t.surface,
   },
   serverInfo: {
     marginLeft: 14,
     flex: 1,
   },
   serverName: {
-    color: "#fff",
+    color: t.text,
     fontSize: 16,
     fontWeight: "600",
   },
@@ -1066,12 +1094,12 @@ const styles = StyleSheet.create({
   secondaryServeText: {
     fontSize: 11,
     marginTop: 1,
-    color: "#888",
+    color: t.textMuted,
     fontWeight: "400",
   },
   separator: {
     height: 1,
-    backgroundColor: "#2a2a2a",
+    backgroundColor: t.isDark ? "#2a2a2a" : t.separator,
     marginHorizontal: 20,
   },
   emptyContainer: {
@@ -1079,9 +1107,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   emptyText: {
-    color: "#666",
+    color: t.isDark ? "#666" : t.textMuted,
     fontSize: 16,
   },
-});
+}));
 
 export default UnavailableRequestModal;

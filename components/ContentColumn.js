@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { ContentWidthContext, WIDE_MIN } from "../hooks/useResponsiveLayout";
+import { useTheme } from "../theme";
 
 /**
  * Lays a screen out in a centered column of at most `maxWidth` when there is
@@ -13,7 +14,10 @@ import { ContentWidthContext, WIDE_MIN } from "../hooks/useResponsiveLayout";
  *
  * The tree is identical in both modes — only styles change — so rotating the
  * iPad or dragging a Split View divider never remounts the screen and never
- * loses its state. The width actually given to the screen is measured and
+ * loses its state.
+ *
+ * `options.backgroundColor` is a color or `(theme) => color`; it defaults to
+ * the theme background. The width actually given to the screen is measured and
  * published through ContentWidthContext; `useContentWidth()` /
  * `useResponsiveLayout()` read it, so a screen that sizes things in code gets
  * the column's width rather than the window's.
@@ -24,9 +28,12 @@ import { ContentWidthContext, WIDE_MIN } from "../hooks/useResponsiveLayout";
  */
 export default function withContentColumn(Screen, options) {
   const maxWidth = (options && options.maxWidth) || 760;
-  const backgroundColor = (options && options.backgroundColor) || "#121212";
+  const bgOption = options && options.backgroundColor;
 
   function ContentColumn(props) {
+    const theme = useTheme();
+    const backgroundColor =
+      typeof bgOption === "function" ? bgOption(theme) : bgOption || theme.background;
     const window = useWindowDimensions();
     // Seeded from the window so the first frame is already close; corrected
     // by onLayout (the drawer, when permanent, takes some of the window).

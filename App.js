@@ -5,6 +5,8 @@ import {
   NavigationContainer,
   useNavigationContainerRef,
 } from "@react-navigation/native";
+import { StatusBar } from "expo-status-bar";
+import { ThemeProvider, useTheme, makeStyles, useNavigationTheme } from "./theme";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { getAuth, onAuthStateChanged, updateProfile } from "@react-native-firebase/auth";
 import {
@@ -59,6 +61,7 @@ const ExperienceCol         = withContentColumn(Experience, FORM_COLUMN);
 const FrequencyCol          = withContentColumn(Frequency, FORM_COLUMN);
 
 function NetworkWrapper({ children }) {
+  const styles = useStyles();
   const [isConnected, setIsConnected] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -109,6 +112,7 @@ function AppNavigator() {
   const [initializing, setInitializing] = useState(true);
   const [cacheInitialized, setCacheInitialized] = useState(false);
   const navigationRef = useNavigationContainerRef();
+  const navTheme = useNavigationTheme();
   // Every screen change becomes a breadcrumb, so a crash report says where
   // the user was and how they got there.
   const trackScreen = () =>
@@ -230,7 +234,7 @@ function AppNavigator() {
   return (
     <NavigationContainer
       ref={navigationRef}
-      style={styles.container}
+      theme={navTheme}
       onReady={trackScreen}
       onStateChange={trackScreen}
     >
@@ -245,7 +249,6 @@ function AppNavigator() {
               component={Welcome}
               options={{
                 animation: "slide_from_left",
-                cardStyle: { backgroundColor: "black" },
                 headerShown: false,
                 gesturesEnabled: false,
                 listeners: {
@@ -329,22 +332,26 @@ export default function App() {
   // Removed cache initialization from here
   return (
     <CrashBoundary>
-      <UserProvider>
-        <NetworkWrapper>
-          <AppNavigator />
-        </NetworkWrapper>
-      </UserProvider>
+      <ThemeProvider>
+        <ThemedStatusBar />
+        <UserProvider>
+          <NetworkWrapper>
+            <AppNavigator />
+          </NetworkWrapper>
+        </UserProvider>
+      </ThemeProvider>
     </CrashBoundary>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+function ThemedStatusBar() {
+  return <StatusBar style={useTheme().statusBar} />;
+}
+
+const useStyles = makeStyles((t) => ({
   offlineContainer: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
   scrollViewContent: {
     flexGrow: 1,
@@ -355,6 +362,6 @@ const styles = StyleSheet.create({
   offlineText: {
     fontSize: 18,
     textAlign: "center",
-    color: "#8e8e93",
+    color: t.textMuted,
   },
-});
+}));

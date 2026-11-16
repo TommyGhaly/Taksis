@@ -32,11 +32,16 @@
  *    React Native bumps the fmt pin past 11.0.2; keeping it costs fmt's
  *    compile-time format-string checking.
  *
+ *    As of Expo SDK 54 / React Native 0.81, fmt ships inside the prebuilt
+ *    `ReactNativeDependencies` pod and there is no `fmt` pod to patch, so this
+ *    step is a no-op. It is kept for builds that opt back into building React
+ *    Native from source (`buildReactNativeFromSource`), which bring fmt back.
+ *
  * 3. **Architecture and platform settings**, so pods build for device and
  *    simulator and never for Mac Catalyst.
  */
 
-const { withDangerousMod } = require("@expo/config-plugins");
+const { withDangerousMod } = require("expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
 

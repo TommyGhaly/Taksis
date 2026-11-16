@@ -37,6 +37,7 @@ import { LIST_PERF, REMOVE_CLIPPED_ANDROID_ONLY } from "../../utils/listConfig";
 import { SkeletonProvider, SkeletonBlock, SkeletonCircle } from "../../components/Skeleton";
 import { useAfterInteractions } from "../../hooks/useAfterInteractions";
 import { useIsPreview } from "../../components/PreviewMode";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
 
 // Bottom sheets stop at this width, centered along the bottom edge: at full
 // width on an iPad a sheet ran the whole 1,200pt window with its content
@@ -78,6 +79,7 @@ function plateSimilar(a, b) {
 // ── CarCard ───────────────────────────────────────────────────────────────────
 
 const CarCard = memo(({ item, index, getUserById, getImageSource, onPress }) => {
+  const s = useS();
   const owners = (item.ownerIds || []).map(getUserById).filter(Boolean);
   const visible = item.ownerIds?.slice(0, 3) ?? [];
   const extra = (item.ownerIds?.length ?? 0) - 3;
@@ -108,6 +110,8 @@ const CarCard = memo(({ item, index, getUserById, getImageSource, onPress }) => 
 // ── DriverCard ────────────────────────────────────────────────────────────────
 
 const DriverCard = memo(({ uid, user, imageSource, hasToken, presentCars, maxCars, limitEnabled, onNotify, onCall, isUnreg }) => {
+  const s = useS();
+  const t = useTheme();
   const overLimit = limitEnabled && presentCars > maxCars;
   return (
     <View style={s.driverCard}>
@@ -118,11 +122,11 @@ const DriverCard = memo(({ uid, user, imageSource, hasToken, presentCars, maxCar
           {isUnreg ? <View style={s.unregBadge}><Text style={s.unregBadgeText}>No Account</Text></View> : null}
         </View>
         {user.phone ? <Text style={s.driverPhone}>{user.phone}</Text> : null}
-        {overLimit ? <View style={s.limitWarning}><Icon name="alert-circle" size={12} color="#ff9f0a" /><Text style={s.limitWarningText}>{presentCars}/{maxCars} cars</Text></View> : null}
+        {overLimit ? <View style={s.limitWarning}><Icon name="alert-circle" size={12} color={t.warningText} /><Text style={s.limitWarningText}>{presentCars}/{maxCars} cars</Text></View> : null}
       </View>
       <View style={s.driverActions}>
-        {hasToken && !isUnreg ? <TouchableOpacity style={s.actionBtn} onPress={() => onNotify(uid)}><Icon name="bell-outline" size={18} color="#ff9f0a" /></TouchableOpacity> : null}
-        {user.phone ? <TouchableOpacity style={[s.actionBtn, s.callActionBtn]} onPress={() => onCall(user.phone)}><Icon name="phone" size={18} color="#34c759" /></TouchableOpacity> : null}
+        {hasToken && !isUnreg ? <TouchableOpacity style={s.actionBtn} onPress={() => onNotify(uid)}><Icon name="bell-outline" size={18} color={t.warningText} /></TouchableOpacity> : null}
+        {user.phone ? <TouchableOpacity style={[s.actionBtn, s.callActionBtn]} onPress={() => onCall(user.phone)}><Icon name="phone" size={18} color={t.success} /></TouchableOpacity> : null}
       </View>
     </View>
   );
@@ -134,7 +138,10 @@ const driverUidKeyExtractor = (uid) => uid;
 const relinkKeyExtractor = (item) => item.car.id;
 
 /** One relink candidate; all display strings arrive precomputed. */
-const RelinkCard = memo(({ car, colorHex, driverNames, metaText, onPress }) => (
+const RelinkCard = memo(({ car, colorHex, driverNames, metaText, onPress }) => {
+  const s = useS();
+  const t = useTheme();
+  return (
   <TouchableOpacity style={s.relinkCard} onPress={() => onPress(car)} activeOpacity={0.7}>
     <View style={s.relinkCardLeft}>
       {colorHex ? (
@@ -148,10 +155,11 @@ const RelinkCard = memo(({ car, colorHex, driverNames, metaText, onPress }) => (
       </View>
     </View>
     <View style={s.relinkBtn}>
-      <Icon name="link-variant" size={16} color="#bf5af2" />
+      <Icon name="link-variant" size={16} color={t.purple} />
     </View>
   </TouchableOpacity>
-));
+  );
+});
 RelinkCard.displayName = "RelinkCard";
 
 const CarDetailModal = memo(({
@@ -159,6 +167,8 @@ const CarDetailModal = memo(({
   driverTokens, getPresentCarsForPerson, maxCarsPerPerson, carLimitEnabled,
   onMarkPresent, onMarkAbsent, onEdit, onDelete, onNotify, onCall, showPresenceToggle,
 }) => {
+  const s = useS();
+  const t = useTheme();
   const [driverSearch, setDriverSearch] = useState("");
   useEffect(() => { if (visible) setDriverSearch(""); }, [visible]);
   const filteredOwners = useMemo(() => {
@@ -200,13 +210,13 @@ const CarDetailModal = memo(({
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
       <View style={s.centerOverlay}>
-        <View style={s.detailCard}>
+        <GlassSurface style={s.detailCard}>
           <View style={s.detailHeader}>
             <View style={s.detailPlate}>
-              <Icon name="car" size={18} color={car.present ? "#34c759" : "#147efb"} />
-              <Text style={[s.detailPlateText, car.present && { color: "#34c759" }]}>{car.license || "NO PLATE"}</Text>
+              <Icon name="car" size={18} color={car.present ? t.success : t.accent} />
+              <Text style={[s.detailPlateText, car.present && { color: t.successText }]}>{car.license || "NO PLATE"}</Text>
             </View>
-            <TouchableOpacity onPress={onClose}><Icon name="close" size={22} color="rgba(255,255,255,0.5)" /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose}><Icon name="close" size={22} color={t.textSecondary} /></TouchableOpacity>
           </View>
           {(car.make || car.model || car.color) ? (
             <View style={s.vehicleInfoDisplay}>
@@ -216,29 +226,29 @@ const CarDetailModal = memo(({
           ) : null}
           {showPresenceToggle ? (
             <TouchableOpacity style={car.present ? s.statusBtnPresent : s.statusBtnAbsent} onPress={() => car.present ? onMarkAbsent(car) : onMarkPresent(car)} activeOpacity={0.7}>
-              <Icon name={car.present ? "check-circle" : "plus-circle-outline"} size={18} color={car.present ? "#34c759" : "#147efb"} />
+              <Icon name={car.present ? "check-circle" : "plus-circle-outline"} size={18} color={car.present ? t.success : t.accent} />
               <Text style={car.present ? s.statusBtnTextPresent : s.statusBtnTextAbsent}>{car.present ? "Present — tap to mark left" : "Not Present — tap to mark here"}</Text>
             </TouchableOpacity>
           ) : (
             !car.present
-              ? <TouchableOpacity style={s.actionBtnGreen} onPress={() => onMarkPresent(car)} activeOpacity={0.8}><Icon name="check" size={18} color="#fff" /><Text style={s.actionBtnText}>Mark as Here</Text></TouchableOpacity>
-              : <TouchableOpacity style={s.actionBtnRed} onPress={() => onMarkAbsent(car)} activeOpacity={0.8}><Icon name="logout" size={18} color="#fff" /><Text style={s.actionBtnText}>Mark as Left</Text></TouchableOpacity>
+              ? <TouchableOpacity style={s.actionBtnGreen} onPress={() => onMarkPresent(car)} activeOpacity={0.8}><Icon name="check" size={18} color={t.onAccent} /><Text style={s.actionBtnText}>Mark as Here</Text></TouchableOpacity>
+              : <TouchableOpacity style={s.actionBtnRed} onPress={() => onMarkAbsent(car)} activeOpacity={0.8}><Icon name="logout" size={18} color={t.onAccent} /><Text style={s.actionBtnText}>Mark as Left</Text></TouchableOpacity>
           )}
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>Drivers</Text>
           {(car.ownerIds?.length ?? 0) > 3 ? (
             <View style={[s.searchBox, { marginBottom: 8 }]}>
-              <Icon name="magnify" size={18} color="rgba(255,255,255,0.4)" />
-              <TextInput style={s.searchInput} placeholder="Search drivers..." placeholderTextColor="rgba(255,255,255,0.3)" value={driverSearch} onChangeText={setDriverSearch} />
-              {driverSearch.length > 0 ? <TouchableOpacity onPress={() => setDriverSearch("")}><Icon name="close-circle" size={16} color="rgba(255,255,255,0.4)" /></TouchableOpacity> : null}
+              <Icon name="magnify" size={18} color={t.textTertiary} />
+              <TextInput style={s.searchInput} placeholder="Search drivers..." placeholderTextColor={t.placeholder} keyboardAppearance={t.keyboardAppearance} value={driverSearch} onChangeText={setDriverSearch} />
+              {driverSearch.length > 0 ? <TouchableOpacity onPress={() => setDriverSearch("")}><Icon name="close-circle" size={16} color={t.textTertiary} /></TouchableOpacity> : null}
             </View>
           ) : null}
           <FlatList {...LIST_PERF} data={filteredOwners} keyExtractor={driverUidKeyExtractor} style={s.driverList} showsVerticalScrollIndicator={false}
             renderItem={renderDriverRow} />
           <View style={s.detailFooter}>
-            <TouchableOpacity style={s.editBtn} onPress={() => onEdit(car)} activeOpacity={0.8}><Icon name="pencil" size={18} color="#fff" /><Text style={s.editBtnText}>Edit</Text></TouchableOpacity>
-            <TouchableOpacity style={s.deleteBtn} onPress={() => onDelete(car)} activeOpacity={0.8}><Icon name="trash-can-outline" size={18} color="#ff453a" /></TouchableOpacity>
+            <TouchableOpacity style={s.editBtn} onPress={() => onEdit(car)} activeOpacity={0.8}><Icon name="pencil" size={18} color={t.onAccent} /><Text style={s.editBtnText}>Edit</Text></TouchableOpacity>
+            <TouchableOpacity style={s.deleteBtn} onPress={() => onDelete(car)} activeOpacity={0.8}><Icon name="trash-can-outline" size={18} color={t.dangerText} /></TouchableOpacity>
           </View>
-        </View>
+        </GlassSurface>
       </View>
     </Modal>
   );
@@ -246,30 +256,37 @@ const CarDetailModal = memo(({
 
 // ── SubSheet ──────────────────────────────────────────────────────────────────
 
-const SubSheet = memo(({ visible, onBack, onClose, title, children }) => (
+const SubSheet = memo(({ visible, onBack, onClose, title, children }) => {
+  const s = useS();
+  const t = useTheme();
+  return (
   <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose || onBack}>
     <View style={s.subSheetOverlay}>
-      <View style={s.subSheet}>
+      <GlassSurface style={s.subSheet}>
         <View style={s.subSheetHeader}>
           <TouchableOpacity onPress={onBack} style={s.subSheetBackBtn} activeOpacity={0.7}>
-            <Icon name="chevron-left" size={22} color="#147efb" />
+            <Icon name="chevron-left" size={22} color={t.accent} />
             <Text style={s.subSheetBackText}>Back</Text>
           </TouchableOpacity>
           <Text style={s.subSheetTitle}>{title}</Text>
           <TouchableOpacity onPress={onClose || onBack} style={s.subSheetCloseBtn} activeOpacity={0.7}>
-            <Icon name="close" size={20} color="rgba(255,255,255,0.4)" />
+            <Icon name="close" size={20} color={t.textTertiary} />
           </TouchableOpacity>
         </View>
         {children}
-      </View>
+      </GlassSurface>
     </View>
   </Modal>
-));
+  );
+});
 
 // ── PlateMatchSheet ───────────────────────────────────────────────────────────
 
 /** One similar-plate candidate. The char-diff arrives precomputed. */
-const PlateMatchCard = memo(({ car, charDiff, onPress }) => (
+const PlateMatchCard = memo(({ car, charDiff, onPress }) => {
+  const s = useS();
+  const t = useTheme();
+  return (
   <TouchableOpacity style={s.matchCard} onPress={() => onPress(car)} activeOpacity={0.7}>
     <View style={s.matchCardLeft}>
       <Text style={s.matchCardPlate}>{car.license}</Text>
@@ -280,14 +297,17 @@ const PlateMatchCard = memo(({ car, charDiff, onPress }) => (
     <View style={s.matchCardDiff}>
       <Text style={s.matchCardDiffText}>{charDiff} char diff</Text>
     </View>
-    <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.3)" />
+    <Icon name="chevron-right" size={20} color={t.textTertiary} />
   </TouchableOpacity>
-));
+  );
+});
 PlateMatchCard.displayName = "PlateMatchCard";
 
 const plateMatchKeyExtractor = (item) => item.car.id;
 
 const PlateMatchSheet = memo(({ visible, scannedPlate, matches, onConfirm, onRegisterNew, onClose }) => {
+  const s = useS();
+  const t = useTheme();
   // `levenshtein` ran inside the row body, so it was recomputed for every mounted
   // match on every render of this sheet. It only depends on the plates.
   const rows = useMemo(
@@ -309,17 +329,17 @@ const PlateMatchSheet = memo(({ visible, scannedPlate, matches, onConfirm, onReg
   return (
   <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
     <View style={s.subSheetOverlay}>
-      <View style={s.subSheet}>
+      <GlassSurface style={s.subSheet}>
         <View style={s.subSheetHeader}>
           <View style={{ width: 64 }} />
           <Text style={s.subSheetTitle}>Possible Match?</Text>
           <TouchableOpacity onPress={onClose} style={s.subSheetCloseBtn}>
-            <Icon name="close" size={20} color="rgba(255,255,255,0.4)" />
+            <Icon name="close" size={20} color={t.textTertiary} />
           </TouchableOpacity>
         </View>
         <View style={{ padding: 16 }}>
           <View style={s.scannedPlateRow}>
-            <Icon name="car-search" size={18} color="#ff9f0a" />
+            <Icon name="car-search" size={18} color={t.warningText} />
             <Text style={s.scannedPlateLabel}>Scanned: </Text>
             <Text style={s.scannedPlateValue}>{scannedPlate}</Text>
           </View>
@@ -334,12 +354,12 @@ const PlateMatchSheet = memo(({ visible, scannedPlate, matches, onConfirm, onReg
           renderItem={renderMatch}
           ListFooterComponent={
             <TouchableOpacity style={s.noneMatchBtn} onPress={onRegisterNew} activeOpacity={0.7}>
-              <Icon name="plus-circle-outline" size={18} color="#30d158" />
+              <Icon name="plus-circle-outline" size={18} color={t.success} />
               <Text style={s.noneMatchText}>None of these — register as new</Text>
             </TouchableOpacity>
           }
         />
-      </View>
+      </GlassSurface>
     </View>
   </Modal>
   );
@@ -356,7 +376,9 @@ PlateMatchSheet.displayName = "PlateMatchSheet";
  * This mirrors s.carCard exactly, and renders the real "Traffic" header, which
  * is known before any read completes and so has no reason to shimmer.
  */
-const TrafficSkeleton = memo(({ count = 7 }) => (
+const TrafficSkeleton = memo(({ count = 7 }) => {
+  const s = useS();
+  return (
   <SkeletonProvider>
     <View style={s.container}>
       <View style={s.header}>
@@ -381,10 +403,14 @@ const TrafficSkeleton = memo(({ count = 7 }) => (
       </View>
     </View>
   </SkeletonProvider>
-));
+  );
+});
 TrafficSkeleton.displayName = "TrafficSkeleton";
 
 const TrafficManager = () => {
+  const s = useS();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const user = getAuth().currentUser;
 
   // Hold every read (and the migration pass) until the drawer/stack transition
@@ -822,7 +848,7 @@ const TrafficManager = () => {
         </Text>
       </View>
     ),
-    [relinkSearch.length]
+    [relinkSearch.length, s]
   );
 
   // ── Registration / Edit ────────────────────────────────────────────────────
@@ -977,9 +1003,9 @@ const TrafficManager = () => {
   // Was an inline literal, so the list got a new identity every render.
   const carsEmpty = useMemo(() => (
     <View style={{ alignItems: "center", marginTop: 40 }}>
-      <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 15 }}>No results</Text>
+      <Text style={{ color: t.textTertiary, fontSize: 15 }}>No results</Text>
     </View>
-  ), []);
+  ), [t]);
 
   // ── Review queue callbacks ─────────────────────────────────────────────────
 
@@ -1028,10 +1054,10 @@ const TrafficManager = () => {
         </View>
         <View style={s.headerActions}>
           <TouchableOpacity style={s.headerBtn} onPress={() => setMenuVisible(true)} activeOpacity={0.7}>
-            <Icon name="cog-outline" size={22} color="#fff" />
+            <Icon name="cog-outline" size={22} color={t.text} />
           </TouchableOpacity>
           <TouchableOpacity style={s.headerScanBtn} onPress={openScanner} activeOpacity={0.8}>
-            <Icon name="camera-outline" size={20} color="#fff" />
+            <Icon name="camera-outline" size={20} color={t.onAccent} />
           </TouchableOpacity>
         </View>
       </View>
@@ -1039,17 +1065,17 @@ const TrafficManager = () => {
       {/* Car list */}
       {cars.length === 0 ? (
         <View style={s.emptyState}>
-          <View style={s.emptyIcon}><Icon name="car-outline" size={40} color="rgba(255,255,255,0.15)" /></View>
+          <View style={s.emptyIcon}><Icon name="car-outline" size={40} color={tintText(t, 0.15)} /></View>
           <Text style={s.emptyTitle}>No Vehicles</Text>
           <Text style={s.emptySubtitle}>Scan a license plate to get started</Text>
           <TouchableOpacity style={s.emptyBtn} onPress={openScanner} activeOpacity={0.8}>
-            <Icon name="camera-outline" size={18} color="#fff" />
+            <Icon name="camera-outline" size={18} color={t.onAccent} />
             <Text style={s.emptyBtnText}>Scan Plate</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <FlatList data={filteredCars} keyExtractor={carKeyExtractor} renderItem={renderCarItem}
-          contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}
+          contentContainerStyle={[s.listContent, { paddingBottom: 110 + tabBarInset }]} showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           {...LIST_PERF}
@@ -1062,36 +1088,41 @@ const TrafficManager = () => {
         <Animated.View
           style={[
             s.floatingBarWrapper,
+            tabBarInset ? { bottom: (Platform.OS === "ios" ? 28 : 16) + tabBarInset } : null,
             { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] },
           ]}
           pointerEvents="box-none"
         >
-          <BlurView
-            tint="systemChromeMaterialDark"
-            intensity={80}
-            style={s.floatingBlur}
-          >
-            <View style={s.floatingInner}>
-              <View style={s.floatingSearchContainer}>
-                <Icon name="magnify" size={16} color="rgba(255,255,255,0.55)" style={s.floatingSearchIcon} />
-                <TextInput
-                  ref={searchInputRef}
-                  style={s.floatingSearchInput}
-                  placeholder="Search by plate, owner, make..."
-                  placeholderTextColor="rgba(255,255,255,0.55)"
-                  value={carSearch}
-                  onChangeText={setCarSearch}
-                  autoCorrect={false}
-                  autoCapitalize="none"
-                  returnKeyType="search"
-                  clearButtonMode="while-editing"
-                />
+          {(() => {
+            const inner = (
+              <View style={s.floatingInner}>
+                <View style={s.floatingSearchContainer}>
+                  <Icon name="magnify" size={16} color={t.textSecondary} style={s.floatingSearchIcon} />
+                  <TextInput
+                    ref={searchInputRef}
+                    style={s.floatingSearchInput}
+                    placeholder="Search by plate, owner, make..."
+                    placeholderTextColor={t.isDark ? "rgba(255,255,255,0.55)" : t.textSecondary}
+                    keyboardAppearance={t.keyboardAppearance}
+                    value={carSearch}
+                    onChangeText={setCarSearch}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                    returnKeyType="search"
+                    clearButtonMode="while-editing"
+                  />
+                </View>
+                <TouchableOpacity style={s.floatingScanBtn} onPress={openScanner} activeOpacity={0.8}>
+                  <Icon name="camera-outline" size={18} color={t.onAccent} />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity style={s.floatingScanBtn} onPress={openScanner} activeOpacity={0.8}>
-                <Icon name="camera-outline" size={18} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          </BlurView>
+            );
+            return t.glass ? (
+              <GlassSurface style={s.floatingBlur} interactive>{inner}</GlassSurface>
+            ) : (
+              <BlurView tint={t.blurTint} intensity={80} style={s.floatingBlur}>{inner}</BlurView>
+            );
+          })()}
         </Animated.View>
       )}
 
@@ -1168,9 +1199,9 @@ const TrafficManager = () => {
         <View style={{ flex: 1 }}>
           <Text style={s.subSheetSubtitle}>Pick the vehicle whose data needs to be re-keyed to this plate ID.</Text>
           <View style={[s.searchBox, { marginHorizontal: 16, marginTop: 4, marginBottom: 8 }]}>
-            <Icon name="magnify" size={18} color="rgba(255,255,255,0.4)" />
-            <TextInput style={s.searchInput} placeholder="Search by plate, owner, make..." placeholderTextColor="rgba(255,255,255,0.3)" value={relinkSearch} onChangeText={setRelinkSearch} />
-            {relinkSearch.length > 0 ? <TouchableOpacity onPress={() => setRelinkSearch("")}><Icon name="close-circle" size={16} color="rgba(255,255,255,0.4)" /></TouchableOpacity> : null}
+            <Icon name="magnify" size={18} color={t.textTertiary} />
+            <TextInput style={s.searchInput} placeholder="Search by plate, owner, make..." placeholderTextColor={t.placeholder} keyboardAppearance={t.keyboardAppearance} value={relinkSearch} onChangeText={setRelinkSearch} />
+            {relinkSearch.length > 0 ? <TouchableOpacity onPress={() => setRelinkSearch("")}><Icon name="close-circle" size={16} color={t.textTertiary} /></TouchableOpacity> : null}
           </View>
           <FlatList {...LIST_PERF} data={filteredRelinkCars} keyExtractor={relinkKeyExtractor}
             contentContainerStyle={s.relinkListContent}
@@ -1196,12 +1227,12 @@ const TrafficManager = () => {
         <TouchableWithoutFeedback onPress={() => setMenuVisible(false)}>
           <View style={s.menuOverlay}>
             <TouchableWithoutFeedback>
-              <View style={s.menuSheet}>
+              <GlassSurface style={s.menuSheet}>
                 <View style={s.menuHandle} />
                 {reviewQueue.length > 0 && (
                   <TouchableOpacity style={s.menuItem} onPress={() => { setMenuVisible(false); setReviewVisible(true); }} activeOpacity={0.7}>
                     <View style={[s.menuIconWrap, { backgroundColor: "rgba(255,159,10,0.15)" }]}>
-                      <Icon name="alert-circle-outline" size={20} color="#ff9f0a" />
+                      <Icon name="alert-circle-outline" size={20} color={t.warningText} />
                     </View>
                     <View style={s.menuItemContent}>
                       <Text style={s.menuItemText}>Review Vehicles</Text>
@@ -1211,20 +1242,20 @@ const TrafficManager = () => {
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity style={s.menuItem} onPress={() => { setMenuVisible(false); setSettingsVisible(true); }} activeOpacity={0.7}>
-                  <View style={s.menuIconWrap}><Icon name="speedometer" size={20} color="#147efb" /></View>
+                  <View style={s.menuIconWrap}><Icon name="speedometer" size={20} color={t.accent} /></View>
                   <View style={s.menuItemContent}><Text style={s.menuItemText}>Car Limit</Text><Text style={s.menuItemSub}>{carLimitEnabled ? `${maxCarsPerPerson} per person` : "Disabled"}</Text></View>
-                  <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.3)" />
+                  <Icon name="chevron-right" size={20} color={t.textTertiary} />
                 </TouchableOpacity>
                 <TouchableOpacity style={s.menuItem} onPress={() => { setMenuVisible(false); setPendingReadOnly(true); setTimeout(() => setPendingListVisible(true), 250); }} activeOpacity={0.7}>
-                  <View style={[s.menuIconWrap, { backgroundColor: "rgba(255,159,10,0.15)" }]}><Icon name="clock-outline" size={20} color="#ff9f0a" /></View>
+                  <View style={[s.menuIconWrap, { backgroundColor: "rgba(255,159,10,0.15)" }]}><Icon name="clock-outline" size={20} color={t.warningText} /></View>
                   <View style={s.menuItemContent}><Text style={s.menuItemText}>Pending Vehicles</Text><Text style={s.menuItemSub}>{pendingVehicles.length > 0 ? `${pendingVehicles.length} awaiting approval` : "No pending vehicles"}</Text></View>
                   {pendingVehicles.length > 0 && <View style={s.pendingBadge}><Text style={s.pendingBadgeText}>{pendingVehicles.length}</Text></View>}
                 </TouchableOpacity>
                 <TouchableOpacity style={s.menuItem} onPress={clearAllAttendance} activeOpacity={0.7}>
-                  <View style={[s.menuIconWrap, { backgroundColor: "rgba(255,69,58,0.15)" }]}><Icon name="refresh" size={20} color="#ff453a" /></View>
+                  <View style={[s.menuIconWrap, { backgroundColor: "rgba(255,69,58,0.15)" }]}><Icon name="refresh" size={20} color={t.dangerText} /></View>
                   <View style={s.menuItemContent}><Text style={s.menuItemTextDanger}>Clear Attendance</Text><Text style={s.menuItemSub}>Mark all as not present</Text></View>
                 </TouchableOpacity>
-              </View>
+              </GlassSurface>
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
@@ -1233,28 +1264,28 @@ const TrafficManager = () => {
       {/* ── Settings ── */}
       <Modal visible={settingsVisible} animationType="slide" transparent onRequestClose={() => setSettingsVisible(false)}>
         <View style={s.settingsOverlay}>
-          <View style={s.settingsSheet}>
+          <GlassSurface style={s.settingsSheet}>
             <View style={s.settingsHeader}>
               <Text style={s.settingsTitle}>Car Limit</Text>
               <TouchableOpacity style={s.settingsCloseBtn} onPress={() => setSettingsVisible(false)}>
-                <Icon name="close" size={22} color="#fff" />
+                <Icon name="close" size={22} color={t.text} />
               </TouchableOpacity>
             </View>
             <View style={s.settingsBody}>
               <View style={s.settingCard}>
                 <View style={s.settingRow}>
-                  <View style={s.settingIconWrap}><Icon name="car-multiple" size={22} color="#147efb" /></View>
+                  <View style={s.settingIconWrap}><Icon name="car-multiple" size={22} color={t.accent} /></View>
                   <View style={s.settingInfo}><Text style={s.settingLabel}>Enable Limit</Text><Text style={s.settingDesc}>Alert when exceeded</Text></View>
-                  <Switch value={carLimitEnabled} onValueChange={handleToggleLimit} trackColor={{ true: "#34c759" }} />
+                  <Switch value={carLimitEnabled} onValueChange={handleToggleLimit} trackColor={{ true: t.success }} />
                 </View>
               </View>
               {carLimitEnabled ? (
                 <View style={s.settingCard}>
                   <Text style={s.limitLabel}>Maximum per person</Text>
                   <View style={s.limitControl}>
-                    <TouchableOpacity style={s.limitBtn} onPress={() => setTempLimit(String(Math.max(1, parseInt(tempLimit, 10) - 1 || 1)))} activeOpacity={0.7}><Icon name="minus" size={24} color="#fff" /></TouchableOpacity>
+                    <TouchableOpacity style={s.limitBtn} onPress={() => setTempLimit(String(Math.max(1, parseInt(tempLimit, 10) - 1 || 1)))} activeOpacity={0.7}><Icon name="minus" size={24} color={t.text} /></TouchableOpacity>
                     <View style={s.limitValueWrap}><Text style={s.limitValue}>{tempLimit}</Text><Text style={s.limitUnit}>cars</Text></View>
-                    <TouchableOpacity style={s.limitBtn} onPress={() => setTempLimit(String(Math.min(99, parseInt(tempLimit, 10) + 1 || 1)))} activeOpacity={0.7}><Icon name="plus" size={24} color="#fff" /></TouchableOpacity>
+                    <TouchableOpacity style={s.limitBtn} onPress={() => setTempLimit(String(Math.min(99, parseInt(tempLimit, 10) + 1 || 1)))} activeOpacity={0.7}><Icon name="plus" size={24} color={t.text} /></TouchableOpacity>
                   </View>
                 </View>
               ) : null}
@@ -1264,7 +1295,7 @@ const TrafficManager = () => {
                 <Text style={s.saveBtnText}>Save</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </GlassSurface>
         </View>
       </Modal>
 
@@ -1274,16 +1305,16 @@ const TrafficManager = () => {
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={s.centerOverlay}>
               <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={s.notifyKav}>
-                <View style={s.notifyCard}>
-                  <View style={s.notifyIcon}><Icon name="bell-ring" size={24} color="#ff9f0a" /></View>
+                <GlassSurface style={s.notifyCard}>
+                  <View style={s.notifyIcon}><Icon name="bell-ring" size={24} color={t.warningText} /></View>
                   <Text style={s.notifyTitleText}>Send Notification</Text>
-                  <TextInput style={s.notifyInput} placeholder="Title" placeholderTextColor="rgba(255,255,255,0.25)" value={notifyTitle} onChangeText={setNotifyTitle} />
-                  <TextInput style={[s.notifyInput, s.notifyTextarea]} placeholder="Message" placeholderTextColor="rgba(255,255,255,0.25)" value={notifyMsg} onChangeText={setNotifyMsg} multiline textAlignVertical="top" />
+                  <TextInput style={s.notifyInput} placeholder="Title" placeholderTextColor={t.placeholder} keyboardAppearance={t.keyboardAppearance} value={notifyTitle} onChangeText={setNotifyTitle} />
+                  <TextInput style={[s.notifyInput, s.notifyTextarea]} placeholder="Message" placeholderTextColor={t.placeholder} keyboardAppearance={t.keyboardAppearance} value={notifyMsg} onChangeText={setNotifyMsg} multiline textAlignVertical="top" />
                   <View style={s.notifyBtns}>
                     <TouchableOpacity style={s.notifyCancelBtn} onPress={() => setNotifyVisible(false)}><Text style={s.notifyCancelText}>Cancel</Text></TouchableOpacity>
-                    <TouchableOpacity style={s.notifySendBtn} onPress={sendNotify}><Icon name="send" size={16} color="#fff" /><Text style={s.notifySendText}>Send</Text></TouchableOpacity>
+                    <TouchableOpacity style={s.notifySendBtn} onPress={sendNotify}><Icon name="send" size={16} color={t.onAccent} /><Text style={s.notifySendText}>Send</Text></TouchableOpacity>
                   </View>
-                </View>
+                </GlassSurface>
               </KeyboardAvoidingView>
             </View>
           </TouchableWithoutFeedback>
@@ -1296,41 +1327,46 @@ const TrafficManager = () => {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#121212" },
-  loadingContainer: { flex: 1, backgroundColor: "#121212", justifyContent: "center", alignItems: "center" },
-  loadingText: { color: "rgba(255,255,255,0.5)", fontSize: 14, marginTop: 12 },
+// Translucent white tints with no exact token: dark keeps the original alpha,
+// light gets the matching dark-on-light tint.
+const tintText = (t, a) => (t.isDark ? `rgba(255,255,255,${a})` : `rgba(60,60,67,${Math.max(a, 0.3)})`);
+const tintFill = (t, a) => (t.isDark ? `rgba(255,255,255,${a})` : `rgba(118,118,128,${Math.min(a * 1.6, 0.4)})`);
+
+const useS = makeStyles((t) => ({
+  container: { flex: 1, backgroundColor: t.background },
+  loadingContainer: { flex: 1, backgroundColor: t.background, justifyContent: "center", alignItems: "center" },
+  loadingText: { color: t.textSecondary, fontSize: 14, marginTop: 12 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16 },
-  headerTitle: { fontSize: 32, fontWeight: "700", color: "#fff", letterSpacing: -0.5 },
+  headerTitle: { fontSize: 32, fontWeight: "700", color: t.text, letterSpacing: -0.5 },
   headerStats: { flexDirection: "row", alignItems: "center", marginTop: 4 },
-  statDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#34c759", marginRight: 6 },
-  headerSubtitle: { fontSize: 14, color: "rgba(255,255,255,0.5)" },
-  headerDivider: { fontSize: 14, color: "rgba(255,255,255,0.3)", marginHorizontal: 6 },
+  statDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.success, marginRight: 6 },
+  headerSubtitle: { fontSize: 14, color: t.textSecondary },
+  headerDivider: { fontSize: 14, color: t.textTertiary, marginHorizontal: 6 },
   headerActions: { flexDirection: "row", gap: 8 },
-  headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.08)", justifyContent: "center", alignItems: "center" },
-  headerScanBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#147efb", justifyContent: "center", alignItems: "center" },
-  searchBox: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 12 },
-  searchInput: { flex: 1, color: "#fff", fontSize: 15, paddingVertical: 12, marginLeft: 8 },
+  headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.fill, justifyContent: "center", alignItems: "center" },
+  headerScanBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.accent, justifyContent: "center", alignItems: "center" },
+  searchBox: { flexDirection: "row", alignItems: "center", backgroundColor: t.fill, borderRadius: 10, paddingHorizontal: 12 },
+  searchInput: { flex: 1, color: t.text, fontSize: 15, paddingVertical: 12, marginLeft: 8 },
   listContent: { paddingHorizontal: 16, paddingBottom: 110 },
-  carCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#1c1c1e", padding: 14, borderRadius: 16, marginTop: 8, gap: 10 },
-  carStatusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.2)" },
-  carStatusDotPresent: { backgroundColor: "#34c759" },
+  carCard: { flexDirection: "row", alignItems: "center", backgroundColor: t.surface, padding: 14, borderRadius: 16, marginTop: 8, gap: 10 },
+  carStatusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: tintFill(t, 0.2) },
+  carStatusDotPresent: { backgroundColor: t.success },
   carCardInfo: { flex: 1 },
   carTopRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
-  licenseText: { fontSize: 17, fontWeight: "600", color: "#fff", letterSpacing: 0.5 },
-  licenseTextPresent: { color: "#34c759" },
-  carColorBar: { width: 28, height: 14, borderRadius: 4, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" },
-  ownerNames: { fontSize: 13, color: "rgba(255,255,255,0.4)" },
+  licenseText: { fontSize: 17, fontWeight: "600", color: t.text, letterSpacing: 0.5 },
+  licenseTextPresent: { color: t.successText },
+  carColorBar: { width: 28, height: 14, borderRadius: 4, borderWidth: 1, borderColor: t.borderStrong },
+  ownerNames: { fontSize: 13, color: t.textTertiary },
   avatarStack: { flexDirection: "row", alignItems: "center" },
-  stackedAvatar: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: "#1c1c1e" },
-  extraBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#2c2c2e", justifyContent: "center", alignItems: "center", marginLeft: -12, borderWidth: 2, borderColor: "#1c1c1e" },
-  extraText: { fontSize: 11, fontWeight: "600", color: "#fff" },
+  stackedAvatar: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: t.surface },
+  extraBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: t.surfaceElevated, justifyContent: "center", alignItems: "center", marginLeft: -12, borderWidth: 2, borderColor: t.surface },
+  extraText: { fontSize: 11, fontWeight: "600", color: t.onAccent },
   emptyState: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 40 },
-  emptyIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: "rgba(255,255,255,0.04)", justifyContent: "center", alignItems: "center", marginBottom: 16 },
-  emptyTitle: { fontSize: 20, fontWeight: "600", color: "#fff" },
-  emptySubtitle: { fontSize: 14, color: "rgba(255,255,255,0.4)", marginTop: 4 },
-  emptyBtn: { flexDirection: "row", alignItems: "center", backgroundColor: "#147efb", paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, marginTop: 24, gap: 8 },
-  emptyBtnText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  emptyIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: t.fill, justifyContent: "center", alignItems: "center", marginBottom: 16 },
+  emptyTitle: { fontSize: 20, fontWeight: "600", color: t.text },
+  emptySubtitle: { fontSize: 14, color: t.textTertiary, marginTop: 4 },
+  emptyBtn: { flexDirection: "row", alignItems: "center", backgroundColor: t.accent, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, marginTop: 24, gap: 8 },
+  emptyBtnText: { fontSize: 15, fontWeight: "600", color: t.onAccent },
 
   // ---------- Floating bottom search + scan ----------
   floatingBarWrapper: {
@@ -1340,7 +1376,7 @@ const s = StyleSheet.create({
     bottom: Platform.OS === "ios" ? 28 : 16,
     borderRadius: 18,
     overflow: "hidden",
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 12,
@@ -1350,8 +1386,8 @@ const s = StyleSheet.create({
     borderRadius: 18,
     overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
-    backgroundColor: Platform.OS === "android" ? "rgba(28,28,30,0.92)" : "transparent",
+    borderColor: t.borderStrong,
+    backgroundColor: Platform.OS === "android" ? (t.isDark ? "rgba(28,28,30,0.92)" : "rgba(249,249,249,0.92)") : "transparent",
   },
   floatingInner: {
     flexDirection: "row",
@@ -1364,7 +1400,7 @@ const s = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: t.fillStrong,
     borderRadius: 10,
     paddingHorizontal: 10,
     height: 38,
@@ -1374,7 +1410,7 @@ const s = StyleSheet.create({
   },
   floatingSearchInput: {
     flex: 1,
-    color: "#fff",
+    color: t.text,
     fontSize: 15,
     paddingVertical: 0,
   },
@@ -1382,130 +1418,130 @@ const s = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "#147efb",
+    backgroundColor: t.accent,
     justifyContent: "center",
     alignItems: "center",
   },
 
-  bottomOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
-  centerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.8)", justifyContent: "center", alignItems: "center", padding: 24 },
-  subSheetOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)" },
-  subSheet: { position: "absolute", bottom: 0, left: 0, right: 0, height: "88%", backgroundColor: "#1a1a1a", borderTopLeftRadius: 22, borderTopRightRadius: 22 },
-  subSheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(255,255,255,0.08)" },
+  bottomOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: "flex-end" },
+  centerOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: "center", alignItems: "center", padding: 24 },
+  subSheetOverlay: { flex: 1, backgroundColor: t.overlay },
+  subSheet: { position: "absolute", bottom: 0, left: 0, right: 0, height: "88%", backgroundColor: t.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22 },
+  subSheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border },
   subSheetBackBtn: { flexDirection: "row", alignItems: "center", gap: 2, paddingVertical: 4, paddingHorizontal: 4, minWidth: 64 },
-  subSheetBackText: { fontSize: 16, color: "#147efb", fontWeight: "500" },
+  subSheetBackText: { fontSize: 16, color: t.accent, fontWeight: "500" },
   subSheetCloseBtn: { width: 64, alignItems: "flex-end", paddingRight: 4 },
-  subSheetTitle: { fontSize: 16, fontWeight: "700", color: "#fff" },
-  subSheetSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.4)", paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
-  relinkCard: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 14, marginBottom: 10 },
+  subSheetTitle: { fontSize: 16, fontWeight: "700", color: t.text },
+  subSheetSubtitle: { fontSize: 13, color: t.textTertiary, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  relinkCard: { flexDirection: "row", alignItems: "center", backgroundColor: t.fill, borderRadius: 14, padding: 14, marginBottom: 10 },
   relinkCardLeft: { flex: 1, flexDirection: "row", alignItems: "center" },
-  relinkLicense: { fontSize: 16, fontWeight: "700", color: "#fff" },
-  relinkMeta: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 1 },
-  relinkDrivers: { fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 1 },
-  relinkId: { fontSize: 11, color: "rgba(191,90,242,0.6)", marginTop: 3 },
+  relinkLicense: { fontSize: 16, fontWeight: "700", color: t.text },
+  relinkMeta: { fontSize: 13, color: t.textTertiary, marginTop: 1 },
+  relinkDrivers: { fontSize: 12, color: t.textTertiary, marginTop: 1 },
+  relinkId: { fontSize: 11, color: t.isDark ? "rgba(191,90,242,0.6)" : "rgba(175,82,222,0.85)", marginTop: 3 },
   relinkBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: "rgba(191,90,242,0.12)", justifyContent: "center", alignItems: "center" },
   // Hoisted out of the JSX, where they were fresh object literals every render.
   relinkColorBar: { marginRight: 10 },
   relinkTextWrap: { flex: 1 },
   relinkListContent: { paddingHorizontal: 16, paddingBottom: 40 },
   relinkEmptyWrap: { alignItems: "center", marginTop: 32 },
-  relinkEmptyText: { color: "rgba(255,255,255,0.3)", fontSize: 14 },
-  sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
+  relinkEmptyText: { color: t.textTertiary, fontSize: 14 },
+  sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: t.border },
   sheetHeaderLeft: { width: 24 },
-  sheetTitle: { fontSize: 17, fontWeight: "600", color: "#fff" },
-  approvalSheet: { backgroundColor: "#1c1c1e", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "85%", height: "85%" },
-  menuOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
-  menuSheet: { width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center", backgroundColor: "#1c1c1e", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
-  menuHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)", alignSelf: "center", marginBottom: 20 },
+  sheetTitle: { fontSize: 17, fontWeight: "600", color: t.text },
+  approvalSheet: { backgroundColor: t.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "85%", height: "85%" },
+  menuOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: "flex-end" },
+  menuSheet: { width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center", backgroundColor: t.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+  menuHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: tintFill(t, 0.2), alignSelf: "center", marginBottom: 20 },
   menuItem: { flexDirection: "row", alignItems: "center", paddingVertical: 12 },
-  menuIconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(20,126,251,0.15)", justifyContent: "center", alignItems: "center", marginRight: 14 },
+  menuIconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: t.accentFill, justifyContent: "center", alignItems: "center", marginRight: 14 },
   menuItemContent: { flex: 1 },
-  menuItemText: { fontSize: 16, fontWeight: "500", color: "#fff" },
-  menuItemTextDanger: { fontSize: 16, fontWeight: "500", color: "#ff453a" },
-  menuItemSub: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 1 },
-  pendingBadge: { width: 18, height: 18, borderRadius: 9, backgroundColor: "#ff9f0a", justifyContent: "center", alignItems: "center" },
+  menuItemText: { fontSize: 16, fontWeight: "500", color: t.text },
+  menuItemTextDanger: { fontSize: 16, fontWeight: "500", color: t.dangerText },
+  menuItemSub: { fontSize: 13, color: t.textTertiary, marginTop: 1 },
+  pendingBadge: { width: 18, height: 18, borderRadius: 9, backgroundColor: t.warning, justifyContent: "center", alignItems: "center" },
   pendingBadgeText: { fontSize: 10, fontWeight: "700", color: "#000" },
-  settingsOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-start" },
-  settingsSheet: { backgroundColor: "#1c1c1e", borderBottomLeftRadius: 24, borderBottomRightRadius: 24, paddingTop: 60 },
+  settingsOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: "flex-start" },
+  settingsSheet: { backgroundColor: t.surface, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, paddingTop: 60 },
   settingsHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16 },
-  settingsTitle: { fontSize: 24, fontWeight: "700", color: "#fff" },
-  settingsCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.1)", justifyContent: "center", alignItems: "center" },
+  settingsTitle: { fontSize: 24, fontWeight: "700", color: t.text },
+  settingsCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: t.fillStrong, justifyContent: "center", alignItems: "center" },
   settingsBody: { paddingHorizontal: 20, paddingBottom: 20 },
-  settingCard: { backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16, padding: 16, marginBottom: 12 },
+  settingCard: { backgroundColor: t.fill, borderRadius: 16, padding: 16, marginBottom: 12 },
   settingRow: { flexDirection: "row", alignItems: "center" },
-  settingIconWrap: { width: 44, height: 44, borderRadius: 12, backgroundColor: "rgba(20,126,251,0.15)", justifyContent: "center", alignItems: "center", marginRight: 14 },
+  settingIconWrap: { width: 44, height: 44, borderRadius: 12, backgroundColor: t.accentFill, justifyContent: "center", alignItems: "center", marginRight: 14 },
   settingInfo: { flex: 1 },
-  settingLabel: { fontSize: 16, fontWeight: "500", color: "#fff" },
-  settingDesc: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 1 },
-  limitLabel: { fontSize: 14, color: "rgba(255,255,255,0.5)", marginBottom: 16, textAlign: "center" },
+  settingLabel: { fontSize: 16, fontWeight: "500", color: t.text },
+  settingDesc: { fontSize: 13, color: t.textTertiary, marginTop: 1 },
+  limitLabel: { fontSize: 14, color: t.textSecondary, marginBottom: 16, textAlign: "center" },
   limitControl: { flexDirection: "row", alignItems: "center", justifyContent: "center" },
-  limitBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: "rgba(255,255,255,0.1)", justifyContent: "center", alignItems: "center" },
+  limitBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: t.fillStrong, justifyContent: "center", alignItems: "center" },
   limitValueWrap: { alignItems: "center", marginHorizontal: 32 },
-  limitValue: { fontSize: 48, fontWeight: "700", color: "#fff" },
-  limitUnit: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: -4 },
+  limitValue: { fontSize: 48, fontWeight: "700", color: t.text },
+  limitUnit: { fontSize: 13, color: t.textTertiary, marginTop: -4 },
   settingsFooter: { paddingHorizontal: 20, paddingBottom: 40 },
-  saveBtn: { backgroundColor: "#147efb", paddingVertical: 16, borderRadius: 14, alignItems: "center" },
-  saveBtnText: { fontSize: 17, fontWeight: "600", color: "#fff" },
+  saveBtn: { backgroundColor: t.accent, paddingVertical: 16, borderRadius: 14, alignItems: "center" },
+  saveBtnText: { fontSize: 17, fontWeight: "600", color: t.onAccent },
   // Percentages of the overlay, not the window captured at import, so they stay
   // right after an iPad rotates; the maxWidth keeps them card-shaped on iPad.
-  detailCard: { backgroundColor: "#1c1c1e", borderRadius: 20, padding: 20, width: "100%", maxWidth: 520, maxHeight: "80%" },
+  detailCard: { backgroundColor: t.surface, borderRadius: 20, padding: 20, width: "100%", maxWidth: 520, maxHeight: "80%" },
   detailHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  detailPlate: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(20,126,251,0.1)", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, gap: 8 },
-  detailPlateText: { fontSize: 18, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
+  detailPlate: { flexDirection: "row", alignItems: "center", backgroundColor: t.accentFill, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, gap: 8 },
+  detailPlateText: { fontSize: 18, fontWeight: "700", color: t.text, letterSpacing: 0.5 },
   vehicleInfoDisplay: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  colorDotDetail: { width: 12, height: 12, borderRadius: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
-  vehicleInfoText: { fontSize: 14, color: "rgba(255,255,255,0.5)" },
+  colorDotDetail: { width: 12, height: 12, borderRadius: 6, borderWidth: 1, borderColor: t.borderStrong },
+  vehicleInfoText: { fontSize: 14, color: t.textSecondary },
   statusBtnPresent: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(52,199,89,0.1)", padding: 14, borderRadius: 12, gap: 10, marginBottom: 16 },
-  statusBtnAbsent: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", padding: 14, borderRadius: 12, gap: 10, marginBottom: 16 },
-  statusBtnTextPresent: { fontSize: 15, color: "#34c759", fontWeight: "500", flex: 1 },
-  statusBtnTextAbsent: { fontSize: 15, color: "rgba(255,255,255,0.5)", flex: 1 },
-  actionBtnGreen: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#34c759", paddingVertical: 14, borderRadius: 12, gap: 8, width: "100%", marginBottom: 16 },
-  actionBtnRed: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#ff453a", paddingVertical: 14, borderRadius: 12, gap: 8, width: "100%", marginBottom: 16 },
-  actionBtnText: { fontSize: 16, fontWeight: "600", color: "#fff" },
-  sectionLabel: { fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
+  statusBtnAbsent: { flexDirection: "row", alignItems: "center", backgroundColor: t.fill, padding: 14, borderRadius: 12, gap: 10, marginBottom: 16 },
+  statusBtnTextPresent: { fontSize: 15, color: t.successText, fontWeight: "500", flex: 1 },
+  statusBtnTextAbsent: { fontSize: 15, color: t.textSecondary, flex: 1 },
+  actionBtnGreen: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: t.success, paddingVertical: 14, borderRadius: 12, gap: 8, width: "100%", marginBottom: 16 },
+  actionBtnRed: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: t.danger, paddingVertical: 14, borderRadius: 12, gap: 8, width: "100%", marginBottom: 16 },
+  actionBtnText: { fontSize: 16, fontWeight: "600", color: t.onAccent },
+  sectionLabel: { fontSize: 12, fontWeight: "600", color: t.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
   driverList: { maxHeight: 220 },
   detailFooter: { flexDirection: "row", marginTop: 16, gap: 10 },
-  editBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#147efb", paddingVertical: 14, borderRadius: 12, gap: 8 },
-  editBtnText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  editBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: t.accent, paddingVertical: 14, borderRadius: 12, gap: 8 },
+  editBtnText: { fontSize: 15, fontWeight: "600", color: t.onAccent },
   deleteBtn: { width: 50, height: 50, borderRadius: 12, backgroundColor: "rgba(255,69,58,0.12)", justifyContent: "center", alignItems: "center" },
-  driverCard: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", padding: 12, borderRadius: 12, marginBottom: 8 },
+  driverCard: { flexDirection: "row", alignItems: "center", backgroundColor: t.fill, padding: 12, borderRadius: 12, marginBottom: 8 },
   driverAvatar: { width: 44, height: 44, borderRadius: 22 },
   driverInfo: { flex: 1, marginLeft: 12 },
-  driverName: { fontSize: 15, fontWeight: "500", color: "#fff" },
-  driverPhone: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 1 },
+  driverName: { fontSize: 15, fontWeight: "500", color: t.text },
+  driverPhone: { fontSize: 13, color: t.textTertiary, marginTop: 1 },
   limitWarning: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 },
-  limitWarningText: { fontSize: 12, color: "#ff9f0a" },
+  limitWarningText: { fontSize: 12, color: t.warningText },
   driverActions: { flexDirection: "row", gap: 6 },
   actionBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: "rgba(255,159,10,0.12)", justifyContent: "center", alignItems: "center" },
   callActionBtn: { backgroundColor: "rgba(52,199,89,0.12)" },
   unregBadge: { backgroundColor: "rgba(255,159,10,0.15)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  unregBadgeText: { fontSize: 10, fontWeight: "600", color: "#ff9f0a" },
+  unregBadgeText: { fontSize: 10, fontWeight: "600", color: t.warningText },
   scannedPlateRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,159,10,0.1)", padding: 12, borderRadius: 10, marginBottom: 8 },
-  scannedPlateLabel: { fontSize: 14, color: "rgba(255,255,255,0.5)" },
-  scannedPlateValue: { fontSize: 18, fontWeight: "700", color: "#ff9f0a", letterSpacing: 2 },
-  matchSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 4 },
-  matchCard: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 14, padding: 16, marginBottom: 10 },
+  scannedPlateLabel: { fontSize: 14, color: t.textSecondary },
+  scannedPlateValue: { fontSize: 18, fontWeight: "700", color: t.warningText, letterSpacing: 2 },
+  matchSubtitle: { fontSize: 13, color: t.textTertiary, marginBottom: 4 },
+  matchCard: { flexDirection: "row", alignItems: "center", backgroundColor: t.fill, borderRadius: 14, padding: 16, marginBottom: 10 },
   matchCardLeft: { flex: 1 },
-  matchCardPlate: { fontSize: 18, fontWeight: "700", color: "#fff", letterSpacing: 1 },
-  matchCardMeta: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 2 },
-  matchCardDiff: { backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginRight: 8 },
+  matchCardPlate: { fontSize: 18, fontWeight: "700", color: t.text, letterSpacing: 1 },
+  matchCardMeta: { fontSize: 13, color: t.textTertiary, marginTop: 2 },
+  matchCardDiff: { backgroundColor: t.fill, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginRight: 8 },
   // Hoisted out of the JSX, where it was a fresh object literal every render.
   matchListContent: { paddingHorizontal: 16, paddingBottom: 24 },
-  matchCardDiffText: { fontSize: 11, color: "rgba(255,255,255,0.4)" },
+  matchCardDiffText: { fontSize: 11, color: t.textTertiary },
   noneMatchBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 16, marginTop: 4 },
-  noneMatchText: { fontSize: 15, fontWeight: "600", color: "#30d158" },
+  noneMatchText: { fontSize: 15, fontWeight: "600", color: t.successText },
   // Full width for the card's percentage width to resolve against.
   notifyKav: { width: "100%", alignItems: "center" },
-  notifyCard: { backgroundColor: "#1c1c1e", borderRadius: 20, padding: 24, width: "100%", maxWidth: 440 },
+  notifyCard: { backgroundColor: t.surface, borderRadius: 20, padding: 24, width: "100%", maxWidth: 440 },
   notifyIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: "rgba(255,159,10,0.12)", justifyContent: "center", alignItems: "center", alignSelf: "center", marginBottom: 12 },
-  notifyTitleText: { fontSize: 18, fontWeight: "600", color: "#fff", textAlign: "center", marginBottom: 20 },
-  notifyInput: { backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 15, marginBottom: 12 },
+  notifyTitleText: { fontSize: 18, fontWeight: "600", color: t.text, textAlign: "center", marginBottom: 20 },
+  notifyInput: { backgroundColor: t.fill, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: t.text, fontSize: 15, marginBottom: 12 },
   notifyTextarea: { height: 80, textAlignVertical: "top", paddingTop: 12 },
   notifyBtns: { flexDirection: "row", gap: 10, marginTop: 4 },
-  notifyCancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.08)", alignItems: "center" },
-  notifyCancelText: { fontSize: 15, fontWeight: "600", color: "rgba(255,255,255,0.7)" },
-  notifySendBtn: { flex: 1, flexDirection: "row", paddingVertical: 14, borderRadius: 10, backgroundColor: "#ff9f0a", alignItems: "center", justifyContent: "center", gap: 6 },
-  notifySendText: { fontSize: 15, fontWeight: "600", color: "#fff" },
-});
+  notifyCancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 10, backgroundColor: t.fill, alignItems: "center" },
+  notifyCancelText: { fontSize: 15, fontWeight: "600", color: t.textSecondary },
+  notifySendBtn: { flex: 1, flexDirection: "row", paddingVertical: 14, borderRadius: 10, backgroundColor: t.warning, alignItems: "center", justifyContent: "center", gap: 6 },
+  notifySendText: { fontSize: 15, fontWeight: "600", color: t.onAccent },
+}));
 
 export default TrafficManager;

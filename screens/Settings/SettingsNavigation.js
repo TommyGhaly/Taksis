@@ -27,20 +27,13 @@ import ChildExperience from "./ChildExperience";
 import ChildAge from "./ChildAge";
 import PasswordReset from "../PasswordReset";
 import HomeScreenSelector from "./HomeScreenSelector";
-import DefaultTheme from "@react-navigation/native";
+import { useNavigationTheme } from "../../theme";
 import "react-native-gesture-handler";
 import { usePendingRoute, consumePendingRoute } from "../../utils/deepLinks";
 const SettingsNav = createNativeStackNavigator();
 const settingsNavigationRef = createNavigationContainerRef();
-const myTheme = {
-  ...DefaultTheme,
-  colors: {
-    primary: "#000",
-    card: "rgb(255, 255, 255)",
-    background: "#000",
-  },
-};
 export default function SettingsNavigation() {
+  const navigationTheme = useNavigationTheme();
   // Deep links (the App Clip URLs, opened by the installed app) target screens
   // in this navigator. MainContainer surfaces the Settings tab; the route inside
   // it is ours to resolve, because this container is `independent` and so is not
@@ -67,7 +60,7 @@ export default function SettingsNavigation() {
   return (
     <NavigationContainer
       independent={true}
-      theme={myTheme}
+      theme={navigationTheme}
       ref={settingsNavigationRef}
       onReady={() => setNavReady(true)}
     >

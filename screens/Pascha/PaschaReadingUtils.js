@@ -36,6 +36,35 @@ export const READING_META = {
   litanies:           { label: "Litanies",              icon: "hands-pray",          color: "rgba(255,255,255,0.65)" },
 };
 
+// Light-mode variant: same hues, darkened so the labels hold contrast on white.
+// Hex only — callers append alpha suffixes (`meta.color + "1a"`).
+const LIGHT_META_COLORS = {
+  prophecies:         "#a16207",
+  prophecies_coptic:  "#b45309",
+  homily:             "#dc2626",
+  pauline:            "#9333ea",
+  catholic:           "#0f766e",
+  praxis:             "#c2410c",
+  psalm:              "#15803d",
+  gospel:             "#0369a1",
+  gospel_coptic:      "#b45309",
+  gospel_vernacular:  "#0284c7",
+  gospels:            "#0369a1",
+  gospels_coptic:     "#b45309",
+  gospels_vernacular: "#0284c7",
+  exposition:         "#7c3aed",
+  litanies:           "#6c6c70",
+};
+
+export const READING_META_LIGHT = Object.fromEntries(
+  Object.entries(READING_META).map(([k, m]) => [k, { ...m, color: LIGHT_META_COLORS[k] ?? m.color }])
+);
+
+/** READING_META for the active scheme (`useTheme().isDark`). */
+export function readingMetaFor(isDark) {
+  return isDark ? READING_META : READING_META_LIGHT;
+}
+
 export const ASSIGNABLE = [
   "prophecies",
   "prophecies_coptic",

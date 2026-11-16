@@ -1,12 +1,14 @@
 import React, { useRef } from 'react';
 import { View, Text, StyleSheet, PanResponder } from 'react-native';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
+import { makeStyles } from '../theme';
 
 const ALL_LETTERS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'];
 const letterHeight = 16;
 const barHeight = ALL_LETTERS.length * letterHeight;
 
 export default function AlphabetIndexBar({ onLetterChange, availableLetters = [] }) {
+  const styles = useStyles();
   const lastLetterRef = useRef(null);
   // The PanResponder is built once, so its handlers would otherwise close over
   // the first render's props. Read the live values through refs instead.
@@ -71,7 +73,7 @@ export default function AlphabetIndexBar({ onLetterChange, availableLetters = []
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     justifyContent: 'flex-start',
     alignItems: 'center',
@@ -86,9 +88,9 @@ const styles = StyleSheet.create({
   },
   letter: {
     fontSize: 11,
-    color: '#147efb',
+    color: t.accent,
     fontWeight: '500',
   },
-});
+}));
 
 export { barHeight }; 

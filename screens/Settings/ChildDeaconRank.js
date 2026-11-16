@@ -1,10 +1,14 @@
 import React, { useState } from "react";
-import { TouchableOpacity, StyleSheet, View, Text, SafeAreaView, Alert} from "react-native";
+import { TouchableOpacity, View, Text, Alert } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
 import Rank from "../../components/rank"; // Import Rank component
+import { makeStyles, useTabBarInset } from "../../theme";
 
 const ChildRank = ({ route, navigation }) => {
+  const styles = useStyles();
+  const tabBarInset = useTabBarInset();
   const { childData } = route.params; // Get child data from the previous screen
   const [selectedRank, setSelectedRank] = useState(childData.rank || ""); // Default rank to the value from childData
 
@@ -43,7 +47,7 @@ const ChildRank = ({ route, navigation }) => {
       </View>
 
       {/* Continue Button */}
-      <View style={styles.continueLayout}>
+      <View style={[styles.continueLayout, { bottom: 20 + tabBarInset }]}>
         <TouchableOpacity onPress={handleContinue} style={styles.continueButton}>
           <Text style={styles.continuetext}>Continue</Text>
         </TouchableOpacity>
@@ -52,10 +56,10 @@ const ChildRank = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
   backarrow: {
     top: 10,
@@ -74,7 +78,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 32, // Adjusted font size for better readability
     fontFamily: "Roboto-Regular",
-    color: "#8e8e93",
+    color: t.textMuted,
     letterSpacing: -0.5,
     marginBottom: 30, // Added margin for spacing between title and Rank component
   },
@@ -94,7 +98,7 @@ const styles = StyleSheet.create({
   },
   continueButton: {
     width: "100%",
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
@@ -105,9 +109,9 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     fontWeight: "500",
     fontFamily: "Roboto-Medium",
-    color: "#fff",
+    color: t.text,
     textAlign: "center",
   },
-});
+}));
 
 export default ChildRank;

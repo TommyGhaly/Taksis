@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from "react";
 import {
-  StyleSheet,
   View,
   Text,
   Pressable,
@@ -20,8 +19,11 @@ import ProgressBar from "../../components/progressBar";
 import PhotoInput from "../../components/photoInput";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { makeStyles, useTheme, GlassSurface } from "../../theme";
 
 const InputPhoto = ({ route, navigation }) => {
+  const styles = useStyles();
+  const t = useTheme();
   const { from } = route.params || {};
   const user = getAuth().currentUser;
   const { setSignUp } = useUser();
@@ -122,7 +124,7 @@ const InputPhoto = ({ route, navigation }) => {
           >
             <View style={styles.content}>
               {/* Phone Input Section */}
-              <View style={styles.card}>
+              <GlassSurface style={styles.card}>
                 <Text style={styles.questionText}>
                   What's your phone number (Optional)?
                 </Text>
@@ -131,17 +133,18 @@ const InputPhoto = ({ route, navigation }) => {
                   value={phoneNumber}
                   onChangeText={handlePhoneNumberChange}
                   placeholder="Enter phone number"
-                  placeholderTextColor="#8E8E93"
+                  placeholderTextColor={t.placeholder}
+                  keyboardAppearance={t.keyboardAppearance}
                   keyboardType="phone-pad"
                   autoCapitalize="none"
                   onPressIn={handleTextInputPress}
                   returnKeyType="done"
                   onSubmitEditing={Keyboard.dismiss}
                 />
-              </View>
+              </GlassSurface>
 
               {/* Photo Input Section */}
-              <View style={[styles.card, { marginTop: 20 }]}>
+              <GlassSurface style={[styles.card, { marginTop: 20 }]}>
                 <Text style={styles.questionText}>
                   Upload your profile picture (optional)
                 </Text>
@@ -154,7 +157,7 @@ const InputPhoto = ({ route, navigation }) => {
                 >
                   {uploadedPhotoURL ? (
                     <View style={styles.uploadedContainer}>
-                      <Icon name="check-circle" size={20} color="#FFF" />
+                      <Icon name="check-circle" size={20} color={t.onAccent} />
                       <Text style={styles.uploadButtonText}>
                         Photo Uploaded ✓
                       </Text>
@@ -170,7 +173,7 @@ const InputPhoto = ({ route, navigation }) => {
                     Tap to change photo
                   </Text>
                 )}
-              </View>
+              </GlassSurface>
             </View>
           </ScrollView>
         </TouchableWithoutFeedback>
@@ -198,10 +201,10 @@ const InputPhoto = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     paddingHorizontal: 16,
     paddingTop: 120,
     paddingBottom: 40,
@@ -212,7 +215,7 @@ const styles = StyleSheet.create({
   progressBar: {
     height: 6,
     width: "100%",
-    backgroundColor: "#2A2A2A",
+    backgroundColor: t.isDark ? t.surfaceElevated : t.surfaceHighest,
     borderRadius: 3,
     marginBottom: 12,
   },
@@ -227,7 +230,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     fontFamily: "Roboto-Regular",
     fontWeight: "600",
-    color: "#E0E0E0",
+    color: (t.isDark ? "#E0E0E0" : t.text),
     lineHeight: 42,
     marginTop: 30,
     marginBottom: 10,
@@ -238,12 +241,12 @@ const styles = StyleSheet.create({
     marginBottom: 54,
   },
   card: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: t.surface,
     borderRadius: 20,
     padding: 25,
     width: "100%",
     elevation: 5,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
@@ -252,13 +255,13 @@ const styles = StyleSheet.create({
   questionText: {
     fontSize: 24,
     fontWeight: "600",
-    color: "#E0E0E0",
+    color: (t.isDark ? "#E0E0E0" : t.text),
     textAlign: "center",
     marginBottom: 10,
     fontFamily: "Roboto-Regular",
   },
   uploadButton: {
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 12,
@@ -275,23 +278,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   uploadButtonText: {
-    color: "#FFF",
+    color: t.onAccent,
     fontSize: 16,
     fontWeight: "600",
     fontFamily: "Roboto-Medium",
   },
   changePhotoText: {
-    color: "#888",
+    color: t.textMuted,
     fontSize: 13,
     marginTop: 8,
   },
   input: {
     width: "100%",
     height: 50,
-    backgroundColor: "#2A2A2A",
+    backgroundColor: t.surfaceElevated,
     borderRadius: 10,
     paddingHorizontal: 15,
-    color: "#E0E0E0",
+    color: (t.isDark ? "#E0E0E0" : t.text),
     fontSize: 16,
     fontFamily: "Roboto-Regular",
     marginTop: 10,
@@ -302,27 +305,27 @@ const styles = StyleSheet.create({
   continueButton: {
     height: 52,
     width: "100%",
-    backgroundColor: "#147EFB",
+    backgroundColor: t.accent,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 67,
     elevation: 4,
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
   disabledButton: {
-    backgroundColor: "#555",
+    backgroundColor: t.isDark ? "#555" : "#AEAEB2",
   },
   continueText: {
     fontSize: 18,
     letterSpacing: -0.2,
     fontWeight: "600",
     fontFamily: "Roboto-Medium",
-    color: "#FFF",
+    color: t.onAccent,
   },
-});
+}));
 
 export default InputPhoto;

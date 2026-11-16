@@ -1,7 +1,6 @@
 import * as React from "react";
 import {
   Text,
-  StyleSheet,
   View,
   Pressable,
   TextInput,
@@ -13,8 +12,11 @@ import { doc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 import { callFunction } from "../../components/functionCalls";
+import { makeStyles, useTheme } from "../../theme";
 
 const ChangeName = () => {
+  const styles = useStyles();
+  const t = useTheme();
   const [name, setName] = useState("");
   const navigation = useNavigation();
   const user = getAuth().currentUser;
@@ -71,10 +73,11 @@ const ChangeName = () => {
         style={styles.input}
         autoCapitalize="words"
         placeholder="Enter your full name"
-        placeholderTextColor="#8e8e93"
+        placeholderTextColor={t.placeholder}
+        keyboardAppearance={t.keyboardAppearance}
         value={name}
         onChangeText={setName}
-        color="#8e8e93"
+        color={t.textMuted}
       />
       <Pressable style={styles.confirmButton} onPress={handleConfirm}>
         <Text style={styles.confirmText}>Confirm</Text>
@@ -84,9 +87,9 @@ const ChangeName = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 50,
@@ -103,35 +106,35 @@ const styles = StyleSheet.create({
   headerText: {
     fontSize: 28,
     fontWeight: "500",
-    color: "#ffffff",
+    color: t.text,
   },
   disclaimer: {
     fontSize: 14,
-    color: "#ff6347",
+    color: t.isDark ? "#ff6347" : "#D9381E",
     marginTop: 10,
     textAlign: "center",
   },
   input: {
     height: 50,
-    borderColor: "#8e8e93",
+    borderColor: t.textMuted,
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 15,
     fontSize: 16,
-    color: "#fff",
+    color: t.text,
     marginBottom: 20,
   },
   confirmButton: {
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     borderRadius: 10,
     paddingVertical: 15,
     alignItems: "center",
   },
   confirmText: {
     fontSize: 17,
-    color: "#fff",
+    color: t.text,
     fontWeight: "500",
   },
-});
+}));
 
 export default ChangeName;

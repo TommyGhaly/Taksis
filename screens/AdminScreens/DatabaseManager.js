@@ -4,10 +4,12 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
-  ActivityIndicator, Alert, StyleSheet, SafeAreaView, Modal,
+  ActivityIndicator, Alert, StyleSheet, Modal,
   KeyboardAvoidingView, Platform, Keyboard, Animated, AppState, Image, Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
+import { makeStyles, useTheme, GlassSurface, useTabBarInset } from '../../theme';
 import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { getAuth } from '@react-native-firebase/auth';
@@ -50,33 +52,56 @@ import ProfileImageExpander from '../../components/ProfileImageExpander';
 import ScheduleActivity from './ScheduleActivity';
 import { useContentWidth, WIDE_MIN } from '../../hooks/useResponsiveLayout';
 
-// ── Palette — matches Taksis dark theme ──────────────────────────────────────
-const C = {
-  bg: '#121212',
-  card: '#1a1a1a',
-  cardRaised: '#222',
-  accent: '#147efb',
-  accentSoft: '#4d9cff',
-  warn: '#ff9500',
-  danger: '#ff3b30',
-  hair: 'rgba(255,255,255,0.07)',
-  t1: '#ffffff',
-  t2: 'rgba(255,255,255,0.75)',
-  t3: 'rgba(255,255,255,0.5)',
-  t4: 'rgba(255,255,255,0.35)',
-  t5: 'rgba(255,255,255,0.2)',
-  fill: 'rgba(255,255,255,0.07)',
-  fillSoft: 'rgba(255,255,255,0.04)',
-  boolTrue: '#4d9cff',
-  boolFalse: 'rgba(255,255,255,0.4)',
-  code: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+// ── Palette — roles resolved from the active theme ──────────────────────────
+// Dark values are what this screen shipped with; light values come from the
+// shared theme tokens.
+const paletteCache = new Map();
+const paletteFor = (theme) => {
+  let C = paletteCache.get(theme.key);
+  if (C) return C;
+  const dark = theme.isDark;
+  C = {
+    bg: theme.background,
+    card: theme.surface,
+    cardRaised: theme.surfaceElevated,
+    accent: theme.accent,
+    accentSoft: theme.accentText,
+    accentFill: theme.accentFill,
+    warn: dark ? '#ff9500' : theme.warningText,
+    danger: dark ? '#ff3b30' : theme.dangerText, // text and icons
+    dangerFill: theme.danger,
+    success: dark ? '#34c759' : theme.successText, // text and icons
+    successFill: theme.success,
+    onAccent: theme.onAccent,
+    hair: theme.border,
+    t1: theme.text,
+    t2: dark ? 'rgba(255,255,255,0.75)' : theme.textSecondary,
+    t3: theme.textSecondary,
+    t4: theme.textTertiary,
+    t5: dark ? 'rgba(255,255,255,0.2)' : 'rgba(60,60,67,0.25)',
+    ghost: dark ? 'rgba(255,255,255,0.1)' : 'rgba(60,60,67,0.18)',
+    fill: theme.fill,
+    fillSoft: dark ? 'rgba(255,255,255,0.04)' : 'rgba(118,118,128,0.05)',
+    boolTrue: theme.accentText,
+    boolFalse: theme.textTertiary,
+    overlay: theme.overlay,
+    shadow: theme.shadow,
+    border: theme.border,
+    floatingAndroidBg: dark ? 'rgba(28,28,30,0.96)' : 'rgba(255,255,255,0.96)',
+    glass: theme.glass,
+    blurTint: theme.blurTint,
+    keyboardAppearance: theme.keyboardAppearance,
+    code: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  };
+  C.typeTint = {
+    string: C.t3, number: C.t3, boolean: C.t3,
+    timestamp: C.t3, reference: C.t3, geopoint: C.t3,
+    array: C.t4, map: C.t4, null: C.t4,
+  };
+  paletteCache.set(theme.key, C);
+  return C;
 };
-
-const TYPE_TINT = {
-  string: C.t3, number: C.t3, boolean: C.t3,
-  timestamp: C.t3, reference: C.t3, geopoint: C.t3,
-  array: C.t4, map: C.t4, null: C.t4,
-};
+const usePalette = () => paletteFor(useTheme());
 
 // Synthetic root entry for the storage browser. Not a Firestore collection —
 // handled by its own view branch.
@@ -223,6 +248,8 @@ const fromEditable = (v) => {
 // ── Scalar inline chip (for list previews) ───────────────────────────────────
 
 function InlineValue({ value, style }) {
+  const iv = useIv();
+  const C = usePalette();
   const t = detectType(value);
   if (t === 'boolean') {
     return (
@@ -242,9 +269,12 @@ function InlineValue({ value, style }) {
   return <Text style={style} numberOfLines={1}>{String(value)}</Text>;
 }
 
-const iv = StyleSheet.create({
+const useIv = makeStyles((theme) => {
+  const C = paletteFor(theme);
+  return {
   boolPill: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: 6, alignSelf: 'flex-start' },
   boolText: { fontSize: 11, fontWeight: '600' },
+  };
 });
 
 // ── Recursive nested preview (read-only, doc view) ───────────────────────────
@@ -264,6 +294,8 @@ function collectionSize(value) {
 }
 
 function RecursivePreview({ value, depth = 0, label = null }) {
+  const rp = useRp();
+  const C = usePalette();
   // The size test used to be `Array.isArray(value) && value.length > 8`, so only
   // long *arrays* auto-collapsed. A map was never measured — which meant opening a
   // document with a 300-key map rendered all 300 rows, nested, inside a plain
@@ -387,7 +419,9 @@ function RecursivePreview({ value, depth = 0, label = null }) {
   );
 }
 
-const rp = StyleSheet.create({
+const useRp = makeStyles((theme) => {
+  const C = paletteFor(theme);
+  return {
   block: {
     borderRadius: 10,
     overflow: 'hidden',
@@ -479,11 +513,14 @@ const rp = StyleSheet.create({
 
   showMoreBtn: { paddingVertical: 8, alignItems: 'center' },
   showMoreText: { color: C.accentSoft, fontSize: 12, fontWeight: '600' },
+  };
 });
 
 // ── Field value display (doc detail view) ────────────────────────────────────
 
 function FieldValueDisplay({ value }) {
+  const fv = useFv();
+  const C = usePalette();
   const t = detectType(value);
   const [expanded, setExpanded] = useState(false);
 
@@ -557,7 +594,9 @@ function FieldValueDisplay({ value }) {
   );
 }
 
-const fv = StyleSheet.create({
+const useFv = makeStyles((theme) => {
+  const C = paletteFor(theme);
+  return {
   row: { marginTop: 2 },
   string: { color: C.t1, fontSize: 14, lineHeight: 21 },
   number: { color: C.t1, fontSize: 16, fontWeight: '600' },
@@ -571,6 +610,7 @@ const fv = StyleSheet.create({
   tsRel: { color: C.t3, fontSize: 12, marginTop: 2 },
   refRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
   refPath: { color: C.t2, fontSize: 13, flex: 1, fontFamily: C.code },
+  };
 });
 
 // ── Gate screen ───────────────────────────────────────────────────────────────
@@ -578,6 +618,9 @@ const fv = StyleSheet.create({
 const REAUTH_AFTER_BACKGROUND_MS = 30 * 1000;
 
 export default function DatabaseManagerScreen() {
+  const g = useG();
+  const styles = useStyles();
+  const C = usePalette();
   const [view, setView] = useState('root');
   const [stack, setStack] = useState([]);
   const [gateState, setGateState] = useState('checking');
@@ -690,7 +733,7 @@ export default function DatabaseManagerScreen() {
         </Text>
         {bioError ? <Text style={g.err}>{bioError}</Text> : null}
         <TouchableOpacity style={g.btn} onPress={runBiometric} activeOpacity={0.8}>
-          <Ionicons name="lock-open-outline" size={16} color="#fff" />
+          <Ionicons name="lock-open-outline" size={16} color={C.onAccent} />
           <Text style={g.btnText}>{bioError ? 'Try again' : 'Authenticate'}</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -718,19 +761,24 @@ export default function DatabaseManagerScreen() {
   );
 }
 
-const g = StyleSheet.create({
+const useG = makeStyles((theme) => {
+  const C = paletteFor(theme);
+  return {
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, padding: 40 },
-  iconWrap: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(20,126,251,0.1)', alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
+  iconWrap: { width: 80, height: 80, borderRadius: 40, backgroundColor: C.accentFill, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
   title: { color: C.t1, fontSize: 20, fontWeight: '700', marginBottom: 8 },
   sub: { color: C.t3, fontSize: 14, textAlign: 'center', lineHeight: 20, paddingHorizontal: 24 },
   err: { color: C.warn, fontSize: 13, textAlign: 'center', marginTop: 12, paddingHorizontal: 32, lineHeight: 18 },
   btn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.accent, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14, marginTop: 24 },
-  btnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  btnText: { color: C.onAccent, fontSize: 15, fontWeight: '600' },
+  };
 });
 
 // ── Header ────────────────────────────────────────────────────────────────────
 
 function Header({ view, stack, onBack }) {
+  const styles = useStyles();
+  const C = usePalette();
   const title = view === 'root' ? 'Database' : stack[stack.length - 1]?.label || 'Database';
   const subtitle = view === 'root'
     ? `${KNOWN_COLLECTIONS.length} collections`
@@ -754,16 +802,19 @@ function Header({ view, stack, onBack }) {
 // ── Root list ─────────────────────────────────────────────────────────────────
 
 function RootList({ onPick, onPickStorage, onPickActivity }) {
+  const styles = useStyles();
+  const C = usePalette();
+  const tabBarInset = useTabBarInset();
   return (
     <FlatList
       data={KNOWN_COLLECTIONS}
       keyExtractor={(c) => c.path}
-      contentContainerStyle={styles.rootList}
+      contentContainerStyle={[styles.rootList, { paddingBottom: 40 + tabBarInset }]}
       ListHeaderComponent={
         <>
           <Text style={[styles.rootSectionLabel, { marginTop: 0 }]}>Activity</Text>
           <TouchableOpacity style={styles.collectionCard} onPress={onPickActivity} activeOpacity={0.8}>
-            <View style={[styles.collectionIconWrap, { backgroundColor: 'rgba(20,126,251,0.12)' }]}>
+            <View style={[styles.collectionIconWrap, { backgroundColor: C.accentFill }]}>
               <Ionicons name="pulse" size={20} color={C.accent} />
             </View>
             <View style={{ flex: 1 }}>
@@ -780,7 +831,7 @@ function RootList({ onPick, onPickStorage, onPickActivity }) {
         <>
           <Text style={styles.rootSectionLabel}>Storage</Text>
           <TouchableOpacity style={styles.collectionCard} onPress={onPickStorage} activeOpacity={0.8}>
-            <View style={[styles.collectionIconWrap, { backgroundColor: 'rgba(20,126,251,0.12)' }]}>
+            <View style={[styles.collectionIconWrap, { backgroundColor: C.accentFill }]}>
               <Ionicons name="images" size={20} color={C.accent} />
             </View>
             <View style={{ flex: 1 }}>
@@ -817,6 +868,16 @@ function RootList({ onPick, onPickStorage, onPickActivity }) {
   );
 }
 
+/**
+ * Background of the floating bottom search bars: Liquid Glass when it is on,
+ * otherwise the system material blur the bars always had.
+ */
+function FloatingBarSurface({ style, children }) {
+  const C = usePalette();
+  if (C.glass) return <GlassSurface style={style}>{children}</GlassSurface>;
+  return <BlurView tint={C.blurTint} intensity={80} style={style}>{children}</BlurView>;
+}
+
 // ── Collection view ───────────────────────────────────────────────────────────
 
 const docKeyExtractor = (d) => d.id;
@@ -829,6 +890,8 @@ const docKeyExtractor = (d) => d.id;
  * keyed on, so it runs once per document rather than once per render.
  */
 const DocCard = React.memo(({ item, isSelected, selectMode, onPress, onLongPress }) => {
+  const styles = useStyles();
+  const C = usePalette();
   const data = item.data || {};
   const allKeys = Object.keys(data);
   const hasName = typeof data.name === 'string' && data.name.trim().length > 0;
@@ -845,7 +908,7 @@ const DocCard = React.memo(({ item, isSelected, selectMode, onPress, onLongPress
     >
       {selectMode && (
         <View style={[styles.checkbox, isSelected && styles.checkboxActive]}>
-          {isSelected && <Ionicons name="checkmark" size={14} color="#fff" />}
+          {isSelected && <Ionicons name="checkmark" size={14} color={C.onAccent} />}
         </View>
       )}
       <View style={styles.docCardBody}>
@@ -872,6 +935,9 @@ const DocCard = React.memo(({ item, isSelected, selectMode, onPress, onLongPress
 DocCard.displayName = "DocCard";
 
 function CollectionView({ collectionPath, label, onOpenDoc }) {
+  const styles = useStyles();
+  const C = usePalette();
+  const tabBarInset = useTabBarInset();
   const { node: config } = useMemo(() => resolveCollectionNode(collectionPath), [collectionPath]);
   const effectiveConfig = config || { path: collectionPath };
   const protectedColl = !!effectiveConfig.protected;
@@ -1098,10 +1164,10 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
             onPress={() => { setSelectMode((m) => !m); setSelected(new Set()); }}
             activeOpacity={0.8}
           >
-            <Ionicons name={selectMode ? 'close' : 'checkbox-outline'} size={18} color={selectMode ? '#fff' : C.accent} />
+            <Ionicons name={selectMode ? 'close' : 'checkbox-outline'} size={18} color={selectMode ? C.onAccent : C.accent} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.newBtn} onPress={createNewDoc} activeOpacity={0.8}>
-            <Ionicons name="add" size={16} color="#fff" />
+            <Ionicons name="add" size={16} color={C.onAccent} />
             <Text style={styles.newBtnText}>New</Text>
           </TouchableOpacity>
         </View>
@@ -1121,7 +1187,7 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
             style={[styles.bulkDeleteBtn, selected.size === 0 && { opacity: 0.4 }]}
             disabled={selected.size === 0} onPress={runBulkDelete} activeOpacity={0.8}
           >
-            <Ionicons name="trash-outline" size={16} color="#fff" />
+            <Ionicons name="trash-outline" size={16} color={C.onAccent} />
             <Text style={styles.bulkDeleteText}>Delete</Text>
           </TouchableOpacity>
         </View>
@@ -1131,7 +1197,7 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
         {...LIST_PERF}
         data={filtered}
         keyExtractor={docKeyExtractor}
-        contentContainerStyle={styles.docList}
+        contentContainerStyle={[styles.docList, { paddingBottom: 110 + tabBarInset }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         renderItem={renderDoc}
@@ -1139,7 +1205,7 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
         onEndReached={() => !done && loadPage(false)}
         ListEmptyComponent={!loading ? (
           <View style={styles.emptyState}>
-            <Ionicons name={search ? 'search' : 'document-outline'} size={40} color="rgba(255,255,255,0.1)" />
+            <Ionicons name={search ? 'search' : 'document-outline'} size={40} color={C.ghost} />
             <Text style={styles.emptyText}>{search ? (done || docs.length >= SEARCH_SCAN_CAP ? 'No documents match your search' : 'Searching…') : 'No documents yet'}</Text>
           </View>
         ) : null}
@@ -1156,14 +1222,15 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
       />
 
       <Animated.View
-        style={[styles.floatingBarWrapper, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
+        style={[styles.floatingBarWrapper, { bottom: (Platform.OS === 'ios' ? 28 : 16) + tabBarInset }, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
         pointerEvents="box-none"
       >
-        <BlurView tint="systemChromeMaterialDark" intensity={80} style={styles.floatingBlur}>
+        <FloatingBarSurface style={styles.floatingBlur}>
           <View style={styles.floatingInner}>
             <View style={styles.searchContainer}>
               <Ionicons name="search" size={16} color={C.t3} style={styles.searchIcon} />
               <TextInput
+                keyboardAppearance={C.keyboardAppearance}
                 style={styles.searchBar}
                 placeholder="Search by ID or any field"
                 placeholderTextColor={C.t3}
@@ -1176,7 +1243,7 @@ function CollectionView({ collectionPath, label, onOpenDoc }) {
               />
             </View>
           </View>
-        </BlurView>
+        </FloatingBarSurface>
       </Animated.View>
 
       <TypedConfirmModal state={confirmState} onCancel={() => setConfirmState(null)} />
@@ -1214,6 +1281,8 @@ function useStorageGrid() {
  * grid matters — fewer mounted cells means fewer requests.
  */
 const StorageItemRow = React.memo(function StorageItemRow({ item, tileSize, selectMode, isSelected, onPress, onLongPress, onDelete }) {
+  const styles = useStyles();
+  const C = usePalette();
   const [url, setUrl] = useState(null);
   const [meta, setMeta] = useState(null);
   const [failed, setFailed] = useState(false);
@@ -1272,7 +1341,7 @@ const StorageItemRow = React.memo(function StorageItemRow({ item, tileSize, sele
         {/* Selection check overlay */}
         {selectMode && (
           <View style={[styles.gridCheck, isSelected && styles.checkboxActive]}>
-            {isSelected && <Ionicons name="checkmark" size={14} color="#fff" />}
+            {isSelected && <Ionicons name="checkmark" size={14} color={C.onAccent} />}
           </View>
         )}
 
@@ -1284,7 +1353,7 @@ const StorageItemRow = React.memo(function StorageItemRow({ item, tileSize, sele
             activeOpacity={0.8}
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           >
-            <Ionicons name="trash" size={13} color="#fff" />
+            <Ionicons name="trash" size={13} color={C.onAccent} />
           </TouchableOpacity>
         )}
       </Wrapper>
@@ -1300,6 +1369,9 @@ const StorageItemRow = React.memo(function StorageItemRow({ item, tileSize, sele
 const storageKeyExtractor = (it) => it.fullPath;
 
 function StorageView({ prefix }) {
+  const styles = useStyles();
+  const C = usePalette();
+  const tabBarInset = useTabBarInset();
   const grid = useStorageGrid();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1475,7 +1547,7 @@ function StorageView({ prefix }) {
             onPress={() => { setSelectMode((m) => !m); setSelected(new Set()); }}
             activeOpacity={0.8}
           >
-            <Ionicons name={selectMode ? 'close' : 'checkbox-outline'} size={18} color={selectMode ? '#fff' : C.accent} />
+            <Ionicons name={selectMode ? 'close' : 'checkbox-outline'} size={18} color={selectMode ? C.onAccent : C.accent} />
           </TouchableOpacity>
         </View>
       </View>
@@ -1494,7 +1566,7 @@ function StorageView({ prefix }) {
             style={[styles.bulkDeleteBtn, selected.size === 0 && { opacity: 0.4 }]}
             disabled={selected.size === 0} onPress={runBulkDelete} activeOpacity={0.8}
           >
-            <Ionicons name="trash-outline" size={16} color="#fff" />
+            <Ionicons name="trash-outline" size={16} color={C.onAccent} />
             <Text style={styles.bulkDeleteText}>Delete</Text>
           </TouchableOpacity>
         </View>
@@ -1509,7 +1581,7 @@ function StorageView({ prefix }) {
         keyExtractor={storageKeyExtractor}
         numColumns={grid.columns}
         columnWrapperStyle={styles.gridRow}
-        contentContainerStyle={styles.gridList}
+        contentContainerStyle={[styles.gridList, { paddingBottom: 110 + tabBarInset }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         renderItem={renderStorageItem}
@@ -1517,7 +1589,7 @@ function StorageView({ prefix }) {
         onEndReached={() => !done && loadPage(false)}
         ListEmptyComponent={!loading ? (
           <View style={styles.emptyState}>
-            <Ionicons name={search ? 'search' : 'images-outline'} size={40} color="rgba(255,255,255,0.1)" />
+            <Ionicons name={search ? 'search' : 'images-outline'} size={40} color={C.ghost} />
             <Text style={styles.emptyText}>{search ? (done || items.length >= SEARCH_SCAN_CAP ? 'No files match your search' : 'Searching…') : 'No files in storage'}</Text>
           </View>
         ) : null}
@@ -1534,14 +1606,15 @@ function StorageView({ prefix }) {
       />
 
       <Animated.View
-        style={[styles.floatingBarWrapper, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
+        style={[styles.floatingBarWrapper, { bottom: (Platform.OS === 'ios' ? 28 : 16) + tabBarInset }, { transform: [{ translateY: Animated.multiply(keyboardOffset, -1) }] }]}
         pointerEvents="box-none"
       >
-        <BlurView tint="systemChromeMaterialDark" intensity={80} style={styles.floatingBlur}>
+        <FloatingBarSurface style={styles.floatingBlur}>
           <View style={styles.floatingInner}>
             <View style={styles.searchContainer}>
               <Ionicons name="search" size={16} color={C.t3} style={styles.searchIcon} />
               <TextInput
+                keyboardAppearance={C.keyboardAppearance}
                 style={styles.searchBar}
                 placeholder="Search by filename"
                 placeholderTextColor={C.t3}
@@ -1554,7 +1627,7 @@ function StorageView({ prefix }) {
               />
             </View>
           </View>
-        </BlurView>
+        </FloatingBarSurface>
       </Animated.View>
 
       <TypedConfirmModal state={confirmState} onCancel={() => setConfirmState(null)} />
@@ -1563,6 +1636,9 @@ function StorageView({ prefix }) {
 }
 
 function DocumentView({ docPath, label, onOpenSubcollection, onAfterDelete }) {
+  const styles = useStyles();
+  const C = usePalette();
+  const tabBarInset = useTabBarInset();
   // Same fix as CollectionView's collRef: a DocumentReference has no `.doc()`,
   // so chaining `doc(parentDocRef, ...)` threw during render for every nested
   // document (a schedule week, an `unavailable` week, a student, a pascha doc).
@@ -1652,7 +1728,7 @@ function DocumentView({ docPath, label, onOpenSubcollection, onAfterDelete }) {
   const entries = Object.entries(data);
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 40 }} style={{ flex: 1 }}>
+    <ScrollView contentContainerStyle={{ paddingBottom: 40 + tabBarInset }} style={{ flex: 1 }}>
       <View style={styles.docBanner}>
         <View style={styles.docBannerIcon}><Ionicons name="document-text" size={18} color={C.accent} /></View>
         <View style={{ flex: 1 }}>
@@ -1676,7 +1752,7 @@ function DocumentView({ docPath, label, onOpenSubcollection, onAfterDelete }) {
               <View style={styles.fieldHeader}>
                 <Text style={styles.fieldKey}>{k}</Text>
                 <View style={styles.typeBadge}>
-                  <Text style={[styles.typeBadgeText, { color: TYPE_TINT[t] || C.t3 }]}>{t}</Text>
+                  <Text style={[styles.typeBadgeText, { color: C.typeTint[t] || C.t3 }]}>{t}</Text>
                 </View>
               </View>
               <FieldValueDisplay value={v} />
@@ -1718,6 +1794,7 @@ function DocumentView({ docPath, label, onOpenSubcollection, onAfterDelete }) {
       {openSubInput ? (
         <View style={styles.openSubRow}>
           <TextInput
+            keyboardAppearance={C.keyboardAppearance}
             style={styles.openSubInput}
             placeholder="subcollection name"
             placeholderTextColor={C.t4}
@@ -1730,7 +1807,7 @@ function DocumentView({ docPath, label, onOpenSubcollection, onAfterDelete }) {
             returnKeyType="go"
           />
           <TouchableOpacity style={styles.openSubGo} onPress={openCustomSub} activeOpacity={0.8}>
-            <Ionicons name="arrow-forward" size={16} color="#fff" />
+            <Ionicons name="arrow-forward" size={16} color={C.onAccent} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.openSubCancel} onPress={() => { setOpenSubInput(false); setCustomSubName(''); }} activeOpacity={0.8}>
             <Ionicons name="close" size={16} color={C.t3} />
@@ -1843,6 +1920,7 @@ function mapLabel(node) {
 
 // Compact key/value preview lines for a map (up to `max` entries)
 function MapPreviewLines({ node, max = 3 }) {
+  const C = usePalette();
   let pairs = [];
   if (node && typeof node === 'object' && '__m' in node) pairs = node.__m;
   else if (node && typeof node === 'object' && !Array.isArray(node)) pairs = Object.entries(node);
@@ -1857,15 +1935,15 @@ function MapPreviewLines({ node, max = 3 }) {
         const scalar = typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || v === null ? v : null;
         return (
           <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: '600', minWidth: 36, maxWidth: 72 }} numberOfLines={1}>{k}</Text>
+            <Text style={{ color: C.t4, fontSize: 11, fontWeight: '600', minWidth: 36, maxWidth: 72 }} numberOfLines={1}>{k}</Text>
             {isNested ? (
-              <Text style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11, fontStyle: 'italic' }}>{vt === 'array' ? '[…]' : '{…}'}</Text>
+              <Text style={{ color: C.t5, fontSize: 11, fontStyle: 'italic' }}>{vt === 'array' ? '[…]' : '{…}'}</Text>
             ) : scalar !== null ? (
-              <InlineValue value={scalar} style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, flex: 1 }} />
+              <InlineValue value={scalar} style={{ color: C.t3, fontSize: 11, flex: 1 }} />
             ) : (
               // timestamp / reference / geopoint arrive as `__fs__` envelopes;
               // String() on one renders "[object Object]".
-              <Text style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11 }} numberOfLines={1}>
+              <Text style={{ color: C.t5, fontSize: 11 }} numberOfLines={1}>
                 {v && typeof v === 'object' && v[SPECIAL_HINT] !== undefined
                   ? (v.value ?? `${v.lat}, ${v.lng}`)
                   : String(v)}
@@ -1874,12 +1952,14 @@ function MapPreviewLines({ node, max = 3 }) {
           </View>
         );
       })}
-      {more > 0 && <Text style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11, fontStyle: 'italic', marginTop: 1 }}>+{more} more</Text>}
+      {more > 0 && <Text style={{ color: C.t5, fontSize: 11, fontStyle: 'italic', marginTop: 1 }}>+{more} more</Text>}
     </View>
   );
 }
 
 function EntryRow({ entryKey, value, valueType, isArray, onChangeKey, onChangeValue, onRetype, onRemove, onDrillIn, keyError }) {
+  const styles = useStyles();
+  const C = usePalette();
   const t = valueType || detectType(value);
   const editableScalar = t === 'string' || t === 'number' || t === 'boolean' || t === 'null';
   const [text, setText] = useState(() => {
@@ -1921,24 +2001,24 @@ function EntryRow({ entryKey, value, valueType, isArray, onChangeKey, onChangeVa
         style={{
           flexDirection: 'row',
           alignItems: 'flex-start',
-          backgroundColor: 'rgba(255,255,255,0.05)',
+          backgroundColor: C.fill,
           borderRadius: 12,
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.08)',
+          borderColor: C.border,
           padding: 12,
           marginBottom: 8,
         }}
       >
         <View style={{ flex: 1 }}>
-          <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '600', marginBottom: 4 }} numberOfLines={1}>
+          <Text style={{ color: C.t1, fontSize: 14, fontWeight: '600', marginBottom: 4 }} numberOfLines={1}>
             {label}
           </Text>
           <MapPreviewLines node={value} max={3} />
         </View>
         <View style={{ alignItems: 'center', paddingLeft: 12, gap: 10 }}>
-          <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.2)" />
+          <Ionicons name="chevron-forward" size={16} color={C.t5} />
           <TouchableOpacity onPress={onRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
-            <Ionicons name="trash-outline" size={15} color="#ff3b30" />
+            <Ionicons name="trash-outline" size={15} color={C.danger} />
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -1951,7 +2031,7 @@ function EntryRow({ entryKey, value, valueType, isArray, onChangeKey, onChangeVa
         {isArray ? (
           <View style={styles.entryIndexPill}><Text style={styles.entryIndexText}>{entryKey}</Text></View>
         ) : (
-          <TextInput style={[styles.entryKeyInput, keyError && styles.inputError]} value={entryKey} onChangeText={onChangeKey} placeholder="key" placeholderTextColor={C.t4} autoCapitalize="none" autoCorrect={false} />
+          <TextInput keyboardAppearance={C.keyboardAppearance} style={[styles.entryKeyInput, keyError && styles.inputError]} value={entryKey} onChangeText={onChangeKey} placeholder="key" placeholderTextColor={C.t4} autoCapitalize="none" autoCorrect={false} />
         )}
         <TouchableOpacity style={styles.entryTypeChip} onPress={onRetype} activeOpacity={0.8}>
           <Text style={styles.entryTypeChipText}>{t}</Text>
@@ -1974,7 +2054,7 @@ function EntryRow({ entryKey, value, valueType, isArray, onChangeKey, onChangeVa
         </View>
       )}
       {editableScalar && (t === 'string' || t === 'number') && (
-        <TextInput style={styles.entryValueInput} value={text} onChangeText={commitText} placeholder={t === 'number' ? '0' : 'value'} placeholderTextColor={C.t4} keyboardType={t === 'number' ? 'numbers-and-punctuation' : 'default'} autoCapitalize="none" autoCorrect={false} />
+        <TextInput keyboardAppearance={C.keyboardAppearance} style={styles.entryValueInput} value={text} onChangeText={commitText} placeholder={t === 'number' ? '0' : 'value'} placeholderTextColor={C.t4} keyboardType={t === 'number' ? 'numbers-and-punctuation' : 'default'} autoCapitalize="none" autoCorrect={false} />
       )}
       {t === 'null' && <View style={styles.entryNullNote}><Text style={styles.entryNullText}>null</Text></View>}
       {(t === 'map' || t === 'array') && (
@@ -1997,6 +2077,8 @@ function EntryRow({ entryKey, value, valueType, isArray, onChangeKey, onChangeVa
 }
 
 function StructuredEditor({ initial, isArrayRoot, onChange, onValidityChange }) {
+  const styles = useStyles();
+  const C = usePalette();
   const [root, setRoot] = useState(() => toTree(initial));
   const [path, setPath] = useState([]);
   const idCounter = useRef(0);
@@ -2149,6 +2231,8 @@ function StructuredEditor({ initial, isArrayRoot, onChange, onValidityChange }) 
 // ── Field editor modal ────────────────────────────────────────────────────────
 
 function FieldEditorModal({ field, existingKeys = [], onCancel, onSave }) {
+  const styles = useStyles();
+  const C = usePalette();
   const [key, setKey] = useState(field.key);
   const [type, setType] = useState(field.type === 'null' ? 'string' : field.type);
   const [error, setError] = useState(null);
@@ -2227,7 +2311,7 @@ function FieldEditorModal({ field, existingKeys = [], onCancel, onSave }) {
   return (
     <Modal animationType="fade" transparent onRequestClose={onCancel}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
+        <GlassSurface style={styles.modalCard}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{field.isNew ? 'Add field' : `Edit "${field.key}"`}</Text>
             <TouchableOpacity onPress={onCancel} style={styles.modalCloseButton} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -2241,7 +2325,7 @@ function FieldEditorModal({ field, existingKeys = [], onCancel, onSave }) {
                   <Text style={styles.fieldLabelText}>Field name</Text>
                   <View style={styles.requiredBadge}><Text style={styles.requiredBadgeText}>Required</Text></View>
                 </View>
-                <TextInput style={[styles.input, keyConflict && styles.inputError]} placeholder="e.g. lastSyncedAt" placeholderTextColor={C.t4} value={key} onChangeText={setKey} autoCapitalize="none" autoCorrect={false} />
+                <TextInput keyboardAppearance={C.keyboardAppearance} style={[styles.input, keyConflict && styles.inputError]} placeholder="e.g. lastSyncedAt" placeholderTextColor={C.t4} value={key} onChangeText={setKey} autoCapitalize="none" autoCorrect={false} />
               </>
             )}
             <Text style={[styles.fieldLabelText, { marginTop: field.isNew ? 18 : 0 }]}>Type</Text>
@@ -2273,11 +2357,11 @@ function FieldEditorModal({ field, existingKeys = [], onCancel, onSave }) {
                   <StructuredEditor key={`${type}-${field.key}`} initial={structuredVal} isArrayRoot={type === 'array'} onChange={setStructuredVal} onValidityChange={setStructuredValid} />
                 ) : (
                   <>
-                    <TextInput style={[styles.input, styles.inputJson, jsonError && styles.inputError]} value={jsonText} onChangeText={validateJson} multiline autoCapitalize="none" autoCorrect={false} placeholder={type === 'array' ? '[ ... ]' : '{ ... }'} placeholderTextColor={C.t4} />
+                    <TextInput keyboardAppearance={C.keyboardAppearance} style={[styles.input, styles.inputJson, jsonError && styles.inputError]} value={jsonText} onChangeText={validateJson} multiline autoCapitalize="none" autoCorrect={false} placeholder={type === 'array' ? '[ ... ]' : '{ ... }'} placeholderTextColor={C.t4} />
                     {jsonError ? (
                       <View style={styles.errorBox}><Ionicons name="alert-circle" size={14} color={C.danger} /><Text style={styles.errorText}>{jsonError}</Text></View>
                     ) : (
-                      <View style={styles.jsonOkRow}><Ionicons name="checkmark-circle" size={13} color="#34c759" /><Text style={styles.jsonOkText}>Valid JSON</Text></View>
+                      <View style={styles.jsonOkRow}><Ionicons name="checkmark-circle" size={13} color={C.success} /><Text style={styles.jsonOkText}>Valid JSON</Text></View>
                     )}
                   </>
                 )}
@@ -2286,7 +2370,7 @@ function FieldEditorModal({ field, existingKeys = [], onCancel, onSave }) {
             {!isMapOrArray && type !== 'null' && (
               <>
                 <Text style={[styles.fieldLabelText, { marginTop: 18 }]}>Value</Text>
-                <TextInput style={styles.input} value={text} onChangeText={setText} autoCapitalize="none" autoCorrect={false}
+                <TextInput keyboardAppearance={C.keyboardAppearance} style={styles.input} value={text} onChangeText={setText} autoCapitalize="none" autoCorrect={false}
                   placeholder={type === 'timestamp' ? '2026-04-28T12:00:00Z' : type === 'reference' ? 'collection/doc/path' : type === 'geopoint' ? '40.7128, -74.0060' : type === 'boolean' ? 'true or false' : ''}
                   placeholderTextColor={C.t4} />
               </>
@@ -2304,7 +2388,7 @@ function FieldEditorModal({ field, existingKeys = [], onCancel, onSave }) {
               <Text style={styles.modalSaveText}>{field.isNew ? 'Add field' : 'Save'}</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </GlassSurface>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -2313,6 +2397,8 @@ function FieldEditorModal({ field, existingKeys = [], onCancel, onSave }) {
 // ── Typed confirm modal ───────────────────────────────────────────────────────
 
 function TypedConfirmModal({ state, onCancel }) {
+  const styles = useStyles();
+  const C = usePalette();
   const [typed, setTyped] = useState('');
   useEffect(() => { if (state) setTyped(''); }, [state]);
   if (!state) return null;
@@ -2320,7 +2406,7 @@ function TypedConfirmModal({ state, onCancel }) {
   return (
     <Modal animationType="fade" transparent onRequestClose={onCancel}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
-        <View style={styles.confirmCard}>
+        <GlassSurface style={styles.confirmCard}>
           <View style={styles.confirmIconWrap}><Ionicons name="warning" size={28} color={C.danger} /></View>
           <Text style={styles.confirmTitle}>{state.title}</Text>
           <Text style={styles.confirmMessage}>{state.message}</Text>
@@ -2331,17 +2417,17 @@ function TypedConfirmModal({ state, onCancel }) {
             </View>
           )}
           <Text style={styles.confirmPrompt}>Type <Text style={styles.confirmPhrase}>{state.phrase}</Text> to confirm</Text>
-          <TextInput style={[styles.input, matches && styles.inputMatch]} value={typed} onChangeText={setTyped} autoCapitalize="none" autoCorrect={false} placeholder={state.phrase} placeholderTextColor={C.t5} />
+          <TextInput keyboardAppearance={C.keyboardAppearance} style={[styles.input, matches && styles.inputMatch]} value={typed} onChangeText={setTyped} autoCapitalize="none" autoCorrect={false} placeholder={state.phrase} placeholderTextColor={C.t5} />
           <View style={styles.modalBtnRow}>
             <TouchableOpacity style={styles.modalCancelBtn} onPress={onCancel} activeOpacity={0.8}>
               <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.confirmDeleteBtn, !matches && { opacity: 0.4 }]} onPress={() => matches && state.onConfirm()} disabled={!matches} activeOpacity={0.8}>
-              <Ionicons name="trash" size={14} color="#fff" />
+              <Ionicons name="trash" size={14} color={C.onAccent} />
               <Text style={styles.confirmDeleteText}>Delete</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </GlassSurface>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -2349,7 +2435,9 @@ function TypedConfirmModal({ state, onCancel }) {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((theme) => {
+  const C = paletteFor(theme);
+  return {
   screen: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, padding: 40 },
 
@@ -2380,13 +2468,13 @@ const styles = StyleSheet.create({
   iconBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: C.fill },
   iconBtnActive: { backgroundColor: C.accent },
   newBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, height: 36, borderRadius: 18, backgroundColor: C.accent },
-  newBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  newBtnText: { color: C.onAccent, fontSize: 13, fontWeight: '600' },
 
   bulkBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: C.fillSoft, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.hair },
   bulkCount: { color: C.t1, fontSize: 14, fontWeight: '600' },
   bulkSelectAll: { color: C.accent, fontSize: 12, marginTop: 2, fontWeight: '500' },
-  bulkDeleteBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 36, borderRadius: 18, backgroundColor: C.danger },
-  bulkDeleteText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  bulkDeleteBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 36, borderRadius: 18, backgroundColor: C.dangerFill },
+  bulkDeleteText: { color: C.onAccent, fontSize: 13, fontWeight: '600' },
 
   sortBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 7, backgroundColor: C.fill, marginLeft: 8 },
   sortBadgeText: { fontSize: 10, color: C.t3, fontWeight: '600' },
@@ -2426,6 +2514,7 @@ const styles = StyleSheet.create({
   gridCheck: {
     position: 'absolute', top: 6, left: 6,
     width: 22, height: 22, borderRadius: 11,
+    // Sits on top of a photo, so it stays white-on-dark in both modes.
     borderWidth: 1.5, borderColor: '#fff',
     backgroundColor: 'rgba(0,0,0,0.35)',
     alignItems: 'center', justifyContent: 'center',
@@ -2444,8 +2533,8 @@ const styles = StyleSheet.create({
   footerStatus: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 24 },
   footerStatusText: { color: C.t3, fontSize: 13 },
 
-  floatingBarWrapper: { position: 'absolute', left: 16, right: 16, bottom: Platform.OS === 'ios' ? 28 : 16, borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 8 },
-  floatingBlur: { borderRadius: 18, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: Platform.OS === 'android' ? 'rgba(28,28,30,0.96)' : 'transparent' },
+  floatingBarWrapper: { position: 'absolute', left: 16, right: 16, bottom: Platform.OS === 'ios' ? 28 : 16, borderRadius: 18, overflow: 'hidden', shadowColor: C.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 8 },
+  floatingBlur: { borderRadius: 18, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: C.border, backgroundColor: Platform.OS === 'android' ? C.floatingAndroidBg : 'transparent' },
   floatingInner: { paddingHorizontal: 10, paddingVertical: 10 },
   searchContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: C.fill, borderRadius: 14, paddingHorizontal: 12, height: 42 },
   searchIcon: { marginRight: 6 },
@@ -2491,7 +2580,7 @@ const styles = StyleSheet.create({
   dangerBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, borderRadius: 12, backgroundColor: 'rgba(255,59,48,0.1)' },
   dangerText: { color: C.danger, fontSize: 14, fontWeight: '600' },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalOverlay: { flex: 1, backgroundColor: C.overlay, justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalCard: { width: '100%', maxWidth: 480, maxHeight: '85%', backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.hair, overflow: 'hidden' },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.hair },
   modalTitle: { color: C.t1, fontSize: 18, fontWeight: '600', flex: 1 },
@@ -2504,13 +2593,13 @@ const styles = StyleSheet.create({
   requiredBadgeText: { fontSize: 10, color: C.danger, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   input: { backgroundColor: C.fill, color: C.t1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15 },
-  inputError: { borderWidth: 1, borderColor: C.danger },
-  inputMatch: { borderWidth: 1, borderColor: '#34c759' },
+  inputError: { borderWidth: 1, borderColor: C.dangerFill },
+  inputMatch: { borderWidth: 1, borderColor: C.successFill },
   inputJson: { minHeight: 160, fontFamily: C.code, fontSize: 13, textAlignVertical: 'top', lineHeight: 19 },
 
   typePillsScroll: { gap: 7, paddingVertical: 2, paddingRight: 4 },
   typePill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, paddingVertical: 8, borderRadius: 999, backgroundColor: C.fill },
-  typePillActive: { backgroundColor: 'rgba(20,126,251,0.15)', borderWidth: 1, borderColor: 'rgba(20,126,251,0.3)' },
+  typePillActive: { backgroundColor: C.accentFill, borderWidth: 1, borderColor: 'rgba(20,126,251,0.3)' },
   typePillText: { color: C.t3, fontSize: 12, fontWeight: '600' },
   typePillTextActive: { color: C.accent },
 
@@ -2519,7 +2608,7 @@ const styles = StyleSheet.create({
   editModeBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 7 },
   editModeBtnActive: { backgroundColor: C.accent },
   editModeText: { color: C.t3, fontSize: 12, fontWeight: '600' },
-  editModeTextActive: { color: '#fff' },
+  editModeTextActive: { color: C.onAccent },
 
   entryRow: { backgroundColor: C.fillSoft, borderRadius: 12, padding: 12, marginBottom: 8 },
   entryTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -2534,7 +2623,7 @@ const styles = StyleSheet.create({
   boolToggle: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: C.fill },
   boolToggleActive: { backgroundColor: C.accent },
   boolToggleText: { color: C.t3, fontSize: 13, fontWeight: '600' },
-  boolToggleTextActive: { color: '#fff' },
+  boolToggleTextActive: { color: C.onAccent },
   entryNullNote: { marginTop: 8, paddingVertical: 9, paddingHorizontal: 11, borderRadius: 10, backgroundColor: C.fill },
   entryNullText: { color: C.t3, fontSize: 13 },
   entryNestedNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, paddingHorizontal: 2 },
@@ -2572,7 +2661,7 @@ const styles = StyleSheet.create({
   structEmptyText: { color: C.t4, fontSize: 12, fontStyle: 'italic' },
 
   jsonOkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
-  jsonOkText: { color: '#34c759', fontSize: 12, fontWeight: '500' },
+  jsonOkText: { color: C.success, fontSize: 12, fontWeight: '500' },
 
   nullNotice: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.fill, paddingHorizontal: 12, paddingVertical: 11, borderRadius: 12, marginTop: 18 },
   nullNoticeText: { color: C.t3, fontSize: 13 },
@@ -2584,7 +2673,7 @@ const styles = StyleSheet.create({
   modalCancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: C.fill, alignItems: 'center', justifyContent: 'center' },
   modalCancelText: { color: C.t2, fontSize: 15, fontWeight: '600' },
   modalSaveBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center' },
-  modalSaveText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  modalSaveText: { color: C.onAccent, fontSize: 15, fontWeight: '600' },
 
   confirmCard: { width: '100%', maxWidth: 420, backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.hair, overflow: 'hidden', paddingTop: 24 },
   confirmIconWrap: { alignSelf: 'center', width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,59,48,0.1)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
@@ -2595,6 +2684,7 @@ const styles = StyleSheet.create({
   confirmSampleId: { color: C.t2, fontSize: 12, fontFamily: C.code, marginTop: 2 },
   confirmPrompt: { color: C.t3, fontSize: 13, textAlign: 'center', marginBottom: 8, paddingHorizontal: 18 },
   confirmPhrase: { color: C.danger, fontWeight: '600', fontFamily: C.code },
-  confirmDeleteBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, backgroundColor: C.danger },
-  confirmDeleteText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  confirmDeleteBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, backgroundColor: C.dangerFill },
+  confirmDeleteText: { color: C.onAccent, fontSize: 15, fontWeight: '600' },
+  };
 });

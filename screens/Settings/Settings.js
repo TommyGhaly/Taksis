@@ -1,12 +1,16 @@
 import React from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, View } from "react-native";
+import { makeStyles, useTabBarInset } from "../../theme";
 import SettingsContent from "../../components/settingsContent";
 
 const Settings = () => {
+  const styles = useStyles();
+  // Keeps Log out / Delete Account clear of the floating glass tab bar.
+  const tabBarInset = useTabBarInset();
   return (
     <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={styles.scrollViewContent}
+        contentContainerStyle={[styles.scrollViewContent, { paddingBottom: tabBarInset }]}
         showsVerticalScrollIndicator={false}
       >
         <SettingsContent />
@@ -15,13 +19,13 @@ const Settings = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",  // Black background
+    backgroundColor: t.background,
   },
   scrollViewContent: {
   },
-});
+}));
 
 export default Settings;

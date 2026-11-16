@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from "react";
 import {
   Text,
-  StyleSheet,
   View,
   Pressable,
   Alert,
-  SafeAreaView,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { doc, getDoc, getFirestore, updateDoc } from "@react-native-firebase/firestore";
 import { getAuth } from "@react-native-firebase/auth";
 import { useNavigation } from "@react-navigation/native";
@@ -16,8 +15,12 @@ import BackArrow from "../../components/backArrow";
 import ProgressBar from "../../components/progressBar";
 import { callFunction } from "../../components/functionCalls";
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
+import { makeStyles, useTheme, GlassSurface, useTabBarInset } from "../../theme";
 
 const ChildAge = ({ route }) => {
+  const styles = useStyles();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const { childData } = route.params;
   const user = getAuth().currentUser;
   const userId = user ? user.uid : null;
@@ -114,7 +117,7 @@ const ChildAge = ({ route }) => {
         </View>
 
         <View style={styles.content}>
-          <View style={styles.card}>
+          <GlassSurface style={styles.card}>
             <Text style={styles.questionText}>
               What is your child's date of birth?
             </Text>
@@ -141,15 +144,15 @@ const ChildAge = ({ route }) => {
                   maximumDate={new Date()}
                   minimumDate={new Date(1900, 0, 1)} // Allow dates from 1900
                   style={styles.datePicker}
-                  textColor="#F0F0F0"
-                  accentColor="#147EFB"
+                  textColor={t.isDark ? "#F0F0F0" : t.text}
+                  accentColor={t.accent}
                 />
               )}
             </View>
-          </View>
+          </GlassSurface>
         </View>
 
-        <View style={styles.continueLayout}>
+        <View style={[styles.continueLayout, { bottom: 20 + tabBarInset }]}>
           <Pressable style={styles.continueButton} onPress={handleContinue}>
             <Text style={styles.buttonText}>Continue</Text>
           </Pressable>
@@ -159,10 +162,10 @@ const ChildAge = ({ route }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
   innerContainer: {
     flex: 1,
@@ -189,24 +192,24 @@ const styles = StyleSheet.create({
     paddingTop: 80,
   },
   card: {
-    backgroundColor: "#1E1E1E",
+    backgroundColor: t.surface,
     borderRadius: 24,
     padding: 24,
     width: "100%",
     maxWidth: 400,
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: t.shadow,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
     borderWidth: 1,
-    borderColor: "#2A2A2A",
+    borderColor: t.surfaceElevated,
   },
   questionText: {
     fontSize: 24,
     fontWeight: "600",
-    color: "#F0F0F0",
+    color: (t.isDark ? "#F0F0F0" : t.text),
     textAlign: "center",
     marginBottom: 20,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
@@ -221,7 +224,7 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 20,
-    color: "#F0F0F0",
+    color: (t.isDark ? "#F0F0F0" : t.text),
     marginTop: 5,
     fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
     textAlign: "center",
@@ -238,7 +241,7 @@ const styles = StyleSheet.create({
   },
   continueButton: {
     width: "100%",
-    backgroundColor: "#333",
+    backgroundColor: t.surfaceHighest,
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
@@ -249,9 +252,9 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     fontWeight: "500",
     fontFamily: "Roboto-Medium",
-    color: "#fff",
+    color: t.text,
     textAlign: "center",
   },
-});
+}));
 
 export default ChildAge;

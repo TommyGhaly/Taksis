@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import {
-  StyleSheet,
   View,
   Text,
   TextInput,
@@ -23,13 +22,16 @@ import {
 import { getAuth } from "@react-native-firebase/auth";
 import BackArrow from "../../components/backArrow";
 import { COLOR_OPTIONS } from "../../components/TrafficVehicleComponents";
+import { makeStyles, useTheme, useTabBarInset } from "../../theme";
 
-const ACCENT = "#147EFB";
 const MAX_DRIVERS = 5;
 
 const emptyDriver = () => ({ name: "", phone: "", has_taksis: false });
 
 const RegisterVehicle = ({ navigation }) => {
+  const styles = useStyles();
+  const theme = useTheme();
+  const tabBarInset = useTabBarInset();
   const [church, setChurch] = useState(null);
   const [plate, setPlate] = useState("");
   const [make, setMake] = useState("");
@@ -162,7 +164,7 @@ const RegisterVehicle = ({ navigation }) => {
         <BackArrow style={styles.backArrow} />
         <View style={styles.successWrap}>
           <View style={styles.successIcon}>
-            <Icon name="check" size={34} color="#34c759" />
+            <Icon name="check" size={34} color={theme.success} />
           </View>
           <Text style={styles.successTitle}>Registration Submitted</Text>
           <Text style={styles.successText}>
@@ -196,7 +198,7 @@ const RegisterVehicle = ({ navigation }) => {
         </View>
 
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarInset }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -205,7 +207,7 @@ const RegisterVehicle = ({ navigation }) => {
             <Icon
               name="camera-outline"
               size={20}
-              color={ACCENT}
+              color={theme.accent}
               style={{ marginTop: 1 }}
             />
             <Text style={styles.infoText}>
@@ -233,7 +235,8 @@ const RegisterVehicle = ({ navigation }) => {
               value={plate}
               onChangeText={(t) => setPlate(t)}
               placeholder="e.g. NH-ABC1234"
-              placeholderTextColor="rgba(255,255,255,0.3)"
+              placeholderTextColor={theme.placeholder}
+              keyboardAppearance={theme.keyboardAppearance}
               autoCapitalize="characters"
               autoCorrect={false}
             />
@@ -246,7 +249,8 @@ const RegisterVehicle = ({ navigation }) => {
                 value={make}
                 onChangeText={setMake}
                 placeholder="e.g. Toyota"
-                placeholderTextColor="rgba(255,255,255,0.3)"
+                placeholderTextColor={theme.placeholder}
+                keyboardAppearance={theme.keyboardAppearance}
               />
             </Field>
             <Field label="Model" style={{ flex: 1 }}>
@@ -255,7 +259,8 @@ const RegisterVehicle = ({ navigation }) => {
                 value={model}
                 onChangeText={setModel}
                 placeholder="e.g. Camry"
-                placeholderTextColor="rgba(255,255,255,0.3)"
+                placeholderTextColor={theme.placeholder}
+                keyboardAppearance={theme.keyboardAppearance}
               />
             </Field>
           </View>
@@ -332,7 +337,8 @@ const RegisterVehicle = ({ navigation }) => {
                     value={driver.name}
                     onChangeText={(t) => updateDriver(index, "name", t)}
                     placeholder="First and last name"
-                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    placeholderTextColor={theme.placeholder}
+                    keyboardAppearance={theme.keyboardAppearance}
                   />
                 </Field>
                 <Field
@@ -348,7 +354,8 @@ const RegisterVehicle = ({ navigation }) => {
                     value={driver.phone}
                     onChangeText={(t) => updateDriver(index, "phone", t)}
                     placeholder="(xxx) xxx-xxxx"
-                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    placeholderTextColor={theme.placeholder}
+                    keyboardAppearance={theme.keyboardAppearance}
                     keyboardType="phone-pad"
                   />
                 </Field>
@@ -391,7 +398,7 @@ const RegisterVehicle = ({ navigation }) => {
             disabled={isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={theme.onAccent} />
             ) : (
               <Text style={styles.submitText}>Submit Registration</Text>
             )}
@@ -405,21 +412,24 @@ const RegisterVehicle = ({ navigation }) => {
 };
 
 // Small labeled-field wrapper
-const Field = ({ label, required, error, children, style }) => (
-  <View style={[styles.field, style]}>
-    <Text style={styles.fieldLabel}>
-      {label}
-      {required && <Text style={styles.req}> *</Text>}
-    </Text>
-    {children}
-    {error ? <Text style={styles.errText}>{error}</Text> : null}
-  </View>
-);
+const Field = ({ label, required, error, children, style }) => {
+  const styles = useStyles();
+  return (
+    <View style={[styles.field, style]}>
+      <Text style={styles.fieldLabel}>
+        {label}
+        {required && <Text style={styles.req}> *</Text>}
+      </Text>
+      {children}
+      {error ? <Text style={styles.errText}>{error}</Text> : null}
+    </View>
+  );
+};
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
   },
   header: {
     paddingHorizontal: 20,
@@ -433,14 +443,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.6,
-    color: ACCENT,
+    color: t.accent,
     marginTop: 18,
     marginBottom: 6,
   },
   title: {
     fontSize: 30,
     fontWeight: "700",
-    color: "#fff",
+    color: t.text,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -460,21 +470,21 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     lineHeight: 20,
-    color: "rgba(255,255,255,0.6)",
+    color: t.textSecondary,
   },
   infoStrong: {
-    color: "#fff",
+    color: t.text,
     fontWeight: "700",
   },
   sectionTitle: {
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.4,
-    color: "rgba(255,255,255,0.42)",
+    color: t.textTertiary,
     marginBottom: 14,
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.08)",
+    borderBottomColor: t.border,
   },
   field: {
     marginBottom: 16,
@@ -482,32 +492,32 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 13,
     fontWeight: "600",
-    color: "rgba(255,255,255,0.7)",
+    color: t.textSecondary,
     marginBottom: 8,
   },
   req: {
-    color: "#ff453a",
+    color: t.dangerText,
   },
   input: {
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: t.fill,
     borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.09)",
+    borderColor: t.border,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === "ios" ? 13 : 10,
     fontSize: 15,
-    color: "#fff",
+    color: t.text,
   },
   plateInput: {
     fontWeight: "700",
     letterSpacing: 1,
   },
   inputError: {
-    borderColor: "#ff453a",
+    borderColor: t.danger,
   },
   errText: {
     fontSize: 12,
-    color: "#ff453a",
+    color: t.dangerText,
     marginTop: 6,
   },
   twoCol: {
@@ -528,26 +538,26 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: "rgba(255,255,255,0.04)",
+    borderColor: t.border,
+    backgroundColor: t.fill,
   },
   colorChipSelected: {
-    borderColor: ACCENT,
-    backgroundColor: "rgba(20,126,251,0.15)",
+    borderColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   swatch: {
     width: 14,
     height: 14,
     borderRadius: 7,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
+    borderColor: t.borderStrong,
   },
   colorLabel: {
     fontSize: 13,
-    color: "rgba(255,255,255,0.7)",
+    color: t.textSecondary,
   },
   colorLabelSelected: {
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
   },
   countRow: {
@@ -560,26 +570,26 @@ const styles = StyleSheet.create({
     height: 46,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.09)",
-    backgroundColor: "rgba(255,255,255,0.04)",
+    borderColor: t.border,
+    backgroundColor: t.fill,
     alignItems: "center",
     justifyContent: "center",
   },
   countPillActive: {
-    borderColor: ACCENT,
-    backgroundColor: "rgba(20,126,251,0.15)",
+    borderColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   countText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "rgba(255,255,255,0.6)",
+    color: t.textSecondary,
   },
   countTextActive: {
-    color: "#fff",
+    color: t.text,
   },
   driverBlock: {
     borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: t.border,
     borderRadius: 14,
     overflow: "hidden",
     marginBottom: 12,
@@ -588,29 +598,29 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: t.fill,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderBottomWidth: 1.5,
-    borderBottomColor: "rgba(255,255,255,0.07)",
+    borderBottomColor: t.border,
   },
   driverNum: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: ACCENT,
+    backgroundColor: t.accent,
     alignItems: "center",
     justifyContent: "center",
   },
   driverNumText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#fff",
+    color: t.onAccent,
   },
   driverHeadLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "rgba(255,255,255,0.7)",
+    color: t.textSecondary,
   },
   driverBody: {
     padding: 14,
@@ -619,9 +629,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    backgroundColor: "rgba(255,255,255,0.03)",
+    backgroundColor: t.fill,
     borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.07)",
+    borderColor: t.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 11,
@@ -634,39 +644,39 @@ const styles = StyleSheet.create({
     width: 36,
     height: 21,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.14)",
+    backgroundColor: t.fillStrong,
     padding: 3,
     justifyContent: "center",
   },
   pillOn: {
-    backgroundColor: ACCENT,
+    backgroundColor: t.accent,
   },
   knob: {
     width: 15,
     height: 15,
     borderRadius: 7.5,
-    backgroundColor: "rgba(255,255,255,0.6)",
+    backgroundColor: t.isDark ? "rgba(255,255,255,0.6)" : "#FFFFFF",
   },
   knobOn: {
-    backgroundColor: "#fff",
+    backgroundColor: t.onAccent,
     alignSelf: "flex-end",
   },
   taksisText: {
     flex: 1,
     fontSize: 13,
     lineHeight: 18,
-    color: "rgba(255,255,255,0.6)",
+    color: t.textSecondary,
   },
   taksisBold: {
-    color: "#fff",
+    color: t.text,
     fontWeight: "600",
   },
   taksisMuted: {
-    color: "rgba(255,255,255,0.3)",
+    color: t.textTertiary,
     fontStyle: "italic",
   },
   submitButton: {
-    backgroundColor: ACCENT,
+    backgroundColor: t.accent,
     borderRadius: 14,
     height: 52,
     alignItems: "center",
@@ -679,7 +689,7 @@ const styles = StyleSheet.create({
   submitText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: t.onAccent,
   },
   // Success
   successWrap: {
@@ -700,17 +710,17 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#fff",
+    color: t.text,
   },
   successText: {
     fontSize: 15,
     lineHeight: 23,
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
     textAlign: "center",
   },
   doneButton: {
     marginTop: 12,
-    backgroundColor: ACCENT,
+    backgroundColor: t.accent,
     borderRadius: 14,
     height: 50,
     paddingHorizontal: 40,
@@ -728,8 +738,8 @@ const styles = StyleSheet.create({
   secondaryText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "rgba(255,255,255,0.5)",
+    color: t.textSecondary,
   },
-});
+}));
 
 export default RegisterVehicle;

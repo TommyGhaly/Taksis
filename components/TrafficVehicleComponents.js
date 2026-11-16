@@ -14,6 +14,7 @@ import {
   setDoc,
 } from "@react-native-firebase/firestore";
 import { LIST_PERF } from "../utils/listConfig";
+import { makeStyles, useTheme, GlassSurface } from "../theme";
 
 // Bottom sheets stop at this width, centered along the bottom edge: at full
 // width on an iPad a sheet ran the whole 1,200pt window with its content
@@ -44,13 +45,19 @@ export const COLOR_OPTIONS = [
 // ── UserSelectRow ─────────────────────────────────────────────────────────────
 
 const userUidKeyExtractor = (item) => item.uid;
-const EmptyPeople = () => (
-  <View style={s.emptyPeopleWrap}>
-    <Text style={s.emptyPeopleText}>No people found</Text>
-  </View>
-);
+const EmptyPeople = () => {
+  const s = useS();
+  return (
+    <View style={s.emptyPeopleWrap}>
+      <Text style={s.emptyPeopleText}>No people found</Text>
+    </View>
+  );
+};
 
-const UserSelectRow = memo(({ item, selected, onPress, getImageSource, isUnreg, onDelete }) => (
+const UserSelectRow = memo(({ item, selected, onPress, getImageSource, isUnreg, onDelete }) => {
+  const s = useS();
+  const t = useTheme();
+  return (
   <TouchableOpacity
     style={[s.userRow, selected && s.userRowSelected]}
     onPress={() => onPress(item.uid)}
@@ -72,18 +79,21 @@ const UserSelectRow = memo(({ item, selected, onPress, getImageSource, isUnreg, 
         onPress={() => onDelete(item)}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
-        <Icon name="trash-can-outline" size={16} color="#ff453a" />
+        <Icon name="trash-can-outline" size={16} color={t.dangerText} />
       </TouchableOpacity>
     ) : null}
     <View style={[s.checkbox, selected && s.checkboxSelected]}>
-      {selected ? <Icon name="check" size={14} color="#fff" /> : null}
+      {selected ? <Icon name="check" size={14} color={t.onAccent} /> : null}
     </View>
   </TouchableOpacity>
-));
+  );
+});
 
 // ── ColorPicker ───────────────────────────────────────────────────────────────
 
-const ColorPicker = memo(({ value, onSelect }) => (
+const ColorPicker = memo(({ value, onSelect }) => {
+  const s = useS();
+  return (
   <FlatList
     data={COLOR_OPTIONS}
     keyExtractor={(c) => c.value}
@@ -109,11 +119,14 @@ const ColorPicker = memo(({ value, onSelect }) => (
       );
     }}
   />
-));
+  );
+});
 
 // ── AddGuestInline ────────────────────────────────────────────────────────────
 
 const AddGuestInline = memo(({ visible, onSave, onCancel, saving }) => {
+  const s = useS();
+  const t = useTheme();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
 
@@ -126,13 +139,14 @@ const AddGuestInline = memo(({ visible, onSave, onCancel, saving }) => {
   return (
     <View style={s.inlineAddGuest}>
       <View style={s.inlineAddGuestHeader}>
-        <Icon name="account-plus" size={18} color="#147efb" />
+        <Icon name="account-plus" size={18} color={t.accent} />
         <Text style={s.inlineAddGuestTitle}>Add Person</Text>
       </View>
       <TextInput
         style={s.inlineInput}
         placeholder="Full Name"
-        placeholderTextColor="rgba(255,255,255,0.25)"
+        placeholderTextColor={t.placeholder}
+        keyboardAppearance={t.keyboardAppearance}
         value={name}
         onChangeText={setName}
         autoCapitalize="words"
@@ -140,7 +154,8 @@ const AddGuestInline = memo(({ visible, onSave, onCancel, saving }) => {
       <TextInput
         style={s.inlineInput}
         placeholder="Phone Number"
-        placeholderTextColor="rgba(255,255,255,0.25)"
+        placeholderTextColor={t.placeholder}
+        keyboardAppearance={t.keyboardAppearance}
         value={phone}
         onChangeText={setPhone}
         keyboardType="phone-pad"
@@ -156,7 +171,7 @@ const AddGuestInline = memo(({ visible, onSave, onCancel, saving }) => {
           activeOpacity={0.7}
         >
           {saving
-            ? <ActivityIndicator color="#fff" size="small" />
+            ? <ActivityIndicator color={t.onAccent} size="small" />
             : <Text style={s.inlineGuestSaveText}>Save</Text>}
         </TouchableOpacity>
       </View>
@@ -166,15 +181,19 @@ const AddGuestInline = memo(({ visible, onSave, onCancel, saving }) => {
 
 // ── SelectedDriverChip ────────────────────────────────────────────────────────
 
-const SelectedDriverChip = memo(({ uid, user, getImageSource, onRemove }) => (
+const SelectedDriverChip = memo(({ uid, user, getImageSource, onRemove }) => {
+  const s = useS();
+  const t = useTheme();
+  return (
   <View style={s.chip}>
     <Image source={getImageSource(uid)} style={s.chipAvatar} contentFit="cover" />
     <Text style={s.chipName} numberOfLines={1}>{user?.name?.split(" ")[0] ?? "?"}</Text>
     <TouchableOpacity onPress={() => onRemove(uid)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-      <Icon name="close-circle" size={16} color="rgba(255,255,255,0.4)" />
+      <Icon name="close-circle" size={16} color={t.textTertiary} />
     </TouchableOpacity>
   </View>
-));
+  );
+});
 
 // ── VehicleFormSheet ──────────────────────────────────────────────────────────
 
@@ -182,6 +201,8 @@ export const VehicleFormSheet = memo(({
   visible, mode, initialData, allUsers, getImageSource,
   onSave, onClose, pendingVehicles, onOpenPending, onOpenRelink,
 }) => {
+  const s = useS();
+  const t = useTheme();
   const [license, setLicense] = useState("");
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
@@ -278,11 +299,11 @@ export const VehicleFormSheet = memo(({
           {item.phone ? <Text style={s.personPhone}>{item.phone}</Text> : null}
         </View>
         <View style={[s.checkbox, selected && s.checkboxSelected]}>
-          {selected ? <Icon name="check" size={13} color="#fff" /> : null}
+          {selected ? <Icon name="check" size={13} color={t.onAccent} /> : null}
         </View>
       </TouchableOpacity>
     );
-  }, [drivers, toggleDriver, getImageSource]);
+  }, [drivers, toggleDriver, getImageSource, s, t]);
 
   // Indexed rather than scanned: this ran unmemoized on every modal render, with
   // a full linear scan of allUsers per selected driver.
@@ -304,17 +325,17 @@ export const VehicleFormSheet = memo(({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={0}
       >
-        <View style={s.formSheet}>
+        <GlassSurface style={s.formSheet}>
           <View style={s.formHeader}>
             <TouchableOpacity onPress={onClose} style={s.formCloseBtn}>
-              <Icon name="chevron-down" size={24} color="rgba(255,255,255,0.5)" />
+              <Icon name="chevron-down" size={24} color={t.textSecondary} />
             </TouchableOpacity>
             <Text style={s.formTitle}>{isReg ? "Register Vehicle" : "Edit Vehicle"}</Text>
             {isReg ? (
               <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
                 {onOpenPending ? (
                   <TouchableOpacity style={s.pendingPill} onPress={onOpenPending} activeOpacity={0.7}>
-                    <Icon name="car-clock" size={14} color="#ff9f0a" />
+                    <Icon name="car-clock" size={14} color={t.warningText} />
                     <Text style={s.pendingPillText}>Pending</Text>
                     {pendingVehicles?.length > 0 ? (
                       <View style={s.pendingDot}>
@@ -325,7 +346,7 @@ export const VehicleFormSheet = memo(({
                 ) : null}
                 {onOpenRelink ? (
                   <TouchableOpacity style={s.relinkPill} onPress={onOpenRelink} activeOpacity={0.7}>
-                    <Icon name="link-variant" size={14} color="#bf5af2" />
+                    <Icon name="link-variant" size={14} color={t.purple} />
                     <Text style={s.relinkPillText}>Fix</Text>
                   </TouchableOpacity>
                 ) : null}
@@ -358,13 +379,13 @@ export const VehicleFormSheet = memo(({
               <View>
                 <View style={s.formSection}>
                   <Text style={s.formSectionLabel}>License Plate</Text>
-                  <TextInput style={s.plateInput} placeholder="ABC · 1234" placeholderTextColor="rgba(255,255,255,0.15)" autoCapitalize="characters" value={license} onChangeText={setLicense} maxLength={10} />
+                  <TextInput style={s.plateInput} placeholder="ABC · 1234" placeholderTextColor={t.placeholder} keyboardAppearance={t.keyboardAppearance} autoCapitalize="characters" value={license} onChangeText={setLicense} maxLength={10} />
                 </View>
                 <View style={s.formSection}>
                   <Text style={s.formSectionLabel}>Vehicle Info <Text style={s.formSectionOptional}>(optional)</Text></Text>
                   <View style={s.infoRow}>
-                    <TextInput style={[s.infoInput, { flex: 1, marginRight: 8 }]} placeholder="Make" placeholderTextColor="rgba(255,255,255,0.25)" value={make} onChangeText={setMake} />
-                    <TextInput style={[s.infoInput, { flex: 1 }]} placeholder="Model" placeholderTextColor="rgba(255,255,255,0.25)" value={model} onChangeText={setModel} />
+                    <TextInput style={[s.infoInput, { flex: 1, marginRight: 8 }]} placeholder="Make" placeholderTextColor={t.placeholder} keyboardAppearance={t.keyboardAppearance} value={make} onChangeText={setMake} />
+                    <TextInput style={[s.infoInput, { flex: 1 }]} placeholder="Model" placeholderTextColor={t.placeholder} keyboardAppearance={t.keyboardAppearance} value={model} onChangeText={setModel} />
                   </View>
                   <ColorPicker value={color} onSelect={setColor} />
                 </View>
@@ -382,16 +403,16 @@ export const VehicleFormSheet = memo(({
                 <View style={s.peopleSectionHeader}>
                   <Text style={s.formSectionLabel}>Add Drivers</Text>
                   <TouchableOpacity style={s.addGuestBtn} onPress={() => setGuestOpen((p) => !p)} activeOpacity={0.7}>
-                    <Icon name="account-plus-outline" size={15} color="#147efb" />
+                    <Icon name="account-plus-outline" size={15} color={t.accent} />
                     <Text style={s.addGuestBtnText}>Add Guest</Text>
                   </TouchableOpacity>
                 </View>
                 <View style={s.searchRow}>
-                  <Icon name="magnify" size={18} color="rgba(255,255,255,0.35)" />
-                  <TextInput style={s.searchInput} placeholder="Search by name or phone..." placeholderTextColor="rgba(255,255,255,0.25)" value={search} onChangeText={setSearch} />
+                  <Icon name="magnify" size={18} color={t.textTertiary} />
+                  <TextInput style={s.searchInput} placeholder="Search by name or phone..." placeholderTextColor={t.placeholder} keyboardAppearance={t.keyboardAppearance} value={search} onChangeText={setSearch} />
                   {search.length > 0 && (
                     <TouchableOpacity onPress={() => setSearch("")}>
-                      <Icon name="close-circle" size={16} color="rgba(255,255,255,0.3)" />
+                      <Icon name="close-circle" size={16} color={t.textTertiary} />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -400,11 +421,11 @@ export const VehicleFormSheet = memo(({
             ListEmptyComponent={EmptyPeople}
           />
 
-          <View style={s.formFooter}>
+          <GlassSurface style={s.formFooter}>
             <View style={s.formFooterMeta}>
-              <Icon name={license.trim() ? "check-circle" : "circle-outline"} size={14} color={license.trim() ? "#34c759" : "rgba(255,255,255,0.2)"} />
+              <Icon name={license.trim() ? "check-circle" : "circle-outline"} size={14} color={license.trim() ? t.success : tintText(t, 0.2)} />
               <Text style={s.formFooterMetaText}>Plate</Text>
-              <Icon name={drivers.length > 0 ? "check-circle" : "circle-outline"} size={14} color={drivers.length > 0 ? "#34c759" : "rgba(255,255,255,0.2)"} style={{ marginLeft: 12 }} />
+              <Icon name={drivers.length > 0 ? "check-circle" : "circle-outline"} size={14} color={drivers.length > 0 ? t.success : tintText(t, 0.2)} style={{ marginLeft: 12 }} />
               <Text style={s.formFooterMetaText}>{drivers.length} driver{drivers.length !== 1 ? "s" : ""}</Text>
             </View>
             <TouchableOpacity
@@ -413,10 +434,10 @@ export const VehicleFormSheet = memo(({
               disabled={!license.trim() || drivers.length === 0 || saving}
               activeOpacity={0.8}
             >
-              {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.formSaveBtnText}>{isReg ? "Register Vehicle" : "Save Changes"}</Text>}
+              {saving ? <ActivityIndicator color={t.onAccent} size="small" /> : <Text style={s.formSaveBtnText}>{isReg ? "Register Vehicle" : "Save Changes"}</Text>}
             </TouchableOpacity>
-          </View>
-        </View>
+          </GlassSurface>
+        </GlassSurface>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -443,6 +464,8 @@ function phoneSimilar(a, b) {
 // ── ApprovalFlow ──────────────────────────────────────────────────────────────
 
 export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, churchId, onDone, onCancel }) {
+  const s = useS();
+  const t = useTheme();
   const [step, setStep] = useState(0);
   const [resolutions, setResolutions] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -515,7 +538,7 @@ export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, ch
   if (saving) {
     return (
       <View style={s.approvalCenter}>
-        <ActivityIndicator size="large" color="#147efb" />
+        <ActivityIndicator size="large" color={t.accent} />
         <Text style={s.approvalSavingText}>Saving...</Text>
       </View>
     );
@@ -528,7 +551,7 @@ export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, ch
       <View style={s.approvalContainer}>
         <Text style={s.approvalProgress}>{progress}</Text>
         <View style={s.approvalDriverHeader}>
-          <Icon name="account-check" size={20} color="#147efb" />
+          <Icon name="account-check" size={20} color={t.accent} />
           <Text style={s.approvalDriverName}>{driver.name}</Text>
           <View style={s.taksisBadge}><Text style={s.taksisBadgeText}>Has Taksis</Text></View>
         </View>
@@ -543,7 +566,7 @@ export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, ch
                 <Text style={s.matchName}>{u.name}</Text>
                 {u.phone ? <Text style={s.matchPhone}>{u.phone}</Text> : null}
               </View>
-              <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.3)" />
+              <Icon name="chevron-right" size={20} color={t.textTertiary} />
             </TouchableOpacity>
           )}
         />
@@ -564,7 +587,7 @@ export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, ch
       <View style={s.approvalContainer}>
         <Text style={s.approvalProgress}>{progress}</Text>
         <View style={s.approvalDriverHeader}>
-          <Icon name="account" size={20} color="rgba(255,255,255,0.5)" />
+          <Icon name="account" size={20} color={t.textSecondary} />
           <Text style={s.approvalDriverName}>{driver.name}</Text>
         </View>
         <Text style={s.approvalSubtitle}>Similar people already exist — is this one of them?</Text>
@@ -579,7 +602,7 @@ export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, ch
                 {u.phone ? <Text style={s.matchPhone}>{u.phone}</Text> : null}
                 <View style={s.unregBadge}><Text style={s.unregBadgeText}>No Account</Text></View>
               </View>
-              <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.3)" />
+              <Icon name="chevron-right" size={20} color={t.textTertiary} />
             </TouchableOpacity>
           )}
         />
@@ -594,13 +617,13 @@ export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, ch
     <View style={s.approvalContainer}>
       <Text style={s.approvalProgress}>{progress}</Text>
       <View style={s.approvalDriverHeader}>
-        <Icon name="account-plus" size={20} color="#34c759" />
+        <Icon name="account-plus" size={20} color={t.success} />
         <Text style={s.approvalDriverName}>{driver.name}</Text>
       </View>
       <Text style={s.approvalSubtitle}>Add as unregistered person:</Text>
       <View style={s.approvalInputGroup}>
-        <TextInput style={s.approvalInput} placeholder="Full Name" placeholderTextColor="rgba(255,255,255,0.25)" value={newName} onChangeText={setNewName} autoCapitalize="words" />
-        <TextInput style={s.approvalInput} placeholder="Phone Number" placeholderTextColor="rgba(255,255,255,0.25)" value={newPhone} onChangeText={setNewPhone} keyboardType="phone-pad" />
+        <TextInput style={s.approvalInput} placeholder="Full Name" placeholderTextColor={t.placeholder} keyboardAppearance={t.keyboardAppearance} value={newName} onChangeText={setNewName} autoCapitalize="words" />
+        <TextInput style={s.approvalInput} placeholder="Phone Number" placeholderTextColor={t.placeholder} keyboardAppearance={t.keyboardAppearance} value={newPhone} onChangeText={setNewPhone} keyboardType="phone-pad" />
       </View>
       <TouchableOpacity
         style={[s.approvalPrimaryBtn, (!newName.trim() || !newPhone.trim()) && { opacity: 0.4 }]}
@@ -618,6 +641,8 @@ export function ApprovalFlow({ vehicle, churchUsers, unregUsers, currentQrId, ch
 
 /** One pending vehicle. Display strings arrive precomputed. */
 const PendingCard = memo(({ vehicle, metaText, driverSummary, onSelect }) => {
+  const s = useS();
+  const t = useTheme();
   const Wrapper = onSelect ? TouchableOpacity : View;
   return (
     <Wrapper
@@ -633,20 +658,25 @@ const PendingCard = memo(({ vehicle, metaText, driverSummary, onSelect }) => {
           <Text style={s.pendingDriverCount}>{driverSummary}</Text>
         </View>
       </View>
-      {onSelect ? <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.3)" /> : null}
+      {onSelect ? <Icon name="chevron-right" size={20} color={t.textTertiary} /> : null}
     </Wrapper>
   );
 });
 PendingCard.displayName = "PendingCard";
 
 const pendingKeyExtractor = (item) => item.vehicle.id;
-const PendingEmpty = () => (
-  <View style={s.pendingEmptyWrap}>
-    <Text style={s.pendingEmptyText}>No results</Text>
-  </View>
-);
+const PendingEmpty = () => {
+  const s = useS();
+  return (
+    <View style={s.pendingEmptyWrap}>
+      <Text style={s.pendingEmptyText}>No results</Text>
+    </View>
+  );
+};
 
 export function PendingList({ pendingVehicles, onSelect, onClose, hideHeader = false }) {
+  const s = useS();
+  const t = useTheme();
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -709,23 +739,23 @@ export function PendingList({ pendingVehicles, onSelect, onClose, hideHeader = f
           <View style={s.sheetHeaderLeft} />
           <Text style={s.sheetTitle}>Pending Registrations</Text>
           <TouchableOpacity onPress={onClose}>
-            <Icon name="close" size={24} color="rgba(255,255,255,0.5)" />
+            <Icon name="close" size={24} color={t.textSecondary} />
           </TouchableOpacity>
         </View>
       )}
       {pendingVehicles.length === 0 ? (
         <View style={s.pendingEmpty}>
-          <Icon name="car-clock" size={40} color="rgba(255,255,255,0.15)" />
+          <Icon name="car-clock" size={40} color={tintText(t, 0.15)} />
           <Text style={s.pendingEmptyText}>No pending registrations</Text>
         </View>
       ) : (
         <>
           <View style={[s.searchBox, { marginHorizontal: 16, marginTop: 12, marginBottom: 4 }]}>
-            <Icon name="magnify" size={18} color="rgba(255,255,255,0.4)" />
-            <TextInput style={s.searchInput} placeholder="Search by plate, name, make..." placeholderTextColor="rgba(255,255,255,0.3)" value={search} onChangeText={setSearch} />
+            <Icon name="magnify" size={18} color={t.textTertiary} />
+            <TextInput style={s.searchInput} placeholder="Search by plate, name, make..." placeholderTextColor={t.placeholder} keyboardAppearance={t.keyboardAppearance} value={search} onChangeText={setSearch} />
             {search.length > 0 ? (
               <TouchableOpacity onPress={() => setSearch("")}>
-                <Icon name="close-circle" size={16} color="rgba(255,255,255,0.4)" />
+                <Icon name="close-circle" size={16} color={t.textTertiary} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -747,113 +777,117 @@ export function PendingList({ pendingVehicles, onSelect, onClose, hideHeader = f
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
-  bottomOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
-  sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
+// Translucent white tints with no exact token: dark keeps the original alpha,
+// light gets the matching dark-on-light tint.
+const tintText = (t, a) => (t.isDark ? `rgba(255,255,255,${a})` : `rgba(60,60,67,${Math.max(a, 0.3)})`);
+
+const useS = makeStyles((t) => ({
+  bottomOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: "flex-end" },
+  sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: t.border },
   sheetHeaderLeft: { width: 24 },
-  sheetTitle: { fontSize: 17, fontWeight: "600", color: "#fff", letterSpacing: 0 },
-  formSheet: { width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center", backgroundColor: "#181818", borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "94%", height: "94%" },
-  formHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(255,255,255,0.08)" },
-  formCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.06)", justifyContent: "center", alignItems: "center" },
-  formTitle: { fontSize: 17, fontWeight: "700", color: "#fff", letterSpacing: 0 },
+  sheetTitle: { fontSize: 17, fontWeight: "600", color: t.text, letterSpacing: 0 },
+  formSheet: { width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center", backgroundColor: t.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "94%", height: "94%" },
+  formHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border },
+  formCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: t.fill, justifyContent: "center", alignItems: "center" },
+  formTitle: { fontSize: 17, fontWeight: "700", color: t.text, letterSpacing: 0 },
   pendingPill: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,159,10,0.12)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
-  pendingPillText: { fontSize: 12, fontWeight: "600", color: "#ff9f0a", letterSpacing: 0 },
-  pendingDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: "#ff9f0a", justifyContent: "center", alignItems: "center" },
+  pendingPillText: { fontSize: 12, fontWeight: "600", color: t.warningText, letterSpacing: 0 },
+  pendingDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: t.warning, justifyContent: "center", alignItems: "center" },
   pendingDotText: { fontSize: 9, fontWeight: "700", color: "#000" },
   relinkPill: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(191,90,242,0.12)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
-  relinkPillText: { fontSize: 12, fontWeight: "600", color: "#bf5af2", letterSpacing: 0 },
+  relinkPillText: { fontSize: 12, fontWeight: "600", color: t.purple, letterSpacing: 0 },
   formSection: { marginTop: 20 },
-  formSectionLabel: { fontSize: 11, fontWeight: "600", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 },
-  formSectionOptional: { fontWeight: "400", textTransform: "none", letterSpacing: 0, color: "rgba(255,255,255,0.2)" },
-  plateInput: { backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 14, paddingHorizontal: 20, paddingVertical: 18, color: "#fff", fontSize: 26, fontWeight: "700", textAlign: "center", letterSpacing: 3, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.08)" },
+  formSectionLabel: { fontSize: 11, fontWeight: "600", color: t.textTertiary, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 },
+  formSectionOptional: { fontWeight: "400", textTransform: "none", letterSpacing: 0, color: tintText(t, 0.2) },
+  plateInput: { backgroundColor: t.fill, borderRadius: 14, paddingHorizontal: 20, paddingVertical: 18, color: t.text, fontSize: 26, fontWeight: "700", textAlign: "center", letterSpacing: 3, borderWidth: StyleSheet.hairlineWidth, borderColor: t.border },
   infoRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
-  infoInput: { backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, color: "#fff", fontSize: 15, letterSpacing: 0, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.08)" },
+  infoInput: { backgroundColor: t.fill, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, color: t.text, fontSize: 15, letterSpacing: 0, borderWidth: StyleSheet.hairlineWidth, borderColor: t.border },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(20,126,251,0.15)", borderRadius: 20, paddingVertical: 6, paddingLeft: 6, paddingRight: 10, gap: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(20,126,251,0.25)" },
+  chip: { flexDirection: "row", alignItems: "center", backgroundColor: t.accentFill, borderRadius: 20, paddingVertical: 6, paddingLeft: 6, paddingRight: 10, gap: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(20,126,251,0.25)" },
   chipAvatar: { width: 24, height: 24, borderRadius: 12 },
-  chipName: { fontSize: 13, fontWeight: "600", color: "#fff", maxWidth: 80, letterSpacing: 0 },
+  chipName: { fontSize: 13, fontWeight: "600", color: t.text, maxWidth: 80, letterSpacing: 0 },
   peopleSectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 24, marginBottom: 10 },
-  addGuestBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(20,126,251,0.1)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
-  addGuestBtnText: { fontSize: 12, fontWeight: "600", color: "#147efb", letterSpacing: 0 },
-  searchRow: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 2, marginBottom: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.06)" },
-  searchBox: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 12 },
-  searchInput: { flex: 1, color: "#fff", fontSize: 15, paddingVertical: 11, marginLeft: 6, letterSpacing: 0 },
-  personRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14, marginBottom: 6, backgroundColor: "rgba(255,255,255,0.04)" },
-  personRowSelected: { backgroundColor: "rgba(20,126,251,0.12)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(20,126,251,0.3)" },
+  addGuestBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: t.accentFill, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
+  addGuestBtnText: { fontSize: 12, fontWeight: "600", color: t.accent, letterSpacing: 0 },
+  searchRow: { flexDirection: "row", alignItems: "center", backgroundColor: t.fill, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 2, marginBottom: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: t.border },
+  searchBox: { flexDirection: "row", alignItems: "center", backgroundColor: t.fill, borderRadius: 10, paddingHorizontal: 12 },
+  searchInput: { flex: 1, color: t.text, fontSize: 15, paddingVertical: 11, marginLeft: 6, letterSpacing: 0 },
+  personRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14, marginBottom: 6, backgroundColor: t.fill },
+  personRowSelected: { backgroundColor: t.accentFill, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(20,126,251,0.3)" },
   personAvatar: { width: 40, height: 40, borderRadius: 20 },
   personInfo: { flex: 1, marginLeft: 12 },
-  personName: { fontSize: 15, fontWeight: "500", color: "#fff", letterSpacing: 0 },
-  personPhone: { fontSize: 13, color: "rgba(255,255,255,0.35)", marginTop: 1, letterSpacing: 0 },
-  formFooter: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#181818", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255,255,255,0.08)", paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
+  personName: { fontSize: 15, fontWeight: "500", color: t.text, letterSpacing: 0 },
+  personPhone: { fontSize: 13, color: t.textTertiary, marginTop: 1, letterSpacing: 0 },
+  formFooter: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: t.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
   formFooterMeta: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  formFooterMetaText: { fontSize: 12, color: "rgba(255,255,255,0.35)", marginLeft: 4, letterSpacing: 0 },
-  formSaveBtn: { backgroundColor: "#147efb", paddingVertical: 15, borderRadius: 14, alignItems: "center" },
-  formSaveBtnGreen: { backgroundColor: "#30d158" },
-  formSaveBtnText: { fontSize: 16, fontWeight: "700", color: "#fff", letterSpacing: 0 },
+  formFooterMetaText: { fontSize: 12, color: t.textTertiary, marginLeft: 4, letterSpacing: 0 },
+  formSaveBtn: { backgroundColor: t.accent, paddingVertical: 15, borderRadius: 14, alignItems: "center" },
+  formSaveBtnGreen: { backgroundColor: t.success },
+  formSaveBtnText: { fontSize: 16, fontWeight: "700", color: t.onAccent, letterSpacing: 0 },
   pendingSheet: { flex: 1 },
   pendingEmpty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
-  pendingEmptyText: { fontSize: 15, color: "rgba(255,255,255,0.3)", letterSpacing: 0 },
-  pendingCard: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 16, marginBottom: 10 },
+  pendingEmptyText: { fontSize: 15, color: t.textTertiary, letterSpacing: 0 },
+  pendingCard: { flexDirection: "row", alignItems: "center", backgroundColor: t.fill, borderRadius: 14, padding: 16, marginBottom: 10 },
   pendingCardLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
-  pendingStatusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#ff9f0a" },
-  pendingLicense: { fontSize: 17, fontWeight: "700", color: "#fff", letterSpacing: 0 },
-  pendingMeta: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 2, letterSpacing: 0 },
-  pendingDriverCount: { fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 2, letterSpacing: 0 },
+  pendingStatusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.warning },
+  pendingLicense: { fontSize: 17, fontWeight: "700", color: t.text, letterSpacing: 0 },
+  pendingMeta: { fontSize: 13, color: t.textTertiary, marginTop: 2, letterSpacing: 0 },
+  pendingDriverCount: { fontSize: 12, color: t.textTertiary, marginTop: 2, letterSpacing: 0 },
   // Hoisted out of the JSX, where they were fresh object literals every render.
   pendingListContent: { padding: 16 },
   pendingEmptyWrap: { alignItems: "center", marginTop: 32 },
-  pendingEmptyText: { color: "rgba(255,255,255,0.3)", fontSize: 15 },
+  pendingEmptyText: { color: t.textTertiary, fontSize: 15 },
   driverPickerContent: { paddingHorizontal: 16, paddingBottom: 120 },
   emptyPeopleWrap: { alignItems: "center", paddingVertical: 24 },
-  emptyPeopleText: { color: "rgba(255,255,255,0.25)", fontSize: 14 },
+  emptyPeopleText: { color: tintText(t, 0.25), fontSize: 14 },
   approvalContainer: { flex: 1, padding: 20 },
   approvalCenter: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
-  approvalSavingText: { color: "rgba(255,255,255,0.5)", fontSize: 14, letterSpacing: 0 },
-  approvalProgress: { fontSize: 11, fontWeight: "600", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 },
+  approvalSavingText: { color: t.textSecondary, fontSize: 14, letterSpacing: 0 },
+  approvalProgress: { fontSize: 11, fontWeight: "600", color: t.textTertiary, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 },
   approvalDriverHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
-  approvalDriverName: { fontSize: 18, fontWeight: "700", color: "#fff", flex: 1, letterSpacing: 0 },
-  approvalSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 16, letterSpacing: 0 },
+  approvalDriverName: { fontSize: 18, fontWeight: "700", color: t.text, flex: 1, letterSpacing: 0 },
+  approvalSubtitle: { fontSize: 13, color: t.textTertiary, marginBottom: 16, letterSpacing: 0 },
   approvalList: { flex: 1 },
-  matchRow: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 14, marginBottom: 8 },
+  matchRow: { flexDirection: "row", alignItems: "center", backgroundColor: t.fill, borderRadius: 12, padding: 14, marginBottom: 8 },
   matchInfo: { flex: 1, gap: 3 },
-  matchName: { fontSize: 15, fontWeight: "600", color: "#fff", letterSpacing: 0 },
-  matchPhone: { fontSize: 13, color: "rgba(255,255,255,0.4)", letterSpacing: 0 },
+  matchName: { fontSize: 15, fontWeight: "600", color: t.text, letterSpacing: 0 },
+  matchPhone: { fontSize: 13, color: t.textTertiary, letterSpacing: 0 },
   approvalActions: { gap: 8, marginTop: 12 },
-  approvalSecondaryBtn: { backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 10, padding: 14, alignItems: "center" },
-  approvalSecondaryText: { fontSize: 14, fontWeight: "500", color: "rgba(255,255,255,0.6)", letterSpacing: 0 },
+  approvalSecondaryBtn: { backgroundColor: t.fill, borderRadius: 10, padding: 14, alignItems: "center" },
+  approvalSecondaryText: { fontSize: 14, fontWeight: "500", color: t.textSecondary, letterSpacing: 0 },
   approvalDangerBtn: { backgroundColor: "rgba(255,69,58,0.1)", borderRadius: 10, padding: 14, alignItems: "center" },
-  approvalDangerText: { fontSize: 14, fontWeight: "500", color: "#ff453a", letterSpacing: 0 },
+  approvalDangerText: { fontSize: 14, fontWeight: "500", color: t.dangerText, letterSpacing: 0 },
   approvalInputGroup: { gap: 10, marginBottom: 16 },
-  approvalInput: { backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 15, letterSpacing: 0 },
-  approvalPrimaryBtn: { backgroundColor: "#34c759", borderRadius: 12, padding: 16, alignItems: "center" },
-  approvalPrimaryText: { fontSize: 15, fontWeight: "600", color: "#fff", letterSpacing: 0 },
-  taksisBadge: { backgroundColor: "rgba(20,126,251,0.15)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  taksisBadgeText: { fontSize: 11, fontWeight: "600", color: "#147efb", letterSpacing: 0 },
-  checkbox: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: "rgba(255,255,255,0.2)", justifyContent: "center", alignItems: "center" },
-  checkboxSelected: { backgroundColor: "#147efb", borderColor: "#147efb" },
+  approvalInput: { backgroundColor: t.fill, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: t.text, fontSize: 15, letterSpacing: 0 },
+  approvalPrimaryBtn: { backgroundColor: t.success, borderRadius: 12, padding: 16, alignItems: "center" },
+  approvalPrimaryText: { fontSize: 15, fontWeight: "600", color: t.onAccent, letterSpacing: 0 },
+  taksisBadge: { backgroundColor: t.accentFill, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  taksisBadgeText: { fontSize: 11, fontWeight: "600", color: t.accent, letterSpacing: 0 },
+  checkbox: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: t.borderStrong, justifyContent: "center", alignItems: "center" },
+  checkboxSelected: { backgroundColor: t.accent, borderColor: t.accent },
   unregBadge: { backgroundColor: "rgba(255,159,10,0.15)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  unregBadgeText: { fontSize: 10, fontWeight: "600", color: "#ff9f0a", letterSpacing: 0 },
+  unregBadgeText: { fontSize: 10, fontWeight: "600", color: t.warningText, letterSpacing: 0 },
   unregDeleteBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: "rgba(255,69,58,0.12)", justifyContent: "center", alignItems: "center", marginRight: 8 },
   inlineAddGuest: { backgroundColor: "rgba(20,126,251,0.08)", borderRadius: 12, padding: 14, marginTop: 8, marginBottom: 8, borderWidth: 1, borderColor: "rgba(20,126,251,0.2)" },
   inlineAddGuestHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  inlineAddGuestTitle: { fontSize: 15, fontWeight: "600", color: "#fff", letterSpacing: 0 },
-  inlineInput: { backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: "#fff", fontSize: 15, marginBottom: 8, letterSpacing: 0 },
+  inlineAddGuestTitle: { fontSize: 15, fontWeight: "600", color: t.text, letterSpacing: 0 },
+  inlineInput: { backgroundColor: t.fill, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: t.text, fontSize: 15, marginBottom: 8, letterSpacing: 0 },
   inlineAddGuestBtns: { flexDirection: "row", gap: 8, marginTop: 4 },
-  inlineGuestCancelBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.08)", alignItems: "center" },
-  inlineGuestCancelText: { fontSize: 14, fontWeight: "500", color: "rgba(255,255,255,0.6)", letterSpacing: 0 },
-  inlineGuestSaveBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: "#147efb", alignItems: "center" },
-  inlineGuestSaveText: { fontSize: 14, fontWeight: "600", color: "#fff", letterSpacing: 0 },
+  inlineGuestCancelBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: t.fill, alignItems: "center" },
+  inlineGuestCancelText: { fontSize: 14, fontWeight: "500", color: t.textSecondary, letterSpacing: 0 },
+  inlineGuestSaveBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: t.accent, alignItems: "center" },
+  inlineGuestSaveText: { fontSize: 14, fontWeight: "600", color: t.onAccent, letterSpacing: 0 },
   swatchBtn: { alignItems: "center", gap: 5, paddingHorizontal: 4 },
   swatchCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: "transparent" },
-  swatchCircleWhite: { borderColor: "rgba(255,255,255,0.2)" },
-  swatchCircleSelected: { borderColor: "#147efb" },
-  swatchLabel: { fontSize: 11, color: "rgba(255,255,255,0.3)", fontWeight: "500", letterSpacing: 0 },
-  swatchLabelSelected: { color: "#fff" },
-  userRow: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, marginBottom: 8, backgroundColor: "rgba(255,255,255,0.04)" },
-  userRowSelected: { backgroundColor: "rgba(20,126,251,0.15)", borderWidth: 1, borderColor: "rgba(20,126,251,0.3)" },
+  swatchCircleWhite: { borderColor: t.borderStrong },
+  swatchCircleSelected: { borderColor: t.accent },
+  swatchLabel: { fontSize: 11, color: t.textTertiary, fontWeight: "500", letterSpacing: 0 },
+  swatchLabelSelected: { color: t.text },
+  userRow: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, marginBottom: 8, backgroundColor: t.fill },
+  userRowSelected: { backgroundColor: t.accentFill, borderWidth: 1, borderColor: "rgba(20,126,251,0.3)" },
   userAvatar: { width: 44, height: 44, borderRadius: 22 },
   userInfo: { flex: 1, marginLeft: 12 },
-  userName: { fontSize: 16, fontWeight: "500", color: "#fff", letterSpacing: 0 },
-  userPhone: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 2, letterSpacing: 0 },
+  userName: { fontSize: 16, fontWeight: "500", color: t.text, letterSpacing: 0 },
+  userPhone: { fontSize: 13, color: t.textTertiary, marginTop: 2, letterSpacing: 0 },
   btnDisabled: { opacity: 0.35 },
-});
+}));

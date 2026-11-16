@@ -10,23 +10,28 @@
  * skeleton keeps the layout stable so content doesn't jump when it lands.
  */
 import React from "react";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { View, ActivityIndicator } from "react-native";
+import { makeStyles, useTheme } from "../theme";
 
-const LoadingWheel = React.memo(({ color = "#147efb", size = "large" }) => (
-  <View style={styles.container}>
-    <ActivityIndicator size={size} color={color} />
-  </View>
-));
+const LoadingWheel = React.memo(({ color, size = "large" }) => {
+  const styles = useStyles();
+  const theme = useTheme();
+  return (
+    <View style={styles.container}>
+      <ActivityIndicator size={size} color={color ?? theme.accent} />
+    </View>
+  );
+});
 
 LoadingWheel.displayName = "LoadingWheel";
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: t.background,
     justifyContent: "center",
     alignItems: "center",
   },
-});
+}));
 
 export default LoadingWheel;

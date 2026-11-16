@@ -10,6 +10,7 @@ import {
   ActivityIndicator, Alert, StyleSheet, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { makeStyles, useTheme, GlassSurface, useTabBarInset } from '../../theme';
 import { getAuth } from '@react-native-firebase/auth';
 import {
   addDoc,
@@ -35,22 +36,31 @@ import {
   withFollowOns,
 } from '../../components/ScheduleAuditModal';
 
-// Same tokens as DatabaseManager's palette.
-const C = {
-  bg: '#121212',
-  card: '#1a1a1a',
-  accent: '#147efb',
-  accentSoft: '#4d9cff',
-  danger: '#ff3b30',
-  hair: 'rgba(255,255,255,0.07)',
-  t1: '#ffffff',
-  t2: 'rgba(255,255,255,0.75)',
-  t3: 'rgba(255,255,255,0.5)',
-  t4: 'rgba(255,255,255,0.35)',
-  t5: 'rgba(255,255,255,0.2)',
-  fill: 'rgba(255,255,255,0.07)',
-  grid: 'rgba(255,255,255,0.06)',
+// Same roles as DatabaseManager's palette, resolved from the active theme.
+const paletteCache = new Map();
+const paletteFor = (t) => {
+  let C = paletteCache.get(t.key);
+  if (!C) {
+    C = {
+      bg: t.background,
+      card: t.surface,
+      accent: t.accent,
+      accentSoft: t.accentText,
+      danger: t.dangerText,
+      hair: t.border,
+      t1: t.text,
+      t2: t.isDark ? 'rgba(255,255,255,0.75)' : t.textSecondary,
+      t3: t.textSecondary,
+      t4: t.textTertiary,
+      t5: t.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(60,60,67,0.18)',
+      fill: t.fill,
+      grid: t.border,
+    };
+    paletteCache.set(t.key, C);
+  }
+  return C;
 };
+const usePalette = () => paletteFor(useTheme());
 
 const MAX_ENTRIES = 1000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -136,20 +146,28 @@ const recordAdminDeletion = async (entries) => {
 // ── Pieces ───────────────────────────────────────────────────────────────────
 
 function Chip({ label, active, onPress, icon }) {
+  const s = useS();
+  const C = usePalette();
+  const t = useTheme();
   return (
     <TouchableOpacity style={[s.chip, active && s.chipActive]} onPress={onPress} activeOpacity={0.8}>
-      {icon ? <Ionicons name={icon} size={13} color={active ? '#fff' : C.t3} style={{ marginRight: 5 }} /> : null}
+      {icon ? <Ionicons name={icon} size={13} color={active ? t.onAccent : C.t3} style={{ marginRight: 5 }} /> : null}
       <Text style={[s.chipText, active && s.chipTextActive]} numberOfLines={1}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
 function StatTile({ label, value, icon, active, onPress }) {
+  const s = useS();
+  const C = usePalette();
+  const t = useTheme();
   return (
-    <TouchableOpacity style={[s.tile, active && s.tileActive]} onPress={onPress} activeOpacity={0.85}>
-      <View style={s.tileIcon}><Ionicons name={icon} size={16} color={C.accentSoft} /></View>
-      <Text style={s.tileValue}>{value}</Text>
-      <Text style={s.tileLabel} numberOfLines={1}>{label}</Text>
+    <TouchableOpacity style={s.tileHit} onPress={onPress} activeOpacity={0.85}>
+      <GlassSurface style={[s.tile, active && s.tileActive]} interactive tint={active ? t.accentFill : undefined}>
+        <View style={s.tileIcon}><Ionicons name={icon} size={16} color={C.accentSoft} /></View>
+        <Text style={s.tileValue}>{value}</Text>
+        <Text style={s.tileLabel} numberOfLines={1}>{label}</Text>
+      </GlassSurface>
     </TouchableOpacity>
   );
 }
@@ -160,13 +178,14 @@ function StatTile({ label, value, icon, active, onPress }) {
  * it again clears the filter.
  */
 function ActivityChart({ buckets, bucketDays, selected, onSelect }) {
+  const s = useS();
   const max = Math.max(1, ...buckets.map((b) => b.count));
   const active = buckets.find((b) => b.start === selected);
   const span = (b) => (bucketDays === 1
     ? shortDate(new Date(b.start))
     : `Week of ${shortDate(new Date(b.start))}`);
   return (
-    <View style={s.card}>
+    <GlassSurface style={s.card}>
       <View style={s.cardHeader}>
         <Text style={s.cardTitle}>Changes over time</Text>
         <Text style={s.cardMeta}>
@@ -204,15 +223,16 @@ function ActivityChart({ buckets, bucketDays, selected, onSelect }) {
         <Text style={s.axisLabel}>{buckets.length ? shortDate(new Date(buckets[0].start)) : ''}</Text>
         <Text style={s.axisLabel}>{buckets.length ? shortDate(new Date(buckets[buckets.length - 1].start)) : ''}</Text>
       </View>
-    </View>
+    </GlassSurface>
   );
 }
 
 /** Ranked list with a proportional bar behind each count. */
 function RankedList({ title, rows, onPick, emptyText }) {
+  const s = useS();
   const max = Math.max(1, ...rows.map((r) => r.count));
   return (
-    <View style={s.card}>
+    <GlassSurface style={s.card}>
       <Text style={[s.cardTitle, { marginBottom: 10 }]}>{title}</Text>
       {rows.length === 0 ? <Text style={s.cardMeta}>{emptyText}</Text> : rows.map((r) => (
         <TouchableOpacity key={r.key} style={s.rankRow} onPress={() => onPick?.(r)} activeOpacity={0.75}>
@@ -226,15 +246,16 @@ function RankedList({ title, rows, onPick, emptyText }) {
           <Text style={s.rankCount}>{r.count}</Text>
         </TouchableOpacity>
       ))}
-    </View>
+    </GlassSurface>
   );
 }
 
 /** Latest answer counts. Status colours come with their label, never alone. */
 function AnswerBreakdown({ counts }) {
+  const s = useS();
   const total = counts.confirmed + counts.unsure + counts.unavailable;
   return (
-    <View style={s.card}>
+    <GlassSurface style={s.card}>
       <View style={s.cardHeader}>
         <Text style={s.cardTitle}>Availability answers</Text>
         <Text style={s.cardMeta}>{total} total</Text>
@@ -255,13 +276,17 @@ function AnswerBreakdown({ counts }) {
           </View>
         ))}
       </View>
-    </View>
+    </GlassSurface>
   );
 }
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ScheduleActivity() {
+  const s = useS();
+  const C = usePalette();
+  const t = useTheme();
+  const tabBarInset = useTabBarInset();
   const [churches, setChurches] = useState([]);
   const [churchId, setChurchId] = useState(null);
   const [range, setRange] = useState('30d');
@@ -519,7 +544,8 @@ export default function ScheduleActivity() {
         <TextInput
           style={s.searchInput}
           placeholder="Search people, admins, weeks…"
-          placeholderTextColor={C.t4}
+          placeholderTextColor={t.placeholder}
+          keyboardAppearance={t.keyboardAppearance}
           value={search}
           onChangeText={setSearch}
           autoCorrect={false}
@@ -564,7 +590,7 @@ export default function ScheduleActivity() {
   return (
     <SectionList
       style={s.screen}
-      contentContainerStyle={s.content}
+      contentContainerStyle={[s.content, { paddingBottom: 60 + tabBarInset }]}
       sections={sections}
       keyExtractor={(e) => e.id}
       ListHeaderComponent={header}
@@ -589,7 +615,9 @@ export default function ScheduleActivity() {
   );
 }
 
-const s = StyleSheet.create({
+const useS = makeStyles((t) => {
+  const C = paletteFor(t);
+  return {
   screen: { flex: 1, backgroundColor: C.bg },
   content: { padding: 16, paddingBottom: 60 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
@@ -598,18 +626,19 @@ const s = StyleSheet.create({
   chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, backgroundColor: C.card, borderWidth: 1, borderColor: C.hair, maxWidth: 260 },
   chipActive: { backgroundColor: C.accent, borderColor: C.accent },
   chipText: { color: C.t2, fontSize: 13, fontWeight: '600' },
-  chipTextActive: { color: '#fff' },
+  chipTextActive: { color: t.onAccent },
 
   segment: { flexDirection: 'row', backgroundColor: C.card, borderRadius: 10, padding: 3, marginBottom: 14, borderWidth: 1, borderColor: C.hair },
   segmentBtn: { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center' },
-  segmentActive: { backgroundColor: 'rgba(255,255,255,0.12)' },
+  segmentActive: { backgroundColor: t.fillStrong },
   segmentText: { color: C.t3, fontSize: 13, fontWeight: '700' },
   segmentTextActive: { color: C.t1 },
 
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
-  tile: { flexGrow: 1, flexBasis: '45%', backgroundColor: C.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.hair },
-  tileActive: { borderColor: C.accentSoft, backgroundColor: 'rgba(20,126,251,0.10)' },
-  tileIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(77,156,255,0.12)', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  tileHit: { flexGrow: 1, flexBasis: '45%' },
+  tile: { flexGrow: 1, backgroundColor: C.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.hair },
+  tileActive: { borderColor: C.accentSoft, backgroundColor: t.accentFill },
+  tileIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: t.accentFill, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   tileValue: { color: C.t1, fontSize: 28, fontWeight: '700', letterSpacing: -0.5, fontVariant: ['tabular-nums'] },
   tileLabel: { color: C.t3, fontSize: 13, marginTop: 2 },
 
@@ -624,7 +653,7 @@ const s = StyleSheet.create({
   bars: { flex: 1, flexDirection: 'row', alignItems: 'flex-end', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.t5 },
   barHit: { flex: 1, height: '100%', justifyContent: 'flex-end', paddingHorizontal: 1 },
   bar: { backgroundColor: C.accentSoft, borderTopLeftRadius: 4, borderTopRightRadius: 4 },
-  barSelected: { backgroundColor: '#8ec1ff' },
+  barSelected: { backgroundColor: t.isDark ? '#8ec1ff' : '#0550B0' },
   barDim: { opacity: 0.35 },
   axisRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
   axisLabel: { color: C.t4, fontSize: 11 },
@@ -660,4 +689,5 @@ const s = StyleSheet.create({
 
   empty: { alignItems: 'center', paddingVertical: 40, gap: 10 },
   emptyText: { color: C.t3, fontSize: 14, textAlign: 'center', paddingHorizontal: 30 },
+  };
 });
