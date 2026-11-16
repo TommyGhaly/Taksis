@@ -104,7 +104,7 @@ export default function CustomDrawerContent(props) {
     >
       {isActive && <View style={styles.activeBar} />}
       <View style={[styles.iconWrap, isActive ? styles.iconWrapActive : styles.iconWrapInactive]}>
-        <Icon name={item.icon} size={Math.round(REF.iconSize * scale)} color={isActive ? ACCENT : t.isDark ? "#6e6e73" : t.textMuted} />
+        <Icon name={item.icon} size={Math.round(REF.iconSize * scale)} color={isActive ? ACCENT : t.isDark ? "#6e6e73" : "#48484A"} />
       </View>
       <Text style={[styles.menuLabel, isActive && styles.menuLabelActive]}>
         {item.label}
@@ -120,11 +120,14 @@ export default function CustomDrawerContent(props) {
   );
 
   // The drawer panel is a full-height sheet: Liquid Glass when enabled, but
-  // never clearer than the default level — at "Clear" the screen behind it
-  // bleeds through the menu text.
+  // never clearer than solidly frosted — below that the screen behind it
+  // bleeds through the menu text. Light mode's shared wash is a faint grey
+  // tuned for small cards, too thin for a full-height panel, so the drawer
+  // gets its own near-opaque wash in the light surface color.
   return (
     <GlassSurface
-      minIntensity={0.4}
+      minIntensity={0.65}
+      tint={t.isDark ? undefined : "rgba(242,242,247,0.8)"}
       style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + 12 }]}
       onLayout={(e) => setDrawerHeight(e.nativeEvent.layout.height)}
     >
@@ -168,7 +171,7 @@ const buildStyles = (scale, t) => {
     header:          { flexDirection: "row", alignItems: "center", gap: s(12), paddingHorizontal: 18, paddingVertical: s(22) },
     logoWrap:        { width: s(36), height: s(36), borderRadius: 10, backgroundColor: `${ACCENT}18`, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: `${ACCENT}30` },
     appName:         { fontSize: s(18), fontWeight: "700", color: t.text },
-    appTagline:      { fontSize: s(12), color: t.isDark ? "#6e6e73" : t.textMuted, marginTop: 1 },
+    appTagline:      { fontSize: s(12), color: t.isDark ? "#6e6e73" : "#48484A", marginTop: 1 },
 
     divider:         { height: 1, backgroundColor: t.border, marginHorizontal: 16 },
 
@@ -176,7 +179,7 @@ const buildStyles = (scale, t) => {
     section:         { marginBottom: s(REF.sectionMarginBottom) },
     sectionTitle:    {
       fontSize: Math.max(9, s(REF.sectionTitleFont)),
-      fontWeight: "700", color: t.isDark ? "#48484a" : t.textSecondary, textTransform: "uppercase", letterSpacing: 0.8,
+      fontWeight: "700", color: t.isDark ? "#48484a" : t.textMuted, textTransform: "uppercase", letterSpacing: 0.8,
       paddingHorizontal: 20, paddingTop: s(18), paddingBottom: s(6),
     },
 
@@ -194,11 +197,11 @@ const buildStyles = (scale, t) => {
     iconWrap:        { width: iconWrap, height: iconWrap, borderRadius: 9, justifyContent: "center", alignItems: "center" },
     iconWrapActive:  { backgroundColor: `${ACCENT}28` },
     iconWrapInactive:{ backgroundColor: t.fill },
-    menuLabel:       { flex: 1, fontSize: Math.max(12, s(REF.labelFont)), fontWeight: "500", color: t.textMuted },
+    menuLabel:       { flex: 1, fontSize: Math.max(12, s(REF.labelFont)), fontWeight: "500", color: t.isDark ? t.textMuted : "#3A3A3C" },
     menuLabelActive: { color: t.text, fontWeight: "600" },
 
     footerRow:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingTop: s(14) },
-    footerLabel:     { fontSize: s(12), fontWeight: "600", color: t.isDark ? "#48484a" : t.textSecondary },
-    footerSub:       { fontSize: s(11), color: t.isDark ? "#3a3a3c" : t.textTertiary, fontStyle: "italic" },
+    footerLabel:     { fontSize: s(12), fontWeight: "600", color: t.isDark ? "#48484a" : t.textMuted },
+    footerSub:       { fontSize: s(11), color: t.isDark ? "#3a3a3c" : t.textSecondary, fontStyle: "italic" },
   });
 };

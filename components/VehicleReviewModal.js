@@ -118,7 +118,7 @@ const CandidateRow = memo(({ user, imageSource, onSelect }) => {
     onPress={() => onSelect(user.uid)}
     activeOpacity={0.7}
   >
-    <Image source={imageSource} style={rs.candidateAvatar} contentFit="cover" />
+    <Image source={imageSource} style={rs.candidateAvatar} contentFit="cover" enforceEarlyResizing />
     <View style={rs.candidateInfo}>
       <Text style={rs.candidateName}>{user.name}</Text>
       {user.phone ? <Text style={rs.candidatePhone}>{user.phone}</Text> : null}
@@ -211,7 +211,7 @@ const DriverResolutionRow = memo(({
         <Image
           source={linkedUser ? getImageSource(resolved) : DEFAULT_PROFILE}
           style={rs.avatar}
-          contentFit="cover"
+          contentFit="cover" enforceEarlyResizing
         />
         <View style={rs.rowInfo}>
           <Text style={rs.rowName}>{linkedUser?.name || "Linked"}</Text>
@@ -261,7 +261,7 @@ const DriverResolutionRow = memo(({
               onPress={() => onLink(index, u.uid)}
               activeOpacity={0.7}
             >
-              <Image source={getImageSource(u.uid)} style={rs.candidateAvatar} contentFit="cover" />
+              <Image source={getImageSource(u.uid)} style={rs.candidateAvatar} contentFit="cover" enforceEarlyResizing />
               <View style={rs.candidateInfo}>
                 <Text style={rs.candidateName}>{u.name}</Text>
                 {u.phone ? <Text style={rs.candidatePhone}>{u.phone}</Text> : null}
@@ -531,7 +531,7 @@ const VehicleReviewModal = ({
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onComplete}>
       <View style={ms.overlay}>
-        <GlassSurface style={ms.sheet}>
+        <GlassSurface sheet style={ms.sheet}>
           {/* Header */}
           <View style={ms.header}>
             <View style={ms.headerLeft}>

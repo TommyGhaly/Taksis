@@ -38,7 +38,7 @@ const AvailabilityModal = ({
         <Animated.View
           style={[styles.panelFrame, { transform: [{ scale: scaleValue }] }]}
         >
-          <GlassSurface style={styles.availabilityModalContainer}>
+          <GlassSurface sheet style={styles.availabilityModalContainer}>
             <View style={styles.availabilityModalHeader}>
               <View style={styles.availabilityIconCircle}>
                 <Ionicons name="calendar" size={32} color={t.accent} />

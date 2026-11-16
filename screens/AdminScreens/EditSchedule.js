@@ -1071,7 +1071,7 @@ const EditSchedule = () => {
           }}
         >
           <TouchableOpacity activeOpacity={1} style={styles.modalWrapper}>
-            <GlassSurface style={styles.modalContent}>
+            <GlassSurface sheet style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
                   {showArchivedWeeks ? "Archived Weeks" : "Select Week"}
@@ -1142,7 +1142,7 @@ const EditSchedule = () => {
           onPress={() => setShowInfoModal(false)}
         >
           <TouchableOpacity activeOpacity={1} style={styles.infoModalWrapper}>
-            <GlassSurface style={styles.infoModalContent}>
+            <GlassSurface sheet style={styles.infoModalContent}>
               <View style={styles.infoModalHeader}>
                 <Text style={styles.infoModalTitle}>Altar Servers</Text>
                 <TouchableOpacity
@@ -1180,7 +1180,7 @@ const EditSchedule = () => {
               style={styles.notifyAvoid}
             >
               <TouchableWithoutFeedback>
-                <GlassSurface style={styles.notifyModal}>
+                <GlassSurface sheet style={styles.notifyModal}>
                   <View style={styles.notifyIconWrap}>
                     <Icon name="bell-ring" size={28} color={t.warning} />
                   </View>
@@ -1338,19 +1338,21 @@ const useStyles = makeStyles((t) => ({
     alignItems: "center",
     flexShrink: 1,
   },
+  // Light mode's glass cards are already grey, so the pill and its text
+  // each take a stronger step or they blend into the card.
   dropdown: {
-    backgroundColor: t.fill,
+    backgroundColor: t.isDark ? t.fill : t.fillStrong,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: t.border,
+    borderColor: t.isDark ? t.border : t.borderStrong,
   },
   disabledDropdown: {
     opacity: 0.5,
   },
   dropdownText: {
-    color: t.textSecondary,
+    color: t.isDark ? t.textSecondary : "#3A3A3C",
     fontSize: 15,
     fontWeight: "500",
   },
@@ -1425,7 +1427,7 @@ const useStyles = makeStyles((t) => ({
   },
   weekSelectorText: { color: t.text, fontSize: 18, fontWeight: "600" },
   weekSelectorIconContainer: {
-    backgroundColor: t.fill,
+    backgroundColor: t.isDark ? t.fill : t.fillStrong,
     width: 36,
     height: 36,
     borderRadius: 18,

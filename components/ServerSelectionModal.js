@@ -209,7 +209,7 @@ const ServerSelectionModal = ({
         onPress={onClose}
       >
         <TouchableOpacity activeOpacity={1} style={styles.modalWrapper}>
-          <GlassSurface style={styles.modalContent}>
+          <GlassSurface sheet style={styles.modalContent}>
             {/* Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{title}</Text>

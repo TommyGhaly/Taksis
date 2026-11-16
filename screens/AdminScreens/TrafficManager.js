@@ -98,7 +98,7 @@ const CarCard = memo(({ item, index, getUserById, getImageSource, onPress }) => 
       </View>
       <View style={s.avatarStack}>
         {visible.map((uid, i) => (
-          <Image key={uid} source={getImageSource(uid)} style={[s.stackedAvatar, { marginLeft: i > 0 ? -12 : 0, zIndex: 3 - i }]} contentFit="cover" />
+          <Image key={uid} source={getImageSource(uid)} style={[s.stackedAvatar, { marginLeft: i > 0 ? -12 : 0, zIndex: 3 - i }]} contentFit="cover" enforceEarlyResizing />
         ))}
         {extra > 0 && <View style={s.extraBadge}><Text style={s.extraText}>+{extra}</Text></View>}
       </View>
@@ -114,7 +114,7 @@ const DriverCard = memo(({ uid, user, imageSource, hasToken, presentCars, maxCar
   const overLimit = limitEnabled && presentCars > maxCars;
   return (
     <View style={s.driverCard}>
-      <Image source={imageSource} style={s.driverAvatar} contentFit="cover" />
+      <Image source={imageSource} style={s.driverAvatar} contentFit="cover" enforceEarlyResizing />
       <View style={s.driverInfo}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Text style={s.driverName}>{user.name}</Text>
@@ -209,7 +209,7 @@ const CarDetailModal = memo(({
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
       <View style={s.centerOverlay}>
-        <GlassSurface style={s.detailCard}>
+        <GlassSurface sheet style={s.detailCard}>
           <View style={s.detailHeader}>
             <View style={s.detailPlate}>
               <Icon name="car" size={18} color={car.present ? t.success : t.accent} />
@@ -261,7 +261,7 @@ const SubSheet = memo(({ visible, onBack, onClose, title, children }) => {
   return (
   <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose || onBack}>
     <View style={s.subSheetOverlay}>
-      <GlassSurface style={s.subSheet}>
+      <GlassSurface sheet style={s.subSheet}>
         <View style={s.subSheetHeader}>
           <TouchableOpacity onPress={onBack} style={s.subSheetBackBtn} activeOpacity={0.7}>
             <Icon name="chevron-left" size={22} color={t.accent} />
@@ -328,7 +328,7 @@ const PlateMatchSheet = memo(({ visible, scannedPlate, matches, onConfirm, onReg
   return (
   <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
     <View style={s.subSheetOverlay}>
-      <GlassSurface style={s.subSheet}>
+      <GlassSurface sheet style={s.subSheet}>
         <View style={s.subSheetHeader}>
           <View style={{ width: 64 }} />
           <Text style={s.subSheetTitle}>Possible Match?</Text>
@@ -1227,7 +1227,7 @@ const TrafficManager = () => {
         <TouchableWithoutFeedback onPress={() => setMenuVisible(false)}>
           <View style={s.menuOverlay}>
             <TouchableWithoutFeedback>
-              <GlassSurface style={s.menuSheet}>
+              <GlassSurface sheet style={s.menuSheet}>
                 <View style={s.menuHandle} />
                 {reviewQueue.length > 0 && (
                   <TouchableOpacity style={s.menuItem} onPress={() => { setMenuVisible(false); setReviewVisible(true); }} activeOpacity={0.7}>
@@ -1264,7 +1264,7 @@ const TrafficManager = () => {
       {/* ── Settings ── */}
       <Modal visible={settingsVisible} animationType="slide" transparent onRequestClose={() => setSettingsVisible(false)}>
         <View style={s.settingsOverlay}>
-          <GlassSurface style={s.settingsSheet}>
+          <GlassSurface sheet style={s.settingsSheet}>
             <View style={s.settingsHeader}>
               <Text style={s.settingsTitle}>Car Limit</Text>
               <TouchableOpacity style={s.settingsCloseBtn} onPress={() => setSettingsVisible(false)}>
@@ -1305,7 +1305,7 @@ const TrafficManager = () => {
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={s.centerOverlay}>
               <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={s.notifyKav}>
-                <GlassSurface style={s.notifyCard}>
+                <GlassSurface sheet style={s.notifyCard}>
                   <View style={s.notifyIcon}><Icon name="bell-ring" size={24} color={t.warningText} /></View>
                   <Text style={s.notifyTitleText}>Send Notification</Text>
                   <TextInput style={s.notifyInput} placeholder="Title" placeholderTextColor={t.placeholder} keyboardAppearance={t.keyboardAppearance} value={notifyTitle} onChangeText={setNotifyTitle} />

@@ -771,7 +771,7 @@ const ServantsAttendance = () => {
       {/* ── Date picker modal ── */}
       <Modal visible={dateModalVisible} transparent animationType="fade" onRequestClose={() => setDateModalVisible(false)}>
         <View style={styles.modalContainer}>
-          <GlassSurface style={styles.weekModalCard}>
+          <GlassSurface sheet style={styles.weekModalCard}>
             {/* Header */}
             <View style={styles.weekModalHeader}>
               <View>
@@ -829,7 +829,7 @@ const ServantsAttendance = () => {
       <Modal visible={addModalVisible} transparent animationType="fade" onRequestClose={cancelAddModal}>
         <View style={styles.sheetOverlayCentered}>
           <TouchableOpacity style={styles.sheetDismiss} activeOpacity={1} onPress={cancelAddModal} />
-          <GlassSurface style={styles.centeredCard}>
+          <GlassSurface sheet style={styles.centeredCard}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Add Servant Manually</Text>
               <TouchableOpacity style={styles.sheetClose} onPress={cancelAddModal}>

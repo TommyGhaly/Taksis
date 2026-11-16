@@ -504,7 +504,7 @@ const DeaconSyncModal = ({ visible, onClose, churchId }) => {
   return (
     <Modal visible animationType="fade" transparent onRequestClose={close}>
       <View style={st.backdrop}>
-        <GlassSurface style={[st.dialog, heights.dialog]}>
+        <GlassSurface sheet style={[st.dialog, heights.dialog]}>
 
           <TouchableOpacity style={st.closeBtn} onPress={close} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Icon name="close" size={18} color={t.textTertiary} />

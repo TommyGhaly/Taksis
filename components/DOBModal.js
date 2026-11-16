@@ -33,7 +33,7 @@ const DOBModal = ({
       >
         <View style={styles.modalOverlay}>
           <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
-            <GlassSurface style={styles.modalDOBContainer}>
+            <GlassSurface sheet style={styles.modalDOBContainer}>
               <Text style={styles.modalTitle}>We Need Your Date of Birth</Text>
               <Text style={styles.modalSubtitle}>
                 Please provide your date of birth to continue.
@@ -79,7 +79,7 @@ const DOBModal = ({
         >
           <View style={styles.modalOverlay}>
             <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
-              <GlassSurface style={styles.modalDOBContainer}>
+              <GlassSurface sheet style={styles.modalDOBContainer}>
                 {(() => {
                   try {
                     return (

@@ -695,7 +695,7 @@ const AdminManager = () => {
       {selectedUser && (
         <Modal visible={modalVisible} animationType="fade" transparent>
           <View style={styles.modalOverlay}>
-            <GlassSurface
+            <GlassSurface sheet
               style={[
                 styles.modalContainer,
                 { width: isTablet ? "70%" : "90%" },

@@ -709,7 +709,7 @@ const IndividualProfile = ({
     return (
       <Modal visible={show} animationType="none" transparent={true}>
         <View style={styles.modalOverlay}>
-          <GlassSurface style={styles.modalContent}>
+          <GlassSurface sheet style={styles.modalContent}>
             <SkeletonProvider>
               {/* header: spacer + Close button */}
               <View style={styles.headerButtons}>
@@ -790,7 +790,7 @@ const IndividualProfile = ({
       onRequestClose={handleCancel}
     >
       <View style={styles.modalOverlay}>
-        <GlassSurface style={styles.modalContent}>
+        <GlassSurface sheet style={styles.modalContent}>
           <View style={styles.headerButtons}>
             {!isChild && isDeacon && (
               <TouchableOpacity

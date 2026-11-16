@@ -34,7 +34,7 @@ const ProfilePictureModal = ({
           style={StyleSheet.absoluteFillObject}
         />
         <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
-          <GlassSurface style={styles.enhancedModalContainer}>
+          <GlassSurface sheet style={styles.enhancedModalContainer}>
             <View style={styles.modalGradientHeader} />
             <View style={styles.modalIconContainer}>
               <Ionicons name="camera" size={48} color={t.accent} />

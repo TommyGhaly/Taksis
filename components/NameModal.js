@@ -27,7 +27,7 @@ const NameModal = ({
       onRequestClose={() => {}}
     >
       <View style={styles.modalOverlay}>
-        <GlassSurface style={styles.modalContainer}>
+        <GlassSurface sheet style={styles.modalContainer}>
           <Text style={styles.modalTitle}>We Need Your Name</Text>
           <Text style={styles.modalSubtitle}>
             Please provide your first and last name to continue.

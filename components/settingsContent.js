@@ -306,7 +306,7 @@ const SettingsContent = () => {
 
       <Modal animationType="fade" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <GlassSurface style={styles.modalContent}>
+          <GlassSurface sheet style={styles.modalContent}>
             <Text style={styles.modalTitle}>App Suggestions</Text>
             <Text style={styles.modalSubtitle}>Help us improve by sharing your ideas</Text>
             <TextInput

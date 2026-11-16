@@ -59,10 +59,13 @@ export const light = {
   ...shared,
   isDark: false,
 
-  background: "#F2F2F7",
-  surface: "#FFFFFF",
-  surfaceElevated: "#F2F2F7",
-  surfaceHighest: "#E5E5EA",
+  // The inverse of dark's ramp: the screen is the lightest layer and each
+  // layer in front of it (cards, then rows/buttons inside them) is a step
+  // darker, the way dark mode steps lighter.
+  background: "#FFFFFF",
+  surface: "#F2F2F7",
+  surfaceElevated: "#E5E5EA",
+  surfaceHighest: "#D1D1D6",
   chrome: "rgba(249,249,249,1)",
 
   text: "#000000",

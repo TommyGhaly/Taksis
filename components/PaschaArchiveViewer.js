@@ -464,7 +464,7 @@ var PaschaArchiveViewer = function(props) {
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={onClose} statusBarTranslucent>
       <View style={avS.overlay}>
-        <GlassSurface style={avS.sheet}>
+        <GlassSurface sheet style={avS.sheet}>
           <View style={avS.handle} />
           <View style={avS.hdr}>
             {selectedYear ? (

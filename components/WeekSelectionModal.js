@@ -28,7 +28,7 @@ const WeekSelectionModal = ({
       onRequestClose={onCancel}
     >
       <View style={styles.modalOverlay}>
-        <GlassSurface style={styles.modalContainer}>
+        <GlassSurface sheet style={styles.modalContainer}>
           <Text style={styles.modalTitle}>Select Unavailable Weeks</Text>
           <Text style={styles.modalSubtitle}>
             This action cannot be undone.

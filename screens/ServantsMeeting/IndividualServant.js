@@ -442,7 +442,7 @@ const IndividualServant = () => {
       >
         <View style={styles.sheetOverlay}>
           <TouchableOpacity style={styles.sheetDismiss} activeOpacity={1} onPress={() => setSyncModalVisible(false)} />
-          <GlassSurface style={[styles.sheet, styles.syncSheetHeight]}>
+          <GlassSurface sheet style={[styles.sheet, styles.syncSheetHeight]}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
               <View>

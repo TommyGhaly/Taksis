@@ -33,4 +33,14 @@ defaultConfig.transformer.getTransformOptions = async () => ({
   },
 });
 
+// Dev-only escape hatch for dev clients built before Crashlytics was added.
+if (process.env.TAKSIS_STUB_CRASHLYTICS === '1') {
+  const stub = require('path').join(__dirname, '.claude/crashlytics-stub.js');
+  const upstream = defaultConfig.resolver.resolveRequest;
+  defaultConfig.resolver.resolveRequest = (context, name, platform) =>
+    name === '@react-native-firebase/crashlytics'
+      ? { type: 'sourceFile', filePath: stub }
+      : (upstream || context.resolveRequest)(context, name, platform);
+}
+
 module.exports = defaultConfig;

@@ -37,7 +37,7 @@ const ChurchSelectionModal = ({
           style={StyleSheet.absoluteFillObject}
         />
         <Animated.View style={[styles.panelFrame, { transform: [{ scale: scaleValue }] }]}>
-          <GlassSurface style={styles.churchModalContainer}>
+          <GlassSurface sheet style={styles.churchModalContainer}>
             <View style={styles.modalGradientHeader} />
             <View style={styles.modalIconContainer}>
               <Ionicons name="business" size={48} color={t.accent} />

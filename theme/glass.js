@@ -37,14 +37,31 @@ function useThemeLazy() {
 // visibly jump.
 const CLEAR_UNTIL = 0.2;
 const MAX_WASH = 0.75;
-const WASH_RGB = { dark: "28,28,30", light: "255,255,255" };
+// Light mode washes with Apple's own fill grey (systemFill's 118,118,128),
+// so glass cards read like stock iOS gray buttons: a pale step darker than
+// the white screen (dark mode's wash sits a step lighter).
+const WASH_RGB = { dark: "28,28,30", light: "118,118,128" };
+// Glass brightens whatever it sits on. Over dark mode's near-black screen
+// that alone lifts a card a visible step, even fully clear; over white it
+// adds nothing. So light mode's wash runs on Apple's fill scale instead:
+// never thinner than tertiarySystemFill (0.12) and, fully tinted, a little
+// past systemFill (0.20), instead of the 0–0.75 range dark mode uses.
+const LIGHT_MIN_WASH = 0.12;
+const LIGHT_WASH_SCALE = 0.32;
 
 // `minIntensity` floors the user's slider for one surface: a full-height sheet
 // of text over other text (the drawer) is unreadable as clear glass.
+//
+// Modals and sheets (`sheet` prop) float over a whole live screen of text,
+// inputs and avatars, so at the clear end of the slider their content reads
+// as if it were printed on the screen behind. They're floored to frosted glass
+// with a visible wash: still glass, never see-through.
+const SHEET_MIN_INTENSITY = 0.55;
 function levelProps(theme, { clear, tint, minIntensity = 0 }) {
   const t = Math.min(1, Math.max(minIntensity, theme.glassIntensity ?? 0.4));
   const isClear = clear || t < CLEAR_UNTIL;
-  const alpha = isClear ? (t / CLEAR_UNTIL) * 0.2 : ((t - CLEAR_UNTIL) / (1 - CLEAR_UNTIL)) * MAX_WASH;
+  let alpha = isClear ? (t / CLEAR_UNTIL) * 0.2 : ((t - CLEAR_UNTIL) / (1 - CLEAR_UNTIL)) * MAX_WASH;
+  if (theme.scheme === "light") alpha = Math.max(alpha * LIGHT_WASH_SCALE, LIGHT_MIN_WASH);
   return {
     glassEffectStyle: isClear ? "clear" : "regular",
     // A caller's own tint (an accent-colored button) always wins.
@@ -60,8 +77,20 @@ function levelProps(theme, { clear, tint, minIntensity = 0 }) {
  *
  * The style's own backgroundColor is dropped under glass — a solid fill would
  * hide the effect. Pass `tint` to color the glass (e.g. an accent button).
+ *
+ * Pass `sheet` for a modal card or bottom sheet: it never goes clearer than
+ * frosted, whatever the user's slider says (see SHEET_MIN_INTENSITY).
  */
-export function GlassSurface({ style, children, interactive = false, tint, clear = false, minIntensity, ...rest }) {
+export function GlassSurface({
+  style,
+  children,
+  interactive = false,
+  tint,
+  clear = false,
+  sheet = false,
+  minIntensity = sheet ? SHEET_MIN_INTENSITY : undefined,
+  ...rest
+}) {
   const theme = useThemeLazy();
   if (!theme.glass || !GlassView) {
     return (
@@ -80,7 +109,7 @@ export function GlassSurface({ style, children, interactive = false, tint, clear
   return (
     <GlassView
       style={flat}
-      {...levelProps(theme, { clear, tint, minIntensity })}
+      {...levelProps(theme, { clear: clear && !sheet, tint, minIntensity })}
       isInteractive={interactive}
       {...rest}
     >

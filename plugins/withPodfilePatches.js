@@ -38,7 +38,8 @@
  *    Native from source (`buildReactNativeFromSource`), which bring fmt back.
  *
  * 3. **Architecture and platform settings**, so pods build for device and
- *    simulator and never for Mac Catalyst.
+ *    simulator and never for Mac Catalyst, and no pod's deployment target sits
+ *    below the app's (Xcode 27 refuses targets under iOS 15.0).
  */
 
 const { withDangerousMod } = require("expo/config-plugins");
@@ -49,12 +50,20 @@ const MARKER = "# Project Podfile patches (plugins/withPodfilePatches.js)";
 
 const RUBY_PATCH = `
     ${MARKER}
+    min_ios = podfile_properties['ios.deploymentTarget'] || '15.1'
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
         config.build_settings['ONLY_ACTIVE_ARCH'] = 'NO'
         config.build_settings['SUPPORTED_PLATFORMS'] = 'iphoneos iphonesimulator'
         config.build_settings['SUPPORTS_MACCATALYST'] = 'NO'
+        # Pods (mostly their resource/privacy bundles) declare their own
+        # minimums, some as low as 9.0. Xcode 27 rejects anything under 15.0,
+        # so raise every pod to the app's target. Never lower one.
+        current = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+        if current.nil? || Gem::Version.new(current) < Gem::Version.new(min_ios)
+          config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = min_ios
+        end
         if target.name == 'fmt'
           config.build_settings['OTHER_CPLUSPLUSFLAGS'] =
             '$(inherited) -DFMT_USE_NONTYPE_TEMPLATE_ARGS=0 -DFMT_USE_CONSTEVAL=0'

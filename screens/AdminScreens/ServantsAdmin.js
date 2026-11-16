@@ -1170,7 +1170,7 @@ const ServantsAdmin = () => {
       {selectedServant && (
         <Modal visible={modalVisible} animationType="fade" transparent={true}>
           <View style={styles.modalOverlay}>
-            <GlassSurface style={styles.modalContainer}>
+            <GlassSurface sheet style={styles.modalContainer}>
               <View style={styles.modalHeader}>
                 <View style={styles.headerContent}>
                   <View style={styles.profileImageContainer}>
@@ -1367,7 +1367,7 @@ const ServantsAdmin = () => {
             */}
             {syncModalVisible && (
               <View style={styles.syncInlineOverlay}>
-                <GlassSurface style={styles.modalContainer}>
+                <GlassSurface sheet style={styles.modalContainer}>
               <View style={styles.modalHeader}>
                 <View style={styles.headerContent}>
                   <Text style={[styles.modalTitle, { fontSize: 18 * scale }]}>
@@ -1461,7 +1461,7 @@ const ServantsAdmin = () => {
         onRequestClose={cancelAddModal}
       >
         <View style={styles.modalOverlay}>
-          <GlassSurface style={styles.modalContainer}>
+          <GlassSurface sheet style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <View style={styles.headerContent}>
                 <Text style={[styles.modalTitle, { fontSize: 18 * scale }]}>

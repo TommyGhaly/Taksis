@@ -719,7 +719,7 @@ const AlhanAdmin = () => {
       {selectedTeacher && (
         <Modal visible={modalVisible} animationType="fade" transparent={true}>
           <View style={styles.modalOverlay}>
-            <GlassSurface style={styles.modalContainer}>
+            <GlassSurface sheet style={styles.modalContainer}>
               <View style={styles.modalHeader}>
                 <View style={styles.headerContent}>
                   <View style={styles.profileImageContainer}>

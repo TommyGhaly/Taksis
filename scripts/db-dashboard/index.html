@@ -1,0 +1,66 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Taksis DB</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#f6f6f4;--panel:#fff;--ink:#1d1d1b;--mute:#6b6b66;--line:#e2e1dc;--acc:#2f5bd3;--bad:#c0392b;--warn:#fff3cd}
+@media (prefers-color-scheme:dark){:root{--bg:#161615;--panel:#1f1f1d;--ink:#ecebe6;--mute:#9a9a93;--line:#33332f;--acc:#7b9cff;--bad:#ff6b5b;--warn:#4a3d10}}
+*{box-sizing:border-box}body{margin:0;font:14px/1.45 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--ink);height:100vh;display:flex;flex-direction:column}
+header{padding:10px 16px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;background:var(--panel)}
+.prod{background:var(--warn);padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600}
+#crumbs a{color:var(--acc);cursor:pointer;text-decoration:none}#crumbs{flex:1;overflow:auto;white-space:nowrap}
+main{flex:1;display:grid;grid-template-columns:220px 320px 1fr;min-height:0}
+section{border-right:1px solid var(--line);overflow:auto;background:var(--panel);min-height:0}
+section h3{margin:0;padding:8px 12px;font-size:11px;text-transform:uppercase;color:var(--mute);letter-spacing:.05em;position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--line)}
+.item{padding:6px 12px;cursor:pointer;border-bottom:1px solid var(--line);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item:hover{background:var(--bg)}.item.on{background:var(--acc);color:#fff}.item small{color:var(--mute);margin-left:6px}.item.on small{color:#ddd}
+.bar{display:flex;gap:6px;padding:8px 12px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+input,select,button,textarea{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:4px 8px}
+button{cursor:pointer}button.pri{background:var(--acc);color:#fff;border-color:var(--acc)}button.bad{color:var(--bad);border-color:var(--bad)}
+#editor{width:100%;height:calc(100% - 50px);border:0;border-radius:0;font:12.5px/1.5 ui-monospace,Menlo,monospace;padding:12px;resize:none;background:var(--panel)}
+#docpane{display:flex;flex-direction:column;background:var(--panel)}#msg{margin-left:auto;color:var(--mute)}
+.subs{padding:6px 12px;border-bottom:1px solid var(--line);font-size:13px}.subs a{color:var(--acc);cursor:pointer;margin-right:10px}
+</style></head><body>
+<header><b>Taksis DB</b><span class="prod">PRODUCTION</span><div id="crumbs"></div></header>
+<main>
+<section><h3>Collections</h3><div id="cols"></div></section>
+<section><h3>Documents</h3>
+ <div class="bar"><input id="f" placeholder="field" size="8"><select id="op"><option>==</option><option>!=</option><option>&lt;</option><option>&gt;</option><option>array-contains</option></select><input id="v" placeholder='value (JSON ok)' size="10"><button onclick="loadDocs()">Filter</button><button onclick="f.value=v.value='';loadDocs()">×</button></div>
+ <div id="docs"></div><div class="bar"><button id="more" onclick="loadDocs(true)">Load more</button><button onclick="newDoc()">+ New doc</button></div>
+</section>
+<section id="docpane"><div class="bar"><b id="docid">—</b><button class="pri" onclick="save()">Save (⌘S)</button><button onclick="dup()">Duplicate</button><button class="bad" onclick="del()">Delete</button><span id="msg"></span></div>
+ <div class="subs" id="subs"></div><textarea id="editor" spellcheck="false" placeholder="Select a document"></textarea></section>
+</main>
+<script>
+let colPath="",docPath="",lastId=null;const $=id=>document.getElementById(id);
+const api=async(u,o)=>{const r=await fetch(u,o);const j=await r.json();if(!r.ok)throw new Error(j.error||r.statusText);return j};
+const q=p=>encodeURIComponent(p);const say=t=>{$("msg").textContent=t};
+function crumbs(){const parts=(docPath||colPath).split("/").filter(Boolean);let h='<a onclick="openParent(\'\')">root</a>';
+ parts.forEach((p,i)=>{const sub=parts.slice(0,i+1).join("/");h+=` / <a onclick="openPath('${sub.replace(/'/g,"\\'")}')">${p}</a>`});$("crumbs").innerHTML=h;
+ location.hash=q(docPath||colPath)}
+async function openParent(docParent){const cols=await api("/api/collections?path="+q(docParent));
+ $("cols").innerHTML=cols.map(c=>`<div class="item" data-c="${(docParent?docParent+"/":"")+c}">${c}</div>`).join("")||'<div class="item"><small>none</small></div>';
+ $("cols").querySelectorAll("[data-c]").forEach(e=>e.onclick=()=>openCol(e.dataset.c));if(!docParent){colPath=docPath="";crumbs()}}
+async function openCol(p){colPath=p;docPath="";lastId=null;$("cols").querySelectorAll(".item").forEach(e=>e.classList.toggle("on",e.dataset.c===p));
+ $("editor").value="";$("docid").textContent="—";$("subs").innerHTML="";crumbs();loadDocs()}
+async function loadDocs(more){if(!colPath)return;let u=`/api/docs?path=${q(colPath)}&limit=50`;
+ if($("f").value&&$("v").value)u+=`&field=${q($("f").value)}&op=${q($("op").value)}&value=${q($("v").value)}`;else if(more&&lastId)u+="&after="+q(lastId);
+ try{const d=await api(u);const html=d.map(x=>`<div class="item" data-id="${x.id}">${x.id}<small>${x.label}</small></div>`).join("");
+ if(more)$("docs").insertAdjacentHTML("beforeend",html);else $("docs").innerHTML=html||'<div class="item"><small>empty</small></div>';
+ lastId=d.length?d[d.length-1].id:lastId;$("more").disabled=d.length<50;
+ $("docs").querySelectorAll("[data-id]").forEach(e=>e.onclick=()=>openDoc(colPath+"/"+e.dataset.id))}catch(e){say(e.message)}}
+async function openDoc(p){docPath=p;const id=p.split("/").pop();$("docs").querySelectorAll(".item").forEach(e=>e.classList.toggle("on",e.dataset.id===id));
+ $("editor").value="";$("docid").textContent="loading…";const d=await api("/api/doc?path="+q(p));if(docPath!==p)return;$("docid").textContent=id;$("editor").value=JSON.stringify(d.data,null,2);
+ $("subs").innerHTML=d.subcollections.length?"Subcollections: "+d.subcollections.map(s=>`<a data-s="${p}/${s}">${s}</a>`).join(""):"";
+ $("subs").querySelectorAll("[data-s]").forEach(e=>e.onclick=()=>{openParent(p);openCol(e.dataset.s)});crumbs();say(d.exists?"":"(does not exist)")}
+async function openPath(p){const n=p.split("/").filter(Boolean).length;
+ if(n%2){await openParent(p.split("/").slice(0,-1).join("/"));openCol(p)}else{await openParent(p.split("/").slice(0,-2).join("/"));await openCol(p.split("/").slice(0,-1).join("/"));openDoc(p)}}
+async function save(){if(!docPath||$("docid").textContent!==docPath.split("/").pop())return;let data;try{data=JSON.parse($("editor").value)}catch(e){return say("Invalid JSON: "+e.message)}
+ try{await api("/api/doc",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({path:docPath,data})});say("Saved "+new Date().toLocaleTimeString())}catch(e){say(e.message)}}
+async function del(){if(!docPath||!confirm("Delete "+docPath+" from PRODUCTION?\n(Audit log keeps a copy.)"))return;
+ await api("/api/doc?path="+q(docPath),{method:"DELETE"});say("Deleted");openCol(colPath)}
+async function create(data){const id=prompt("New document ID (blank = auto):");if(id===null)return;
+ try{const r=await api("/api/doc",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({collection:colPath,id,data})});await loadDocs();openDoc(r.path)}catch(e){say(e.message)}}
+function newDoc(){if(colPath)create({})}
+function dup(){if(!docPath)return;try{create(JSON.parse($("editor").value))}catch(e){say("Invalid JSON")}}
+document.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key==="s"){e.preventDefault();save()}});
+const h=decodeURIComponent(location.hash.slice(1));h?openPath(h):openParent("");
+</script></body></html>

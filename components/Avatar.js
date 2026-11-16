@@ -88,6 +88,14 @@ const Avatar = React.memo(({
       placeholderContentFit="cover"
       contentFit="cover"
       cachePolicy="memory-disk"
+      // Profile photos are stored at camera resolution (up to ~4300px). Without
+      // this, every mount decodes the full image and then downscales it to the
+      // avatar's size synchronously on the main thread — the dominant cost when
+      // a roster scrolls. With it, SDWebImage decodes straight to a thumbnail
+      // at the view's pixel size on its background coder queue (and caches that
+      // thumbnail), so the main thread just displays it. Safe here because an
+      // avatar is a fixed-size square that never resizes after layout.
+      enforceEarlyResizing
       recyclingKey={uri || `default-${resolvedUid || "none"}`}
       transition={120}
       onDisplay={onDisplay}

@@ -275,6 +275,10 @@ const ProfileImageExpander = React.memo(({
             source={imageSource}
             contentFit={isDefaultImage || !imageLoaded ? "contain" : "cover"}
             cachePolicy="memory-disk"
+            // Decode a size-matched thumbnail off the main thread instead of
+            // downscaling the full camera-resolution photo on it (see Avatar.js).
+            // The enlarged view below is a separate Image and stays full-res.
+            enforceEarlyResizing
             placeholder={DEFAULT_PROFILE}
             placeholderContentFit="contain"
             transition={200}

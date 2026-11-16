@@ -995,7 +995,7 @@ const AlhanAttendance = () => {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalContainer}
         >
-          <GlassSurface style={styles.modalContentLarge}>
+          <GlassSurface sheet style={styles.modalContentLarge}>
             {submitting ? (
               <View style={styles.modalLoadingContainer}>
                 <ActivityIndicator size="large" color={t.accent} />
@@ -1169,7 +1169,7 @@ const AlhanAttendance = () => {
       {/* ---------- Week picker modal ---------- */}
       <Modal visible={dateModalVisible} transparent animationType="fade" onRequestClose={() => setDateModalVisible(false)}>
         <View style={styles.modalContainer}>
-          <GlassSurface style={styles.weekModalCard}>
+          <GlassSurface sheet style={styles.weekModalCard}>
             {/* Header */}
             <View style={styles.weekModalHeader}>
               <View>

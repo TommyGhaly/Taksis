@@ -68,13 +68,15 @@ function paschaTokens(t) {
       BLUE:    "#2563eb",
       BLUE2:   "#2563eb",
       T1:      t.text,
-      T2:      t.textSecondary,
-      T3:      t.textTertiary,
+      // A step past the shared 60%/30% greys: Pascha is read by older
+      // servants, and those are hard to make out on white (matches Pascha Manager).
+      T2:      t.textMuted,
+      T3:      "#8E8E93",
       COPTIC_COLOR: "#b45309",
       PURPLE:       "#7c3aed",
-      DATE:         t.textSecondary,
+      DATE:         t.textMuted,
       DATE_ACTIVE:  "rgba(37,99,235,0.85)",
-      SUBTITLE:     t.textSecondary,
+      SUBTITLE:     t.textMuted,
       HOUR_IDLE:    t.fillStrong,
       BACKDROP:     t.overlay,
     };
@@ -193,7 +195,7 @@ const HomeSettingsSheet = ({ visible, fontSizeScale, hideNames, onSetFontSize, o
   <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
     <View style={ss.backdrop}>
       <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
-      <GlassSurface style={ss.sheet}>
+      <GlassSurface sheet style={ss.sheet}>
         <View style={ss.handle} />
         <View style={ss.hdr}>
           <Text style={ss.hdrTitle}>Settings</Text>
@@ -378,7 +380,7 @@ const ReadingCard = ({ row, hourAssignments, uid, isFullSchedule, isMine, hideNa
 
       {!!row.location && (
         <View style={rdc.locationRow}>
-          <Icon name="map-marker-outline" size={11} color={P.T3} />
+          <Icon name="map-marker-outline" size={11} color={P.T2} />
           <Text style={[rdc.loc, tx(11, fontScale)]}>{row.location}</Text>
         </View>
       )}
@@ -417,12 +419,12 @@ const useRdc = makeStyles((t) => {
   copticBadge:     { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: "rgba(245,158,11,0.20)", borderWidth: 1, borderColor: P.COPTIC_BORDER },
   copticBadgeTxt:  { fontSize: 9, fontWeight: "800", color: P.COPTIC_COLOR, letterSpacing: 0.5 },
   langBadge:       { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, backgroundColor: P.GLASS2 },
-  langBadgeTxt:    { fontSize: 9, fontWeight: "700", color: P.T3, letterSpacing: 0.3 },
+  langBadgeTxt:    { fontSize: 9, fontWeight: "700", color: P.T2, letterSpacing: 0.3 },
   youPill:         { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: P.BLUE_D, borderWidth: 1, borderColor: "rgba(59,130,246,0.3)" },
   youTxt:          { fontSize: 9, fontWeight: "700", color: P.BLUE2, letterSpacing: 0.4 },
   ref:             { fontSize: 14, color: P.T1, fontWeight: "300", lineHeight: 21, marginBottom: 3 },
   locationRow:     { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 3 },
-  loc:             { fontSize: 11, color: P.T3, fontWeight: "400" },
+  loc:             { fontSize: 11, color: P.T2, fontWeight: "400" },
   assigneeRow:     { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: P.SEP },
   chip:            { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: P.GLASS2, borderWidth: 1, borderColor: P.SEP, borderRadius: 20, paddingVertical: 3, paddingHorizontal: 8 },
   chipAvatar:      { backgroundColor: P.GLASS2 },
@@ -600,12 +602,12 @@ const usePg = makeStyles((t) => {
   hourAccent:      { width: 3, height: 20, borderRadius: 2 },
   hourLabel:       { fontSize: 17, fontWeight: "300", color: P.T1, letterSpacing: -0.3 },
   hourSub:         { fontSize: 12, color: P.BLUE2, marginTop: 2, fontWeight: "400" },
-  pageCount:       { fontSize: 11, color: P.T3, fontWeight: "400" },
+  pageCount:       { fontSize: 11, color: P.T2, fontWeight: "400" },
   cardsScroll:     { paddingHorizontal: 16, paddingBottom: 32 },
   empty:           { flex: 1, justifyContent: "center", alignItems: "center", gap: 12, padding: 48 },
   emptyTxt:        { fontSize: 14, color: P.T2, fontWeight: "300" },
   emptyHour:       { padding: 24, alignItems: "center" },
-  emptyHourTxt:    { fontSize: 13, color: P.T3, fontWeight: "400" },
+  emptyHourTxt:    { fontSize: 13, color: P.T2, fontWeight: "400" },
   };
 });
 

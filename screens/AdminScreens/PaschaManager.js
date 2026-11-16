@@ -58,12 +58,20 @@ function paschaTokens(t) {
     SEP:     d ? "rgba(255,255,255,0.08)" : t.border,
     BLUE:    d ? "#0a84ff" : t.accent,
     BLUEDIM: d ? "rgba(10,132,255,0.15)" : t.accentFill,
+    // Pop-ups and their tinted buttons are drawn solid: the same colors the
+    // translucent fills make over CARD, minus the see-through. A sheet tint
+    // keeps the glass but washes it near-opaque so the screen behind stays out.
+    SHEET_TINT:     d ? "rgba(28,28,30,0.85)" : "rgba(255,255,255,0.94)",
+    BLUEDIM_SOLID:  d ? "#192C40" : "#D7E4F7",
+    REDDIM_SOLID:   d ? "#332021" : "#F3E1E4",
     GREEN:   t.successText,
     RED:     t.dangerText,
     ORANGE:  t.warningText,
     T1:      t.text,
-    T2:      d ? "rgba(255,255,255,0.65)" : t.textSecondary,
-    T3:      d ? "rgba(255,255,255,0.30)" : t.textTertiary,
+    // Light mode greys are a step past the shared tokens: this screen is read
+    // by older servants, and 30%/60% grey on white is hard to make out.
+    T2:      d ? "rgba(255,255,255,0.65)" : t.textMuted,
+    T3:      d ? "rgba(255,255,255,0.30)" : "#8E8E93",
     ON:      t.onAccent, // text/icons on a BLUE/RED fill
     COPTIC_COLOR:  d ? "#f59e0b" : "#B45309",
     COPTIC_BG:     "rgba(245,158,11,0.10)",
@@ -363,7 +371,7 @@ var useGgStyles = makeStyles(function(t) {
 
 // ── HourModal ─────────────────────────────────────────────────────────────────
 var HourModal = function(props) {
-  var { BLUE, GREEN, RED, T1, T2, T3, COPTIC_COLOR, COPTIC_BG, AVATAR_BG, THEME } = usePaschaTokens();
+  var { BLUE, GREEN, RED, T1, T2, T3, COPTIC_COLOR, COPTIC_BG, AVATAR_BG, THEME, SHEET_TINT } = usePaschaTokens();
   var hm = useHmStyles();
   var pmS = usePmSStyles();
   props = props || {};
@@ -695,7 +703,7 @@ var HourModal = function(props) {
         />
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={[hm.kav, sheet.center]} pointerEvents="box-none">
-          <GlassSurface style={[hm.sheet, sheet.card, { maxHeight: sheetMax }]}>
+          <GlassSurface sheet tint={SHEET_TINT} style={[hm.sheet, sheet.card, { maxHeight: sheetMax }]}>
             {!sheet.wide && <View style={hm.handle} />}
 
             {/* ── MAIN HOUR VIEW ─────────────────────────────────────────── */}
@@ -882,7 +890,7 @@ var HourModal = function(props) {
                 </View>
                 <View style={hm.searchRow}>
                   <Icon name="magnify" size={16} color={T3} />
-                  <TextInput style={hm.searchIn} placeholder="Search..." placeholderTextColor={THEME.placeholder} keyboardAppearance={THEME.keyboardAppearance}
+                  <TextInput style={hm.searchIn} placeholder="Search..." placeholderTextColor={THEME.isDark ? THEME.placeholder : T3} keyboardAppearance={THEME.keyboardAppearance}
                     value={q} onChangeText={setQ} returnKeyType="search" />
                   {q.length > 0 && (
                     <TouchableOpacity onPress={function() { setQ(""); }}
@@ -906,7 +914,7 @@ var HourModal = function(props) {
                 }
                 {manualOpen ? (
                   <View style={hm.manualBox}>
-                    <TextInput style={hm.manualIn} placeholder="Full name..." placeholderTextColor={THEME.placeholder} keyboardAppearance={THEME.keyboardAppearance}
+                    <TextInput style={hm.manualIn} placeholder="Full name..." placeholderTextColor={THEME.isDark ? THEME.placeholder : T3} keyboardAppearance={THEME.keyboardAppearance}
                       value={manual} onChangeText={setManual} autoFocus returnKeyType="done"
                       onSubmitEditing={function() {
                         var n = manual.trim();
@@ -999,7 +1007,7 @@ var HourModal = function(props) {
                 </View>
                 <View style={hm.searchRow}>
                   <Icon name="magnify" size={16} color={T3} />
-                  <TextInput style={hm.searchIn} placeholder="Search..." placeholderTextColor={THEME.placeholder} keyboardAppearance={THEME.keyboardAppearance}
+                  <TextInput style={hm.searchIn} placeholder="Search..." placeholderTextColor={THEME.isDark ? THEME.placeholder : T3} keyboardAppearance={THEME.keyboardAppearance}
                     value={q} onChangeText={setQ} returnKeyType="search" />
                   {q.length > 0 && (
                     <TouchableOpacity onPress={function() { setQ(""); }}
@@ -1023,7 +1031,7 @@ var HourModal = function(props) {
                 }
                 {manualOpen ? (
                   <View style={hm.manualBox}>
-                    <TextInput style={hm.manualIn} placeholder="Full name..." placeholderTextColor={THEME.placeholder} keyboardAppearance={THEME.keyboardAppearance}
+                    <TextInput style={hm.manualIn} placeholder="Full name..." placeholderTextColor={THEME.isDark ? THEME.placeholder : T3} keyboardAppearance={THEME.keyboardAppearance}
                       value={manual} onChangeText={setManual} autoFocus returnKeyType="done"
                       onSubmitEditing={addPsalmManual} />
                     <View style={hm.manualBtns}>
@@ -1065,7 +1073,7 @@ var HourModal = function(props) {
 };
 
 var useHmStyles = makeStyles(function(t) {
-  var { BG, CARD, CARD2, CARD3, SEP, BLUE, BLUEDIM, GREEN, RED, ORANGE, T1, T2, T3, ON, COPTIC_COLOR, COPTIC_BG, COPTIC_BORDER, COPTIC_TRACK } = paschaTokens(t);
+  var { BG, CARD, CARD2, CARD3, SEP, BLUE, BLUEDIM, GREEN, RED, ORANGE, T1, T2, T3, ON, COPTIC_COLOR, COPTIC_BG, COPTIC_BORDER, COPTIC_TRACK, BLUEDIM_SOLID, REDDIM_SOLID } = paschaTokens(t);
   return {
   backdrop:           { flex: 1, backgroundColor: t.isDark ? "rgba(0,0,0,0.65)" : t.overlay, justifyContent: "flex-end" },
   kav:                { flex: 1, width: "100%", justifyContent: "flex-end" },
@@ -1128,7 +1136,8 @@ var useHmStyles = makeStyles(function(t) {
   center:             { height: 100, justifyContent: "center", alignItems: "center" },
   empty:              { textAlign: "center", color: T3, fontSize: 14, paddingVertical: 24 },
   pRow:               { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 13,
-                        marginBottom: 6, backgroundColor: CARD2 },
+                        marginBottom: 6, backgroundColor: CARD2,
+                        borderWidth: 1, borderColor: t.isDark ? "transparent" : t.borderStrong },
   pRowOn:             { backgroundColor: BLUEDIM, borderWidth: 1, borderColor: "rgba(10,132,255,0.25)" },
   pRowName:           { fontSize: 14, color: T1, fontWeight: "500" },
   // Hoisted out of the JSX, where they were fresh object literals every render.
@@ -1142,7 +1151,7 @@ var useHmStyles = makeStyles(function(t) {
   radioOn:            { borderColor: BLUE },
   radioDot:           { width: 10, height: 10, borderRadius: 5, backgroundColor: BLUE },
   addManual:          { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20,
-                        marginTop: 4, marginBottom: 8, padding: 13, borderRadius: 12, backgroundColor: BLUEDIM },
+                        marginTop: 4, marginBottom: 8, padding: 13, borderRadius: 12, backgroundColor: BLUEDIM_SOLID },
   addManualTxt:       { fontSize: 14, fontWeight: "500", color: BLUE },
   manualBox:          { marginHorizontal: 20, marginTop: 6, marginBottom: 8 },
   manualIn:           { backgroundColor: CARD2, borderRadius: 11, paddingHorizontal: 14,
@@ -1154,7 +1163,7 @@ var useHmStyles = makeStyles(function(t) {
   mAddTxt:            { fontSize: 14, fontWeight: "700", color: ON },
   pickerFooter:       { paddingHorizontal: 20, paddingTop: 10, borderTopWidth: 1, borderTopColor: SEP },
   saveBtn:            { backgroundColor: BLUE, paddingVertical: 15, borderRadius: 14, alignItems: "center" },
-  saveBtnClear:       { backgroundColor: "rgba(255,69,58,0.1)", borderWidth: 1, borderColor: "rgba(255,69,58,0.2)" },
+  saveBtnClear:       { backgroundColor: REDDIM_SOLID, borderWidth: 1, borderColor: "rgba(255,69,58,0.2)" },
   saveBtnTxt:         { fontSize: 15, fontWeight: "700", color: ON },
 };
 });
@@ -1518,7 +1527,7 @@ var useHtStyles = makeStyles(function(t) {
   barRow:         { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10, marginBottom: 6 },
   track:          { flex: 1, flexDirection: "row", height: 3, borderRadius: 2, backgroundColor: CARD2, overflow: "hidden" },
   trackFill:      { borderRadius: 2 },
-  pct:            { fontWeight: "700", color: T3, minWidth: 34, textAlign: "right" },
+  pct:            { fontWeight: "700", color: T2, minWidth: 34, textAlign: "right" },
   readingList:    { borderTopWidth: 1, borderTopColor: t.isDark ? "rgba(255,255,255,0.05)" : t.border },
   rRow:           { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                     gap: 12, paddingVertical: 10 },
@@ -1536,7 +1545,7 @@ var useHtStyles = makeStyles(function(t) {
   copticBadge:    { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: COPTIC_BG,
                     borderWidth: 1, borderColor: COPTIC_BORDER },
   copticBadgeTxt: { fontWeight: "700", color: COPTIC_COLOR, letterSpacing: 0.3 },
-  rRef:           { color: T3 },
+  rRef:           { color: T2 },
   // Same bleed as the Coptic tint, so the press highlight spans the card.
   rRowPressed:    { backgroundColor: t.isDark ? "rgba(255,255,255,0.06)" : t.fill, marginLeft: -18, marginRight: -16,
                     paddingLeft: 18, paddingRight: 16 },
@@ -1555,7 +1564,7 @@ var useHtStyles = makeStyles(function(t) {
 
 // ── Settings sheet ────────────────────────────────────────────────────────────
 var SettingsSheet = function(props) {
-  var { BLUE, BLUEDIM, GREEN, RED, T2, T3, THEME } = usePaschaTokens();
+  var { BLUE, BLUEDIM, GREEN, RED, T2, T3, THEME, SHEET_TINT } = usePaschaTokens();
   var ss = useSsStyles();
   var visible = props.visible;
   var myReadingsVisible = props.myReadingsVisible;
@@ -1603,7 +1612,7 @@ var SettingsSheet = function(props) {
     <Modal visible={visible} animationType={sheet.animationType} transparent onRequestClose={onClose}>
       <View style={[ss.backdrop, sheet.center]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <GlassSurface style={[ss.sheet, sheet.card, sheet.wide && { maxHeight: sheet.height * 0.86 }]}>
+        <GlassSurface sheet tint={SHEET_TINT} style={[ss.sheet, sheet.card, sheet.wide && { maxHeight: sheet.height * 0.86 }]}>
           {!sheet.wide && <View style={ss.handle} />}
           <View style={ss.hdr}>
             <Text style={ss.hdrTitle}>Settings</Text>
@@ -1770,7 +1779,7 @@ var useSsStyles = makeStyles(function(t) {
 
 // ── Archive confirm ───────────────────────────────────────────────────────────
 var ArchiveConfirm = function(props) {
-  var { GREEN, ORANGE, ON } = usePaschaTokens();
+  var { GREEN, ORANGE, ON, SHEET_TINT } = usePaschaTokens();
   var arc = useArcStyles();
   var visible = props.visible;
   var year = props.year;
@@ -1806,7 +1815,7 @@ var ArchiveConfirm = function(props) {
     <Modal visible={visible} animationType="fade" transparent
       onRequestClose={!archiving ? onClose : undefined} statusBarTranslucent>
       <View style={[arc.overlay, sheet.center]}>
-        <GlassSurface style={[arc.sheet, sheet.card, sheet.wide && arc.sheetCard]}>
+        <GlassSurface sheet tint={SHEET_TINT} style={[arc.sheet, sheet.card, sheet.wide && arc.sheetCard]}>
           {!sheet.wide && <View style={arc.handle} />}
           <View style={arc.iconWrap}>
             <Icon name={done ? "check-circle-outline" : "archive-clock-outline"} size={32}

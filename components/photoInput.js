@@ -18,6 +18,7 @@ import { doc, getFirestore, updateDoc } from '@react-native-firebase/firestore';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import * as avatarCache from '../utils/avatarCache';
+import { shrinkPhoto } from '../utils/shrinkPhoto';
 import { makeStyles, useTheme, GlassSurface } from '../theme';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -36,6 +37,8 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, inline = false 
   const [loading, setLoading] = useState(false);
   const [previewUri, setPreviewUri] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  // Set when shrinkPhoto re-encoded the preview, so Storage labels it correctly.
+  const previewTypeRef = useRef(null);
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
@@ -77,6 +80,13 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, inline = false 
     }
   }, [uploadProgress]);
 
+  // Downscale to MAX_PHOTO_SIDE before preview, so what is shown is what uploads.
+  const acceptPickedAsset = async (asset) => {
+    const { uri, contentType } = await shrinkPhoto(asset);
+    previewTypeRef.current = contentType ?? null;
+    setPreviewUri(uri);
+  };
+
   const handlePickPhoto = async () => {
     ReactNativeHapticFeedback.trigger('impactLight', hapticOptions);
     
@@ -98,7 +108,7 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, inline = false 
     });
 
     if (!result.canceled) {
-      setPreviewUri(result.assets[0].uri);
+      await acceptPickedAsset(result.assets[0]);
     }
   };
 
@@ -123,7 +133,7 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, inline = false 
     });
 
     if (!result.canceled) {
-      setPreviewUri(result.assets[0].uri);
+      await acceptPickedAsset(result.assets[0]);
     }
   };
 
@@ -136,7 +146,8 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, inline = false 
     
     try {
       const reference = ref(getStorage(), `profilePictures/${userId}.png`);
-      const task = putFile(reference, previewUri);
+      const contentType = previewTypeRef.current;
+      const task = putFile(reference, previewUri, contentType ? { contentType } : undefined);
       
       task.on('state_changed', 
         (snapshot) => {
@@ -243,7 +254,7 @@ const PhotoInput = ({ visible, onClose, userId, onUploadSuccess, inline = false 
             { transform: [{ scale: scaleAnim }] }
           ]}
         >
-          <GlassSurface style={styles.card}>
+          <GlassSurface sheet style={styles.card}>
             {/* Close Button */}
             <Pressable
               style={({ pressed }) => [

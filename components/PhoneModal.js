@@ -31,7 +31,7 @@ const PhoneModal = ({
     >
       <View style={styles.modalOverlay}>
         <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
-          <GlassSurface style={styles.modalDOBContainer}>
+          <GlassSurface sheet style={styles.modalDOBContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>We Need Your Phone Number</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>

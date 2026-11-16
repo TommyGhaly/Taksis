@@ -2311,7 +2311,7 @@ function FieldEditorModal({ field, existingKeys = [], onCancel, onSave }) {
   return (
     <Modal animationType="fade" transparent onRequestClose={onCancel}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
-        <GlassSurface style={styles.modalCard}>
+        <GlassSurface sheet style={styles.modalCard}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{field.isNew ? 'Add field' : `Edit "${field.key}"`}</Text>
             <TouchableOpacity onPress={onCancel} style={styles.modalCloseButton} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -2406,7 +2406,7 @@ function TypedConfirmModal({ state, onCancel }) {
   return (
     <Modal animationType="fade" transparent onRequestClose={onCancel}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
-        <GlassSurface style={styles.confirmCard}>
+        <GlassSurface sheet style={styles.confirmCard}>
           <View style={styles.confirmIconWrap}><Ionicons name="warning" size={28} color={C.danger} /></View>
           <Text style={styles.confirmTitle}>{state.title}</Text>
           <Text style={styles.confirmMessage}>{state.message}</Text>

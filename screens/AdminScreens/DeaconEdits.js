@@ -139,7 +139,13 @@ const SAVE_BTN_H = 30;
 // device rather than derived, because there is no way to compute it from here.
 // The declared 28 is left alone deliberately: it is already being ignored, and
 // changing it would be a visual change to chase a number that has no effect.
-const SLIDER_H = 40;
+//
+// Except on iOS 26+, where the redesigned UISlider honours the declared 28. Using
+// 40 there made getItemLayout overestimate every attendance card by 24px (the dev
+// audit reported 264 predicted vs 240 measured), so the list's idea of where each
+// row sits drifted further with every card: sticky headers landed on top of cards
+// and cells mounted for the wrong scroll offset while scrolling.
+const SLIDER_H = Platform.OS === "ios" && parseInt(String(Platform.Version), 10) >= 26 ? 28 : 40;
 // Rank chip + Reliable switch. Pinned: a UISwitch is 31pt and not computable.
 const CONTROLS_ROW_H = 32;
 
@@ -584,7 +590,7 @@ const PillModal = React.memo(({ visible, type, deacon, onClose }) => {
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={pmStyles.overlay}>
         <TouchableOpacity style={pmStyles.dismissArea} activeOpacity={1} onPress={onClose} />
-        <GlassSurface style={pmStyles.sheet}>
+        <GlassSurface sheet style={pmStyles.sheet}>
           {/* Drag handle */}
           <View style={pmStyles.handle} />
 

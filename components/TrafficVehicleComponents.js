@@ -63,7 +63,7 @@ const UserSelectRow = memo(({ item, selected, onPress, getImageSource, isUnreg, 
     onPress={() => onPress(item.uid)}
     activeOpacity={0.7}
   >
-    <Image source={getImageSource(item.uid)} style={s.userAvatar} contentFit="cover" />
+    <Image source={getImageSource(item.uid)} style={s.userAvatar} contentFit="cover" enforceEarlyResizing />
     <View style={s.userInfo}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
         <Text style={s.userName}>{item.name}</Text>
@@ -186,7 +186,7 @@ const SelectedDriverChip = memo(({ uid, user, getImageSource, onRemove }) => {
   const t = useTheme();
   return (
   <View style={s.chip}>
-    <Image source={getImageSource(uid)} style={s.chipAvatar} contentFit="cover" />
+    <Image source={getImageSource(uid)} style={s.chipAvatar} contentFit="cover" enforceEarlyResizing />
     <Text style={s.chipName} numberOfLines={1}>{user?.name?.split(" ")[0] ?? "?"}</Text>
     <TouchableOpacity onPress={() => onRemove(uid)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
       <Icon name="close-circle" size={16} color={t.textTertiary} />
@@ -288,7 +288,7 @@ export const VehicleFormSheet = memo(({
         onPress={() => toggleDriver(item.uid)}
         activeOpacity={0.7}
       >
-        <Image source={getImageSource(item.uid)} style={s.personAvatar} contentFit="cover" />
+        <Image source={getImageSource(item.uid)} style={s.personAvatar} contentFit="cover" enforceEarlyResizing />
         <View style={s.personInfo}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Text style={s.personName}>{item.name}</Text>
@@ -325,7 +325,7 @@ export const VehicleFormSheet = memo(({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={0}
       >
-        <GlassSurface style={s.formSheet}>
+        <GlassSurface sheet style={s.formSheet}>
           <View style={s.formHeader}>
             <TouchableOpacity onPress={onClose} style={s.formCloseBtn}>
               <Icon name="chevron-down" size={24} color={t.textSecondary} />
@@ -421,7 +421,7 @@ export const VehicleFormSheet = memo(({
             ListEmptyComponent={EmptyPeople}
           />
 
-          <GlassSurface style={s.formFooter}>
+          <GlassSurface sheet style={s.formFooter}>
             <View style={s.formFooterMeta}>
               <Icon name={license.trim() ? "check-circle" : "circle-outline"} size={14} color={license.trim() ? t.success : tintText(t, 0.2)} />
               <Text style={s.formFooterMetaText}>Plate</Text>

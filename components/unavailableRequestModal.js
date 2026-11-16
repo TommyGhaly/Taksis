@@ -543,7 +543,7 @@ const UnavailableRequestModal = ({
 
   // Render server selection view
   const renderServerSelectView = () => (
-    <GlassSurface style={styles.modalContent}>
+    <GlassSurface sheet style={styles.modalContent}>
       <View style={styles.serverSelectHeader}>
         <TouchableOpacity 
           style={styles.backButton} 
@@ -574,7 +574,7 @@ const UnavailableRequestModal = ({
 
   // Render main view
   const renderMainView = () => (
-    <GlassSurface style={styles.modalContent}>
+    <GlassSurface sheet style={styles.modalContent}>
       <View style={styles.modalHeader}>
         <Text style={styles.modalTitle}>Schedule Change</Text>
       </View>

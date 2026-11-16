@@ -512,7 +512,7 @@ const PlateScanner = memo(({ visible, onPlateScanned, onClose, onManualEntry, kn
         {/* The camera stays dark; the review sheet over it follows the theme. */}
         {phase === "review" && final && (
           <View style={rv.reviewOverlay}>
-            <GlassSurface style={[rv.reviewSheet, { paddingBottom: insets.bottom + 24 }]}>
+            <GlassSurface sheet style={[rv.reviewSheet, { paddingBottom: insets.bottom + 24 }]}>
               <View style={rv.reviewHandle} />
 
               <View style={rv.reviewTop}>

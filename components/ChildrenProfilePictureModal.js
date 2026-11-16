@@ -28,7 +28,7 @@ const ChildrenProfilePictureModal = ({
     >
       <View style={styles.modalOverlay}>
         <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
-          <GlassSurface style={styles.modalDOBContainer}>
+          <GlassSurface sheet style={styles.modalDOBContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 Children Profile Pictures Required
