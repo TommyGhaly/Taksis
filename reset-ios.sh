@@ -140,6 +140,10 @@ echo "→ Verifying"
 grep -q "FirebaseApp.configure()" ios/app/AppDelegate.swift \
   || fail "FirebaseApp.configure() missing from AppDelegate — withFirebaseAppDelegate did not apply. The app would build and then fail on the first Firestore or Auth call."
 
+grep -q "class SceneDelegate" ios/app/AppDelegate.swift \
+  && plutil -extract UIApplicationSceneManifest raw ios/app/Info.plist >/dev/null 2>&1 \
+  || fail "SceneDelegate or UIApplicationSceneManifest missing — withSceneLifecycle did not apply. Built with the iOS 27 SDK, the app would crash at launch."
+
 grep -q "appclips:" ios/app/app.entitlements \
   || fail "associated-domains missing from app.entitlements — withVehicleAppClip did not apply. Universal links and the App Clip would silently not work."
 
@@ -170,7 +174,7 @@ CLIP_B=$(xcodebuild -project ios/app.xcodeproj -target TaksisClip -configuration
 [ "$APP_V" = "$CLIP_V" ] && [ "$APP_B" = "$CLIP_B" ] \
   || fail "Version mismatch: app $APP_V ($APP_B) vs clip $CLIP_V ($CLIP_B). App Store Connect rejects a clip whose version differs from its parent."
 
-echo "   ✓ Firebase configured, App Clip target + scheme + entitlements present, fmt patched"
+echo "   ✓ Firebase configured, scene life cycle adopted, App Clip target + scheme + entitlements present, fmt patched"
 echo "   ✓ app and clip both at $APP_V ($APP_B)"
 
 # ── Commit and push the version ──────────────────────────────────────────────

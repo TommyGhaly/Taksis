@@ -70,6 +70,7 @@
       ],
       "./plugins/withPodfilePatches",
       "./plugins/withFirebaseAppDelegate",
+      "./plugins/withSceneLifecycle",
       "./plugins/withVehicleAppClip",
       "./plugins/withGradleMemory",
       "@react-native-community/datetimepicker",
