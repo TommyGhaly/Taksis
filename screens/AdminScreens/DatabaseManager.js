@@ -509,7 +509,7 @@ const useRp = makeStyles((theme) => {
   leafVal: { flex: 1 },
   leafValText: { color: C.t2, fontSize: 13 },
 
-  deepLimit: { color: C.t5, fontSize: 11, fontStyle: 'italic', paddingVertical: 4 },
+  deepLimit: { color: C.t4, fontSize: 11, fontStyle: 'italic', paddingVertical: 4 },
 
   showMoreBtn: { paddingVertical: 8, alignItems: 'center' },
   showMoreText: { color: C.accentSoft, fontSize: 12, fontWeight: '600' },

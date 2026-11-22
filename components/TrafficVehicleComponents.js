@@ -779,7 +779,7 @@ export function PendingList({ pendingVehicles, onSelect, onClose, hideHeader = f
 
 // Translucent white tints with no exact token: dark keeps the original alpha,
 // light gets the matching dark-on-light tint.
-const tintText = (t, a) => (t.isDark ? `rgba(255,255,255,${a})` : `rgba(60,60,67,${Math.max(a, 0.3)})`);
+const tintText = (t, a) => (t.isDark ? `rgba(255,255,255,${a})` : `rgba(60,60,67,${Math.max(a, 0.55)})`);
 
 const useS = makeStyles((t) => ({
   bottomOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: "flex-end" },
@@ -826,13 +826,13 @@ const useS = makeStyles((t) => ({
   formSaveBtnText: { fontSize: 16, fontWeight: "700", color: t.onAccent, letterSpacing: 0 },
   pendingSheet: { flex: 1 },
   pendingEmpty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
-  pendingEmptyText: { fontSize: 15, color: t.isDark ? t.textTertiary : t.textSecondary, letterSpacing: 0 },
+  pendingEmptyText: { fontSize: 15, color: t.textTertiary, letterSpacing: 0 },
   pendingCard: { flexDirection: "row", alignItems: "center", backgroundColor: t.fill, borderRadius: 14, padding: 16, marginBottom: 10 },
   pendingCardLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
   pendingStatusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.warning },
   pendingLicense: { fontSize: 17, fontWeight: "700", color: t.text, letterSpacing: 0 },
-  pendingMeta: { fontSize: 13, color: t.isDark ? t.textTertiary : t.textSecondary, marginTop: 2, letterSpacing: 0 },
-  pendingDriverCount: { fontSize: 12, color: t.isDark ? t.textTertiary : t.textSecondary, marginTop: 2, letterSpacing: 0 },
+  pendingMeta: { fontSize: 13, color: t.textTertiary, marginTop: 2, letterSpacing: 0 },
+  pendingDriverCount: { fontSize: 12, color: t.textTertiary, marginTop: 2, letterSpacing: 0 },
   // Hoisted out of the JSX, where they were fresh object literals every render.
   pendingListContent: { padding: 16 },
   pendingEmptyWrap: { alignItems: "center", marginTop: 32 },

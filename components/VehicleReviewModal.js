@@ -637,9 +637,7 @@ const VehicleReviewModal = ({
 
 // Translucent white tints with no exact token: dark keeps the original alpha,
 // light gets the matching dark-on-light tint.
-const tintText = (t, a) => (t.isDark ? `rgba(255,255,255,${a})` : `rgba(60,60,67,${Math.max(a, 0.6)})`);
-// Tertiary grey (0.3 alpha) disappears on glass in light mode; secondary holds.
-const subtle = (t) => (t.isDark ? t.textTertiary : t.textSecondary);
+const tintText = (t, a) => (t.isDark ? `rgba(255,255,255,${a})` : `rgba(60,60,67,${Math.max(a, 0.55)})`);
 
 const useMs = makeStyles((t) => ({
   overlay: { flex: 1, backgroundColor: t.overlay, justifyContent: "flex-end" },
@@ -665,7 +663,7 @@ const useMs = makeStyles((t) => ({
   sourceBadgeMalformed: { backgroundColor: "rgba(255,159,10,0.12)" },
   sourceBadgePending: { backgroundColor: t.accentFill },
   sourceBadgeText: { fontSize: 12, fontWeight: "600" },
-  counter: { fontSize: 13, color: subtle(t), marginTop: 6 },
+  counter: { fontSize: 13, color: t.textTertiary, marginTop: 6 },
   vehicleSection: { paddingHorizontal: 20, paddingBottom: 16 },
   plateRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
@@ -679,14 +677,14 @@ const useMs = makeStyles((t) => ({
   },
   metaText: { fontSize: 14, color: t.textSecondary },
   sectionLabel: {
-    fontSize: 12, fontWeight: "600", color: subtle(t),
+    fontSize: 12, fontWeight: "600", color: t.textTertiary,
     textTransform: "uppercase", letterSpacing: 0.5,
     paddingHorizontal: 20, marginBottom: 10,
   },
   driverList: { flexGrow: 0, maxHeight: 420 },
   driverListContent: { paddingHorizontal: 20, paddingBottom: 8 },
   emptyDrivers: { alignItems: "center", paddingVertical: 24, gap: 8 },
-  emptyDriversText: { fontSize: 14, color: subtle(t) },
+  emptyDriversText: { fontSize: 14, color: t.textTertiary },
   footer: {
     flexDirection: "row", paddingHorizontal: 20, paddingTop: 16, gap: 10,
   },
@@ -715,7 +713,7 @@ const useRs = makeStyles((t) => ({
   // so this column held its width and pushed the unlink button out of the row.
   rowInfo: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, marginLeft: 12, marginRight: 8 },
   rowName: { fontSize: 15, fontWeight: "500", color: t.text },
-  rowSub: { fontSize: 12, color: subtle(t), marginTop: 1 },
+  rowSub: { fontSize: 12, color: t.textTertiary, marginTop: 1 },
   linkedCheck: { width: 18, height: 18, marginRight: 10, alignItems: "center", justifyContent: "center" },
   unlinkBtn: {
     width: 32, height: 32, borderRadius: 8,
@@ -737,7 +735,7 @@ const useRs = makeStyles((t) => ({
   },
   driverHeaderInfo: { flex: 1 },
   driverHeaderName: { fontSize: 15, fontWeight: "600", color: t.text },
-  driverHeaderSub: { fontSize: 12, color: subtle(t), marginTop: 1 },
+  driverHeaderSub: { fontSize: 12, color: t.textTertiary, marginTop: 1 },
   unregBtn: {
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: "rgba(191,90,242,0.12)", paddingHorizontal: 10, paddingVertical: 7,
@@ -759,7 +757,7 @@ const useRs = makeStyles((t) => ({
   candidateAvatar: { width: 34, height: 34, borderRadius: 17 },
   candidateInfo: { flex: 1, marginLeft: 10 },
   candidateName: { fontSize: 14, fontWeight: "500", color: t.text },
-  candidatePhone: { fontSize: 12, color: subtle(t), marginTop: 1 },
+  candidatePhone: { fontSize: 12, color: t.textTertiary, marginTop: 1 },
   unregBadge: {
     backgroundColor: "rgba(255,159,10,0.15)", paddingHorizontal: 5, paddingVertical: 2,
     borderRadius: 4, marginRight: 6,
@@ -772,7 +770,7 @@ const useRs = makeStyles((t) => ({
   scoreBadgeLow: { backgroundColor: t.isDark ? t.fill : t.fillStrong },
   scoreBadgeText: { fontSize: 10, fontWeight: "600" },
   scoreBadgeTextHigh: { color: t.successText },
-  scoreBadgeTextLow: { color: subtle(t) },
+  scoreBadgeTextLow: { color: t.textTertiary },
 
   // ── No match ──
   noMatchBox: {

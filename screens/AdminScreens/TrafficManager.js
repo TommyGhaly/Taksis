@@ -1332,7 +1332,7 @@ const TrafficManager = () => {
 
 // Translucent white tints with no exact token: dark keeps the original alpha,
 // light gets the matching dark-on-light tint.
-const tintText = (t, a) => (t.isDark ? `rgba(255,255,255,${a})` : `rgba(60,60,67,${Math.max(a, 0.3)})`);
+const tintText = (t, a) => (t.isDark ? `rgba(255,255,255,${a})` : `rgba(60,60,67,${Math.max(a, 0.55)})`);
 const tintFill = (t, a) => (t.isDark ? `rgba(255,255,255,${a})` : `rgba(118,118,128,${Math.min(a * 1.6, 0.4)})`);
 
 const useS = makeStyles((t) => ({

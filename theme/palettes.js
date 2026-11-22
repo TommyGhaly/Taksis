@@ -69,10 +69,13 @@ export const light = {
   chrome: "rgba(249,249,249,1)",
 
   text: "#000000",
-  textSecondary: "rgba(60,60,67,0.6)",
-  textTertiary: "rgba(60,60,67,0.3)",
+  // Darker than iOS's own label alphas (0.6 / 0.3 / 0.3): those are tuned for
+  // opaque white, and on glass sheets over a dimmed screen they washed out.
+  // Secondary is 4.7:1 on white (WCAG AA), tertiary 3:1, placeholder just under.
+  textSecondary: "rgba(60,60,67,0.72)",
+  textTertiary: "rgba(60,60,67,0.55)",
   textMuted: "#6C6C70",
-  placeholder: "rgba(60,60,67,0.3)",
+  placeholder: "rgba(60,60,67,0.5)",
   accentText: "#0A6FE0",
   accentFill: "rgba(20,126,251,0.12)",
 
