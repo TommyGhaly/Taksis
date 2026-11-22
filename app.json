@@ -85,6 +85,7 @@
       "./plugins/withSceneLifecycle",
       "./plugins/withVehicleAppClip",
       "./plugins/withGradleMemory",
+      "./plugins/withOptionalHardwareFeatures",
       "@react-native-community/datetimepicker",
       "expo-web-browser"
     ],
