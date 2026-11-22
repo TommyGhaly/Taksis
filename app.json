@@ -10,6 +10,18 @@
     "plugins": [
       "expo-apple-authentication",
       [
+        "expo-font",
+        {
+          "android": {
+            "fonts": [
+              "./node_modules/react-native-vector-icons/Fonts/FontAwesome.ttf",
+              "./node_modules/react-native-vector-icons/Fonts/MaterialCommunityIcons.ttf",
+              "./node_modules/react-native-vector-icons/Fonts/MaterialIcons.ttf"
+            ]
+          }
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#000000",
