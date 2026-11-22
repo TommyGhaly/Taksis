@@ -24,7 +24,9 @@ const useStyles = makeStyles((t) => ({
     flex: 1,
     backgroundColor: t.background,
   },
+  // Breathing room under the header, matching the drawer screens (Admin Manager).
   scrollViewContent: {
+    paddingTop: 12,
   },
 }));
 
