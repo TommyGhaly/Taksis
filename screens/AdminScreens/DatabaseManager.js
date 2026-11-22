@@ -5,8 +5,9 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
   ActivityIndicator, Alert, StyleSheet, Modal,
-  KeyboardAvoidingView, Platform, Keyboard, Animated, AppState, Image, Dimensions,
+  KeyboardAvoidingView, Platform, Keyboard, Animated, AppState, Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { makeStyles, useTheme, GlassSurface, useTabBarInset, floatingBottom } from '../../theme';
@@ -46,6 +47,7 @@ import {
   resolveCollectionNode, declaredSubcollectionsForDoc,
 } from '../../utils/databaseRegistry';
 import { LIST_PERF } from '../../utils/listConfig';
+import * as avatarCache from '../../utils/avatarCache';
 // In-place expanding image (thumbnail that animates up to a larger preview).
 // Adjust this path to wherever ProfileImageExpander lives in your tree.
 import ProfileImageExpander from '../../components/ProfileImageExpander';
@@ -1280,27 +1282,83 @@ function useStorageGrid() {
  * Storage calls (getDownloadURL + getMetadata), which is also why windowing this
  * grid matters — fewer mounted cells means fewer requests.
  */
+// profilePictures/{uid}.png is exactly what utils/avatarCache resolves for
+// <Avatar>, and that cache is hydrated at launch and primed from users'
+// `photoURL`. Reading it gives most tiles their URL synchronously, and the
+// same URL string <Avatar> uses, so the bytes are often already on disk.
+const AVATAR_PATH = /^profilePictures\/([^/]+)\.png$/;
+const avatarUidFor = (fullPath) => fullPath.match(AVATAR_PATH)?.[1] ?? null;
+
+// Session caches for everything else, so revisiting the grid or scrolling a
+// tile back into view doesn't repeat getDownloadURL / getMetadata.
+const storageUrlCache = new Map(); // fullPath -> url
+const storageMetaCache = new Map(); // fullPath -> metadata
+
+function cachedStorageUrl(fullPath) {
+  const uid = avatarUidFor(fullPath);
+  // A per-path entry only exists after a fetch or a dead-URL retry, so it wins.
+  return storageUrlCache.get(fullPath) || (uid && avatarCache.uriFor(uid)) || null;
+}
+
+async function fetchStorageUrl(item) {
+  const uid = avatarUidFor(item.fullPath);
+  if (uid) {
+    // Deduped and persisted; a confirmed miss resolves to null.
+    await avatarCache.resolve(uid);
+    const uri = avatarCache.uriFor(uid);
+    if (uri) return uri;
+  }
+  const url = await getDownloadURL(item.ref);
+  storageUrlCache.set(item.fullPath, url);
+  return url;
+}
+
+/**
+ * One storage thumbnail.
+ *
+ * Memoized, and its handlers take the item rather than being pre-bound closures, so
+ * the parent can keep them stable. The URL comes from cache when it can (see
+ * cachedStorageUrl); otherwise the URL and metadata requests run in parallel, so
+ * the size label never holds up the picture.
+ */
 const StorageItemRow = React.memo(function StorageItemRow({ item, tileSize, selectMode, isSelected, onPress, onLongPress, onDelete }) {
   const styles = useStyles();
   const C = usePalette();
-  const [url, setUrl] = useState(null);
-  const [meta, setMeta] = useState(null);
+  const [url, setUrl] = useState(() => cachedStorageUrl(item.fullPath));
+  const [meta, setMeta] = useState(() => storageMetaCache.get(item.fullPath) ?? null);
   const [failed, setFailed] = useState(false);
+  // A cached URL can be dead (a user doc's photoURL whose token predates a
+  // re-upload). On the first load error, fetch a fresh one before giving up.
+  const retriedRef = useRef(false);
+
+  const handleImageError = useCallback(() => {
+    if (retriedRef.current) { setFailed(true); return; }
+    retriedRef.current = true;
+    getDownloadURL(item.ref)
+      .then((u) => { storageUrlCache.set(item.fullPath, u); setUrl(u); })
+      .catch(() => setFailed(true));
+  }, [item]);
 
   useEffect(() => {
     let alive = true;
-    (async () => {
-      try {
-        const u = await getDownloadURL(item.ref);
-        if (alive) setUrl(u);
-      } catch { if (alive) setFailed(true); }
-      try {
-        const m = await getMetadata(item.ref);
-        if (alive) setMeta(m);
-      } catch { /* metadata is best-effort */ }
-    })();
+    retriedRef.current = false;
+    setFailed(false);
+    const known = cachedStorageUrl(item.fullPath);
+    setUrl(known);
+    if (!known) {
+      fetchStorageUrl(item)
+        .then((u) => { if (alive) setUrl(u); })
+        .catch(() => { if (alive) setFailed(true); });
+    }
+    const knownMeta = storageMetaCache.get(item.fullPath);
+    setMeta(knownMeta ?? null);
+    if (!knownMeta) {
+      getMetadata(item.ref)
+        .then((m) => { storageMetaCache.set(item.fullPath, m); if (alive) setMeta(m); })
+        .catch(() => { /* metadata is best-effort */ });
+    }
     return () => { alive = false; };
-  }, [item.fullPath]);
+  }, [item.fullPath]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sizeLabel = meta?.size != null ? formatBytes(Number(meta.size)) : '';
   const updated = meta?.updated ? formatTimestamp(new Date(meta.updated)).rel : '';
@@ -1323,13 +1381,22 @@ const StorageItemRow = React.memo(function StorageItemRow({ item, tileSize, sele
         {url && !failed ? (
           selectMode ? (
             // In select mode tap selects — plain image, no in-place expand.
-            <Image source={{ uri: url }} style={styles.gridImage} resizeMode="cover" onError={() => setFailed(true)} />
+            <Image
+              source={{ uri: url }}
+              style={styles.gridImage}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              enforceEarlyResizing
+              recyclingKey={url}
+              onError={handleImageError}
+            />
           ) : (
             <ProfileImageExpander
               imageUrl={url}
               size={tileSize}
               finalSize={Math.min(WINDOW_WIDTH, WINDOW_HEIGHT) * 0.9}
               borderRadius={12}
+              onError={handleImageError}
             />
           )
         ) : (
@@ -1452,7 +1519,14 @@ function StorageView({ prefix }) {
     const failures = [];
     for (const group of chunk(paths, 10)) {
       await Promise.all(group.map(async (p) => {
-        try { await deleteObject(storageRef(getStorage(), p)); }
+        try {
+          await deleteObject(storageRef(getStorage(), p));
+          storageUrlCache.delete(p);
+          storageMetaCache.delete(p);
+          // Otherwise <Avatar> elsewhere keeps requesting the deleted object.
+          const uid = avatarUidFor(p);
+          if (uid) avatarCache.invalidate(uid);
+        }
         catch (e) { failures.push({ p, e }); }
       }));
     }

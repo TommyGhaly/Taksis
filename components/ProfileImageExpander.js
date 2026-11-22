@@ -47,7 +47,8 @@ const ProfileImageExpander = React.memo(({
   onPress,
   finalSize = 300,
   borderRadius = 30,
-  style = {}
+  style = {},
+  onError,
 }) => {
   const DEFAULT_PROFILE = useDefaultAvatar();
   const t = useTheme();
@@ -283,6 +284,7 @@ const ProfileImageExpander = React.memo(({
             placeholderContentFit="contain"
             transition={200}
             onLoad={() => setImageLoaded(true)}
+            onError={onError}
             recyclingKey={recyclingKey}
           />
         </View>
