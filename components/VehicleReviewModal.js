@@ -8,7 +8,7 @@
  *   4. Auto-advances to next item after approve/delete
  */
 
-import React, { useState, useEffect, useMemo, useCallback, memo } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet, Modal, FlatList,
   TextInput, Alert, ActivityIndicator, ScrollView,
@@ -372,26 +372,40 @@ const VehicleReviewModal = ({
 }) => {
   const ms = useMs();
   const t = useTheme();
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [resolvedDrivers, setResolvedDrivers] = useState([]);
+  // Ids handled this session. The current item is the first unhandled one, so
+  // the modal is right whether or not the parent also drops resolved items
+  // from `reviewQueue` (it does — an index plus that removal skipped every
+  // other vehicle, and a stale index past the end rendered nothing at all).
+  const [handledIds, setHandledIds] = useState(() => new Set());
   const [busy, setBusy] = useState(false);
 
-  const item = reviewQueue[currentIndex] || null;
-
-  // Reset resolved drivers when item changes
   useEffect(() => {
-    if (!item) return;
-    // Pre-resolve: if a driver is already a plain string uid, link it immediately
-    const initial = (item.drivers || []).map((d) => {
-      if (typeof d === "string") {
-        // Verify it exists
-        if (allUsers.some((u) => u.uid === d)) return d;
-        if (d.startsWith("unreg_")) return d;
-      }
-      return null;
-    });
-    setResolvedDrivers(initial);
-  }, [currentIndex, item?.id, allUsers]);
+    if (!visible) setHandledIds(new Set());
+  }, [visible]);
+
+  const pendingItems = useMemo(
+    () => reviewQueue.filter((q) => !handledIds.has(q.id)),
+    [reviewQueue, handledIds]
+  );
+  const item = pendingItems[0] || null;
+  const remaining = pendingItems.length;
+
+  // Links are keyed to the item they were made for. They used to be reset by
+  // an effect that also depended on `allUsers`, which is rebuilt on every
+  // users/unreg snapshot — creating a "New" driver fired that snapshot and
+  // wiped the link the admin had just made.
+  const allUsersRef = useRef(allUsers);
+  allUsersRef.current = allUsers;
+  const [links, setLinks] = useState({ itemId: null, list: [] });
+  const initialLinks = useCallback((it) => (it?.drivers || []).map((d) => {
+    if (typeof d !== "string") return null;
+    if (d.startsWith("unreg_") || allUsersRef.current.some((u) => u.uid === d)) return d;
+    return null;
+  }), []);
+  const resolvedDrivers = useMemo(
+    () => (links.itemId === item?.id ? links.list : initialLinks(item)),
+    [links, item, initialLinks]
+  );
 
   const allResolved = useMemo(
     () => resolvedDrivers.length > 0 && resolvedDrivers.every((r) => r !== null),
@@ -403,23 +417,17 @@ const VehicleReviewModal = ({
     [resolvedDrivers]
   );
 
-  const remaining = reviewQueue.length - currentIndex;
-
-  const handleLink = useCallback((driverIndex, uid) => {
-    setResolvedDrivers((prev) => {
-      const next = [...prev];
+  const setLink = useCallback((driverIndex, uid) => {
+    setLinks((prev) => {
+      const base = prev.itemId === item?.id ? prev.list : initialLinks(item);
+      const next = [...base];
       next[driverIndex] = uid;
-      return next;
+      return { itemId: item?.id, list: next };
     });
-  }, []);
+  }, [item, initialLinks]);
 
-  const handleUnlink = useCallback((driverIndex) => {
-    setResolvedDrivers((prev) => {
-      const next = [...prev];
-      next[driverIndex] = null;
-      return next;
-    });
-  }, []);
+  const handleLink = useCallback((driverIndex, uid) => setLink(driverIndex, uid), [setLink]);
+  const handleUnlink = useCallback((driverIndex) => setLink(driverIndex, null), [setLink]);
 
   const handleCreateUnreg = useCallback(async (driverIndex, driver) => {
     const name = typeof driver === "object" ? driver.name : null;
@@ -434,27 +442,19 @@ const VehicleReviewModal = ({
     try {
       const unregUsers = allUsers.filter((u) => u.uid?.startsWith("unreg_"));
       const uid = await resolveDriver(driver, allUsers, unregUsers, churchId);
-      if (uid) {
-        setResolvedDrivers((prev) => {
-          const next = [...prev];
-          next[driverIndex] = uid;
-          return next;
-        });
-      }
+      if (uid) setLink(driverIndex, uid);
     } catch (e) {
       Alert.alert("Error", "Failed to create unregistered user.");
     }
     setBusy(false);
-  }, [allUsers, churchId]);
+  }, [allUsers, churchId, setLink]);
 
+  // Marks the current item done and moves on; closes only when nothing is left.
   const advance = useCallback(() => {
-    const nextIndex = currentIndex + 1;
-    if (nextIndex >= reviewQueue.length) {
-      onComplete?.();
-    } else {
-      setCurrentIndex(nextIndex);
-    }
-  }, [currentIndex, reviewQueue.length, onComplete]);
+    if (!item) return;
+    setHandledIds((prev) => new Set(prev).add(item.id));
+    if (remaining <= 1) onComplete?.();
+  }, [item, remaining, onComplete]);
 
   const handleApprove = useCallback(async () => {
     if (!item) return;
@@ -591,6 +591,9 @@ const VehicleReviewModal = ({
           */}
           <FlatList
             {...LIST_PERF}
+            // Remount per vehicle so a row's open manual search doesn't carry
+            // over to the next vehicle's driver at the same index.
+            key={item.id}
             data={drivers}
             keyExtractor={driverKeyExtractor}
             renderItem={renderDriver}
@@ -634,7 +637,9 @@ const VehicleReviewModal = ({
 
 // Translucent white tints with no exact token: dark keeps the original alpha,
 // light gets the matching dark-on-light tint.
-const tintText = (t, a) => (t.isDark ? `rgba(255,255,255,${a})` : `rgba(60,60,67,${Math.max(a, 0.3)})`);
+const tintText = (t, a) => (t.isDark ? `rgba(255,255,255,${a})` : `rgba(60,60,67,${Math.max(a, 0.6)})`);
+// Tertiary grey (0.3 alpha) disappears on glass in light mode; secondary holds.
+const subtle = (t) => (t.isDark ? t.textTertiary : t.textSecondary);
 
 const useMs = makeStyles((t) => ({
   overlay: { flex: 1, backgroundColor: t.overlay, justifyContent: "flex-end" },
@@ -651,7 +656,7 @@ const useMs = makeStyles((t) => ({
   closeBtn: {
     width: 32, height: 32, borderRadius: 16,
     alignItems: "center", justifyContent: "center",
-    backgroundColor: t.fill,
+    backgroundColor: t.isDark ? t.fill : t.fillStrong,
   },
   sourceBadge: {
     flexDirection: "row", alignItems: "center", gap: 6,
@@ -660,11 +665,11 @@ const useMs = makeStyles((t) => ({
   sourceBadgeMalformed: { backgroundColor: "rgba(255,159,10,0.12)" },
   sourceBadgePending: { backgroundColor: t.accentFill },
   sourceBadgeText: { fontSize: 12, fontWeight: "600" },
-  counter: { fontSize: 13, color: t.textTertiary, marginTop: 6 },
+  counter: { fontSize: 13, color: subtle(t), marginTop: 6 },
   vehicleSection: { paddingHorizontal: 20, paddingBottom: 16 },
   plateRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: "rgba(20,126,251,0.08)", padding: 14, borderRadius: 12,
+    backgroundColor: t.isDark ? "rgba(20,126,251,0.08)" : t.accentFill, padding: 14, borderRadius: 12,
   },
   plateText: { fontSize: 22, fontWeight: "700", color: t.text, letterSpacing: 1 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
@@ -674,14 +679,14 @@ const useMs = makeStyles((t) => ({
   },
   metaText: { fontSize: 14, color: t.textSecondary },
   sectionLabel: {
-    fontSize: 12, fontWeight: "600", color: t.textTertiary,
+    fontSize: 12, fontWeight: "600", color: subtle(t),
     textTransform: "uppercase", letterSpacing: 0.5,
     paddingHorizontal: 20, marginBottom: 10,
   },
   driverList: { flexGrow: 0, maxHeight: 420 },
   driverListContent: { paddingHorizontal: 20, paddingBottom: 8 },
   emptyDrivers: { alignItems: "center", paddingVertical: 24, gap: 8 },
-  emptyDriversText: { fontSize: 14, color: t.textTertiary },
+  emptyDriversText: { fontSize: 14, color: subtle(t) },
   footer: {
     flexDirection: "row", paddingHorizontal: 20, paddingTop: 16, gap: 10,
   },
@@ -689,7 +694,7 @@ const useMs = makeStyles((t) => ({
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
     backgroundColor: t.success, paddingVertical: 16, borderRadius: 14, gap: 8,
   },
-  approveBtnDisabled: { backgroundColor: "rgba(52,199,89,0.3)" },
+  approveBtnDisabled: { backgroundColor: t.isDark ? "rgba(52,199,89,0.3)" : "rgba(52,199,89,0.45)" },
   approveBtnText: { fontSize: 16, fontWeight: "600", color: t.onAccent },
   deleteBtn: {
     width: 54, height: 54, borderRadius: 14,
@@ -702,14 +707,16 @@ const useRs = makeStyles((t) => ({
   // ── Linked state ──
   linkedRow: {
     flexDirection: "row", alignItems: "center",
-    backgroundColor: "rgba(52,199,89,0.06)", padding: 12, borderRadius: 12,
-    marginBottom: 10, borderWidth: 1, borderColor: "rgba(52,199,89,0.15)",
+    backgroundColor: t.isDark ? "rgba(52,199,89,0.06)" : "rgba(52,199,89,0.10)", padding: 12, borderRadius: 12,
+    marginBottom: 10, borderWidth: 1, borderColor: t.isDark ? "rgba(52,199,89,0.15)" : "rgba(52,199,89,0.35)",
   },
   avatar: { width: 40, height: 40, borderRadius: 20 },
-  rowInfo: { flex: 1, marginLeft: 12 },
+  // Spelled out instead of `flex: 1`: RN's `flex: 1` leaves flexShrink at 0,
+  // so this column held its width and pushed the unlink button out of the row.
+  rowInfo: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, marginLeft: 12, marginRight: 8 },
   rowName: { fontSize: 15, fontWeight: "500", color: t.text },
-  rowSub: { fontSize: 12, color: t.textTertiary, marginTop: 1 },
-  linkedCheck: { marginRight: 8 },
+  rowSub: { fontSize: 12, color: subtle(t), marginTop: 1 },
+  linkedCheck: { width: 18, height: 18, marginRight: 10, alignItems: "center", justifyContent: "center" },
   unlinkBtn: {
     width: 32, height: 32, borderRadius: 8,
     backgroundColor: "rgba(255,69,58,0.1)", justifyContent: "center", alignItems: "center",
@@ -717,8 +724,8 @@ const useRs = makeStyles((t) => ({
 
   // ── Unresolved state ──
   unresolvedBlock: {
-    backgroundColor: t.fill, borderRadius: 14,
-    marginBottom: 10, borderWidth: 1, borderColor: "rgba(255,159,10,0.15)",
+    backgroundColor: t.isDark ? t.fill : "#FFFFFF", borderRadius: 14,
+    marginBottom: 10, borderWidth: 1, borderColor: t.isDark ? "rgba(255,159,10,0.15)" : "rgba(255,149,0,0.40)",
     overflow: "hidden",
   },
   driverHeader: {
@@ -730,7 +737,7 @@ const useRs = makeStyles((t) => ({
   },
   driverHeaderInfo: { flex: 1 },
   driverHeaderName: { fontSize: 15, fontWeight: "600", color: t.text },
-  driverHeaderSub: { fontSize: 12, color: t.textTertiary, marginTop: 1 },
+  driverHeaderSub: { fontSize: 12, color: subtle(t), marginTop: 1 },
   unregBtn: {
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: "rgba(191,90,242,0.12)", paddingHorizontal: 10, paddingVertical: 7,
@@ -741,18 +748,18 @@ const useRs = makeStyles((t) => ({
   // ── Auto-suggested candidates ──
   candidateList: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: t.border,
+    borderTopColor: t.isDark ? t.border : t.separator,
   },
   candidateRow: {
     flexDirection: "row", alignItems: "center",
     paddingVertical: 10, paddingHorizontal: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: t.border,
+    borderBottomColor: t.isDark ? t.border : t.separator,
   },
   candidateAvatar: { width: 34, height: 34, borderRadius: 17 },
   candidateInfo: { flex: 1, marginLeft: 10 },
   candidateName: { fontSize: 14, fontWeight: "500", color: t.text },
-  candidatePhone: { fontSize: 12, color: t.textTertiary, marginTop: 1 },
+  candidatePhone: { fontSize: 12, color: subtle(t), marginTop: 1 },
   unregBadge: {
     backgroundColor: "rgba(255,159,10,0.15)", paddingHorizontal: 5, paddingVertical: 2,
     borderRadius: 4, marginRight: 6,
@@ -762,10 +769,10 @@ const useRs = makeStyles((t) => ({
     paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, marginRight: 6,
   },
   scoreBadgeHigh: { backgroundColor: "rgba(52,199,89,0.12)" },
-  scoreBadgeLow: { backgroundColor: t.fill },
+  scoreBadgeLow: { backgroundColor: t.isDark ? t.fill : t.fillStrong },
   scoreBadgeText: { fontSize: 10, fontWeight: "600" },
   scoreBadgeTextHigh: { color: t.successText },
-  scoreBadgeTextLow: { color: t.textTertiary },
+  scoreBadgeTextLow: { color: subtle(t) },
 
   // ── No match ──
   noMatchBox: {
@@ -791,7 +798,7 @@ const useRs = makeStyles((t) => ({
   },
   searchBox: {
     flexDirection: "row", alignItems: "center",
-    backgroundColor: t.fill, borderRadius: 8, paddingHorizontal: 10,
+    backgroundColor: t.isDark ? t.fill : t.fillStrong, borderRadius: 8, paddingHorizontal: 10,
   },
   searchInput: { flex: 1, color: t.text, fontSize: 14, paddingVertical: 10, marginLeft: 6 },
   searchResults: { maxHeight: 160, marginTop: 6 },

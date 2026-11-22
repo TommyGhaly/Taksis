@@ -460,7 +460,6 @@ const TrafficManager = () => {
   const [editingCar, setEditingCar] = useState(null);
 
   const [pendingListVisible, setPendingListVisible] = useState(false);
-  const [pendingReadOnly, setPendingReadOnly] = useState(false);
 
   const [relinkVisible, setRelinkVisible] = useState(false);
   const [relinkSearch, setRelinkSearch] = useState("");
@@ -1020,17 +1019,19 @@ const TrafficManager = () => {
     setReviewQueue((prev) => prev.filter((q) => q.id !== item.id));
   }, []);
 
-  // Approve a single pending registration tapped from the Pending list.
-  // Routes through VehicleReviewModal, which is the approval path.
+  // Review pending registrations starting from the one tapped in the Pending
+  // list, then the rest in list order, so approving one steps to the next
+  // instead of closing. Routes through VehicleReviewModal, the approval path.
   const openPendingForApproval = useCallback((vehicle) => {
     setPendingListVisible(false);
-    setReviewQueue([{
-      ...vehicle,
-      license: cleanPlate(vehicle.license),
+    const ordered = [vehicle, ...pendingVehicles.filter((v) => v.id !== vehicle.id)];
+    setReviewQueue(ordered.map((v) => ({
+      ...v,
+      license: cleanPlate(v.license),
       source: "pending_registration",
-    }]);
+    })));
     setTimeout(() => setReviewVisible(true), 250);
-  }, []);
+  }, [pendingVehicles]);
 
   // `loading` only drops inside the cars snapshot, so the "No Vehicles" empty
   // state below can never paint before a read has actually completed.
@@ -1185,11 +1186,13 @@ const TrafficManager = () => {
 
       {/* ── Pending list ── */}
       <SubSheet visible={pendingListVisible} title="Pending Vehicles"
-        onBack={() => { setPendingListVisible(false); setPendingReadOnly(false); setTimeout(() => setRegVisible(true), 300); }}
-        onClose={() => { setPendingListVisible(false); setPendingReadOnly(false); }}>
+        onBack={() => { setPendingListVisible(false); setTimeout(() => setRegVisible(true), 300); }}
+        onClose={() => { setPendingListVisible(false); }}>
         <PendingList pendingVehicles={pendingVehicles} hideHeader
-          onClose={() => { setPendingListVisible(false); setPendingReadOnly(false); }}
-          onSelect={pendingReadOnly ? null : openPendingForApproval} />
+          onClose={() => { setPendingListVisible(false); }}
+          // Always tappable: the menu used to open this list read-only, which left
+          // no way to approve once the review sheet's queue had been closed.
+          onSelect={openPendingForApproval} />
       </SubSheet>
 
       {/* ── Relink ── */}
@@ -1246,7 +1249,7 @@ const TrafficManager = () => {
                   <View style={s.menuItemContent}><Text style={s.menuItemText}>Car Limit</Text><Text style={s.menuItemSub}>{carLimitEnabled ? `${maxCarsPerPerson} per person` : "Disabled"}</Text></View>
                   <Icon name="chevron-right" size={20} color={t.textTertiary} />
                 </TouchableOpacity>
-                <TouchableOpacity style={s.menuItem} onPress={() => { setMenuVisible(false); setPendingReadOnly(true); setTimeout(() => setPendingListVisible(true), 250); }} activeOpacity={0.7}>
+                <TouchableOpacity style={s.menuItem} onPress={() => { setMenuVisible(false); setTimeout(() => setPendingListVisible(true), 250); }} activeOpacity={0.7}>
                   <View style={[s.menuIconWrap, { backgroundColor: "rgba(255,159,10,0.15)" }]}><Icon name="clock-outline" size={20} color={t.warningText} /></View>
                   <View style={s.menuItemContent}><Text style={s.menuItemText}>Pending Vehicles</Text><Text style={s.menuItemSub}>{pendingVehicles.length > 0 ? `${pendingVehicles.length} awaiting approval` : "No pending vehicles"}</Text></View>
                   {pendingVehicles.length > 0 && <View style={s.pendingBadge}><Text style={s.pendingBadgeText}>{pendingVehicles.length}</Text></View>}

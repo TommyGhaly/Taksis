@@ -57,8 +57,17 @@ const LIGHT_WASH_SCALE = 0.32;
 // as if it were printed on the screen behind. They're floored to frosted glass
 // with a visible wash: still glass, never see-through.
 const SHEET_MIN_INTENSITY = 0.55;
-function levelProps(theme, { clear, tint, minIntensity = 0 }) {
+// Light-mode sheets: the grey fill wash that suits cards reads as dirty,
+// low-contrast frosting on a modal over a dimmed screen. They get a near-
+// opaque white wash instead, so they read like a stock iOS sheet with a hint
+// of glass at the edges, at any slider level (the slider nudges 0.84 → 0.94).
+const LIGHT_SHEET_WASH = { rgb: "255,255,255", min: 0.84, max: 0.94 };
+function levelProps(theme, { clear, tint, minIntensity = 0, sheet = false }) {
   const t = Math.min(1, Math.max(minIntensity, theme.glassIntensity ?? 0.4));
+  if (sheet && theme.scheme === "light" && !tint) {
+    const a = LIGHT_SHEET_WASH.min + (LIGHT_SHEET_WASH.max - LIGHT_SHEET_WASH.min) * t;
+    return { glassEffectStyle: "regular", tintColor: `rgba(${LIGHT_SHEET_WASH.rgb},${a.toFixed(2)})` };
+  }
   const isClear = clear || t < CLEAR_UNTIL;
   let alpha = isClear ? (t / CLEAR_UNTIL) * 0.2 : ((t - CLEAR_UNTIL) / (1 - CLEAR_UNTIL)) * MAX_WASH;
   if (theme.scheme === "light") alpha = Math.max(alpha * LIGHT_WASH_SCALE, LIGHT_MIN_WASH);
@@ -109,7 +118,7 @@ export function GlassSurface({
   return (
     <GlassView
       style={flat}
-      {...levelProps(theme, { clear: clear && !sheet, tint, minIntensity })}
+      {...levelProps(theme, { clear: clear && !sheet, tint, minIntensity, sheet })}
       isInteractive={interactive}
       {...rest}
     >
