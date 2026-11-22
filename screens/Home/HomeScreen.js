@@ -1542,7 +1542,7 @@ const useStyles = makeStyles((t) => ({
     fontSize: 36,
     color: t.text,
     textAlign: "center",
-    marginTop: 32,
+    marginTop: 20,
     marginBottom: 8,
     fontWeight: "300",
     letterSpacing: 1,

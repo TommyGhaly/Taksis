@@ -113,6 +113,23 @@ const AdminManagerCol             = col(AdminManager);
 // apps present navigation, instead of hiding behind the hamburger.
 const PERMANENT_DRAWER_MIN = 1000;
 
+// Extra height added to every header bar. The stock bar is 44pt and the
+// 40pt glass menu/bell circles nearly filled it, touching its bottom edge.
+const HEADER_EXTRA_HEIGHT = 20;
+
+// How far the bar starts above its stock position, into the empty band under
+// the clock on notched phones, so the extra height doesn't push the screen's
+// content down by the full amount.
+const HEADER_LIFT = 10;
+
+// The bar height @react-navigation/elements' Header uses by default (its
+// getDefaultHeaderHeight, minus the status bar), so the extra stacks on it.
+function defaultBarHeight(width, height) {
+  if (Platform.OS === "android") return 56;
+  if (Platform.isPad) return 50;
+  return width > height ? 32 : 44;
+}
+
 // Header + tab bar options shared by the tab and drawer navigators.
 //
 // With Liquid Glass on, the header melts into the screen background (iOS 26
@@ -122,9 +139,21 @@ const PERMANENT_DRAWER_MIN = 1000;
 function useChromeOptions() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   return useMemo(() => {
+    // Mirrors the Header's own status bar math: on Dynamic Island phones the
+    // bar starts 5pt above the safe-area inset.
+    const stockStatusBar =
+      Platform.OS === "ios" && insets.top > 50 ? insets.top - 5 : insets.top;
+    // Only lift on notched/Dynamic Island phones: a 20pt status bar (home
+    // button iPhones, iPad) has the clock right where the bar would move to.
+    const statusBar = insets.top > 40 ? stockStatusBar - HEADER_LIFT : stockStatusBar;
     const header = {
-      headerStyle: { backgroundColor: theme.glass ? theme.background : theme.surface },
+      headerStatusBarHeight: statusBar,
+      headerStyle: {
+        backgroundColor: theme.glass ? theme.background : theme.surface,
+        height: statusBar + defaultBarHeight(width, height) + HEADER_EXTRA_HEIGHT,
+      },
       headerShadowVisible: !theme.glass,
       headerTintColor: theme.text,
     };
@@ -156,7 +185,7 @@ function useChromeOptions() {
       header,
       tabBar: { ...tabBar, tabBarActiveTintColor: theme.accent, tabBarInactiveTintColor: theme.textMuted },
     };
-  }, [theme, insets.bottom]);
+  }, [theme, insets.bottom, insets.top, width, height]);
 }
 
 // ── Version helpers ──────────────────────────────────────────────────────────
