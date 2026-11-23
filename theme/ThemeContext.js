@@ -87,12 +87,22 @@ export function ThemeProvider({ children }) {
     const scheme =
       prefs.appearance === "system" ? (systemScheme === "light" ? "light" : "dark") : prefs.appearance;
     const glass = prefs.glassEnabled && glassAvailable;
-    const palette = scheme === "light" ? (glass ? lightGlass : light) : dark;
-    // Styles only care whether glass is on, not how strong it is, so intensity
-    // stays out of `key` and moving the slider doesn't rebuild style sheets.
+    let palette = scheme === "light" ? (glass ? lightGlass : light) : dark;
     const glassIntensity = prefs.glassIntensity;
+    // Styles mostly only care whether glass is on, so intensity stays out of
+    // `key`. The exception is light-mode glass: as the slider moves toward
+    // Tinted the cards grey up and the page lightens toward white, so they
+    // pull apart. That page shade (rounded to whole steps) joins the key.
+    let pageKey = "";
+    if (scheme === "light" && glass) {
+      const t = Math.min(1, Math.max(0, glassIntensity ?? 0.4));
+      const ch = (from) => Math.round(from + (255 - from) * t);
+      const background = `rgb(${ch(242)},${ch(242)},${ch(247)})`;
+      palette = { ...palette, background };
+      pageKey = `-${ch(242)}`;
+    }
     return {
-      theme: { ...palette, scheme, glass, glassIntensity, key: `${scheme}${glass ? "-glass" : ""}` },
+      theme: { ...palette, scheme, glass, glassIntensity, key: `${scheme}${glass ? "-glass" : ""}${pageKey}` },
       prefs,
       updatePrefs,
     };
