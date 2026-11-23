@@ -100,3 +100,17 @@ export const light = {
   blurTint: "systemChromeMaterialLight",
   keyboardAppearance: "light",
 };
+
+// Light mode with Liquid Glass on: a pale grey screen with white glass on it,
+// as in 6.0.0. Glass needs to sit lighter than what's behind it to read as
+// frosted glass; grey-washed cards on a white screen just look like solid
+// grey blocks. Glass-off light mode keeps the white-screen ramp above.
+//
+// Only the bottom two layers swap. surfaceElevated / surfaceHighest keep the
+// darker steps above: buttons, inputs and rows inside the near-white modal
+// sheets (and inside white cards) use them and need that contrast.
+export const lightGlass = {
+  ...light,
+  background: "#F2F2F7",
+  surface: "#FFFFFF",
+};

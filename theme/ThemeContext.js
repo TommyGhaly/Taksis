@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Appearance, Platform, StyleSheet, useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { dark, light } from "./palettes";
+import { dark, light, lightGlass } from "./palettes";
 import { glassAvailable } from "./glass";
 
 // ---------------------------------------------------------------------------
@@ -86,8 +86,8 @@ export function ThemeProvider({ children }) {
     if (!prefs) return null;
     const scheme =
       prefs.appearance === "system" ? (systemScheme === "light" ? "light" : "dark") : prefs.appearance;
-    const palette = scheme === "light" ? light : dark;
     const glass = prefs.glassEnabled && glassAvailable;
+    const palette = scheme === "light" ? (glass ? lightGlass : light) : dark;
     // Styles only care whether glass is on, not how strong it is, so intensity
     // stays out of `key` and moving the slider doesn't rebuild style sheets.
     const glassIntensity = prefs.glassIntensity;

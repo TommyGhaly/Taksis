@@ -37,17 +37,16 @@ function useThemeLazy() {
 // visibly jump.
 const CLEAR_UNTIL = 0.2;
 const MAX_WASH = 0.75;
-// Light mode washes with Apple's own fill grey (systemFill's 118,118,128),
-// so glass cards read like stock iOS gray buttons: a pale step darker than
-// the white screen (dark mode's wash sits a step lighter).
-const WASH_RGB = { dark: "28,28,30", light: "118,118,128" };
-// Glass brightens whatever it sits on. Over dark mode's near-black screen
-// that alone lifts a card a visible step, even fully clear; over white it
-// adds nothing. So light mode's wash runs on Apple's fill scale instead:
-// never thinner than tertiarySystemFill (0.12) and, fully tinted, a little
-// past systemFill (0.20), instead of the 0–0.75 range dark mode uses.
-const LIGHT_MIN_WASH = 0.12;
-const LIGHT_WASH_SCALE = 0.32;
+const WASH_RGB = { dark: "28,28,30" };
+// Light mode with glass on puts white glass on a pale grey screen
+// (palettes.lightGlass); grey glass on a white screen (6.0.1) read as solid
+// grey blocks. Light-mode glass always uses `.clear`: `.regular` (frosted) casts a
+// soft shadow, and on the pale grey page stacked cards' shadows merge into a
+// grey band between them (Edit Schedule, Home) — a GlassContainer doesn't
+// stop it. On a light page clear glass already renders white by itself, so a
+// white wash changes nothing; the slider instead fades in Apple's fill grey,
+// from clean white glass at Clear to a soft grey, more solid card at Tinted.
+const LIGHT_CARD_WASH = { rgb: "118,118,128", max: 0.16 };
 
 // `minIntensity` floors the user's slider for one surface: a full-height sheet
 // of text over other text (the drawer) is unreadable as clear glass.
@@ -57,8 +56,8 @@ const LIGHT_WASH_SCALE = 0.32;
 // as if it were printed on the screen behind. They're floored to frosted glass
 // with a visible wash: still glass, never see-through.
 const SHEET_MIN_INTENSITY = 0.55;
-// Light-mode sheets: the grey fill wash that suits cards reads as dirty,
-// low-contrast frosting on a modal over a dimmed screen. They get a near-
+// Light-mode sheets: a thin wash reads as low-contrast frosting on a modal
+// over a dimmed screen. They get a near-
 // opaque white wash instead, so they read like a stock iOS sheet with a hint
 // of glass at the edges, at any slider level (the slider nudges 0.84 → 0.94).
 const LIGHT_SHEET_WASH = { rgb: "255,255,255", min: 0.84, max: 0.94 };
@@ -68,9 +67,15 @@ function levelProps(theme, { clear, tint, minIntensity = 0, sheet = false }) {
     const a = LIGHT_SHEET_WASH.min + (LIGHT_SHEET_WASH.max - LIGHT_SHEET_WASH.min) * t;
     return { glassEffectStyle: "regular", tintColor: `rgba(${LIGHT_SHEET_WASH.rgb},${a.toFixed(2)})` };
   }
+  if (theme.scheme === "light" && !tint) {
+    const a = LIGHT_CARD_WASH.max * t;
+    return {
+      glassEffectStyle: "clear",
+      tintColor: a > 0.01 ? `rgba(${LIGHT_CARD_WASH.rgb},${a.toFixed(2)})` : undefined,
+    };
+  }
   const isClear = clear || t < CLEAR_UNTIL;
-  let alpha = isClear ? (t / CLEAR_UNTIL) * 0.2 : ((t - CLEAR_UNTIL) / (1 - CLEAR_UNTIL)) * MAX_WASH;
-  if (theme.scheme === "light") alpha = Math.max(alpha * LIGHT_WASH_SCALE, LIGHT_MIN_WASH);
+  const alpha = isClear ? (t / CLEAR_UNTIL) * 0.2 : ((t - CLEAR_UNTIL) / (1 - CLEAR_UNTIL)) * MAX_WASH;
   return {
     glassEffectStyle: isClear ? "clear" : "regular",
     // A caller's own tint (an accent-colored button) always wins.
